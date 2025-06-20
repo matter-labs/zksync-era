@@ -17,20 +17,24 @@ use futures_util::TryFutureExt;
 use itertools::Itertools;
 use tokio::sync::broadcast::channel;
 use tokio::sync::watch;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use zksync_os_sequencer::{api::run_jsonrpsee_server, mempool::{forced_deposit_transaction, Mempool}, run_sequencer_actor, storage::{
     block_replay_storage::{BlockReplayColumnFamily, BlockReplayStorage},
     persistent_storage_map::{PersistentStorageMap, StorageMapCF},
     rocksdb_preimages::{PreimagesCF, RocksDbPreimages},
     StateHandle,
-}, BLOCK_REPLAY_WAL_PATH, PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH, TREE_STORAGE_PATH};
+}, BLOCK_REPLAY_WAL_PATH, CHAIN_ID, PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH, TREE_STORAGE_PATH};
 use zksync_os_sequencer::execution::block_executor::execute_block;
+use zksync_os_sequencer::l1_sender::L1Sender;
 use zksync_os_sequencer::l1_watcher::L1Watcher;
 use zksync_os_sequencer::model::{BlockCommand, ReplayRecord};
 use zksync_os_sequencer::tree_manager::TreeManager;
 use zksync_os_sequencer::zkstack_config::ZkstackConfig;
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
+use zksync_types::commitment::ZkosCommitment;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-use zksync_zk_os_merkle_tree::RocksDBWrapper;
+use zksync_zk_os_merkle_tree::{MerkleTree, PatchSet, RocksDBWrapper};
 
 #[tokio::main]
 pub async fn main() {
@@ -41,8 +45,13 @@ pub async fn main() {
         tracing::error!("Prometheus exporter failed: {e:#}");
     }));
 
-    tracing_subscriber::fmt().init();
-        // .pretty()
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy()
+        )
+        .init();
 
     let block_replay_storage_rocks_db = RocksDB::<BlockReplayColumnFamily>::new(Path::new(BLOCK_REPLAY_WAL_PATH))
         .expect("Failed to open BlockReplayWAL");
@@ -118,7 +127,28 @@ pub async fn main() {
         .wallet(blob_operator_wallet)
         .connect("http://localhost:8545")
         .await.unwrap());
-    let l1_watcher = L1Watcher::new(&zkstack_config, provider, mempool.clone());
+    let l1_watcher = L1Watcher::new(&zkstack_config, provider.clone(), mempool.clone());
+
+    let genesis_commitment = ZkosCommitment {
+        batch_number: 0,
+        block_timestamp: 0,
+        tree_root_hash: zkstack_config.genesis.genesis_root,
+        tree_next_free_index: zkstack_config.genesis.genesis_rollup_leaf_index,
+        number_of_layer1_txs: 0,
+        number_of_layer2_txs: 0,
+        priority_ops_onchain_data: vec![],
+        l2_to_l1_logs_root_hash: Default::default(),
+        pubdata: vec![],
+        chain_id: CHAIN_ID as u32,
+    };
+    tracing::info!(
+        root_hash = ?genesis_commitment.tree_root_hash,
+        leaf_count = genesis_commitment.tree_next_free_index,
+        state_commitment = ?genesis_commitment.state_commitment(),
+        "recovered genesis batch",
+    );
+
+    let (l1_sender, l1_sender_handle) = L1Sender::new(&zkstack_config, genesis_commitment, provider);
 
     tokio::select! {
         // todo: only start after sequence caught up?
@@ -131,18 +161,26 @@ pub async fn main() {
         }
 
         // ── TREE task ────────────────────────────────────────────────
-        // res = tree_manager.run_loop() => {
-        //     match res {
-        //         Ok(_)  => tracing::warn!("TREE server unexpectedly exited"),
-        //         Err(e) => tracing::error!("TREE server failed: {e:#}"),
-        //     }
-        // }
+        res = tree_manager.run_loop(l1_sender_handle) => {
+            match res {
+                Ok(_)  => tracing::warn!("TREE server unexpectedly exited"),
+                Err(e) => tracing::error!("TREE server failed: {e:#}"),
+            }
+        }
 
         // ── L1 Watcher task ────────────────────────────────────────────────
         res = l1_watcher.run() => {
             match res {
                 Ok(_)  => tracing::warn!("L1 watcher unexpectedly exited"),
                 Err(e) => tracing::error!("L1 watcher failed: {e:#}"),
+            }
+        }
+
+        // ── L1 Sender task ────────────────────────────────────────────────
+        res = l1_sender.run() => {
+            match res {
+                Ok(_)  => tracing::warn!("L1 sender unexpectedly exited"),
+                Err(e) => tracing::error!("L1 sender failed: {e:#}"),
             }
         }
 
