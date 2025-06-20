@@ -51,11 +51,11 @@ impl TryFrom<ObservabilityConfig> for Option<zksync_vlog::Sentry> {
     type Error = anyhow::Error;
 
     fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        let Some(sentry_config) = config.sentry else {
+        let Some(url) = &config.sentry.url else {
             return Ok(None);
         };
-        let sentry = zksync_vlog::Sentry::new(&sentry_config.url)?;
-        Ok(Some(sentry.with_environment(sentry_config.environment)))
+        let sentry = zksync_vlog::Sentry::new(url)?;
+        Ok(Some(sentry.with_environment(config.sentry.environment)))
     }
 }
 
@@ -83,7 +83,7 @@ impl PrometheusConfig {
             let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
             Some(PrometheusExporterConfig::push(
                 gateway_endpoint,
-                self.push_interval(),
+                self.push_interval,
             ))
         } else {
             self.to_pull_config()

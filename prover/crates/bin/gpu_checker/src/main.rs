@@ -20,7 +20,10 @@ use zksync_circuit_prover_service::{
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
 use zksync_config::{
-    configs::{observability::LogFormat, ObservabilityConfig},
+    configs::{
+        observability::{LogFormat, SentryConfig},
+        ObservabilityConfig,
+    },
     ObjectStoreConfig,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -212,7 +215,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config = ObservabilityConfig {
-        sentry: None,
+        sentry: SentryConfig::default(),
         opentelemetry: None,
         log_format: LogFormat::Json,
         ..ObservabilityConfig::default()

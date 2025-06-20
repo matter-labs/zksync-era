@@ -89,7 +89,7 @@ impl TestEnvironment {
         let components: ComponentsToRun = components_str.parse().unwrap();
         let mut config = ExternalNodeConfig::mock(temp_dir, connection_pool);
         if components.0.contains(&Component::TreeApi) {
-            config.tree_component.api_port = Some(0);
+            config.local.api.merkle_tree.port = 0;
         }
 
         // Generate channels to control the node.
