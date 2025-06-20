@@ -93,15 +93,15 @@ jobs:
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
             ERA_BELLMAN_CUDA_RELEASE=${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
-          file: docker/zksyncos-prover/Dockerfile
+          file: docker/zksync-os-prover/Dockerfile
           tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
-            ghcr.io/${{ github.repository_owner }}/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
-            ghcr.io/${{ github.repository_owner }}/zksyncos-prover:latest
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/zksync-os-prover:latest
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
-          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
-          docker push ghcr.io/${{ github.repository_owner }}/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
-          docker push ghcr.io/${{ github.repository_owner }}/zksyncos-prover:latest
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/zksync-os-prover:latest

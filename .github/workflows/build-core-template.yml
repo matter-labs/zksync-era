@@ -170,7 +170,7 @@ jobs:
           - server-v2
           - external-node
           - snapshots-creator
-          - server-zksync-os
+          - zksync-os-server
         platforms:
           - linux/amd64
         include:

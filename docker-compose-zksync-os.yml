@@ -36,7 +36,7 @@ services:
       - POSTGRES_PASSWORD=notsecurepassword
 
   zksync-os-state-keeper:
-    image: "ghcr.io/matter-labs/server-zksync-os:latest"
+    image: "ghcr.io/matter-labs/zksync-os-server:latest"
     ports:
       - 3124:3124
     volumes:
@@ -45,7 +45,7 @@ services:
     network_mode: host
 
   zksync-os-api:
-    image: "ghcr.io/matter-labs/server-zksync-os:zksync_os-latest"
+    image: "ghcr.io/matter-labs/zksync-os-server:zksync_os-latest"
     ports:
       - 3050:3050
       - 3051:3051
@@ -54,8 +54,8 @@ services:
     command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --components=api
     network_mode: host
 
-  zksyncos-prover:
-    image: "ghcr.io/matter-labs/zksyncos-prover:latest"
+  zksync-os-prover:
+    image: "ghcr.io/matter-labs/zksync-os-prover:latest"
     ports:
       - 3052:3052
     command: --base-url=http://localhost:3124

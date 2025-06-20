@@ -77,7 +77,7 @@ jobs:
   build-push-prover-images:
     name: Build and push images
     needs: [ setup, changed_files ]
-    uses: ./.github/workflows/build-zksyncos-prover-template.yml
+    uses: ./.github/workflows/build-zksync-os-prover-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
