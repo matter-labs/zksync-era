@@ -10,7 +10,7 @@ use crate::priority_op_onchain_data::PriorityOpOnchainData;
 
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 // Only has a base set of values - others are computed - see `Impl`
 // Names are taken from IExecutor.sol - where possible
 // After DB schema zkos migration, May replace L1BatchHeader

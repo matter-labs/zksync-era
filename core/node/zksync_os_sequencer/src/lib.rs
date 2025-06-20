@@ -9,6 +9,10 @@ pub mod storage;
 pub mod tree_manager;
 mod tx_conversions;
 mod util;
+pub mod l1_watcher;
+pub mod contracts;
+pub mod zkstack_config;
+pub mod l1_sender;
 
 use std::{path::Path, pin::Pin, ptr::null, sync::Arc, time::Duration};
 
@@ -62,7 +66,7 @@ pub const BLOCK_REPLAY_WAL_PATH: &str = "../chains/era/db/main/block_replay_wal"
 pub const STATE_STORAGE_PATH: &str = "../chains/era/db/main/state";
 pub const PREIMAGES_STORAGE_PATH: &str = "../chains/era/db/main/preimages";
 pub const TREE_STORAGE_PATH: &str = "../chains/era/db/main/tree";
-pub const CHAIN_ID: u64 = 270;
+pub const CHAIN_ID: u64 = 271;
 
 // Maximum number of per-block information stored in memory - and thus returned from API.
 // Older blocks are discarded (or, in case of state diffs, compacted)

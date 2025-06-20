@@ -8,6 +8,7 @@ use std::{
 };
 use dashmap::DashMap;
 use zk_os_forward_system::run::BatchOutput;
+use zksync_types::Transaction;
 use crate::BLOCKS_TO_RETAIN;
 
 /// In-memory store of the most recent N `BatchOutput`s, keyed by block number.
@@ -19,7 +20,7 @@ pub struct InMemoryBlockReceipts {
     /// Maximum number of entries to retain.
     capacity: usize,
     /// Map from block number → `BatchOutput`.
-    receipts: Arc<DashMap<u64, BatchOutput>>,
+    receipts: Arc<DashMap<u64, (BatchOutput, Vec<Transaction>)>>,
 }
 
 impl InMemoryBlockReceipts {
@@ -35,9 +36,9 @@ impl InMemoryBlockReceipts {
     ///
     /// Must be called with `block == latest_block() + 1`. Evicts the
     /// oldest entry if we exceed `capacity`.
-    pub fn insert(&self, block: u64, output: BatchOutput) {
+    pub fn insert(&self, block: u64, output: BatchOutput, transactions: Vec<Transaction>) {
         // Store the new receipt
-        self.receipts.insert(block, output);
+        self.receipts.insert(block, (output, transactions));
         // Evict the oldest if over capacity
         if block > self.capacity as u64 {
             let to_evict = block - self.capacity as u64;
@@ -46,7 +47,7 @@ impl InMemoryBlockReceipts {
     }
 
     /// Retrieve the `BatchOutput` for `block`, if still retained.
-    pub fn get(&self, block: u64) -> Option<BatchOutput> {
+    pub fn get(&self, block: u64) -> Option<(BatchOutput, Vec<Transaction>)> {
         self.receipts.get(&block).map(|r| r.value().clone())
     }
 

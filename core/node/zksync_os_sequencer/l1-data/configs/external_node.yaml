@@ -1,0 +1,5 @@
+l1_chain_id: 9
+l2_chain_id: 270
+
+main_node_url: http://localhost:3050
+main_node_rate_limit_rps: 1000
