@@ -17,7 +17,7 @@ WORKDIR /usr/src/zksync
 
 COPY . .
 
-RUN cargo build --manifest-path ./core/Cargo.toml --release --features=rocksdb/io-uring/zkos --bin zksync_server --bin block_reverter --bin merkle_tree_consistency_checker
+RUN cargo build --manifest-path ./core/Cargo.toml --release --features=rocksdb/io-uring,zkos --bin zksync_server --bin block_reverter --bin merkle_tree_consistency_checker
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
