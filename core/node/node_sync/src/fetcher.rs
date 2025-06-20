@@ -1,7 +1,10 @@
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
+use zksync_state_keeper::io::{
+    common::{FetcherCursor, IoCursor},
+    L1BatchParams, L2BlockParams,
+};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
@@ -64,6 +67,84 @@ impl FetchedBlock {
         }
         hasher.finalize(self.protocol_version)
     }
+
+    pub fn into_actions(self, cursor: FetcherCursor) -> Vec<SyncAction> {
+        assert_eq!(self.number, cursor.next_l2_block);
+        let local_block_hash = self.compute_hash(cursor.prev_l2_block_hash);
+        if let Some(reference_hash) = self.reference_hash {
+            if local_block_hash != reference_hash {
+                // This is a warning, not an assertion because hash mismatch may occur after a reorg.
+                // Indeed, `self.prev_l2_block_hash` may differ from the hash of the updated previous L2 block.
+                tracing::warn!(
+                    "Mismatch between the locally computed and received L2 block hash for {self:?}; \
+                     local_block_hash = {local_block_hash:?}, prev_l2_block_hash = {:?}",
+                    cursor.prev_l2_block_hash
+                );
+            }
+        }
+        assert_eq!(
+            self.l1_batch_number, cursor.current_l1_batch,
+            "Unexpected batch number in the next received L2 block"
+        );
+
+        let mut new_actions = Vec::new();
+        if !cursor.is_current_batch_init {
+            tracing::info!(
+                "New L1 batch: {}. Timestamp: {}",
+                self.l1_batch_number,
+                self.timestamp
+            );
+
+            new_actions.push(SyncAction::OpenBatch {
+                params: L1BatchParams {
+                    protocol_version: self.protocol_version,
+                    validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
+                    operator_address: self.operator_address,
+                    fee_input: BatchFeeInput::for_protocol_version(
+                        self.protocol_version,
+                        self.l2_fair_gas_price,
+                        self.fair_pubdata_price,
+                        self.l1_gas_price,
+                    ),
+                    // It's ok that we lose info about millis since it's only used for sealing criteria.
+                    first_l2_block: L2BlockParams::with_custom_virtual_block_count(
+                        self.timestamp * 1000,
+                        self.virtual_blocks,
+                    ),
+                    pubdata_params: self.pubdata_params,
+                },
+                number: self.l1_batch_number,
+                first_l2_block_number: self.number,
+            });
+            FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(self.l1_batch_number.0.into());
+        } else {
+            // New batch implicitly means a new L2 block, so we only need to push the L2 block action
+            // if it's not a new batch.
+            new_actions.push(SyncAction::L2Block {
+                // It's ok that we lose info about millis since it's only used for sealing criteria.
+                params: L2BlockParams::with_custom_virtual_block_count(
+                    self.timestamp * 1000,
+                    self.virtual_blocks,
+                ),
+                number: self.number,
+            });
+            FETCHER_METRICS.miniblock.set(self.number.0.into());
+        }
+
+        APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
+            .inc_by(self.transactions.len() as u64);
+        new_actions.extend(self.transactions.into_iter().map(Into::into));
+
+        // Last L2 block of the batch is a "fictive" L2 block and would be replicated locally.
+        // We don't need to seal it explicitly, so we only put the seal L2 block command if it's not the last L2 block.
+        if self.last_in_batch {
+            new_actions.push(SyncAction::SealBatch);
+        } else {
+            new_actions.push(SyncAction::SealL2Block);
+        }
+
+        new_actions
+    }
 }
 
 impl TryFrom<SyncBlock> for FetchedBlock {
@@ -106,113 +187,5 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .collect(),
             pubdata_params,
         })
-    }
-}
-
-/// Helper method for `IoCursor` for needs of sync layer.
-#[async_trait::async_trait]
-pub trait IoCursorExt: Sized {
-    /// Loads this cursor from storage and modifies it to account for the pending L1 batch if necessary.
-    async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self>;
-
-    /// Advances the cursor according to the provided fetched block and returns a sequence of `SyncAction`
-    /// objects to process.
-    fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction>;
-}
-
-#[async_trait::async_trait]
-impl IoCursorExt for IoCursor {
-    async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let mut this = Self::new(storage).await?;
-        // It's important to know whether we have opened a new batch already or just sealed the previous one.
-        // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
-        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await?;
-        if !was_new_batch_open {
-            this.l1_batch -= 1; // Should continue from the last L1 batch present in the storage
-        }
-        Ok(this)
-    }
-
-    fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
-        assert_eq!(block.number, self.next_l2_block);
-        let local_block_hash = block.compute_hash(self.prev_l2_block_hash);
-        if let Some(reference_hash) = block.reference_hash {
-            if local_block_hash != reference_hash {
-                // This is a warning, not an assertion because hash mismatch may occur after a reorg.
-                // Indeed, `self.prev_l2_block_hash` may differ from the hash of the updated previous L2 block.
-                tracing::warn!(
-                    "Mismatch between the locally computed and received L2 block hash for {block:?}; \
-                     local_block_hash = {local_block_hash:?}, prev_l2_block_hash = {:?}",
-                    self.prev_l2_block_hash
-                );
-            }
-        }
-
-        let mut new_actions = Vec::new();
-        if block.l1_batch_number != self.l1_batch {
-            assert_eq!(
-                block.l1_batch_number,
-                self.l1_batch.next(),
-                "Unexpected batch number in the next received L2 block"
-            );
-
-            tracing::info!(
-                "New L1 batch: {}. Timestamp: {}",
-                block.l1_batch_number,
-                block.timestamp
-            );
-
-            new_actions.push(SyncAction::OpenBatch {
-                params: L1BatchParams {
-                    protocol_version: block.protocol_version,
-                    validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
-                    operator_address: block.operator_address,
-                    fee_input: BatchFeeInput::for_protocol_version(
-                        block.protocol_version,
-                        block.l2_fair_gas_price,
-                        block.fair_pubdata_price,
-                        block.l1_gas_price,
-                    ),
-                    // It's ok that we lose info about millis since it's only used for sealing criteria.
-                    first_l2_block: L2BlockParams::with_custom_virtual_block_count(
-                        block.timestamp * 1000,
-                        block.virtual_blocks,
-                    ),
-                    pubdata_params: block.pubdata_params,
-                },
-                number: block.l1_batch_number,
-                first_l2_block_number: block.number,
-            });
-            FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
-            self.l1_batch += 1;
-        } else {
-            // New batch implicitly means a new L2 block, so we only need to push the L2 block action
-            // if it's not a new batch.
-            new_actions.push(SyncAction::L2Block {
-                // It's ok that we lose info about millis since it's only used for sealing criteria.
-                params: L2BlockParams::with_custom_virtual_block_count(
-                    block.timestamp * 1000,
-                    block.virtual_blocks,
-                ),
-                number: block.number,
-            });
-            FETCHER_METRICS.miniblock.set(block.number.0.into());
-        }
-
-        APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
-            .inc_by(block.transactions.len() as u64);
-        new_actions.extend(block.transactions.into_iter().map(Into::into));
-
-        // Last L2 block of the batch is a "fictive" L2 block and would be replicated locally.
-        // We don't need to seal it explicitly, so we only put the seal L2 block command if it's not the last L2 block.
-        if block.last_in_batch {
-            new_actions.push(SyncAction::SealBatch);
-        } else {
-            new_actions.push(SyncAction::SealL2Block);
-        }
-        self.next_l2_block += 1;
-        self.prev_l2_block_hash = local_block_hash;
-
-        new_actions
     }
 }

@@ -21,7 +21,7 @@ use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
-    fetcher::{FetchedTransaction, IoCursorExt as _},
+    fetcher::FetchedTransaction,
     sync_action::{ActionQueue, ActionQueueSender, SyncAction},
     testonly::MockMainNodeClient,
     ExternalIO, MainNodeClient,
@@ -189,14 +189,17 @@ impl StateKeeper {
             )
             .await?
             .context("protocol_version_id_by_timestamp()")?;
-        let cursor = ctx
-            .wait(IoCursor::for_fetcher(&mut conn.0))
+        let mut cursor = ctx
+            .wait(IoCursor::new(&mut conn.0))
             .await?
             .context("IoCursor::new()")?;
         let pending_batch = ctx
             .wait(conn.0.blocks_dal().pending_batch_exists())
             .await?
             .context("pending_batch_exists()")?;
+        if pending_batch {
+            cursor.l1_batch -= 1;
+        }
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();

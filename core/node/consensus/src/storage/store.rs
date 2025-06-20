@@ -129,28 +129,6 @@ impl Store {
     async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection> {
         self.pool.connection(ctx).await.wrap("connection")
     }
-
-    /// Number of the next block to queue.
-    pub(crate) async fn next_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
-        Ok(sync::lock(ctx, &self.block_payloads)
-            .await?
-            .as_ref()
-            .context("payload_queue not set")?
-            .next())
-    }
-
-    /// Queues the next block.
-    pub(crate) async fn queue_next_fetched_block(
-        &self,
-        ctx: &ctx::Ctx,
-        block: FetchedBlock,
-    ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        if let Some(payloads) = &mut *payloads {
-            payloads.send(block).await.context("payloads.send()")?;
-        }
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -244,11 +222,10 @@ impl EngineInterface for Store {
                 }
             }
 
-            let cursor = sk.cursor_for_action_queue();
             let queued = payloads
-                .send2(
+                .send(
                     to_fetched_block(block.number(), p).context("to_fetched_block")?,
-                    cursor,
+                    sk.fetcher_cursor(),
                 )
                 .await
                 .context("payloads.send()")?;
@@ -328,10 +305,9 @@ impl EngineInterface for Store {
                 }
             }
 
-            let cursor = sk.cursor_for_action_queue();
             let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
             let queued = payloads
-                .send2(block, cursor)
+                .send(block, sk.fetcher_cursor())
                 .await
                 .context("payload_queue.send()")?;
 

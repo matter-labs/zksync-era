@@ -59,7 +59,7 @@ pub async fn run_main_node(
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .new_payload_queue(ctx, actions, sync_state)
+                .new_payload_queue(actions)
                 .await
                 .wrap("new_payload_queue()")?;
             Some(payload_queue)

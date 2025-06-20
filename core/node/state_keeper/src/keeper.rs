@@ -25,7 +25,10 @@ use zksync_vm_executor::whitelist::DeploymentTxFilter;
 use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
-    io::{BatchInitParams, IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
+    io::{
+        common::FetcherCursor, BatchInitParams, IoCursor, L1BatchParams, L2BlockParams,
+        OutputHandler, StateKeeperIO,
+    },
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
@@ -1312,14 +1315,23 @@ impl StateKeeper {
         }
     }
 
-    pub fn cursor_for_action_queue(&self) -> IoCursor {
+    pub fn fetcher_cursor(&self) -> FetcherCursor {
         match &self.batch_state {
-            BatchState::Uninit(cursor) => {
-                let mut cursor = cursor.clone();
-                cursor.l1_batch -= 1;
-                cursor
+            BatchState::Uninit(cursor) => FetcherCursor {
+                next_l2_block: cursor.next_l2_block,
+                prev_l2_block_hash: cursor.prev_l2_block_hash,
+                current_l1_batch: cursor.l1_batch,
+                is_current_batch_init: false,
+            },
+            BatchState::Init(d) => {
+                let io_cursor = d.updates_manager.io_cursor();
+                FetcherCursor {
+                    next_l2_block: io_cursor.next_l2_block,
+                    prev_l2_block_hash: io_cursor.prev_l2_block_hash,
+                    current_l1_batch: io_cursor.l1_batch,
+                    is_current_batch_init: true,
+                }
             }
-            BatchState::Init(d) => d.updates_manager.io_cursor(),
         }
     }
 

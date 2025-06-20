@@ -92,6 +92,15 @@ impl IoCursor {
     }
 }
 
+/// Cursor of the L2 block / L1 batch progress which is used to convert fetched block into a set of actions.
+#[derive(Debug, Clone, Copy)]
+pub struct FetcherCursor {
+    pub next_l2_block: L2BlockNumber,
+    pub prev_l2_block_hash: H256,
+    pub current_l1_batch: L1BatchNumber,
+    pub is_current_batch_init: bool,
+}
+
 /// Loads the pending L1 batch data from the database.
 ///
 /// # Errors

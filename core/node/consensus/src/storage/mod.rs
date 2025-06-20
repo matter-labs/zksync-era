@@ -3,18 +3,14 @@
 use zksync_concurrency::ctx;
 use zksync_consensus_roles::validator;
 use zksync_dal::consensus_dal;
-use zksync_node_sync::{
-    fetcher::{FetchedBlock, IoCursorExt as _},
-    sync_action::ActionQueueSender,
-};
-use zksync_state_keeper::io::common::IoCursor;
+use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
+use zksync_state_keeper::io::common::FetcherCursor;
 
 mod connection;
 mod store;
 
 pub(crate) use connection::*;
 pub(crate) use store::*;
-use zksync_shared_resources::api::SyncState;
 
 #[cfg(test)]
 pub(crate) mod testonly;
@@ -38,22 +34,19 @@ impl From<ctx::Error> for InsertCertificateError {
 
 #[derive(Debug)]
 pub(crate) struct PayloadQueue {
-    inner: IoCursor,
     actions: ActionQueueSender,
-    sync_state: SyncState,
 }
 
 impl PayloadQueue {
-    pub(crate) fn next(&self) -> validator::BlockNumber {
-        validator::BlockNumber(self.inner.next_l2_block.0.into())
-    }
-
-    /// Advances the cursor by converting the block into actions and pushing them
-    /// to the actions queue.
-    /// Does nothing and returns `Ok(())` if the block has been already processed.
+    /// converts the block into actions and pushes them to the actions queue.
+    /// Does nothing and returns `Ok(false)` if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
-    pub(crate) async fn send(&mut self, block: FetchedBlock) -> anyhow::Result<bool> {
-        let want = self.inner.next_l2_block;
+    pub(crate) async fn send(
+        &mut self,
+        block: FetchedBlock,
+        cursor: FetcherCursor,
+    ) -> anyhow::Result<bool> {
+        let want = cursor.next_l2_block;
         // Some blocks are missing.
         if block.number > want {
             anyhow::bail!("expected {want:?}, got {:?}", block.number);
@@ -62,16 +55,9 @@ impl PayloadQueue {
         if block.number < want {
             return Ok(false);
         }
-        self.actions.push_actions(self.inner.advance(block)).await?;
+        self.actions
+            .push_actions(block.into_actions(cursor))
+            .await?;
         Ok(true)
-    }
-
-    pub(crate) async fn send2(
-        &mut self,
-        block: FetchedBlock,
-        cursor: IoCursor,
-    ) -> anyhow::Result<bool> {
-        self.inner = cursor;
-        self.send(block).await
     }
 }
