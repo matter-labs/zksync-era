@@ -1,7 +1,7 @@
 use std::{fs::File, path::PathBuf};
 
 use zksync_config::{
-    configs::{DatabaseSecrets, L1Secrets},
+    configs::{L1Secrets, PostgresSecrets},
     ContractsConfig, PostgresConfig,
 };
 use zksync_types::ethabi::Contract;
@@ -51,5 +51,5 @@ pub(crate) trait FromEnvButReallyJustExplode: Sized {
 
 impl FromEnvButReallyJustExplode for PostgresConfig {}
 impl FromEnvButReallyJustExplode for ContractsConfig {}
-impl FromEnvButReallyJustExplode for DatabaseSecrets {}
+impl FromEnvButReallyJustExplode for PostgresSecrets {}
 impl FromEnvButReallyJustExplode for L1Secrets {}

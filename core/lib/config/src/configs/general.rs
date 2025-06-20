@@ -3,13 +3,9 @@ use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
-        chain::{
-            CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
-            TimestampAsserterConfig,
-        },
+        chain::{CircuitBreakerConfig, MempoolConfig, StateKeeperConfig, TimestampAsserterConfig},
         consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
-        en_config::ENConfig,
         house_keeper::HouseKeeperConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
@@ -38,8 +34,6 @@ pub struct GeneralConfig {
     pub circuit_breaker_config: CircuitBreakerConfig,
     #[config(nest, rename = "mempool")]
     pub mempool_config: MempoolConfig,
-    #[config(nest, rename = "operations_manager")]
-    pub operations_manager_config: OperationsManagerConfig,
     #[config(nest, rename = "state_keeper")]
     pub state_keeper_config: Option<StateKeeperConfig>,
     #[config(nest, rename = "house_keeper")]
@@ -102,7 +96,8 @@ pub struct GeneralConfig {
     pub consistency_checker_config: ConsistencyCheckerConfig,
 }
 
-pub fn full_config_schema(for_en: bool) -> ConfigSchema {
+/// Returns the config schema for the main node.
+pub fn full_config_schema() -> ConfigSchema {
     let mut schema = ConfigSchema::new(&GeneralConfig::DESCRIPTION, "");
 
     // Add global aliases for the snapshots object store.
@@ -129,19 +124,11 @@ pub fn full_config_schema(for_en: bool) -> ConfigSchema {
         .insert(&ConsensusConfig::DESCRIPTION, "consensus")
         .unwrap();
 
-    if for_en {
-        schema
-            .insert(&ENConfig::DESCRIPTION, "external_node")
-            .unwrap();
-    } else {
-        // Contracts, wallets and genesis configs are only read by the main node.
-        schema
-            .insert(&GenesisConfigWrapper::DESCRIPTION, "")
-            .unwrap();
-        schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
-
-        ContractsConfig::insert_into_schema(&mut schema);
-    }
+    schema
+        .insert(&GenesisConfigWrapper::DESCRIPTION, "")
+        .unwrap();
+    schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
+    ContractsConfig::insert_into_schema(&mut schema);
     schema
 }
 
@@ -151,11 +138,6 @@ mod tests {
 
     #[test]
     fn config_schema_can_be_constructed_for_main_node() {
-        full_config_schema(false);
-    }
-
-    #[test]
-    fn config_schema_can_be_constructed_for_en() {
-        full_config_schema(true);
+        full_config_schema();
     }
 }

@@ -8,8 +8,8 @@ use tokio::{
 };
 use zksync_config::{
     configs::{
-        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
-        GeneralConfig, ProverJobMonitorConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, GeneralConfig,
+        PostgresSecrets, ProverJobMonitorConfig,
     },
     full_config_schema,
     sources::ConfigFilePaths,
@@ -40,7 +40,7 @@ pub(crate) struct CliOpts {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = CliOpts::parse();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let prover_job_monitor_config = general_config
         .prover_job_monitor_config

@@ -13,6 +13,14 @@ struct HelpCommandArgs {
 enum SerializationFormat {
     Json,
     Yaml,
+    /// Environment vars in the YAML format. Can be added to the `environment` section in Docker Compose spec etc.
+    EnvYaml,
+}
+
+impl SerializationFormat {
+    fn is_flat(self) -> bool {
+        matches!(self, Self::EnvYaml)
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -37,7 +45,7 @@ enum ConfigCommand {
 }
 
 impl ConfigCommand {
-    fn run(self, repo: ConfigRepository<'_>) -> anyhow::Result<()> {
+    fn run(self, repo: ConfigRepository<'_>, env_prefix: &str) -> anyhow::Result<()> {
         let mut printer = smart_config_commands::Printer::stdout();
         match self {
             Self::Help(HelpCommandArgs { filter }) => {
@@ -55,20 +63,45 @@ impl ConfigCommand {
                 })??;
             }
             Self::Print { diff, format } => {
-                let options = if diff {
+                let mut options = if diff {
                     SerializerOptions::diff_with_default()
                 } else {
                     SerializerOptions::default()
                 };
+                options = options.flat(format.is_flat());
 
-                let json = serde_json::Value::from(repo.canonicalize(&options)?);
+                let json = repo.canonicalize(&options)?;
                 match format {
-                    SerializationFormat::Yaml => printer.print_yaml(&json)?,
-                    SerializationFormat::Json => printer.print_json(&json)?,
+                    SerializationFormat::Yaml => {
+                        printer.print_yaml(&serde_json::Value::from(json))?;
+                    }
+                    SerializationFormat::Json => {
+                        printer.print_json(&serde_json::Value::from(json))?;
+                    }
+                    SerializationFormat::EnvYaml => {
+                        let mut flat =
+                            smart_config::Environment::convert_flat_params(&json, env_prefix);
+                        Self::escape_for_docker(&mut flat);
+                        printer.print_yaml(&serde_json::Value::from(flat))?;
+                    }
                 }
             }
         }
         Ok(())
+    }
+
+    /// Docker Compose requires nulls and Boolean values to be quoted.
+    fn escape_for_docker(map: &mut serde_json::Map<String, serde_json::Value>) {
+        for value in map.values_mut() {
+            match value {
+                serde_json::Value::Null => *value = "null".into(),
+                serde_json::Value::Bool(flag) => *value = flag.to_string().into(),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    unreachable!("arrays / objects should be flattened to strings");
+                }
+                _ => { /* Leave the value as-is */ }
+            }
+        }
     }
 }
 
@@ -85,8 +118,8 @@ pub struct ConfigArgs {
 
 impl ConfigArgs {
     /// Runs this command. By convention, the binary should exit after executing the command.
-    pub fn run(self, repo: ConfigRepository<'_>) -> anyhow::Result<()> {
+    pub fn run(self, repo: ConfigRepository<'_>, env_prefix: &str) -> anyhow::Result<()> {
         let command = self.command.unwrap_or(ConfigCommand::Help(self.args));
-        command.run(repo)
+        command.run(repo, env_prefix)
     }
 }

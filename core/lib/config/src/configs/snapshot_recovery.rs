@@ -36,6 +36,7 @@ pub struct PostgresRecoveryConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct SnapshotRecoveryConfig {
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump

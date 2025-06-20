@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
 use zksync_config::{
-    configs::{DatabaseSecrets, GeneralConfig},
+    configs::{GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
     ObjectStoreConfig,
@@ -98,7 +98,7 @@ async fn run_inner(
     let start_time = Instant::now();
 
     let opt = Cli::parse();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -110,7 +110,7 @@ async fn run_inner(
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let prover_config = general_config
         .prover_config
@@ -187,7 +187,7 @@ async fn run_inner(
 /// - setup data - necessary for circuit proving
 /// - finalization hints - necessary for generating witness vectors
 async fn load_resources(
-    database_secrets: DatabaseSecrets,
+    database_secrets: PostgresSecrets,
     max_gpu_vram_allocation: Option<usize>,
     object_store_config: ObjectStoreConfig,
     setup_data_path: PathBuf,

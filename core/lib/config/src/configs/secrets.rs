@@ -3,7 +3,7 @@
 use anyhow::Context;
 use smart_config::{
     de::{FromSecretString, Optional, Serde},
-    DescribeConfig, DeserializeConfig,
+    fallback, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
@@ -16,9 +16,10 @@ const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localh
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
-pub struct DatabaseSecrets {
+pub struct PostgresSecrets {
     /// Postgres connection string for the server database.
     #[config(alias = "url", secret, with = Optional(Serde![str]))]
+    #[config(fallback = &fallback::Env("DATABASE_URL"))]
     #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
     pub server_url: Option<SensitiveUrl>,
     /// Postgres connection string for the prover database. Not used by external nodes.
@@ -33,12 +34,13 @@ pub struct DatabaseSecrets {
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct L1Secrets {
-    /// Web3 RPC URL for L1 (e.g., Ethereum mainnet).
-    #[config(alias = "web3_url", secret, with = Optional(Serde![str]))]
+    /// RPC URL for L1.
+    #[config(alias = "eth_client_url", secret, with = Optional(Serde![str]))]
     #[config(example = Some("https://ethereum-rpc.publicnode.com/".parse().unwrap()))]
     pub l1_rpc_url: Option<SensitiveUrl>,
     /// Web3 RPC URL for the gateway layer.
-    #[config(alias = "gateway_web3_url", secret, with = Optional(Serde![str]))]
+    #[config(secret, with = Optional(Serde![str]))]
+    #[config(alias = "gateway_web3_url", alias = "gateway_url")]
     pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
@@ -65,9 +67,9 @@ pub struct ContractVerifierSecrets {
 pub struct Secrets {
     #[config(nest)]
     pub consensus: ConsensusSecrets,
+    #[config(nest, alias = "database")]
+    pub postgres: PostgresSecrets,
     #[config(nest)]
-    pub database: DatabaseSecrets,
-    #[config(alias = "eth_client", nest)]
     pub l1: L1Secrets,
     #[config(nest, rename = "da_client", alias = "da")]
     pub data_availability: Option<DataAvailabilitySecrets>,
@@ -75,7 +77,7 @@ pub struct Secrets {
     pub contract_verifier: ContractVerifierSecrets,
 }
 
-impl DatabaseSecrets {
+impl PostgresSecrets {
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
     pub fn master_url(&self) -> anyhow::Result<SensitiveUrl> {
         self.server_url.clone().context("Master DB URL is absent")
@@ -105,15 +107,15 @@ mod tests {
 
     fn assert_secrets(secrets: Secrets) {
         assert_eq!(
-            secrets.database.server_url.unwrap().expose_str(),
+            secrets.postgres.server_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
         );
         assert_eq!(
-            secrets.database.server_replica_url.unwrap().expose_str(),
+            secrets.postgres.server_replica_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost/zksync_replica_local"
         );
         assert_eq!(
-            secrets.database.prover_url.unwrap().expose_str(),
+            secrets.postgres.prover_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost/prover_local"
         );
         assert_eq!(
@@ -154,8 +156,10 @@ mod tests {
             DATABASE_REPLICA_URL=postgres://postgres:notsecurepassword@localhost/zksync_replica_local
             DATABASE_PROVER_URL=postgres://postgres:notsecurepassword@localhost/prover_local
 
-            ETH_CLIENT_WEB3_URL=http://127.0.0.1:8545/
-            ETH_CLIENT_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
+            # Was `ETH_CLIENT_WEB3_URL`
+            L1_ETH_CLIENT_URL=http://127.0.0.1:8545/
+            # Was `ETH_CLIENT_GATEWAY_WEB3_URL`
+            L1_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
 
             DA_CLIENT="Avail"
             DA_SEED_PHRASE="correct horse battery staple"

@@ -13,7 +13,6 @@ categories.workspace = true
 [dependencies]
 zksync_basic_types.workspace = true
 zksync_crypto_primitives.workspace = true
-zksync_consensus_utils.workspace = true
 zksync_concurrency.workspace = true
 
 # Observability exensions
@@ -26,7 +25,6 @@ smart-config-commands = { workspace = true, optional = true }
 
 anyhow.workspace = true
 smart-config = { workspace = true, features = ["primitive-types"] }
-rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

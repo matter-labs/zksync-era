@@ -16,10 +16,8 @@ zksync_commitment_generator.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config = { workspace = true, features = ["observability_ext", "cli"] }
 zksync_eth_client = { workspace = true, features = ["node_framework"] }
-zksync_storage.workspace = true
 zksync_state.workspace = true
 zksync_contracts.workspace = true
-zksync_l1_contract_interface.workspace = true
 zksync_snapshots_applier.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_health_check = { workspace = true, features = ["node_framework"] }
@@ -29,11 +27,9 @@ zksync_block_reverter.workspace = true
 zksync_da_clients.workspace = true
 zksync_gateway_migrator.workspace = true
 zksync_logs_bloom_backfill.workspace = true
-zksync_node_genesis.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_node_storage_init.workspace = true
 zksync_node_db_pruner.workspace = true
-zksync_eth_sender.workspace = true
 zksync_state_keeper.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_consistency_checker.workspace = true
@@ -44,7 +40,6 @@ zksync_node_consensus.workspace = true
 zksync_node_framework.workspace = true
 zksync_vlog = { workspace = true, features = ["node_framework"] }
 
-zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
 vise.workspace = true
@@ -55,12 +50,9 @@ anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 futures.workspace = true
 serde = { workspace = true, features = ["derive"] }
-envy.workspace = true
 smart-config.workspace = true
 url.workspace = true
 clap = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-serde_yaml.workspace = true
 tracing.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
@@ -71,5 +63,7 @@ zksync_instrument = { workspace = true, features = ["jemalloc"] }
 
 [dev-dependencies]
 assert_matches.workspace = true
+serde_yaml.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
+zksync_node_genesis.workspace = true

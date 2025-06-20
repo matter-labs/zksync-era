@@ -28,7 +28,7 @@ impl WellKnown for LogFormat {
 pub struct ObservabilityConfig {
     /// Sentry configuration.
     #[config(nest)]
-    pub sentry: Option<SentryConfig>,
+    pub sentry: SentryConfig,
     /// Opentelemetry configuration.
     #[config(nest)]
     pub opentelemetry: Option<OpentelemetryConfig>,
@@ -61,10 +61,11 @@ const SENTRY_ENV_SOURCE: fallback::Manual =
     });
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct SentryConfig {
     /// URL of the Sentry instance to send events to.
     #[config(fallback = &SENTRY_URL_SOURCE)]
-    pub url: String,
+    pub url: Option<String>,
     /// Name of the environment to use in Sentry.
     #[config(fallback = &SENTRY_ENV_SOURCE)]
     pub environment: Option<String>,
@@ -98,10 +99,10 @@ mod tests {
 
     fn expected_config() -> ObservabilityConfig {
         ObservabilityConfig {
-            sentry: Some(SentryConfig {
-                url: "https://sentry.io/".into(),
+            sentry: SentryConfig {
+                url: Some("https://sentry.io/".into()),
                 environment: Some("goerli - testnet".into()),
-            }),
+            },
             opentelemetry: Some(OpentelemetryConfig {
                 level: "info".into(),
                 endpoint: "http://otlp-collector/v1/traces".into(),

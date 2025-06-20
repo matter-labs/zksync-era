@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_basic_types::{protocol_version::L1VerifierConfig, L1BatchNumber, H256, U256};
 use zksync_config::{
-    configs::{DatabaseSecrets, L1Secrets},
+    configs::{L1Secrets, PostgresSecrets},
     ContractsConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -20,7 +20,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
 
-    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let database_secrets = PostgresSecrets::from_env().context("DatabaseSecrets::from_env()")?;
     let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
     let query_client =
         Client::<L1>::http(l1_secrets.l1_rpc_url.context("l1_secrets.l1_rpc_url")?)?.build();

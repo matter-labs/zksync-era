@@ -1,0 +1,133 @@
+# Sample config parsed by the EN.
+prometheus:
+  listener_port: 3322
+  pushgateway_url: http://prometheus/
+  push_interval_ms: 150
+observability:
+  log_format: json
+  log_directives: warn,zksync=info
+  sentry_url: https://example.com/new
+  sentry_environment: 'mainnet - mainnet2'
+
+postgres:
+  server_url: postgres://postgres:notsecurepassword@localhost:5432/en
+  max_connections: 50
+  max_connections_master: 10 # Not used; required for config completeness
+  statement_timeout_sec: 20
+  slow_query_threshold_ms: 1500
+  long_connection_threshold_ms: 2500
+  acquire_timeout_sec: 15
+  acquire_retries: 2
+
+db:
+  state_keeper_db_path: /db/state-keeper
+  merkle_tree:
+    multi_get_chunk_size: 1000
+    block_cache_size_mb: 4096
+    memtable_capacity_mb: 256
+    stalled_writes_timeout_sec: 15
+    max_l1_batches_per_iter: 5
+    path: /db/merkle-tree
+    mode: LIGHTWEIGHT
+    max_open_files: 1024
+  experimental:
+    include_indices_and_filters_in_block_cache: true
+    processing_delay_ms: 100
+    state_keeper_db_max_open_files: 512
+    state_keeper_db_block_cache_capacity_mb: 256
+    protective_reads_persistence_enabled: true
+    merkle_tree_repair_stale_keys: true
+
+api:
+  healthcheck:
+    port: 2952
+    slow_time_limit_ms: 75
+    hard_time_limit_ms: 2500
+    expose_config: true
+  merkle_tree:
+    port: 2955
+  web3_json_rpc:
+    http_port: 2950
+    ws_port: 2951
+    req_entities_limit: 1000
+    filters_disabled: true
+    filters_limit: 5000
+    subscriptions_limit: 5000
+    pubsub_polling_interval: 200
+    max_nonce_ahead: 33
+    gas_price_scale_factor: 1.4
+    gas_price_scale_factor_open_batch: 1.35
+    estimate_gas_scale_factor: 1.2
+    estimate_gas_acceptable_overestimation: 2000
+    max_tx_size: 1000000
+    api_namespaces:
+      - zks
+      - eth
+    latest_values_max_block_lag: 30
+    mempool_cache_update_interval_ms: 75
+    max_response_body_size_mb: 5
+    max_response_body_size_overrides_mb:
+      zks_getProof: 100
+      eth_call: 2
+    vm_execution_cache_misses_limit: 1000
+    factory_deps_cache_size_mb: 100
+    initial_writes_cache_size_mb: 50
+    extended_api_tracing: true
+    estimate_gas_optimize_search: true
+    vm_concurrency_limit: 100
+    latest_values_cache_size_mb: 200
+    request_timeout_sec: 20
+    tree_api_url: http://tree/
+    max_batch_request_size: 50
+    websocket_requests_per_minute_limit: 1000
+    mempool_cache_size: 1000
+    fee_history_limit: 100
+    whitelisted_tokens_for_aa:
+      - '0x0000000000000000000000000000000000000001'
+
+contracts:
+  l1:
+    diamond_proxy_addr: '0x0000000000000000000000000000000000010001'
+state_keeper:
+  l2_block_seal_queue_capacity: 20
+  save_call_traces: false
+  protective_reads_persistence_enabled: true
+commitment_generator:
+  max_parallelism: 4
+timestamp_asserter:
+  min_time_till_end_sec: 90
+consistency_checker:
+  max_batches_to_recheck: 5
+
+snapshot_recovery:
+  enabled: true
+  l1_batch: 123
+  drop_storage_key_preimages: true
+  object_store:
+    max_retries: 5
+    local_mirror_path: /tmp/object-store
+    mode: GCSAnonymousReadOnly
+    bucket_base_url: zksync-era-mainnet-external-node-snapshots
+  postgres:
+    max_concurrency: 5
+  tree:
+    chunk_size: 50000
+    parallel_persistence_buffer: 5
+  experimental:
+    tree_recovery_parallel_persistence_buffer: 1
+    drop_storage_key_preimages: true
+pruning:
+  enabled: true
+  chunk_size: 5
+  removal_delay_sec: 120
+  data_retention_sec: 86400
+
+networks:
+  l1_rpc_url: https://127.0.0.1:8545/
+  gateway_rpc_url: https://127.0.0.1:3150/
+  l1_chain_id: 8
+  gateway_chain_id: 277
+  l2_chain_id: 270
+  main_node_url: https://127.0.0.1:3050/
+  main_node_rate_limit_rps: 150
+  bridge_addresses_refresh_interval_sec: 300
