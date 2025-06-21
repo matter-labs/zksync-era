@@ -2365,32 +2365,6 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn set_batch_chain_global_merkle_path(
-        &mut self,
-        number: L1BatchNumber,
-        proof: BatchAndChainMerklePath,
-    ) -> DalResult<()> {
-        let proof_bin = bincode::serialize(&proof).unwrap();
-        sqlx::query!(
-            r#"
-            UPDATE
-            l1_batches
-            SET
-                batch_chain_global_merkle_path = $2
-            WHERE
-                number = $1
-            "#,
-            i64::from(number.0),
-            &proof_bin
-        )
-        .instrument("set_batch_chain_global_merkle_path")
-        .with_arg("number", &number)
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
-    }
-
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,

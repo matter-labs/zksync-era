@@ -8,9 +8,6 @@ CREATE TABLE IF NOT EXISTS interop_roots (
 );
 
 ALTER TABLE l1_batches
-    ADD COLUMN batch_chain_global_merkle_path BYTEA;
-
-ALTER TABLE l1_batches
     ADD COLUMN batch_chain_local_merkle_path BYTEA;
 
 ALTER TABLE miniblocks
