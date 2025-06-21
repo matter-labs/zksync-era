@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS interop_roots (
 );
 
 ALTER TABLE l1_batches
-    ADD COLUMN batch_chain_local_merkle_path BYTEA;
+    ADD COLUMN batch_chain_merkle_path_until_msg_root BYTEA;
 
 ALTER TABLE miniblocks
     ADD COLUMN interop_roots_assigned BOOLEAN NOT NULL DEFAULT FALSE;

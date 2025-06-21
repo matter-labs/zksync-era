@@ -178,8 +178,8 @@ impl EventProcessor for BatchRootProcessor {
             for ((batch_number, sl_block_number, _), base_proof) in
                 chain_batches.iter().zip(batch_proofs)
             {
-                // The batch chain Merkle path for each batch number shares the same chain proof vector as it hashes to
-                // the same root on the L1
+                // The full batch chain Merkle path for each batch shares the same chain proof vector,
+                // as they all hash to the same ChainBatchRoot settled on L1.
                 let mut batch_chain_proof = base_proof.clone();
                 batch_chain_proof.proof.extend(chain_proof_vector.clone());
                 transaction
@@ -188,8 +188,9 @@ impl EventProcessor for BatchRootProcessor {
                     .await
                     .map_err(DalError::generalize)?;
 
-                // The local batch chain Merkle path for each batch number has different chain proof vector as it hashes to
-                // the root at the GW block number where the containing batch was executed
+                // The batch chain Merkle path until the MessageRoot has a different chain proof vector
+                // for each batch number, as they hash to Gateway's MessageRoot at the block number
+                // where the batch was executed.
                 let local_chain_agg_proof = self
                     .sl_l2_client
                     .get_chain_log_proof_until_msg_root(*sl_block_number, self.l2_chain_id)
@@ -202,7 +203,7 @@ impl EventProcessor for BatchRootProcessor {
                 gw_chain_proof.proof.extend(local_chain_proof_vector);
                 transaction
                     .blocks_dal()
-                    .set_batch_chain_local_merkle_path(*batch_number, gw_chain_proof)
+                    .set_batch_chain_merkle_path_until_msg_root(*batch_number, gw_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
             }
