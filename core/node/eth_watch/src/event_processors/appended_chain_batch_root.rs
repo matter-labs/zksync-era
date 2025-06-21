@@ -180,7 +180,9 @@ impl EventProcessor for BatchRootProcessor {
             {
                 println!(
                     "gw block number for batch {}: {}; base proof: {:?}",
-                    batch_number, sl_block_number, base_proof.clone()
+                    batch_number,
+                    sl_block_number,
+                    base_proof.clone()
                 );
                 // The full batch chain Merkle path for each batch shares the same chain proof vector,
                 // as they all hash to the same ChainBatchRoot settled on L1.
@@ -202,14 +204,18 @@ impl EventProcessor for BatchRootProcessor {
                     .context("Missing chain log proof until msg root for finalized batch")?;
                 println!(
                     "gw block number for batch {}: {}; local_chain_agg_proof: {:?}",
-                    batch_number, sl_block_number, local_chain_agg_proof.clone()
+                    batch_number,
+                    sl_block_number,
+                    local_chain_agg_proof.clone()
                 );
                 let local_chain_proof_vector =
                     Self::chain_proof_vector(sl_block_number.0, local_chain_agg_proof, sl_chain_id);
 
                 println!(
                     "gw block number for batch {}: {}; local_chain_proof_vector: {:?}",
-                    batch_number, sl_block_number, local_chain_proof_vector.clone()
+                    batch_number,
+                    sl_block_number,
+                    local_chain_proof_vector.clone()
                 );
 
                 let mut gw_chain_proof = base_proof;
