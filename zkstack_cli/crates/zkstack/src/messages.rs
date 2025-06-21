@@ -100,6 +100,8 @@ pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
+pub(super) const MSG_DEPLOYING_PROVING_NETWORKS_SPINNER: &str =
+    "Deploying proving networks contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
