@@ -200,7 +200,7 @@ impl StateKeeperIO for MempoolIO {
         // - We sleep past `prev_l2_block_timestamp` for <= v28.
         // - Otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
         //   if clock returns consistent time then it shouldn't actually sleep.
-        let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks() {
+        let timestamp_to_sleep_past = if protocol_version.is_pre_interop_fast_blocks() {
             cursor.prev_l2_block_timestamp
         } else {
             cursor.prev_l2_block_timestamp.saturating_sub(1)
@@ -553,7 +553,8 @@ impl MempoolIO {
             // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
             //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
             // Note, that when the first v29 batch is starting it should still follow v28 rules since upgrade tx wasn't executed yet.
-            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_fast_blocks() {
+            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_interop_fast_blocks()
+            {
                 cursor.prev_l2_block_timestamp
             } else {
                 cursor

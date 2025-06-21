@@ -32,8 +32,8 @@ impl ExecuteBatches {
                     })
                     .collect(),
             )]
-        } else if internal_protocol_version.is_pre_interop()
-            && chain_protocol_version.is_pre_interop()
+        } else if internal_protocol_version.is_pre_interop_fast_blocks()
+            && chain_protocol_version.is_pre_interop_fast_blocks()
         {
             let encoded_data = encode(&[
                 Token::Array(
