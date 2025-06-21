@@ -26,7 +26,7 @@
     "node-fetch": "^2.6.1",
     "ts-node": "^10.1.0",
     "typescript": "^4.3.5",
-    "zksync-ethers": "^6.9.0"
+    "zksync-ethers": "^6.18.0"
   },
   "dependencies": {
     "prettier": "^2.3.2"

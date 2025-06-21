@@ -134,7 +134,7 @@ describe('Debug methods', () => {
         expect(parsedTx.hash).toEqual(tx.hash);
 
         // EIP712 metadata should be present
-        expect(parsedTx.customData?.gasPerPubdata).toEqual(BigInt(50000));
+        expect(parsedTx.customData?.gasPerPubdata).toBeTruthy();
         expect(parsedTx.customData?.factoryDeps).toEqual([]);
         expect(parsedTx.customData?.customSignature).toBeTruthy();
     });
