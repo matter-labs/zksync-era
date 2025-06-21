@@ -35,4 +35,20 @@ export function usersRoutes(app: WebServer) {
 
         return reply.send({ ok: true, token });
     });
+
+    const getUserSchema = {
+        schema: {
+            params: z.object({
+                address: addressSchema
+            })
+        }
+    };
+
+    app.get('/:address', getUserSchema, (req, reply) => {
+        const { address } = req.params;
+        const { authorizer } = app.context;
+
+        const authorized = authorizer.isAddressWhitelisted(address);
+        return reply.send({ authorized });
+    });
 }
