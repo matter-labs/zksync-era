@@ -1,5 +1,5 @@
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::Instrumented, metrics::MethodLatency,
 };
 use zksync_types::{api::en, L2BlockNumber};
 
@@ -23,7 +23,7 @@ impl SyncDal<'_, '_> {
         if numbers.is_empty() {
             return Ok(vec![]);
         }
-        let blocks = sqlx::query_as!(
+        let query = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -66,14 +66,30 @@ impl SyncDal<'_, '_> {
             "#,
             i64::from(numbers.start.0),
             i64::from(numbers.end.0 - 1),
-        )
-        .try_map(SyncBlock::try_from)
-        .instrument("sync_dal_sync_blocks.block")
-        .with_arg("numbers", &numbers)
-        .fetch_all(self.storage)
-        .await?;
+        );
+        let instrumentation =
+            Instrumented::new("sync_dal_sync_blocks").with_arg("numbers", &numbers);
+        let blocks = instrumentation
+            .clone()
+            .with(query)
+            .fetch_all(self.storage)
+            .await?;
 
-        Ok(blocks)
+        let mut sync_blocks = vec![];
+        for block in &blocks {
+            // Convert the block to the SyncBlock type.
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(L2BlockNumber(block.number as u32))
+                .await?;
+            sync_blocks.push(
+                SyncBlock::new(block.clone(), interop_roots)
+                    .map_err(|err| instrumentation.constraint_error(err.into()))?,
+            );
+        }
+
+        Ok(sync_blocks)
     }
 
     pub async fn sync_block(

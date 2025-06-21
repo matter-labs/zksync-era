@@ -69,15 +69,7 @@ impl L2BlockParams {
         }
     }
 
-    pub fn with_custom_virtual_block_count(timestamp_ms: u64, virtual_blocks: u32) -> Self {
-        Self {
-            timestamp_ms,
-            virtual_blocks,
-            interop_roots: vec![],
-        }
-    }
-
-    pub fn with_custom_virtual_block_count_and_interop_roots(
+    pub fn new_raw(
         timestamp_ms: u64,
         virtual_blocks: u32,
         interop_roots: Vec<InteropRoot>,
@@ -238,13 +230,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
 
-    /// Loads the latest message root.
-    async fn load_latest_interop_root(
-        &self,
-        number_of_roots: usize,
-    ) -> anyhow::Result<Vec<InteropRoot>>;
-
-    /// Loads the latest message root.
+    /// Loads the message root for l2 block.
     async fn load_l2_block_interop_root(
         &self,
         l2block_number: L2BlockNumber,

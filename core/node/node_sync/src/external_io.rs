@@ -460,18 +460,6 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_interop_root(
-        &self,
-        number_of_roots: usize,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let interop_root = storage
-            .interop_root_dal()
-            .get_new_interop_roots(number_of_roots)
-            .await?;
-        Ok(interop_root)
-    }
-
     async fn load_l2_block_interop_root(
         &self,
         l2block_number: L2BlockNumber,

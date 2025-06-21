@@ -247,7 +247,7 @@ fn create_block_seal_command(
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_legacy_shared_bridge_addr: Some(Address::default()),
-        pre_insert_txs: false,
+        pre_insert_data: false,
         pubdata_params: PubdataParams::default(),
     }
 }

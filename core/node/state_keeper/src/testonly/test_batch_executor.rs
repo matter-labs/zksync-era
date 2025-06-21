@@ -823,13 +823,6 @@ impl StateKeeperIO for TestIO {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 
-    async fn load_latest_interop_root(
-        &self,
-        _number_of_roots: usize,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        Ok(vec![])
-    }
-
     async fn load_l2_block_interop_root(
         &self,
         _l2block_number: L2BlockNumber,
