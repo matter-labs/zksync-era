@@ -85,9 +85,8 @@ circuit_breaker:
   http_req_retry_interval_sec: 2
 eth:
   sender:
-    wait_confirmations: 1
-    tx_poll_period: 1
-    aggregate_tx_poll_period: 1
+    tx_poll_period: 300 ms
+    aggregate_tx_poll_period: 300 ms
     max_txs_in_flight: 190
     proof_sending_mode: SKIP_EVERY_PROOF
     max_aggregated_blocks_to_commit: 1

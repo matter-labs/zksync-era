@@ -863,12 +863,14 @@ impl EthTxAggregator {
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
+        let dependency_roots_per_batch = aggregated_op.dependency_roots_per_batch();
 
         let eth_tx_predicted_gas = match op_type {
             AggregatedActionType::Execute => {
                 L1GasCriterion::total_execute_gas_amount(
                     &mut transaction,
                     l1_batch_number_range.clone(),
+                    dependency_roots_per_batch,
                     is_gateway,
                 )
                 .await

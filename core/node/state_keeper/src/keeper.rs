@@ -13,14 +13,15 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         Halt, L1BatchEnv, SystemEnv,
     },
-    utils::StorageWritesDeduplicator,
+    utils::{get_bootloader_max_msg_roots_in_batch, StorageWritesDeduplicator},
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
+    utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, OrStopped, StopContext,
+    Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -188,6 +189,7 @@ impl ZkSyncStateKeeper {
                 Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
             }
 
+            updates_manager.clear_interop_roots();
             let (finished_batch, _) = batch_executor.finish_batch().await?;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
@@ -312,6 +314,16 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
+    async fn load_l2_block_interop_root(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<InteropRoot>> {
+        self.io
+            .load_l2_block_interop_root(l2block_number)
+            .await
+            .with_context(|| "failed loading message root".to_string())
+    }
+
     #[tracing::instrument(
         skip_all,
         fields(
@@ -434,7 +446,7 @@ impl ZkSyncStateKeeper {
             display_timestamp(block_env.timestamp)
         );
         batch_executor
-            .start_next_l2_block(block_env)
+            .start_next_l2_block(block_env.clone())
             .await
             .with_context(|| {
                 format!("failed starting L2 block with {block_env:?} in batch executor")
@@ -485,10 +497,10 @@ impl ZkSyncStateKeeper {
             if index > 0 {
                 Self::set_l2_block_params(
                     updates_manager,
-                    // For re-executing purposes it's ok to not use exact precise millis.
-                    L2BlockParams::with_custom_virtual_block_count(
+                    L2BlockParams::with_custom_virtual_block_count_and_interop_roots(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
+                        self.load_l2_block_interop_root(l2_block.number).await?,
                     ),
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -619,10 +631,15 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters
-                let next_l2_block_params = self
+                let mut next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .stop_context("failed getting L2 block params")?;
+                let number_of_roots = get_bootloader_max_msg_roots_in_batch(
+                    updates_manager.protocol_version().into(),
+                );
+                next_l2_block_params
+                    .set_interop_roots(self.io.load_latest_interop_root(number_of_roots).await?);
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 

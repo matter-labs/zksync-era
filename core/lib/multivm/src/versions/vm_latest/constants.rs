@@ -28,6 +28,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
+        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
     }
 }
 
@@ -44,6 +45,8 @@ pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 // The maximal number of transactions in a single batch.
 // In this version of the VM the limit has been increased from `1024` to to `10000`.
 pub(crate) const MAX_TXS_IN_BATCH: usize = 10000;
+
+pub(crate) const MAX_MSG_ROOTS_IN_BATCH: usize = 100;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
@@ -70,7 +73,8 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
         // With gateway upgrade we increased max number of factory dependencies
         MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 64,
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 64,
     }
 }
 
@@ -113,8 +117,43 @@ pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
     (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+pub(crate) const fn get_last_processed_block_number_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
+}
+
+/// We store the next messageRoot number to be processed.
+/// For each txs we check if the next messageRoot belongs to a block that we should process, if yes we store it and continue to the next.
+/// If no, we stop.
+pub(crate) const fn get_current_number_of_roots_in_block_offset(
+    subversion: MultiVmSubversion,
+) -> usize {
+    get_last_processed_block_number_offset(subversion) + 1
+}
+
+/// The slot starting from which the interop roots are stored.
+pub(crate) const fn get_current_interop_root_offset(subversion: MultiVmSubversion) -> usize {
+    get_current_number_of_roots_in_block_offset(subversion) + 1
+}
+
+/// The slot starting from which the interop roots are stored.
+pub(crate) const fn get_interop_blocks_begin_offset(subversion: MultiVmSubversion) -> usize {
+    get_current_interop_root_offset(subversion) + 1
+}
+
+/// The slot starting from which the interop roots are stored.
+pub(crate) const fn get_interop_root_offset(subversion: MultiVmSubversion) -> usize {
+    get_interop_blocks_begin_offset(subversion) + MAX_MSG_ROOTS_IN_BATCH
+}
+
+pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
+
+pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
+
+pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+    match subversion {
+        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
+        _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
+    }
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
