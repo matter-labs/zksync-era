@@ -197,32 +197,39 @@ impl EventProcessor for BatchRootProcessor {
                 // The batch chain Merkle path until the MessageRoot has a different chain proof vector
                 // for each batch number, as they hash to Gateway's MessageRoot at the block number
                 // where the batch was executed.
-                let local_chain_agg_proof = self
+                let chain_agg_proof_until_msg_root = self
                     .sl_l2_client
                     .get_chain_log_proof_until_msg_root(*sl_block_number, self.l2_chain_id)
                     .await?
                     .context("Missing chain log proof until msg root for finalized batch")?;
                 println!(
-                    "gw block number for batch {}: {}; local_chain_agg_proof: {:?}",
+                    "gw block number for batch {}: {}; chain_agg_proof_until_msg_root: {:?}",
                     batch_number,
                     sl_block_number,
-                    local_chain_agg_proof.clone()
+                    chain_agg_proof_until_msg_root.clone()
                 );
-                let local_chain_proof_vector =
-                    Self::chain_proof_vector(sl_block_number.0, local_chain_agg_proof, sl_chain_id);
-
+                let chain_proof_vector_until_msg_root = Self::chain_proof_vector(
+                    sl_block_number.0,
+                    chain_agg_proof_until_msg_root,
+                    sl_chain_id,
+                );
                 println!(
-                    "gw block number for batch {}: {}; local_chain_proof_vector: {:?}",
+                    "gw block number for batch {}: {}; chain_proof_vector_until_msg_root: {:?}",
                     batch_number,
                     sl_block_number,
-                    local_chain_proof_vector.clone()
+                    chain_proof_vector_until_msg_root.clone()
                 );
 
-                let mut gw_chain_proof = base_proof;
-                gw_chain_proof.proof.extend(local_chain_proof_vector);
+                let mut batch_chain_proof_until_msg_root = base_proof;
+                batch_chain_proof_until_msg_root
+                    .proof
+                    .extend(chain_proof_vector_until_msg_root);
                 transaction
                     .blocks_dal()
-                    .set_batch_chain_merkle_path_until_msg_root(*batch_number, gw_chain_proof)
+                    .set_batch_chain_merkle_path_until_msg_root(
+                        *batch_number,
+                        batch_chain_proof_until_msg_root,
+                    )
                     .await
                     .map_err(DalError::generalize)?;
             }
