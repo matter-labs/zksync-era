@@ -2523,14 +2523,14 @@ impl BlocksDal<'_, '_> {
         ))
     }
 
-    pub async fn get_batch_chain_local_merkle_path(
+    pub async fn get_batch_chain_merkle_path_until_msg_root(
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<BatchAndChainMerklePath>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                batch_chain_local_merkle_path
+                batch_chain_merkle_path_until_msg_root
             FROM
                 l1_batches
             WHERE
@@ -2538,18 +2538,20 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(number.0)
         )
-        .instrument("get_batch_chain_local_merkle_path")
+        .instrument("get_batch_chain_merkle_path_until_msg_root")
         .with_arg("number", &number)
         .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
         };
-        let Some(batch_chain_local_merkle_path) = row.batch_chain_local_merkle_path else {
+        let Some(batch_chain_merkle_path_until_msg_root) =
+            row.batch_chain_merkle_path_until_msg_root
+        else {
             return Ok(None);
         };
         Ok(Some(
-            bincode::deserialize(&batch_chain_local_merkle_path).unwrap(),
+            bincode::deserialize(&batch_chain_merkle_path_until_msg_root).unwrap(),
         ))
     }
 
@@ -2636,7 +2638,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn set_batch_chain_local_merkle_path(
+    pub async fn set_batch_chain_merkle_path_until_msg_root(
         &mut self,
         number: L1BatchNumber,
         proof: BatchAndChainMerklePath,
@@ -2647,40 +2649,14 @@ impl BlocksDal<'_, '_> {
             UPDATE
             l1_batches
             SET
-                batch_chain_local_merkle_path = $2
+                batch_chain_merkle_path_until_msg_root = $2
             WHERE
                 number = $1
             "#,
             i64::from(number.0),
             &proof_bin
         )
-        .instrument("batch_chain_local_merkle_path")
-        .with_arg("number", &number)
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn set_batch_chain_global_merkle_path(
-        &mut self,
-        number: L1BatchNumber,
-        proof: BatchAndChainMerklePath,
-    ) -> DalResult<()> {
-        let proof_bin = bincode::serialize(&proof).unwrap();
-        sqlx::query!(
-            r#"
-            UPDATE
-            l1_batches
-            SET
-                batch_chain_global_merkle_path = $2
-            WHERE
-                number = $1
-            "#,
-            i64::from(number.0),
-            &proof_bin
-        )
-        .instrument("set_batch_chain_global_merkle_path")
+        .instrument("set_batch_chain_merkle_path_until_msg_root")
         .with_arg("number", &number)
         .execute(self.storage)
         .await?;

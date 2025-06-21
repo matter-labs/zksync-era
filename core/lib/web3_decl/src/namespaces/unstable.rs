@@ -45,8 +45,8 @@ pub trait UnstableNamespace {
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 
-    #[method(name = "getInnerChainLogProof")]
-    async fn get_inner_chain_log_proof(
+    #[method(name = "getChainLogProofUntilMsgRoot")]
+    async fn get_chain_log_proof_until_msg_root(
         &self,
         block_number: L2BlockNumber,
         chain_id: L2ChainId,
