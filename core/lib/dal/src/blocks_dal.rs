@@ -2320,6 +2320,10 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
+        println!(
+            "setting batch chain merkle path for {}: {:?}",
+            number, proof
+        );
         let proof_bin = bincode::serialize(&proof).unwrap();
         sqlx::query!(
             r#"
@@ -2346,6 +2350,10 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
+        println!(
+            "setting batch chain local merkle path for {}: {:?}",
+            number, proof
+        );
         let proof_bin = bincode::serialize(&proof).unwrap();
         sqlx::query!(
             r#"

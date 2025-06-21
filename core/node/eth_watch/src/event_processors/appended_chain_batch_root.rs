@@ -178,6 +178,12 @@ impl EventProcessor for BatchRootProcessor {
             for ((batch_number, sl_block_number, _), base_proof) in
                 chain_batches.iter().zip(batch_proofs)
             {
+                println!(
+                    "gw block number for batch {}: {}; base proof: {:?}",
+                    batch_number,
+                    sl_block_number,
+                    base_proof.clone()
+                );
                 // The full batch chain Merkle path for each batch shares the same chain proof vector,
                 // as they all hash to the same ChainBatchRoot settled on L1.
                 let mut batch_chain_proof = base_proof.clone();
@@ -196,10 +202,22 @@ impl EventProcessor for BatchRootProcessor {
                     .get_chain_log_proof_until_msg_root(*sl_block_number, self.l2_chain_id)
                     .await?
                     .context("Missing chain log proof until msg root for finalized batch")?;
+                println!(
+                    "gw block number for batch {}: {}; chain_agg_proof_until_msg_root: {:?}",
+                    batch_number,
+                    sl_block_number,
+                    chain_agg_proof_until_msg_root.clone()
+                );
                 let chain_proof_vector_until_msg_root = Self::chain_proof_vector(
                     sl_block_number.0,
                     chain_agg_proof_until_msg_root,
                     sl_chain_id,
+                );
+                println!(
+                    "gw block number for batch {}: {}; chain_proof_vector_until_msg_root: {:?}",
+                    batch_number,
+                    sl_block_number,
+                    chain_proof_vector_until_msg_root.clone()
                 );
 
                 let mut batch_chain_proof_until_msg_root = base_proof;
