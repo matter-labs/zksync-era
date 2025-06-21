@@ -133,7 +133,7 @@ impl InteropRootDal<'_, '_> {
                 WHERE
                     chain_id = $2
                     AND processed_block_number IS NULL
-                    AND dependency_block_number <= $3
+                    AND dependency_block_number = $3
                 "#,
                 l2block_number.0 as i32,
                 root.chain_id as i32,
