@@ -13084,12 +13084,11 @@ dependencies = [
  "async-trait",
  "futures 0.3.31",
  "pin-project-lite",
+ "serde",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
  "trybuild",
- "vise",
- "zksync_instrument",
  "zksync_node_framework_derive",
  "zksync_utils",
 ]

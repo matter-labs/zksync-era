@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::{min, Ordering};
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -114,6 +114,18 @@ impl BootloaderState {
         self.subversion
     }
 
+    pub(crate) fn get_preexisting_interop_roots_number(&self) -> usize {
+        self.l2_blocks
+            .iter()
+            .take(self.l2_blocks.len() - 1)
+            .map(|block| block.interop_roots.len())
+            .sum()
+    }
+
+    pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
+        min(self.l2_blocks.len(), 0)
+    }
+
     pub(crate) fn push_tx(
         &mut self,
         tx: TransactionData,
@@ -145,6 +157,9 @@ impl BootloaderState {
             self.execution_mode,
             self.last_l2_block().txs.is_empty(),
             self.subversion,
+            self.last_l2_block().txs.is_empty(),
+            self.get_preexisting_interop_roots_number(),
+            self.get_preexisting_blocks_number(),
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
@@ -196,13 +211,24 @@ impl BootloaderState {
                     self.execution_mode,
                     num == 0,
                     self.subversion,
+                    num == 0,
+                    self.get_preexisting_interop_roots_number(),
+                    self.get_preexisting_blocks_number(),
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(&mut initial_memory, l2_block, tx_index, self.subversion)
+                apply_l2_block(
+                    &mut initial_memory,
+                    l2_block,
+                    tx_index,
+                    self.subversion,
+                    true,
+                    self.get_preexisting_interop_roots_number(),
+                    self.get_preexisting_blocks_number(),
+                )
             }
         }
 
@@ -272,8 +298,13 @@ impl BootloaderState {
                 number: block.number + 1,
                 prev_block_hash: block.get_hash(),
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             });
+        } else {
+            let block = self.last_mut_l2_block();
+            block.interop_roots = vec![];
         }
+
         self.last_l2_block()
     }
 
