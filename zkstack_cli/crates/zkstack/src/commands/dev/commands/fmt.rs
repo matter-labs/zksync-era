@@ -10,14 +10,20 @@ use crate::commands::dev::messages::msg_running_fmt_spinner;
 
 async fn prettier(shell: Shell, check: bool) -> anyhow::Result<()> {
     let mode = if check { "fmt:check" } else { "fmt" };
-    Ok(Cmd::new(cmd!(shell, "yarn {mode}").arg("--cache-location .prettier_cache.json")).run()?)
+    Ok(Cmd::new(
+        cmd!(shell, "yarn {mode}")
+            .arg("--cache-location .prettier_cache.json")
+            .arg("--log-level silent"),
+    )
+    .run()?)
 }
 
 async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
     let prettier_command = cmd!(shell, "yarn --cwd contracts")
         .arg(format!("prettier:{}", if check { "check" } else { "fix" }))
         .arg("--cache")
-        .arg("--cache-location .prettier_cache_contracts.json");
+        .arg("--cache-location .prettier_cache_contracts.json")
+        .arg("--log-level silent");
     Ok(Cmd::new(prettier_command).run()?)
 }
 
