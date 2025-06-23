@@ -12,8 +12,8 @@ async fn prettier(shell: Shell, check: bool) -> anyhow::Result<()> {
     let mode = if check { "fmt:check" } else { "fmt" };
     Ok(Cmd::new(
         cmd!(shell, "yarn {mode}")
-            .arg("--cache-location .prettier_cache.json")
-            .arg("--log-level silent"),
+            .args(["--cache-location", ".prettier_cache.json"])
+            .args(["--log-level", "silent"]),
     )
     .run()?)
 }
@@ -22,8 +22,8 @@ async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
     let prettier_command = cmd!(shell, "yarn --cwd contracts")
         .arg(format!("prettier:{}", if check { "check" } else { "fix" }))
         .arg("--cache")
-        .arg("--cache-location .prettier_cache_contracts.json")
-        .arg("--log-level silent");
+        .args(["--cache-location", "../.prettier_cache_contracts.json"])
+        .args(["--log-level", "silent"]);
     Ok(Cmd::new(prettier_command).run()?)
 }
 
@@ -35,7 +35,7 @@ async fn rustfmt(
 ) -> anyhow::Result<()> {
     let mode = if check { "--check " } else { "" };
     let full_path = link_to_code.join(dir).join("Cargo.toml");
-    let fmt_cmd = cmd!(shell, "cargo fmt {mode}--manifest-path {full_path} --all -- --config imports_granularity=Crate --config group_imports=StdExternalCrate");
+    let fmt_cmd = cmd!(shell, "cargo fmt --manifest-path {full_path} --all -- {mode}--config imports_granularity=Crate --config group_imports=StdExternalCrate");
     Ok(Cmd::new(fmt_cmd).run()?)
 }
 
