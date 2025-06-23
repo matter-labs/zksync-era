@@ -48,8 +48,6 @@ runs:
       shell: bash
       run: |
         mkdir -p ./hardhat-nodejs
-        pwd
-        ls
         ci_localnet_up
 
     - name: Start sccache servers
