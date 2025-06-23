@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
-use zksync_config::configs::DatabaseSecrets;
+use zksync_config::configs::PostgresSecrets;
 use zksync_prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
@@ -24,7 +24,7 @@ pub struct Args {
 }
 
 pub async fn run(args: Args) -> anyhow::Result<()> {
-    let config = DatabaseSecrets::from_env()?;
+    let config = PostgresSecrets::from_env()?;
     let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.prover_url()?)
         .build()
         .await

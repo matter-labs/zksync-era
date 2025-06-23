@@ -784,35 +784,6 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item)
     }
 
-    pub async fn get_last_sent_and_confirmed_eth_storage_tx(
-        &mut self,
-        eth_tx_id: u32,
-    ) -> sqlx::Result<Option<StorageTxHistory>> {
-        let history_item = sqlx::query_as!(
-            StorageTxHistory,
-            r#"
-            SELECT
-                eth_txs_history.*,
-                eth_txs.blob_sidecar
-            FROM
-                eth_txs_history
-            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
-            WHERE
-                eth_tx_id = $1
-                AND eth_txs_history.confirmed_at IS NOT NULL
-                AND eth_txs.has_failed IS FALSE
-            ORDER BY
-                eth_txs_history.created_at DESC
-            LIMIT
-                1
-            "#,
-            eth_tx_id as i32
-        )
-        .fetch_optional(self.storage.conn())
-        .await?;
-        Ok(history_item)
-    }
-
     pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,

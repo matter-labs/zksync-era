@@ -12,8 +12,8 @@ use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
-        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
+        CommitBatchInfo, EncodingVersion, StoredBatchInfo, PUBDATA_SOURCE_BLOBS,
+        PUBDATA_SOURCE_CALLDATA, PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
     },
     Tokenizable,
 };
@@ -574,7 +574,7 @@ impl ConsistencyChecker {
             };
             let (version, encoded_data) = commitment_bytes.split_at(1);
             anyhow::ensure!(
-                version[0] == SUPPORTED_ENCODING_VERSION,
+                version[0] == EncodingVersion::Supported.value(),
                 "Unexpected encoding version: {}",
                 version[0]
             );

@@ -5,9 +5,7 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{
-        CommitBatchInfo, StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
-    },
+    i_executor::structures::{get_encoding_version, CommitBatchInfo, StoredBatchInfo},
     Tokenizable, Tokenize,
 };
 
@@ -34,11 +32,7 @@ impl Tokenize for &CommitBatches<'_> {
         if protocol_version.is_pre_gateway() {
             vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
         } else {
-            let encoding_version = if protocol_version.is_pre_interop_fast_blocks() {
-                PRE_INTEROP_ENCODING_VERSION
-            } else {
-                SUPPORTED_ENCODING_VERSION
-            };
+            let encoding_version = get_encoding_version(protocol_version);
             let mut encoded_data = encode(&[
                 stored_batch_info.clone(),
                 Token::Array(l1_batches_to_commit),

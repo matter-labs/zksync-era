@@ -1,6 +1,6 @@
 //! Experimental part of configuration.
 
-use std::{num::NonZeroU32, path::PathBuf, time::Duration};
+use std::{num::NonZeroU32, path::PathBuf};
 
 use smart_config::{de::Serde, metadata::SizeUnit, ByteSize, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
@@ -14,23 +14,7 @@ pub struct ExperimentalDBConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
-    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
-    /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
-    /// (presumably, to participate in L1 batch proving).
-    /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
-    /// which is capable of saving protective reads is run.
-    // FIXME: Is this obsoleted by the state keeper param?
-    #[config(default, alias = "reads_persistence_enabled")]
-    pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
-    /// Processing delay between processing L1 batches in the Merkle tree.
-    #[config(default_t = Duration::from_millis(100))]
-    pub processing_delay: Duration,
-    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
-    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
-    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
-    #[config(default)]
-    pub include_indices_and_filters_in_block_cache: bool,
     /// Enables the stale keys repair task for the Merkle tree.
     #[config(default)]
     pub merkle_tree_repair_stale_keys: bool,
