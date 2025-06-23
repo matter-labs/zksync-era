@@ -11,7 +11,7 @@ use clap::Parser;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
+    configs::{FriProofCompressorConfig, GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -86,7 +86,7 @@ async fn run_inner(
     let start_time = Instant::now();
     let opt = Cli::parse();
     let is_fflonk = opt.fflonk.unwrap_or(false);
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -98,7 +98,7 @@ async fn run_inner(
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config

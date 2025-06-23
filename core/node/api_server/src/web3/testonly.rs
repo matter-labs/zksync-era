@@ -3,7 +3,11 @@
 use std::time::Instant;
 
 use tokio::sync::watch;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets};
+use zksync_config::configs::{
+    api::{Namespace, Web3JsonRpcConfig},
+    chain::StateKeeperConfig,
+    wallets::Wallets,
+};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
@@ -195,7 +199,7 @@ impl TestServerBuilder {
             create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
         let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
-        let mut namespaces = Namespace::DEFAULT.to_vec();
+        let mut namespaces = HashSet::from(Namespace::DEFAULT);
         namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
@@ -205,7 +209,7 @@ impl TestServerBuilder {
         let (pub_sub, server_builder) = match transport {
             ApiTransportLabel::Http => (None, ApiBuilder::new(api_config, pool).http(0)),
             ApiTransportLabel::Ws => {
-                let mut pub_sub = EthSubscribe::new(Some(POLL_INTERVAL));
+                let mut pub_sub = EthSubscribe::new(POLL_INTERVAL);
                 pub_sub.set_events_sender(pub_sub_events_sender);
                 server_tasks.extend(pub_sub.spawn_notifiers(pool.clone(), &stop_receiver));
 

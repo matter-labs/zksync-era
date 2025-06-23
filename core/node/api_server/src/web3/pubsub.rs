@@ -264,15 +264,13 @@ pub(crate) struct EthSubscribe {
 }
 
 impl EthSubscribe {
-    const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
-
-    pub fn new(polling_interval: Option<Duration>) -> Self {
+    pub fn new(polling_interval: Duration) -> Self {
         let (blocks, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (transactions, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (logs, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
 
         Self {
-            polling_interval: polling_interval.unwrap_or(Self::DEFAULT_POLLING_INTERVAL),
+            polling_interval,
             blocks,
             transactions,
             logs,
