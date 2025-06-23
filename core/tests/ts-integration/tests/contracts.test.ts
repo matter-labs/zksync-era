@@ -7,20 +7,14 @@
  */
 
 import { TestMaster } from '../src';
-import {
-    deployContract,
-    getDeploymentNonce,
-    getAccountNonce,
-    getTestContract,
-    scaledGasPrice,
-    waitForNewL1Batch
-} from '../src/helpers';
+import { deployContract, getDeploymentNonce, getAccountNonce, getTestContract, scaledGasPrice } from '../src/helpers';
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import * as elliptic from 'elliptic';
 import { RetryProvider } from '../src/retry-provider';
+import { waitForNewL1Batch } from 'utils';
 
 const SECONDS = 1000;
 jest.setTimeout(400 * SECONDS);
