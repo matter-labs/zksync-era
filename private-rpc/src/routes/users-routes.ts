@@ -51,10 +51,8 @@ export function usersRoutes(app: WebServer) {
     };
 
     app.get('/:address', getUserSchema, (req, reply) => {
-        const { address } = req.params;
         const { authorizer } = app.context;
-
-        const authorized = authorizer.isAddressWhitelisted(address);
+        const authorized = authorizer.isAddressWhitelisted(req.params.address);
         return reply.send({ authorized });
     });
 }
