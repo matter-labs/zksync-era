@@ -81,14 +81,6 @@ version = "*"
 allow = ["BUSL-1.1"]
 name = "eigen-utils"
 version = "*"
-[[licenses.exceptions]]
-allow = ["CDLA-Permissive-2.0"]
-name = "webpki-roots"
-version = "*"
-[[licenses.exceptions]]
-allow = ["CDLA-Permissive-2.0"]
-name = "webpki-root-certs"
-version = "*"
 
 [licenses.private]
 ignore = false
