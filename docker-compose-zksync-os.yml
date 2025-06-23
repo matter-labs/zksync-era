@@ -42,7 +42,7 @@ services:
     ports:
       - 3124:3124
     volumes:
-      - ./configs:/configs
+      - ./chains/era/configs:/configs
     command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --wallets-path=/configs/wallets.yaml --components=eth,state_keeper,zkos_prover_input_generator
     network_mode: host
 
@@ -54,8 +54,8 @@ services:
       - 3050:3050
       - 3051:3051
     volumes:
-      - ./configs:/configs
-    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --components=api
+      - ./chains/era/configs:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --wallets-path=/configs/wallets.yaml --components=api
     network_mode: host
 
   zksync-os-prover:

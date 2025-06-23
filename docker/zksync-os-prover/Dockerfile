@@ -55,5 +55,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/zksync/zkos_prover/target/release/zkos_prover /usr/bin/
+COPY app.bin /app.bin
+COPY app_logging_enabled.bin /app_logging_enabled.bin
 
 ENTRYPOINT ["zkos_prover"]

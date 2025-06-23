@@ -39,5 +39,7 @@ COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
 COPY core/lib/dal/migrations/ /migrations
+COPY app.bin /app.bin
+COPY app_logging_enabled.bin /app_logging_enabled.bin
 
 ENTRYPOINT ["zksync_server"]
