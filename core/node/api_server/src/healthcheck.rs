@@ -62,7 +62,7 @@ async fn run_server(
             (server_future, api::BindAddress::Tcp(local_addr))
         }
         #[cfg(unix)]
-        api::BindAddress::Unix(path) => {
+        api::BindAddress::Ipc(path) => {
             let listener = tokio::net::UnixListener::bind(path).with_context(|| {
                 format!(
                     "failed binding healthcheck server to domain socket {}",
@@ -80,7 +80,7 @@ async fn run_server(
                 .with_graceful_shutdown(graceful_shutdown)
                 .into_future()
                 .right_future();
-            (server_future, api::BindAddress::Unix(canonical_path))
+            (server_future, api::BindAddress::Ipc(canonical_path))
         }
     };
     local_addr_sender.send_replace(Some(local_addr.clone()));
@@ -89,7 +89,7 @@ async fn run_server(
     tracing::info!("Healthcheck server shut down");
 
     #[cfg(unix)]
-    if let api::BindAddress::Unix(path) = &local_addr {
+    if let api::BindAddress::Ipc(path) = &local_addr {
         tracing::info!(path = %path.display(), "Removing Unix domain socket");
         if let Err(err) = tokio::fs::remove_file(path).await {
             tracing::error!(path = %path.display(), %err, "Failed removing Unix domain socket");
@@ -228,10 +228,10 @@ mod tests {
     #[tokio::test]
     async fn uds_server() {
         let temp_dir = tempfile::TempDir::new().unwrap();
-        let bind_to = api::BindAddress::Unix(temp_dir.path().join("health.sock"));
+        let bind_to = api::BindAddress::Ipc(temp_dir.path().join("health.sock"));
         let server = HealthCheckHandle::spawn_server(bind_to, mock_health());
         let local_addr = server.local_addr().await.expect("server has not started");
-        let api::BindAddress::Unix(path) = local_addr else {
+        let api::BindAddress::Ipc(path) = local_addr else {
             panic!("Unexpected local address: {local_addr:?}");
         };
 
