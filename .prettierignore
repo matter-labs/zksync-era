@@ -35,3 +35,4 @@ contracts/l1-contracts/lib
 **/.git
 **/node_modules
 configs/portal.config.js
+.github

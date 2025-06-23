@@ -182,16 +182,16 @@ pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> Strin
     format!("Running linter for files with extension: .{}", target)
 }
 
-pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
-    format!("Running prettier for: {target:?}")
+pub(super) fn msg_running_fmt_for_extension_spinner() -> String {
+    "Running prettier".to_string()
 }
 
 pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
     format!("Running rustfmt for: {dir:?}")
 }
 
-pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
-    format!("Running prettier for: {targets:?} and rustfmt")
+pub(super) fn msg_running_fmt_for_extensions_spinner() -> String {
+    "Running formatters".to_string()
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";

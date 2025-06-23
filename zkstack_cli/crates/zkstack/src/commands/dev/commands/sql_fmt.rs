@@ -1,9 +1,18 @@
-use std::mem::take;
+use std::{
+    fs,
+    io::{Read, Write},
+    mem::take,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use anyhow::{bail, Result};
+use sha2::{Digest, Sha256};
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
-use xshell::Shell;
+use walkdir::WalkDir;
+use xshell::{cmd, Shell};
 use zkstack_cli_common::spinner::Spinner;
+use zkstack_cli_config::EcosystemConfig;
 
 use super::lint_utils::{get_unignored_files, IgnoredData, Target};
 use crate::commands::dev::messages::{msg_file_is_not_formatted, MSG_RUNNING_SQL_FMT_SPINNER};
@@ -134,16 +143,65 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
     Ok(())
 }
 
-pub async fn format_sql(shell: Shell, check: bool) -> anyhow::Result<()> {
-    let spinner = Spinner::new(MSG_RUNNING_SQL_FMT_SPINNER);
-    let ignored_data = Some(IgnoredData {
-        files: vec![],
-        dirs: vec!["zkstack_cli".to_string()],
-    });
-    let rust_files = get_unignored_files(&shell, &Target::Rs, ignored_data)?;
-    for file in rust_files {
-        fmt_file(&shell, &file, check)?;
+const SNAPSHOT_FILE: &str = ".format_sql_snapshot";
+
+pub async fn calculate_fingerprint(code_root: &Path, dal_root: &PathBuf) -> Result<String> {
+    let mut files: Vec<PathBuf> = WalkDir::new(&dal_root)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.into_path())
+        .collect();
+
+    files.sort(); // deterministic order
+
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 8 * 1024]; // 8 KiB buffer
+
+    for path in files {
+        // include the *relative* path, so a rename is detected
+        hasher.update(path.strip_prefix(code_root)?.to_string_lossy().as_bytes());
+
+        // stream file contents into the hash
+        let mut f = fs::File::open(&path)?;
+        loop {
+            let n = f.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+        }
     }
-    spinner.finish();
+
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+pub async fn format_sql(shell: Shell, check: bool) -> anyhow::Result<()> {
+    let ecosystem = EcosystemConfig::from_file(&shell)?;
+
+    let code_root: &Path = &ecosystem.link_to_code;
+    let dal_root: PathBuf = code_root.join("core/lib/dal");
+
+    let fingerprint = calculate_fingerprint(code_root, &dal_root).await?;
+
+    let snapshot_path = code_root.join(SNAPSHOT_FILE);
+    if let Ok(prev) = fs::read_to_string(&snapshot_path) {
+        if prev.trim() == fingerprint {
+            // No changes detected — skip formatting.
+            return Ok(());
+        }
+    }
+
+    let output = cmd!(shell, "git -C {code_root} ls-files core/lib/dal").read()?;
+    for file in output.lines() {
+        if file.ends_with(".rs") {
+            fmt_file(&shell, file, check)?;
+        }
+    }
+
+    let new_fingerprint = calculate_fingerprint(code_root, &dal_root).await?;
+    let mut f = fs::File::create(&snapshot_path)?;
+    writeln!(f, "{new_fingerprint}")?;
+
     Ok(())
 }
