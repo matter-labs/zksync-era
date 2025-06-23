@@ -1,10 +1,13 @@
 use clap::Subcommand;
-use commands::{rich_account::args::RichAccountArgs, status::args::StatusArgs, track_priority_txs::TrackPriorityOpsArgs};
-use messages::{MSG_RICH_ACCOUNT_ABOUT, MSG_STATUS_ABOUT};
+use commands::{
+    rich_account::args::RichAccountArgs, status::args::StatusArgs,
+    track_priority_txs::TrackPriorityOpsArgs,
+};
 #[cfg(feature = "v27_evm_interpreter")]
 use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
 #[cfg(feature = "v28_precompiles")]
 use messages::MSG_V28_PRECOMPILES_UPGRADE;
+use messages::{MSG_RICH_ACCOUNT_ABOUT, MSG_STATUS_ABOUT};
 use xshell::Shell;
 
 use self::commands::{
