@@ -49,15 +49,19 @@ describe('Interop checks', () => {
     let interop1Provider: zksync.Provider;
     let interop1Wallet: zksync.Wallet;
     let interop1RichWallet: zksync.Wallet;
-    let interop2RichWallet: zksync.Wallet;
     let interop1InteropCenter: zksync.Contract;
     let interop2InteropHandler: zksync.Contract;
     let interop1NativeTokenVault: zksync.Contract;
     let interop1TokenA: zksync.Contract;
 
     // Interop2 (Second Chain) Variables
+    let interop2RichWallet: zksync.Wallet;
     let interop2Provider: zksync.Provider;
     let interop2NativeTokenVault: zksync.Contract;
+
+    // Gateway Variables
+    let gatewayProvider: zksync.Provider;
+    let gatewayWallet: zksync.Wallet;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -81,6 +85,13 @@ describe('Interop checks', () => {
             testMaster.reporter
         );
         interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
+
+        gatewayProvider = new RetryProvider(
+            { url: await getL2bUrl('gateway'), timeout: 1200 * 1000 },
+            undefined,
+            testMaster.reporter
+        );
+        gatewayWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, gatewayProvider);
 
         // Initialize Contracts on Interop1
         interop1InteropCenter = new zksync.Contract(
@@ -179,14 +190,13 @@ describe('Interop checks', () => {
         );
 
         const feeValue = ethers.parseEther('0.2');
-        const tx = await fromInterop1RequestInterop(
+        const receipt = await fromInterop1RequestInterop(
             // Fee payment call starters
             [
                 {
                     nextContract: ethers.ZeroAddress,
                     data: '0x',
-                    requestedInteropCallValue: feeValue,
-                    attributes: []
+                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])]
                 }
             ],
             // Execution call starters for token transfer
@@ -194,15 +204,14 @@ describe('Interop checks', () => {
                 {
                     nextContract: L2_ASSET_ROUTER_ADDRESS,
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
-                    requestedInteropCallValue: 0n,
-                    attributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])]
+                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])]
                 }
             ]
         );
 
         // Broadcast interop transaction from Interop1 to Interop2
         // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
-        await readAndBroadcastInteropBundle(tx.hash, interop1Provider, interop2Provider);
+        await readAndBroadcastInteropBundle(receipt.hash, interop1Provider, interop2Provider);
 
         await sleep(10000);
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
@@ -221,9 +230,7 @@ describe('Interop checks', () => {
     interface InteropCallStarter {
         nextContract: string;
         data: string;
-        // The interop call value must be pre-determined.
-        requestedInteropCallValue: bigint;
-        attributes: string[];
+        callAttributes: string[];
     }
 
     /**
@@ -237,7 +244,7 @@ describe('Interop checks', () => {
         // note skipping feeCallStarters for now:
 
         const txFinalizeReceipt = (
-            await interop1InteropCenter.sendBundle((await interop2Provider.getNetwork()).chainId, execCallStarters)
+            await interop1InteropCenter.sendBundle((await interop2Provider.getNetwork()).chainId, execCallStarters, [])
         ).wait();
         return txFinalizeReceipt;
 

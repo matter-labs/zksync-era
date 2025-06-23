@@ -46,20 +46,22 @@ export async function getInteropBundleData(
     let calls = [];
     for (let i = 0; i < decodedRequest[0][2].length; i++) {
         calls.push({
-            directCall: decodedRequest[0][2][i][0],
-            to: decodedRequest[0][2][i][1],
-            from: decodedRequest[0][2][i][2],
-            value: decodedRequest[0][2][i][3],
-            data: decodedRequest[0][2][i][4]
+            version: decodedRequest[0][2][i][0],
+            shadowAccount: decodedRequest[0][2][i][1],
+            to: decodedRequest[0][2][i][2],
+            from: decodedRequest[0][2][i][3],
+            value: decodedRequest[0][2][i][4],
+            data: decodedRequest[0][2][i][5]
         });
     }
     // console.log(decodedRequest);
 
     const xl2Input = {
-        destinationChainId: decodedRequest[0][0],
-        sendingBlockNumber: decodedRequest[0][1],
+        version: decodedRequest[0][0],
+        destinationChainId: decodedRequest[0][1],
+        interopBundleSalt: decodedRequest[0][2],
         calls: calls,
-        executionAddress: decodedRequest[0][3]
+        bundleAttributes: decodedRequest[0][3]
     };
     // console.log("response.proof", proof_fee)
     const rawData = ethers.AbiCoder.defaultAbiCoder().encode([INTEROP_BUNDLE_ABI], [xl2Input]);

@@ -17,6 +17,8 @@ export const L2_INTEROP_CENTER_ADDRESS = '0x000000000000000000000000000000000001
 export const L2_INTEROP_HANDLER_ADDRESS = '0x000000000000000000000000000000000001000C';
 export const L2_ASSET_TRACKER_ADDRESS = '0x000000000000000000000000000000000001000D';
 
+// System contract addresses
+export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 export const DEPLOYER_SYSTEM_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000008006';
 export const L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR = '0x0000000000000000000000000000000000008008';
 export const EMPTY_STRING_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470';
@@ -29,9 +31,9 @@ export const L2_LOG_STRING =
 export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
 export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout';
 
-export const INTEROP_CALL_ABI = 'tuple(bool directCall, address to, address from, uint256 value, bytes data)';
+export const INTEROP_CALL_ABI = 'tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
-    'tuple(uint256 destinationChainId, uint256 sendingBlockNumber, tuple(bool shadowAccount, address to, address from, uint256 value, bytes data)[] calls, address executionAddress)';
+    'tuple(bytes1 version, uint256 destinationChainId, bytes32 interopBundleSalt, tuple(bool shadowAccount, address to, address from, uint256 value, bytes data)[] calls, (address executionAddress, address unbundlerAddress) bundleAttributes)';
 
 export const MESSAGE_INCLUSION_PROOF_ABI =
     'tuple(uint256 chainId, uint256 l1BatchNumber, uint256 l2MessageIndex, tuple(uint16 txNumberInBatch, address sender, bytes data) message, bytes32[] proof)';
