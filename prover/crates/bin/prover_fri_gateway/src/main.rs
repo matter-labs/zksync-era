@@ -7,14 +7,13 @@ use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
 use zksync_config::{
-    configs::{fri_prover_gateway::ApiMode, DatabaseSecrets, GeneralConfig},
+    configs::{fri_prover_gateway::ApiMode, GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod client;
 mod error;
@@ -26,7 +25,7 @@ mod traits;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -38,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let config = general_config
         .prover_gateway
@@ -69,8 +68,13 @@ async fn main() -> anyhow::Result<()> {
     })
     .context("Error setting Ctrl+C handler")?;
 
-    tracing::info!("Starting Fri Prover Gateway in mode {:?}", config.api_mode);
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(config.prometheus_listener_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
+    tracing::info!("Starting Fri Prover Gateway in mode {:?}", config.api_mode);
     let tasks = match &config.api_mode {
         ApiMode::Legacy => {
             let proof_submitter = ProofSubmitter::new(
@@ -85,10 +89,7 @@ async fn main() -> anyhow::Result<()> {
             );
 
             vec![
-                tokio::spawn(
-                    PrometheusExporterConfig::pull(config.prometheus_listener_port)
-                        .run(stop_receiver.clone()),
-                ),
+                tokio::spawn(prometheus_exporter_config.run(stop_receiver.clone())),
                 tokio::spawn(
                     proof_gen_data_fetcher.run(config.api_poll_duration, stop_receiver.clone()),
                 ),
@@ -105,10 +106,7 @@ async fn main() -> anyhow::Result<()> {
             let api = server::Api::new(processor.clone(), port);
 
             vec![
-                tokio::spawn(
-                    PrometheusExporterConfig::pull(config.prometheus_listener_port)
-                        .run(stop_receiver.clone()),
-                ),
+                tokio::spawn(prometheus_exporter_config.run(stop_receiver.clone())),
                 tokio::spawn(api.run(stop_receiver)),
             ]
         }

@@ -1,7 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use futures::future::Fuse;
-use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
+use tokio::{runtime::Runtime, sync::watch};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
 pub use self::{
@@ -14,7 +13,7 @@ pub use self::{
 use crate::{
     resource::{ResourceId, StoredResource},
     service::{
-        named_future::NamedFuture,
+        named_future::TaskFuture,
         runnables::{NamedBoxFuture, Runnables, TaskReprs},
     },
     task::TaskId,
@@ -133,8 +132,6 @@ pub struct ZkStackService {
     errors: Vec<TaskError>,
 }
 
-type TaskFuture = NamedFuture<Fuse<JoinHandle<anyhow::Result<()>>>>;
-
 impl ZkStackService {
     /// Runs the system.
     ///
@@ -231,11 +228,11 @@ impl ZkStackService {
         let rt_handle = self.runtime.handle().clone();
         let join_handles: Vec<_> = tasks
             .into_iter()
-            .map(|task| task.spawn(&rt_handle).fuse())
+            .map(|task| task.spawn(&rt_handle))
             .collect();
 
         // Collect names for remaining tasks for reporting purposes.
-        let mut tasks_names: Vec<_> = join_handles.iter().map(|task| task.id()).collect();
+        let mut tasks_names: Vec<_> = join_handles.iter().map(TaskFuture::id).collect();
 
         // Run the tasks until one of them exits.
         let (resolved, resolved_idx, remaining) = self
@@ -256,8 +253,8 @@ impl ZkStackService {
         self.stop_sender.send(true).ok();
 
         // Collect names for remaining tasks for reporting purposes.
-        // We have to re-collect, becuase `select_all` does not guarantes the order of returned remaining futures.
-        let remaining_tasks_names: Vec<_> = remaining.iter().map(|task| task.id()).collect();
+        // We have to re-collect, because `select_all` does not guarantee the order of returned remaining futures.
+        let remaining_task_names: Vec<_> = remaining.iter().map(TaskFuture::id).collect();
         let remaining_tasks_with_timeout: Vec<_> = remaining
             .into_iter()
             .map(|task| async { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, task).await })
@@ -268,7 +265,7 @@ impl ZkStackService {
             .block_on(futures::future::join_all(remaining_tasks_with_timeout));
 
         // Report the results of the remaining tasks.
-        for (name, result) in remaining_tasks_names.into_iter().zip(execution_results) {
+        for (name, result) in remaining_task_names.into_iter().zip(execution_results) {
             match result {
                 Ok(resolved) => {
                     self.handle_task_exit(resolved, name);
@@ -285,7 +282,7 @@ impl ZkStackService {
     fn run_shutdown_hooks(&mut self, shutdown_hooks: Vec<NamedBoxFuture<anyhow::Result<()>>>) {
         // Run shutdown hooks sequentially.
         for hook in shutdown_hooks {
-            let name = hook.id().clone();
+            let name = hook.id();
             // Limit each shutdown hook to the same timeout as the tasks.
             let hook_with_timeout =
                 async move { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, hook).await };
