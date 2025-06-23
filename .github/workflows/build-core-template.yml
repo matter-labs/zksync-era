@@ -271,7 +271,7 @@ jobs:
         component:
           - name: server-v2
             platform: linux/amd64
-          - name: server-zksync-os
+          - name: zksync-os-server
             platform: linux/amd64
           - name: external-node
             platform: linux/amd64,linux/arm64
