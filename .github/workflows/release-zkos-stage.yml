@@ -67,7 +67,7 @@ jobs:
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      action: "build"
+      action: "push"
       zksync_os: true
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
@@ -82,7 +82,7 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      action: "build"
+      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
