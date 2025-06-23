@@ -50,6 +50,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let spinner = Spinner::new(&msg_running_fmt_spinner());
     let mut tasks = vec![];
+    tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
     tasks.push(tokio::spawn(prettier(shell.clone(), args.check)));
     tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
     for dir in ["core", "prover", "zkstack_cli"] {
@@ -60,7 +61,6 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             dir,
         )));
     }
-    tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
 
     for result in futures::future::join_all(tasks).await {
         result??;
