@@ -1,11 +1,12 @@
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
 use zksync_types::ProtocolVersionId;
 
 // Local uses
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, UnexecutableReason};
+use crate::seal_criteria::{
+    L1BatchSealConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
+};
 
 // Collected vm execution metrics should fit into geometry limits.
 // Otherwise witness generation will fail and proof won't be generated.
@@ -17,12 +18,13 @@ pub struct CircuitsCriterion;
 impl SealCriterion for CircuitsCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let max_allowed_base_layer_circuits =
             get_max_batch_base_layer_circuits(protocol_version.into());
@@ -71,11 +73,12 @@ impl SealCriterion for CircuitsCriterion {
 
     fn capacity_filled(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let batch_tip_circuit_overhead =
             circuit_statistics_bootloader_batch_tip_overhead(protocol_version.into());
@@ -97,12 +100,12 @@ mod tests {
 
     const MAX_CIRCUITS_PER_BATCH: usize = 27_000;
 
-    fn get_config() -> StateKeeperConfig {
-        StateKeeperConfig {
+    fn get_config() -> L1BatchSealConfig {
+        L1BatchSealConfig {
             close_block_at_geometry_percentage: 0.9,
             reject_tx_at_geometry_percentage: 0.9,
             max_circuits_per_batch: MAX_CIRCUITS_PER_BATCH,
-            ..StateKeeperConfig::for_tests()
+            ..L1BatchSealConfig::for_tests()
         }
     }
 
@@ -122,6 +125,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            0,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
     }
@@ -142,6 +146,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            0,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }
@@ -162,6 +167,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            0,
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
@@ -182,6 +188,7 @@ mod tests {
                 ..SealData::default()
             },
             protocol_version,
+            0,
         );
 
         assert_eq!(block_resolution, UnexecutableReason::ProofWillFail.into());

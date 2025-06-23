@@ -26,7 +26,7 @@ impl MainBatchExecutorLayer {
         self
     }
 
-    fn create_executor<Tr: BatchTracer>(&self) -> BatchExecutorResource {
+    fn create_executor<Tr: BatchTracer + Sync>(&self) -> BatchExecutorResource {
         let mut executor = MainBatchExecutorFactory::<Tr>::new(self.optional_bytecode_compression);
         executor.set_fast_vm_mode(self.fast_vm_mode);
         executor.into()

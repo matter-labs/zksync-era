@@ -479,7 +479,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         tx: None,
     };
 
-    let genesis_l1_batch_header = L1BatchHeader::new(
+    let genesis_l1_batch_header = L1BatchHeader::mock(
         L1BatchNumber(0),
         0,
         base_system_contracts.hashes(),

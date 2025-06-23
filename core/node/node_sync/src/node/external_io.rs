@@ -9,7 +9,7 @@ use zksync_node_framework::{
 };
 use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
-    node::StateKeeperIOResource,
+    node::{ConditionalSealerResource, StateKeeperIOResource},
     seal_criteria::{ConditionalSealer, NoopSealer},
 };
 use zksync_types::L2ChainId;
@@ -36,7 +36,7 @@ pub struct Output {
     sync_state: SyncState,
     action_queue_sender: ActionQueueSenderResource,
     io: StateKeeperIOResource,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: ConditionalSealerResource,
 }
 
 impl ExternalIOLayer {
@@ -70,19 +70,21 @@ impl WiringLayer for ExternalIOLayer {
         let io = ExternalIO::new(
             io_pool,
             action_queue,
-            Box::new(input.main_node_client.for_component("external_io")),
+            Some(Box::new(
+                input.main_node_client.for_component("external_io"),
+            )),
             self.chain_id,
         )
         .context("Failed initializing I/O for external node state keeper")?;
 
         // Create sealer.
-        let sealer = Arc::new(NoopSealer);
+        let sealer: Box<dyn ConditionalSealer> = Box::new(NoopSealer);
 
         Ok(Output {
             sync_state,
             action_queue_sender: action_queue_sender.into(),
             io: io.into(),
-            sealer,
+            sealer: sealer.into(),
         })
     }
 }

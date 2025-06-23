@@ -107,7 +107,11 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
 }
 
 impl SyncBlock {
-    pub(crate) fn into_api(self, transactions: Option<Vec<Transaction>>) -> en::SyncBlock {
+    pub(crate) fn into_api(
+        self,
+        transactions: Option<Vec<Transaction>>,
+        pubdata_limit: Option<u64>,
+    ) -> en::SyncBlock {
         en::SyncBlock {
             number: self.number,
             l1_batch_number: self.l1_batch_number,
@@ -123,10 +127,15 @@ impl SyncBlock {
             hash: Some(self.hash),
             protocol_version: self.protocol_version,
             pubdata_params: Some(self.pubdata_params),
+            pubdata_limit,
         }
     }
 
-    pub(crate) fn into_payload(self, transactions: Vec<Transaction>) -> Payload {
+    pub(crate) fn into_payload(
+        self,
+        transactions: Vec<Transaction>,
+        pubdata_limit: Option<u64>,
+    ) -> Payload {
         Payload {
             protocol_version: self.protocol_version,
             hash: self.hash,
@@ -140,6 +149,7 @@ impl SyncBlock {
             transactions,
             last_in_batch: self.last_in_batch,
             pubdata_params: self.pubdata_params,
+            pubdata_limit,
         }
     }
 }

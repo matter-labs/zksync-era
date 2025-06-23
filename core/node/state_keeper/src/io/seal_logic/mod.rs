@@ -132,6 +132,7 @@ impl UpdatesManager {
             pubdata_input: finished_batch.pubdata_input.clone(),
             fee_address: self.fee_account_address(),
             batch_fee_input: self.batch_fee_input(),
+            pubdata_limit: self.pubdata_limit(),
         };
 
         let final_bootloader_memory = finished_batch

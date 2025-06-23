@@ -7,7 +7,7 @@ use zksync_dal::{
     consensus_dal::{BlockMetadata, GlobalConfig, Payload},
     Core, CoreDal, DalError,
 };
-use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender};
+use zksync_node_sync::ActionQueueSender;
 use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{fee_model::BatchFeeInput, L2BlockNumber};
@@ -78,15 +78,9 @@ impl<'a> Connection<'a> {
     /// Wrapper for `FetcherCursor::new()`.
     pub async fn new_payload_queue(
         &mut self,
-        ctx: &ctx::Ctx,
         actions: ActionQueueSender,
-        sync_state: SyncState,
     ) -> ctx::Result<PayloadQueue> {
-        Ok(PayloadQueue {
-            inner: ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??,
-            actions,
-            sync_state,
-        })
+        Ok(PayloadQueue { actions })
     }
 
     /// Wrapper for `consensus_dal().global_config()`.

@@ -3,6 +3,8 @@ use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration}
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
+use zksync_concurrency::ctx;
+use zksync_dal::consensus::Payload;
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
@@ -23,7 +25,10 @@ use zksync_vm_executor::whitelist::DeploymentTxFilter;
 use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
-    io::{BatchInitParams, IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
+    io::{
+        common::FetcherCursor, BatchInitParams, IoCursor, L1BatchParams, L2BlockParams,
+        OutputHandler, StateKeeperIO,
+    },
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
@@ -55,15 +60,16 @@ impl BatchState {
         &mut self,
         inner: &mut StateKeeperInner,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<&mut InitializedBatchState, OrStopped> {
         let state = match self {
-            Self::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver).await?,
-            Self::Init(init) => return Ok(init.as_mut()),
+            BatchState::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver, ctx).await?,
+            BatchState::Init(init) => return Ok(init.as_mut()),
         };
         *self = Self::Init(Box::new(state));
         match self {
-            Self::Init(init) => Ok(init.as_mut()),
-            Self::Uninit(_) => unreachable!(),
+            BatchState::Init(init) => Ok(init.as_mut()),
+            BatchState::Uninit(_) => unreachable!(),
         }
     }
 
@@ -122,7 +128,7 @@ pub struct StateKeeperBuilder {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
@@ -135,11 +141,12 @@ pub(super) struct StateKeeperInner {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    is_active_leader: bool,
 }
 
 impl From<StateKeeperBuilder> for StateKeeperInner {
@@ -153,6 +160,7 @@ impl From<StateKeeperBuilder> for StateKeeperInner {
             health_updater: b.health_updater,
             deployment_tx_filter: b.deployment_tx_filter,
             leader_rotation: b.leader_rotation,
+            is_active_leader: true,
         }
     }
 }
@@ -162,7 +170,7 @@ impl StateKeeperBuilder {
         sequencer: Box<dyn StateKeeperIO>,
         batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
         output_handler: OutputHandler,
-        sealer: Arc<dyn ConditionalSealer>,
+        sealer: Box<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
         deployment_tx_filter: Option<DeploymentTxFilter>,
     ) -> Self {
@@ -178,8 +186,8 @@ impl StateKeeperBuilder {
         }
     }
 
-    pub fn with_leader_rotation(mut self, sync: bool) -> Self {
-        self.leader_rotation = sync;
+    pub fn with_leader_rotation(mut self, leader_rotation: bool) -> Self {
+        self.leader_rotation = leader_rotation;
         self
     }
 
@@ -218,6 +226,7 @@ impl StateKeeperBuilder {
                         system_env: params.system_env,
                         l1_batch_env: params.l1_batch_env,
                         pubdata_params: params.pubdata_params,
+                        pubdata_limit: params.pubdata_limit,
                         timestamp_ms,
                     },
                     params.pending_l2_blocks,
@@ -288,9 +297,10 @@ impl StateKeeperInner {
         &mut self,
         cursor: IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<InitializedBatchState, OrStopped> {
         let batch_init_params = self
-            .wait_for_new_batch_init_params(&cursor, stop_receiver)
+            .wait_for_new_batch_init_params(&cursor, stop_receiver, ctx)
             .await?;
         let first_batch_in_shared_bridge = batch_init_params.l1_batch_env.number
             == L1BatchNumber(1)
@@ -323,6 +333,9 @@ impl StateKeeperInner {
         } else {
             None
         };
+
+        self.sealer
+            .set_protocol_version(batch_init_params.system_env.version);
 
         Ok(InitializedBatchState {
             updates_manager,
@@ -421,8 +434,15 @@ impl StateKeeperInner {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<L1BatchParams, OrStopped> {
         while !is_canceled(stop_receiver) {
+            if let Some(ctx) = ctx {
+                if !ctx.is_active() {
+                    return Err(OrStopped::Stopped);
+                }
+            }
+
             if let Some(params) = self
                 .io
                 .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
@@ -444,11 +464,12 @@ impl StateKeeperInner {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<BatchInitParams, OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
-            .wait_for_new_batch_params(cursor, stop_receiver)
+            .wait_for_new_batch_params(cursor, stop_receiver, ctx)
             .await?;
         let contracts = self
             .io
@@ -847,6 +868,7 @@ impl StateKeeperInner {
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),
+                    updates_manager.pubdata_limit().map(|l| l as usize),
                 )
             }
         };
@@ -869,11 +891,19 @@ impl StateKeeperInner {
             manager.pending_l1_transactions_len(),
             &block_data,
             manager.protocol_version(),
+            manager.pubdata_limit().map(|l| l as usize),
         );
         for (criterion, capacity) in capacities {
             AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub enum RunMode {
+    Propose,
+    #[default]
+    WithoutRollback,
 }
 
 #[derive(Debug)]
@@ -883,20 +913,82 @@ enum ProcessBlockIterationOutcome {
 }
 
 impl StateKeeper {
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        try_stoppable!(self.run_inner(stop_receiver).await);
+    pub async fn run(
+        self,
+        mode: RunMode,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        try_stoppable!(self.run_inner(mode, stop_receiver).await);
         Ok(())
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(
         mut self,
+        mode: RunMode,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> Result<Infallible, OrStopped> {
         while !is_canceled(&stop_receiver) {
-            self.process_block(&mut stop_receiver).await?;
-            self.seal_last_pending_block_data().await?;
-            self.commit_pending_block().await?;
+            match mode {
+                RunMode::Propose => {
+                    #[derive(Debug, Copy, Clone)]
+                    enum Action {
+                        Propose,
+                        Rollback,
+                        Commit,
+                    }
+
+                    let (
+                        number_of_pending_blocks,
+                        is_last_block_fictive,
+                        last_pending_block_number,
+                    ) = match &self.batch_state {
+                        BatchState::Uninit(_) => (0, false, None),
+                        BatchState::Init(s) => (
+                            s.updates_manager.number_of_pending_blocks(),
+                            s.updates_manager
+                                .last_pending_l2_block_checked()
+                                .map_or(false, |b| b.executed_transactions.is_empty()),
+                            s.updates_manager
+                                .last_pending_l2_block_checked()
+                                .map(|b| b.number),
+                        ),
+                    };
+                    let possible_actions = if last_pending_block_number == Some(L2BlockNumber(1)) {
+                        vec![Action::Commit]
+                    } else {
+                        match (number_of_pending_blocks, is_last_block_fictive) {
+                            (0, _) => vec![Action::Propose],
+                            (1, false) => vec![Action::Propose, Action::Commit, Action::Rollback],
+                            (1, true) => vec![Action::Commit, Action::Rollback],
+                            (2, false) => vec![Action::Commit, Action::Rollback],
+                            (2, true) => vec![Action::Commit, Action::Rollback],
+                            _ => unreachable!(),
+                        }
+                    };
+                    let idx = rand::random::<usize>() % possible_actions.len();
+                    let action = possible_actions[idx];
+                    match action {
+                        Action::Propose => {
+                            tracing::error!("Proposing a new block");
+                            self.propose(&mut stop_receiver, None).await?;
+                        }
+                        Action::Rollback => {
+                            tracing::error!("Rolling back the last block");
+                            self.rollback().await?;
+                        }
+                        Action::Commit => {
+                            tracing::error!("Committing the last block");
+                            self.commit_pending_block().await?;
+                        }
+                    }
+                }
+                RunMode::WithoutRollback => {
+                    self.process_block(&mut stop_receiver, None).await?;
+                    self.seal_last_pending_block_data().await?;
+                    self.commit_pending_block().await?;
+                }
+            };
         }
 
         Err(OrStopped::Stopped)
@@ -905,11 +997,12 @@ impl StateKeeper {
     async fn process_block(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<(), OrStopped> {
         // If there is no open batch then start one.
         let state = self
             .batch_state
-            .ensure_initialized(&mut self.inner, stop_receiver)
+            .ensure_initialized(&mut self.inner, stop_receiver, ctx)
             .await?;
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
@@ -931,7 +1024,7 @@ impl StateKeeper {
                 StateKeeperInner::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
-            if state.next_block_should_be_fictive {
+            if self.inner.is_active_leader && state.next_block_should_be_fictive {
                 // Create a fictive L2 block.
                 let next_l2_block_timestamp =
                     updates_manager.next_l2_block_timestamp_ms_mut().unwrap();
@@ -946,6 +1039,26 @@ impl StateKeeper {
 
         while !is_canceled(stop_receiver) {
             let full_latency = KEEPER_METRICS.process_block_loop_iteration.start();
+
+            if let Some(ctx) = ctx {
+                if !ctx.is_active() {
+                    let some_tx_was_processed = state
+                        .updates_manager
+                        .last_pending_l2_block_checked()
+                        .is_some_and(|b| !b.executed_transactions.is_empty());
+                    if !some_tx_was_processed {
+                        if state.updates_manager.is_in_first_pending_block_state() {
+                            state.updates_manager.pop_last_pending_block();
+                            self.batch_state =
+                                BatchState::Uninit(state.updates_manager.io_cursor());
+                        } else if state.updates_manager.has_next_block_params() {
+                            state.updates_manager.reset_next_l2_block_params();
+                        }
+                        return Err(OrStopped::Stopped);
+                    }
+                }
+            }
+
             let outcome = Self::process_block_iteration(state, &mut self.inner).await?;
             full_latency.observe();
 
@@ -1036,8 +1149,8 @@ impl StateKeeper {
             .await?;
 
         let latency = KEEPER_METRICS.match_seal_resolution.start();
-        match &seal_resolution {
-            SealResolution::NoSeal => {
+        match (inner.is_active_leader, &seal_resolution) {
+            (_, SealResolution::NoSeal | SealResolution::IncludeAndSeal) => {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
@@ -1056,26 +1169,7 @@ impl StateKeeper {
                     call_tracer_result,
                 );
             }
-            SealResolution::IncludeAndSeal => {
-                let TxExecutionResult::Success {
-                    tx_result,
-                    tx_metrics: tx_execution_metrics,
-                    call_tracer_result,
-                    ..
-                } = exec_result
-                else {
-                    unreachable!(
-                        "Tx inclusion seal resolution must be a result of a successful tx execution",
-                    );
-                };
-                updates_manager.extend_from_executed_transaction(
-                    tx,
-                    *tx_result,
-                    *tx_execution_metrics,
-                    call_tracer_result,
-                );
-            }
-            SealResolution::ExcludeAndSeal => {
+            (true, SealResolution::ExcludeAndSeal) => {
                 batch_executor.rollback_last_tx().await.with_context(|| {
                     format!("failed rolling back transaction {tx_hash:?} in batch executor")
                 })?;
@@ -1083,7 +1177,7 @@ impl StateKeeper {
                     format!("failed rolling back transaction {tx_hash:?} in I/O")
                 })?;
             }
-            SealResolution::Unexecutable(reason) => {
+            (true, SealResolution::Unexecutable(reason)) => {
                 batch_executor.rollback_last_tx().await.with_context(|| {
                     format!("failed rolling back transaction {tx_hash:?} in batch executor")
                 })?;
@@ -1093,8 +1187,11 @@ impl StateKeeper {
                     .await
                     .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
             }
+            (false, SealResolution::ExcludeAndSeal | SealResolution::Unexecutable(_)) => {
+                panic!(); // TODO return error
+            }
         };
-        let result = if seal_resolution.should_seal() {
+        let result = if inner.is_active_leader && seal_resolution.should_seal() {
             tracing::debug!(
                 "L2 block #{} should be sealed with conditional sealer resolution {seal_resolution:?} after executing transaction {tx_hash}",
                 updates_manager.last_pending_l2_block().number
@@ -1164,6 +1261,82 @@ impl StateKeeper {
         Ok(())
     }
 
+    pub async fn propose(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
+    ) -> Result<Payload, OrStopped> {
+        self.inner.is_active_leader = true;
+        self.inner.io.set_is_active_leader(true);
+        self.inner.sealer.use_propose_mode();
+
+        self.process_block(stop_receiver, ctx).await?;
+        self.seal_last_pending_block_data().await?;
+
+        let batch_state = self.batch_state.unwrap_init_ref();
+        let payload = batch_state.updates_manager.build_payload().unwrap();
+
+        Ok(payload)
+    }
+
+    pub async fn verify(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
+        self.inner.is_active_leader = false;
+        self.inner.io.set_is_active_leader(false);
+        self.inner.sealer.use_verify_mode();
+        if let BatchState::Init(state) = &mut self.batch_state {
+            self.inner
+                .sealer
+                .set_protocol_version(state.updates_manager.protocol_version());
+        }
+
+        self.process_block(stop_receiver, None).await?;
+        self.seal_last_pending_block_data().await?;
+
+        Ok(())
+    }
+
+    pub fn pending_block_number(&self) -> Option<u32> {
+        if let BatchState::Init(state) = &self.batch_state {
+            state
+                .updates_manager
+                .last_pending_l2_block_checked()
+                .map(|b| b.number.0)
+        } else {
+            None
+        }
+    }
+
+    pub fn pending_payload(&self) -> Option<Payload> {
+        if let BatchState::Init(state) = &self.batch_state {
+            state.updates_manager.build_payload()
+        } else {
+            None
+        }
+    }
+
+    pub fn fetcher_cursor(&self) -> FetcherCursor {
+        match &self.batch_state {
+            BatchState::Uninit(cursor) => FetcherCursor {
+                next_l2_block: cursor.next_l2_block,
+                prev_l2_block_hash: cursor.prev_l2_block_hash,
+                current_l1_batch: cursor.l1_batch,
+                is_current_batch_init: false,
+            },
+            BatchState::Init(d) => {
+                let io_cursor = d.updates_manager.io_cursor();
+                FetcherCursor {
+                    next_l2_block: io_cursor.next_l2_block,
+                    prev_l2_block_hash: io_cursor.prev_l2_block_hash,
+                    current_l1_batch: io_cursor.l1_batch,
+                    is_current_batch_init: true,
+                }
+            }
+        }
+    }
+
     pub async fn rollback(&mut self) -> anyhow::Result<()> {
         let state = self.batch_state.unwrap_init_mut();
         let pending_block = state.updates_manager.last_pending_l2_block();
@@ -1178,15 +1351,20 @@ impl StateKeeper {
                 .await?;
         }
 
-        // Rollback mempool.
+        // Rollback io.
         let txs = pending_block
             .executed_transactions
             .iter()
             .map(|tx| tx.transaction.clone())
             .collect();
-        self.inner.io.rollback_l2_block(txs).await?;
+        let is_in_first_pending_block_state =
+            state.updates_manager.is_in_first_pending_block_state();
+        self.inner
+            .io
+            .rollback_l2_block(txs, is_in_first_pending_block_state)
+            .await?;
 
-        if state.updates_manager.is_in_first_pending_block_state() {
+        if is_in_first_pending_block_state {
             // Rollback state to `Uninit`.
             state.updates_manager.pop_last_pending_block();
             self.batch_state = BatchState::Uninit(state.updates_manager.io_cursor());
@@ -1220,7 +1398,7 @@ impl StateKeeper {
         assert!(self.inner.leader_rotation);
 
         while !is_canceled(&stop_receiver) {
-            try_stoppable!(self.process_block(&mut stop_receiver).await);
+            try_stoppable!(self.process_block(&mut stop_receiver, None).await);
             self.seal_last_pending_block_data().await?;
 
             let block_number = self

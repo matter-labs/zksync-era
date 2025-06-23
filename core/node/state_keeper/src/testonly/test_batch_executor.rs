@@ -37,7 +37,7 @@ use crate::{
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
-    OutputHandler, StateKeeperBuilder, StateKeeperOutputHandler,
+    OutputHandler, RunMode, StateKeeperBuilder, StateKeeperOutputHandler,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -242,7 +242,7 @@ impl TestScenario {
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(sealer),
+            Box::new(sealer),
             Arc::new(MockReadStorageFactory),
             None,
         );
@@ -252,7 +252,9 @@ impl TestScenario {
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
         let sk_thread = tokio::spawn(async move {
             if block_numbers_to_rollback.is_empty() {
-                state_keeper.run(stop_receiver).await
+                state_keeper
+                    .run(RunMode::WithoutRollback, stop_receiver)
+                    .await
             } else {
                 state_keeper
                     .run_with_rollback_enabled(stop_receiver, block_numbers_to_rollback)
@@ -800,6 +802,7 @@ impl StateKeeperIO for TestIO {
             fee_input: self.fee_input,
             first_l2_block: L2BlockParams::new(self.timestamp * 1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
@@ -878,7 +881,11 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(
+        &mut self,
+        txs: Vec<Transaction>,
+        _first_block_in_batch: bool,
+    ) -> anyhow::Result<()> {
         let action = self.pop_next_item("rollback_l2_block");
         let ScenarioItem::RollbackBlock(_, _, expected_txs) = action else {
             panic!("Unexpected action: {:?}", action);

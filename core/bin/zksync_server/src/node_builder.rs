@@ -60,11 +60,13 @@ use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
 use zksync_node_storage_init::node::{
     main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
 };
+use zksync_node_sync::node::LeaderIOLayer;
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::node::{
-    MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
+use zksync_state_keeper::{
+    node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer},
+    RunMode,
 };
 use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
@@ -240,21 +242,23 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+    fn add_state_keeper_layer(mut self, consensus_enabled: bool) -> anyhow::Result<Self> {
         // Bytecode compression is currently mandatory for the transactions processed by the sequencer.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
 
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(sk_config.l2_block_seal_queue_capacity)
+            .with_pre_insert_txs(true)
             .with_protective_reads_persistence_enabled(
                 sk_config.protective_reads_persistence_enabled,
             );
-        let mempool_io_layer = MempoolIOLayer::new(
+        let leader_io_layer = LeaderIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
             self.configs.mempool_config.clone(),
             try_load_config!(self.wallets.fee_account),
             self.get_pubdata_type()?,
+            true,
         );
         let db_config = self.configs.db_config.clone();
         let experimental_vm_config = self.configs.experimental_vm_config.clone();
@@ -269,11 +273,14 @@ impl MainNodeBuilder {
                 .0 as usize,
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
-        let state_keeper_layer =
-            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
+        let state_keeper_layer = StateKeeperLayer::new(
+            db_config.state_keeper_db_path,
+            rocksdb_options,
+            (!consensus_enabled).then_some(RunMode::Propose),
+        );
         self.node
             .add_layer(persistence_layer)
-            .add_layer(mempool_io_layer)
+            .add_layer(leader_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
         Ok(self)
@@ -762,7 +769,7 @@ impl MainNodeBuilder {
         {
             self = self.add_pk_signing_client_layer()?;
         }
-
+        let consensus_enabled = components.contains(&Component::Consensus);
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
@@ -774,7 +781,7 @@ impl MainNodeBuilder {
                         .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
-                        .add_state_keeper_layer()?
+                        .add_state_keeper_layer(consensus_enabled)?
                         .add_logs_bloom_backfill_layer()?;
                 }
                 Component::HttpApi => {

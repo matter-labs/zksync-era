@@ -1,5 +1,8 @@
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+    metrics::MethodLatency,
 };
 use zksync_types::{api::en, L2BlockNumber};
 
@@ -103,7 +106,18 @@ impl SyncDal<'_, '_> {
         } else {
             None
         };
-        Ok(Some(block.into_api(transactions)))
+
+        let pubdata_limit = self
+            .storage
+            .blocks_dal()
+            .get_common_l1_batch_header(block.l1_batch_number)
+            .await?
+            .ok_or_else(|| {
+                Instrumented::new("sync_block")
+                    .constraint_error(anyhow::anyhow!("Missing common L1 batch header for block"))
+            })?
+            .pubdata_limit;
+        Ok(Some(block.into_api(transactions, pubdata_limit)))
     }
 }
 
@@ -138,7 +152,7 @@ mod tests {
             .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
-        let mut l1_batch_header = L1BatchHeader::new(
+        let mut l1_batch_header = L1BatchHeader::mock(
             L1BatchNumber(0),
             0,
             Default::default(),

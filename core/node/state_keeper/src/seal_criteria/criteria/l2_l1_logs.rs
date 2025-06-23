@@ -1,7 +1,7 @@
 use zksync_types::{l2_to_l1_log::l2_to_l1_logs_tree_size, ProtocolVersionId};
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    L1BatchSealConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -10,12 +10,13 @@ pub(crate) struct L2L1LogsCriterion;
 impl SealCriterion for L2L1LogsCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let max_allowed_logs = l2_to_l1_logs_tree_size(protocol_version_id);
 
@@ -38,11 +39,12 @@ impl SealCriterion for L2L1LogsCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_logs = block_data.execution_metrics.user_l2_to_l1_logs as f64;
         let full_logs = l2_to_l1_logs_tree_size(protocol_version) as f64;
@@ -63,7 +65,7 @@ mod tests {
     use super::*;
 
     fn query_criterion(
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         block_data_logs: usize,
         tx_data_logs: usize,
         protocol_version_id: ProtocolVersionId,
@@ -87,16 +89,17 @@ mod tests {
                 ..SealData::default()
             },
             protocol_version_id,
+            0,
         )
     }
 
     #[test_casing(2, [ProtocolVersionId::Version25, ProtocolVersionId::Version27])]
     fn test_l2_l1_logs_seal_criterion(protocol_version: ProtocolVersionId) {
         let max_allowed_logs = l2_to_l1_logs_tree_size(protocol_version);
-        let config = StateKeeperConfig {
+        let config = L1BatchSealConfig {
             close_block_at_geometry_percentage: 0.95,
             reject_tx_at_geometry_percentage: 0.9,
-            ..StateKeeperConfig::for_tests()
+            ..L1BatchSealConfig::for_tests()
         };
 
         let reject_bound =

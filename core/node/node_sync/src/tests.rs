@@ -1,6 +1,6 @@
 //! High-level sync layer tests.
 
-use std::{iter, sync::Arc, time::Duration};
+use std::{collections::HashMap, iter, sync::Arc, time::Duration};
 
 use backon::{ConstantBuilder, Retryable};
 use test_casing::test_casing;
@@ -16,7 +16,7 @@ use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
-    OutputHandler, StateKeeperBuilder, StateKeeperPersistence, TreeWritesPersistence,
+    OutputHandler, RunMode, StateKeeperBuilder, StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::{
     api,
@@ -43,6 +43,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(timestamp * 1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
@@ -67,6 +68,7 @@ impl MockMainNodeClient {
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
 
         Self {
@@ -118,7 +120,7 @@ impl StateKeeperHandles {
         let io = ExternalIO::new(
             pool.clone(),
             actions,
-            Box::new(main_node_client),
+            Some(Box::new(main_node_client)),
             L2ChainId::default(),
         )
         .unwrap();
@@ -133,7 +135,7 @@ impl StateKeeperHandles {
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(NoopSealer),
+            Box::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
         );
@@ -142,7 +144,7 @@ impl StateKeeperHandles {
         Self {
             stop_sender,
             sync_state,
-            task: tokio::spawn(state_keeper.run(stop_receiver)),
+            task: tokio::spawn(state_keeper.run(RunMode::WithoutRollback, stop_receiver)),
         }
     }
 
@@ -314,6 +316,16 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         l2_system_upgrade_tx_hash: None,
     };
     client.insert_protocol_version(next_protocol_version.clone());
+
+    // Insert bytecode.
+    storage
+        .factory_deps_dal()
+        .insert_factory_deps(
+            L2BlockNumber(0),
+            &HashMap::from([(H256::repeat_byte(1), vec![])]),
+        )
+        .await
+        .unwrap();
 
     let state_keeper = StateKeeperHandles::new(
         pool.clone(),

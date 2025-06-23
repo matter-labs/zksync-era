@@ -4,7 +4,10 @@ pub use self::{
     main_batch_executor::MainBatchExecutorLayer,
     mempool_io::MempoolIOLayer,
     output_handler::OutputHandlerLayer,
-    resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource},
+    resources::{
+        BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
+        StateKeeperIOResource, StateKeeperResource,
+    },
     state_keeper::StateKeeperLayer,
 };
 

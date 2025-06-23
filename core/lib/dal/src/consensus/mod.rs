@@ -63,7 +63,7 @@ pub struct GlobalConfig {
 }
 
 /// L2 block (= miniblock) payload.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Payload {
     pub protocol_version: ProtocolVersionId,
     pub hash: H256,
@@ -77,6 +77,7 @@ pub struct Payload {
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl Payload {

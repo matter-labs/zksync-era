@@ -29,6 +29,7 @@ impl L1BatchEnv {
     pub fn into_unsealed_header(
         self,
         protocol_version: Option<ProtocolVersionId>,
+        pubdata_limit: Option<u64>,
     ) -> UnsealedL1BatchHeader {
         UnsealedL1BatchHeader {
             number: self.number,
@@ -36,6 +37,7 @@ impl L1BatchEnv {
             protocol_version,
             fee_address: self.fee_account,
             fee_input: self.fee_input,
+            pubdata_limit,
         }
     }
 }

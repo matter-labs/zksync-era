@@ -1,6 +1,8 @@
+use std::cmp::Ordering;
+
 use zksync_types::ProtocolVersionId;
 
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
+use crate::seal_criteria::{L1BatchSealConfig, SealCriterion, SealData, SealResolution};
 
 #[derive(Debug)]
 pub(crate) struct L1L2TxsCriterion;
@@ -11,12 +13,13 @@ const L1_L2_TX_COUNT_LIMIT: usize = 600;
 impl SealCriterion for L1L2TxsCriterion {
     fn should_seal(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &L1BatchSealConfig,
         _tx_count: usize,
         l1_tx_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
         _protocol_version_id: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         // With current gas consumption it's possible to execute 600 L1->L2 txs with 7500000 L1 gas.
         const L1_L2_TX_COUNT_LIMIT: usize = 600;
@@ -24,20 +27,22 @@ impl SealCriterion for L1L2TxsCriterion {
         // Gas usage of L1_L2_TX differs on Gateway and L1.
         // At the same time gas consumption of L1_L2_TX is the same per tx.
         // So we can use the same limit for L1 and Gateway, just choosing the one with the lowest number of txs.
-        if l1_tx_count >= L1_L2_TX_COUNT_LIMIT {
-            SealResolution::IncludeAndSeal
-        } else {
-            SealResolution::NoSeal
+
+        match l1_tx_count.cmp(&L1_L2_TX_COUNT_LIMIT) {
+            Ordering::Greater => SealResolution::ExcludeAndSeal,
+            Ordering::Equal => SealResolution::IncludeAndSeal,
+            Ordering::Less => SealResolution::NoSeal,
         }
     }
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &L1BatchSealConfig,
         _tx_count: usize,
         l1_tx_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_count = l1_tx_count as f64;
         let full_count = L1_L2_TX_COUNT_LIMIT as f64;
@@ -56,17 +61,10 @@ mod tests {
 
     #[test]
     fn test_l1_l2_txs_seal_criterion() {
-        let max_single_tx_gas = 15_000_000;
-        let close_block_at_gas_percentage = 0.95;
-
         let l1_tx_count_bound = 599;
 
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
-            max_single_tx_gas,
-            close_block_at_gas_percentage,
-            ..StateKeeperConfig::for_tests()
-        };
+        let config = L1BatchSealConfig::for_tests();
 
         let criterion = L1L2TxsCriterion;
 
@@ -78,6 +76,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -89,6 +88,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
 
@@ -100,6 +100,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }

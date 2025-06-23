@@ -34,6 +34,7 @@ message Payload {
   repeated TransactionV25 transactions_v25 = 12;
   optional bool last_in_batch = 10; // required
   optional PubdataParams pubdata_params = 13; // optional
+  optional uint64 pubdata_limit = 14; // optional
 }
 
 message PubdataParams {

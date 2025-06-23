@@ -332,6 +332,7 @@ mod tests {
                 l1_batch_env,
                 system_env,
                 pubdata_params: Default::default(),
+                pubdata_limit: Some(100_000),
                 timestamp_ms,
             },
             ProtocolVersionId::latest(),

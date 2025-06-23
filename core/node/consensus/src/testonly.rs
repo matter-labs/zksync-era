@@ -21,7 +21,7 @@ use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
-    fetcher::{FetchedTransaction, IoCursorExt as _},
+    fetcher::FetchedTransaction,
     sync_action::{ActionQueue, ActionQueueSender, SyncAction},
     testonly::MockMainNodeClient,
     ExternalIO, MainNodeClient,
@@ -189,14 +189,17 @@ impl StateKeeper {
             )
             .await?
             .context("protocol_version_id_by_timestamp()")?;
-        let cursor = ctx
-            .wait(IoCursor::for_fetcher(&mut conn.0))
+        let mut cursor = ctx
+            .wait(IoCursor::new(&mut conn.0))
             .await?
             .context("IoCursor::new()")?;
         let pending_batch = ctx
             .wait(conn.0.blocks_dal().pending_batch_exists())
             .await?
             .context("pending_batch_exists()")?;
+        if pending_batch {
+            cursor.l1_batch -= 1;
+        }
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();
@@ -262,6 +265,7 @@ impl StateKeeper {
                     }),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
+                    pubdata_limit: Some(100_000),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -508,7 +512,7 @@ impl StateKeeperRunner {
             let io = ExternalIO::new(
                 self.pool.0.clone(),
                 self.actions_queue,
-                Box::<MockMainNodeClient>::default(),
+                Some(Box::<MockMainNodeClient>::default()),
                 L2ChainId::default(),
             )?;
 
@@ -540,7 +544,7 @@ impl StateKeeperRunner {
                 Box::new(executor_factory),
                 OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                     .with_handler(Box::new(self.sync_state.clone())),
-                Arc::new(NoopSealer),
+                Box::new(NoopSealer),
                 Arc::new(async_cache),
                 None,
             )
@@ -568,7 +572,7 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     state_keeper
-                        .run(stop_recv)
+                        .run(Default::default(), stop_recv)
                         .await
                         .context("StateKeeper::run()")?;
                     Ok(())
@@ -624,7 +628,7 @@ impl StateKeeperRunner {
             let io = ExternalIO::new(
                 self.pool.0.clone(),
                 self.actions_queue,
-                Box::<MockMainNodeClient>::default(),
+                Some(Box::<MockMainNodeClient>::default()),
                 L2ChainId::default(),
             )?;
 
@@ -634,7 +638,7 @@ impl StateKeeperRunner {
                 OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                     .with_handler(Box::new(tree_writes_persistence))
                     .with_handler(Box::new(self.sync_state.clone())),
-                Arc::new(NoopSealer),
+                Box::new(NoopSealer),
                 Arc::new(MockReadStorageFactory),
                 None,
             )
@@ -661,7 +665,7 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     state_keeper
-                        .run(stop_recv)
+                        .run(Default::default(), stop_recv)
                         .await
                         .context("StateKeeper::run()")?;
                     Ok(())

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NOT NULL\n                AND eth_prove_tx_id IS NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
+  "query": "\n                    SELECT\n                        number,\n                        timestamp,\n                        l1_tx_count,\n                        l2_tx_count,\n                        bloom,\n                        priority_ops_onchain_data,\n                        hash,\n                        commitment,\n                        l2_to_l1_messages,\n                        used_contract_hashes,\n                        compressed_initial_writes,\n                        compressed_repeated_writes,\n                        l2_l1_merkle_root,\n                        rollup_last_leaf_index,\n                        zkporter_is_available,\n                        bootloader_code_hash,\n                        default_aa_code_hash,\n                        evm_emulator_code_hash,\n                        aux_data_hash,\n                        pass_through_data_hash,\n                        meta_parameters_hash,\n                        protocol_version,\n                        compressed_state_diffs,\n                        system_logs,\n                        events_queue_commitment,\n                        bootloader_initial_content_commitment,\n                        pubdata_input,\n                        fee_address,\n                        aggregation_root,\n                        local_root,\n                        state_diff_hash,\n                        data_availability.inclusion_data,\n                        l1_gas_price,\n                        l2_fair_gas_price,\n                        fair_pubdata_price,\n                        pubdata_limit\n                    FROM\n                        l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    LEFT JOIN\n                        data_availability\n                        ON data_availability.l1_batch_number = l1_batches.number\n                    WHERE\n                        eth_prove_tx_id IS NOT NULL\n                        AND eth_execute_tx_id IS NULL\n                    ORDER BY\n                        number\n                    LIMIT\n                        $1\n                    ",
   "describe": {
     "columns": [
       {
@@ -177,6 +177,11 @@
         "ordinal": 34,
         "name": "fair_pubdata_price",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 35,
+        "name": "pubdata_limit",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -219,8 +224,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "cb1a078ba867415f27a50bdccfbfb654bdb1c4139c453889b5fe43902300c361"
+  "hash": "ade4c448ee4807c1fe2d749fe5c8ddefa7adf6ee85f1963b3ee4dce3a7c7f204"
 }
