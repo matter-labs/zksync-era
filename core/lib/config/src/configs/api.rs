@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, Entries, NamedEntries, OrString, ToEntries, WellKnown},
+    de::{Delimited, Entries, NamedEntries, OrString, Serde, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -29,6 +29,51 @@ pub struct ApiConfig {
     /// Configuration options for Merkle tree API.
     #[config(nest)]
     pub merkle_tree: MerkleTreeApiConfig,
+}
+
+impl ApiConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            web3_json_rpc: Web3JsonRpcConfig::default(),
+            healthcheck: HealthCheckConfig {
+                port: 3052,
+                slow_time_limit: None,
+                hard_time_limit: None,
+                expose_config: false,
+            },
+            merkle_tree: MerkleTreeApiConfig { port: 3053 },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Namespace {
+    Eth,
+    Net,
+    Web3,
+    Debug,
+    Zks,
+    En,
+    Pubsub,
+    Snapshots,
+    Unstable,
+}
+
+impl Namespace {
+    pub const DEFAULT: [Self; 6] = [
+        Self::Eth,
+        Self::Net,
+        Self::Web3,
+        Self::Zks,
+        Self::En,
+        Self::Pubsub,
+    ];
+}
+
+impl WellKnown for Namespace {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
 /// Response size limits for specific RPC methods.
@@ -174,6 +219,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 1.5, validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor: f64,
     /// The factor by which to scale the gas price when there is an open batch.
+    #[config(validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor_open_batch: Option<f64>,
     /// The factor by which to scale the gasLimit
     #[config(default_t = 1.3, validate(1.0.., "must be higher than one"))]
@@ -232,6 +278,7 @@ pub struct Web3JsonRpcConfig {
     pub request_timeout: Option<Duration>,
     /// Tree API URL used to proxy `getProof` calls to the tree. For external nodes, it's not necessary to specify
     /// since the server can communicate with the tree in-process.
+    #[config(alias = "tree_api_remote_url")]
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     #[config(default_t = Duration::from_millis(50), with = Fallback(TimeUnit::Millis))]
@@ -244,11 +291,11 @@ pub struct Web3JsonRpcConfig {
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
     /// Enabled JSON RPC API namespaces.
-    #[config(with = Delimited(","))]
-    pub api_namespaces: Option<Vec<String>>,
+    #[config(with = Delimited(","), default_t = Namespace::DEFAULT.into())]
+    pub api_namespaces: HashSet<Namespace>,
     /// Enables extended tracing of RPC calls. This is useful for debugging, but may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
-    #[config(default)]
+    #[config(default, alias = "extended_rpc_tracing")]
     pub extended_api_tracing: bool,
 }
 
@@ -395,7 +442,7 @@ mod tests {
                     Address::from_low_u64_be(1),
                     Address::from_low_u64_be(2),
                 ],
-                api_namespaces: Some(vec!["debug".to_string()]),
+                api_namespaces: HashSet::from([Namespace::Debug]),
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
             },
