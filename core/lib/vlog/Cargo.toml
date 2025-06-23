@@ -33,10 +33,12 @@ sentry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 opentelemetry = { workspace = true, features = ["trace"] }
-opentelemetry_sdk = { workspace = true, features = [ "rt-tokio" ] }
+opentelemetry_sdk.workspace = true
 opentelemetry-otlp = { workspace = true, features = [
     "http-proto",
-    "reqwest-client",
+    "reqwest-blocking-client", # Required for `opentelemetry_sdk` to function correctly
+    "logs",
+    "internal-logs",
 ] }
 opentelemetry-semantic-conventions = { workspace = true, features = ["semconv_experimental"] }
 opentelemetry-appender-tracing.workspace = true

@@ -159,7 +159,7 @@ octocrab = "0.41"
 once_cell = "1"
 opentelemetry = "0.30.0"
 opentelemetry_sdk = "0.30.0"
-opentelemetry-otlp = "0.30.0"
+opentelemetry-otlp = { version = "0.30.0", default-features = false }
 opentelemetry-semantic-conventions = "0.30.0"
 opentelemetry-appender-tracing = "0.30.0"
 pin-project-lite = "0.2.13"
