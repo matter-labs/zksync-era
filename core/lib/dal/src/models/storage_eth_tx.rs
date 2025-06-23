@@ -43,7 +43,7 @@ pub struct L1BatchEthSenderStats {
 pub struct StorageTxHistory {
     pub id: i32,
     pub eth_tx_id: i32,
-    pub tx_type: AggregatedActionType,
+    pub tx_type: String,
     pub chain_id: Option<i64>,
     pub priority_fee_per_gas: i64,
     pub base_fee_per_gas: i64,
@@ -75,7 +75,7 @@ impl From<StorageEthTx> for EthTx {
             contract_address: Address::from_str(&tx.contract_address)
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
-            tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
+            tx_type: tx.tx_type.parse().expect("Invalid action type"),
             created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost.map(|c| c as u64),
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
@@ -95,7 +95,7 @@ impl From<StorageTxHistory> for TxHistory {
         TxHistory {
             id: history.id as u32,
             eth_tx_id: history.eth_tx_id as u32,
-            tx_type: history.tx_type,
+            tx_type: history.tx_type.parse().expect("Invalid action type"),
             chain_id: history
                 .chain_id
                 .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
