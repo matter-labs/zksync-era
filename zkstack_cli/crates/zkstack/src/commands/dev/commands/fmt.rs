@@ -2,23 +2,22 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_common::{cmd::Cmd, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
 use super::sql_fmt::format_sql;
-use crate::commands::dev::messages::{
-    msg_running_fmt_for_extension_spinner, msg_running_fmt_for_extensions_spinner,
-    msg_running_rustfmt_for_dir_spinner, MSG_RUNNING_CONTRACTS_FMT_SPINNER,
-};
+use crate::commands::dev::messages::msg_running_fmt_spinner;
 
 async fn prettier(shell: Shell, check: bool) -> anyhow::Result<()> {
     let mode = if check { "fmt:check" } else { "fmt" };
-    Ok(Cmd::new(cmd!(shell, "yarn {mode}")).run()?)
+    Ok(Cmd::new(cmd!(shell, "yarn {mode}").arg("--cache-location .prettier_cache.json")).run()?)
 }
 
 async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
-    let prettier_command = cmd!(shell, "yarn --silent --cwd contracts")
-        .arg(format!("prettier:{}", if check { "check" } else { "fix" }));
+    let prettier_command = cmd!(shell, "yarn --cwd contracts")
+        .arg(format!("prettier:{}", if check { "check" } else { "fix" }))
+        .arg("--cache")
+        .arg("--cache-location .prettier_cache_contracts.json");
     Ok(Cmd::new(prettier_command).run()?)
 }
 
@@ -43,10 +42,10 @@ pub struct FmtArgs {
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(&shell)?;
     shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
-    let spinner = Spinner::new(&msg_running_fmt_for_extensions_spinner());
+    let spinner = Spinner::new(&msg_running_fmt_spinner());
     let mut tasks = vec![];
     tasks.push(tokio::spawn(prettier(shell.clone(), args.check)));
-    tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
+    //tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
     for dir in ["core", "prover", "zkstack_cli"] {
         tasks.push(tokio::spawn(rustfmt(
             shell.clone(),

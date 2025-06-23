@@ -3,7 +3,6 @@ use std::{
     io::{Read, Write},
     mem::take,
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
 use anyhow::{bail, Result};
@@ -11,11 +10,9 @@ use sha2::{Digest, Sha256};
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use walkdir::WalkDir;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::spinner::Spinner;
 use zkstack_cli_config::EcosystemConfig;
 
-use super::lint_utils::{get_unignored_files, IgnoredData, Target};
-use crate::commands::dev::messages::{msg_file_is_not_formatted, MSG_RUNNING_SQL_FMT_SPINNER};
+use crate::commands::dev::messages::msg_file_is_not_formatted;
 
 fn format_query(query: &str) -> anyhow::Result<String> {
     let exclude_rules = vec!["LT12".to_string()]; // avoid adding newline before `$` character
