@@ -41,7 +41,6 @@ pub struct Processor<PM: ProcessorMode> {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
-    commitment_mode: L1BatchCommitmentMode,
     chain_id: L2ChainId,
     _marker: std::marker::PhantomData<PM>,
 }
@@ -51,14 +50,12 @@ impl<PM: ProcessorMode> Processor<PM> {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
         chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
-            commitment_mode,
             chain_id,
             _marker: std::marker::PhantomData,
         }
@@ -126,6 +123,12 @@ impl<PM: ProcessorMode> Processor<PM> {
             .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
+        let pubdata_params = conn
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(l1_batch_number)
+            .await?
+            .unwrap_or_else(|| panic!("Missing pubdata params for {l1_batch_number}"));
+
         let minor_version = header.protocol_version.unwrap();
         let protocol_version = conn
             .protocol_versions_dal()
@@ -141,7 +144,7 @@ impl<PM: ProcessorMode> Processor<PM> {
             .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
-        let eip_4844_blobs = match self.commitment_mode {
+        let eip_4844_blobs = match pubdata_params.pubdata_type.into() {
             L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
             L1BatchCommitmentMode::Rollup => {
                 let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {
@@ -191,7 +194,7 @@ impl Processor<Locking> {
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
         let l1_batch_number = match self
-            .lock_batch_for_proving(self.config.proof_generation_timeout_in_secs)
+            .lock_batch_for_proving(self.config.proof_generation_timeout)
             .await?
         {
             Some(number) => number,

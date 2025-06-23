@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
@@ -9,11 +9,13 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, Optional, OrString, Serde, WellKnown},
+    de::{Delimited, Entries, NamedEntries, OrString, Serde, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::Address;
+
+use crate::utils::Fallback;
 
 /// API configuration.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -27,6 +29,51 @@ pub struct ApiConfig {
     /// Configuration options for Merkle tree API.
     #[config(nest)]
     pub merkle_tree: MerkleTreeApiConfig,
+}
+
+impl ApiConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            web3_json_rpc: Web3JsonRpcConfig::default(),
+            healthcheck: HealthCheckConfig {
+                port: 3052,
+                slow_time_limit: None,
+                hard_time_limit: None,
+                expose_config: false,
+            },
+            merkle_tree: MerkleTreeApiConfig { port: 3053 },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Namespace {
+    Eth,
+    Net,
+    Web3,
+    Debug,
+    Zks,
+    En,
+    Pubsub,
+    Snapshots,
+    Unstable,
+}
+
+impl Namespace {
+    pub const DEFAULT: [Self; 6] = [
+        Self::Eth,
+        Self::Net,
+        Self::Web3,
+        Self::Zks,
+        Self::En,
+        Self::Pubsub,
+    ];
+}
+
+impl WellKnown for Namespace {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
 /// Response size limits for specific RPC methods.
@@ -44,6 +91,12 @@ impl<S: Into<String>> FromIterator<(S, Option<NonZeroUsize>)> for MaxResponseSiz
                 .map(|(method_name, size)| (method_name.into(), size))
                 .collect(),
         )
+    }
+}
+
+impl ToEntries<String, Option<NonZeroUsize>> for MaxResponseSizeOverrides {
+    fn to_entries(&self) -> impl Iterator<Item = (&String, &Option<NonZeroUsize>)> {
+        self.0.iter()
     }
 }
 
@@ -113,8 +166,8 @@ impl MaxResponseSizeOverrides {
 }
 
 impl WellKnown for MaxResponseSizeOverrides {
-    type Deserializer = OrString<Serde![object]>;
-    const DE: Self::Deserializer = OrString(Serde![object]);
+    type Deserializer = OrString<NamedEntries<String, Option<NonZeroUsize>>>;
+    const DE: Self::Deserializer = OrString(Entries::WELL_KNOWN.named("method", "size_mb"));
 }
 
 /// Response size limits for JSON-RPC servers.
@@ -154,18 +207,22 @@ pub struct Web3JsonRpcConfig {
     /// Max possible limit of subscriptions to be in the state at once.
     #[config(default_t = 10_000)]
     pub subscriptions_limit: usize,
-    /// Interval between polling db for pubsub (in ms).
-    #[config(default_t = Duration::from_millis(200), with = TimeUnit::Millis)]
+    /// Interval between polling the node database for subscriptions.
+    #[config(default_t = Duration::from_millis(200), with = Fallback(TimeUnit::Millis))]
     pub pubsub_polling_interval: Duration,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[config(default_t = 50)]
     pub max_nonce_ahead: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
-    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
-    #[config(default_t = 1.5)]
+    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
+    /// This value is only used when there is no open batch.
+    #[config(default_t = 1.5, validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor: f64,
+    /// The factor by which to scale the gas price when there is an open batch.
+    #[config(validate(1.0.., "must be higher than one"))]
+    pub gas_price_scale_factor_open_batch: Option<f64>,
     /// The factor by which to scale the gasLimit
-    #[config(default_t = 1.3)]
+    #[config(default_t = 1.3, validate(1.0.., "must be higher than one"))]
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[config(default_t = 1_000)]
@@ -174,27 +231,24 @@ pub struct Web3JsonRpcConfig {
     /// considered experimental.
     #[config(default)]
     pub estimate_gas_optimize_search: bool,
-    ///  Max possible size of an ABI encoded tx (in bytes).
-    #[config(default_t = 10 * 1_024 * 1_024)]
-    pub max_tx_size: usize,
-    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
-    /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
+    /// Max possible size of an ABI-encoded transaction.
+    #[config(default_t = 10 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
+    pub max_tx_size: ByteSize,
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the VM execution is stopped.
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Max number of VM instances to be concurrently spawned by the API server.
     /// This option can be tweaked down if the API server is running out of memory.
-    /// If not set, the VM concurrency limit will be efficiently disabled.
     #[config(default_t = 2_048)]
     pub vm_concurrency_limit: usize,
-    /// Smart contract cache size in MiBs. The default value is 128 MiB.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(128, SizeUnit::MiB))]
-    pub factory_deps_cache_size_mb: ByteSize,
-    /// Initial writes cache size in MiBs. The default value is 32 MiB.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(32, SizeUnit::MiB))]
-    pub initial_writes_cache_size_mb: ByteSize,
-    /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
-    /// values cache will be disabled.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(128, SizeUnit::MiB))]
-    pub latest_values_cache_size_mb: ByteSize,
+    /// Smart contract cache size.
+    #[config(default_t = 128 * SizeUnit::MiB)]
+    pub factory_deps_cache_size: ByteSize,
+    /// Initial writes cache size.
+    #[config(default_t = 32 * SizeUnit::MiB)]
+    pub initial_writes_cache_size: ByteSize,
+    /// Latest values cache size. If set to 0, the latest values cache will be disabled.
+    #[config(default_t = 128 * SizeUnit::MiB)]
+    pub latest_values_cache_size: ByteSize,
     /// Maximum lag in the number of blocks for the latest values cache after which the cache is reset. Greater values
     /// lead to increased the cache update latency, i.e., less storage queries being processed by the cache. OTOH, smaller values
     /// can lead to spurious resets when Postgres lags for whatever reason (e.g., when sealing L1 batches).
@@ -204,41 +258,44 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 1_024)]
     pub fee_history_limit: u64,
     /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
-    #[config(default_t = 500)]
-    pub max_batch_request_size: usize,
-    /// Maximum response body size in MiBs. Default is 10 MiB.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(10, SizeUnit::MiB))]
-    pub max_response_body_size_mb: ByteSize,
+    #[config(default_t = NonZeroUsize::new(500).unwrap())]
+    pub max_batch_request_size: NonZeroUsize,
+    /// Maximum response body size. Note that there are overrides (`max_response_body_size_overrides_mb`)
+    /// taking precedence over this param.
+    #[config(default_t = 10 * SizeUnit::MiB)]
+    pub max_response_body_size: ByteSize,
     /// Method-specific overrides in MiBs for the maximum response body size.
     #[config(default = MaxResponseSizeOverrides::empty)]
-    pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
+    #[config(alias = "max_response_body_size_overrides_mb")]
+    pub max_response_body_size_overrides: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
-    /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
+    /// Not used for the HTTP server; for it, rate limiting is expected to be configured on the infra level.
     #[config(default_t = NonZeroU32::new(6_000).unwrap())]
     pub websocket_requests_per_minute_limit: NonZeroU32,
     /// Server-side request timeout. A request will be dropped with a 503 error code if its execution exceeds this limit.
     /// If not specified, no server-side request timeout is enforced.
     pub request_timeout: Option<Duration>,
-    /// Tree API url, currently used to proxy `getProof` calls to the tree
+    /// Tree API URL used to proxy `getProof` calls to the tree. For external nodes, it's not necessary to specify
+    /// since the server can communicate with the tree in-process.
+    #[config(alias = "tree_api_remote_url")]
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
-    #[config(default_t = Duration::from_millis(50), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(50), with = Fallback(TimeUnit::Millis))]
     pub mempool_cache_update_interval: Duration,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    /// Maximum number of transactions to be stored in the mempool cache.
     #[config(default_t = 10_000)]
     pub mempool_cache_size: usize,
     /// List of L2 token addresses that are white-listed to use by paymasters
     /// (additionally to natively bridged tokens).
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
-    /// Enabled JSON RPC API namespaces. If not set, all namespaces will be available
-    #[config(with = Delimited(","))]
-    pub api_namespaces: Option<Vec<String>>,
-    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// Enabled JSON RPC API namespaces.
+    #[config(with = Delimited(","), default_t = Namespace::DEFAULT.into())]
+    pub api_namespaces: HashSet<Namespace>,
+    /// Enables extended tracing of RPC calls. This is useful for debugging, but may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
-    #[config(default)]
+    #[config(default, alias = "extended_rpc_tracing")]
     pub extended_api_tracing: bool,
 }
 
@@ -249,6 +306,7 @@ impl Web3JsonRpcConfig {
     pub fn for_tests() -> Self {
         Self {
             gas_price_scale_factor: 1.2,
+            gas_price_scale_factor_open_batch: Some(1.2),
             estimate_gas_scale_factor: 1.5,
             ..Self::default()
         }
@@ -265,24 +323,25 @@ impl Web3JsonRpcConfig {
     pub fn max_response_body_size(&self) -> MaxResponseSize {
         let scale = NonZeroUsize::new(super::BYTES_IN_MEGABYTE).unwrap();
         MaxResponseSize {
-            global: self.max_response_body_size_mb.0 as usize,
-            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+            global: self.max_response_body_size.0 as usize,
+            overrides: self.max_response_body_size_overrides.scale(scale),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct HealthCheckConfig {
-    /// Port to which the REST server is listening.
+    /// Port to which the healthcheck server is listening.
     pub port: u16,
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
-    #[config(with = Optional(TimeUnit::Millis))]
-    pub slow_time_limit_ms: Option<Duration>,
+    pub slow_time_limit: Option<Duration>,
     /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
     /// If not specified, the default value in the health check crate will be used.
-    #[config(with = Optional(TimeUnit::Millis))]
-    pub hard_time_limit_ms: Option<Duration>,
+    pub hard_time_limit: Option<Duration>,
+    /// Expose config parameters as the `config` component. Mostly useful for debugging purposes, automations or end-to-end testing.
+    #[config(default)]
+    pub expose_config: bool,
 }
 
 impl HealthCheckConfig {
@@ -315,7 +374,10 @@ pub struct MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -354,17 +416,17 @@ mod tests {
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
                 estimate_gas_optimize_search: true,
-                max_tx_size: 1000000,
+                max_tx_size: ByteSize(1000000),
                 vm_execution_cache_misses_limit: Some(1000),
                 vm_concurrency_limit: 512,
-                factory_deps_cache_size_mb: ByteSize::new(128, SizeUnit::MiB),
-                initial_writes_cache_size_mb: ByteSize::new(32, SizeUnit::MiB),
-                latest_values_cache_size_mb: ByteSize::new(256, SizeUnit::MiB),
+                factory_deps_cache_size: ByteSize::new(128, SizeUnit::MiB),
+                initial_writes_cache_size: ByteSize::new(32, SizeUnit::MiB),
+                latest_values_cache_size: ByteSize::new(256, SizeUnit::MiB),
                 latest_values_max_block_lag: NonZeroU32::new(50).unwrap(),
                 fee_history_limit: 100,
-                max_batch_request_size: 200,
-                max_response_body_size_mb: ByteSize::new(10, SizeUnit::MiB),
-                max_response_body_size_overrides_mb: [
+                max_batch_request_size: NonZeroUsize::new(200).unwrap(),
+                max_response_body_size: ByteSize::new(15, SizeUnit::MiB),
+                max_response_body_size_overrides: [
                     ("eth_call", NonZeroUsize::new(1)),
                     ("eth_getTransactionReceipt", None),
                     ("zks_getProof", NonZeroUsize::new(32)),
@@ -380,13 +442,15 @@ mod tests {
                     Address::from_low_u64_be(1),
                     Address::from_low_u64_be(2),
                 ],
-                api_namespaces: Some(vec!["debug".to_string()]),
+                api_namespaces: HashSet::from([Namespace::Debug]),
                 extended_api_tracing: true,
+                gas_price_scale_factor_open_batch: Some(1.3),
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
-                slow_time_limit_ms: Some(Duration::from_millis(250)),
-                hard_time_limit_ms: Some(Duration::from_millis(2_000)),
+                slow_time_limit: Some(Duration::from_millis(250)),
+                hard_time_limit: Some(Duration::from_millis(2_000)),
+                expose_config: true,
             },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
@@ -406,6 +470,7 @@ mod tests {
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
+            API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.3
             API_WEB3_JSON_RPC_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
             API_WEB3_JSON_RPC_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
@@ -428,7 +493,7 @@ mod tests {
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_TREE_API_URL="http://tree/"
-            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
+            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=15
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=None, zks_getProof=32"
             API_PROMETHEUS_LISTENER_PORT="3312"
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
@@ -436,6 +501,7 @@ mod tests {
             API_HEALTHCHECK_PORT=8081
             API_HEALTHCHECK_SLOW_TIME_LIMIT_MS=250
             API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
+            API_HEALTHCHECK_EXPOSE_CONFIG=true
             API_MERKLE_TREE_PORT=8082
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -460,8 +526,7 @@ mod tests {
             websocket_requests_per_minute_limit: 10
             vm_concurrency_limit: 512
             vm_execution_cache_misses_limit: 1000
-            max_response_body_size_mb: 10
-            # Migration path: add based on `max_response_body_size_overrides`
+            max_response_body_size_mb: 15
             max_response_body_size_overrides_mb:
               eth_call: 1
               eth_getTransactionReceipt: null
@@ -476,6 +541,7 @@ mod tests {
             pubsub_polling_interval: 200
             max_nonce_ahead: 5
             gas_price_scale_factor: 1.2
+            gas_price_scale_factor_open_batch: 1.3
             estimate_gas_scale_factor: 1
             estimate_gas_acceptable_overestimation: 1000
             max_tx_size: 1000000
@@ -497,6 +563,7 @@ mod tests {
             port: 8081
             slow_time_limit_ms: 250
             hard_time_limit_ms: 2000
+            expose_config: true
           merkle_tree:
             port: 8082
         "#;
@@ -504,5 +571,102 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test_complete::<ApiConfig>(yaml).unwrap();
         assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          web3_json_rpc:
+            http_port: 3050
+            http_url: http://127.0.0.1:3050/
+            ws_port: 3051
+            ws_url: ws://127.0.0.1:3051/
+            req_entities_limit: 10000
+            filters_limit: 10000
+            fee_history_limit: 100
+            subscriptions_limit: 10000
+            websocket_requests_per_minute_limit: 10
+            vm_concurrency_limit: 512
+            vm_execution_cache_misses_limit: 1000
+            max_response_body_size: 15 MB
+            max_response_body_size_overrides_mb:
+              eth_call: 1
+              eth_getTransactionReceipt: null
+              zks_getProof: 32
+            max_batch_request_size: 200
+            initial_writes_cache_size: 32 MB
+            factory_deps_cache_size: 128 mb
+            latest_values_cache_size: 256mb
+            latest_values_max_block_lag: 50
+            mempool_cache_size: 10000
+            mempool_cache_update_interval: 50
+            pubsub_polling_interval: 200ms
+            max_nonce_ahead: 5
+            gas_price_scale_factor: 1.2
+            gas_price_scale_factor_open_batch: 1.3
+            estimate_gas_scale_factor: 1
+            estimate_gas_acceptable_overestimation: 1000
+            max_tx_size: 1000000 B
+            filters_disabled: false
+            api_namespaces:
+            - debug
+            whitelisted_tokens_for_aa:
+            - "0x0000000000000000000000000000000000000001"
+            - "0x0000000000000000000000000000000000000002"
+            extended_api_tracing: true
+            estimate_gas_optimize_search: true
+            request_timeout: 20s
+            tree_api_url: "http://tree/"
+          prometheus:
+            listener_port: 3312
+            pushgateway_url: http://127.0.0.1:9091
+            push_interval: 100 ms
+          healthcheck:
+            port: 8081
+            slow_time_limit: 250ms
+            hard_time_limit: 2s
+            expose_config: true
+          merkle_tree:
+            port: 8082
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test_complete::<ApiConfig>(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_null_time_limits() {
+        let yaml = r#"
+          port: 3071
+          slow_time_limit_ms: null
+          hard_time_limit_ms: null
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.slow_time_limit, None);
+        assert_eq!(config.hard_time_limit, None);
+    }
+
+    #[test]
+    fn parsing_max_response_overrides() {
+        let yaml = r#"
+          max_response_body_size_overrides:
+           - method: eth_getTransactionReceipt
+           - method: zks_getProof
+             size_mb: 64
+          max_response_body_size_mb: 100
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test::<Web3JsonRpcConfig>(yaml).unwrap();
+        assert_eq!(
+            config.max_response_body_size_overrides,
+            MaxResponseSizeOverrides::from_iter([
+                ("eth_getTransactionReceipt", None),
+                ("zks_getProof", NonZeroUsize::new(64)),
+            ])
+        );
     }
 }

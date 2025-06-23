@@ -11,8 +11,9 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
-    chain::{OperationsManagerConfig, StateKeeperConfig},
+    chain::SharedStateKeeperConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
+    snapshot_recovery::TreeRecoveryConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
@@ -102,26 +103,30 @@ pub struct MetadataCalculatorConfig {
 }
 
 impl MetadataCalculatorConfig {
-    pub fn for_main_node(
+    pub fn from_configs(
         merkle_tree_config: &MerkleTreeConfig,
-        operation_config: &OperationsManagerConfig,
-        state_keeper_config: &StateKeeperConfig,
+        state_keeper_config: &SharedStateKeeperConfig,
+        recovery_config: &TreeRecoveryConfig,
     ) -> Self {
         Self {
             db_path: merkle_tree_config.path.clone(),
-            max_open_files: None,
+            max_open_files: merkle_tree_config.max_open_files,
             mode: merkle_tree_config.mode,
-            delay_interval: operation_config.delay_interval,
+            delay_interval: merkle_tree_config.processing_delay,
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
-            block_cache_capacity: merkle_tree_config.block_cache_size_mb.0 as usize,
-            include_indices_and_filters_in_block_cache: false,
-            memtable_capacity: merkle_tree_config.memtable_capacity_mb.0 as usize,
-            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout_sec,
+            block_cache_capacity: merkle_tree_config.block_cache_size.0 as usize,
+            include_indices_and_filters_in_block_cache: merkle_tree_config
+                .include_indices_and_filters_in_block_cache,
+            memtable_capacity: merkle_tree_config.memtable_capacity.0 as usize,
+            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout,
             sealed_batches_have_protective_reads: state_keeper_config
                 .protective_reads_persistence_enabled,
             // The main node isn't supposed to be recovered yet, so this value doesn't matter much
-            recovery: MetadataCalculatorRecoveryConfig::default(),
+            recovery: MetadataCalculatorRecoveryConfig {
+                desired_chunk_size: recovery_config.chunk_size,
+                parallel_persistence_buffer: recovery_config.parallel_persistence_buffer,
+            },
         }
     }
 }

@@ -1,4 +1,4 @@
-use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
+use zksync_config::configs::{PostgresConfig, PostgresSecrets};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -17,7 +17,7 @@ use crate::{ConnectionPool, Core};
 #[derive(Debug)]
 pub struct PoolsLayer {
     config: PostgresConfig,
-    secrets: DatabaseSecrets,
+    secrets: PostgresSecrets,
     with_master: bool,
     with_replica: bool,
 }
@@ -25,12 +25,12 @@ pub struct PoolsLayer {
 impl PoolsLayer {
     /// Creates a new builder with the provided configuration and secrets.
     /// By default, no pulls are enabled.
-    pub fn empty(config: PostgresConfig, database_secrets: DatabaseSecrets) -> Self {
+    pub fn empty(config: PostgresConfig, secrets: PostgresSecrets) -> Self {
         Self {
             config,
             with_master: false,
             with_replica: false,
-            secrets: database_secrets,
+            secrets,
         }
     }
 
@@ -71,9 +71,9 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_master || self.with_replica {
             ConnectionPool::<Core>::global_config()
-                .set_slow_query_threshold(self.config.slow_query_threshold_ms)?;
+                .set_slow_query_threshold(self.config.slow_query_threshold)?;
             ConnectionPool::<Core>::global_config()
-                .set_long_connection_threshold(self.config.long_connection_threshold_ms)?;
+                .set_long_connection_threshold(self.config.long_connection_threshold)?;
         }
 
         let master_pool = if self.with_master {
@@ -96,9 +96,9 @@ impl WiringLayer for PoolsLayer {
                 self.config.max_connections()?,
             );
             let pool = pool
-                .with_statement_timeout(Some(self.config.statement_timeout_sec))
+                .with_statement_timeout(Some(self.config.statement_timeout))
                 .with_acquire_timeout(
-                    Some(self.config.acquire_timeout_sec),
+                    Some(self.config.acquire_timeout),
                     self.config.acquire_retries,
                 );
             Some(pool)

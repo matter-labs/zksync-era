@@ -59,7 +59,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self_arc_dispatch.config.polling_interval_ms,
+                    self_arc_dispatch.config.polling_interval,
                     stop_receiver_dispatch.changed(),
                 )
                 .await
@@ -81,7 +81,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self_arc_finality.config.polling_interval_ms,
+                    self_arc_finality.config.polling_interval,
                     stop_receiver_finality.changed(),
                 )
                 .await
@@ -103,7 +103,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self.config.polling_interval_ms,
+                    self.config.polling_interval,
                     stop_receiver_poll_for_inclusion.changed(),
                 )
                 .await
@@ -225,7 +225,7 @@ impl DataAvailabilityDispatcher {
         // TODO: add metrics for finality latency
         let finality_response = self
             .client
-            .ensure_finality(blob.dispatch_request_id.clone())
+            .ensure_finality(blob.dispatch_request_id.clone(), blob.sent_at)
             .await;
 
         match finality_response {

@@ -34,10 +34,6 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     };
 
     transaction.tokens_dal().add_tokens(&[eth_token]).await?;
-    transaction
-        .tokens_dal()
-        .mark_token_as_well_known(ETHEREUM_ADDRESS)
-        .await?;
     Ok(())
 }
 
