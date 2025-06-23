@@ -31,7 +31,8 @@ export const L2_LOG_STRING =
 export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
 export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout';
 
-export const INTEROP_CALL_ABI = 'tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)';
+export const INTEROP_CALL_ABI =
+    'tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
     'tuple(bytes1 version, uint256 destinationChainId, bytes32 interopBundleSalt, tuple(bool shadowAccount, address to, address from, uint256 value, bytes data)[] calls, (address executionAddress, address unbundlerAddress) bundleAttributes)';
 

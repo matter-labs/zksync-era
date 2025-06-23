@@ -3,7 +3,13 @@ import * as ethers from 'ethers';
 
 import { TestMaster } from '../src';
 import { Token } from '../src/types';
-import { scaledGasPrice, deployContract, waitUntilBlockFinalized, getL2bUrl } from '../src/helpers';
+import {
+    scaledGasPrice,
+    deployContract,
+    waitUntilBlockFinalized,
+    getL2bUrl,
+    waitUntilBlockExecutedOnGateway
+} from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
@@ -196,7 +202,9 @@ describe('Interop checks', () => {
                 {
                     nextContract: ethers.ZeroAddress,
                     data: '0x',
-                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])]
+                    callAttributes: [
+                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
+                    ]
                 }
             ],
             // Execution call starters for token transfer
