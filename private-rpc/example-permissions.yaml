@@ -4,6 +4,9 @@
 # To restrict access to specific wallets, provide a non-empty list of addresses.
 whitelisted_wallets:
   - "0x9115A0CaE1b47EF6fD102482c8d727929FC702D1"
+  - "0x761df9b83fa2c830c6cae880C9A0be51b387e8aE"
+  - "0x4f9133d1d3f50011a6859807c837bdcb31aaab13"
+  - "0xb72a27849292fA0CbC96c71420B87ac1EAbab95A"
   
 groups:
   - name: "group1"
