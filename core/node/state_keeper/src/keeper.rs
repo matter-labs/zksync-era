@@ -146,6 +146,7 @@ pub(super) struct StateKeeperInner {
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    is_active_leader: bool,
 }
 
 impl From<StateKeeperBuilder> for StateKeeperInner {
@@ -159,6 +160,7 @@ impl From<StateKeeperBuilder> for StateKeeperInner {
             health_updater: b.health_updater,
             deployment_tx_filter: b.deployment_tx_filter,
             leader_rotation: b.leader_rotation,
+            is_active_leader: true,
         }
     }
 }
@@ -1019,7 +1021,7 @@ impl StateKeeper {
                 StateKeeperInner::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
-            if state.next_block_should_be_fictive {
+            if self.inner.is_active_leader && state.next_block_should_be_fictive {
                 // Create a fictive L2 block.
                 let next_l2_block_timestamp =
                     updates_manager.next_l2_block_timestamp_ms_mut().unwrap();
@@ -1145,8 +1147,8 @@ impl StateKeeper {
             .await?;
 
         let latency = KEEPER_METRICS.match_seal_resolution.start();
-        match &seal_resolution {
-            SealResolution::NoSeal => {
+        match (inner.is_active_leader, &seal_resolution) {
+            (_, SealResolution::NoSeal | SealResolution::IncludeAndSeal) => {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
@@ -1165,26 +1167,7 @@ impl StateKeeper {
                     call_tracer_result,
                 );
             }
-            SealResolution::IncludeAndSeal => {
-                let TxExecutionResult::Success {
-                    tx_result,
-                    tx_metrics: tx_execution_metrics,
-                    call_tracer_result,
-                    ..
-                } = exec_result
-                else {
-                    unreachable!(
-                        "Tx inclusion seal resolution must be a result of a successful tx execution",
-                    );
-                };
-                updates_manager.extend_from_executed_transaction(
-                    tx,
-                    *tx_result,
-                    *tx_execution_metrics,
-                    call_tracer_result,
-                );
-            }
-            SealResolution::ExcludeAndSeal => {
+            (true, SealResolution::ExcludeAndSeal) => {
                 batch_executor.rollback_last_tx().await.with_context(|| {
                     format!("failed rolling back transaction {tx_hash:?} in batch executor")
                 })?;
@@ -1192,7 +1175,7 @@ impl StateKeeper {
                     format!("failed rolling back transaction {tx_hash:?} in I/O")
                 })?;
             }
-            SealResolution::Unexecutable(reason) => {
+            (true, SealResolution::Unexecutable(reason)) => {
                 batch_executor.rollback_last_tx().await.with_context(|| {
                     format!("failed rolling back transaction {tx_hash:?} in batch executor")
                 })?;
@@ -1202,8 +1185,11 @@ impl StateKeeper {
                     .await
                     .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
             }
+            (false, SealResolution::ExcludeAndSeal | SealResolution::Unexecutable(_)) => {
+                panic!(); // TODO return error
+            }
         };
-        let result = if seal_resolution.should_seal() {
+        let result = if inner.is_active_leader && seal_resolution.should_seal() {
             tracing::debug!(
                 "L2 block #{} should be sealed with conditional sealer resolution {seal_resolution:?} after executing transaction {tx_hash}",
                 updates_manager.last_pending_l2_block().number
@@ -1278,6 +1264,7 @@ impl StateKeeper {
         stop_receiver: &mut watch::Receiver<bool>,
         ctx: Option<&ctx::Ctx>,
     ) -> Result<Payload, OrStopped> {
+        self.inner.is_active_leader = true;
         self.inner.io.set_is_active_leader(true);
         self.inner.sealer.use_propose_mode();
 
@@ -1294,6 +1281,7 @@ impl StateKeeper {
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(), OrStopped> {
+        self.inner.is_active_leader = false;
         self.inner.io.set_is_active_leader(false);
         self.inner.sealer.use_verify_mode();
         if let BatchState::Init(state) = &mut self.batch_state {
