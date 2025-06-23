@@ -39,18 +39,18 @@ of security. It has two modes:
 
 1. **Allow all wallets**: To disable whitelisting and allow any address to connect, use the literal string `"all"`.
 
-    ```yaml
-    whitelisted_wallets: 'all'
-    ```
+   ```yaml
+   whitelisted_wallets: 'all'
+   ```
 
 2. **Allow specific wallets**: To restrict access, provide a list of authorized wallet addresses. The list cannot be
-    empty.
+   empty.
 
-    ```yaml
-    whitelisted_wallets:
-      - '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B'
-      - '0x...another address...'
-    ```
+   ```yaml
+   whitelisted_wallets:
+     - '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B'
+     - '0x...another address...'
+   ```
 
 ### Contract & Method Permissions
 
