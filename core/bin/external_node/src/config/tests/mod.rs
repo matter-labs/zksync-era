@@ -2,12 +2,14 @@
 
 use std::{
     collections::HashSet,
+    env,
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
     time::Duration,
 };
 
 use assert_matches::assert_matches;
+use clap::Parser;
 use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
 use zksync_config::{
     configs::{
@@ -535,6 +537,10 @@ fn parsing_with_consensus_from_yaml() {
     let mut repo = config_sources.build_repository(&schema);
 
     let config: ConsensusConfig = repo.parse().unwrap();
+    assert_consensus_config(config);
+}
+
+fn assert_consensus_config(config: ConsensusConfig) {
     assert_eq!(config.port, Some(3_055));
     assert_eq!(config.max_payload_size, ByteSize(2_500_000));
     assert_eq!(config.gossip_dynamic_inbound_limit, 100);
@@ -692,4 +698,37 @@ fn eigen_da_client_from_env() {
         secrets.private_key.expose_secret(),
         "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
     );
+}
+
+#[test]
+fn parsing_consensus_from_env_vars() {
+    // We don't want to read env vars in tests since they are unpredictable, hence we read the general config from YAML
+    let this_dir_in_crate = Path::new("src/config/tests");
+    let cli = crate::Cli::parse_from([
+        "zksync_external_node".as_ref(),
+        "--config-path".as_ref(),
+        this_dir_in_crate.join("config.yaml").as_os_str(),
+    ]);
+    env::set_var(
+        "EN_CONSENSUS_CONFIG_PATH",
+        this_dir_in_crate.join("consensus.yaml"),
+    );
+    env::set_var(
+        "EN_CONSENSUS_SECRETS_PATH",
+        this_dir_in_crate.join("consensus-secrets.yaml"),
+    );
+
+    let config_sources = cli.config_sources(None).unwrap();
+    let schema = LocalConfig::schema().unwrap();
+    let repo = config_sources.build_repository(&schema);
+    let config = ExternalNodeConfig::new(repo, true).unwrap();
+
+    assert_consensus_config(config.consensus.unwrap());
+    let node_key = config.local.secrets.consensus.node_key.unwrap();
+    assert_eq!(
+        node_key.expose_secret(),
+        "node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c"
+    );
+    let validator_key = config.local.secrets.consensus.validator_key.unwrap();
+    assert_eq!(validator_key.expose_secret(), "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4");
 }

@@ -11,7 +11,7 @@ use zksync_node_framework::{
 };
 use zksync_shared_metrics::metadata::{GitMetadata, RustMetadata, GIT_METRICS, RUST_METRICS};
 
-use crate::healthcheck::HealthCheckHandle;
+use crate::healthcheck::create_server;
 
 /// Full metadata of the compiled binary.
 #[derive(Debug, Serialize)]
@@ -107,16 +107,14 @@ impl Task for HealthCheckTask {
         "healthcheck_server".into()
     }
 
-    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.app_health_check.set_details(BinMetadata {
             rust: RUST_METRICS.initialize(),
             git: GIT_METRICS.initialize(),
         });
-        let handle = HealthCheckHandle::spawn_server(self.config.port, self.app_health_check);
-        stop_receiver.0.changed().await?;
-        handle.stop().await;
-
-        Ok(())
+        let (server_future, _) =
+            create_server(self.config.port, self.app_health_check, stop_receiver.0);
+        server_future.await
     }
 }
 

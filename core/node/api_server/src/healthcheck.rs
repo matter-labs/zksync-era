@@ -23,8 +23,8 @@ async fn check_health(
     (response_code, Json(response))
 }
 
-async fn run_server(
-    bind_address: &api::BindAddress,
+async fn run_server_inner(
+    bind_address: api::BindAddress,
     app_health_check: Arc<AppHealthCheck>,
     local_addr_sender: watch::Sender<Option<api::BindAddress>>,
     mut stop_receiver: watch::Receiver<bool>,
@@ -47,7 +47,7 @@ async fn run_server(
         tracing::info!("Stop request received, healthcheck server is shutting down");
     };
 
-    let (server_future, local_addr) = match bind_address {
+    let (server_future, local_addr) = match &bind_address {
         api::BindAddress::Tcp(addr) => {
             let listener = tokio::net::TcpListener::bind(addr)
                 .await
@@ -98,59 +98,67 @@ async fn run_server(
     Ok(())
 }
 
+async fn with_graceful_shutdown(
+    server_future: impl Future<Output = anyhow::Result<()>>,
+    mut stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Paradoxically, `hyper` server is quite slow to shut down if it isn't queried during shutdown:
+    // <https://github.com/hyperium/hyper/issues/3188>. It is thus recommended to set a timeout for shutdown.
+    const GRACEFUL_SHUTDOWN_WAIT: Duration = Duration::from_secs(10);
+
+    tokio::pin!(server_future);
+
+    tokio::select! {
+        server_result = &mut server_future => {
+            server_result?;
+            anyhow::ensure!(*stop_receiver.borrow(), "Healthcheck server stopped on its own");
+            Ok(())
+        }
+        _ = stop_receiver.changed() => {
+            let server_result = tokio::time::timeout(GRACEFUL_SHUTDOWN_WAIT, server_future).await;
+            if let Ok(server_result) = server_result {
+                // Propagate potential errors from the server task.
+                server_result
+            } else {
+                tracing::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
+                Ok(())
+            }
+        }
+    }
+}
+
+pub(crate) fn create_server(
+    bind_address: api::BindAddress,
+    app_health_check: Arc<AppHealthCheck>,
+    stop_receiver: watch::Receiver<bool>,
+) -> (impl Future<Output = anyhow::Result<()>>, HealthCheckHandle) {
+    let (local_addr_sender, local_addr) = watch::channel(None);
+    let server_future = run_server_inner(
+        bind_address,
+        app_health_check,
+        local_addr_sender,
+        stop_receiver.clone(),
+    );
+    let handles = HealthCheckHandle { local_addr };
+    (
+        with_graceful_shutdown(server_future, stop_receiver),
+        handles,
+    )
+}
+
 #[derive(Debug)]
 pub struct HealthCheckHandle {
-    server: tokio::task::JoinHandle<()>,
-    stop_sender: watch::Sender<bool>,
     local_addr: watch::Receiver<Option<api::BindAddress>>,
 }
 
 impl HealthCheckHandle {
-    pub fn spawn_server(addr: api::BindAddress, app_health_check: Arc<AppHealthCheck>) -> Self {
-        let (stop_sender, stop_receiver) = watch::channel(false);
-        let (local_addr_sender, local_addr) = watch::channel(None);
-        let server = tokio::spawn(async move {
-            // FIXME: doesn't really work; will be fixed after https://github.com/matter-labs/zksync-era/pull/4213 is merged.
-            run_server(&addr, app_health_check, local_addr_sender, stop_receiver)
-                .await
-                .unwrap();
-        });
-
-        Self {
-            server,
-            stop_sender,
-            local_addr,
-        }
-    }
-
     /// Returns the local address the server is bound to.
     pub fn local_addr(&self) -> impl Future<Output = Option<api::BindAddress>> {
         let mut local_addr = self.local_addr.clone();
         // `unwrap()` is safe by construction: after the address is set, it's never updated
         async move {
-            Some(
-                local_addr
-                    .wait_for(Option::is_some)
-                    .await
-                    .ok()?
-                    .clone()
-                    .unwrap(),
-            )
-        }
-    }
-
-    pub async fn stop(self) {
-        // Paradoxically, `hyper` server is quite slow to shut down if it isn't queried during shutdown:
-        // <https://github.com/hyperium/hyper/issues/3188>. It is thus recommended to set a timeout for shutdown.
-        const GRACEFUL_SHUTDOWN_WAIT: Duration = Duration::from_secs(10);
-
-        self.stop_sender.send(true).ok();
-        let server_result = tokio::time::timeout(GRACEFUL_SHUTDOWN_WAIT, self.server).await;
-        if let Ok(server_result) = server_result {
-            // Propagate potential panics from the server task.
-            server_result.unwrap();
-        } else {
-            tracing::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
+            let addr = local_addr.wait_for(Option::is_some).await.ok()?;
+            Some(addr.clone().unwrap())
         }
     }
 }
@@ -182,14 +190,20 @@ mod tests {
 
     #[tokio::test]
     async fn http_server() {
-        let server = HealthCheckHandle::spawn_server(0.into(), mock_health());
-        let local_addr = server.local_addr().await.expect("server has not started");
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (server_future, handle) = create_server(0.into(), mock_health(), stop_receiver);
+        let server_task = tokio::spawn(server_future);
+        let local_addr = handle.local_addr().await.expect("server has not started");
         let local_addr = local_addr.as_tcp().unwrap();
 
         let client = Client::builder(TokioExecutor::new()).build_http::<String>();
         let uri = format!("http://{local_addr}/health").parse().unwrap();
         let response = client.get(uri).await.unwrap();
         assert_response(response).await;
+
+        // Check server shutdown.
+        stop_sender.send_replace(true);
+        server_task.await.unwrap().unwrap();
     }
 
     async fn assert_response(response: Response<impl BodyExt<Error: fmt::Debug>>) {
@@ -229,8 +243,11 @@ mod tests {
     async fn uds_server() {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let bind_to = api::BindAddress::Ipc(temp_dir.path().join("health.sock"));
-        let server = HealthCheckHandle::spawn_server(bind_to, mock_health());
-        let local_addr = server.local_addr().await.expect("server has not started");
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let (server_future, handle) = create_server(bind_to, mock_health(), stop_receiver);
+        let server_task = tokio::spawn(server_future);
+
+        let local_addr = handle.local_addr().await.expect("server has not started");
         let api::BindAddress::Ipc(path) = local_addr else {
             panic!("Unexpected local address: {local_addr:?}");
         };
@@ -239,5 +256,8 @@ mod tests {
         let uri = "http://test/health".parse().unwrap();
         let response = client.get(uri).await.unwrap();
         assert_response(response).await;
+
+        stop_sender.send_replace(true);
+        server_task.await.unwrap().unwrap();
     }
 }
