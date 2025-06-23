@@ -4,7 +4,7 @@ use std::{num::NonZeroU64, time::Duration};
 
 use anyhow::Context;
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
@@ -62,7 +62,6 @@ impl BatchTransactionUpdater {
     /// Validation errors are fatal.
     async fn apply_status_update(
         &self,
-        connection: &mut Connection<'_, Core>,
         db_eth_history_id: u32,
         receipt: TransactionReceipt,
         l1_block_numbers: &L1BlockNumbers,
@@ -77,6 +76,11 @@ impl BatchTransactionUpdater {
             );
             return Ok(false);
         }
+
+        let mut connection = self
+            .pool
+            .connection_tagged("batch_transaction_updater")
+            .await?;
 
         let db_eth_history_tx = connection
             .eth_sender_dal()
@@ -125,13 +129,12 @@ impl BatchTransactionUpdater {
                         );
                         return Ok(false);
                     } else {
-                        anyhow::bail!(
-                            "Transaction {} ({} for batch {}) verification failed: {}",
-                            receipt.transaction_hash,
-                            db_eth_history_tx.tx_type,
-                            batch_number,
-                            e
-                        );
+                        return Err(e).with_context(|| {
+                            format!(
+                                "Transaction {} ({} for batch {}) verification failed",
+                                receipt.transaction_hash, db_eth_history_tx.tx_type, batch_number,
+                            )
+                        });
                     }
                 }
             }
@@ -164,7 +167,6 @@ impl BatchTransactionUpdater {
 
     async fn update_statuses(
         &self,
-        mut connection: Connection<'_, Core>,
         to_process: Vec<TxHistory>,
         l1_block_numbers: L1BlockNumbers,
     ) -> anyhow::Result<usize> {
@@ -189,7 +191,9 @@ impl BatchTransactionUpdater {
                         Some(receipt) => {
                             let sent_at_block: u32 = receipt.block_number.unwrap().as_u32();
                             db_eth_tx_history.sent_at_block = Some(sent_at_block);
-                            connection
+                            self.pool
+                                .connection_tagged("batch_transaction_updater")
+                                .await?
                                 .eth_sender_dal()
                                 .set_sent_at_block(db_eth_tx_history.id, sent_at_block)
                                 .await?;
@@ -221,7 +225,9 @@ impl BatchTransactionUpdater {
                             db_eth_tx_history.tx_hash,
                             sent_at_block
                         );
-                        connection
+                        self.pool
+                            .connection_tagged("batch_transaction_updater")
+                            .await?
                             .eth_sender_dal()
                             .unset_sent_at_block(db_eth_tx_history.id)
                             .await?;
@@ -234,7 +240,6 @@ impl BatchTransactionUpdater {
             let db_eth_history_id = db_eth_tx_history.id;
             let result = self
                 .apply_status_update(
-                    &mut connection,
                     db_eth_history_id,
                     receipt,
                     &l1_block_numbers,
@@ -289,9 +294,9 @@ impl BatchTransactionUpdater {
                 );
             }
         }
+        drop(connection);
 
-        self.update_statuses(connection, to_process, l1_block_numbers)
-            .await
+        self.update_statuses(to_process, l1_block_numbers).await
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {

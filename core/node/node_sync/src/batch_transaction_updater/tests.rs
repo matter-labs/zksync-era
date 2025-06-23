@@ -14,7 +14,10 @@ use zksync_types::{
 use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
-use crate::metrics::L1BatchStage;
+use crate::{
+    batch_transaction_updater::l1_transaction_verifier::TransactionValidationError,
+    metrics::L1BatchStage,
+};
 
 const MOCK_DIAMOND_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
 
@@ -597,7 +600,7 @@ async fn test_invalid_transaction_handling(
     // Update with blocks that would finalize all transactions
     let block_execute = mock_block_number_for_batch_transaction(batch_number, 3);
 
-    let updated_count = updater
+    updater
         .loop_iteration(
             SL_CHAIN_ID,
             L1BlockNumbers {
@@ -606,32 +609,10 @@ async fn test_invalid_transaction_handling(
                 latest: L1BlockNumber(block_execute),
             },
         )
-        .await?;
-
-    // We should update 2 valid transactions but not the invalid one
-    assert_eq!(updated_count, 2);
-
-    // Verify transaction statuses - only the invalid one should remain pending
-    verify_transaction_statuses_separate(
-        &mut storage,
-        batch_number,
-        if invalid_tx_type == AggregatedActionType::Commit {
-            None
-        } else {
-            Some(EthTxFinalityStatus::Finalized)
-        },
-        if invalid_tx_type == AggregatedActionType::PublishProofOnchain {
-            None
-        } else {
-            Some(EthTxFinalityStatus::Finalized)
-        },
-        if invalid_tx_type == AggregatedActionType::Execute {
-            None
-        } else {
-            Some(EthTxFinalityStatus::Finalized)
-        },
-    )
-    .await?;
+        .await
+        .unwrap_err()
+        .downcast_ref::<TransactionValidationError>()
+        .expect("Unexpected error type");
 
     Ok(())
 }
