@@ -8,7 +8,10 @@ be initiated on L1:
 
 ### Prerequisites
 
-Please read the full [article](../../../l2_system_contracts/system_contracts_bootloader_description.md) on the general system contracts / bootloader structure as well as the pubdata structure to understand [the difference](../../data_availability/standard_pubdata_format.md) between system and user logs.
+Please read [articles](../../../zkevm/overview.md)
+on the general system contracts / bootloader structure as well as the pubdata structure with Boojum system to understand
+[the difference](../../data_availability/pubdata.md)
+between system and user logs.
 
 ## Priority operations
 
