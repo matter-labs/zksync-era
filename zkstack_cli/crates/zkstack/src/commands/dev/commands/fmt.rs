@@ -45,7 +45,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_fmt_spinner());
     let mut tasks = vec![];
     tasks.push(tokio::spawn(prettier(shell.clone(), args.check)));
-    //tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
+    tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
     for dir in ["core", "prover", "zkstack_cli"] {
         tasks.push(tokio::spawn(rustfmt(
             shell.clone(),
