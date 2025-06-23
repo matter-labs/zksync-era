@@ -67,7 +67,8 @@ impl Serialize for BlockNumber {
             BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
-            BlockNumber::FastFinalized => serializer.serialize_str("fast_finalized"),
+            // not using the new "fast_finalized" option here for backwards compatibility
+            BlockNumber::FastFinalized => serializer.serialize_str("l1_committed"),
         }
     }
 }
@@ -630,7 +631,7 @@ pub struct Transaction {
 pub enum TransactionStatus {
     Pending,
     Included,
-    FastFinalized,
+    // FastFinalized,
     Verified,
     Failed,
 }
@@ -857,8 +858,9 @@ impl Default for TracerConfig {
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
-    FastFinalized,
     Verified,
+    // note: not enabling this status for backwards compatibility
+    // FastFinalized,
 }
 
 /// Result tracers need to have a nested result field for compatibility. So we have two different

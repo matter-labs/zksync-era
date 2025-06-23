@@ -176,7 +176,11 @@ impl HttpTest for CallTest {
         )
         .await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
-        self.fee_input.expect_custom(batch_header.fee_input);
+        self.fee_input.expect_custom(
+            batch_header
+                .fee_input
+                .scale_fair_l2_gas_price(TraceCallTest::FEE_SCALE),
+        );
         let call_request = Self::call_request(b"block=2");
         let call_result = client.call(call_request.clone(), None, None).await?;
         assert_eq!(call_result.0, b"output");
@@ -801,7 +805,11 @@ impl HttpTest for TraceCallTest {
         )
         .await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
-        self.fee_input.expect_custom(batch_header.fee_input);
+        self.fee_input.expect_custom(
+            batch_header
+                .fee_input
+                .scale_fair_l2_gas_price(Self::FEE_SCALE),
+        );
         let call_request = CallTest::call_request(b"block=2");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result.unwrap_default());

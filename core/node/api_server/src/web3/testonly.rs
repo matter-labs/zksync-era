@@ -3,7 +3,11 @@
 use std::{pin::Pin, time::Instant};
 
 use tokio::sync::watch;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets};
+use zksync_config::configs::{
+    api::{Namespace, Web3JsonRpcConfig},
+    chain::StateKeeperConfig,
+    wallets::Wallets,
+};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
@@ -193,7 +197,7 @@ impl TestServerBuilder {
             create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
         let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
-        let mut namespaces = Namespace::DEFAULT.to_vec();
+        let mut namespaces = HashSet::from(Namespace::DEFAULT);
         namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =

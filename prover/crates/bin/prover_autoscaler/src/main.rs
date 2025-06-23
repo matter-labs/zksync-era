@@ -2,7 +2,7 @@ use anyhow::Context;
 use smart_config::{ConfigSchema, DescribeConfig};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
-use zksync_config::{sources::ConfigSources, ConfigRepositoryExt};
+use zksync_config::sources::ConfigSources;
 use zksync_prover_autoscaler::{
     agent,
     cluster_types::ClusterName,
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
     let _observability_guard = config_sources.observability()?.install()?;
 
     let full_config_schema = ConfigSchema::new(&ProverAutoscalerConfig::DESCRIPTION, "");
-    let config_repo = config_sources.build_repository(&full_config_schema);
+    let mut config_repo = config_sources.build_repository(&full_config_schema);
     let general_config: ProverAutoscalerConfig = config_repo.parse()?;
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();

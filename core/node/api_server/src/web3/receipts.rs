@@ -8,6 +8,7 @@ use std::{
 use zksync_dal::{
     transactions_web3_dal::ExtendedTransactionReceipt, Connection, Core, CoreDal, DalError,
 };
+use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_multivm::zk_evm_latest::ethereum_types::{Address, U256};
 use zksync_state::LruCache;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
@@ -21,7 +22,6 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use super::metrics::{TxReceiptStage, TX_RECEIPT_METRICS};
-use crate::utils::ReportFilter;
 
 static FILTER: ReportFilter = report_filter!(Duration::from_secs(60));
 

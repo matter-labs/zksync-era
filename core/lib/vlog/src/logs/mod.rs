@@ -1,13 +1,11 @@
 use std::{backtrace::Backtrace, str::FromStr};
 
-use serde::Deserialize;
 use tracing_subscriber::{fmt, registry::LookupSpan, EnvFilter, Layer};
 
 mod layer;
 
 /// Specifies the format of the logs in stdout.
-#[derive(Debug, Clone, Copy, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum LogFormat {
     #[default]
     Plain,
@@ -15,22 +13,15 @@ pub enum LogFormat {
 }
 
 impl FromStr for LogFormat {
-    type Err = LogFormatError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "plain" => Ok(Self::Plain),
             "json" => Ok(Self::Json),
-            _ => Err(LogFormatError::InvalidFormat),
+            _ => anyhow::bail!("unexpected logs format: {s:?}, expected one of 'plain', 'json'"),
         }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum LogFormatError {
-    #[error("Invalid log format")]
-    InvalidFormat,
 }
 
 #[derive(Debug, Default)]
@@ -40,23 +31,13 @@ pub struct Logs {
     disable_default_logs: bool,
 }
 
-impl From<LogFormat> for Logs {
-    fn from(format: LogFormat) -> Self {
+impl Logs {
+    pub fn new(format: LogFormat) -> Self {
         Self {
             format,
             log_directives: None,
             disable_default_logs: false,
         }
-    }
-}
-
-impl Logs {
-    pub fn new(format: &str) -> Result<Self, LogFormatError> {
-        Ok(Self {
-            format: format.parse()?,
-            log_directives: None,
-            disable_default_logs: false,
-        })
     }
 
     /// Builds a filter for the logs.

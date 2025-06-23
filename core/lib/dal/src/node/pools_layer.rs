@@ -1,4 +1,4 @@
-use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
+use zksync_config::configs::{PostgresConfig, PostgresSecrets};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -17,7 +17,7 @@ use crate::{ConnectionPool, Core};
 #[derive(Debug)]
 pub struct PoolsLayer {
     config: PostgresConfig,
-    secrets: DatabaseSecrets,
+    secrets: PostgresSecrets,
     with_master: bool,
     with_replica: bool,
 }
@@ -25,12 +25,12 @@ pub struct PoolsLayer {
 impl PoolsLayer {
     /// Creates a new builder with the provided configuration and secrets.
     /// By default, no pulls are enabled.
-    pub fn empty(config: PostgresConfig, database_secrets: DatabaseSecrets) -> Self {
+    pub fn empty(config: PostgresConfig, secrets: PostgresSecrets) -> Self {
         Self {
             config,
             with_master: false,
             with_replica: false,
-            secrets: database_secrets,
+            secrets,
         }
     }
 

@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     net::Ipv4Addr,
-    slice,
 };
 
 use assert_matches::assert_matches;
@@ -40,10 +39,9 @@ use zksync_types::{
     settlement::SettlementLayer,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
-    tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     u256_to_h256,
-    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
+    utils::storage_key_for_eth_balance,
     AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
@@ -935,77 +933,6 @@ async fn transaction_receipts() {
     test_http_server(TransactionReceiptsTest).await;
 }
 
-#[derive(Debug)]
-struct AllAccountBalancesTest;
-
-impl AllAccountBalancesTest {
-    const ADDRESS: Address = Address::repeat_byte(0x11);
-}
-
-#[async_trait]
-impl HttpTest for AllAccountBalancesTest {
-    async fn test(
-        &self,
-        client: &DynClient<L2>,
-        pool: &ConnectionPool<Core>,
-    ) -> anyhow::Result<()> {
-        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
-        assert_eq!(balances, HashMap::new());
-
-        let mut storage = pool.connection().await?;
-        store_l2_block(&mut storage, L2BlockNumber(1), &[]).await?;
-
-        let eth_balance_key = storage_key_for_eth_balance(&Self::ADDRESS);
-        let eth_balance = U256::one() << 64;
-        let eth_balance_log = StorageLog::new_write_log(eth_balance_key, u256_to_h256(eth_balance));
-        storage
-            .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[eth_balance_log])
-            .await?;
-        // Create a custom token, but don't set balance for it yet.
-        let custom_token = TokenInfo {
-            l1_address: Address::repeat_byte(0xfe),
-            l2_address: Address::repeat_byte(0xfe),
-            metadata: TokenMetadata::default(Address::repeat_byte(0xfe)),
-        };
-        storage
-            .tokens_dal()
-            .add_tokens(slice::from_ref(&custom_token))
-            .await?;
-
-        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
-        assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));
-
-        store_l2_block(&mut storage, L2BlockNumber(2), &[]).await?;
-        let token_balance_key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(custom_token.l2_address),
-            &Self::ADDRESS,
-        );
-        let token_balance = 123.into();
-        let token_balance_log =
-            StorageLog::new_write_log(token_balance_key, u256_to_h256(token_balance));
-        storage
-            .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[token_balance_log])
-            .await?;
-
-        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
-        assert_eq!(
-            balances,
-            HashMap::from([
-                (Address::zero(), eth_balance),
-                (custom_token.l2_address, token_balance),
-            ])
-        );
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn getting_all_account_balances() {
-    test_http_server(AllAccountBalancesTest).await;
-}
-
 #[derive(Debug, Default)]
 struct RpcCallsTracingTest {
     tracer: Arc<MethodTracer>,
@@ -1487,13 +1414,15 @@ impl HttpTest for HttpServerBatchStatusTest {
             .get_block_details(l2_block_number.0.into())
             .await?
             .unwrap();
-        assert_eq!(block.base.status, BlockStatus::FastFinalized);
+        assert_eq!(block.base.status, BlockStatus::Sealed);
+        // assert_eq!(block.base.status, BlockStatus::FastFinalized);
         assert_eq!(
             block.base.execute_tx_finality,
             Some(EthTxFinalityStatus::FastFinalized)
         );
         let tx = client.get_transaction_details(tx1.hash()).await?.unwrap();
-        assert_eq!(tx.status, TransactionStatus::FastFinalized);
+        assert_eq!(tx.status, TransactionStatus::Included);
+        // assert_eq!(tx.status, TransactionStatus::FastFinalized);
 
         // Confirm Execute transaction, block should be Verified.
         storage

@@ -6,7 +6,10 @@ use utils::{
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
+use zksync_multivm::{
+    interface::VmEvent,
+    zk_evm_latest::ethereum_types::{U256, U64},
+};
 use zksync_types::{
     api,
     api::{
@@ -23,7 +26,7 @@ use zksync_web3_decl::{error::Web3Error, types::H256};
 
 use crate::{
     execution_sandbox::BlockArgs,
-    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
+    web3::{backend_jsonrpsee::MethodTracer, RpcState},
 };
 
 mod utils;
@@ -243,11 +246,7 @@ impl UnstableNamespace {
             .tx_sender
             .submit_tx(tx, block_args)
             .await
-            .map_err(|err| {
-                tracing::debug!("Send raw transaction error: {err}");
-                API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-                err
-            })?;
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(TransactionDetailedResult {
             transaction_hash: tx_hash,
             storage_logs: submit_output
@@ -261,6 +260,11 @@ impl UnstableNamespace {
                 .map(|event| map_event(event, tx_hash))
                 .collect(),
         })
+    }
+
+    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
+        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        Ok(gas_per_pubdata.into())
     }
 }
 

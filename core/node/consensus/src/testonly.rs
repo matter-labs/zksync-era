@@ -7,10 +7,11 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{
     configs,
     configs::{
-        chain::{OperationsManagerConfig, StateKeeperConfig},
+        chain::SharedStateKeeperConfig,
         consensus as config,
         consensus::RpcConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        snapshot_recovery::TreeRecoveryConfig,
     },
 };
 use zksync_consensus_crypto::TextFmt as _;
@@ -94,7 +95,9 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             .iter()
             .map(|k| (config::ValidatorPublicKey(k.public().encode()), 1))
             .collect(),
-        leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+        leader: Some(config::ValidatorPublicKey(
+            setup.validator_keys[0].public().encode(),
+        )),
         registry_address: None,
         seed_peers: net_cfgs[..seed_peers]
             .iter()
@@ -204,17 +207,14 @@ impl StateKeeper {
             mode: MerkleTreeMode::Lightweight,
             ..MerkleTreeConfig::for_tests(rocksdb_dir.path().join("merkle_tree"))
         };
-        let operation_manager_config = OperationsManagerConfig {
-            delay_interval: Duration::from_millis(100),
-        };
-        let state_keeper_config = StateKeeperConfig {
+        let state_keeper_config = SharedStateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..StateKeeperConfig::for_tests()
+            ..SharedStateKeeperConfig::default()
         };
-        let config = MetadataCalculatorConfig::for_main_node(
+        let config = MetadataCalculatorConfig::from_configs(
             &merkle_tree_config,
-            &operation_manager_config,
             &state_keeper_config,
+            &TreeRecoveryConfig::default(),
         );
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
@@ -258,10 +258,7 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
-                    first_l2_block: L2BlockParams {
-                        timestamp: self.last_timestamp,
-                        virtual_blocks: 1,
-                    },
+                    first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
@@ -271,10 +268,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::L2Block {
-                params: L2BlockParams {
-                    timestamp: self.last_timestamp,
-                    virtual_blocks: 0,
-                },
+                params: L2BlockParams::new(self.last_timestamp * 1000),
                 number: self.last_block,
             }
         }

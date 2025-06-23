@@ -76,8 +76,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                priority = priority + 1
+                processing_started_at = NOW()
             WHERE
                 (
                     status = 'in_progress'
@@ -241,8 +240,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                priority = priority + 1
+                processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
                 AND chain_id = $2

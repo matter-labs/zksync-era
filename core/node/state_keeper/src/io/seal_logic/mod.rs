@@ -83,7 +83,8 @@ impl UpdatesManager {
                 .len(),
         );
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
+        let l1_tx_count = self.l1_batch.l1_tx_count;
+        let l2_tx_count = self.l1_batch.executed_transaction_hashes.len() - l1_tx_count;
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -162,7 +163,7 @@ impl UpdatesManager {
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(
                 self.l1_batch.number,
-                &self.l1_batch.executed_transactions,
+                &self.l1_batch.executed_transaction_hashes,
             )
             .await?;
         progress.observe(None);
@@ -262,7 +263,7 @@ impl UpdatesManager {
             .observe(writes_metrics.repeated_storage_writes);
         L1_BATCH_METRICS
             .transactions_in_l1_batch
-            .observe(self.l1_batch.executed_transactions.len());
+            .observe(self.l1_batch.executed_transaction_hashes.len());
 
         let batch_timestamp = self.batch_timestamp();
         let l1_batch_latency =
@@ -347,7 +348,7 @@ impl L2BlockSealCommand {
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
             l2_block_number = self.l2_block.number,
             l1_batch_number = self.l1_batch_number,
-            ts = display_timestamp(self.l2_block.timestamp),
+            ts = display_timestamp(self.l2_block.timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             event_count = self.l2_block.events.len()
         );
@@ -375,7 +376,7 @@ impl L2BlockSealCommand {
 
         let l2_block_header = L2BlockHeader {
             number: self.l2_block.number,
-            timestamp: self.l2_block.timestamp,
+            timestamp: self.l2_block.timestamp(),
             hash: self.l2_block.get_l2_block_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
@@ -530,7 +531,7 @@ impl L2BlockSealCommand {
         L2_BLOCK_METRICS.sealed_time.observe(started_at.elapsed());
 
         let l2_block_latency =
-            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp * 1_000) as f64 / 1_000.0;
+            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp_ms()) as f64 / 1_000.0;
         let stage = &L2BlockStage::Sealed;
         APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(l2_block_latency));
         APP_METRICS.miniblock_number[stage].set(l2_block_number.0.into());

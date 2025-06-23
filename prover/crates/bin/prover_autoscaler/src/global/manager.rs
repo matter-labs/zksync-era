@@ -72,6 +72,7 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_gpukey()))
                         .collect(),
                     c.speed.into_map_gpukey(),
+                    c.hysteresis,
                     scaler_config.clone(),
                     c.priority.clone(),
                 ))),
@@ -84,6 +85,7 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_nokey()))
                         .collect(),
                     c.speed.into_map_nokey(),
+                    c.hysteresis,
                     scaler_config.clone(),
                     c.priority.clone(),
                 ))),
