@@ -47,10 +47,12 @@ impl EigenDAClient {
         let payload_disperser_config = PayloadDisperserConfig {
             polynomial_form: payload_form,
             blob_version: config.blob_version,
-            cert_verifier_address: config.cert_verifier_addr,
+            cert_verifier_router_address: config.cert_verifier_router_addr,
             eth_rpc_url: SecretUrlV2::new(url),
             disperser_rpc: config.disperser_rpc,
             use_secure_grpc_flag: config.authenticated,
+            operator_state_retriever_addr: config.operator_state_retriever_addr,
+            registry_coordinator_addr: config.registry_coordinator_addr,
         };
 
         let private_key = private_key

@@ -300,7 +300,9 @@ mod tests {
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
-          DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
+          DA_CERT_VERIFIER_ROUTER_ADDR="0x0000000000000000000000000000000000000123"
+          DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
+          DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
           DA_BLOB_VERSION="0"
           DA_POLYNOMIAL_FORM="coeff"
         "#;
@@ -322,10 +324,16 @@ mod tests {
 
         assert_eq!(config.blob_version, 0);
         assert_eq!(
-            config.cert_verifier_addr,
+            config.cert_verifier_router_addr,
             "0x0000000000000000000000000000000000000123"
-                .parse()
-                .unwrap()
+        );
+        assert_eq!(
+            config.operator_state_retriever_addr,
+            "0x0000000000000000000000000000000000000124"
+        );
+        assert_eq!(
+            config.registry_coordinator_addr,
+            "0x0000000000000000000000000000000000000125"
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
     }
@@ -337,7 +345,9 @@ mod tests {
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
             authenticated: true
-            cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+            cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
+            operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
+            registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
             blob_version: 0
             polynomial_form: coeff
         "#;
@@ -363,10 +373,16 @@ mod tests {
 
         assert_eq!(config.blob_version, 0);
         assert_eq!(
-            config.cert_verifier_addr,
-            "0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162"
-                .parse()
-                .unwrap()
+            config.cert_verifier_router_addr,
+            "0x0000000000000000000000000000000000000123"
+        );
+        assert_eq!(
+            config.operator_state_retriever_addr,
+            "0x0000000000000000000000000000000000000124"
+        );
+        assert_eq!(
+            config.registry_coordinator_addr,
+            "0x0000000000000000000000000000000000000125"
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
     }
@@ -380,7 +396,9 @@ mod tests {
             authenticated: true
             blob_version: 0
             polynomial_form: coeff
-            cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+            cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
+            operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
+            registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
