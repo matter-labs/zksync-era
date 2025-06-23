@@ -67,6 +67,10 @@ curl -X POST http://localhost:4041/users \
          }'
 ```
 
+The server will respond with a JSON object:
+*  `{"authorized":true}` if the address is allowed.
+*  `{"authorized":false}` if the address is not on the whitelist.
+
 ## Using the rpc
 
 ```bash
