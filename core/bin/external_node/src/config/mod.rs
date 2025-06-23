@@ -660,11 +660,15 @@ impl OptionalENConfig {
                 .timestamp_asserter_config
                 .min_time_till_end_sec
                 .as_secs() as u32,
-            batch_transaction_updater_interval_sec: enconfig
-                .batch_transaction_updater_interval
+            batch_transaction_updater_interval_sec: general_config
+                .node_sync
+                .as_ref()
+                .and_then(|node_sync_config| node_sync_config.batch_transaction_updater_interval)
                 .and_then(|dur| NonZeroU64::new(dur.as_secs())),
-            batch_transaction_updater_batch_size: enconfig
-                .batch_transaction_updater_batch_size
+            batch_transaction_updater_batch_size: general_config
+                .node_sync
+                .as_ref()
+                .and_then(|node_sync_config| node_sync_config.batch_transaction_updater_batch_size)
                 .unwrap_or(OptionalENConfig::default_batch_transaction_updater_batch_size()),
         })
     }

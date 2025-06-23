@@ -18,7 +18,7 @@ use crate::{
         wallets::Wallets,
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, GatewayMigratorConfig, GenesisConfigWrapper,
+        FriWitnessGeneratorConfig, GatewayMigratorConfig, GenesisConfigWrapper, NodeSyncConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
         TeeProofDataHandlerConfig,
     },
@@ -98,6 +98,8 @@ pub struct GeneralConfig {
     pub timestamp_asserter_config: TimestampAsserterConfig,
     #[config(nest, rename = "gateway_migrator")]
     pub gateway_migrator_config: GatewayMigratorConfig,
+    #[config(nest)]
+    pub node_sync: Option<NodeSyncConfig>,
 }
 
 pub fn full_config_schema(for_en: bool) -> ConfigSchema {
