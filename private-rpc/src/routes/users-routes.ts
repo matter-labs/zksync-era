@@ -18,13 +18,19 @@ const createUserSchema = {
 export function usersRoutes(app: WebServer) {
     app.post('/', createUserSchema, async (req, reply) => {
         const { address, secret } = req.body;
+        const { authorizer, db, createTokenSecret } = app.context;
+
+        if (!authorizer.isAddressWhitelisted(address)) {
+            throw new HttpError('Forbidden: Address not whitelisted', 403);
+        }
+
         const token = nanoid(32);
 
-        if (secret !== app.context.createTokenSecret) {
+        if (secret !== createTokenSecret) {
             throw new HttpError('forbidden', 403);
         }
 
-        await app.context.db.transaction(async (tx) => {
+        await db.transaction(async (tx) => {
             await tx.delete(usersTable).where(eq(usersTable.address, address));
 
             await tx.insert(usersTable).values({
