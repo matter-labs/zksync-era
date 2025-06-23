@@ -173,6 +173,10 @@ describe('snapshot recovery', () => {
         return output as TokenInfo[];
     }
 
+    step('ensure that wallet has L2 funds', async () => {
+      await fundedWallet.ensureIsFunded();
+    });
+
     step('deploy EVM bytecode if allowed', async () => {
         const systemContractsPath = '../../../contracts/system-contracts/zkout';
         const contractDeployerAbi = readContract(systemContractsPath, 'ContractDeployer').abi;
@@ -189,7 +193,7 @@ describe('snapshot recovery', () => {
             const l1ContractsPath = '../../../contracts/l1-contracts/out';
             const erc20Contract = readContract(l1ContractsPath, 'ERC20');
             erc20Abi = erc20Contract.abi;
-            const erc20Factory = new ethers.ContractFactory(erc20Abi, erc20Contract.bytecode, fundedWallet.wallet);
+            const erc20Factory = new ethers.ContractFactory(erc20Abi, erc20Contract.bytecode, fundedWallet.evmWallet());
             const erc20 = await (await erc20Factory.deploy('test', 'TEST')).waitForDeployment();
             erc20Address = await erc20.getAddress();
             console.log('Deployed EVM contract', erc20Address);
