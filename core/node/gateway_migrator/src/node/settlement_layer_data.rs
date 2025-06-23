@@ -18,7 +18,8 @@ use zksync_dal::{
 };
 use zksync_eth_client::{
     contracts_loader::{
-        get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+        get_server_notifier_addr, get_settlement_layer_from_l1, is_settlement_layer,
+        load_settlement_layer_contracts,
     },
     node::SenderConfigResource,
     EthInterface,
@@ -126,13 +127,16 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         }
 
         let l2_eth_client = get_l2_client(
-            self.config.gateway_rpc_url,
+            &input.eth_client,
             self.config
                 .l1_specific_contracts
                 .bridge_hub
                 .expect("Bridge Hub should be always presented"),
+            self.config.l2_chain_id,
+            self.config.gateway_rpc_url,
         )
         .await?;
+
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client,
             l2_eth_client
@@ -255,11 +259,13 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         };
 
         let l2_eth_client = get_l2_client(
-            self.config.gateway_rpc_url,
+            &input.eth_client,
             self.config
                 .l1_specific_contracts
                 .bridge_hub
-                .expect("Bridgehub should always be presented"),
+                .expect("Bridge Hub should be always presented"),
+            self.config.chain_id,
+            self.config.gateway_rpc_url,
         )
         .await?;
 
@@ -319,6 +325,25 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 }
 
 async fn get_l2_client(
+    eth_client: &dyn EthInterface,
+    bridgehub_address: Address,
+    l2_chain_id: L2ChainId,
+    gateway_rpc_url: Option<SensitiveUrl>,
+) -> anyhow::Result<Option<Box<DynClient<L2>>>> {
+    // If the server is the settlement layer, the gateway is the server itself,
+    // so we can't point to ourselves.
+    let is_settlement_layer = is_settlement_layer(eth_client, bridgehub_address, l2_chain_id)
+        .await
+        .context("failed to call whitelistedSettlementLayers on the bridgehub contract")?;
+
+    if !is_settlement_layer {
+        get_l2_client_unchecked(gateway_rpc_url, bridgehub_address).await
+    } else {
+        Ok(None)
+    }
+}
+
+async fn get_l2_client_unchecked(
     gateway_rpc_url: Option<SensitiveUrl>,
     l1_bridgehub_address: Address,
 ) -> anyhow::Result<Option<Box<DynClient<L2>>>> {
@@ -354,12 +379,10 @@ fn adjust_eth_sender_config(
 ) -> SenderConfig {
     if settlement_layer.is_gateway() {
         config.max_aggregated_tx_gas = 30000000000;
-        config.max_eth_tx_data_size = 550_000;
         tracing::warn!(
             "Settling to Gateway requires to adjust ETH sender configs: \
-               max_aggregated_tx_gas = {}, max_eth_tx_data_size = {}",
-            config.max_aggregated_tx_gas,
-            config.max_eth_tx_data_size
+               max_aggregated_tx_gas = {}",
+            config.max_aggregated_tx_gas
         );
         if config.pubdata_sending_mode == PubdataSendingMode::Blobs
             || config.pubdata_sending_mode == PubdataSendingMode::Calldata

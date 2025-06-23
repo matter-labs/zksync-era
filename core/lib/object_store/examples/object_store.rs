@@ -5,7 +5,7 @@ use clap::Parser;
 use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig, Environment};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
-use zksync_config::{sources::ConfigFilePaths, ConfigRepositoryExt, ObjectStoreConfig};
+use zksync_config::{sources::ConfigFilePaths, ObjectStoreConfig};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     snapshots::{SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey},
@@ -45,6 +45,7 @@ impl Cli {
             config_repo = config_repo.with(yaml);
         }
         config_repo.deserializer_options().coerce_variant_names = true;
+        let mut config_repo = zksync_config::ConfigRepository::from(config_repo);
 
         let object_store_config: ObjectStoreConfig = config_repo.parse()?;
         let object_store = ObjectStoreFactory::new(object_store_config)
