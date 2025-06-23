@@ -25,7 +25,7 @@ mod tests {
     fn expected_config() -> NodeSyncConfig {
         NodeSyncConfig {
             batch_transaction_updater_interval: Duration::from_secs(2),
-            batch_transaction_updater_batch_size: NonZeroU64::new(10_000).unwrap(),
+            batch_transaction_updater_batch_size: NonZeroU64::new(100).unwrap(),
         }
     }
 
