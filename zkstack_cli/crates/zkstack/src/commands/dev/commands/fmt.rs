@@ -34,7 +34,9 @@ async fn rustfmt(
     dir: &str,
 ) -> anyhow::Result<()> {
     let full_path = link_to_code.join(dir).join("Cargo.toml");
-    let mut fmt_cmd = cmd!(shell, "cargo fmt --manifest-path {full_path} --all --")
+    let mut fmt_cmd = cmd!(shell, "cargo fmt --manifest-path {full_path}")
+        .arg("--all")
+        .arg("--")
         .args(["--config", "imports_granularity=Crate"])
         .args(["--config", "group_imports=StdExternalCrate"]);
     if check {
@@ -43,10 +45,19 @@ async fn rustfmt(
     Ok(Cmd::new(fmt_cmd).run()?)
 }
 
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub enum Mode {
+    Rust,
+    Prettier,
+    PrettierContracts,
+}
+
 #[derive(Debug, Parser)]
 pub struct FmtArgs {
     #[clap(long, short = 'c')]
     pub check: bool,
+    #[clap(value_enum)]
+    pub mode: Option<Mode>,
 }
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
@@ -54,16 +65,28 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let spinner = Spinner::new(&msg_running_fmt_spinner());
     let mut tasks = vec![];
-    tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
-    tasks.push(tokio::spawn(prettier(shell.clone(), args.check)));
-    tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
-    for dir in ["core", "prover", "zkstack_cli"] {
-        tasks.push(tokio::spawn(rustfmt(
-            shell.clone(),
-            args.check,
-            ecosystem.link_to_code.clone(),
-            dir,
-        )));
+
+    if matches!(args.mode, Some(Mode::Rust) | None) {
+        // Run Rust formatting
+        for dir in ["core", "prover", "zkstack_cli"] {
+            tasks.push(tokio::spawn(rustfmt(
+                shell.clone(),
+                args.check,
+                ecosystem.link_to_code.clone(),
+                dir,
+            )));
+        }
+    }
+
+    if matches!(args.mode, Some(Mode::Prettier) | None) {
+        // Run prettier (not contracts)
+        tasks.push(tokio::spawn(prettier(shell.clone(), args.check)));
+        tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
+    }
+
+    if matches!(args.mode, Some(Mode::PrettierContracts) | None) {
+        // Run prettier for contracts
+        tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
     }
 
     for result in futures::future::join_all(tasks).await {
