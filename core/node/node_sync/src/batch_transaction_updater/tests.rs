@@ -210,16 +210,13 @@ async fn setup_test_environment() -> anyhow::Result<(
     seal_l1_batch(&mut storage, batch_number).await;
 
     // Create BatchTransactionUpdater
-    let mut updater = BatchTransactionUpdater::from_parts(
+    let updater = BatchTransactionUpdater::new(
         new_mock_eth_interface(),
         MOCK_DIAMOND_PROXY_ADDRESS,
         pool.clone(),
         Duration::from_secs(1),
-        10, // processing_batch_size
+        NonZeroU64::new(10).unwrap(), // processing_batch_size
     );
-    updater
-        .l1_transaction_verifier
-        .validate_logs_from_protocol_version = genesis_params.minor_protocol_version();
 
     Ok((pool, storage, updater, batch_number, genesis_params))
 }

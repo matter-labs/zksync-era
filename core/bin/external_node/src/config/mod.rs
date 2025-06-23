@@ -521,7 +521,7 @@ pub(crate) struct OptionalENConfig {
     batch_transaction_updater_interval_sec: Option<NonZeroU64>,
 
     #[serde(default = "OptionalENConfig::default_batch_transaction_updater_batch_size")]
-    pub batch_transaction_updater_batch_size: i64,
+    pub batch_transaction_updater_batch_size: NonZeroU64,
 }
 
 impl OptionalENConfig {
@@ -800,8 +800,8 @@ impl OptionalENConfig {
         60
     }
 
-    fn default_batch_transaction_updater_batch_size() -> i64 {
-        10_000
+    fn default_batch_transaction_updater_batch_size() -> NonZeroU64 {
+        NonZeroU64::new(10_000).unwrap()
     }
 
     fn from_env() -> anyhow::Result<Self> {

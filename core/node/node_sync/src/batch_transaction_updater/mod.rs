@@ -1,6 +1,6 @@
 //! Component responsible for updating L1 batch status.
 
-use std::time::Duration;
+use std::{num::NonZeroU64, time::Duration};
 
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -30,7 +30,7 @@ pub struct BatchTransactionUpdater {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
-    processing_batch_size: i64,
+    processing_batch_size: NonZeroU64,
 }
 
 impl BatchTransactionUpdater {
@@ -39,23 +39,7 @@ impl BatchTransactionUpdater {
         diamond_proxy_addr: Address,
         pool: ConnectionPool<Core>,
         sleep_interval: Duration,
-        processing_batch_size: i64,
-    ) -> Self {
-        Self::from_parts(
-            sl_client,
-            diamond_proxy_addr,
-            pool,
-            sleep_interval,
-            processing_batch_size,
-        )
-    }
-
-    fn from_parts(
-        sl_client: Box<dyn EthInterface>,
-        diamond_proxy_addr: Address,
-        pool: ConnectionPool<Core>,
-        sleep_interval: Duration,
-        processing_batch_size: i64,
+        processing_batch_size: NonZeroU64,
     ) -> Self {
         Self {
             sl_client,
@@ -145,8 +129,8 @@ impl BatchTransactionUpdater {
         mut connection: Connection<'_, Core>,
         to_process: Vec<TxHistory>,
         l1_block_numbers: L1BlockNumbers,
-    ) -> anyhow::Result<i32> {
-        let mut updated_count = 0;
+    ) -> anyhow::Result<usize> {
+        let mut updated_count: usize = 0;
 
         tracing::debug!("Checking {} unfinalized transactions", to_process.len());
 
@@ -159,12 +143,12 @@ impl BatchTransactionUpdater {
                 Some(block) => block,
                 None => {
                     receipt = self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await?;
-                    match receipt {
+                    match &receipt {
                         None => {
                             // transaction was not included, skip. We will try fetching on next iteration.
                             continue;
                         }
-                        Some(ref receipt) => {
+                        Some(receipt) => {
                             let sent_at_block: u32 = receipt.block_number.unwrap().as_u32();
                             db_eth_tx_history.sent_at_block = Some(sent_at_block);
                             connection
@@ -197,7 +181,7 @@ impl BatchTransactionUpdater {
                         tracing::warn!(
                             "Expected transaction {} to be mined at block {}, but transaction not mined at all on SL",
                             db_eth_tx_history.tx_hash,
-                            db_eth_tx_history.sent_at_block.unwrap()
+                            sent_at_block
                         );
                         connection
                             .eth_sender_dal()
@@ -219,17 +203,18 @@ impl BatchTransactionUpdater {
                 )
                 .await;
 
-            if result.is_ok() {
-                updated_count += 1;
-            } else {
-                tracing::warn!(
-                    "Failed to update finality status for transaction {} with type {} from {:?} to {:?} due to error: {}",
-                    db_eth_tx_history.tx_hash,
-                    db_eth_tx_history.tx_type,
-                    db_eth_tx_history.eth_tx_finality_status,
-                    finality_update,
-                    result.err().unwrap()
-                );
+            match result {
+                Ok(_) => updated_count += 1,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to update finality status for transaction {} with type {} from {:?} to {:?} due to error: {}",
+                        db_eth_tx_history.tx_hash,
+                        db_eth_tx_history.tx_type,
+                        db_eth_tx_history.eth_tx_finality_status,
+                        finality_update,
+                        e
+                    );
+                }
             }
         }
         Ok(updated_count)
@@ -239,7 +224,7 @@ impl BatchTransactionUpdater {
         &self,
         sl_chain_id: SLChainId,
         l1_block_numbers: L1BlockNumbers,
-    ) -> anyhow::Result<i32> {
+    ) -> anyhow::Result<usize> {
         let mut connection = self
             .pool
             .connection_tagged("batch_transaction_updater")
@@ -254,7 +239,7 @@ impl BatchTransactionUpdater {
             // If there are, we need to restart to make the node change the SL chain_id.
             let all_chain_ids_transactions = connection
                 .eth_sender_dal()
-                .get_unfinalized_transactions(1, None)
+                .get_unfinalized_transactions(NonZeroU64::new(1).unwrap(), None)
                 .await?;
             if !all_chain_ids_transactions.is_empty()
                 // following check is needed, because we might get a new transaction 

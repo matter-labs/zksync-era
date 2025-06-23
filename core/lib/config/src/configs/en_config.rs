@@ -1,4 +1,7 @@
-use std::{num::NonZeroUsize, time::Duration};
+use std::{
+    num::{NonZeroU64, NonZeroUsize},
+    time::Duration,
+};
 
 use smart_config::{
     de::{Optional, Serde},
@@ -27,7 +30,7 @@ pub struct ENConfig {
     pub gateway_chain_id: Option<SLChainId>,
     pub batch_transaction_updater_interval: Option<Duration>,
     #[config(with = Optional(Serde![int]))]
-    pub batch_transaction_updater_batch_size: Option<i64>,
+    pub batch_transaction_updater_batch_size: Option<NonZeroU64>,
 }
 
 #[cfg(test)]
@@ -46,7 +49,7 @@ mod tests {
             gateway_url: None,
             bridge_addresses_refresh_interval: Some(Duration::from_secs(15)),
             batch_transaction_updater_interval: Some(Duration::from_secs(7)),
-            batch_transaction_updater_batch_size: Some(10),
+            batch_transaction_updater_batch_size: NonZeroU64::new(10),
         }
     }
 

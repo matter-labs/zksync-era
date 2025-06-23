@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::AppHealthCheck;
@@ -32,11 +32,11 @@ pub struct Output {
 #[derive(Debug)]
 pub struct BatchTransactionUpdaterLayer {
     sleep_interval: Duration,
-    processing_batch_size: i64,
+    processing_batch_size: NonZeroU64,
 }
 
 impl BatchTransactionUpdaterLayer {
-    pub fn new(sleep_interval: Duration, processing_batch_size: i64) -> Self {
+    pub fn new(sleep_interval: Duration, processing_batch_size: NonZeroU64) -> Self {
         Self {
             sleep_interval,
             processing_batch_size,

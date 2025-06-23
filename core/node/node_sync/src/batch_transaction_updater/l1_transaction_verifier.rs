@@ -5,6 +5,12 @@ use zksync_types::{
     ProtocolVersionId, H256, U64,
 };
 
+const FIRST_VALIDATED_PROTOCOL_VERSION_ID: ProtocolVersionId = if cfg!(test) {
+    ProtocolVersionId::latest() // necessary for tests
+} else {
+    ProtocolVersionId::Version29
+};
+
 /// Verifies the L1 transaction against the database and the SL.
 #[derive(Debug)]
 pub struct L1TransactionVerifier {
@@ -12,7 +18,6 @@ pub struct L1TransactionVerifier {
     /// ABI of the ZKsync contract
     contract: ethabi::Contract,
     pool: ConnectionPool<Core>,
-    pub validate_logs_from_protocol_version: ProtocolVersionId,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -44,7 +49,6 @@ impl L1TransactionVerifier {
             diamond_proxy_addr,
             contract: zksync_contracts::hyperchain_contract(),
             pool,
-            validate_logs_from_protocol_version: ProtocolVersionId::Version29,
         }
     }
 
@@ -83,7 +87,7 @@ impl L1TransactionVerifier {
             .get_batch_protocol_version_id(batch_number)
             .await?
         {
-            Some(version) => Ok(version >= self.validate_logs_from_protocol_version),
+            Some(version) => Ok(version >= FIRST_VALIDATED_PROTOCOL_VERSION_ID),
             None => {
                 tracing::debug!(
                     "Batch {} is not found in the database. Cannot verify transaction right now",
@@ -99,7 +103,7 @@ impl L1TransactionVerifier {
         receipt: &TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        if !(self.should_perform_logs_validation(batch_number).await?) {
+        if !self.should_perform_logs_validation(batch_number).await? {
             return Ok(());
         }
 
@@ -119,17 +123,14 @@ impl L1TransactionVerifier {
         let committed_batch_info: Option<(H256, H256)> =
             receipt.logs.iter().find_map(|log| {
                 if log.address != self.diamond_proxy_addr {
-                    tracing::debug!(
+                    tracing::trace!(
                         "Log address {} does not match diamond proxy address {}, skipping",
                         log.address,
                         self.diamond_proxy_addr
                     );
                     return None;
                 }
-                let parsed_log = event
-                                        .parse_log_whole(log.clone().into())
-
-                    .ok()?; // Skip logs that are of different event type
+                let parsed_log = event.parse_log_whole(log.clone().into()).ok()?; // Skip logs that are of different event type
 
                 let block_number_from_log = get_param(&parsed_log.params, "batchNumber")
                         .and_then(ethabi::Token::into_uint)

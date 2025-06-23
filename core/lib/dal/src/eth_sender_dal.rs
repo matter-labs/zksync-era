@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, str::FromStr};
+use std::{convert::TryFrom, num::NonZeroU64, str::FromStr};
 
 use anyhow::Context as _;
 use zksync_db_connection::{
@@ -680,32 +680,32 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn get_unfinalized_transactions(
         &mut self,
-        limit: i64,
+        limit: NonZeroU64,
         chain_id: Option<SLChainId>,
     ) -> sqlx::Result<Vec<TxHistory>> {
         let tx_history = match_query_as!(
             StorageTxHistory,
             [r#"
-                    SELECT
-                        eth_txs_history.*,
-                        eth_txs.blob_sidecar,
-                        eth_txs.tx_type,
-                        eth_txs.chain_id
-                    FROM
-                        eth_txs_history
-                    LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
-                    WHERE
-                        eth_txs_history.finality_status != 'finalized'
-                    "#, _,
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type,
+                eth_txs.chain_id
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.finality_status != 'finalized'
+            "#, _,
             r#"
-                    ORDER BY
-                        eth_txs_history.id ASC
-                    LIMIT
-                        $1
-                    "#],
+            ORDER BY
+                eth_txs_history.id ASC
+            LIMIT
+                $1
+            "#],
             match (chain_id) {
-                Some(chain_id) => ("AND eth_txs.chain_id = $2"; limit, chain_id.0 as i64),
-                None => (""; limit),
+                Some(chain_id) => ("AND eth_txs.chain_id = $2"; i64::try_from(limit.get()).expect("limit overflow"), chain_id.0 as i64),
+                None => (""; i64::try_from(limit.get()).expect("limit overflow")),
             }
         )
         .fetch_all(self.storage.conn())
