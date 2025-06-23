@@ -550,4 +550,9 @@ impl ZksNamespace {
             .await?
             .into_pubdata_independent())
     }
+
+    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
+        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        Ok(gas_per_pubdata.into())
+    }
 }
