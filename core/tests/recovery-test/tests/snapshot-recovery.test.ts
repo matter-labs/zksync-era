@@ -174,7 +174,7 @@ describe('snapshot recovery', () => {
     }
 
     step('ensure that wallet has L2 funds', async () => {
-      await fundedWallet.ensureIsFunded();
+        await fundedWallet.ensureIsFunded();
     });
 
     step('deploy EVM bytecode if allowed', async () => {

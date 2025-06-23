@@ -243,7 +243,7 @@ export class FundedWallet {
     private constructor(private readonly wallet: zksync.Wallet) {}
 
     public evmWallet(): ethers.Wallet {
-      return new ethers.Wallet(this.wallet.privateKey, this.wallet._providerL2())
+        return new ethers.Wallet(this.wallet.privateKey, this.wallet._providerL2());
     }
 
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
