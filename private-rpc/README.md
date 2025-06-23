@@ -37,14 +37,15 @@ The file has two main sections: `whitelisted_wallets` and `contracts`.
 The `whitelisted_wallets` key controls which wallet addresses are allowed to connect to the RPC. This is the first layer
 of security. It has two modes:
 
-1.  **Allow all wallets**: To disable whitelisting and allow any address to connect, use the literal string `"all"`.
+1. **Allow all wallets**: To disable whitelisting and allow any address to connect, use the literal string `"all"`.
 
     ```yaml
     whitelisted_wallets: 'all'
     ```
 
-2.  **Allow specific wallets**: To restrict access, provide a list of authorized wallet addresses. The list cannot be
+2. **Allow specific wallets**: To restrict access, provide a list of authorized wallet addresses. The list cannot be
     empty.
+
     ```yaml
     whitelisted_wallets:
       - '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B'
@@ -68,8 +69,9 @@ curl -X POST http://localhost:4041/users \
 ```
 
 The server will respond with a JSON object:
-*  `{"authorized":true}` if the address is allowed.
-*  `{"authorized":false}` if the address is not on the whitelist.
+
+- `{"authorized":true}` if the address is allowed.
+- `{"authorized":false}` if the address is not on the whitelist.
 
 ## Using the rpc
 
