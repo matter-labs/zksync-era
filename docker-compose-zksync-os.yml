@@ -36,7 +36,9 @@ services:
       - POSTGRES_PASSWORD=notsecurepassword
 
   zksync-os-state-keeper:
-    image: "ghcr.io/matter-labs/zksync-os-server:latest"
+    image: "matterlabs/zksync-os-server:latest"
+    platform: linux/x86_64
+
     ports:
       - 3124:3124
     volumes:
@@ -45,7 +47,9 @@ services:
     network_mode: host
 
   zksync-os-api:
-    image: "ghcr.io/matter-labs/zksync-os-server:zksync_os-latest"
+    image: "matterlabs/zksync-os-server:latest"
+    platform: linux/x86_64
+
     ports:
       - 3050:3050
       - 3051:3051
@@ -55,7 +59,9 @@ services:
     network_mode: host
 
   zksync-os-prover:
-    image: "ghcr.io/matter-labs/zksync-os-prover:latest"
+    image: "matterlabs/zksync-os-prover:latest"
+    platform: linux/x86_64
+
     ports:
       - 3052:3052
     command: --base-url=http://localhost:3124
