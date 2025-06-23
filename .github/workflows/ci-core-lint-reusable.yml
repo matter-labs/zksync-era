@@ -50,6 +50,7 @@ jobs:
           ci_run zkstack dev lint -t ts --check
           ci_run zkstack dev lint -t rs --check
           ci_run zkstack dev lint -t rust-toolchain
+          ci_run zkstack dev lint -t autocompletion
 
       - name: Check Database
         run: |
