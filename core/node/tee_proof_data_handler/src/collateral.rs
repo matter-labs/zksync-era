@@ -7,7 +7,7 @@ use intel_dcap_api::{
 };
 use serde_json::Value;
 use sha2::Digest;
-use teepot::quote::{Fmspc, TEEType};
+use teepot::quote::TEEType;
 use tokio::{select, sync::watch};
 use x509_cert::{
     crl::CertificateList,
@@ -15,7 +15,11 @@ use x509_cert::{
 };
 use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{
-    tee_dcap_collateral_dal::{TeeDcapCollateralDal, TeeDcapCollateralInfo, TeeDcapCollateralKind},
+    tee_dcap_collateral_dal::{
+        ExpiringCollateral, ExpiringFieldCollateral, ExpiringTcbInfoCollateral,
+        TeeDcapCollateralDal, TeeDcapCollateralInfo, TeeDcapCollateralKind,
+        TeeDcapCollateralTcbInfoJsonKind,
+    },
     Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::ObjectStore;
@@ -71,48 +75,43 @@ async fn update_collateral(
     dal: &mut TeeDcapCollateralDal<'_, '_>,
     _config: &TeeProofDataHandlerConfig,
 ) -> Result<(), TeeProcessorError> {
-    // TODO: TEE - make config
-    let hours_before_expiry = 24 * 7;
-
     let functions = TeeFunctions::default();
 
-    for (kind, _when) in dal
-        .get_expiring_collateral(hours_before_expiry)
+    for expiring_collateral in dal
+        .get_expiring_collateral(TeeDcapCollateralDal::DEFAULT_EXPIRES_WITHIN)
         .await?
         .iter()
     {
-        tracing::error!("Updating collateral: {:?}", kind);
-        match kind {
-            TeeDcapCollateralKind::PckCrl
-            | TeeDcapCollateralKind::RootCa
-            | TeeDcapCollateralKind::PckCa => {
-                update_certs(dal, &functions).await?;
-            }
-            TeeDcapCollateralKind::SgxQeIdentityJson => {
-                update_sgx_qe_identity(dal, &functions).await?;
-            }
-            TeeDcapCollateralKind::TdxQeIdentityJson => {
-                update_tdx_qe_identity(dal, &functions).await?;
-            }
-            TeeDcapCollateralKind::SgxTcbInfoJson(fmspc) => {
-                update_tcb_info(dal, fmspc, TEEType::SGX, &functions).await?;
-            }
-            TeeDcapCollateralKind::TdxTcbInfoJson(fmspc) => {
-                update_tcb_info(dal, fmspc, TEEType::TDX, &functions).await?;
-            }
-            TeeDcapCollateralKind::RootCrl => {
-                update_root_crl(dal, &functions).await?;
-            }
-            TeeDcapCollateralKind::SignCa => {
-                // should have happened automatically via SgxQeIdentityJson or TdxQeIdentityJson
-                return Err(TeeProcessorError::GeneralError(
-                    "TEE Signing CA outdated!".into(),
-                ));
-            }
-            _ => {
-                return Err(TeeProcessorError::GeneralError(
-                    "Unknown collateral kind".into(),
-                ));
+        match expiring_collateral {
+            ExpiringCollateral::Field(ExpiringFieldCollateral { kind, .. }) => match kind {
+                TeeDcapCollateralKind::RootCa
+                | TeeDcapCollateralKind::PckCa
+                | TeeDcapCollateralKind::PckCrl => update_certs(dal, &functions).await?,
+                TeeDcapCollateralKind::RootCrl => {
+                    update_root_crl(dal, &functions).await?;
+                }
+                TeeDcapCollateralKind::SignCa => {
+                    // should have happened automatically via SgxQeIdentityJson or TdxQeIdentityJson
+                    return Err(TeeProcessorError::GeneralError(
+                        "TEE Signing CA outdated!".into(),
+                    ));
+                }
+                TeeDcapCollateralKind::SgxQeIdentityJson => {
+                    update_sgx_qe_identity(dal, &functions).await?;
+                }
+                TeeDcapCollateralKind::TdxQeIdentityJson => {
+                    update_tdx_qe_identity(dal, &functions).await?;
+                }
+            },
+            ExpiringCollateral::TcbInfo(ExpiringTcbInfoCollateral { kind, fmspc, .. }) => {
+                match kind {
+                    TeeDcapCollateralTcbInfoJsonKind::SgxTcbInfoJson => {
+                        update_tcb_info(dal, fmspc, TEEType::SGX, &functions).await?;
+                    }
+                    TeeDcapCollateralTcbInfoJsonKind::TdxTcbInfoJson => {
+                        update_tcb_info(dal, fmspc, TEEType::TDX, &functions).await?;
+                    }
+                }
             }
         }
     }
@@ -138,8 +137,12 @@ async fn update_root_crl(
         .to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::RootCrl, &hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::RootCrl,
+            &hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
         let crl = CertificateList::from_der(&crl_data).context("Failed to parse CRL")?;
@@ -153,7 +156,7 @@ async fn update_root_crl(
 
         let calldata = functions.upsert_root_ca_crl(crl_data).unwrap();
 
-        dal.upsert_collateral(&TeeDcapCollateralKind::RootCrl, not_after, &hash, &calldata)
+        dal.update_field(TeeDcapCollateralKind::RootCrl, &hash, not_after, &calldata)
             .await?;
     }
 
@@ -205,36 +208,48 @@ async fn update_certs(
     let hash = root_cert.signature.raw_bytes().to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::RootCa, &hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::RootCa,
+            &hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
-        let not_after = root_cert.tbs_certificate.validity.not_after;
+        let not_after = root_cert
+            .tbs_certificate
+            .validity
+            .not_after
+            .to_system_time();
         let cert_der = root_cert.to_der().expect("Failed to serialize root cert");
         tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::RootCa);
         tracing::info!("Updating collateral: cert_der = {}", hex::encode(&cert_der));
         let calldata = functions
             .upsert_root_certificate(cert_der)
             .expect("Failed to create calldata for root cert");
-        dal.upsert_collateral(
-            &TeeDcapCollateralKind::RootCa,
-            not_after.to_system_time().into(),
-            hash.as_slice(),
+        dal.update_field(
+            TeeDcapCollateralKind::RootCa,
+            &hash,
+            not_after.into(),
             &calldata,
         )
         .await?;
     }
 
-    update_root_crl(dal, &functions).await?;
+    update_root_crl(dal, functions).await?;
 
     let hash = pck_cert.signature.raw_bytes().to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::PckCa, &hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::PckCa,
+            &hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
-        let not_after = pck_cert.tbs_certificate.validity.not_after;
+        let not_after = pck_cert.tbs_certificate.validity.not_after.to_system_time();
         let cert_der = pck_cert.to_der().unwrap();
 
         tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::PckCa);
@@ -242,10 +257,10 @@ async fn update_certs(
 
         let calldata = functions.upsert_platform_certificate(cert_der).unwrap();
 
-        dal.upsert_collateral(
-            &TeeDcapCollateralKind::PckCa,
-            not_after.to_system_time().into(),
-            hash.as_slice(),
+        dal.update_field(
+            TeeDcapCollateralKind::PckCa,
+            &hash,
+            not_after.into(),
             &calldata,
         )
         .await?;
@@ -257,8 +272,12 @@ async fn update_certs(
         .to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::PckCrl, &hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::PckCrl,
+            &hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
         let crl = CertificateList::from_der(&crl_data).context("Failed to parse CRL")?;
@@ -273,7 +292,7 @@ async fn update_certs(
 
         let calldata = functions.upsert_pck_crl(CA::PLATFORM, crl_data).unwrap();
 
-        dal.upsert_collateral(&TeeDcapCollateralKind::PckCrl, not_after, &hash, &calldata)
+        dal.update_field(TeeDcapCollateralKind::PckCrl, &hash, not_after, &calldata)
             .await?;
     }
 
@@ -298,8 +317,12 @@ async fn update_tdx_qe_identity(
         .to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::TdxQeIdentityJson, &qe_identity_hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::TdxQeIdentityJson,
+            &qe_identity_hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
         let enclave_identity_val =
@@ -317,7 +340,7 @@ async fn update_tdx_qe_identity(
             .get("enclaveIdentity")
             .context("Failed to get enclave identity")?;
 
-        let not_after = get_next_update(&enclave_identity_val)?;
+        let not_after = get_next_update(enclave_identity_val)?;
         let id =
             EnclaveId::try_from(enclave_identity_val.get("id").unwrap().as_str().unwrap()).unwrap();
 
@@ -329,10 +352,10 @@ async fn update_tdx_qe_identity(
             .upsert_enclave_identity(id, 4, body, signature)
             .expect("Failed to create calldata for enclave identity");
 
-        dal.upsert_collateral(
-            &TeeDcapCollateralKind::TdxQeIdentityJson,
-            not_after,
+        dal.update_field(
+            TeeDcapCollateralKind::TdxQeIdentityJson,
             &qe_identity_hash,
+            not_after,
             &calldata,
         )
         .await?;
@@ -363,8 +386,12 @@ async fn update_sgx_qe_identity(
         .to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::SgxQeIdentityJson, &qe_identity_hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::SgxQeIdentityJson,
+            &qe_identity_hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
         update_signing_ca(dal, functions, issuer_chain).await?;
@@ -384,7 +411,7 @@ async fn update_sgx_qe_identity(
             .get("enclaveIdentity")
             .context("Failed to get enclave identity")?;
 
-        let not_after = get_next_update(&enclave_identity_val)?;
+        let not_after = get_next_update(enclave_identity_val)?;
         let id =
             EnclaveId::try_from(enclave_identity_val.get("id").unwrap().as_str().unwrap()).unwrap();
 
@@ -396,10 +423,10 @@ async fn update_sgx_qe_identity(
             .upsert_enclave_identity(id, 3, body, signature)
             .unwrap();
 
-        dal.upsert_collateral(
-            &TeeDcapCollateralKind::SgxQeIdentityJson,
-            not_after,
+        dal.update_field(
+            TeeDcapCollateralKind::SgxQeIdentityJson,
             &qe_identity_hash,
+            not_after,
             &calldata,
         )
         .await?;
@@ -436,11 +463,11 @@ pub(crate) async fn update_collateral_for_quote(
 
 async fn update_tcb_info(
     dal: &mut TeeDcapCollateralDal<'_, '_>,
-    fmspc: &Fmspc,
+    fmspc: &[u8],
     tee_type: TEEType,
     functions: &TeeFunctions,
 ) -> Result<(), TeeProcessorError> {
-    let fmspc_hex = hex::encode(&fmspc);
+    let fmspc_hex = hex::encode(fmspc);
     let (tcbinfo_resp, tcb_info_field) = match tee_type {
         TEEType::SGX => {
             // For the automata contracts, we need version 3 of Intel DCAP API for SGX.
@@ -450,7 +477,7 @@ async fn update_tcb_info(
                 .get_sgx_tcb_info(&fmspc_hex, None, None)
                 .await
                 .context("Failed to get SGX TCB info")?;
-            (tcbinfo, TeeDcapCollateralKind::SgxTcbInfoJson(*fmspc))
+            (tcbinfo, TeeDcapCollateralTcbInfoJsonKind::SgxTcbInfoJson)
         }
         TEEType::TDX => {
             // For the automata contracts, we need version 4 of Intel DCAP API for TDX.
@@ -460,7 +487,7 @@ async fn update_tcb_info(
                 .get_tdx_tcb_info(&fmspc_hex, None, None)
                 .await
                 .context("Failed to get TDX TCB info")?;
-            (tcbinfo, TeeDcapCollateralKind::TdxTcbInfoJson(*fmspc))
+            (tcbinfo, TeeDcapCollateralTcbInfoJsonKind::TdxTcbInfoJson)
         }
         _ => {
             return Err(TeeProcessorError::GeneralError(
@@ -479,8 +506,13 @@ async fn update_tcb_info(
         .finalize();
 
     if !matches!(
-        dal.check_collateral_status(&tcb_info_field, tcb_info_hash.as_slice())
-            .await?,
+        dal.tcb_info_is_current(
+            tcb_info_field,
+            fmspc,
+            tcb_info_hash.as_slice(),
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
         update_signing_ca(dal, functions, issuer_chain).await?;
@@ -495,17 +527,18 @@ async fn update_tcb_info(
         let tcb_info_val = tcb_info_val
             .get("tcbInfo")
             .context("Failed to get tcbInfo")?;
-        let not_after = get_next_update(&tcb_info_val)?;
+        let not_after = get_next_update(tcb_info_val)?;
 
         tracing::info!("Updating collateral: {}", tcb_info_json);
         let body = extract_json_body(&tcb_info_json, "tcbInfo")?;
         tracing::info!("body: {}", body);
 
         let calldata = functions.upsert_fmspc_tcb(body, signature).unwrap();
-        dal.upsert_collateral(
-            &tcb_info_field,
-            not_after,
+        dal.update_tcb_info(
+            tcb_info_field,
+            fmspc,
             tcb_info_hash.as_slice(),
+            not_after,
             &calldata,
         )
         .await?;
@@ -540,8 +573,12 @@ async fn update_signing_ca(
     let hash = sign_cert.signature.raw_bytes().to_vec();
 
     if !matches!(
-        dal.check_collateral_status(&TeeDcapCollateralKind::SignCa, &hash)
-            .await?,
+        dal.field_is_current(
+            TeeDcapCollateralKind::SignCa,
+            &hash,
+            TeeDcapCollateralDal::DEFAULT_TIMEOUT
+        )
+        .await?,
         TeeDcapCollateralInfo::Matches
     ) {
         let not_after = sign_cert.tbs_certificate.validity.not_after;
@@ -553,10 +590,10 @@ async fn update_signing_ca(
 
         let calldata = functions.upsert_signing_certificate(cert_der).unwrap();
 
-        dal.upsert_collateral(
-            &TeeDcapCollateralKind::SignCa,
-            not_after.to_system_time().into(),
+        dal.update_field(
+            TeeDcapCollateralKind::SignCa,
             hash.as_slice(),
+            not_after.to_system_time().into(),
             &calldata,
         )
         .await?;

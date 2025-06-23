@@ -3,7 +3,12 @@ use std::collections::HashMap;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    tee_dcap_collateral_dal::{
+        PendingCollateral, PendingFieldCollateral, PendingTcbInfoCollateral,
+    },
+    Connection, ConnectionPool, Core, CoreDal,
+};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
@@ -794,7 +799,7 @@ impl EthTxAggregator {
             })?;
 
         // Generate TEE data
-        for (kind, calldata) in pending.into_iter() {
+        for pending_collateral in pending.into_iter() {
             // Start a database transaction
             let mut transaction = storage.start_transaction().await.unwrap();
 
@@ -811,7 +816,7 @@ impl EthTxAggregator {
                 .eth_sender_dal()
                 .save_eth_tx(
                     nonce,
-                    calldata,
+                    pending_collateral.calldata().to_vec(),
                     AggregatedActionType::Tee,
                     self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
                     // FIXME: TEE
@@ -830,17 +835,28 @@ impl EthTxAggregator {
                 .unwrap();
             eth_tx.chain_id = Some(self.sl_chain_id);
 
-            // FIXME: TEE - make config
-            let guard_duration_hours = 1;
-
-            transaction
-                .tee_dcap_collateral_dal()
-                .set_eth_tx_id(&kind, eth_tx.id, guard_duration_hours)
-                .await
-                .map_err(|_e| {
-                    // FIXME: TEE
-                    EthSenderError::ExceedMaxBaseFee
-                })?;
+            match pending_collateral {
+                PendingCollateral::Field(PendingFieldCollateral { kind, .. }) => {
+                    transaction
+                        .tee_dcap_collateral_dal()
+                        .set_field_eth_tx_id(kind, eth_tx.id as i32)
+                        .await
+                        .map_err(|_e| {
+                            // FIXME: TEE
+                            EthSenderError::ExceedMaxBaseFee
+                        })?;
+                }
+                PendingCollateral::TcbInfo(PendingTcbInfoCollateral { kind, fmspc, .. }) => {
+                    transaction
+                        .tee_dcap_collateral_dal()
+                        .set_tcb_info_eth_tx_id(kind, &fmspc, eth_tx.id as i32)
+                        .await
+                        .map_err(|_e| {
+                            // FIXME: TEE
+                            EthSenderError::ExceedMaxBaseFee
+                        })?;
+                }
+            }
 
             // Commit the transaction
             transaction.commit().await.unwrap();

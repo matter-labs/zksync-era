@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_dcap_collateral\n            SET\n                eth_tx_id = $2,\n                calldata = NULL\n            WHERE\n                kind = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_ca",
+                "root_crl",
+                "pck_ca",
+                "pck_crl",
+                "sign_ca",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        },
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f9ca9b508166e72a22c94ad35427ea41d737e067da2ac2f71c2387310f0c539b"
+}

@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO tee_dcap_collateral VALUES (\n                        $1,\n                        transaction_timestamp(),\n                        $2,\n                        transaction_timestamp(),\n                        transaction_timestamp(),\n                        NULL\n                    ) RETURNING\n                    transaction_timestamp() + $3 AS \"update_guard_expires!\"\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "update_guard_expires!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_ca",
+                "root_crl",
+                "pck_ca",
+                "pck_crl",
+                "sign_ca",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Interval"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5dbafd6a26a8225aae3882636e7657b70eb4f97ce9030721ac00d2ebaf476cc6"
+}

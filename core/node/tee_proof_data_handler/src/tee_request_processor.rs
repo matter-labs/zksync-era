@@ -21,7 +21,7 @@ use zksync_tee_prover_interface::{
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
 use zksync_types::{
-    public_to_address, recover, tee_types::TeeType, L1BatchNumber, L2ChainId, H256,
+    recover, tee_types::TeeType, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
@@ -243,7 +243,7 @@ impl TeeRequestProcessor {
         }
 
         // Check for a valid signature
-        let root_hash = H256::from_slice(proof.0.proof.as_slice()).into();
+        let root_hash = H256::from_slice(proof.0.proof.as_slice());
         let signature = Signature::from_electrum(&proof.0.signature);
         let recovered_pubkey = recover(&signature, &root_hash).unwrap();
 

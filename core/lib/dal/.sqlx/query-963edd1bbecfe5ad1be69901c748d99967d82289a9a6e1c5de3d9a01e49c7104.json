@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                kind as \"kind: _\",\n                calldata\n            FROM\n                tee_dcap_collateral\n            WHERE\n                eth_tx_id IS NULL \n                AND calldata IS NOT NULL\n            ORDER BY updated ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind: _",
+        "type_info": {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_ca",
+                "root_crl",
+                "pck_ca",
+                "pck_crl",
+                "sign_ca",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "calldata",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "963edd1bbecfe5ad1be69901c748d99967d82289a9a6e1c5de3d9a01e49c7104"
+}

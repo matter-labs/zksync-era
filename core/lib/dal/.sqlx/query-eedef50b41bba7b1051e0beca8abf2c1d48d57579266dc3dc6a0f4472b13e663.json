@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            kind as \"kind: _\",\n            not_after\n        FROM\n            tee_dcap_collateral\n        WHERE\n            not_after <= transaction_timestamp() + $1\n        ORDER BY not_after ASC\n    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind: _",
+        "type_info": {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_ca",
+                "root_crl",
+                "pck_ca",
+                "pck_crl",
+                "sign_ca",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "not_after",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "eedef50b41bba7b1051e0beca8abf2c1d48d57579266dc3dc6a0f4472b13e663"
+}

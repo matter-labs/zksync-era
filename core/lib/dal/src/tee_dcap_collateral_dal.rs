@@ -1,9 +1,8 @@
-use std::fmt::{Display, Formatter};
-
 use chrono::{DateTime, Utc};
+use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
-use crate::Core;
+use crate::{Core, CoreDal};
 
 /// The status of a specific piece of collateral that is stored on chain
 pub enum TeeDcapCollateralInfo {
@@ -16,83 +15,81 @@ pub enum TeeDcapCollateralInfo {
     /// been tasked with updating the chain by the time specified, at which point a retry may be
     /// necessary.
     PendingUpdateBy(DateTime<Utc>),
-    /// No record of the collateral on the chain is present, it must be created
-    RecordMissing,
+    /// The collateral has been updated, but the transaction to commit it to the chain is still
+    /// pending confirmation.
+    PendingEthSenderCompletion,
 }
 
-type FMSPC = [u8; 6];
-
-#[derive(Debug, Clone)]
-#[non_exhaustive]
+#[derive(sqlx::Type, Debug, Copy, Clone)]
+#[sqlx(type_name = "tee_dcap_collateral_kind", rename_all = "snake_case")]
 pub enum TeeDcapCollateralKind {
     RootCa,
     RootCrl,
     PckCa,
     PckCrl,
     SignCa,
-    SgxTcbInfoJson(FMSPC),
-    TdxTcbInfoJson(FMSPC),
     SgxQeIdentityJson,
     TdxQeIdentityJson,
 }
 
-impl Display for TeeDcapCollateralKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TeeDcapCollateralKind::RootCa => write!(f, "root_ca"),
-            TeeDcapCollateralKind::RootCrl => write!(f, "root_crl"),
-            TeeDcapCollateralKind::PckCa => write!(f, "pck_ca"),
-            TeeDcapCollateralKind::PckCrl => write!(f, "pck_crl"),
-            TeeDcapCollateralKind::SignCa => write!(f, "sign_ca"),
-            TeeDcapCollateralKind::SgxTcbInfoJson(fmspc) => {
-                write!(f, "sgx_tcb_{}", hex::encode(fmspc))
-            }
-            TeeDcapCollateralKind::TdxTcbInfoJson(fmspc) => {
-                write!(f, "tdx_tcb_{}", hex::encode(fmspc))
-            }
-            TeeDcapCollateralKind::SgxQeIdentityJson => write!(f, "sgx_qe_identity"),
-            TeeDcapCollateralKind::TdxQeIdentityJson => write!(f, "tdx_qe_identity"),
-        }
+#[derive(sqlx::Type, Debug, Copy, Clone)]
+#[sqlx(
+    type_name = "tee_dcap_collateral_tcb_info_json_kind",
+    rename_all = "snake_case"
+)]
+pub enum TeeDcapCollateralTcbInfoJsonKind {
+    SgxTcbInfoJson,
+    TdxTcbInfoJson,
+}
+
+struct CurrentFieldValidator {
+    sha_matches: bool,
+    not_after: bool,
+    update_guard_set: bool,
+    update_guard_expires: DateTime<Utc>,
+    update_guard_expired: bool,
+    calldata_set: bool,
+    eth_tx_guard_set: bool,
+    eth_tx_guard_confirmed: bool,
+}
+
+pub enum PendingCollateral {
+    Field(PendingFieldCollateral),
+    TcbInfo(PendingTcbInfoCollateral),
+}
+impl PendingCollateral {
+    pub fn calldata(&self) -> &[u8] {
+        let (PendingCollateral::Field(PendingFieldCollateral { calldata, .. })
+        | PendingCollateral::TcbInfo(PendingTcbInfoCollateral { calldata, .. })) = self;
+        calldata
     }
 }
 
-impl TryFrom<&str> for TeeDcapCollateralKind {
-    type Error = String;
+pub struct PendingFieldCollateral {
+    pub kind: TeeDcapCollateralKind,
+    pub calldata: Vec<u8>,
+}
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "root_ca" => Ok(TeeDcapCollateralKind::RootCa),
-            "root_crl" => Ok(TeeDcapCollateralKind::RootCrl),
-            "pck_ca" => Ok(TeeDcapCollateralKind::PckCa),
-            "pck_crl" => Ok(TeeDcapCollateralKind::PckCrl),
-            "sign_ca" => Ok(TeeDcapCollateralKind::SignCa),
-            "sgx_qe_identity" => Ok(TeeDcapCollateralKind::SgxQeIdentityJson),
-            "tdx_qe_identity" => Ok(TeeDcapCollateralKind::TdxQeIdentityJson),
-            s if s.starts_with("sgx_tcb_") => {
-                let hex_str = s.strip_prefix("sgx_tcb_").unwrap();
-                let bytes =
-                    hex::decode(hex_str).map_err(|e| format!("Invalid FMSPC hex: {}", e))?;
-                if bytes.len() != 6 {
-                    return Err(format!("FMSPC must be 6 bytes, got {}", bytes.len()));
-                }
-                let mut fmspc = [0u8; 6];
-                fmspc.copy_from_slice(&bytes);
-                Ok(TeeDcapCollateralKind::SgxTcbInfoJson(fmspc))
-            }
-            s if s.starts_with("tdx_tcb_") => {
-                let hex_str = s.strip_prefix("tdx_tcb_").unwrap();
-                let bytes =
-                    hex::decode(hex_str).map_err(|e| format!("Invalid FMSPC hex: {}", e))?;
-                if bytes.len() != 6 {
-                    return Err(format!("FMSPC must be 6 bytes, got {}", bytes.len()));
-                }
-                let mut fmspc = [0u8; 6];
-                fmspc.copy_from_slice(&bytes);
-                Ok(TeeDcapCollateralKind::TdxTcbInfoJson(fmspc))
-            }
-            _ => Err(format!("Unknown collateral kind: {}", value)),
-        }
-    }
+pub struct PendingTcbInfoCollateral {
+    pub kind: TeeDcapCollateralTcbInfoJsonKind,
+    pub fmspc: Vec<u8>,
+    pub calldata: Vec<u8>,
+}
+
+pub enum ExpiringCollateral {
+    Field(ExpiringFieldCollateral),
+    TcbInfo(ExpiringTcbInfoCollateral),
+}
+
+pub struct ExpiringFieldCollateral {
+    pub kind: TeeDcapCollateralKind,
+    pub not_after: DateTime<Utc>,
+}
+
+pub struct ExpiringTcbInfoCollateral {
+    pub kind: TeeDcapCollateralTcbInfoJsonKind,
+    pub fmspc: Vec<u8>,
+    pub not_after: DateTime<Utc>,
 }
 
 #[derive(Debug)]
@@ -100,303 +97,601 @@ pub struct TeeDcapCollateralDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 impl TeeDcapCollateralDal<'_, '_> {
-    /// Checks the status of a specific collateral against what's stored in the database
-    pub async fn check_collateral_status(
+    pub const DEFAULT_TIMEOUT: PgInterval = PgInterval {
+        months: 0,
+        days: 1,
+        microseconds: 0,
+    };
+
+    pub const DEFAULT_EXPIRES_WITHIN: PgInterval = PgInterval {
+        months: 0,
+        days: 7,
+        microseconds: 0,
+    };
+
+    pub async fn field_is_current(
         &mut self,
-        kind: &TeeDcapCollateralKind,
+        kind: TeeDcapCollateralKind,
         sha256: &[u8],
+        timeout: PgInterval,
     ) -> DalResult<TeeDcapCollateralInfo> {
-        let row = sqlx::query!(
+        let mut tx = self.storage.start_transaction().await?;
+        match sqlx::query_as!(
+            CurrentFieldValidator,
             r#"
             SELECT
-                sha256,
-                not_after,
-                eth_tx_id,
-                update_guard_expires
-            FROM tee_dcap_collateral
-            WHERE kind = $1
+                c.sha256 = $2 AS "sha_matches!",
+                transaction_timestamp() < c.not_after AS "not_after!",
+                c.update_guard_set IS NULL AS "update_guard_set!",
+                (
+                    coalesce(c.update_guard_set, transaction_timestamp()) + $3
+                ) AS "update_guard_expires!",
+                (coalesce(c.update_guard_set, transaction_timestamp()) + $3)
+                < transaction_timestamp() AS "update_guard_expired!",
+                c.calldata IS NOT NULL AS "calldata_set!",
+                c.eth_tx_id IS NOT NULL AS "eth_tx_guard_set!",
+                e.confirmed_eth_tx_history_id IS NULL AS "eth_tx_guard_confirmed!"
+            FROM
+                tee_dcap_collateral c
+            LEFT OUTER JOIN eth_txs e ON c.eth_tx_id = e.id
+            WHERE c.kind = $1
             "#,
-            kind.to_string()
+            kind as _,
+            sha256,
+            timeout
         )
-        .instrument("check_collateral_status")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?;
-
-        match row {
-            None => Ok(TeeDcapCollateralInfo::RecordMissing),
-            Some(record) => {
-                if record.sha256 == sha256 {
-                    Ok(TeeDcapCollateralInfo::Matches)
-                } else if record.eth_tx_id.is_some() {
-                    // There's already an eth transaction in progress
-                    let guard_expires = record
-                        .update_guard_expires
-                        .unwrap_or_else(|| Utc::now() + chrono::Duration::hours(1));
-                    Ok(TeeDcapCollateralInfo::PendingUpdateBy(guard_expires))
-                } else {
-                    // Needs update
-                    Ok(TeeDcapCollateralInfo::UpdateChainBy(record.not_after))
+        .instrument("tee_dcap_collateral_field_is_current")
+        .with_arg("field", &kind)
+        .fetch_optional(&mut tx)
+        .await?
+        {
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                update_guard_set: false,
+                eth_tx_guard_set: false,
+                ..
+            }) => {
+                // All correct with no guards set
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator {
+                update_guard_set: true,
+                update_guard_expired: false,
+                update_guard_expires,
+                ..
+            }) => {
+                // Update guard not yet expired
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(update_guard_expires))
+            }
+            Some(
+                CurrentFieldValidator {
+                    eth_tx_guard_set: true,
+                    eth_tx_guard_confirmed: false,
+                    ..
                 }
+                | CurrentFieldValidator {
+                    calldata_set: true,
+                    eth_tx_guard_set: false,
+                    ..
+                },
+            ) => {
+                // Waiting for eth sender
+                Ok(TeeDcapCollateralInfo::PendingEthSenderCompletion)
+            }
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                eth_tx_guard_set: true,
+                eth_tx_guard_confirmed: true,
+                ..
+            }) => {
+                // Update confirmed and valid, remove guard
+                sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral
+                    SET
+                        update_guard_set = NULL,
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1
+                    "#,
+                    kind as _
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_eth_tx_guard")
+                .with_arg("field", &kind)
+                .execute(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator { .. }) => {
+                // Some condition is incorrect, set guard
+                // Update confirmed and valid, remove guard
+                let record = sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral
+                    SET
+                        update_guard_set = transaction_timestamp(),
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1
+                    RETURNING
+                    update_guard_set + $2 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    timeout
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
+            None => {
+                // Record missing from database, needs inserting
+                let record = sqlx::query!(
+                    r#"
+                    INSERT INTO tee_dcap_collateral VALUES (
+                        $1,
+                        transaction_timestamp(),
+                        $2,
+                        transaction_timestamp(),
+                        transaction_timestamp(),
+                        NULL
+                    ) RETURNING
+                    transaction_timestamp() + $3 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    &[],
+                    timeout
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
             }
         }
     }
 
-    /// Inserts or updates a collateral record
-    pub async fn upsert_collateral(
+    pub async fn tcb_info_is_current(
         &mut self,
-        kind: &TeeDcapCollateralKind,
-        not_after: DateTime<Utc>,
+        kind: TeeDcapCollateralTcbInfoJsonKind,
+        fmspc: &[u8],
         sha256: &[u8],
+        timeout: PgInterval,
+    ) -> DalResult<TeeDcapCollateralInfo> {
+        let mut tx = self.storage.start_transaction().await?;
+        match sqlx::query_as!(
+            CurrentFieldValidator,
+            r#"
+            SELECT
+                c.sha256 = $2 AS "sha_matches!",
+                transaction_timestamp() < c.not_after AS "not_after!",
+                c.update_guard_set IS NULL AS "update_guard_set!",
+                (
+                    coalesce(c.update_guard_set, transaction_timestamp()) + $3
+                ) AS "update_guard_expires!",
+                (coalesce(c.update_guard_set, transaction_timestamp()) + $3)
+                < transaction_timestamp() AS "update_guard_expired!",
+                c.calldata IS NOT NULL AS "calldata_set!",
+                c.eth_tx_id IS NOT NULL AS "eth_tx_guard_set!",
+                e.confirmed_eth_tx_history_id IS NULL AS "eth_tx_guard_confirmed!"
+            FROM
+                tee_dcap_collateral_tcb_info_json c
+            LEFT OUTER JOIN eth_txs e ON c.eth_tx_id = e.id
+            WHERE c.kind = $1 AND c.fmspc = $4
+            "#,
+            kind as _,
+            sha256,
+            timeout,
+            fmspc
+        )
+        .instrument("tee_dcap_collateral_tcb_info_is_current")
+        .with_arg("field", &kind)
+        .with_arg("fmspc", &fmspc)
+        .fetch_optional(&mut tx)
+        .await?
+        {
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                update_guard_set: false,
+                eth_tx_guard_set: false,
+                ..
+            }) => {
+                // All correct with no guards set
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator {
+                update_guard_set: true,
+                update_guard_expired: false,
+                update_guard_expires,
+                ..
+            }) => {
+                // Update guard not yet expired
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(update_guard_expires))
+            }
+            Some(
+                CurrentFieldValidator {
+                    eth_tx_guard_set: true,
+                    eth_tx_guard_confirmed: false,
+                    ..
+                }
+                | CurrentFieldValidator {
+                    calldata_set: true,
+                    eth_tx_guard_set: false,
+                    ..
+                },
+            ) => {
+                // Waiting for eth sender
+                Ok(TeeDcapCollateralInfo::PendingEthSenderCompletion)
+            }
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                eth_tx_guard_set: true,
+                eth_tx_guard_confirmed: true,
+                ..
+            }) => {
+                // Update confirmed and valid, remove guard
+                sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral_tcb_info_json
+                    SET
+                        update_guard_set = NULL,
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1 AND
+                        fmspc = $2
+                    "#,
+                    kind as _,
+                    fmspc
+                )
+                .instrument("tee_dcap_collateral_tcb_info_is_current_remote_eth_tx_guard")
+                .with_arg("field", &kind)
+                .with_arg("fmspc", &fmspc)
+                .execute(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator { .. }) => {
+                // Some condition is incorrect, set guard
+                // Update confirmed and valid, remove guard
+                let record = sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral_tcb_info_json
+                    SET
+                        update_guard_set = transaction_timestamp(),
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1 AND fmspc = $3
+                    RETURNING
+                    update_guard_set + $2 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    timeout,
+                    fmspc
+                )
+                .instrument("tee_dcap_collateral_tcb_info_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .with_arg("fmspc", &fmspc)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
+            None => {
+                // Record missing from database, needs inserting
+                let record = sqlx::query!(
+                    r#"
+                    INSERT INTO tee_dcap_collateral_tcb_info_json VALUES (
+                        $1,
+                        $4,
+                        transaction_timestamp(),
+                        $2,
+                        transaction_timestamp(),
+                        transaction_timestamp(),
+                        NULL
+                    ) RETURNING
+                    transaction_timestamp() + $3 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    &[],
+                    timeout,
+                    fmspc
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
+        }
+    }
+
+    pub async fn get_pending_collateral_for_eth_tx(&mut self) -> DalResult<Vec<PendingCollateral>> {
+        let mut tx = self.storage.start_transaction().await?;
+        let out = tx
+            .tee_dcap_collateral_dal()
+            .internal_get_pending_collateral_for_eth_tx()
+            .await?;
+        tx.commit().await?;
+        Ok(out)
+    }
+
+    async fn internal_get_pending_collateral_for_eth_tx(
+        &mut self,
+    ) -> DalResult<Vec<PendingCollateral>> {
+        Ok(self
+            .get_pending_field_collateral_for_eth_tx()
+            .await?
+            .into_iter()
+            .map(PendingCollateral::Field)
+            .chain(
+                self.get_pending_tcb_info_collateral_for_eth_tx()
+                    .await?
+                    .into_iter()
+                    .map(PendingCollateral::TcbInfo),
+            )
+            .collect())
+    }
+
+    pub async fn get_pending_field_collateral_for_eth_tx(
+        &mut self,
+    ) -> DalResult<Vec<PendingFieldCollateral>> {
+        sqlx::query_as!(
+            PendingFieldCollateral,
+            r#"
+            SELECT
+                kind as "kind: _",
+                calldata
+            FROM
+                tee_dcap_collateral
+            WHERE
+                eth_tx_id IS NULL 
+                AND calldata IS NOT NULL
+            ORDER BY updated ASC
+        "#
+        )
+        .instrument("tee_dcap_collateral_get_pending_field_collateral_for_eth_tx")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await
+    }
+
+    pub async fn get_pending_tcb_info_collateral_for_eth_tx(
+        &mut self,
+    ) -> DalResult<Vec<PendingTcbInfoCollateral>> {
+        sqlx::query_as!(
+            PendingTcbInfoCollateral,
+            r#"
+            SELECT
+                kind as "kind: _",
+                fmspc,
+                calldata
+            FROM
+                tee_dcap_collateral_tcb_info_json
+            WHERE
+                eth_tx_id IS NULL 
+                AND calldata IS NOT NULL
+            ORDER BY updated ASC
+        "#
+        )
+        .instrument("tee_dcap_collateral_get_pending_tcb_info_collateral_for_eth_tx")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await
+    }
+
+    pub async fn get_expiring_collateral(
+        &mut self,
+        expires_within: PgInterval,
+    ) -> DalResult<Vec<ExpiringCollateral>> {
+        let mut tx = self.storage.start_transaction().await?;
+        let out = tx
+            .tee_dcap_collateral_dal()
+            .get_expiring_collateral_internal(expires_within)
+            .await?;
+        tx.commit().await?;
+        Ok(out)
+    }
+
+    async fn get_expiring_collateral_internal(
+        &mut self,
+        expires_within: PgInterval,
+    ) -> DalResult<Vec<ExpiringCollateral>> {
+        Ok(self
+            .get_expiring_field_collateral(expires_within.clone())
+            .await?
+            .into_iter()
+            .map(ExpiringCollateral::Field)
+            .chain(
+                self.get_expiring_tcb_info_collateral(expires_within)
+                    .await?
+                    .into_iter()
+                    .map(ExpiringCollateral::TcbInfo),
+            )
+            .collect())
+    }
+
+    pub async fn get_expiring_field_collateral(
+        &mut self,
+        expires_within: PgInterval,
+    ) -> DalResult<Vec<ExpiringFieldCollateral>> {
+        sqlx::query_as!(
+            ExpiringFieldCollateral,
+            r#"
+        SELECT
+            kind as "kind: _",
+            not_after
+        FROM
+            tee_dcap_collateral
+        WHERE
+            not_after <= transaction_timestamp() + $1
+        ORDER BY not_after ASC
+    "#,
+            expires_within
+        )
+        .instrument("tee_dcap_collateral_get_expiring_field_collateral")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await
+    }
+
+    pub async fn get_expiring_tcb_info_collateral(
+        &mut self,
+        expires_within: PgInterval,
+    ) -> DalResult<Vec<ExpiringTcbInfoCollateral>> {
+        sqlx::query_as!(
+            ExpiringTcbInfoCollateral,
+            r#"
+        SELECT
+            kind as "kind: _",
+            fmspc,
+            not_after
+        FROM
+            tee_dcap_collateral_tcb_info_json
+        WHERE
+            not_after <= transaction_timestamp() + $1
+        ORDER BY not_after ASC
+    "#,
+            expires_within
+        )
+        .instrument("tee_dcap_collateral_get_expiring_tcb_info_collateral")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await
+    }
+
+    pub async fn update_field(
+        &mut self,
+        kind: TeeDcapCollateralKind,
+        sha256: &[u8],
+        not_after: DateTime<Utc>,
         calldata: &[u8],
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            INSERT INTO tee_dcap_collateral (
-                kind, not_after, sha256, updated, calldata, eth_tx_id
-            )
-            VALUES ($1, $2, $3, $4, $5, NULL)
-            ON CONFLICT (kind) DO UPDATE SET
-            not_after = excluded.not_after,
-            sha256 = excluded.sha256,
-            updated = excluded.updated,
-            calldata = excluded.calldata,
-            eth_tx_id = NULL
+            UPDATE tee_dcap_collateral
+            SET
+                update_guard_set = NULL,
+                sha256 = $2,
+                not_after = $3,
+                calldata = $4,
+                eth_tx_id = NULL,
+                updated = transaction_timestamp()
+            WHERE
+                kind = $1
             "#,
-            kind.to_string(),
-            not_after,
+            kind as _,
             sha256,
-            Utc::now(),
+            not_after,
             calldata
         )
-        .instrument("upsert_collateral")
-        .with_arg("kind", &kind)
-        .with_arg("not_after", &not_after)
-        .with_arg("sha256", &sha256)
-        .report_latency()
+        .instrument("tee_dcap_collateral_update_field")
+        .with_arg("field", &kind)
         .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    /// Gets all collateral records that need to be sent to Ethereum
-    pub async fn get_pending_collateral_for_eth_tx(
+    pub async fn update_tcb_info(
         &mut self,
-    ) -> DalResult<Vec<(TeeDcapCollateralKind, Vec<u8>)>> {
-        let rows = sqlx::query!(
-            r#"
-            SELECT kind, calldata
-            FROM tee_dcap_collateral
-            WHERE eth_tx_id IS NULL
-            ORDER BY updated ASC
-            "#
-        )
-        .instrument("get_pending_collateral_for_eth_tx")
-        .report_latency()
-        .fetch_all(self.storage)
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| {
-                TeeDcapCollateralKind::try_from(row.kind.as_str())
-                    .ok()
-                    .map(|kind| (kind, row.calldata))
-            })
-            .collect())
-    }
-
-    /// Updates the eth_tx_id for a collateral record and sets the update guard
-    pub async fn set_eth_tx_id(
-        &mut self,
-        kind: &TeeDcapCollateralKind,
-        eth_tx_id: u32,
-        guard_duration_hours: i64,
+        kind: TeeDcapCollateralTcbInfoJsonKind,
+        fmspc: &[u8],
+        sha256: &[u8],
+        not_after: DateTime<Utc>,
+        calldata: &[u8],
     ) -> DalResult<()> {
-        let update_guard_expires = Utc::now() + chrono::Duration::hours(guard_duration_hours);
-
         sqlx::query!(
             r#"
-            UPDATE tee_dcap_collateral
-            SET eth_tx_id = $1, update_guard_expires = $2
-            WHERE kind = $3
-            "#,
-            i32::try_from(eth_tx_id).unwrap(),
-            update_guard_expires,
-            kind.to_string()
-        )
-        .instrument("set_eth_tx_id")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-
-    /// Gets collateral records that may need retry (expired guard and no successful tx)
-    pub async fn get_collateral_needing_retry(
-        &mut self,
-    ) -> DalResult<Vec<(TeeDcapCollateralKind, i32)>> {
-        let rows = sqlx::query!(
-            r#"
-            SELECT c.kind, c.eth_tx_id
-            FROM tee_dcap_collateral c
+            UPDATE tee_dcap_collateral_tcb_info_json
+            SET
+                update_guard_set = NULL,
+                sha256 = $2,
+                not_after = $3,
+                calldata = $4,
+                eth_tx_id = NULL,
+                updated = transaction_timestamp()
             WHERE
-                c.eth_tx_id IS NOT NULL
-                AND c.update_guard_expires < $1
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM eth_txs_history h
-                    WHERE
-                        h.eth_tx_id = c.eth_tx_id
-                        AND h.sent_successfully = TRUE
-                )
+                kind = $1 AND fmspc = $5
             "#,
-            Utc::now()
+            kind as _,
+            sha256,
+            not_after,
+            calldata,
+            fmspc
         )
-        .instrument("get_collateral_needing_retry")
-        .report_latency()
-        .fetch_all(self.storage)
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| {
-                // Since we're filtering by eth_tx_id IS NOT NULL, this should always be Some
-                row.eth_tx_id.and_then(|id| {
-                    TeeDcapCollateralKind::try_from(row.kind.as_str())
-                        .ok()
-                        .map(|kind| (kind, id))
-                })
-            })
-            .collect())
-    }
-
-    /// Clears failed eth_tx_id to allow retry
-    pub async fn clear_failed_eth_tx(&mut self, kind: &TeeDcapCollateralKind) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            UPDATE tee_dcap_collateral
-            SET eth_tx_id = NULL, update_guard_expires = NULL
-            WHERE kind = $1
-            "#,
-            kind.to_string()
-        )
-        .instrument("clear_failed_eth_tx")
-        .report_latency()
+        .instrument("tee_dcap_collateral_update_field")
+        .with_arg("field", &kind)
+        .with_arg("fmspc", &fmspc)
         .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    /// Gets all collateral records that are approaching expiration
-    pub async fn get_expiring_collateral(
+    pub async fn set_field_eth_tx_id(
         &mut self,
-        hours_before_expiry: i64,
-    ) -> DalResult<Vec<(TeeDcapCollateralKind, DateTime<Utc>)>> {
-        let threshold = Utc::now() + chrono::Duration::hours(hours_before_expiry);
-
-        let rows = sqlx::query!(
+        kind: TeeDcapCollateralKind,
+        eth_tx_id: i32,
+    ) -> DalResult<()> {
+        sqlx::query!(
             r#"
-            SELECT kind, not_after
-            FROM tee_dcap_collateral
-            WHERE not_after <= $1
-            ORDER BY not_after ASC
+            UPDATE tee_dcap_collateral
+            SET
+                eth_tx_id = $2,
+                calldata = NULL
+            WHERE
+                kind = $1
             "#,
-            threshold
+            kind as _,
+            eth_tx_id
         )
-        .instrument("get_expiring_collateral")
-        .report_latency()
-        .fetch_all(self.storage)
+        .instrument("tee_dcap_collateral_set_field_eth_tx_id")
+        .with_arg("field", &kind)
+        .execute(self.storage)
         .await?;
-
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| {
-                TeeDcapCollateralKind::try_from(row.kind.as_str())
-                    .ok()
-                    .map(|kind| (kind, row.not_after))
-            })
-            .collect())
+        Ok(())
     }
 
-    /// Gets a specific collateral record by kind
-    pub async fn get_collateral_by_kind(
+    pub async fn set_tcb_info_eth_tx_id(
         &mut self,
-        kind: &TeeDcapCollateralKind,
-    ) -> DalResult<Option<(Vec<u8>, DateTime<Utc>, Vec<u8>)>> {
-        let row = sqlx::query!(
+        kind: TeeDcapCollateralTcbInfoJsonKind,
+        fmspc: &[u8],
+        eth_tx_id: i32,
+    ) -> DalResult<()> {
+        sqlx::query!(
             r#"
-            SELECT sha256, not_after, calldata
-            FROM tee_dcap_collateral
-            WHERE kind = $1
+            UPDATE tee_dcap_collateral_tcb_info_json
+            SET
+                eth_tx_id = $3,
+                calldata = NULL
+            WHERE
+                kind = $1 AND fmspc = $2
             "#,
-            kind.to_string()
+            kind as _,
+            fmspc,
+            eth_tx_id
         )
-        .instrument("get_collateral_by_kind")
-        .report_latency()
-        .fetch_optional(self.storage)
+        .instrument("tee_dcap_collateral_set_tcb_info_eth_tx_id")
+        .with_arg("field", &kind)
+        .with_arg("fmspc", &fmspc)
+        .execute(self.storage)
         .await?;
-
-        Ok(row.map(|r| (r.sha256, r.not_after, r.calldata)))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_collateral_kind_display_and_parse() {
-        // Test simple variants
-        let test_cases = vec![
-            (TeeDcapCollateralKind::RootCa, "root_ca"),
-            (TeeDcapCollateralKind::RootCrl, "root_crl"),
-            (TeeDcapCollateralKind::PckCa, "pck_ca"),
-            (TeeDcapCollateralKind::PckCrl, "pck_crl"),
-            (TeeDcapCollateralKind::SignCa, "sign_ca"),
-            (TeeDcapCollateralKind::SgxQeIdentityJson, "sgx_qe_identity"),
-            (TeeDcapCollateralKind::TdxQeIdentityJson, "tdx_qe_identity"),
-        ];
-
-        for (kind, expected_str) in test_cases {
-            assert_eq!(kind.to_string(), expected_str);
-            let parsed = TeeDcapCollateralKind::try_from(expected_str).unwrap();
-            assert_eq!(kind.to_string(), parsed.to_string());
-        }
-
-        // Test FMSPC variants
-        let fmspc = [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc];
-        let sgx_tcb = TeeDcapCollateralKind::SgxTcbInfoJson(fmspc);
-        assert_eq!(sgx_tcb.to_string(), "sgx_tcb_123456789abc");
-        let parsed = TeeDcapCollateralKind::try_from("sgx_tcb_123456789abc").unwrap();
-        match parsed {
-            TeeDcapCollateralKind::SgxTcbInfoJson(parsed_fmspc) => {
-                assert_eq!(parsed_fmspc, fmspc);
-            }
-            _ => panic!("Unexpected variant"),
-        }
-
-        let tdx_tcb = TeeDcapCollateralKind::TdxTcbInfoJson(fmspc);
-        assert_eq!(tdx_tcb.to_string(), "tdx_tcb_123456789abc");
-        let parsed = TeeDcapCollateralKind::try_from("tdx_tcb_123456789abc").unwrap();
-        match parsed {
-            TeeDcapCollateralKind::TdxTcbInfoJson(parsed_fmspc) => {
-                assert_eq!(parsed_fmspc, fmspc);
-            }
-            _ => panic!("Unexpected variant"),
-        }
-    }
-
-    #[test]
-    fn test_collateral_kind_parse_errors() {
-        // Invalid kind
-        assert!(TeeDcapCollateralKind::try_from("invalid_kind").is_err());
-
-        // Invalid hex in FMSPC
-        assert!(TeeDcapCollateralKind::try_from("sgx_tcb_invalid").is_err());
-
-        // Wrong FMSPC length
-        assert!(TeeDcapCollateralKind::try_from("sgx_tcb_1234").is_err());
-        assert!(TeeDcapCollateralKind::try_from("sgx_tcb_12345678901234").is_err());
+        Ok(())
     }
 }

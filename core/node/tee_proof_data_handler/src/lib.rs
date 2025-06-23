@@ -36,8 +36,8 @@ pub async fn run_server(
         blob_store.clone(),
         connection_pool.clone(),
         config.clone(),
-        commitment_mode.clone(),
-        l2_chain_id.clone(),
+        commitment_mode,
+        l2_chain_id,
     );
 
     let listener = tokio::net::TcpListener::bind(bind_address)
