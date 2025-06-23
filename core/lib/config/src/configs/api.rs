@@ -47,6 +47,13 @@ impl ApiConfig {
 }
 
 /// Port binding specification.
+///
+/// Supports any of 3 formats:
+///
+/// - Just a `u16` port. This will bind a server to all IPv4 interfaces (i.e., `0.0.0.0`) for backward compatibility.
+/// - Full socket address (e.g., `127.0.0.1:8080`).
+/// - (For Unix systems) Path to a Unix domain socket (UDS) prefixed by `unix:` (e.g., `unix:chains/era/health.sock` or `unix:/var/zksync.sock`).
+///   If the path is relative, it will resolve relative to the current working directory.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BindAddress {
     Tcp(SocketAddr),
@@ -59,8 +66,17 @@ impl BindAddress {
     const EXPECTING: &'static str = "port number (to bind to 0.0.0.0), socket address or path to the unix socket prefixed by 'unix:'";
     #[cfg(not(unix))]
     const EXPECTING: &'static str = "port number (to bind to 0.0.0.0) or socket address";
+
+    pub fn as_tcp(&self) -> Option<&SocketAddr> {
+        match self {
+            Self::Tcp(addr) => Some(addr),
+            #[cfg(unix)]
+            Self::Unix(_) => None,
+        }
+    }
 }
 
+/// Will bind to all IPv4 interfaces (i.e., `0.0.0.0`) for backward compatibility.
 impl From<u16> for BindAddress {
     fn from(port: u16) -> Self {
         Self::Tcp(SocketAddr::new([0, 0, 0, 0].into(), port))
