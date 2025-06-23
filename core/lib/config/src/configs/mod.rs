@@ -27,7 +27,7 @@ pub use self::{
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{
-        ContractVerifierSecrets, DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets,
+        ContractVerifierSecrets, DataAvailabilitySecrets, L1Secrets, PostgresSecrets, Secrets,
     },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
@@ -47,7 +47,6 @@ pub mod contracts;
 pub mod da_client;
 pub mod da_dispatcher;
 pub mod database;
-pub mod en_config;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
@@ -61,6 +60,7 @@ mod gateway_migrator;
 mod general;
 pub mod genesis;
 pub mod house_keeper;
+pub mod networks;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
