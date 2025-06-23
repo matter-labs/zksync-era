@@ -14,6 +14,7 @@ use std::{
 use anyhow::Context;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
@@ -150,6 +151,12 @@ where
                 self.missed_storage_invocation_limit
             }
         };
+        let op_name = match env.system.execution_mode {
+            TxExecutionMode::VerifyExecute => "oneshot_vm#execute",
+            TxExecutionMode::EthCall => "oneshot_vm#call",
+            TxExecutionMode::EstimateFee => "oneshot_vm#estimate_fee",
+        };
+
         let (_stop_guard, stop_token) = StopGuard::new();
         let sandbox = VmSandbox {
             fast_vm_mode: self.select_fast_vm_mode(&env, &tracing_params),
@@ -165,6 +172,7 @@ where
         let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
             let _entered_span = current_span.entered();
+            let _guard = AllocationGuard::for_operation(op_name);
             sandbox.execute_in_vm(|stop_token, vm, transaction| {
                 vm.inspect_transaction_with_bytecode_compression(
                     stop_token.clone(),
@@ -218,6 +226,7 @@ where
         let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
             let _entered_span = current_span.entered();
+            let _guard = AllocationGuard::for_operation("oneshot_vm#validate");
             let version = sandbox.env.system.version.into();
             let batch_timestamp = l1_batch_env.timestamp;
 

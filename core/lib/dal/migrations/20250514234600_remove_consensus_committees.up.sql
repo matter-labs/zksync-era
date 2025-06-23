@@ -1,0 +1,2 @@
+DROP TABLE l1_batches_consensus_committees;
+DROP TABLE consensus_committees;

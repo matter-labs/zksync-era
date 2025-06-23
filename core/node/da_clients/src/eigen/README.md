@@ -24,7 +24,9 @@ Then set up the client by modifying the field `da_client`, add the following fie
 - `authenticated` (boolean): Authenticated dispersal. If true, the client will use the authentication mechanism, using a
   whitelisted account. Using non authenticated dispersal is not recommended, as to many requests to the EigenDA
   disperser leeds to timeouts.
-- `cert_verifier_addr` Address of the eigenDA cert verifier contract
+- `cert_verifier_router_addr` Address of the eigenDA cert verifier router contract
+- `operator_state_retriever_addr` Address of the Eigen operator state retriever contract
+- `registry_coordinator_addr` Address of the Eigen registry coordinator contract
 - `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
 - `polynomial_form` Polynomial form used to encode data, either coeff or eval
 

@@ -2,7 +2,7 @@ use std::{path::Path, time::Instant};
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::{full_config_schema, sources::ConfigFilePaths, ConfigRepositoryExt, DBConfig};
+use zksync_config::{full_config_schema, sources::ConfigFilePaths, DBConfig};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -54,8 +54,8 @@ fn main() -> anyhow::Result<()> {
     let config_sources = ConfigFilePaths::default().into_config_sources("ZKSYNC_")?;
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let schema = full_config_schema(false);
-    let repo = config_sources.build_repository(&schema);
+    let schema = full_config_schema();
+    let mut repo = config_sources.build_repository(&schema);
     let db_config: DBConfig = repo.parse()?;
     Cli::parse().run(&db_config)
 }
