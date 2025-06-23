@@ -9,10 +9,6 @@ on:
         description: "DOCKERHUB_TOKEN"
         required: true
     inputs:
-      ERA_BELLMAN_CUDA_RELEASE:
-        description: "ERA_BELLMAN_CUDA_RELEASE"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -22,16 +18,6 @@ on:
         type: string
         default: "push"
         required: false
-      CUDA_ARCH:
-        description: "CUDA Arch to build"
-        type: string
-        default: "75;80;89;90"
-        required: false
-        # Details: https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
-        # L4: 89
-        # T4: 75
-        # A100: 80
-        # H100: 90
 
 jobs:
   build-images:
@@ -87,7 +73,6 @@ jobs:
           context: .
           load: true
           build-args: |
-            CUDA_ARCH=${{ inputs.CUDA_ARCH }}
             SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE

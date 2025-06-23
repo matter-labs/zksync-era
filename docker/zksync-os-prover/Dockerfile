@@ -37,7 +37,7 @@ RUN curl -Lo sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz https://github.com/
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cd zkos_prover cargo build  --release
+RUN cd zkos_prover && cargo build  --release
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 

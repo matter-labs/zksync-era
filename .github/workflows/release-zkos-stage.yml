@@ -81,7 +81,6 @@ jobs:
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
