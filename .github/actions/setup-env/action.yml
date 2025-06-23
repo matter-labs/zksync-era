@@ -14,6 +14,7 @@ runs:
       run: |
         echo $(pwd)/bin >> $GITHUB_PATH
         echo $HOME/.local/bin >> $GITHUB_PATH
+        echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
         echo CI=1 >> $GITHUB_ENV
         echo IN_DOCKER=1 >> .env
         echo CI=1 >> .env
