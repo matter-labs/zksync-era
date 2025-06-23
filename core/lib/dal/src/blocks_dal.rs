@@ -20,7 +20,7 @@ use zksync_types::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata, PubdataParams},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
@@ -2329,22 +2329,6 @@ impl BlocksDal<'_, '_> {
         self.map_storage_l1_batch(l1_batch).await
     }
 
-    pub async fn get_l1_batch_metadata_only(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> anyhow::Result<Option<L1BatchMetadata>> {
-        let Some(storage_batch) = self.get_storage_l1_batch(number).await? else {
-            return Ok(None);
-        };
-        match storage_batch.clone().try_into() {
-            Ok(metadata) => Ok(Some(metadata)),
-            Err(err) => Err(anyhow::Error::from(err).context(format!(
-                "Failed to convert L1 batch #{} from storage representation to L1BatchMetadata",
-                number
-            ))),
-        }
-    }
-
     /// Returns the header and optional metadata for an L1 batch with the specified number. If a batch exists
     /// but does not have all metadata, it's possible to inspect which metadata is missing.
     pub async fn get_optional_l1_batch_metadata(
@@ -2462,30 +2446,6 @@ impl BlocksDal<'_, '_> {
         .into_iter()
         .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
         .collect())
-    }
-
-    pub async fn get_l1_batch_number_by_eth_tx_id(
-        &mut self,
-        eth_tx_id: u32,
-    ) -> DalResult<Option<L1BatchNumber>> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                number
-            FROM
-                l1_batches
-            WHERE
-                eth_commit_tx_id = $1
-                OR eth_prove_tx_id = $1
-                OR eth_execute_tx_id = $1
-            "#,
-            eth_tx_id as i32,
-        )
-        .instrument("get_l1_batch_number_by_eth_tx_id")
-        .fetch_optional(self.storage)
-        .await?;
-
-        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
     }
 
     pub async fn delete_initial_writes(

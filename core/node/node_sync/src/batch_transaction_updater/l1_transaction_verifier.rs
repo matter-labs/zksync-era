@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{blocks_dal::L1BatchWithOptionalMetadata, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber,
     ProtocolVersionId, H256, U64,
@@ -36,6 +36,19 @@ pub enum TransactionValidationError {
     OtherValidationError(#[from] anyhow::Error),
 }
 
+impl TransactionValidationError {
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            TransactionValidationError::BatchNotFound { .. } => true,
+            TransactionValidationError::TransactionFailed { .. } => false,
+            TransactionValidationError::DatabaseError(_) => false,
+            TransactionValidationError::SlClientError(_) => false,
+            TransactionValidationError::BatchTransactionInvalid { .. } => false,
+            TransactionValidationError::OtherValidationError(_) => false,
+        }
+    }
+}
+
 pub fn get_param(log_params: &[ethabi::LogParam], name: &str) -> Option<ethabi::Token> {
     log_params
         .iter()
@@ -61,13 +74,16 @@ impl L1TransactionVerifier {
             .connection_tagged("sync_layer")
             .await?
             .blocks_dal()
-            .get_l1_batch_metadata_only(batch_number)
+            .get_optional_l1_batch_metadata(batch_number)
             .await?
         {
-            Some(batch) => Ok(batch),
-            None => {
+            Some(L1BatchWithOptionalMetadata {
+                header: _,
+                metadata: Ok(batch),
+            }) => Ok(batch),
+            _ => {
                 tracing::debug!(
-                    "Batch {} is not found in the database. Cannot verify transaction right now",
+                    "Metadata for batch {} is not found in the database. Cannot verify transaction right now",
                     batch_number
                 );
                 Err(TransactionValidationError::BatchNotFound { batch_number })

@@ -2,6 +2,7 @@
 
 use std::{num::NonZeroU64, time::Duration};
 
+use anyhow::Context;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
@@ -55,22 +56,26 @@ impl BatchTransactionUpdater {
         self.health_updater.subscribe()
     }
 
+    /// Applies the finality update for given transaction (eth_history_id) using its
+    /// receipt under l1_block_numbers.
+    /// On retryable error, returns Ok(false), but does not update DB.
+    /// Validation errors are fatal.
     async fn apply_status_update(
         &self,
         connection: &mut Connection<'_, Core>,
         db_eth_history_id: u32,
         receipt: TransactionReceipt,
         l1_block_numbers: &L1BlockNumbers,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let updated_status =
             l1_block_numbers.get_finality_status_for_block(receipt.block_number.unwrap().as_u32());
 
         if updated_status == EthTxFinalityStatus::Pending {
-            // Errors from apply_status_update will result in a warning and retry
-            anyhow::bail!(
-                "Transaction {} is still pending on SL",
+            tracing::warn!(
+                "Tried updating status of {} transaction that is still pending",
                 receipt.transaction_hash
             );
+            return Ok(false);
         }
 
         let db_eth_history_tx = connection
@@ -78,30 +83,59 @@ impl BatchTransactionUpdater {
             .get_eth_tx_history_by_id(db_eth_history_id)
             .await?;
 
-        let batch_number = connection
+        let batches = connection
             .blocks_dal()
-            .get_l1_batch_number_by_eth_tx_id(db_eth_history_tx.eth_tx_id)
-            .await?
-            .expect("eth_tx_history row must match a l1 batch");
+            .get_l1_batches_statistics_for_eth_tx_id(db_eth_history_tx.eth_tx_id)
+            .await?;
+
+        if batches.is_empty() {
+            anyhow::bail!(
+                "Transaction {} is not associated with any batch",
+                db_eth_history_tx.tx_hash
+            );
+        }
 
         // validate the transaction against db
-        match db_eth_history_tx.tx_type {
-            AggregatedActionType::Commit => {
-                self.l1_transaction_verifier
-                    .validate_commit_tx(&receipt, batch_number)
-                    .await?
+        for batch in &batches {
+            let batch_number = batch.number;
+            let ret = match db_eth_history_tx.tx_type {
+                AggregatedActionType::Commit => {
+                    self.l1_transaction_verifier
+                        .validate_commit_tx(&receipt, batch.number)
+                        .await
+                }
+                AggregatedActionType::PublishProofOnchain => {
+                    self.l1_transaction_verifier
+                        .validate_prove_tx(&receipt, batch_number)
+                        .await
+                }
+                AggregatedActionType::Execute => {
+                    self.l1_transaction_verifier
+                        .validate_execute_tx(&receipt, batch_number)
+                        .await
+                }
+            };
+            match ret {
+                Ok(_) => {}
+                Err(e) => {
+                    if e.is_retryable() {
+                        tracing::warn!(
+                            "Transaction {} cannot be verified right now",
+                            receipt.transaction_hash
+                        );
+                        return Ok(false);
+                    } else {
+                        anyhow::bail!(
+                            "Transaction {} ({} for batch {}) verification failed: {}",
+                            receipt.transaction_hash,
+                            db_eth_history_tx.tx_type,
+                            batch_number,
+                            e
+                        );
+                    }
+                }
             }
-            AggregatedActionType::PublishProofOnchain => {
-                self.l1_transaction_verifier
-                    .validate_prove_tx(&receipt, batch_number)
-                    .await?
-            }
-            AggregatedActionType::Execute => {
-                self.l1_transaction_verifier
-                    .validate_execute_tx(&receipt, batch_number)
-                    .await?
-            }
-        };
+        }
 
         connection
             .eth_sender_dal()
@@ -116,12 +150,16 @@ impl BatchTransactionUpdater {
             "Updated finality status for transaction {} ({} for batch {}) from {:?} to {:?}",
             db_eth_history_tx.tx_hash,
             db_eth_history_tx.tx_type,
-            batch_number,
+            batches
+                .iter()
+                .map(|batch| batch.number.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
             db_eth_history_tx.eth_tx_finality_status,
             updated_status
         );
 
-        Ok(())
+        Ok(true)
     }
 
     async fn update_statuses(
@@ -201,20 +239,16 @@ impl BatchTransactionUpdater {
                     receipt,
                     &l1_block_numbers,
                 )
-                .await;
-
-            match result {
-                Ok(_) => updated_count += 1,
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to update finality status for transaction {} with type {} from {:?} to {:?} due to error: {}",
+                .await
+                .with_context(|| format!("Failed to update finality status for transaction {} with type {} from {:?} to {:?}",
                         db_eth_tx_history.tx_hash,
                         db_eth_tx_history.tx_type,
                         db_eth_tx_history.eth_tx_finality_status,
-                        finality_update,
-                        e
-                    );
-                }
+                        finality_update))
+                ?;
+
+            if result {
+                updated_count += 1;
             }
         }
         Ok(updated_count)
