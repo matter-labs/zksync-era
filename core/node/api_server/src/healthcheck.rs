@@ -157,11 +157,15 @@ impl HealthCheckHandle {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt;
+    use std::{fmt, io, path::PathBuf, pin::Pin, task::Poll};
 
-    use http::Response;
+    use http::{Response, Uri};
     use http_body_util::BodyExt;
-    use hyper_util::{client::legacy::Client, rt::TokioExecutor};
+    use hyper_util::{
+        client::legacy::Client,
+        rt::{TokioExecutor, TokioIo},
+    };
+    use tokio::net::UnixStream;
     use zksync_health_check::{HealthStatus, ReactiveHealthCheck};
 
     use super::*;
@@ -197,5 +201,43 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&response_body).unwrap();
         assert_eq!(json["details"], serde_json::json!({ "version": "0.1.0" }));
         assert_eq!(json["components"]["test"]["status"], "ready");
+    }
+
+    /// `hyper`-compatible connector for domain sockets.
+    #[derive(Debug, Clone)]
+    struct UdsConnector(PathBuf);
+
+    impl tower::Service<Uri> for UdsConnector {
+        type Response = TokioIo<UnixStream>;
+        type Error = io::Error;
+        type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+        fn poll_ready(
+            &mut self,
+            _cx: &mut std::task::Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _req: Uri) -> Self::Future {
+            let path = self.0.clone();
+            Box::pin(async { UnixStream::connect(path).await.map(TokioIo::new) })
+        }
+    }
+
+    #[tokio::test]
+    async fn uds_server() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let bind_to = api::BindAddress::Unix(temp_dir.path().join("health.sock"));
+        let server = HealthCheckHandle::spawn_server(bind_to, mock_health());
+        let local_addr = server.local_addr().await.expect("server has not started");
+        let api::BindAddress::Unix(path) = local_addr else {
+            panic!("Unexpected local address: {local_addr:?}");
+        };
+
+        let client = Client::builder(TokioExecutor::new()).build::<_, String>(UdsConnector(path));
+        let uri = "http://test/health".parse().unwrap();
+        let response = client.get(uri).await.unwrap();
+        assert_response(response).await;
     }
 }
