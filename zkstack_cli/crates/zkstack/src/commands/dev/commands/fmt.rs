@@ -33,9 +33,13 @@ async fn rustfmt(
     link_to_code: PathBuf,
     dir: &str,
 ) -> anyhow::Result<()> {
-    let mode = if check { "--check " } else { "" };
     let full_path = link_to_code.join(dir).join("Cargo.toml");
-    let fmt_cmd = cmd!(shell, "cargo fmt --manifest-path {full_path} --all -- {mode}--config imports_granularity=Crate --config group_imports=StdExternalCrate");
+    let mut fmt_cmd = cmd!(shell, "cargo fmt --manifest-path {full_path} --all --")
+        .args(["--config", "imports_granularity=Crate"])
+        .args(["--config", "group_imports=StdExternalCrate"]);
+    if check {
+        fmt_cmd = fmt_cmd.arg("--check");
+    }
     Ok(Cmd::new(fmt_cmd).run()?)
 }
 
