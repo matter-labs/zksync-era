@@ -4060,8 +4060,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-client-avsregistry"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e02c181981efaf06eb5390dc6aaece685e74035b2bee59959e5ff3e37cddd476"
 dependencies = [
  "alloy",
  "ark-ff 0.5.0",
@@ -4078,8 +4079,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-client-elcontracts"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f386568a34270fe86927d7ff7332807108b204b61b97f629d18b5f827a8888"
 dependencies = [
  "alloy",
  "eigen-common",
@@ -4092,8 +4094,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-common"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6eaa0f1b2145c2ce15da22662cf3b491101ba1523d0ba76d9061a9543e57d02a"
 dependencies = [
  "alloy",
  "url",
@@ -4101,8 +4104,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-crypto-bls"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6bd246b39a83f33d854bc465e79dfbf4cea59abf520fa543c6177b994d01663"
 dependencies = [
  "alloy",
  "ark-bn254",
@@ -4118,8 +4122,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-crypto-bn254"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af40eb7c1714b8c8a0009af8a1b06e13cb101244b1aa19371825c1ad950bd1c9"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4129,8 +4134,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-types"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "473f3367f75b16c8f98f555431da873f58ebcf8240cc26766414ff66681a13e8"
 dependencies = [
  "alloy",
  "ark-ff 0.5.0",
@@ -4147,8 +4153,9 @@ dependencies = [
 
 [[package]]
 name = "eigen-utils"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46f240f414d0e4769d52b17889a0c50b525304ebdb3492f3e895663e4d48abc5"
 dependencies = [
  "alloy",
  "regex",
@@ -4158,8 +4165,9 @@ dependencies = [
 
 [[package]]
 name = "eigensdk"
-version = "0.5.0"
-source = "git+https://github.com/lambdaclass/eigen-rs?branch=chore%2Fbump-alloy-1.0#c5472316b715f37e6731b685cfbebc7183d47d7b"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4eacb66e5d3803bd5f6d757a6849413bd097a6b591683745556e7fab2a655ed"
 dependencies = [
  "eigen-client-avsregistry",
 ]
@@ -8994,8 +9002,9 @@ dependencies = [
 
 [[package]]
 name = "rust-eigenda-v2-client"
-version = "0.1.3"
-source = "git+https://github.com/lambdaclass/eigenda-client-rs.git?branch=relocate_eigenda_cert_encoding#5ecb0b3db2620f3cd25980dfd5edbd2e9cc18387"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea9c46e7498e98f92c746757ab8f9b9d3251bcbf0b50f3cbb202a7d78c9c917b"
 dependencies = [
  "alloy",
  "ark-bn254",
@@ -9035,8 +9044,9 @@ dependencies = [
 
 [[package]]
 name = "rust-eigenda-v2-common"
-version = "0.1.2"
-source = "git+https://github.com/lambdaclass/eigenda-client-rs.git?branch=relocate_eigenda_cert_encoding#5ecb0b3db2620f3cd25980dfd5edbd2e9cc18387"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7ed3a4520c365197ca700008f6566d03d50b098c009aaaa9677b90de9fc1700"
 dependencies = [
  "alloy-primitives 1.2.0",
  "alloy-sol-types",
