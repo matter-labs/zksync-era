@@ -57,6 +57,7 @@ pub struct FetchedBlock {
     pub operator_address: Address,
     pub transactions: Vec<FetchedTransaction>,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl FetchedBlock {
@@ -112,6 +113,7 @@ impl FetchedBlock {
                         self.virtual_blocks,
                     ),
                     pubdata_params: self.pubdata_params,
+                    pubdata_limit: self.pubdata_limit,
                 },
                 number: self.l1_batch_number,
                 first_l2_block_number: self.number,
@@ -186,6 +188,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .map(FetchedTransaction::new)
                 .collect(),
             pubdata_params,
+            pubdata_limit: block.pubdata_limit,
         })
     }
 }

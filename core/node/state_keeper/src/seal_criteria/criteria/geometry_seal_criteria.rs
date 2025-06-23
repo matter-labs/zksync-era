@@ -24,6 +24,7 @@ impl SealCriterion for CircuitsCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let max_allowed_base_layer_circuits =
             get_max_batch_base_layer_circuits(protocol_version.into());
@@ -77,6 +78,7 @@ impl SealCriterion for CircuitsCriterion {
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let batch_tip_circuit_overhead =
             circuit_statistics_bootloader_batch_tip_overhead(protocol_version.into());
@@ -123,6 +125,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            0,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
     }
@@ -143,6 +146,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            0,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }
@@ -163,6 +167,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            0,
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
@@ -183,6 +188,7 @@ mod tests {
                 ..SealData::default()
             },
             protocol_version,
+            0,
         );
 
         assert_eq!(block_resolution, UnexecutableReason::ProofWillFail.into());

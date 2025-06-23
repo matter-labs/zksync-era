@@ -19,6 +19,7 @@ impl SealCriterion for L1L2TxsCriterion {
         _block_data: &SealData,
         _tx_data: &SealData,
         _protocol_version_id: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         // With current gas consumption it's possible to execute 600 L1->L2 txs with 7500000 L1 gas.
         const L1_L2_TX_COUNT_LIMIT: usize = 600;
@@ -41,6 +42,7 @@ impl SealCriterion for L1L2TxsCriterion {
         l1_tx_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_count = l1_tx_count as f64;
         let full_count = L1_L2_TX_COUNT_LIMIT as f64;
@@ -74,6 +76,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -85,6 +88,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
 
@@ -96,6 +100,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }

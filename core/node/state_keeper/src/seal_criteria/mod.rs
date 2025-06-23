@@ -193,6 +193,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: usize,
     ) -> SealResolution;
 
     /// Returns fraction of the criterion's capacity filled in the batch.
@@ -204,6 +205,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
         _l1_tx_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         None
     }

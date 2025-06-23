@@ -44,6 +44,7 @@ pub struct UpdatesManager {
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
     pubdata_params: PubdataParams,
+    pubdata_limit: Option<u64>,
     previous_batch_protocol_version: ProtocolVersionId,
     previous_batch_timestamp: u64,
     sync_block_data_and_header_persistence: bool,
@@ -86,6 +87,7 @@ impl UpdatesManager {
                 .hashes(),
             protocol_version,
             pubdata_params: batch_init_params.pubdata_params,
+            pubdata_limit: batch_init_params.pubdata_limit,
             previous_batch_protocol_version,
             previous_batch_timestamp,
             sync_block_data_and_header_persistence,
@@ -310,6 +312,7 @@ impl UpdatesManager {
                 .collect(),
             last_in_batch: last_block.executed_transactions.is_empty(),
             pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
         })
     }
 
@@ -448,6 +451,10 @@ impl UpdatesManager {
 
     pub fn sync_block_data_and_header_persistence(&self) -> bool {
         self.sync_block_data_and_header_persistence
+    }
+
+    pub fn pubdata_limit(&self) -> Option<u64> {
+        self.pubdata_limit
     }
 }
 

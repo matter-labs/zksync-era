@@ -11,7 +11,6 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::TransactionExecutionMetrics,
     utils::{get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits},
-    vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
 };
 use zksync_types::{ProtocolVersionId, Transaction};
 use zksync_vm_executor::interface::TransactionFilter;
@@ -30,6 +29,7 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: Option<usize>,
     ) -> SealResolution;
 
     /// Returns fractions of the criteria's capacity filled in the batch.
@@ -39,6 +39,7 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: Option<usize>,
     ) -> Vec<(&'static str, f64)>;
 
     fn use_propose_mode(&mut self) {}
@@ -51,7 +52,6 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
 #[derive(Debug, Clone, Copy)]
 pub struct L1BatchSealConfig {
     pub max_circuits_per_batch: usize,
-    pub max_pubdata_per_batch: usize,
     pub transaction_slots: usize,
     pub close_block_at_geometry_percentage: f64,
     pub reject_tx_at_geometry_percentage: f64,
@@ -63,7 +63,6 @@ impl From<StateKeeperConfig> for L1BatchSealConfig {
     fn from(config: StateKeeperConfig) -> Self {
         Self {
             max_circuits_per_batch: config.max_circuits_per_batch,
-            max_pubdata_per_batch: config.max_pubdata_per_batch.0 as usize,
             transaction_slots: config.transaction_slots,
             close_block_at_geometry_percentage: config.close_block_at_geometry_percentage,
             reject_tx_at_geometry_percentage: config.reject_tx_at_geometry_percentage,
@@ -77,7 +76,6 @@ impl L1BatchSealConfig {
     pub fn max(protocol_version: ProtocolVersionId) -> Self {
         Self {
             max_circuits_per_batch: get_max_batch_base_layer_circuits(protocol_version.into()),
-            max_pubdata_per_batch: MAX_VM_PUBDATA_PER_BATCH, // TODO
             transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()),
             close_block_at_geometry_percentage: 1.0,
             reject_tx_at_geometry_percentage: 1.0,
@@ -99,6 +97,7 @@ impl L1BatchSealConfig {
 #[derive(Debug)]
 pub struct SequencerSealer {
     local_config: L1BatchSealConfig,
+    local_max_pubdata_per_batch: usize,
     current_config: Option<L1BatchSealConfig>,
     in_verify_mode: bool,
     sealers: Vec<Box<dyn SealCriterion>>,
@@ -109,6 +108,7 @@ impl SequencerSealer {
     pub(crate) fn for_tests() -> Self {
         Self {
             local_config: L1BatchSealConfig::for_tests(),
+            local_max_pubdata_per_batch: 100_000,
             current_config: Some(L1BatchSealConfig::for_tests()),
             in_verify_mode: false,
             sealers: vec![],
@@ -134,6 +134,7 @@ impl TransactionFilter for SequencerSealer {
                 &data,
                 &data,
                 ProtocolVersionId::latest(),
+                self.local_max_pubdata_per_batch,
             );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
                 let err = sealer.prom_criterion_name().to_owned();
@@ -153,6 +154,7 @@ impl ConditionalSealer for SequencerSealer {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: Option<usize>,
     ) -> SealResolution {
         tracing::trace!(
             "Determining seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
@@ -169,6 +171,7 @@ impl ConditionalSealer for SequencerSealer {
                 block_data,
                 tx_data,
                 protocol_version,
+                max_pubdata_per_batch.unwrap_or(self.local_max_pubdata_per_batch),
             );
             match &seal_resolution {
                 SealResolution::IncludeAndSeal
@@ -195,6 +198,7 @@ impl ConditionalSealer for SequencerSealer {
         l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: Option<usize>,
     ) -> Vec<(&'static str, f64)> {
         self.sealers
             .iter()
@@ -205,6 +209,7 @@ impl ConditionalSealer for SequencerSealer {
                     l1_tx_count,
                     block_data,
                     protocol_version,
+                    max_pubdata_per_batch.unwrap_or(self.local_max_pubdata_per_batch),
                 );
                 filled.map(|f| (s.prom_criterion_name(), f))
             })
@@ -231,10 +236,12 @@ impl ConditionalSealer for SequencerSealer {
 
 impl SequencerSealer {
     pub fn new(sk_config: StateKeeperConfig) -> Self {
+        let local_max_pubdata_per_batch = sk_config.max_pubdata_per_batch.0 as usize;
         let config: L1BatchSealConfig = sk_config.into();
         let sealers = Self::default_sealers();
         Self {
             local_config: config,
+            local_max_pubdata_per_batch,
             current_config: Some(config),
             in_verify_mode: false,
             sealers,
@@ -246,9 +253,11 @@ impl SequencerSealer {
         sk_config: StateKeeperConfig,
         sealers: Vec<Box<dyn SealCriterion>>,
     ) -> Self {
+        let local_max_pubdata_per_batch = sk_config.max_pubdata_per_batch.0 as usize;
         let config: L1BatchSealConfig = sk_config.into();
         Self {
             local_config: config,
+            local_max_pubdata_per_batch,
             current_config: Some(config),
             in_verify_mode: false,
             sealers,
@@ -284,6 +293,7 @@ impl ConditionalSealer for NoopSealer {
         _block_data: &SealData,
         _tx_data: &SealData,
         _protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: Option<usize>,
     ) -> SealResolution {
         SealResolution::NoSeal
     }
@@ -294,6 +304,7 @@ impl ConditionalSealer for NoopSealer {
         _l1_tx_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: Option<usize>,
     ) -> Vec<(&'static str, f64)> {
         Vec::new()
     }

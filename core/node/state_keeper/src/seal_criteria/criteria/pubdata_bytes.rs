@@ -17,12 +17,12 @@ impl SealCriterion for PubDataBytesCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: usize,
     ) -> SealResolution {
-        let max_pubdata_per_l1_batch = config.max_pubdata_per_batch;
         let reject_bound =
-            (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
+            (max_pubdata_per_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
         let include_and_seal_bound =
-            (max_pubdata_per_l1_batch as f64 * config.close_block_at_eth_params_percentage).round();
+            (max_pubdata_per_batch as f64 * config.close_block_at_eth_params_percentage).round();
 
         let block_size =
             block_data.execution_metrics.size() + block_data.writes_metrics.size(protocol_version);
@@ -40,7 +40,7 @@ impl SealCriterion for PubDataBytesCriterion {
             UnexecutableReason::PubdataLimit.into()
         } else if block_size
             + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into())
-            > max_pubdata_per_l1_batch
+            > max_pubdata_per_batch
         {
             SealResolution::ExcludeAndSeal
         } else if block_size
@@ -55,17 +55,18 @@ impl SealCriterion for PubDataBytesCriterion {
 
     fn capacity_filled(
         &self,
-        config: &L1BatchSealConfig,
+        _config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_pubdata = (block_data.execution_metrics.size()
             + block_data.writes_metrics.size(protocol_version)
             + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into()))
             as f64;
-        let full_pubdata = config.max_pubdata_per_batch as f64;
+        let full_pubdata = max_pubdata_per_batch as f64;
 
         Some(used_pubdata / full_pubdata)
     }
@@ -87,14 +88,14 @@ mod tests {
         let config = L1BatchSealConfig {
             reject_tx_at_eth_params_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
-            max_pubdata_per_batch: 100000,
             ..L1BatchSealConfig::for_tests()
         };
+        let max_pubdata_per_batch: usize = 100000;
 
         let criterion = PubDataBytesCriterion;
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
+            l2_l1_long_messages: (max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
                 - 1.0
                 - execution_metrics_bootloader_batch_tip_overhead(
@@ -114,11 +115,12 @@ mod tests {
             },
             &SealData::default(),
             ProtocolVersionId::latest(),
+            max_pubdata_per_batch,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
+            l2_l1_long_messages: (max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
                 + 1f64)
                 .round() as usize,
@@ -135,11 +137,12 @@ mod tests {
             },
             &SealData::default(),
             ProtocolVersionId::latest(),
+            max_pubdata_per_batch,
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: config.max_pubdata_per_batch + 1,
+            l2_l1_long_messages: max_pubdata_per_batch + 1,
             ..VmExecutionMetrics::default()
         };
         let full_block_resolution = criterion.should_seal(
@@ -152,6 +155,7 @@ mod tests {
             },
             &SealData::default(),
             ProtocolVersionId::latest(),
+            max_pubdata_per_batch,
         );
         assert_eq!(full_block_resolution, SealResolution::ExcludeAndSeal);
     }

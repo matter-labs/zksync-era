@@ -16,6 +16,7 @@ impl SealCriterion for L2L1LogsCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let max_allowed_logs = l2_to_l1_logs_tree_size(protocol_version_id);
 
@@ -43,6 +44,7 @@ impl SealCriterion for L2L1LogsCriterion {
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_logs = block_data.execution_metrics.user_l2_to_l1_logs as f64;
         let full_logs = l2_to_l1_logs_tree_size(protocol_version) as f64;
@@ -87,6 +89,7 @@ mod tests {
                 ..SealData::default()
             },
             protocol_version_id,
+            0,
         )
     }
 

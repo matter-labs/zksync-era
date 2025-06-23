@@ -88,7 +88,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
 pub fn create_l1_batch(number: u32) -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
+    let mut header = L1BatchHeader::mock(
         L1BatchNumber(number),
         number.into(),
         BaseSystemContractsHashes {
@@ -233,7 +233,7 @@ impl Snapshot {
         contracts: &BaseSystemContracts,
         protocol_version: ProtocolVersionId,
     ) -> Self {
-        let l1_batch = L1BatchHeader::new(
+        let l1_batch = L1BatchHeader::mock(
             l1_batch,
             l1_batch.0.into(),
             contracts.hashes(),

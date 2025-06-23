@@ -18,6 +18,7 @@ impl SealCriterion for GasForBatchTipCriterion {
         _block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let batch_tip_overhead = gas_bootloader_batch_tip_overhead(protocol_version.into());
         let is_tx_first = tx_count == 1;
@@ -57,7 +58,7 @@ mod tests {
             ..Default::default()
         };
         let almost_full_block_resolution =
-            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version);
+            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version, 0);
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
         let seal_data = SealData {
@@ -65,14 +66,14 @@ mod tests {
             ..Default::default()
         };
         let full_block_first_tx_resolution =
-            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version);
+            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version, 0);
         assert_matches!(
             full_block_first_tx_resolution,
             SealResolution::Unexecutable(_)
         );
 
         let full_block_second_tx_resolution =
-            criterion.should_seal(&config, 2, 0, &seal_data, &seal_data, protocol_version);
+            criterion.should_seal(&config, 2, 0, &seal_data, &seal_data, protocol_version, 0);
         assert_eq!(
             full_block_second_tx_resolution,
             SealResolution::ExcludeAndSeal

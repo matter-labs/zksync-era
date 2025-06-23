@@ -63,7 +63,7 @@ impl ExternalIO {
         })
     }
 
-    async fn ensure_protocol_version_is_saved(
+    async fn is_protocol_version_saved(
         &self,
         protocol_version: ProtocolVersionId,
         max_wait: Duration,
@@ -168,7 +168,7 @@ impl StateKeeperIO for ExternalIO {
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
-        let Some((system_env, l1_batch_env, pubdata_params)) = self
+        let Some(restored_l1_batch_env) = self
             .l1_batch_params_provider
             .load_l1_batch_env(
                 &mut storage,
@@ -180,15 +180,14 @@ impl StateKeeperIO for ExternalIO {
         else {
             return Ok((cursor, None));
         };
-        let pending_batch_data =
-            load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed loading data for re-execution for pending L1 batch #{}",
-                        cursor.l1_batch
-                    )
-                })?;
+        let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading data for re-execution for pending L1 batch #{}",
+                    cursor.l1_batch
+                )
+            })?;
 
         storage
             .blocks_dal()
@@ -196,7 +195,10 @@ impl StateKeeperIO for ExternalIO {
                 pending_batch_data
                     .l1_batch_env
                     .clone()
-                    .into_unsealed_header(Some(pending_batch_data.system_env.version)),
+                    .into_unsealed_header(
+                        Some(pending_batch_data.system_env.version),
+                        pending_batch_data.pubdata_limit,
+                    ),
             )
             .await?;
 
@@ -230,7 +232,7 @@ impl StateKeeperIO for ExternalIO {
                 );
 
                 if !self
-                    .ensure_protocol_version_is_saved(params.protocol_version, max_wait)
+                    .is_protocol_version_saved(params.protocol_version, max_wait)
                     .await?
                 {
                     return Ok(None);
@@ -246,6 +248,7 @@ impl StateKeeperIO for ExternalIO {
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
+                        pubdata_limit: params.pubdata_limit,
                     })
                     .await?;
                 return Ok(Some(params));
@@ -436,6 +439,7 @@ mod tests {
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

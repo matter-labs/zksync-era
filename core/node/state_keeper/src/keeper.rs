@@ -226,6 +226,7 @@ impl StateKeeperBuilder {
                         system_env: params.system_env,
                         l1_batch_env: params.l1_batch_env,
                         pubdata_params: params.pubdata_params,
+                        pubdata_limit: params.pubdata_limit,
                         timestamp_ms,
                     },
                     params.pending_l2_blocks,
@@ -867,6 +868,7 @@ impl StateKeeperInner {
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),
+                    updates_manager.pubdata_limit().map(|l| l as usize),
                 )
             }
         };
@@ -889,6 +891,7 @@ impl StateKeeperInner {
             manager.pending_l1_transactions_len(),
             &block_data,
             manager.protocol_version(),
+            manager.pubdata_limit().map(|l| l as usize),
         );
         for (criterion, capacity) in capacities {
             AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
@@ -1349,15 +1352,16 @@ impl StateKeeper {
                 .await?;
         }
 
-        // Rollback mempool.
+        // Rollback io.
         let txs = pending_block
             .executed_transactions
             .iter()
             .map(|tx| tx.transaction.clone())
             .collect();
+        let is_in_first_pending_block_state = state.updates_manager.is_in_first_pending_block_state();
         self.inner.io.rollback_l2_block(txs).await?;
 
-        if state.updates_manager.is_in_first_pending_block_state() {
+        if is_in_first_pending_block_state {
             // Rollback state to `Uninit`.
             state.updates_manager.pop_last_pending_block();
             self.batch_state = BatchState::Uninit(state.updates_manager.io_cursor());

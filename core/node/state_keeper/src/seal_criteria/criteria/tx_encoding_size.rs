@@ -17,6 +17,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let bootloader_tx_encoding_space =
             get_bootloader_encoding_space(protocol_version_id.into());
@@ -45,6 +46,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_size = block_data.cumulative_size as f64;
         let full_size = get_bootloader_encoding_space(protocol_version.into()) as f64;
@@ -81,6 +83,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -94,6 +97,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(
             unexecutable_resolution,
@@ -113,6 +117,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(exclude_and_seal_resolution, SealResolution::ExcludeAndSeal);
 
@@ -129,6 +134,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(include_and_seal_resolution, SealResolution::IncludeAndSeal);
     }
