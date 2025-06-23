@@ -15,8 +15,8 @@ use crate::{
         CommitmentGeneratorConfig, ConsistencyCheckerConfig, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, GatewayMigratorConfig,
-        GenesisConfigWrapper, NodeSyncConfig, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, Secrets, TeeProofDataHandlerConfig,
+        GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        Secrets, TeeProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -92,8 +92,6 @@ pub struct GeneralConfig {
     pub timestamp_asserter_config: TimestampAsserterConfig,
     #[config(nest, rename = "gateway_migrator")]
     pub gateway_migrator_config: GatewayMigratorConfig,
-    #[config(nest)]
-    pub node_sync: Option<NodeSyncConfig>,
     #[config(nest, rename = "consistency_checker")]
     pub consistency_checker_config: ConsistencyCheckerConfig,
 }

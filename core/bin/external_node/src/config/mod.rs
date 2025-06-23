@@ -14,7 +14,8 @@ use zksync_config::{
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
         CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
-        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        NodeSyncConfig, ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets,
+        SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -239,6 +240,8 @@ pub(crate) struct LocalConfig {
     pub consistency_checker: ConsistencyCheckerConfig,
     #[config(flatten)]
     pub secrets: Secrets,
+    #[config(nest)]
+    pub node_sync: NodeSyncConfig,
 }
 
 impl LocalConfig {
@@ -280,11 +283,6 @@ impl LocalConfig {
             .single_mut(&DataAvailabilitySecrets::DESCRIPTION)?
             .push_deprecated_alias("da_secrets")?;
         Ok(schema)
-    }
-
-    pub fn batch_transaction_updater_interval(&self) -> Duration {
-        self.batch_transaction_updater_interval_sec
-            .map_or_else(|| Duration::from_secs(5), |n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]
@@ -335,6 +333,7 @@ impl LocalConfig {
                 data_availability: None,
                 contract_verifier: ContractVerifierSecrets::default(),
             },
+            node_sync: NodeSyncConfig::default(),
         }
     }
 }
