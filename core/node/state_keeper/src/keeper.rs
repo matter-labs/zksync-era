@@ -1056,7 +1056,6 @@ impl StateKeeper {
                         }
                         return Err(OrStopped::Stopped);
                     }
-                    return Err(OrStopped::Stopped);
                 }
             }
 
@@ -1358,8 +1357,12 @@ impl StateKeeper {
             .iter()
             .map(|tx| tx.transaction.clone())
             .collect();
-        let is_in_first_pending_block_state = state.updates_manager.is_in_first_pending_block_state();
-        self.inner.io.rollback_l2_block(txs).await?;
+        let is_in_first_pending_block_state =
+            state.updates_manager.is_in_first_pending_block_state();
+        self.inner
+            .io
+            .rollback_l2_block(txs, is_in_first_pending_block_state)
+            .await?;
 
         if is_in_first_pending_block_state {
             // Rollback state to `Uninit`.

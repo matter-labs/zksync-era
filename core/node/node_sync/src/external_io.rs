@@ -9,7 +9,7 @@ use zksync_state_keeper::{
     io::{
         common::{load_pending_batch, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
-        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
+        IOOpenBatch, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::{IoSealCriteria, UnexecutableReason},
@@ -44,6 +44,7 @@ pub struct ExternalIO {
     // It must not be set if node is a leader.
     main_node_client: Option<Box<dyn MainNodeClient>>,
     chain_id: L2ChainId,
+    open_batch: Option<IOOpenBatch>,
 }
 
 impl ExternalIO {
@@ -60,6 +61,7 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
+            open_batch: None,
         })
     }
 
@@ -178,6 +180,10 @@ impl StateKeeperIO for ExternalIO {
             )
             .await?
         else {
+            storage
+                .blocks_dal()
+                .delete_unsealed_l1_batch(cursor.l1_batch - 1)
+                .await?;
             return Ok((cursor, None));
         };
         let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
@@ -201,6 +207,10 @@ impl StateKeeperIO for ExternalIO {
                     ),
             )
             .await?;
+        self.open_batch = Some(IOOpenBatch {
+            number: pending_batch_data.l1_batch_env.number,
+            protocol_version: pending_batch_data.system_env.version,
+        });
 
         Ok((cursor, Some(pending_batch_data)))
     }
@@ -239,9 +249,6 @@ impl StateKeeperIO for ExternalIO {
                 }
                 let mut conn = self.pool.connection_tagged("sync_layer").await?;
                 conn.blocks_dal()
-                    .delete_unsealed_l1_batch(cursor.l1_batch - 1)
-                    .await?;
-                conn.blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
                         timestamp: params.first_l2_block.timestamp(),
@@ -251,6 +258,10 @@ impl StateKeeperIO for ExternalIO {
                         pubdata_limit: params.pubdata_limit,
                     })
                     .await?;
+                self.open_batch = Some(IOOpenBatch {
+                    number: cursor.l1_batch,
+                    protocol_version: params.protocol_version,
+                });
                 return Ok(Some(params));
             }
             other => {
@@ -321,7 +332,20 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
-    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(
+        &mut self,
+        _txs: Vec<Transaction>,
+        first_block_in_batch: bool,
+    ) -> anyhow::Result<()> {
+        if first_block_in_batch {
+            let current_batch_number = self.open_batch.context("`open_batch` is missing")?.number;
+            let mut conn = self.pool.connection_tagged("sync_layer").await?;
+            conn.blocks_dal()
+                .delete_unsealed_l1_batch(current_batch_number - 1)
+                .await?;
+            self.open_batch = None;
+        }
+
         self.actions.validate_ready_for_next_block();
         Ok(())
     }
@@ -386,6 +410,10 @@ impl StateKeeperIO for ExternalIO {
             .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
         wait_latency.observe();
         Ok(hash)
+    }
+
+    fn set_open_batch(&mut self, open_batch: Option<IOOpenBatch>) {
+        self.open_batch = open_batch;
     }
 }
 

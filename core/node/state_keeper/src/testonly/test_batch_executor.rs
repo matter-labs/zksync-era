@@ -881,7 +881,11 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(
+        &mut self,
+        txs: Vec<Transaction>,
+        _first_block_in_batch: bool,
+    ) -> anyhow::Result<()> {
         let action = self.pop_next_item("rollback_l2_block");
         let ScenarioItem::RollbackBlock(_, _, expected_txs) = action else {
             panic!("Unexpected action: {:?}", action);

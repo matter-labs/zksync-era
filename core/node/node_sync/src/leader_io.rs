@@ -3,7 +3,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use zksync_contracts::BaseSystemContracts;
 use zksync_state_keeper::{
-    io::{common::IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
+    io::{
+        common::IoCursor, IOOpenBatch, L1BatchParams, L2BlockParams, PendingBatchData,
+        StateKeeperIO,
+    },
     seal_criteria::{IoSealCriteria, UnexecutableReason},
     MempoolIO, UpdatesManager,
 };
@@ -88,9 +91,19 @@ impl StateKeeperIO for LeaderIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
-        self.active_io_ref_mut()
+        let params = self
+            .active_io_ref_mut()
             .wait_for_new_batch_params(cursor, max_wait)
-            .await
+            .await?;
+        if let Some(p) = &params {
+            let open_batch = Some(IOOpenBatch {
+                number: cursor.l1_batch,
+                protocol_version: p.protocol_version,
+            });
+            self.mempool_io.set_open_batch(open_batch);
+            self.external_io.set_open_batch(open_batch);
+        }
+        Ok(params)
     }
 
     async fn wait_for_new_l2_block_params(
@@ -161,9 +174,13 @@ impl StateKeeperIO for LeaderIO {
         io.rollback(tx).await
     }
 
-    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(
+        &mut self,
+        txs: Vec<Transaction>,
+        first_block_in_batch: bool,
+    ) -> anyhow::Result<()> {
         let io = self.active_io_ref_mut();
-        io.rollback_l2_block(txs).await
+        io.rollback_l2_block(txs, first_block_in_batch).await
     }
 
     async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {

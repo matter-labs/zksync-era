@@ -28,7 +28,7 @@ use crate::{
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
-        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
+        IOOpenBatch, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     mempool_actor::l2_tx_filter,
     metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
@@ -65,7 +65,7 @@ pub struct MempoolIO {
     l2_da_validator_address: Option<Address>,
     pubdata_type: PubdataType,
     pubdata_limit: u64,
-    last_batch_protocol_version: Option<ProtocolVersionId>,
+    open_batch: Option<IOOpenBatch>,
 }
 
 #[async_trait]
@@ -137,6 +137,10 @@ impl StateKeeperIO for MempoolIO {
             )
             .await?
         else {
+            storage
+                .blocks_dal()
+                .delete_unsealed_l1_batch(cursor.l1_batch - 1)
+                .await?;
             return Ok((cursor, None));
         };
         let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
@@ -172,7 +176,10 @@ impl StateKeeperIO for MempoolIO {
                     ),
             )
             .await?;
-        self.last_batch_protocol_version = Some(pending_batch_data.system_env.version);
+        self.open_batch = Some(IOOpenBatch {
+            number: pending_batch_data.l1_batch_env.number,
+            protocol_version: pending_batch_data.system_env.version,
+        });
 
         Ok((cursor, Some(pending_batch_data)))
     }
@@ -185,8 +192,11 @@ impl StateKeeperIO for MempoolIO {
         let params = self
             .wait_for_new_batch_params_inner(cursor, max_wait)
             .await?;
-        if let Some(v) = params.as_ref().map(|p| p.protocol_version) {
-            self.last_batch_protocol_version = Some(v);
+        if let Some(p) = &params {
+            self.open_batch = Some(IOOpenBatch {
+                number: cursor.l1_batch,
+                protocol_version: p.protocol_version,
+            });
         }
         Ok(params)
     }
@@ -197,8 +207,9 @@ impl StateKeeperIO for MempoolIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         let protocol_version = self
-            .last_batch_protocol_version
-            .context("`last_batch_protocol_version` is missing")?;
+            .open_batch
+            .context("`open_batch` is missing")?
+            .protocol_version;
         // For versions <= v28 timestamps should be increasing for each L2 block.
         // For versions >  v28 timestamps should be non-decreasing for each L2 block.
         // - We sleep past `prev_l2_block_timestamp` for <= v28.
@@ -291,7 +302,20 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(
+        &mut self,
+        txs: Vec<Transaction>,
+        first_block_in_batch: bool,
+    ) -> anyhow::Result<()> {
+        if first_block_in_batch {
+            let current_batch_number = self.open_batch.context("`open_batch` is missing")?.number;
+            let mut conn = self.pool.connection_tagged("state_keeper").await?;
+            conn.blocks_dal()
+                .delete_unsealed_l1_batch(current_batch_number - 1)
+                .await?;
+            self.open_batch = None;
+        }
+
         let mut to_add = Vec::with_capacity(txs.len());
         for tx in txs
             .into_iter()
@@ -416,6 +440,10 @@ impl StateKeeperIO for MempoolIO {
         );
         Ok(batch_state_hash)
     }
+
+    fn set_open_batch(&mut self, open_batch: Option<IOOpenBatch>) {
+        self.open_batch = open_batch;
+    }
 }
 
 /// Sleeps until the current timestamp in seconds is larger than the provided `timestamp`.
@@ -497,7 +525,7 @@ impl MempoolIO {
             l2_da_validator_address,
             pubdata_type,
             pubdata_limit: config.max_pubdata_per_batch.0,
-            last_batch_protocol_version: None,
+            open_batch: None,
         })
     }
 
@@ -660,8 +688,8 @@ impl MempoolIO {
     }
 
     #[cfg(test)]
-    pub fn set_last_batch_protocol_version(&mut self, protocol_version: ProtocolVersionId) {
-        self.last_batch_protocol_version = Some(protocol_version);
+    pub fn set_open_batch_protocol_version(&mut self, protocol_version: ProtocolVersionId) {
+        self.open_batch.as_mut().unwrap().protocol_version = protocol_version;
     }
 }
 

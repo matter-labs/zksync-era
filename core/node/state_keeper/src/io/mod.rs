@@ -156,6 +156,12 @@ impl L1BatchParams {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct IOOpenBatch {
+    pub number: L1BatchNumber,
+    pub protocol_version: ProtocolVersionId,
+}
+
 /// Provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
 /// providing L2 block and L1 batch boundaries for them.
@@ -203,7 +209,11 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
 
     /// Marks block transactions as "not executed", so they can be retrieved from the IO again.
-    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()>;
+    async fn rollback_l2_block(
+        &mut self,
+        txs: Vec<Transaction>,
+        first_block_in_batch: bool,
+    ) -> anyhow::Result<()>;
 
     /// Updates mempool state (mostly nonces) after block is processed.
     async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
@@ -230,6 +240,9 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;
+
     /// TODO
     fn set_is_active_leader(&mut self, _value: bool) {}
+
+    fn set_open_batch(&mut self, _open_batch: Option<IOOpenBatch>) {}
 }
