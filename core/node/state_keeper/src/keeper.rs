@@ -20,8 +20,7 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, OrStopped, StopContext,
-    Transaction,
+    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -182,14 +181,15 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(&updates_manager).await?;
                 // We've sealed the L2 block that we had, but we still need to set up the timestamp
                 // for the fictive L2 block.
-                let new_l2_block_params = self
+                let mut new_l2_block_params = self
                     .wait_for_new_l2_block_params(&updates_manager, &stop_receiver)
                     .await?;
+                // Set the interop roots to an empty vector, as we don't have any interop roots for the fictive block.
+                new_l2_block_params.set_interop_roots(vec![]);
                 Self::set_l2_block_params(&mut updates_manager, new_l2_block_params);
                 Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
             }
 
-            updates_manager.clear_interop_roots();
             let (finished_batch, _) = batch_executor.finish_batch().await?;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
@@ -314,16 +314,6 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn load_l2_block_interop_root(
-        &mut self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        self.io
-            .load_l2_block_interop_root(l2block_number)
-            .await
-            .with_context(|| "failed loading message root".to_string())
-    }
-
     #[tracing::instrument(
         skip_all,
         fields(
@@ -446,6 +436,7 @@ impl ZkSyncStateKeeper {
             updates_manager.l1_batch.number,
             display_timestamp(block_env.timestamp)
         );
+        dbg!(&block_env);
         batch_executor
             .start_next_l2_block(block_env.clone())
             .await
@@ -501,7 +492,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams::new_raw(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
-                        self.load_l2_block_interop_root(l2_block.number).await?,
+                        l2_block.interop_roots,
                     ),
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;

@@ -206,7 +206,7 @@ impl UpdatesManager {
             self.l2_block.get_l2_block_hash(),
             next_l2_block_params.virtual_blocks(),
             self.protocol_version,
-            next_l2_block_params.interop_roots().clone(),
+            next_l2_block_params.interop_roots().to_vec(),
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
@@ -218,11 +218,13 @@ impl UpdatesManager {
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
+        // We need to filter already applied interop roots. Because we seal L2 blocks in async manner,
+        // it's possible that database returns already applied interop roots
         let mut interop_roots = vec![];
-        for interop_root in l2_block_params.interop_roots().clone() {
-            if !self.l1_batch.interop_roots.contains(&interop_root) {
+        for interop_root in l2_block_params.interop_roots() {
+            if !self.l1_batch.interop_roots.contains(interop_root) {
                 interop_roots.push(interop_root.clone());
-                self.l1_batch.interop_roots.push(interop_root);
+                self.l1_batch.interop_roots.push(interop_root.clone());
             }
         }
         l2_block_params.set_interop_roots(interop_roots);

@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2ChainId,
+    ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -100,7 +100,7 @@ impl L2BlockParams {
         self.virtual_blocks
     }
 
-    pub fn interop_roots(&self) -> &Vec<InteropRoot> {
+    pub fn interop_roots(&self) -> &[InteropRoot] {
         &self.interop_roots
     }
 
@@ -229,12 +229,6 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
-
-    /// Loads the message root for l2 block.
-    async fn load_l2_block_interop_root(
-        &self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>>;
 
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
