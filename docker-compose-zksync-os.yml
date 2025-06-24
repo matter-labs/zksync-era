@@ -1,0 +1,82 @@
+services:
+  reth:
+    restart: always
+    image: "ghcr.io/paradigmxyz/reth:v1.3.7"
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    ports:
+      - 127.0.0.1:8545:8545
+    volumes:
+      - type: volume
+        source: reth-data
+        target: /rethdata
+      - type: bind
+        source: ./etc/reth/chaindata
+        target: /chaindata
+
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*"  --chain /chaindata/reth_config --dev.block-time 300ms
+
+  postgres:
+    image: "postgres:14"
+    command: postgres -c 'max_connections=1000'
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - type: volume
+        source: postgres-data
+        target: /var/lib/postgresql/data
+    environment:
+      # We bind only to 127.0.0.1, so setting insecure password is acceptable here
+      - POSTGRES_PASSWORD=notsecurepassword
+
+  zksync-os-state-keeper:
+    image: "matterlabs/zksync-os-server:latest"
+    platform: linux/x86_64
+
+    ports:
+      - 3124:3124
+    volumes:
+      - ./chains/era/configs:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --wallets-path=/configs/wallets.yaml --components=eth,state_keeper,zkos_prover_input_generator
+    network_mode: host
+
+  zksync-os-api:
+    image: "matterlabs/zksync-os-server:latest"
+    platform: linux/x86_64
+
+    ports:
+      - 3050:3050
+      - 3051:3051
+    volumes:
+      - ./chains/era/configs:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --wallets-path=/configs/wallets.yaml --components=api
+    network_mode: host
+
+  zksync-os-prover:
+    image: "matterlabs/zksync-os-prover:latest"
+    platform: linux/x86_64
+
+    ports:
+      - 3052:3052
+    command: --base-url=http://localhost:3124
+    network_mode: host
+
+
+  zksync-os-snark-prover:
+    image: "matterlabs/zksync-os-prover-snark:latest"
+    platform: linux/x86_64
+
+    command: --sequencer-url http://localhost:3124 --binary-path execution_environment/app.bin --output-dir /proofs/
+    volumes:
+      - ./chains/era/proofs:/proofs
+    network_mode: host
+
+volumes:
+  postgres-data:
+  reth-data:

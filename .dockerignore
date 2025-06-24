@@ -17,6 +17,7 @@ keys/setup
 !db/
 !backups/
 !core/
+!zkos_prover/
 !prover/
 !yarn.lock
 !package.json
@@ -48,3 +49,7 @@ contracts/.git
 !etc/env/consensus_secrets.yaml
 !etc/env/consensus_config.yaml
 !rust-toolchain
+!execution_environment/*
+!app.bin
+!app_logging_enabled.bin
+!zksync_os_snark_prover/*
