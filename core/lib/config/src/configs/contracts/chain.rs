@@ -168,7 +168,6 @@ impl ProofManagerContracts {
     }
 }
 
-#[allow(clippy::redundant_closure)]
 /// Data about deployed contracts.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ContractsConfig {
@@ -181,7 +180,7 @@ pub struct ContractsConfig {
     #[config(nest)]
     pub ecosystem_contracts: EcosystemContracts,
     // Setting default values to zero(for backwards compatibility)
-    #[config(nest, default_t = ProofManagerContracts::default())]
+    #[config(nest, default_t = ProofManagerContracts::default)]
     pub proof_manager_contracts: ProofManagerContracts,
 }
 
