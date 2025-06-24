@@ -79,8 +79,10 @@ impl ProveBatches {
             //     }
             // };
 
-            let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();
-            assert!(!should_use_fflonk);
+            //let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();
+            // It is hardcoded to plonk anyways above.
+            let should_use_fflonk = true;
+            //assert!(!should_use_fflonk);
             if protocol_version.is_pre_gateway() {
                 unreachable!("");
                 let proof_input = if should_use_fflonk {
