@@ -1,5 +1,5 @@
 [eth_watch]
 # Amount of confirmations for the priority operation to be processed.
-confirmations_for_eth_event=1
+confirmations_for_eth_event=0
 # How often we want to poll the Ethereum node.
 eth_node_poll_interval=300
