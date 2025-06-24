@@ -408,6 +408,7 @@ impl ZkSyncStateKeeper {
                 self.health_updater
                     .update(StateKeeperHealthDetails::from(&cursor).into());
 
+                dbg!(&params);
                 latency.observe();
                 return Ok(params);
             }
