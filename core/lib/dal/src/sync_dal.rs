@@ -189,6 +189,12 @@ mod tests {
             )
             .await
             .unwrap();
+        l1_batch_header.number = L1BatchNumber(1);
+        l1_batch_header.timestamp = 1;
+        conn.blocks_dal()
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_l2_block(&miniblock_header)
             .await
@@ -251,11 +257,8 @@ mod tests {
             .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
-
-        l1_batch_header.number = L1BatchNumber(1);
-        l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_mock_l1_batch(&l1_batch_header)
+            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -297,6 +300,16 @@ mod tests {
             .unwrap()
             .is_none());
 
+        let l1_batch_header = L1BatchHeader::new(
+            L1BatchNumber(snapshot_recovery.l1_batch_number.0 + 1),
+            100,
+            Default::default(),
+            ProtocolVersionId::latest(),
+        );
+        conn.blocks_dal()
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
+            .await
+            .unwrap();
         let miniblock_header = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
             .insert_l2_block(&miniblock_header)
