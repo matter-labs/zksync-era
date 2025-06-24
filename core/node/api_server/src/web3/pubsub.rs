@@ -1,11 +1,12 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
+use std::time::Duration;
+
 use chrono::NaiveDateTime;
 use futures::FutureExt;
 use tokio::{
     sync::{broadcast, mpsc, watch},
     task::JoinHandle,
-    time::{interval, Duration},
 };
 use tracing::Instrument as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -49,7 +50,8 @@ pub enum PubSubEvent {
 
 /// Manager of notifications for a certain type of subscriptions.
 #[derive(Debug)]
-struct PubSubNotifier {
+pub(crate) struct PubSubNotifier {
+    ty: SubscriptionType,
     sender: broadcast::Sender<Vec<PubSubResult>>,
     connection_pool: ConnectionPool<Core>,
     polling_interval: Duration,
@@ -57,6 +59,10 @@ struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
+    pub(crate) fn subscription_type(&self) -> SubscriptionType {
+        self.ty
+    }
+
     // Notifier tasks are spawned independently of the main server task, so we need to wait for
     // Postgres to be non-empty separately.
     async fn get_starting_l2_block_number(
@@ -86,9 +92,7 @@ impl PubSubNotifier {
             sender.send(event).ok();
         }
     }
-}
 
-impl PubSubNotifier {
     async fn notify_blocks(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let Some(mut last_block_number) = self
             .get_starting_l2_block_number(&mut stop_receiver)
@@ -98,13 +102,12 @@ impl PubSubNotifier {
             return Ok(());
         };
 
-        let mut timer = interval(self.polling_interval);
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
-                break;
+        let mut timer = tokio::time::interval(self.polling_interval);
+        while !*stop_receiver.borrow() {
+            tokio::select! {
+                _ = stop_receiver.changed() => break,
+                _ = timer.tick() => { /* continue processing */ }
             }
-            timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Blocks]
                 .db_poll_latency
@@ -125,6 +128,8 @@ impl PubSubNotifier {
                 SubscriptionType::Blocks,
             ));
         }
+
+        tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
         Ok(())
     }
 
@@ -149,15 +154,14 @@ impl PubSubNotifier {
             .map_err(Into::into)
     }
 
-    async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn notify_txs(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_time = chrono::Utc::now().naive_utc();
-        let mut timer = interval(self.polling_interval);
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, pubsub_tx_notifier is shutting down");
-                break;
+        let mut timer = tokio::time::interval(self.polling_interval);
+        while !*stop_receiver.borrow() {
+            tokio::select! {
+                _ = stop_receiver.changed() => break,
+                _ = timer.tick() => { /* continue processing */ }
             }
-            timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Txs]
                 .db_poll_latency
@@ -175,6 +179,8 @@ impl PubSubNotifier {
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
         }
+
+        tracing::info!("Stop request received, pubsub_tx_notifier is shutting down");
         Ok(())
     }
 
@@ -200,13 +206,12 @@ impl PubSubNotifier {
             return Ok(());
         };
 
-        let mut timer = interval(self.polling_interval);
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
-                break;
+        let mut timer = tokio::time::interval(self.polling_interval);
+        while !*stop_receiver.borrow() {
+            tokio::select! {
+                _ = stop_receiver.changed() => break,
+                _ = timer.tick() => { /* continue processing */ }
             }
-            timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Logs]
                 .db_poll_latency
@@ -225,6 +230,7 @@ impl PubSubNotifier {
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }
+        tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
         Ok(())
     }
 
@@ -237,10 +243,20 @@ impl PubSubNotifier {
             .await
             .map_err(Into::into)
     }
+
+    pub(crate) async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        match self.ty {
+            SubscriptionType::Blocks => self.notify_blocks(stop_receiver).await,
+            SubscriptionType::Txs => self.notify_txs(stop_receiver).await,
+            SubscriptionType::Logs => self.notify_logs(stop_receiver).await,
+        }
+    }
 }
 
 /// Subscription support for Web3 APIs.
-pub(super) struct EthSubscribe {
+#[derive(Debug)]
+pub(crate) struct EthSubscribe {
+    polling_interval: Duration,
     blocks: broadcast::Sender<Vec<PubSubResult>>,
     transactions: broadcast::Sender<Vec<PubSubResult>>,
     logs: broadcast::Sender<Vec<PubSubResult>>,
@@ -248,12 +264,13 @@ pub(super) struct EthSubscribe {
 }
 
 impl EthSubscribe {
-    pub fn new() -> Self {
+    pub fn new(polling_interval: Duration) -> Self {
         let (blocks, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (transactions, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (logs, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
 
         Self {
+            polling_interval,
             blocks,
             transactions,
             logs,
@@ -356,7 +373,7 @@ impl EthSubscribe {
     }
 
     #[tracing::instrument(level = "debug", skip(self, pending_sink))]
-    pub async fn sub(
+    async fn sub(
         &self,
         pending_sink: PendingSubscriptionSink,
         sub_type: String,
@@ -432,43 +449,43 @@ impl EthSubscribe {
         }
     }
 
-    /// Spawns notifier tasks. This should be called once per instance.
-    pub fn spawn_notifiers(
+    pub(crate) fn create_notifier(
+        &self,
+        ty: SubscriptionType,
+        connection_pool: ConnectionPool<Core>,
+    ) -> PubSubNotifier {
+        let sender = match ty {
+            SubscriptionType::Blocks => self.blocks.clone(),
+            SubscriptionType::Txs => self.transactions.clone(),
+            SubscriptionType::Logs => self.logs.clone(),
+        };
+
+        PubSubNotifier {
+            ty,
+            sender,
+            connection_pool,
+            polling_interval: self.polling_interval,
+            events_sender: self.events_sender.clone(),
+        }
+    }
+
+    /// Test-only helper spawning all 3 notifier tasks.
+    pub(crate) fn spawn_notifiers(
         &self,
         connection_pool: ConnectionPool<Core>,
-        polling_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
-        let mut notifier_tasks = Vec::with_capacity(3);
-
-        let notifier = PubSubNotifier {
-            sender: self.blocks.clone(),
-            connection_pool: connection_pool.clone(),
-            polling_interval,
-            events_sender: self.events_sender.clone(),
-        };
-        let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
-        notifier_tasks.push(notifier_task);
-
-        let notifier = PubSubNotifier {
-            sender: self.transactions.clone(),
-            connection_pool: connection_pool.clone(),
-            polling_interval,
-            events_sender: self.events_sender.clone(),
-        };
-        let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
-        notifier_tasks.push(notifier_task);
-
-        let notifier = PubSubNotifier {
-            sender: self.logs.clone(),
-            connection_pool,
-            polling_interval,
-            events_sender: self.events_sender.clone(),
-        };
-        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
-
-        notifier_tasks.push(notifier_task);
-        notifier_tasks
+        [
+            SubscriptionType::Blocks,
+            SubscriptionType::Txs,
+            SubscriptionType::Logs,
+        ]
+        .into_iter()
+        .map(|ty| {
+            let notifier = self.create_notifier(ty, connection_pool.clone());
+            tokio::spawn(notifier.run(stop_receiver.clone()))
+        })
+        .collect()
     }
 }
 
