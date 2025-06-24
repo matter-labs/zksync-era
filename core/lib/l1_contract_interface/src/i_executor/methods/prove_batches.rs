@@ -19,7 +19,8 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION}, zkos_commitment_to_vm_batch_output, Tokenizable
+    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    zkos_commitment_to_vm_batch_output, Tokenizable,
 };
 
 /// Input required to encode `proveBatches` call.

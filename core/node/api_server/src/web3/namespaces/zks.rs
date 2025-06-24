@@ -348,7 +348,6 @@ impl ZksNamespace {
         };
         // println!("l1_log_index: {:?}", l1_log_index);
 
-
         let Some(batch_with_metadata) = storage
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
@@ -378,7 +377,7 @@ impl ZksNamespace {
                 id: l1_log_index as u32,
             }));
         }
-        
+
         // FIXME: aggregation root is 0 for now
         // let aggregated_root = batch_with_metadata
         //     .metadata

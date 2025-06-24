@@ -261,17 +261,19 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
             .into_iter()
             .map(|(location, logs)| {
                 // println!("Extracted location: {:?}, logs: {:?}", location, logs);
-                let user_l2_to_l1_logs = logs.into_iter().map(|log| UserL2ToL1Log(
-                    zksync_types::l2_to_l1_log::L2ToL1Log {
-                        shard_id: log.l2_shard_id,
-                        is_service: log.is_service,
-                        tx_number_in_block: log.tx_number_in_block,
-                        sender: b160_to_address(log.sender),
-                        key: bytes32_to_h256(log.key),
-                        value: bytes32_to_h256(log.value),
-                    },
-                ))
-                .collect::<Vec<_>>();
+                let user_l2_to_l1_logs = logs
+                    .into_iter()
+                    .map(|log| {
+                        UserL2ToL1Log(zksync_types::l2_to_l1_log::L2ToL1Log {
+                            shard_id: log.l2_shard_id,
+                            is_service: log.is_service,
+                            tx_number_in_block: log.tx_number_in_block,
+                            sender: b160_to_address(log.sender),
+                            key: bytes32_to_h256(log.key),
+                            value: bytes32_to_h256(log.value),
+                        })
+                    })
+                    .collect::<Vec<_>>();
                 (location, user_l2_to_l1_logs)
             })
             .collect::<Vec<_>>();
