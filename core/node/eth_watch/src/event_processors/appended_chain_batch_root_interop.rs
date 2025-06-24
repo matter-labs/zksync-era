@@ -31,7 +31,6 @@ impl BatchRootProcessorInterop {
         l2_chain_id: L2ChainId,
         sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
     ) -> Self {
-        println!("BatchRootProcessorInterop::new SNEED");
         Self {
             appended_chain_batch_root_signature: ethabi::long_signature(
                 "AppendedChainBatchRoot",
