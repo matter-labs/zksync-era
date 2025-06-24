@@ -23,18 +23,15 @@ runs:
     - name: Setup sccache for building rust code outside Docker
       shell: bash
       run: |
-        # sccache binary on arm machines is somehow x86, devops are working on fixing it as of 23.06.2025        
-        if [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
-          echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
-          echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
-          echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
-          echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-          echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
-          echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
-  
-          # sccache outside docker will run it's own server
-          echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
-        fi
+        echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
+        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
+        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
+        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
+        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
+        echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
+
+        # sccache outside docker will run it's own server
+        echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code inside Docker
       shell: bash
@@ -57,10 +54,7 @@ runs:
       shell: bash
       run: |
         ci_run sccache --start-server
-        # sccache binary on arm machines is somehow x86, devops are working on fixing it as of 23.06.2025
-        if [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
-          sccache --start-server
-        fi
+        sccache --start-server
 
     - name: Init git safe directories
       shell: bash
