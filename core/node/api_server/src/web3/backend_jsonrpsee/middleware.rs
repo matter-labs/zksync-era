@@ -21,9 +21,7 @@ use pin_project_lite::pin_project;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use tokio::sync::watch;
 use tracing::instrument::{Instrument, Instrumented};
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
-};
+use vise::{Counter, Family, Metrics};
 use zksync_instrument::alloc::AllocationAccumulator;
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
@@ -32,24 +30,14 @@ use zksync_web3_decl::jsonrpsee::{
 };
 
 use super::metadata::{MethodCall, MethodTracer};
-use crate::web3::metrics::{ObservedRpcParams, API_METRICS};
+use crate::web3::metrics::{ApiTransportLabel, ObservedRpcParams};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "transport", rename_all = "snake_case")]
-pub(crate) enum Transport {
-    Ws,
-}
-
+// FIXME: move to `metrics` module
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_jsonrpc_backend_batch")]
 struct LimitMiddlewareMetrics {
     /// Number of rate-limited requests.
-    rate_limited: Family<Transport, Counter>,
-    /// Size of batch requests.
-    #[metrics(buckets = Buckets::exponential(1.0..=512.0, 2.0))]
-    size: Family<Transport, Histogram<usize>>,
-    /// Number of requests rejected by the limiter.
-    rejected: Family<Transport, Counter>,
+    rate_limited: Family<ApiTransportLabel, Counter>,
 }
 
 #[vise::register]
@@ -60,19 +48,16 @@ static METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
 /// `jsonrpsee` will allocate the instance of this struct once per session.
 pub(crate) struct LimitMiddleware<S> {
     inner: S,
-    rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
-    transport: Transport,
-    _guard: GaugeGuard,
+    // TODO: allow HTTP rate-limiting as well?
+    ws_rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
 }
 
 impl<S> LimitMiddleware<S> {
     pub(crate) fn new(inner: S, requests_per_minute_limit: Option<NonZeroU32>) -> Self {
         Self {
             inner,
-            rate_limiter: requests_per_minute_limit
+            ws_rate_limiter: requests_per_minute_limit
                 .map(|limit| RateLimiter::direct(Quota::per_minute(limit))),
-            transport: Transport::Ws,
-            _guard: API_METRICS.ws_open_sessions.inc_guard(1),
         }
     }
 }
@@ -84,12 +69,16 @@ where
     type Future = ResponseFuture<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
-        if let Some(rate_limiter) = &self.rate_limiter {
-            let num_requests = NonZeroU32::MIN; // 1 request, no batches possible
+        let transport = *request
+            .extensions()
+            .get::<ApiTransportLabel>()
+            .expect("no transport label");
+        if let (ApiTransportLabel::Ws, Some(rate_limiter)) = (transport, &self.ws_rate_limiter) {
+            let num_requests = NonZeroU32::MIN; // 1 request (applied on the RPC request level)
 
             // Note: if required, we can extract data on rate limiting from the error.
             if rate_limiter.check_n(num_requests).is_err() {
-                METRICS.rate_limited[&self.transport].inc();
+                METRICS.rate_limited[&ApiTransportLabel::Ws].inc();
 
                 let rp = MethodResponse::error(
                     request.id,
@@ -131,6 +120,10 @@ where
     type Future = WithMethodCall<'a, S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
+        let transport = *request
+            .extensions()
+            .get::<ApiTransportLabel>()
+            .expect("transport label not set");
         // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
         // of the name to `'static` and maps unknown methods to "", so that method name metric labels don't have unlimited cardinality.
         let method_name = self
@@ -144,7 +137,9 @@ where
         } else {
             ObservedRpcParams::Unknown
         };
-        let call = self.method_tracer.new_call(method_name, observed_params);
+        let call = self
+            .method_tracer
+            .new_call(transport, method_name, observed_params);
         let mut future = WithMethodCall::new(self.inner.call(request), call);
         if TRACE_PARAMS {
             future.alloc = Some(AllocationAccumulator::new(method_name));
@@ -445,7 +440,7 @@ mod tests {
 
             WithMethodCall::new(
                 inner,
-                method_tracer.new_call("test", ObservedRpcParams::None),
+                method_tracer.new_call(ApiTransportLabel::Http, "test", ObservedRpcParams::None),
             )
         });
 

@@ -10,7 +10,7 @@ use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_types::api;
 use zksync_web3_decl::error::Web3Error;
 
-use super::{backend_jsonrpsee::MethodMetadata, ApiTransport, TypedFilter};
+use super::{backend_jsonrpsee::MethodMetadata, TypedFilter};
 use crate::tx_sender::SubmitTxError;
 
 /// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
@@ -82,15 +82,6 @@ impl<'a> ObservedRpcParams<'a> {
 pub(crate) enum ApiTransportLabel {
     Http,
     Ws,
-}
-
-impl From<&ApiTransport> for ApiTransportLabel {
-    fn from(transport: &ApiTransport) -> Self {
-        match transport {
-            ApiTransport::Http(_) => Self::Http,
-            ApiTransport::WebSocket(_) => Self::Ws,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]

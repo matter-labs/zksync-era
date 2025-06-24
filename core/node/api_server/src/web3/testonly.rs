@@ -136,8 +136,9 @@ impl TestServerBuilder {
     }
 
     /// Sets an RPC method tracer for this builder.
+    #[cfg(test)]
     #[must_use]
-    pub fn with_method_tracer(mut self, tracer: Arc<MethodTracer>) -> Self {
+    pub(crate) fn with_method_tracer(mut self, tracer: Arc<MethodTracer>) -> Self {
         self.method_tracer = tracer;
         self
     }

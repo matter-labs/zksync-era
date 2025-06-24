@@ -216,8 +216,7 @@ impl EthNamespace {
     pub async fn get_filter_logs_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
         let installed_filters = self
             .state
-            .installed_filters
-            .as_ref()
+            .installed_filters()
             .ok_or(Web3Error::MethodNotImplemented)?;
         // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = installed_filters.lock().await.get_and_update_stats(idx);
@@ -565,8 +564,7 @@ impl EthNamespace {
     pub async fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
-            .installed_filters
-            .as_ref()
+            .installed_filters()
             .ok_or(Web3Error::MethodNotImplemented)?;
         let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
@@ -587,8 +585,7 @@ impl EthNamespace {
     pub async fn new_filter_impl(&self, mut filter: Filter) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
-            .installed_filters
-            .as_ref()
+            .installed_filters()
             .ok_or(Web3Error::MethodNotImplemented)?;
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
@@ -607,8 +604,7 @@ impl EthNamespace {
     pub async fn new_pending_transaction_filter_impl(&self) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
-            .installed_filters
-            .as_ref()
+            .installed_filters()
             .ok_or(Web3Error::MethodNotImplemented)?;
         Ok(installed_filters
             .lock()
@@ -621,8 +617,7 @@ impl EthNamespace {
     pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
         let installed_filters = self
             .state
-            .installed_filters
-            .as_ref()
+            .installed_filters()
             .ok_or(Web3Error::MethodNotImplemented)?;
         let mut filter = installed_filters
             .lock()
@@ -647,8 +642,7 @@ impl EthNamespace {
     pub async fn uninstall_filter_impl(&self, idx: U256) -> Result<bool, Web3Error> {
         let installed_filters = self
             .state
-            .installed_filters
-            .as_ref()
+            .installed_filters()
             .ok_or(Web3Error::MethodNotImplemented)?;
         Ok(installed_filters.lock().await.remove(idx))
     }

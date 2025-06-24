@@ -50,10 +50,14 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    web3::{backend_jsonrpsee::ServerTimeoutMiddleware, metrics::ApiTransportLabel},
+    web3::{
+        backend_jsonrpsee::ServerTimeoutMiddleware, http_middleware::TransportLayer,
+        metrics::ApiTransportLabel,
+    },
 };
 
 pub mod backend_jsonrpsee;
+mod http_middleware;
 pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
@@ -88,8 +92,9 @@ pub(crate) enum TypedFilter {
 
 #[derive(Debug, Clone, Copy)]
 enum ApiTransport {
-    WebSocket(SocketAddr),
+    Ws(SocketAddr),
     Http(SocketAddr),
+    HttpAndWs(SocketAddr),
 }
 
 /// Optional part of the API server parameters.
@@ -163,12 +168,17 @@ impl ApiBuilder {
     }
 
     pub fn ws(mut self, port: u16) -> Self {
-        self.transport = Some(ApiTransport::WebSocket(([0, 0, 0, 0], port).into()));
+        self.transport = Some(ApiTransport::Ws(([0, 0, 0, 0], port).into()));
         self
     }
 
     pub fn http(mut self, port: u16) -> Self {
         self.transport = Some(ApiTransport::Http(([0, 0, 0, 0], port).into()));
+        self
+    }
+
+    pub fn http_and_ws(mut self, port: u16) -> Self {
+        self.transport = Some(ApiTransport::HttpAndWs(([0, 0, 0, 0], port).into()));
         self
     }
 
@@ -282,9 +292,10 @@ impl ApiBuilder {
 impl ApiBuilder {
     pub fn build(self) -> anyhow::Result<ApiServer> {
         let transport = self.transport.context("API transport not set")?;
+        // FIXME: incorrect; should have 2 healthchecks if combined
         let health_check_name = match &transport {
-            ApiTransport::Http(_) => "http_api",
-            ApiTransport::WebSocket(_) => "ws_api",
+            ApiTransport::Http(_) | ApiTransport::HttpAndWs(_) => "http_api",
+            ApiTransport::Ws(_) => "ws_api",
         };
         let (_, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
@@ -323,15 +334,7 @@ impl ApiServer {
             BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
         drop(storage);
 
-        // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag
-        let installed_filters =
-            if matches!(self.transport, ApiTransport::Http(_)) && self.config.filters_disabled {
-                None
-            } else {
-                Some(Arc::new(Mutex::new(Filters::new(
-                    self.optional.filters_limit,
-                ))))
-            };
+        let installed_filters = Arc::new(Mutex::new(Filters::new(self.optional.filters_limit)));
 
         Ok(RpcState {
             current_method: self.method_tracer,
@@ -402,7 +405,7 @@ impl ApiServer {
 
     pub(crate) async fn run(
         self,
-        pub_sub: Option<EthSubscribe>, // FIXME: awkward
+        pub_sub: Option<EthSubscribe>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         if self.config.filters_disabled {
@@ -413,26 +416,6 @@ impl ApiServer {
             }
         } else if self.optional.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
-        }
-
-        if self.namespaces.contains(&Namespace::Pubsub)
-            && matches!(&self.transport, ApiTransport::Http(_))
-        {
-            tracing::debug!("pubsub API is not supported for HTTP transport, ignoring");
-        }
-
-        match (&self.transport, self.optional.subscriptions_limit) {
-            (ApiTransport::WebSocket(_), None) => {
-                tracing::warn!(
-                    "`subscriptions_limit` is not set - unlimited subscriptions are allowed"
-                );
-            }
-            (ApiTransport::Http(_), Some(_)) => {
-                tracing::warn!(
-                    "`subscriptions_limit` is ignored for HTTP transport, use WebSocket instead"
-                );
-            }
-            _ => {}
         }
 
         self.run_jsonrpsee_server(stop_receiver, pub_sub).await
@@ -514,11 +497,11 @@ impl ApiServer {
         const L1_BATCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
         let transport = self.transport;
-        let (transport_str, is_http, addr) = match transport {
-            ApiTransport::Http(addr) => ("HTTP", true, addr),
-            ApiTransport::WebSocket(addr) => ("WS", false, addr),
+        let (transport_str, addr) = match transport {
+            ApiTransport::Http(addr) => ("HTTP", addr),
+            ApiTransport::Ws(addr) => ("WS", addr),
+            ApiTransport::HttpAndWs(addr) => ("HTTP / WS", addr),
         };
-        let transport_label = ApiTransportLabel::from(&transport);
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
@@ -565,32 +548,31 @@ impl ApiServer {
         let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
 
         // Setup CORS.
-        let cors = is_http.then(|| {
-            CorsLayer::new()
-                // Allow `POST` when accessing the resource
-                .allow_methods([http::Method::POST])
-                // Allow requests from any origin
-                .allow_origin(tower_http::cors::Any)
-                .allow_headers([http::header::CONTENT_TYPE])
-        });
+        let cors = CorsLayer::new()
+            // Allow `POST` when accessing the resource
+            .allow_methods([http::Method::POST])
+            // Allow requests from any origin
+            .allow_origin(tower_http::cors::Any)
+            .allow_headers([http::header::CONTENT_TYPE]);
+        let transport_layer = TransportLayer { cors };
+
         // Setup metrics for the number of in-flight requests.
         let (in_flight_requests, counter) = InFlightRequestsLayer::pair();
         tokio::spawn(
             counter.run_emitter(Duration::from_millis(100), move |count| {
-                API_METRICS.web3_in_flight_requests[&transport_label].observe(count);
+                // FIXME: incorrect; move to HTTP middleware
+                API_METRICS.web3_in_flight_requests[&ApiTransportLabel::Ws].observe(count);
                 future::ready(())
             }),
         );
         // Assemble server middleware.
         let middleware = tower::ServiceBuilder::new()
             .layer(in_flight_requests)
-            .option_layer(cors);
+            .layer(transport_layer);
 
         // Settings shared by HTTP and WS servers.
-        let max_connections = !is_http
-            .then_some(subscriptions_limit)
-            .flatten()
-            .unwrap_or(5_000);
+        // FIXME: do not hard-code the default
+        let max_connections = subscriptions_limit.unwrap_or(5_000);
 
         let metadata_layer = MetadataLayer::new(registered_method_names, method_tracer);
         let metadata_layer = if extended_tracing {
@@ -616,39 +598,36 @@ impl ApiServer {
                 tower::layer::layer_fn(move |svc| ServerTimeoutMiddleware::new(svc, timeout))
             }))
             // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
-            .option_layer((!is_http).then(|| {
-                tower::layer::layer_fn(move |svc| {
-                    LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
-                })
-            }));
+            .layer_fn(move |svc| LimitMiddleware::new(svc, websocket_requests_per_minute_limit));
 
-        let server_builder = ServerBuilder::default()
+        let mut server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
             .set_http_middleware(middleware)
             .max_response_body_size(response_body_size_limit)
             .set_batch_request_config(batch_request_config)
             .set_rpc_middleware(rpc_middleware);
 
-        let (local_addr, server_handle) = if is_http {
-            // HTTP-specific settings
-            let server = server_builder
-                .http_only()
-                .build(addr)
-                .await
-                .context("Failed building HTTP JSON-RPC server")?;
-            (server.local_addr(), server.start(rpc))
-        } else {
-            // WS-specific settings
-            let server = server_builder
-                .set_id_provider(EthSubscriptionIdProvider)
-                .build(addr)
-                .await
-                .context("Failed building WS JSON-RPC server")?;
-            (server.local_addr(), server.start(rpc))
-        };
-        let local_addr = local_addr.with_context(|| {
+        match transport {
+            ApiTransport::Http(_) => {
+                server_builder = server_builder.http_only();
+            }
+            ApiTransport::Ws(_) => {
+                // FIXME: WS server didn't have `ws_only` set; why?
+                server_builder = server_builder.ws_only();
+            }
+            ApiTransport::HttpAndWs(_) => { /* Do not limit the transport */ }
+        }
+
+        let server = server_builder
+            .set_id_provider(EthSubscriptionIdProvider)
+            .build(addr)
+            .await
+            .context("Failed building JSON-RPC server")?;
+        let local_addr = server.local_addr().with_context(|| {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
+        let server_handle = server.start(rpc);
+
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         let health = Health::from(HealthStatus::Ready).with_details(serde_json::json!({
             "local_addr": local_addr,
