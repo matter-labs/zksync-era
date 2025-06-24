@@ -170,7 +170,6 @@ impl ProofManagerContracts {
 
 /// Data about deployed contracts.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[allow(clippy::redundant_closure)]
 pub struct ContractsConfig {
     #[config(nest)]
     pub l1: L1ContractsConfig,
