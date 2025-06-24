@@ -52,3 +52,4 @@ contracts/.git
 !execution_environment/*
 !app.bin
 !app_logging_enabled.bin
+!zksync_os_snark_prover/*
