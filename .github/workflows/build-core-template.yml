@@ -27,6 +27,11 @@ on:
         type: string
         required: false
         default: "do nothing"
+      zksync_os:
+        description: 'Flag that determines if zksync-os should be built'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   prepare-contracts:
@@ -46,6 +51,7 @@ jobs:
           echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
+          echo RUSTFLAGS="" >> .env
 
       - name: Download contracts
         shell: bash
@@ -133,7 +139,7 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
-          zkstackup --local || true
+          RUSTFLAGS="" zkstackup --local || true
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
@@ -153,7 +159,7 @@ jobs:
     name: Build and Push Docker Images
     needs: prepare-contracts
     env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.zksync_os && 'zksync_os-' || '' }}${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     permissions:
       packages: write
@@ -164,6 +170,7 @@ jobs:
           - server-v2
           - external-node
           - snapshots-creator
+          - zksync-os-server
         platforms:
           - linux/amd64
         include:
@@ -240,9 +247,10 @@ jobs:
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
-          tags: |            
+          tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ inputs.zksync_os && 'zksync_os-' || '' }}latest
             matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
@@ -251,6 +259,7 @@ jobs:
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ inputs.zksync_os && 'zksync_os-' || '' }}latest
 
   create_manifest:
     name: Create release manifest
@@ -262,13 +271,15 @@ jobs:
         component:
           - name: server-v2
             platform: linux/amd64
+          - name: zksync-os-server
+            platform: linux/amd64
           - name: external-node
             platform: linux/amd64,linux/arm64
           - name: snapshots-creator
             platform: linux/amd64
 
     env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.zksync_os && 'zksync_os-' || '' }}${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
