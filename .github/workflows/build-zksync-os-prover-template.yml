@@ -26,6 +26,11 @@ jobs:
     permissions:
       packages: write
       contents: read
+    strategy:
+      matrix:
+        components:
+          - zksync-os-prover-snark
+          - zksync-os-prover
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -77,19 +82,19 @@ jobs:
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
-          file: docker/zksync-os-prover/Dockerfile
+          file: docker/${{ matrix.components }}/Dockerfile
           tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
-            ghcr.io/${{ github.repository_owner }}/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
-            ghcr.io/${{ github.repository_owner }}/zksync-os-prover:latest
-            matterlabs/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/zksync-os-prover:latest
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
+            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+            matterlabs/${{ matrix.components }}:latest
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
-          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
-          docker push ghcr.io/${{ github.repository_owner }}/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
-          docker push ghcr.io/${{ github.repository_owner }}/zksync-os-prover:latest
-          docker push matterlabs/zksync-os-prover:${{ env.IMAGE_TAG_SHA_TS }}
-          docker push matterlabs/zksync-os-prover:latest
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
+          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+          docker push matterlabs/${{ matrix.components }}:latest

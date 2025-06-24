@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - zksync-os-integration
+      - deniallugo-release-zksync-snark-prover
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
