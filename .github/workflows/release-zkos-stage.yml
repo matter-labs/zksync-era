@@ -51,7 +51,7 @@ jobs:
         id: generate-tag-suffix
         run: |
           sha=$(git rev-parse --short HEAD)
-          ts=$(date +%s%N | cut -b1-13)
+          ts=$(date +%s | cut -b1-13)
           echo "image_tag_suffix=${sha}-${ts}" >> $GITHUB_OUTPUT
 
       - name: Generate outputs with Prover FRI setup data keys IDs
