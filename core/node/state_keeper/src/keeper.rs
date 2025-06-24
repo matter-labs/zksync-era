@@ -1,8 +1,4 @@
-use std::{
-    convert::Infallible,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -29,7 +25,7 @@ use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
     io::{BatchInitParams, IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
-    metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
+    metrics::{AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
     utils::is_canceled,
@@ -38,6 +34,62 @@ use crate::{
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
 pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
+
+#[derive(Debug)]
+struct InitializedBatchState {
+    updates_manager: UpdatesManager,
+    batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
+    protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
+    next_block_should_be_fictive: bool,
+}
+
+#[derive(Debug)]
+enum BatchState {
+    Uninit(IoCursor),
+    Init(Box<InitializedBatchState>),
+}
+
+impl BatchState {
+    /// Initializes batch if it was not.
+    /// Returns mutable reference of the initialized state.
+    async fn ensure_initialized(
+        &mut self,
+        inner: &mut StateKeeperInner,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<&mut InitializedBatchState, OrStopped> {
+        let state = match self {
+            Self::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver).await?,
+            Self::Init(init) => return Ok(init.as_mut()),
+        };
+        *self = Self::Init(Box::new(state));
+        match self {
+            Self::Init(init) => Ok(init.as_mut()),
+            Self::Uninit(_) => unreachable!(),
+        }
+    }
+
+    /// Changes the state to `Uninit` with the cursor for the next batch.
+    /// Returns the old state.
+    fn finish(&mut self) -> Box<InitializedBatchState> {
+        let mut next_cursor = match self {
+            Self::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
+            Self::Init(init) => init.updates_manager.io_cursor(),
+        };
+        next_cursor.l1_batch += 1;
+        let state = std::mem::replace(self, Self::Uninit(next_cursor));
+        match state {
+            Self::Uninit(_) => unreachable!(),
+            Self::Init(init) => init,
+        }
+    }
+
+    fn unwrap_init_ref(&self) -> &InitializedBatchState {
+        match self {
+            Self::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
+            Self::Init(init) => init.as_ref(),
+        }
+    }
+}
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 ///
@@ -50,20 +102,52 @@ pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
 /// You can think of it as a state machine that runs over a sequence of incoming transactions, turning them into
 /// a sequence of executed L2 blocks and batches.
 #[derive(Debug)]
-pub struct ZkSyncStateKeeper {
+pub struct StateKeeper {
+    inner: StateKeeperInner,
+    batch_state: BatchState,
+}
+
+#[derive(Debug)]
+pub struct StateKeeperBuilder {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    batch_executor: Box<dyn BatchExecutorFactory<OwnedStorage>>,
+    batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
 }
 
-impl ZkSyncStateKeeper {
+/// Helper struct that encapsulates some private state keeper methods.
+#[derive(Debug)]
+pub(super) struct StateKeeperInner {
+    io: Box<dyn StateKeeperIO>,
+    output_handler: OutputHandler,
+    batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
+    sealer: Arc<dyn ConditionalSealer>,
+    storage_factory: Arc<dyn ReadStorageFactory>,
+    health_updater: HealthUpdater,
+    deployment_tx_filter: Option<DeploymentTxFilter>,
+}
+
+impl From<StateKeeperBuilder> for StateKeeperInner {
+    fn from(b: StateKeeperBuilder) -> Self {
+        Self {
+            io: b.io,
+            output_handler: b.output_handler,
+            batch_executor_factory: b.batch_executor_factory,
+            sealer: b.sealer,
+            storage_factory: b.storage_factory,
+            health_updater: b.health_updater,
+            deployment_tx_filter: b.deployment_tx_filter,
+        }
+    }
+}
+
+impl StateKeeperBuilder {
     pub fn new(
         sequencer: Box<dyn StateKeeperIO>,
-        batch_executor: Box<dyn BatchExecutorFactory<OwnedStorage>>,
+        batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
@@ -71,7 +155,7 @@ impl ZkSyncStateKeeper {
     ) -> Self {
         Self {
             io: sequencer,
-            batch_executor,
+            batch_executor_factory,
             output_handler,
             sealer,
             storage_factory,
@@ -80,28 +164,24 @@ impl ZkSyncStateKeeper {
         }
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        try_stoppable!(self.run_inner(stop_receiver).await);
-        Ok(())
-    }
-
-    /// Fallible version of `run` routine that allows to easily exit upon cancellation.
-    async fn run_inner(
-        &mut self,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<Infallible, OrStopped> {
-        let (cursor, pending_batch_params) = self.io.initialize().await?;
-        self.output_handler.initialize(&cursor).await?;
-        self.health_updater
+    pub async fn build(
+        self,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<StateKeeper, OrStopped> {
+        let mut inner = StateKeeperInner::from(self);
+        let (cursor, pending_batch_params) = inner.io.initialize().await?;
+        inner.output_handler.initialize(&cursor).await?;
+        inner
+            .health_updater
             .update(StateKeeperHealthDetails::from(&cursor).into());
         tracing::info!(
-            "Starting state keeper. Next l1 batch to seal: {}, next L2 block to seal: {}",
+            "Initializing state keeper. Next l1 batch to seal: {}, next L2 block to seal: {}",
             cursor.l1_batch,
             cursor.next_l2_block
         );
 
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
-        let (mut batch_init_params, pending_l2_blocks) = match pending_batch_params {
+        let (batch_init_params, pending_l2_blocks) = match pending_batch_params {
             Some(params) => {
                 tracing::info!(
                     "There exists a pending batch consisting of {} L2 blocks, the first one is {}",
@@ -125,117 +205,103 @@ impl ZkSyncStateKeeper {
                 )
             }
             None => {
-                tracing::info!("There is no open pending batch, starting a new empty batch");
-                let batch_init_params = self
-                    .wait_for_new_batch_init_params(&cursor, &mut stop_receiver)
-                    .await
-                    .stop_context("failed getting new batch params")?;
-                (batch_init_params, Vec::new())
+                tracing::info!("There is no open pending batch");
+                return Ok(StateKeeper {
+                    inner,
+                    batch_state: BatchState::Uninit(cursor),
+                });
             }
         };
 
-        let protocol_version = batch_init_params.system_env.version;
-        let previous_batch_protocol_version = self
+        let previous_batch_protocol_version = inner
             .io
             .load_batch_version_id(batch_init_params.l1_batch_env.number - 1)
             .await?;
         let mut updates_manager =
             UpdatesManager::new(&batch_init_params, previous_batch_protocol_version);
-        let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
+        let protocol_upgrade_tx: Option<ProtocolUpgradeTx> = inner
             .load_protocol_upgrade_tx(
                 &pending_l2_blocks,
-                protocol_version,
+                batch_init_params.system_env.version,
                 batch_init_params.l1_batch_env.number,
             )
             .await?;
 
-        let mut batch_executor = self
+        let mut batch_executor = inner
             .create_batch_executor(
                 batch_init_params.l1_batch_env.clone(),
                 batch_init_params.system_env.clone(),
                 batch_init_params.pubdata_params,
-                &stop_receiver,
+                stop_receiver,
             )
             .await?;
-        self.restore_state(
+        StateKeeperInner::restore_state(
+            &mut inner.io,
             &mut *batch_executor,
             &mut updates_manager,
             pending_l2_blocks,
-            &stop_receiver,
         )
         .await?;
 
-        let mut l1_batch_seal_delta: Option<Instant> = None;
-        while !is_canceled(&stop_receiver) {
-            // This function will run until the batch can be sealed.
-            self.process_l1_batch(
-                &mut *batch_executor,
-                &mut updates_manager,
+        Ok(StateKeeper {
+            inner,
+            batch_state: BatchState::Init(Box::new(InitializedBatchState {
+                updates_manager,
+                batch_executor,
                 protocol_upgrade_tx,
-                &stop_receiver,
+                next_block_should_be_fictive: false,
+            })),
+        })
+    }
+
+    /// Returns the health check for state keeper.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
+    }
+}
+
+impl StateKeeperInner {
+    async fn start_batch(
+        &mut self,
+        cursor: IoCursor,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<InitializedBatchState, OrStopped> {
+        let batch_init_params = self
+            .wait_for_new_batch_init_params(&cursor, stop_receiver)
+            .await?;
+        let first_batch_in_shared_bridge = batch_init_params.l1_batch_env.number
+            == L1BatchNumber(1)
+            && !batch_init_params.system_env.version.is_pre_shared_bridge();
+        let previous_batch_protocol_version = self
+            .io
+            .load_batch_version_id(batch_init_params.l1_batch_env.number - 1)
+            .await?;
+        let updates_manager =
+            UpdatesManager::new(&batch_init_params, previous_batch_protocol_version);
+        let batch_executor = self
+            .create_batch_executor(
+                batch_init_params.l1_batch_env.clone(),
+                batch_init_params.system_env.clone(),
+                batch_init_params.pubdata_params,
+                stop_receiver,
             )
             .await?;
-            assert!(!updates_manager.has_next_block_params());
 
-            // Finish current batch with an empty block.
-            if !updates_manager.l2_block.executed_transactions.is_empty() {
-                self.seal_l2_block(&updates_manager).await?;
-                // We've sealed the L2 block that we had, but we still need to set up the timestamp
-                // for the fictive L2 block.
-                let new_l2_block_params = self
-                    .wait_for_new_l2_block_params(&updates_manager, &stop_receiver)
-                    .await?;
-                Self::set_l2_block_params(&mut updates_manager, new_l2_block_params);
-                Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
-            }
+        let version_changed =
+            batch_init_params.system_env.version != previous_batch_protocol_version;
+        let protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
+            self.load_upgrade_tx(batch_init_params.system_env.version)
+                .await?
+        } else {
+            None
+        };
 
-            updates_manager.clear_interop_roots();
-            let (finished_batch, _) = batch_executor.finish_batch().await?;
-            let sealed_batch_protocol_version = updates_manager.protocol_version();
-            updates_manager.finish_batch(finished_batch);
-            let mut next_cursor = updates_manager.io_cursor();
-            let previous_batch_protocol_version = updates_manager.protocol_version();
-            self.output_handler
-                .handle_l1_batch(Arc::new(updates_manager))
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed sealing L1 batch {:?}",
-                        batch_init_params.l1_batch_env
-                    )
-                })?;
-
-            if let Some(delta) = l1_batch_seal_delta {
-                L1_BATCH_METRICS.seal_delta.observe(delta.elapsed());
-            }
-            l1_batch_seal_delta = Some(Instant::now());
-
-            // Start the new batch.
-            next_cursor.l1_batch += 1;
-            batch_init_params = self
-                .wait_for_new_batch_init_params(&next_cursor, &mut stop_receiver)
-                .await?;
-            updates_manager =
-                UpdatesManager::new(&batch_init_params, previous_batch_protocol_version);
-            batch_executor = self
-                .create_batch_executor(
-                    batch_init_params.l1_batch_env.clone(),
-                    batch_init_params.system_env.clone(),
-                    batch_init_params.pubdata_params,
-                    &stop_receiver,
-                )
-                .await?;
-
-            let version_changed =
-                batch_init_params.system_env.version != sealed_batch_protocol_version;
-            protocol_upgrade_tx = if version_changed {
-                self.load_upgrade_tx(batch_init_params.system_env.version)
-                    .await?
-            } else {
-                None
-            };
-        }
-        Err(OrStopped::Stopped)
+        Ok(InitializedBatchState {
+            updates_manager,
+            batch_executor,
+            protocol_upgrade_tx,
+            next_block_should_be_fictive: false,
+        })
     }
 
     async fn create_batch_executor(
@@ -250,9 +316,12 @@ impl ZkSyncStateKeeper {
             .access_storage(stop_receiver, l1_batch_env.number - 1)
             .await
             .stop_context("failed creating VM storage")?;
-        Ok(self
-            .batch_executor
-            .init_batch(storage, l1_batch_env, system_env, pubdata_params))
+        Ok(self.batch_executor_factory.init_batch(
+            storage,
+            l1_batch_env,
+            system_env,
+            pubdata_params,
+        ))
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.
@@ -315,11 +384,10 @@ impl ZkSyncStateKeeper {
     }
 
     async fn load_l2_block_interop_root(
-        &mut self,
+        io: &mut Box<dyn StateKeeperIO>,
         l2block_number: L2BlockNumber,
     ) -> anyhow::Result<Vec<InteropRoot>> {
-        self.io
-            .load_l2_block_interop_root(l2block_number)
+        io.load_l2_block_interop_root(l2block_number)
             .await
             .with_context(|| "failed loading message root".to_string())
     }
@@ -482,11 +550,10 @@ impl ZkSyncStateKeeper {
         fields(n_blocks = %l2_blocks_to_reexecute.len())
     )]
     async fn restore_state(
-        &mut self,
+        io: &mut Box<dyn StateKeeperIO>,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
-        stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), OrStopped> {
         if l2_blocks_to_reexecute.is_empty() {
             return Ok(());
@@ -500,7 +567,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams::with_custom_virtual_block_count_and_interop_roots(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
-                        self.load_l2_block_interop_root(l2_block.number).await?,
+                        Self::load_l2_block_interop_root(io, l2_block.number).await?,
                     ),
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -565,174 +632,7 @@ impl ZkSyncStateKeeper {
         tracing::debug!(
             "All the transactions from the pending state were re-executed successfully"
         );
-
-        // We've processed all the L2 blocks, and right now we're preparing the next *actual* L2 block.
-        // The `wait_for_new_l2_block_params` call is used to initialize the StateKeeperIO with a correct new l2 block params
-        let new_l2_block_params = self
-            .wait_for_new_l2_block_params(updates_manager, stop_receiver)
-            .await
-            .stop_context("failed getting L2 block params")?;
-        Self::set_l2_block_params(updates_manager, new_l2_block_params);
         Ok(())
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %updates_manager.l1_batch.number)
-    )]
-    async fn process_l1_batch(
-        &mut self,
-        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
-        updates_manager: &mut UpdatesManager,
-        protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), OrStopped> {
-        if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
-            self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
-                .await?;
-        }
-
-        while !is_canceled(stop_receiver) {
-            let full_latency = KEEPER_METRICS.process_l1_batch_loop_iteration.start();
-
-            if self
-                .io
-                .should_seal_l1_batch_unconditionally(updates_manager)
-                .await?
-            {
-                tracing::debug!(
-                    "L1 batch #{} should be sealed unconditionally as per sealing rules",
-                    updates_manager.l1_batch.number
-                );
-
-                // Push the current block if it has not been done yet and this will effectively create a fictive l2 block
-                if let Some(next_l2_block_timestamp) =
-                    updates_manager.next_l2_block_timestamp_ms_mut()
-                {
-                    self.io
-                        .update_next_l2_block_timestamp(next_l2_block_timestamp);
-                    Self::start_next_l2_block(updates_manager, batch_executor).await?;
-                }
-
-                self.report_seal_criteria_capacity(updates_manager);
-                full_latency.observe();
-
-                return Ok(());
-            }
-
-            if !updates_manager.has_next_block_params()
-                && self.io.should_seal_l2_block(updates_manager)
-            {
-                tracing::debug!(
-                    "L2 block #{} (L1 batch #{}) should be sealed as per sealing rules",
-                    updates_manager.l2_block.number,
-                    updates_manager.l1_batch.number
-                );
-                self.seal_l2_block(updates_manager).await?;
-
-                // Get a tentative new l2 block parameters
-                let mut next_l2_block_params = self
-                    .wait_for_new_l2_block_params(updates_manager, stop_receiver)
-                    .await
-                    .stop_context("failed getting L2 block params")?;
-                let number_of_roots = get_bootloader_max_msg_roots_in_batch(
-                    updates_manager.protocol_version().into(),
-                );
-                next_l2_block_params
-                    .set_interop_roots(self.io.load_latest_interop_root(number_of_roots).await?);
-                Self::set_l2_block_params(updates_manager, next_l2_block_params);
-            }
-
-            let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
-
-            if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_ms_mut()
-            {
-                // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
-                self.io
-                    .update_next_l2_block_timestamp(next_l2_block_timestamp);
-            }
-
-            let Some(tx) = self
-                .io
-                .wait_for_next_tx(
-                    POLL_WAIT_DURATION,
-                    updates_manager.get_next_l2_block_or_batch_timestamp(),
-                )
-                .instrument(info_span!("wait_for_next_tx"))
-                .await
-                .context("error waiting for next transaction")?
-            else {
-                waiting_latency.observe();
-                tracing::trace!("No new transactions. Waiting!");
-                continue;
-            };
-            waiting_latency.observe();
-
-            let tx_hash = tx.hash();
-
-            // We need to start a new block
-            if updates_manager.has_next_block_params() {
-                Self::start_next_l2_block(updates_manager, batch_executor).await?;
-            }
-
-            let (seal_resolution, exec_result) = self
-                .process_one_tx(batch_executor, updates_manager, tx.clone())
-                .await?;
-
-            let latency = KEEPER_METRICS.match_seal_resolution.start();
-            match &seal_resolution {
-                SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
-                    let TxExecutionResult::Success {
-                        tx_result,
-                        tx_metrics: tx_execution_metrics,
-                        call_tracer_result,
-                        ..
-                    } = exec_result
-                    else {
-                        unreachable!(
-                            "Tx inclusion seal resolution must be a result of a successful tx execution",
-                        );
-                    };
-                    updates_manager.extend_from_executed_transaction(
-                        tx,
-                        *tx_result,
-                        *tx_execution_metrics,
-                        call_tracer_result,
-                    );
-                }
-                SealResolution::ExcludeAndSeal => {
-                    batch_executor.rollback_last_tx().await.with_context(|| {
-                        format!("failed rolling back transaction {tx_hash:?} in batch executor")
-                    })?;
-                    self.io.rollback(tx).await.with_context(|| {
-                        format!("failed rolling back transaction {tx_hash:?} in I/O")
-                    })?;
-                }
-                SealResolution::Unexecutable(reason) => {
-                    batch_executor.rollback_last_tx().await.with_context(|| {
-                        format!("failed rolling back transaction {tx_hash:?} in batch executor")
-                    })?;
-                    self.io
-                        .reject(&tx, reason.clone())
-                        .await
-                        .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
-                }
-            };
-            latency.observe();
-
-            if seal_resolution.should_seal() {
-                tracing::debug!(
-                    "L1 batch #{} should be sealed with resolution {seal_resolution:?} after executing \
-                     transaction {tx_hash}",
-                    updates_manager.l1_batch.number
-                );
-                self.report_seal_criteria_capacity(updates_manager);
-                full_latency.observe();
-                return Ok(());
-            }
-            full_latency.observe();
-        }
-        Err(OrStopped::Stopped)
     }
 
     async fn process_upgrade_tx(
@@ -934,11 +834,6 @@ impl ZkSyncStateKeeper {
         Ok((resolution, exec_result))
     }
 
-    /// Returns the health check for state keeper.
-    pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.health_updater.subscribe()
-    }
-
     fn report_seal_criteria_capacity(&self, manager: &UpdatesManager) {
         let block_writes_metrics = manager.storage_writes_deduplicator.metrics();
 
@@ -958,5 +853,258 @@ impl ZkSyncStateKeeper {
         for (criterion, capacity) in capacities {
             AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
         }
+    }
+}
+
+#[derive(Debug)]
+enum ProcessBlockIterationOutcome {
+    SealBlock,
+    SealBatch,
+}
+
+impl StateKeeper {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        try_stoppable!(self.run_inner(stop_receiver).await);
+        Ok(())
+    }
+
+    /// Fallible version of `run` routine that allows to easily exit upon cancellation.
+    async fn run_inner(
+        mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> Result<Infallible, OrStopped> {
+        while !is_canceled(&stop_receiver) {
+            self.process_block(&mut stop_receiver).await?;
+            let state = self.batch_state.unwrap_init_ref();
+            if state
+                .updates_manager
+                .l2_block
+                .executed_transactions
+                .is_empty()
+            {
+                // We've got a fictive L2 block, seal the batch.
+                self.seal_batch().await?;
+            } else {
+                // Seal the L2 block.
+                self.inner.seal_l2_block(&state.updates_manager).await?;
+            }
+        }
+
+        Err(OrStopped::Stopped)
+    }
+
+    async fn process_block(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
+        // If there is no open batch then start one.
+        let state = self
+            .batch_state
+            .ensure_initialized(&mut self.inner, stop_receiver)
+            .await?;
+        let updates_manager = &mut state.updates_manager;
+        let batch_executor = state.batch_executor.as_mut();
+
+        if let Some(protocol_upgrade_tx) = state.protocol_upgrade_tx.take() {
+            // Protocol upgrade tx if the first tx in the block so we shouldn't do `set_l2_block_params`.
+            self.inner
+                .process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
+                .await?;
+        } else {
+            // Params for the first L2 block in the batch are pushed with batch params.
+            // For non-first L2 block they must be set manually.
+            if updates_manager.pending_executed_transactions_len() > 0 {
+                let mut next_l2_block_params = self
+                    .inner
+                    .wait_for_new_l2_block_params(updates_manager, stop_receiver)
+                    .await
+                    .stop_context("failed getting L2 block params")?;
+                let number_of_roots = get_bootloader_max_msg_roots_in_batch(
+                    updates_manager.protocol_version().into(),
+                );
+                next_l2_block_params.set_interop_roots(
+                    self.inner
+                        .io
+                        .load_latest_interop_root(number_of_roots)
+                        .await?,
+                );
+                StateKeeperInner::set_l2_block_params(updates_manager, next_l2_block_params);
+            }
+
+            if state.next_block_should_be_fictive {
+                // Create a fictive L2 block.
+                let next_l2_block_timestamp =
+                    updates_manager.next_l2_block_timestamp_ms_mut().unwrap();
+                self.inner
+                    .io
+                    .update_next_l2_block_timestamp(next_l2_block_timestamp);
+                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+
+                return Ok(());
+            }
+        }
+
+        while !is_canceled(stop_receiver) {
+            let full_latency = KEEPER_METRICS.process_block_loop_iteration.start();
+            let outcome = Self::process_block_iteration(state, &mut self.inner).await?;
+            full_latency.observe();
+
+            match outcome {
+                Some(ProcessBlockIterationOutcome::SealBatch) => {
+                    state.next_block_should_be_fictive = true;
+                    return Ok(());
+                }
+                Some(ProcessBlockIterationOutcome::SealBlock) => return Ok(()),
+                None => {}
+            }
+        }
+
+        Err(OrStopped::Stopped)
+    }
+
+    async fn process_block_iteration(
+        state: &mut InitializedBatchState,
+        inner: &mut StateKeeperInner,
+    ) -> Result<Option<ProcessBlockIterationOutcome>, OrStopped> {
+        let updates_manager = &mut state.updates_manager;
+        let batch_executor = state.batch_executor.as_mut();
+
+        if inner
+            .io
+            .should_seal_l1_batch_unconditionally(updates_manager)
+            .await?
+        {
+            // Push the current block if it has not been done yet and this will effectively create a fictive l2 block.
+            if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_ms_mut()
+            {
+                inner
+                    .io
+                    .update_next_l2_block_timestamp(next_l2_block_timestamp);
+                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+            }
+
+            tracing::debug!(
+                "L2 block #{} should be sealed as per L1 batch unconditional sealing rules",
+                updates_manager.l2_block.number,
+            );
+            return Ok(Some(ProcessBlockIterationOutcome::SealBatch));
+        }
+
+        if !updates_manager.has_next_block_params()
+            && inner.io.should_seal_l2_block(updates_manager)
+        {
+            tracing::debug!(
+                "L2 block #{} should be sealed as per L2 block sealing rules",
+                updates_manager.l2_block.number,
+            );
+            return Ok(Some(ProcessBlockIterationOutcome::SealBlock));
+        }
+
+        let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
+        if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_ms_mut() {
+            // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
+            inner
+                .io
+                .update_next_l2_block_timestamp(next_l2_block_timestamp);
+        }
+
+        let Some(tx) = inner
+            .io
+            .wait_for_next_tx(
+                POLL_WAIT_DURATION,
+                updates_manager.get_next_l2_block_or_batch_timestamp(),
+            )
+            .instrument(info_span!("wait_for_next_tx"))
+            .await
+            .context("error waiting for next transaction")?
+        else {
+            waiting_latency.observe();
+            tracing::trace!("No new transactions. Waiting!");
+            return Ok(None);
+        };
+        waiting_latency.observe();
+
+        let tx_hash = tx.hash();
+
+        // We need to start a new block
+        if updates_manager.has_next_block_params() {
+            StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+        }
+
+        let (seal_resolution, exec_result) = inner
+            .process_one_tx(batch_executor, updates_manager, tx.clone())
+            .await?;
+
+        let latency = KEEPER_METRICS.match_seal_resolution.start();
+        match &seal_resolution {
+            SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
+                let TxExecutionResult::Success {
+                    tx_result,
+                    tx_metrics: tx_execution_metrics,
+                    call_tracer_result,
+                    ..
+                } = exec_result
+                else {
+                    unreachable!(
+                        "Tx inclusion seal resolution must be a result of a successful tx execution",
+                    );
+                };
+                updates_manager.extend_from_executed_transaction(
+                    tx,
+                    *tx_result,
+                    *tx_execution_metrics,
+                    call_tracer_result,
+                );
+            }
+            SealResolution::ExcludeAndSeal => {
+                batch_executor.rollback_last_tx().await.with_context(|| {
+                    format!("failed rolling back transaction {tx_hash:?} in batch executor")
+                })?;
+                inner.io.rollback(tx).await.with_context(|| {
+                    format!("failed rolling back transaction {tx_hash:?} in I/O")
+                })?;
+            }
+            SealResolution::Unexecutable(reason) => {
+                batch_executor.rollback_last_tx().await.with_context(|| {
+                    format!("failed rolling back transaction {tx_hash:?} in batch executor")
+                })?;
+                inner
+                    .io
+                    .reject(&tx, reason.clone())
+                    .await
+                    .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
+            }
+        };
+        let result = if seal_resolution.should_seal() {
+            tracing::debug!(
+                "L2 block #{} should be sealed with conditional sealer resolution {seal_resolution:?} after executing transaction {tx_hash}",
+                updates_manager.l2_block.number
+            );
+            Some(ProcessBlockIterationOutcome::SealBatch)
+        } else {
+            None
+        };
+        latency.observe();
+        Ok(result)
+    }
+
+    async fn seal_batch(&mut self) -> anyhow::Result<()> {
+        let mut state = self.batch_state.finish();
+        assert!(!state.updates_manager.has_next_block_params());
+
+        self.inner
+            .report_seal_criteria_capacity(&state.updates_manager);
+
+        state.updates_manager.clear_interop_roots();
+        let (finished_batch, _) = state.batch_executor.finish_batch().await?;
+        state.updates_manager.finish_batch(finished_batch);
+        let l1_batch_number = state.updates_manager.l1_batch.number;
+        self.inner
+            .output_handler
+            .handle_l1_batch(Arc::new(state.updates_manager))
+            .await
+            .with_context(|| format!("failed sealing L1 batch #{l1_batch_number}"))?;
+
+        Ok(())
     }
 }

@@ -13,10 +13,10 @@ import {
     getTestContract,
     scaledGasPrice,
     waitForL2ToL1LogProof,
-    waitForNewL1Batch,
     maxL2GasLimitForPriorityTxs
 } from '../src/helpers';
 import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
+import { waitForNewL1Batch } from 'utils';
 
 const contracts = {
     counter: getTestContract('Counter'),
