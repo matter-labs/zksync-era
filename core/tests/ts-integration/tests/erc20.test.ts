@@ -11,7 +11,7 @@ import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { RetryableWallet } from '../src/retry-provider';
-import { log } from "console";
+import { log } from 'console';
 import { isAddressEq, L1_MESSENGER_ADDRESS } from 'zksync-ethers/build/utils';
 
 describe('L1 ERC20 contract checks', () => {
@@ -37,7 +37,6 @@ describe('L1 ERC20 contract checks', () => {
     });
 
     test('Token properties are correct', async () => {
-
         // const mainContract = await alice.getMainContract();
         // console.log("Address : ",  await mainContract.getAddress());
         // const res = await mainContract.proveL2MessageInclusion(
