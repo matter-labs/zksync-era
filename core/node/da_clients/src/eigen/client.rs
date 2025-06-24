@@ -34,8 +34,7 @@ impl EigenDAClient {
                 .eigenda_eth_rpc
                 .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?
                 .expose_str(),
-        )
-        .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
+        )?;
 
         let private_key = secrets.private_key.0.expose_secret();
 
@@ -55,13 +54,9 @@ impl EigenDAClient {
             registry_coordinator_addr: config.registry_coordinator_addr,
         };
 
-        let private_key = private_key
-            .parse()
-            .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
+        let private_key = private_key.parse()?;
         let signer = Signer::new(private_key);
-        let client = PayloadDisperser::new(payload_disperser_config, signer)
-            .await
-            .map_err(|e| anyhow::anyhow!("EigenDA client Error: {:?}", e))?;
+        let client = PayloadDisperser::new(payload_disperser_config, signer).await?;
 
         Ok(Self { client })
     }
@@ -89,15 +84,17 @@ impl DataAvailabilityClient for EigenDAClient {
         dispatch_request_id: String,
         _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
-        let bytes = hex::decode(dispatch_request_id.clone())
-            .map_err(|_| anyhow::anyhow!("Failed to decode blob id: {}", dispatch_request_id))
-            .map_err(to_non_retriable_da_error)?;
-        let blob_key = BlobKey::from_bytes(
-            bytes
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("Failed to convert bytes to a 32-byte array"))
-                .map_err(to_non_retriable_da_error)?,
-        );
+        let bytes = hex::decode(dispatch_request_id.clone()).map_err(|_| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to decode blob id: {}",
+                dispatch_request_id
+            ))
+        })?;
+        let blob_key = BlobKey::from_bytes(bytes.try_into().map_err(|_| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to convert bytes to a 32-byte array"
+            ))
+        })?);
         let eigenda_cert = self
             .client
             .get_cert(&blob_key)
@@ -113,25 +110,29 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let bytes = hex::decode(blob_id)
-            .map_err(|_| anyhow::anyhow!("Failed to decode blob id: {}", blob_id))
-            .map_err(to_non_retriable_da_error)?;
-        let blob_key = BlobKey::from_bytes(
-            bytes
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("Failed to convert bytes to a 32-byte array"))
-                .map_err(to_non_retriable_da_error)?,
-        );
+        let bytes = hex::decode(blob_id).map_err(|err| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to decode blob id: {}: {}",
+                blob_id,
+                err
+            ))
+        })?;
+        let blob_key = BlobKey::from_bytes(bytes.try_into().map_err(|_| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to convert bytes to a 32-byte array"
+            ))
+        })?);
         let eigenda_cert = self
             .client
             .get_cert(&blob_key)
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            let inclusion_data = eigenda_cert
-                .to_bytes()
-                .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
-                .map_err(to_non_retriable_da_error)?;
+            let inclusion_data = eigenda_cert.to_bytes().map_err(|_| {
+                to_non_retriable_da_error(anyhow::anyhow!(
+                    "Failed to convert eigenda cert to bytes"
+                ))
+            })?;
             Ok(Some(InclusionData {
                 data: inclusion_data,
             }))
