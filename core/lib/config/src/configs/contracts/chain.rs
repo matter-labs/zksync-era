@@ -181,7 +181,7 @@ pub struct ContractsConfig {
     #[config(nest)]
     pub ecosystem_contracts: EcosystemContracts,
     // Setting default values to zero(for backwards compatibility)
-    #[config(nest, default_t = ProofManagerContracts::default())]
+    #[config(nest, default)]
     pub proof_manager_contracts: ProofManagerContracts,
 }
 
