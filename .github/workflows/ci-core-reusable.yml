@@ -634,6 +634,7 @@ jobs:
             'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests on push to main to check for flakiness
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
