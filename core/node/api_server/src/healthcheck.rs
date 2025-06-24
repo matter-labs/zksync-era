@@ -165,20 +165,17 @@ impl HealthCheckHandle {
 
 #[cfg(test)]
 mod tests {
-    use std::{fmt, io, path::PathBuf, pin::Pin, task::Poll};
+    use std::{fmt, net::Ipv4Addr};
 
-    use http::{Response, Uri};
+    use http::Response;
     use http_body_util::BodyExt;
-    use hyper_util::{
-        client::legacy::Client,
-        rt::{TokioExecutor, TokioIo},
-    };
-    use tokio::net::UnixStream;
+    use hyper_util::{client::legacy::Client, rt::TokioExecutor};
+    use tokio::net::TcpListener;
     use zksync_health_check::{HealthStatus, ReactiveHealthCheck};
 
     use super::*;
 
-    fn mock_health() -> Arc<AppHealthCheck> {
+    pub(super) fn mock_health() -> Arc<AppHealthCheck> {
         let health = AppHealthCheck::new(None, None);
         health.set_details(serde_json::json!({ "version": "0.1.0" }));
         let (check, health_updater) = ReactiveHealthCheck::new("test");
@@ -206,7 +203,7 @@ mod tests {
         server_task.await.unwrap().unwrap();
     }
 
-    async fn assert_response(response: Response<impl BodyExt<Error: fmt::Debug>>) {
+    pub(super) async fn assert_response(response: Response<impl BodyExt<Error: fmt::Debug>>) {
         assert_eq!(response.status(), StatusCode::OK);
         let content_type = &response.headers()[http::header::CONTENT_TYPE];
         assert_eq!(content_type, "application/json");
@@ -216,6 +213,40 @@ mod tests {
         assert_eq!(json["details"], serde_json::json!({ "version": "0.1.0" }));
         assert_eq!(json["components"]["test"]["status"], "ready");
     }
+
+    // The server must exit early on initialization failure without receiving a stop signal.
+    #[tokio::test]
+    async fn error_initializing_server() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let bound_addr = listener.local_addr().unwrap();
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        let (server_future, handle) =
+            create_server(bound_addr.into(), mock_health(), stop_receiver);
+
+        let err = server_future.await.unwrap_err();
+        assert!(
+            format!("{err:#}").contains("failed binding healthcheck server"),
+            "{err:#}"
+        );
+        assert!(handle.local_addr().await.is_none());
+    }
+}
+
+#[cfg(all(test, unix))]
+mod unix_tests {
+    use std::{io, path::PathBuf, pin::Pin, task::Poll};
+
+    use http::Uri;
+    use hyper_util::{
+        client::legacy::Client,
+        rt::{TokioExecutor, TokioIo},
+    };
+    use tokio::net::UnixStream;
+
+    use super::{
+        tests::{assert_response, mock_health},
+        *,
+    };
 
     /// `hyper`-compatible connector for domain sockets.
     #[derive(Debug, Clone)]
@@ -253,6 +284,7 @@ mod tests {
         };
 
         let client = Client::builder(TokioExecutor::new()).build::<_, String>(UdsConnector(path));
+        // The hostname is not resolved, but is still passed as a part of the HTTP request.
         let uri = "http://test/health".parse().unwrap();
         let response = client.get(uri).await.unwrap();
         assert_response(response).await;
