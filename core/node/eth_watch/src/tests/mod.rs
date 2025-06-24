@@ -961,7 +961,7 @@ async fn setup_batch_roots(
                 .unwrap();
             connection
                 .blocks_dal()
-                .set_batch_chain_local_merkle_path(
+                .set_batch_chain_merkle_path_until_msg_root(
                     batch_number,
                     BatchAndChainMerklePath {
                         batch_proof_len: 0,
