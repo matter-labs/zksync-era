@@ -34,37 +34,6 @@ Because of that we know that if the proof verifies, then the L2→L1 logs provid
 use that fact to produce more complex structures. Before Boojum such logs were also Merklized within the circuits and so
 the Merkle tree’s root hash was included into the batch commitment also.
 
-## Proving L2→L1 logs
-
-The following functions are available on L1 to prove that a certain L2→L1 log belongs to a certain batch
-
-```solidity
-function proveL2LogInclusion(
-  uint256 _chainId,
-  uint256 _batchNumber,
-  uint256 _index,
-  L2Log calldata _log,
-  bytes32[] calldata _proof
-) external view override returns (bool);
-
-function proveL2LeafInclusion(
-  uint256 _chainId,
-  uint256 _batchNumber,
-  uint256 _mask,
-  bytes32 _leaf,
-  bytes32[] calldata _proof
-) external view override returns (bool);
-```
-
-To prove inclusion the `_proof` input has to be provided. The user can request the chain's server for this, or reconstruct it from L1 data. Normally the proof is the merkle proof from the log via the `LocalLogsRoot` to the `ChainBatchRoot` of the chain. 
-
-The second function will prove that a certain 32-byte leaf belongs to the tree. Note, that the fact that the `leaf` is 32-bytes long means that the function could work successfully for internal leaves also. Furthermore, since the `LocalLogsRoot` is extended with the `MessageRoot`, this function can be used to prove inclusion in the MessageRoot tree.
-
-This function is particularly for proving that a log was included in the `ChainBatchRoot` via the `MessageRoot`. This is used for [interop](../../../bridging/interop/message_root.md) and in [nested message inclusion](../../../gateway/nested_l3_l1_messaging.md).
-
-> Note: intermediate nodes can also be proven via the `proveL2LeafInclusion` function, it will be the callers responsibility to ensure that the preimage of the leaf is larger than 32-bytes long and/or use other ways to ensuring that the function will be called securely.
-
-
 ## Important system values
 
 Two `key` and `value` fields are enough for a lot of system-related use-cases, such as sending timestamp of the batch,

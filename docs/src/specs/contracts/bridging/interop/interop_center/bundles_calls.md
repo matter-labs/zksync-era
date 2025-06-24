@@ -5,7 +5,7 @@
 Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on
 other chains.
 
-![interopcall.png](../img/level_call.png)
+![interopcall.png](../img/interopcall.png)
 
 At this level, the system handles replay protection—once a call is successfully executed, it cannot be executed again
 (eliminating the need for your own nullifiers or similar mechanisms).
@@ -41,7 +41,7 @@ your call).
 On the destination chain, you can execute the call using the execute method:
 
 ```solidity
-contract InteropHandler {
+contract InteropCenter {
   // Executes a given bundle.
   // interopMessage is the message that contains your bundle as payload.
   // If it fails, it can be called again.
@@ -54,7 +54,7 @@ contract InteropHandler {
 
 ```
 
-You can retrieve the `interopMessage` (which contains your entire payload) from the chain, or you can construct it
+You can retrieve the `interopMessage` (which contains your entire payload) from the Gateway, or you can construct it
 yourself using L1 data.
 
 Under the hood, this process calls the `destinationAddress` with the specified calldata.
@@ -72,16 +72,56 @@ compute the Keccak hash of the string above and use this as the address.)
 One way to think about it is this: You (as account `0x5bFF1...` on chain A) can send a call to a contract on a
 destination chain, and for that contract, it will appear as if the call came locally from the address
 `keccak(0x5bFF1 || A)`. This means you are effectively "controlling" such an account address on **every ZK Chain** by
-sending interop messages from the `0x5bFF1...` account on chain A. See the exact aliasing logic [here](../interop_handler.md#account-aliasing).
+sending interop messages from the `0x5bFF1...` account on chain A.
 
-![msgdotsender.png](../img/aliased_account.png)
+![msgdotsender.png](../img/msgdotsender.png)
+
+## Simple Example
+
+Imagine you have contracts on chains B, C, and D, and you’d like them to send "reports" to the Headquarters (HQ)
+contract on chain A every time a customer makes a purchase.
+
+```solidity
+// Deployed on chains B, C, D.
+contract Shop {
+ /// Called by the customers when they buy something.
+ function buy(uint256 itemPrice) {
+   // handle payment etc.
+   ...
+   // report to HQ
+   InteropCenter(INTEROP_ADDRESS).sendCall(
+    324,       // chain id of chain A,
+    0xc425..,  // HQ contract on chain A,
+    createCalldata("reportSales(uint256)", itemPrice), // calldata
+    0,         // no value
+  );
+ }
+}
+
+// Deployed on chain A
+contract HQ {
+  // List of shops
+  mapping (address => bool) shops;
+  mapping (address => uint256) sales;
+  function addShop(address addressOnChain, uint256 chainId) onlyOwner {
+    // Adding aliased accounts.
+   shops[address(keccak(addressOnChain || chainId))] = true;
+  }
+
+  function reportSales(uint256 itemPrice) {
+    // only allow calls from our shops (their aliased accounts).
+   require(shops[msg.sender]);
+   sales[msg.sender] += itemPrice;
+  }
+}
+```
 
 #### Who is paying for gas? How does this Call get to the destination chain
 
 At this level, the **InteropCall** acts like a hitchhiker — it relies on someone (anyone) to pick it up, execute it, and
 pay for the gas!
 
-![waiting_for_ride.png](../img/waiting_for_ride.png)
+![callride.png](../img/callride.png)
 
 While any transaction on the destination chain can simply call `InteropCenter.executeInteropBundle`, if you don’t want
 to rely on hitchhiking, you can create one yourself. We’ll discuss this in the section about **Interop Transactions**.
@@ -90,7 +130,7 @@ to rely on hitchhiking, you can create one yourself. We’ll discuss this in the
 
 Before we proceed to discuss **InteropTransactions**, there is one more layer in between: **InteropBundles**.
 
-![interopcallbundle.png](../img/level_bundle.png)
+![interopcallbundle.png](../img/interopcallbundle.png)
 
 **Bundles Offer:**
 
@@ -136,6 +176,58 @@ contract InteropCenter {
  function finishAndSendBundle(bundleId) return msgHash;
 }
 ```
+
+### Cross Chain Swap Example
+
+Imagine you want to perform a swap on chain B, exchanging USDC for PEPE, but all your assets are currently on chain A.
+
+This process would typically involve four steps:
+
+1. Transfer USDC from chain A to chain B.
+2. Set allowance for the swap.
+3. Execute the swap.
+4. Transfer PEPE back to chain A.
+
+Each of these steps is a separate "call," but you need them to execute in exactly this order and, ideally, atomically.
+If the swap fails, you wouldn’t want the allowance to remain set on the destination chain.
+
+Below is an example of how this process could look (note that the code is pseudocode; we’ll explain the helper methods
+required to make it work in a later section).
+
+```solidity
+bundleId = InteropCenter(INTEROP_CENTER).startBundle(chainD);
+// This will 'burn' the 1k USDC, create the special interopCall
+// when this call is executed on chainD, it will mint 1k USDC there.
+// BUT - this interopCall is tied to this bundle id.
+USDCBridge.transferWithBundle(
+  bundleId,
+  chainD,
+  aliasedAccount(this(account), block.chain_id),
+  1000);
+
+
+// This will create interopCall to set allowance.
+InteropCenter.addToBundle(bundleId,
+            USDCOnDestinationChain,
+            createCalldata("approve", 1000, poolOnDestinationChain),
+            0);
+// This will create interopCall to do the swap.
+InteropCenter.addToBundle(bundleId,
+            poolOnDestinationChain,
+            createCalldata("swap", "USDC_PEPE", 1000, ...),
+            0)
+// And this will be the interopcall to transfer all the assets back.
+InteropCenter.addToBundle(bundleId,
+            pepeBridgeOnDestinationChain,
+            createCalldata("transferAll", block.chain_id, this(account)),
+            0)
+
+
+bundleHash = interopCenter.finishAndSendBundle(bundleId);
+```
+
+In the code above, we created a bundle that anyone can execute on the destination chain. This bundle will handle the
+entire process: minting, approving, swapping, and transferring back.
 
 ### Bundle Restrictions
 
