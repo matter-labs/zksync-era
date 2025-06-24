@@ -190,6 +190,7 @@ impl ZkSyncStateKeeper {
                 Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
             }
 
+            updates_manager.clear_interop_roots();
             let (finished_batch, _) = batch_executor.finish_batch().await?;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
