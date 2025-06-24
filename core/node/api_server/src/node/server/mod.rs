@@ -27,7 +27,7 @@ use crate::{
         metrics::SubscriptionType,
         pubsub::{EthSubscribe, PubSubNotifier},
         state::{InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
-        ApiBuilder, ApiServer,
+        ApiBuilder, ApiServer, ApiTransport,
     },
 };
 
@@ -72,13 +72,6 @@ impl Web3ServerOptionalConfig {
     }
 }
 
-/// Internal-only marker of chosen transport.
-#[derive(Debug, Clone, Copy)]
-enum Transport {
-    Http,
-    Ws,
-}
-
 /// Wiring layer for Web3 JSON RPC server.
 ///
 /// ## Requests resources
@@ -96,8 +89,8 @@ enum Transport {
 /// - `Web3ApiTask` -- wrapper for all the tasks spawned by the API.
 #[derive(Debug)]
 pub struct Web3ServerLayer {
-    transport: Transport,
-    port: u16,
+    http_port: Option<u16>,
+    ws_port: Option<u16>,
     optional_config: Web3ServerOptionalConfig,
     internal_api_config_base: InternalApiConfigBase,
 }
@@ -123,7 +116,9 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    web3_api_task: Web3ApiTask,
+    http_server_task: Option<Web3ApiTask>,
+    #[context(task)]
+    ws_server_task: Option<Web3ApiTask>,
     #[context(task)]
     pub_sub_blocks_task: Option<PubSubNotifier>,
     #[context(task)]
@@ -135,27 +130,20 @@ pub struct Output {
 }
 
 impl Web3ServerLayer {
-    pub fn http(
-        port: u16,
+    /// `None` ports means to not start the corresponding server.
+    pub fn new(
+        http_port: Option<u16>,
+        ws_port: Option<u16>,
         internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
     ) -> Self {
+        assert!(
+            http_port.is_some() || ws_port.is_some(),
+            "useless `Web3ServerLayer` instantiation"
+        );
         Self {
-            transport: Transport::Http,
-            port,
-            optional_config,
-            internal_api_config_base,
-        }
-    }
-
-    pub fn ws(
-        port: u16,
-        internal_api_config_base: InternalApiConfigBase,
-        optional_config: Web3ServerOptionalConfig,
-    ) -> Self {
-        Self {
-            transport: Transport::Ws,
-            port,
+            http_port,
+            ws_port,
             optional_config,
             internal_api_config_base,
         }
@@ -168,10 +156,7 @@ impl WiringLayer for Web3ServerLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        match self.transport {
-            Transport::Http => "web3_http_server_layer",
-            Transport::Ws => "web3_ws_server_layer",
-        }
+        "web3_server_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -207,7 +192,7 @@ impl WiringLayer for Web3ServerLayer {
         // Build pub-sub notifier tasks.
         let contains_pub_sub_namespace =
             self.optional_config.namespaces.contains(&Namespace::Pubsub);
-        let enable_pub_sub = matches!(self.transport, Transport::Ws) && contains_pub_sub_namespace;
+        let enable_pub_sub = self.ws_port.is_some() && contains_pub_sub_namespace;
         let polling_interval = self.optional_config.polling_interval;
         let pub_sub = enable_pub_sub.then(|| EthSubscribe::new(polling_interval));
         let pub_sub_blocks_task = pub_sub
@@ -229,14 +214,6 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
-        match self.transport {
-            Transport::Http => {
-                api_builder = api_builder.http(self.port);
-            }
-            Transport::Ws => {
-                api_builder = api_builder.ws(self.port);
-            }
-        }
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
@@ -245,23 +222,49 @@ impl WiringLayer for Web3ServerLayer {
         }
         api_builder = self.optional_config.apply(api_builder);
 
-        let server = api_builder.build()?;
+        let mut http_server = None;
+        let mut ws_server = None;
+        match (self.http_port, self.ws_port) {
+            (Some(http_port), Some(ws_port)) if http_port == ws_port => {
+                http_server = Some(api_builder.http_and_ws(http_port).build()?);
+            }
+            (Some(http_port), Some(ws_port)) => {
+                // Two distinct ports.
+                http_server = Some(api_builder.clone().http(http_port).build()?);
+                ws_server = Some(api_builder.ws(ws_port).build()?);
+            }
+            (Some(port), None) => {
+                http_server = Some(api_builder.http(port).build()?);
+            }
+            (None, Some(port)) => {
+                ws_server = Some(api_builder.ws(port).build()?);
+            }
+            (None, None) => unreachable!("validated in constructor"),
+        }
 
-        // Insert healthcheck.
-        let api_health_check = server.health_check();
-        input
-            .app_health
-            .insert_component(api_health_check)
-            .map_err(WiringError::internal)?;
-
-        // Add tasks.
-        let web3_api_task = Web3ApiTask {
-            transport: self.transport,
-            pub_sub,
+        // Insert healthchecks.
+        if let Some(server) = &http_server {
+            input
+                .app_health
+                .insert_component(server.health_check())
+                .map_err(WiringError::internal)?;
+        }
+        let http_server_task = http_server.map(|server| Web3ApiTask {
             server,
-        };
+            pub_sub: pub_sub.clone(), // FIXME: double-check
+        });
+
+        if let Some(server) = &ws_server {
+            input
+                .app_health
+                .insert_component(server.health_check())
+                .map_err(WiringError::internal)?;
+        }
+        let ws_server_task = ws_server.map(|server| Web3ApiTask { server, pub_sub });
+
         Ok(Output {
-            web3_api_task,
+            http_server_task,
+            ws_server_task,
             pub_sub_blocks_task,
             pub_sub_transactions_task,
             pub_sub_logs_task,
@@ -288,7 +291,6 @@ impl Task for PubSubNotifier {
 /// Wrapper for the Web3 API.
 #[derive(Debug)]
 pub struct Web3ApiTask {
-    transport: Transport,
     server: ApiServer,
     pub_sub: Option<EthSubscribe>,
 }
@@ -296,9 +298,10 @@ pub struct Web3ApiTask {
 #[async_trait::async_trait]
 impl Task for Web3ApiTask {
     fn id(&self) -> TaskId {
-        match self.transport {
-            Transport::Http => "web3_http_server".into(),
-            Transport::Ws => "web3_ws_server".into(),
+        match self.server.transport() {
+            ApiTransport::Http(_) => "web3_http_server".into(),
+            ApiTransport::Ws(_) => "web3_ws_server".into(),
+            ApiTransport::HttpAndWs(_) => "web3_http_and_ws_server".into(),
         }
     }
 

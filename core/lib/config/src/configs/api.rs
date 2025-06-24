@@ -171,7 +171,7 @@ impl WellKnown for MaxResponseSizeOverrides {
 }
 
 /// Response size limits for JSON-RPC servers.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MaxResponseSize {
     /// Global limit applied to all RPC methods. Measured in bytes.
     pub global: usize,

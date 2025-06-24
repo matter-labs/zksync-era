@@ -254,7 +254,7 @@ impl PubSubNotifier {
 }
 
 /// Subscription support for Web3 APIs.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct EthSubscribe {
     polling_interval: Duration,
     blocks: broadcast::Sender<Vec<PubSubResult>>,

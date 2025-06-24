@@ -91,14 +91,14 @@ pub(crate) enum TypedFilter {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ApiTransport {
+pub(crate) enum ApiTransport {
     Ws(SocketAddr),
     Http(SocketAddr),
     HttpAndWs(SocketAddr),
 }
 
 /// Optional part of the API server parameters.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct OptionalApiParams {
     vm_barrier: Option<VmConcurrencyBarrier>,
     sync_state: Option<SyncState>,
@@ -132,7 +132,7 @@ pub struct ApiServer {
     sealed_l2_block_handle: SealedL2BlockNumber,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ApiBuilder {
     pool: ConnectionPool<Core>,
     config: InternalApiConfig,
@@ -323,6 +323,10 @@ impl ApiBuilder {
 }
 
 impl ApiServer {
+    pub(crate) fn transport(&self) -> &ApiTransport {
+        &self.transport
+    }
+
     pub fn health_check(&self) -> ReactiveHealthCheck {
         // `unwrap()` is safe by construction; `health_updater` is only taken out when the server is getting started
         self.health_updater.as_ref().unwrap().subscribe()
@@ -364,6 +368,7 @@ impl ApiServer {
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
+            // FIXME: should only be available via WS
             rpc.merge(pub_sub.into_rpc())
                 .context("cannot merge eth pubsub namespace")?;
         }
