@@ -211,7 +211,7 @@ impl FromStr for L2ChainId {
 
 impl Default for L2ChainId {
     fn default() -> Self {
-        Self(270)
+        Self(271)
     }
 }
 
