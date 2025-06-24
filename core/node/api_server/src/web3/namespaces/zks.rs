@@ -336,7 +336,7 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        println!("all l1 logs in batch: {:?}", all_l1_logs_in_batch);
+        // println!("all l1 logs in batch: {:?}", all_l1_logs_in_batch);
 
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
@@ -346,7 +346,7 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
-        println!("l1_log_index: {:?}", l1_log_index);
+        // println!("l1_log_index: {:?}", l1_log_index);
 
 
         let Some(batch_with_metadata) = storage
@@ -358,7 +358,7 @@ impl ZksNamespace {
             return Ok(None);
         };
 
-        println!("batch_with_metadata: {:?}", batch_with_metadata);
+        // println!("batch_with_metadata: {:?}", batch_with_metadata);
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
@@ -399,7 +399,7 @@ impl ZksNamespace {
             return Ok(None);
         };
 
-        println!("sl_chain_id: {:?}", sl_chain_id);
+        // println!("sl_chain_id: {:?}", sl_chain_id);
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
@@ -421,7 +421,7 @@ impl ZksNamespace {
                 (0, Vec::new(), true)
             };
 
-        println!("hi");
+        // println!("hi");
 
         let proof = {
             let mut metadata = [0u8; 32];
@@ -473,8 +473,8 @@ impl ZksNamespace {
             .start_info
             .ensure_not_pruned(l1_batch_number, &mut storage)
             .await?;
-        println!("l1 batch number: {:?}", l1_batch_number);
-        println!("l1 batch tx index: {:?}", l1_batch_tx_index);
+        // println!("l1 batch number: {:?}", l1_batch_number);
+        // println!("l1 batch tx index: {:?}", l1_batch_tx_index);
 
         let log_proof = self
             .get_l2_to_l1_log_proof_inner(

@@ -260,7 +260,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
             .extract_user_l2_to_l1_logs()
             .into_iter()
             .map(|(location, logs)| {
-                println!("Extracted location: {:?}, logs: {:?}", location, logs);
+                // println!("Extracted location: {:?}, logs: {:?}", location, logs);
                 let user_l2_to_l1_logs = logs.into_iter().map(|log| UserL2ToL1Log(
                     zksync_types::l2_to_l1_log::L2ToL1Log {
                         shard_id: log.l2_shard_id,

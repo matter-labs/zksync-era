@@ -239,7 +239,7 @@ impl Aggregator {
         ) {
             Ok(Some(op))
         } else {
-            println!("restrictions: {:#?}", restrictions);
+            // println!("restrictions: {:#?}", restrictions);
             Ok(restrictions.filter_commit_op(
                 self.get_commit_operation(
                     storage,
@@ -328,14 +328,14 @@ impl Aggregator {
                 .await
                 .unwrap()
                 .filter(|id| *id >= priority_tree_start_index);
-            println!("batch number: {}", batch.header.number);
-            println!("first_priority_op_id_option: {:#?}", first_priority_op_id_option);
+            // println!("batch number: {}", batch.header.number);
+            // println!("first_priority_op_id_option: {:#?}", first_priority_op_id_option);
             // TODO: zk os kludge
             //first_priority_op_id_option = None;
-            println!("first_priority_op_id_option2: {:#?}", first_priority_op_id_option);
+            // println!("first_priority_op_id_option2: {:#?}", first_priority_op_id_option);
 
             let count = batch.header.l1_tx_count as usize;
-            println!("count: {}", count);
+            // println!("count: {}", count);
             if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
                 let new_l1_tx_hashes = storage
                     .transactions_dal()
@@ -344,7 +344,7 @@ impl Aggregator {
                     )
                     .await
                     .unwrap();
-                println!("new_l1_tx_hashes: {:#?}", new_l1_tx_hashes);
+                // println!("new_l1_tx_hashes: {:#?}", new_l1_tx_hashes);
                 for hash in new_l1_tx_hashes {
                     priority_merkle_tree.push_hash(hash);
                 }
@@ -359,14 +359,14 @@ impl Aggregator {
                 let (_, left, right) =
                     priority_merkle_tree.merkle_root_and_paths_for_range(..count);
                 let hashes = priority_merkle_tree.hashes_prefix(count);
-                println!("final hashes: {:#?}", hashes);
+                // println!("final hashes: {:#?}", hashes);
                 priority_ops_proofs.push(PriorityOpsMerkleProof {
                     left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
                     right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
                     hashes,
                 });
             } else {
-                println!("no priority ops in batch");
+                // println!("no priority ops in batch");
                 priority_ops_proofs.push(Default::default());
             }
         }
