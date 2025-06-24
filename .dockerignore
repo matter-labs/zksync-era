@@ -49,5 +49,6 @@ contracts/.git
 !etc/env/consensus_secrets.yaml
 !etc/env/consensus_config.yaml
 !rust-toolchain
+!execution_environment/*
 !app.bin
 !app_logging_enabled.bin

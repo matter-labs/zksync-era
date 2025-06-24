@@ -139,9 +139,9 @@ pub async fn main() {
     let client = ProofDataClient::new(args.base_url);
 
     let binary_path = if args.enabled_logging {
-        "../app_logging_enabled.bin".to_string()
+        "../execution_environment/app_logging_enabled.bin".to_string()
     } else {
-        "../app.bin".to_string()
+        "../execution_environment/app.bin".to_string()
     };
 
     let binary = load_binary_from_path(&binary_path.to_string());

@@ -253,7 +253,7 @@ impl ZkosProverInputGenerator {
 
         let list_source = TxListSource { transactions };
         let prover_input = zk_os_forward_system::run::generate_proof_input(
-            PathBuf::from("app_logging_enabled.bin"),
+            PathBuf::from("execution_environment/app_logging_enabled.bin"),
             context,
             storage_commitment,
             tree,

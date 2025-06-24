@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - zksync-os-integration
+      - deniallugo-release-zksync-os
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,7 +24,7 @@ jobs:
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
         with:
           files_yaml: |
             # TODO: make it more granular, as already implemented in CI workflow
