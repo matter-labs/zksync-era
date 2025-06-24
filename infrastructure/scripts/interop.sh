@@ -62,7 +62,9 @@ zkstack chain init \
 
 
 zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
+zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
 zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &
+
 
 zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
