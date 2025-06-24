@@ -1037,26 +1037,7 @@ impl StateKeeper {
 
         let latency = KEEPER_METRICS.match_seal_resolution.start();
         match &seal_resolution {
-            SealResolution::NoSeal => {
-                let TxExecutionResult::Success {
-                    tx_result,
-                    tx_metrics: tx_execution_metrics,
-                    call_tracer_result,
-                    ..
-                } = exec_result
-                else {
-                    unreachable!(
-                        "Tx inclusion seal resolution must be a result of a successful tx execution",
-                    );
-                };
-                updates_manager.extend_from_executed_transaction(
-                    tx,
-                    *tx_result,
-                    *tx_execution_metrics,
-                    call_tracer_result,
-                );
-            }
-            SealResolution::IncludeAndSeal => {
+            SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
