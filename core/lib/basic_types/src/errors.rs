@@ -34,6 +34,16 @@ impl<E> OrStopped<E> {
     pub fn internal(err: impl Into<E>) -> Self {
         Self::Internal(err.into())
     }
+
+    pub fn map_internal<F, T>(self, f: F) -> OrStopped<T>
+    where
+        F: FnOnce(E) -> T,
+    {
+        match self {
+            Self::Internal(err) => OrStopped::Internal(f(err)),
+            Self::Stopped => OrStopped::Stopped,
+        }
+    }
 }
 
 /// Extension trait for `Result<_, OrStopped>` similar to [`anyhow::Context`].

@@ -232,7 +232,7 @@ impl EngineInterface for Store {
                 .context("payloads.send()")?;
             if queued {
                 let (_sender, mut receiver) = sync::watch::channel(false);
-                sk.verify(&mut receiver).await.unwrap();
+                sk.verify(&mut receiver).await.unwrap(); // TODO: handle error
             }
         }
         sk.commit_pending_block().await?;
@@ -314,7 +314,7 @@ impl EngineInterface for Store {
 
             if queued {
                 let (_sender, mut receiver) = sync::watch::channel(false);
-                sk.verify(&mut receiver).await.unwrap();
+                sk.verify(&mut receiver).await.unwrap(); // TODO: handle error
             }
 
             // Wait for the block to be processed, without waiting for it to be stored.
@@ -358,7 +358,7 @@ impl EngineInterface for Store {
                 dbg!(format!("propose_payload {block_number} is canceled"));
                 return Err(Canceled.into());
             }
-            Err(OrStopped::Internal(err)) => return Err(err.into()),
+            Err(OrStopped::Internal(err)) => return Err(err.unwrap_internal().into()),
         };
 
         let encoded_payload = payload.encode();

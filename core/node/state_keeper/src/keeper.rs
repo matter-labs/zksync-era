@@ -23,6 +23,7 @@ use zksync_types::{
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
 use crate::{
+    error::ProcessBlockError,
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
     io::{
@@ -927,7 +928,7 @@ impl StateKeeper {
         mut self,
         mode: RunMode,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<Infallible, OrStopped> {
+    ) -> Result<Infallible, OrStopped<ProcessBlockError>> {
         while !is_canceled(&stop_receiver) {
             match mode {
                 RunMode::Propose => {
@@ -975,18 +976,26 @@ impl StateKeeper {
                         }
                         Action::Rollback => {
                             tracing::error!("Rolling back the last block");
-                            self.rollback().await?;
+                            self.rollback()
+                                .await
+                                .map_err(Into::<ProcessBlockError>::into)?;
                         }
                         Action::Commit => {
                             tracing::error!("Committing the last block");
-                            self.commit_pending_block().await?;
+                            self.commit_pending_block()
+                                .await
+                                .map_err(Into::<ProcessBlockError>::into)?;
                         }
                     }
                 }
                 RunMode::WithoutRollback => {
                     self.process_block(&mut stop_receiver, None).await?;
-                    self.seal_last_pending_block_data().await?;
-                    self.commit_pending_block().await?;
+                    self.seal_last_pending_block_data()
+                        .await
+                        .map_err(Into::<ProcessBlockError>::into)?;
+                    self.commit_pending_block()
+                        .await
+                        .map_err(Into::<ProcessBlockError>::into)?;
                 }
             };
         }
@@ -998,12 +1007,13 @@ impl StateKeeper {
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
         ctx: Option<&ctx::Ctx>,
-    ) -> Result<(), OrStopped> {
+    ) -> Result<(), OrStopped<ProcessBlockError>> {
         // If there is no open batch then start one.
         let state = self
             .batch_state
             .ensure_initialized(&mut self.inner, stop_receiver, ctx)
-            .await?;
+            .await
+            .map_err(|err| err.map_internal(Into::<ProcessBlockError>::into))?;
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
 
@@ -1011,7 +1021,8 @@ impl StateKeeper {
             // Protocol upgrade tx if the first tx in the block so we shouldn't do `set_l2_block_params`.
             self.inner
                 .process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
-                .await?;
+                .await
+                .map_err(Into::<ProcessBlockError>::into)?;
         } else {
             // Params for the first L2 block in the batch are pushed with batch params.
             // For non-first L2 block they must be set manually.
@@ -1020,7 +1031,8 @@ impl StateKeeper {
                     .inner
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .stop_context("failed getting L2 block params")?;
+                    .stop_context("failed getting L2 block params")
+                    .map_err(|err| err.map_internal(Into::<ProcessBlockError>::into))?;
                 StateKeeperInner::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
@@ -1031,7 +1043,9 @@ impl StateKeeper {
                 self.inner
                     .io
                     .update_next_l2_block_timestamp(next_l2_block_timestamp);
-                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor)
+                    .await
+                    .map_err(Into::<ProcessBlockError>::into)?;
 
                 return Ok(());
             }
@@ -1078,14 +1092,15 @@ impl StateKeeper {
     async fn process_block_iteration(
         state: &mut InitializedBatchState,
         inner: &mut StateKeeperInner,
-    ) -> Result<Option<ProcessBlockIterationOutcome>, OrStopped> {
+    ) -> Result<Option<ProcessBlockIterationOutcome>, OrStopped<ProcessBlockError>> {
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
 
         if inner
             .io
             .should_seal_l1_batch_unconditionally(updates_manager)
-            .await?
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?
         {
             // Push the current block if it has not been done yet and this will effectively create a fictive l2 block.
             if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_ms_mut()
@@ -1093,7 +1108,9 @@ impl StateKeeper {
                 inner
                     .io
                     .update_next_l2_block_timestamp(next_l2_block_timestamp);
-                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor)
+                    .await
+                    .map_err(Into::<ProcessBlockError>::into)?;
             }
 
             tracing::debug!(
@@ -1129,7 +1146,8 @@ impl StateKeeper {
             )
             .instrument(info_span!("wait_for_next_tx"))
             .await
-            .context("error waiting for next transaction")?
+            .context("error waiting for next transaction")
+            .map_err(Into::<ProcessBlockError>::into)?
         else {
             waiting_latency.observe();
             tracing::trace!("No new transactions. Waiting!");
@@ -1141,12 +1159,15 @@ impl StateKeeper {
 
         // We need to start a new block
         if updates_manager.has_next_block_params() {
-            StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+            StateKeeperInner::start_next_l2_block(updates_manager, batch_executor)
+                .await
+                .map_err(Into::<ProcessBlockError>::into)?;
         }
 
         let (seal_resolution, exec_result) = inner
             .process_one_tx(batch_executor, updates_manager, tx.clone())
-            .await?;
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?;
 
         let latency = KEEPER_METRICS.match_seal_resolution.start();
         match (inner.is_active_leader, &seal_resolution) {
@@ -1170,25 +1191,37 @@ impl StateKeeper {
                 );
             }
             (true, SealResolution::ExcludeAndSeal) => {
-                batch_executor.rollback_last_tx().await.with_context(|| {
-                    format!("failed rolling back transaction {tx_hash:?} in batch executor")
-                })?;
-                inner.io.rollback(tx).await.with_context(|| {
-                    format!("failed rolling back transaction {tx_hash:?} in I/O")
-                })?;
+                batch_executor
+                    .rollback_last_tx()
+                    .await
+                    .with_context(|| {
+                        format!("failed rolling back transaction {tx_hash:?} in batch executor")
+                    })
+                    .map_err(Into::<ProcessBlockError>::into)?;
+                inner
+                    .io
+                    .rollback(tx)
+                    .await
+                    .with_context(|| format!("failed rolling back transaction {tx_hash:?} in I/O"))
+                    .map_err(Into::<ProcessBlockError>::into)?;
             }
             (true, SealResolution::Unexecutable(reason)) => {
-                batch_executor.rollback_last_tx().await.with_context(|| {
-                    format!("failed rolling back transaction {tx_hash:?} in batch executor")
-                })?;
+                batch_executor
+                    .rollback_last_tx()
+                    .await
+                    .with_context(|| {
+                        format!("failed rolling back transaction {tx_hash:?} in batch executor")
+                    })
+                    .map_err(Into::<ProcessBlockError>::into)?;
                 inner
                     .io
                     .reject(&tx, reason.clone())
                     .await
-                    .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
+                    .with_context(|| format!("cannot reject transaction {tx_hash:?}"))
+                    .map_err(Into::<ProcessBlockError>::into)?;
             }
             (false, SealResolution::ExcludeAndSeal | SealResolution::Unexecutable(_)) => {
-                panic!(); // TODO return error
+                return Err(ProcessBlockError::BlockVerificationFailed.into())
             }
         };
         let result = if inner.is_active_leader && seal_resolution.should_seal() {
@@ -1265,13 +1298,15 @@ impl StateKeeper {
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
         ctx: Option<&ctx::Ctx>,
-    ) -> Result<Payload, OrStopped> {
+    ) -> Result<Payload, OrStopped<ProcessBlockError>> {
         self.inner.is_active_leader = true;
         self.inner.io.set_is_active_leader(true);
         self.inner.sealer.use_propose_mode();
 
         self.process_block(stop_receiver, ctx).await?;
-        self.seal_last_pending_block_data().await?;
+        self.seal_last_pending_block_data()
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?;
 
         let batch_state = self.batch_state.unwrap_init_ref();
         let payload = batch_state.updates_manager.build_payload().unwrap();
@@ -1282,7 +1317,7 @@ impl StateKeeper {
     pub async fn verify(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(), OrStopped> {
+    ) -> Result<(), OrStopped<ProcessBlockError>> {
         self.inner.is_active_leader = false;
         self.inner.io.set_is_active_leader(false);
         self.inner.sealer.use_verify_mode();
@@ -1293,7 +1328,9 @@ impl StateKeeper {
         }
 
         self.process_block(stop_receiver, None).await?;
-        self.seal_last_pending_block_data().await?;
+        self.seal_last_pending_block_data()
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?;
 
         Ok(())
     }
