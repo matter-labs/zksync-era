@@ -66,8 +66,7 @@ Usually a wallet from governor (check key in ./chains/era/configs/wallets.yaml h
 cast send -r http://localhost:3050 0x789E38eFB7fA82D8fD65D3d7f3C7e77DCB8FB2a2 --value 100 --private-key $GOVERNOR
 ```
 
-
-### Verifying SNARK 
+### Verifying SNARK
 
 You can upload your SNARK to https://fri-verifier.vercel.app/
 
@@ -79,11 +78,9 @@ curl http://localhost:3124/prover-jobs/FRI/1 -o 1.json
 
 And then upload via the webpage: https://fri-verifier.vercel.app/
 
-
 ### Running SNARK wrapper
 
 Go to `zksync_os_snark_prover` directory, and follow instructions from there.
-
 
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
 
