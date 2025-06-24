@@ -553,6 +553,9 @@ impl ZksNamespace {
 
     pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
         let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        // We don't accept transactions with `gas_per_pubdata=0` so API should always return 1 at the
+        // bare minimum.
+        let gas_per_pubdata = gas_per_pubdata.max(1);
         Ok(gas_per_pubdata.into())
     }
 }
