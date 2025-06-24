@@ -7968,7 +7968,7 @@ dependencies = [
  "elliptic-curve",
  "hex",
  "k256",
- "rand",
+ "rand 0.8.5",
  "sha3",
  "thiserror 1.0.69",
  "zeroize",
@@ -7985,7 +7985,7 @@ dependencies = [
  "hex",
  "num-bigint",
  "prost",
- "rand",
+ "rand 0.8.5",
  "thiserror 1.0.69",
  "zksync_concurrency",
  "zksync_consensus_crypto",
@@ -8000,7 +8000,7 @@ version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0df57fdc2a2791ae0031e86931f2d08b31a54a46f5f28b0f833f2e4aa598bc59"
 dependencies = [
- "rand",
+ "rand 0.8.5",
  "thiserror 1.0.69",
  "zksync_concurrency",
 ]
