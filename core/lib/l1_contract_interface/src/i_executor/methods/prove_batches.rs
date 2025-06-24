@@ -11,15 +11,15 @@ use fflonk::{
     },
     FflonkProof,
 };
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{L1BatchWithMetadata, ZkosCommitment},
     ethabi::{encode, Token},
     U256,
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
-    Tokenizable,
+    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION}, zkos_commitment_to_vm_batch_output, Tokenizable
 };
 
 /// Input required to encode `proveBatches` call.

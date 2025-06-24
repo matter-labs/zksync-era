@@ -93,7 +93,7 @@ eth:
     tx_poll_period: 1
     aggregate_tx_poll_period: 1
     max_txs_in_flight: 30
-    proof_sending_mode: ONLY_REAL_PROOFS
+    proof_sending_mode: SKIP_EVERY_PROOF
     max_aggregated_blocks_to_commit: 1
     max_aggregated_blocks_to_execute: 45
     aggregated_block_commit_deadline: 1

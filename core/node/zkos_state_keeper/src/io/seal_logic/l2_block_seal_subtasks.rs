@@ -4,7 +4,8 @@ use anyhow::Context;
 use async_trait::async_trait;
 use zk_os_basic_system::system_implementation::flat_storage_model::ACCOUNT_PROPERTIES_STORAGE_ADDRESS;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{h256_to_address, L2BlockNumber};
+use zksync_types::{h256_to_address, l2_to_l1_log::UserL2ToL1Log, L2BlockNumber};
+use zksync_zkos_vm_runner::zkos_conversions::{b160_to_address, bytes32_to_h256};
 
 use crate::updates::BlockSealCommand;
 
@@ -255,18 +256,36 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         //todo: l2_to_l1_logs are not saved currently
-        let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs();
+        let user_l2_to_l1_logs = command
+            .extract_user_l2_to_l1_logs()
+            .into_iter()
+            .map(|(location, logs)| {
+                println!("Extracted location: {:?}, logs: {:?}", location, logs);
+                let user_l2_to_l1_logs = logs.into_iter().map(|log| UserL2ToL1Log(
+                    zksync_types::l2_to_l1_log::L2ToL1Log {
+                        shard_id: log.l2_shard_id,
+                        is_service: log.is_service,
+                        tx_number_in_block: log.tx_number_in_block,
+                        sender: b160_to_address(log.sender),
+                        key: bytes32_to_h256(log.key),
+                        value: bytes32_to_h256(log.value),
+                    },
+                ))
+                .collect::<Vec<_>>();
+                (location, user_l2_to_l1_logs)
+            })
+            .collect::<Vec<_>>();
         let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
             .iter()
             .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
             .sum();
 
-        // if !user_l2_to_l1_logs.is_empty() {
-        //     connection
-        //         .events_dal()
-        //         .save_user_l2_to_l1_logs(command.inner.l2_block_number, &user_l2_to_l1_logs)
-        //         .await?;
-        // }
+        if !user_l2_to_l1_logs.is_empty() {
+            connection
+                .events_dal()
+                .save_user_l2_to_l1_logs(command.inner.l2_block_number, &user_l2_to_l1_logs)
+                .await?;
+        }
         Ok(())
     }
 

@@ -67,12 +67,8 @@ impl Task for ZkOsProverInputGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        // FIXME: for now it does not work
-        loop {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        // let zkos_prover_input_generator =
-        //     ZkosProverInputGenerator::new(stop_receiver.0, self.pool.get().await?);
-        // zkos_prover_input_generator.run().await
+        let zkos_prover_input_generator =
+            ZkosProverInputGenerator::new(stop_receiver.0, self.pool.get().await?);
+        zkos_prover_input_generator.run().await
     }
 }

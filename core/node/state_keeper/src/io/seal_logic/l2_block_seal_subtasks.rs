@@ -418,26 +418,28 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         command: &L2BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        let is_fictive = command.is_l2_block_fictive();
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractL2ToL1Logs, is_fictive);
+        unreachable!("Non ZK OS mode not supported");
 
-        let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs(is_fictive);
-        let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
-            .iter()
-            .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
-            .sum();
+        // let is_fictive = command.is_l2_block_fictive();
+        // let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractL2ToL1Logs, is_fictive);
 
-        progress.observe(user_l2_to_l1_log_count);
+        // let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs(is_fictive);
+        // let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
+        //     .iter()
+        //     .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
+        //     .sum();
 
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
-        if !user_l2_to_l1_logs.is_empty() {
-            connection
-                .events_dal()
-                .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
-                .await?;
-        }
-        progress.observe(user_l2_to_l1_log_count);
-        Ok(())
+        // progress.observe(user_l2_to_l1_log_count);
+
+        // let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
+        // if !user_l2_to_l1_logs.is_empty() {
+        //     connection
+        //         .events_dal()
+        //         .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
+        //         .await?;
+        // }
+        // progress.observe(user_l2_to_l1_log_count);
+        // Ok(())
     }
 
     async fn rollback(

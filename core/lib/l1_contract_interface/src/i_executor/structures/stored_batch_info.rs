@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::{
     commitment::{L1BatchWithMetadata, ZkosCommitment},
     ethabi::{self, ParamType, Token},
@@ -7,7 +8,7 @@ use zksync_types::{
     H256, U256,
 };
 
-use crate::Tokenizable;
+use crate::{zkos_commitment_to_vm_batch_output, Tokenizable};
 
 // https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
 // struct StoredBatchInfo {
@@ -87,17 +88,10 @@ impl StoredBatchInfo {
 // commitment is not computed correctly here
 impl From<&L1BatchWithMetadata> for StoredBatchInfo {
     fn from(x: &L1BatchWithMetadata) -> Self {
-        unimplemented!("unused in zkos, use `ZkosCommitment` instead");
-        Self {
-            batch_number: x.header.number.0.into(),
-            batch_hash: x.metadata.root_hash,
-            index_repeated_storage_changes: x.metadata.rollup_last_leaf_index,
-            number_of_layer1_txs: x.header.l1_tx_count.into(),
-            priority_operations_hash: x.header.priority_ops_onchain_data_hash(),
-            l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
-            timestamp: x.header.timestamp.into(),
-            commitment: x.metadata.commitment,
-        }
+        let last_block_commitment: ZkosCommitment = x.into();
+        let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
+        let stored_batch_info = StoredBatchInfo::new(&last_block_commitment, batch_output.hash());
+        stored_batch_info
     }
 }
 

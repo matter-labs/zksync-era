@@ -121,7 +121,7 @@ impl EventsDal<'_, '_> {
     pub async fn save_user_l2_to_l1_logs(
         &mut self,
         block_number: L2BlockNumber,
-        all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<&UserL2ToL1Log>)],
+        all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<UserL2ToL1Log>)],
     ) -> DalResult<()> {
         let logs_len = all_block_l2_to_l1_logs.len();
         let copy = CopyStatement::new(
@@ -147,6 +147,8 @@ impl EventsDal<'_, '_> {
                 tx_hash,
                 tx_index_in_l2_block,
             } = tx_location;
+            // TODO: this is hack because of zk os
+            // let tx_index_in_l2_block = tx_index_in_l2_block + 1;
 
             for (log_index_in_tx, log) in logs.iter().enumerate() {
                 let L2ToL1Log {
@@ -573,8 +575,8 @@ mod tests {
             create_l2_to_l1_log(1, 4),
         ];
         let all_logs = vec![
-            (first_location, first_logs.iter().collect()),
-            (second_location, second_logs.iter().collect()),
+            (first_location, first_logs.clone()),
+            (second_location, second_logs.clone()),
         ];
         conn.events_dal()
             .save_user_l2_to_l1_logs(L2BlockNumber(1), &all_logs)

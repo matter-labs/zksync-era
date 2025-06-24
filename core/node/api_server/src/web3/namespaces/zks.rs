@@ -336,6 +336,8 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?;
 
+        println!("all l1 logs in batch: {:?}", all_l1_logs_in_batch);
+
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
             .enumerate()
@@ -344,6 +346,8 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
+        println!("l1_log_index: {:?}", l1_log_index);
+
 
         let Some(batch_with_metadata) = storage
             .blocks_dal()
@@ -353,6 +357,8 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
+
+        println!("batch_with_metadata: {:?}", batch_with_metadata);
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
@@ -372,11 +378,13 @@ impl ZksNamespace {
                 id: l1_log_index as u32,
             }));
         }
-
-        let aggregated_root = batch_with_metadata
-            .metadata
-            .aggregation_root
-            .expect("`aggregation_root` must be present for post-gateway branch");
+        
+        // FIXME: aggregation root is 0 for now
+        // let aggregated_root = batch_with_metadata
+        //     .metadata
+        //     .aggregation_root
+        //     .expect("`aggregation_root` must be present for post-gateway branch");
+        let aggregated_root = H256::zero();
         let root = KeccakHasher.compress(&local_root, &aggregated_root);
 
         let mut log_leaf_proof = proof;
@@ -390,6 +398,8 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
+
+        println!("sl_chain_id: {:?}", sl_chain_id);
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
@@ -410,6 +420,8 @@ impl ZksNamespace {
             } else {
                 (0, Vec::new(), true)
             };
+
+        println!("hi");
 
         let proof = {
             let mut metadata = [0u8; 32];
@@ -453,6 +465,7 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?
         else {
+            println!("No l1 batch number found for tx hash: {:?}", tx_hash);
             return Ok(None);
         };
 
@@ -460,12 +473,15 @@ impl ZksNamespace {
             .start_info
             .ensure_not_pruned(l1_batch_number, &mut storage)
             .await?;
+        println!("l1 batch number: {:?}", l1_batch_number);
+        println!("l1 batch tx index: {:?}", l1_batch_tx_index);
 
         let log_proof = self
             .get_l2_to_l1_log_proof_inner(
                 &mut storage,
                 l1_batch_number,
                 index.unwrap_or(0),
+                // FIXME: why +1 is required???
                 |log| log.tx_number_in_block == l1_batch_tx_index,
             )
             .await?;

@@ -95,7 +95,7 @@ impl<'a> IntegrationTestRunner<'a> {
         let timeout_ms = self.test_timeout.as_millis().to_string();
         let mut command = cmd!(
             self.shell,
-            "yarn jest --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
+            "yarn jest --silent=false --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
         )
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);

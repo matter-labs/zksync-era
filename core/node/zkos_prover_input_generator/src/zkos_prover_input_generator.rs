@@ -380,7 +380,7 @@ impl ZkosProverInputGenerator {
             .await;
 
         // iterate from 1 to l2_block_number
-        for i in 1..=l2_block_number.0 {
+        for i in 0..=l2_block_number.0 {
             let account_props = conn
                 .account_properies_dal()
                 .get_l1_batch_account_properties(L1BatchNumber(i))

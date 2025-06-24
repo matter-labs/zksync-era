@@ -239,11 +239,10 @@ impl BlockSealCommand {
     }
 
     fn extract_user_l2_to_l1_logs(&self) -> Vec<(IncludedTxLocation, Vec<&L2ToL1Log>)> {
-        Default::default()
-        // todo: l2_to_l1_logs are not saved for now
-        // self.group_by_tx_location(&self.inner.user_l2_to_l1_logs, |log| {
-        //     u32::from(log.tx_number_in_block)
-        // })
+        println!("Inner user_l2_to_l1_logs: {:?}", self.inner.user_l2_to_l1_logs);
+        self.group_by_tx_location(&self.inner.user_l2_to_l1_logs, |log| {
+            u32::from(log.tx_number_in_block)
+        })
     }
 }
 

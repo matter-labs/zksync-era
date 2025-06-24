@@ -39,7 +39,7 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
         tx_hash: H256([1; 32]),
         tx_index_in_l2_block: 0,
     };
-    let first_logs = [create_l2_to_l1_log(0, 0), create_l2_to_l1_log(0, 0)];
+    let first_logs = vec![create_l2_to_l1_log(0, 0), create_l2_to_l1_log(0, 0)];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
@@ -50,8 +50,8 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
         create_l2_to_l1_log(0, 0),
     ];
     let all_logs = vec![
-        (first_location, first_logs.iter().collect()),
-        (second_location, second_logs.iter().collect()),
+        (first_location, first_logs),
+        (second_location, second_logs),
     ];
     conn.events_dal()
         .save_user_l2_to_l1_logs(l2_block_number, &all_logs)

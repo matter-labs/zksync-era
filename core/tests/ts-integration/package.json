@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "test": "zk f jest --forceExit --verbose --testTimeout 150000",
+    "test": "zk f jest --forceExit --verbose --testTimeout 150000 --silent=false",
     "long-running-test": "zk f jest",
     "fee-test": "RUN_FEE_TEST=1 zk f jest -- fees.test.ts",
     "api-test": "zk f jest -- api/web3.test.ts api/debug.test.ts",

@@ -3,6 +3,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import { log } from 'console';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -178,9 +179,11 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
 }
 
 export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    log("waiting for block finalization", blockNumber, txHash);
     // First, we wait for block to be finalized.
     await waitUntilBlockFinalized(wallet, blockNumber);
 
+    log("block finalized", blockNumber, txHash);
     // Second, we wait for the log proof.
     while ((await wallet.provider.getLogProof(txHash)) == null) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
