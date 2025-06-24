@@ -72,8 +72,6 @@ services:
     image: "matterlabs/zksync-os-prover-snark:latest"
     platform: linux/x86_64
 
-    ports:
-      - 3052:3052
     command: --sequencer-url http://localhost:3124 --binary-path execution_environment/app.bin --output-dir /proofs/
     volumes:
       - ./chains/era/proofs:/proofs
