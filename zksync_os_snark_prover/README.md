@@ -7,7 +7,7 @@ Requires at least 140 GB to run.
 To run against a local sequencer:
 
 ```
-cargo run --release -- --sequencer-url localhost:3124 --binary-path ../app.bin --output-dir /tmp/
+cargo run --release -- --sequencer-url localhost:3124 --binary-path ../execution_environment/app.bin --output-dir /tmp/
 ```
 
 IMPORTANT:
