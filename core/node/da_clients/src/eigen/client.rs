@@ -231,13 +231,11 @@ impl DataAvailabilityClient for EigenDAClient {
                     Ok(None)
                 }
             } else {
-                let inclusion_data = eigenda_cert
-                    .to_bytes()
-                    .map_err(|_| {
-                        to_non_retriable_da_error(anyhow::anyhow!(
-                            "Failed to convert eigenda cert to bytes"
-                        ))
-                    })?;
+                let inclusion_data = eigenda_cert.to_bytes().map_err(|_| {
+                    to_non_retriable_da_error(anyhow::anyhow!(
+                        "Failed to convert eigenda cert to bytes"
+                    ))
+                })?;
                 Ok(Some(InclusionData {
                     data: inclusion_data,
                 }))
