@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                kind as \"kind: _\",\n                calldata\n            FROM\n                tee_dcap_collateral\n            WHERE\n                eth_tx_id IS NULL \n                AND calldata IS NOT NULL\n            ORDER BY updated ASC\n        ",
+  "query": "\n            SELECT\n                kind AS \"kind: _\",\n                not_after\n            FROM\n                tee_dcap_collateral\n            WHERE\n                not_after <= transaction_timestamp() + $1\n            ORDER BY not_after ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -25,17 +25,19 @@
       },
       {
         "ordinal": 1,
-        "name": "calldata",
-        "type_info": "Bytea"
+        "name": "not_after",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Interval"
+      ]
     },
     "nullable": [
       false,
       false
     ]
   },
-  "hash": "963edd1bbecfe5ad1be69901c748d99967d82289a9a6e1c5de3d9a01e49c7104"
+  "hash": "b75dfe76942c88e3d6c709a862e6dfea19e2fa40257d0af2ce19faba0862647c"
 }

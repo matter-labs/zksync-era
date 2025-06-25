@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                kind as \"kind: _\",\n                fmspc,\n                calldata\n            FROM\n                tee_dcap_collateral_tcb_info_json\n            WHERE\n                eth_tx_id IS NULL \n                AND calldata IS NOT NULL\n            ORDER BY updated ASC\n        ",
+  "query": "\n            SELECT\n                kind AS \"kind: _\",\n                fmspc,\n                calldata\n            FROM\n                tee_dcap_collateral_tcb_info_json\n            WHERE\n                eth_tx_id IS NULL\n                AND calldata IS NOT NULL\n            ORDER BY updated ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -38,5 +38,5 @@
       false
     ]
   },
-  "hash": "af0de2db24f36e2c2a2fd104697250f597c0e945e107b01ee584883f01a37109"
+  "hash": "b6fdd40013ed669f3ec7ea7e9083b7cc4a26bf046185876705c1ead863816034"
 }

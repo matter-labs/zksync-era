@@ -457,15 +457,15 @@ impl TeeDcapCollateralDal<'_, '_> {
             PendingFieldCollateral,
             r#"
             SELECT
-                kind as "kind: _",
+                kind AS "kind: _",
                 calldata
             FROM
                 tee_dcap_collateral
             WHERE
-                eth_tx_id IS NULL 
+                eth_tx_id IS NULL
                 AND calldata IS NOT NULL
             ORDER BY updated ASC
-        "#
+            "#
         )
         .instrument("tee_dcap_collateral_get_pending_field_collateral_for_eth_tx")
         .report_latency()
@@ -480,16 +480,16 @@ impl TeeDcapCollateralDal<'_, '_> {
             PendingTcbInfoCollateral,
             r#"
             SELECT
-                kind as "kind: _",
+                kind AS "kind: _",
                 fmspc,
                 calldata
             FROM
                 tee_dcap_collateral_tcb_info_json
             WHERE
-                eth_tx_id IS NULL 
+                eth_tx_id IS NULL
                 AND calldata IS NOT NULL
             ORDER BY updated ASC
-        "#
+            "#
         )
         .instrument("tee_dcap_collateral_get_pending_tcb_info_collateral_for_eth_tx")
         .report_latency()
@@ -535,15 +535,15 @@ impl TeeDcapCollateralDal<'_, '_> {
         sqlx::query_as!(
             ExpiringFieldCollateral,
             r#"
-        SELECT
-            kind as "kind: _",
-            not_after
-        FROM
-            tee_dcap_collateral
-        WHERE
-            not_after <= transaction_timestamp() + $1
-        ORDER BY not_after ASC
-    "#,
+            SELECT
+                kind AS "kind: _",
+                not_after
+            FROM
+                tee_dcap_collateral
+            WHERE
+                not_after <= transaction_timestamp() + $1
+            ORDER BY not_after ASC
+            "#,
             expires_within
         )
         .instrument("tee_dcap_collateral_get_expiring_field_collateral")
@@ -559,16 +559,16 @@ impl TeeDcapCollateralDal<'_, '_> {
         sqlx::query_as!(
             ExpiringTcbInfoCollateral,
             r#"
-        SELECT
-            kind as "kind: _",
-            fmspc,
-            not_after
-        FROM
-            tee_dcap_collateral_tcb_info_json
-        WHERE
-            not_after <= transaction_timestamp() + $1
-        ORDER BY not_after ASC
-    "#,
+            SELECT
+                kind AS "kind: _",
+                fmspc,
+                not_after
+            FROM
+                tee_dcap_collateral_tcb_info_json
+            WHERE
+                not_after <= transaction_timestamp() + $1
+            ORDER BY not_after ASC
+            "#,
             expires_within
         )
         .instrument("tee_dcap_collateral_get_expiring_tcb_info_collateral")
