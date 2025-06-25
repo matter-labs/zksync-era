@@ -276,7 +276,6 @@ impl StateKeeperIO for ExternalIO {
                     cursor.l1_batch
                 )
             })?;
-        dbg!(&data);
         Ok((cursor, Some(data)))
     }
 

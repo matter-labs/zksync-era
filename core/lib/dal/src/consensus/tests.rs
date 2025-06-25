@@ -96,7 +96,6 @@ fn test_encoding() {
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::InteropRoot, InteropRoot>(interop_root(rng));
-    // encode_decode::<proto::Payload, Payload>(payload(rng, ProtocolVersionId::latest()));
 
     encode_decode::<proto::Transaction, ComparableTransaction>(
         mock_protocol_upgrade_transaction().into(),

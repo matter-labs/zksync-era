@@ -465,7 +465,6 @@ impl StateKeeperInner {
                 self.health_updater
                     .update(StateKeeperHealthDetails::from(&cursor).into());
 
-                dbg!(&params);
                 latency.observe();
                 return Ok(params);
             }
@@ -503,7 +502,6 @@ impl StateKeeperInner {
             updates_manager.l1_batch.number,
             display_timestamp(block_env.timestamp)
         );
-        dbg!(&block_env);
         batch_executor
             .start_next_l2_block(block_env.clone())
             .await
@@ -1076,6 +1074,7 @@ impl StateKeeper {
         self.inner
             .report_seal_criteria_capacity(&state.updates_manager);
 
+        // During the batch sealing we must ensure that the fictive l2 block has no interop roots.
         state.updates_manager.clear_interop_roots();
         let (finished_batch, _) = state.batch_executor.finish_batch().await?;
         state.updates_manager.finish_batch(finished_batch);
