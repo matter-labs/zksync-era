@@ -166,18 +166,26 @@ impl L1TransactionVerifier {
 
         if let Some((batch_hash, commitment)) = committed_batch_info {
             if db_batch.commitment != commitment {
-                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
-                    receipt.transaction_hash,
-                    batch_number,
-                    db_batch.commitment,
-                    commitment) });
+                return Err(TransactionValidationError::BatchTransactionInvalid {
+                    reason: format!(
+                        "Commit transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
+                        receipt.transaction_hash,
+                        batch_number,
+                        db_batch.commitment,
+                        commitment
+                    )
+                });
             }
             if db_batch.root_hash != batch_hash {
-                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {} for batch {} has different root hash: expected {:?}, got {:?}",
-                    receipt.transaction_hash,
-                    batch_number,
-                    db_batch.root_hash,
-                    batch_hash)});
+                return Err(TransactionValidationError::BatchTransactionInvalid {
+                    reason: format!(
+                        "Commit transaction {} for batch {} has different root hash: expected {:?}, got {:?}",
+                        receipt.transaction_hash,
+                        batch_number,
+                        db_batch.root_hash,
+                        batch_hash
+                    )
+                });
             }
             // OK verified successfully the commit transaction.
             tracing::debug!(

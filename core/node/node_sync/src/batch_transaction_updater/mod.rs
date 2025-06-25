@@ -68,7 +68,7 @@ impl BatchTransactionUpdater {
     /// Validation errors are fatal.
     async fn apply_status_update(
         &self,
-        db_eth_history_id: u32,
+        eth_history_id: u32,
         receipt: TransactionReceipt,
         l1_block_numbers: &L1BlockNumbers,
     ) -> anyhow::Result<bool> {
@@ -88,27 +88,27 @@ impl BatchTransactionUpdater {
             .connection_tagged("batch_transaction_updater")
             .await?;
 
-        let db_eth_history_tx = connection
+        let eth_history_tx = connection
             .eth_sender_dal()
-            .get_eth_tx_history_by_id(db_eth_history_id)
+            .get_eth_tx_history_by_id(eth_history_id)
             .await?;
 
         let batches = connection
             .blocks_dal()
-            .get_l1_batches_statistics_for_eth_tx_id(db_eth_history_tx.eth_tx_id)
+            .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
             .await?;
 
         if batches.is_empty() {
             anyhow::bail!(
                 "Transaction {} is not associated with any batch",
-                db_eth_history_tx.tx_hash
+                eth_history_tx.tx_hash
             );
         }
 
         // validate the transaction against db
         for batch in &batches {
             let batch_number = batch.number;
-            let ret = match db_eth_history_tx.tx_type {
+            let ret = match eth_history_tx.tx_type {
                 AggregatedActionType::Commit => {
                     self.l1_transaction_verifier
                         .validate_commit_tx(&receipt, batch.number)
@@ -153,14 +153,14 @@ impl BatchTransactionUpdater {
 
         tracing::info!(
             "Updated finality status for transaction {} ({} for batch {}) from {:?} to {:?}",
-            db_eth_history_tx.tx_hash,
-            db_eth_history_tx.tx_type,
+            eth_history_tx.tx_hash,
+            eth_history_tx.tx_type,
             batches
                 .iter()
                 .map(|batch| batch.number.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            db_eth_history_tx.eth_tx_finality_status,
+            eth_history_tx.eth_tx_finality_status,
             updated_status
         );
 
@@ -176,20 +176,20 @@ impl BatchTransactionUpdater {
 
         tracing::debug!("Checking {} unfinalized transactions", to_process.len());
 
-        for mut db_eth_tx_history in to_process {
+        for mut eth_tx_history in to_process {
             // we save receipt here to avoid fetching multiple times
             let mut receipt: Option<TransactionReceipt> = None;
 
             // if we didn't see this transaction mined, fetch it
-            let sent_at_block = match db_eth_tx_history.sent_at_block {
+            let sent_at_block = match eth_tx_history.sent_at_block {
                 Some(block) => block,
                 None => {
-                    receipt = match self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await {
+                    receipt = match self.sl_client.tx_receipt(eth_tx_history.tx_hash).await {
                         Ok(receipt) => receipt,
                         Err(e) => {
                             tracing::warn!(
                                 "Skipping transaction {} as failed to fetch transaction receipt: {}",
-                                db_eth_tx_history.tx_hash,
+                                eth_tx_history.tx_hash,
                                 e
                             );
                             continue;
@@ -202,12 +202,12 @@ impl BatchTransactionUpdater {
                         }
                         Some(receipt) => {
                             let sent_at_block: u32 = receipt.block_number.unwrap().as_u32();
-                            db_eth_tx_history.sent_at_block = Some(sent_at_block);
+                            eth_tx_history.sent_at_block = Some(sent_at_block);
                             self.pool
                                 .connection_tagged("batch_transaction_updater")
                                 .await?
                                 .eth_sender_dal()
-                                .set_sent_at_block(db_eth_tx_history.id, sent_at_block)
+                                .set_sent_at_block(eth_tx_history.id, sent_at_block)
                                 .await?;
                             sent_at_block
                         }
@@ -218,7 +218,7 @@ impl BatchTransactionUpdater {
             // transaction as included, check if we can potentially update
             // its finality status. This value is untrusted as sent_at_block may have been cached
             let Some(finality_update) = l1_block_numbers
-                .get_finality_update(db_eth_tx_history.eth_tx_finality_status, sent_at_block)
+                .get_finality_update(eth_tx_history.eth_tx_finality_status, sent_at_block)
             else {
                 continue;
             };
@@ -227,12 +227,12 @@ impl BatchTransactionUpdater {
             // validate all properties including block number as it may
             // have been cached
             let receipt = if receipt.is_none() {
-                match self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await {
+                match self.sl_client.tx_receipt(eth_tx_history.tx_hash).await {
                     Ok(receipt) => receipt,
                     Err(e) => {
                         tracing::warn!(
                             "Skipping transaction {} as failed to fetch transaction receipt: {}",
-                            db_eth_tx_history.tx_hash,
+                            eth_tx_history.tx_hash,
                             e
                         );
                         continue;
@@ -245,22 +245,22 @@ impl BatchTransactionUpdater {
             let Some(receipt) = receipt else {
                 tracing::warn!(
                             "Expected transaction {} to be mined at block {}, but transaction not mined at all on SL",
-                            db_eth_tx_history.tx_hash,
+                            eth_tx_history.tx_hash,
                             sent_at_block
                         );
                 self.pool
                     .connection_tagged("batch_transaction_updater")
                     .await?
                     .eth_sender_dal()
-                    .unset_sent_at_block(db_eth_tx_history.id)
+                    .unset_sent_at_block(eth_tx_history.id)
                     .await?;
                 continue;
             };
 
-            let db_eth_history_id = db_eth_tx_history.id;
+            let eth_history_id = eth_tx_history.id;
             let result = self
                 .apply_status_update(
-                    db_eth_history_id,
+                    eth_history_id,
                     receipt,
                     &l1_block_numbers,
                 )
@@ -268,9 +268,9 @@ impl BatchTransactionUpdater {
                 .with_context(|| {
                     format!(
                         "Failed to update finality status for transaction {} with type {} from {:?} to {:?}",
-                        db_eth_tx_history.tx_hash,
-                        db_eth_tx_history.tx_type,
-                        db_eth_tx_history.eth_tx_finality_status,
+                        eth_tx_history.tx_hash,
+                        eth_tx_history.tx_type,
+                        eth_tx_history.eth_tx_finality_status,
                         finality_update
                     )
                 })?;
