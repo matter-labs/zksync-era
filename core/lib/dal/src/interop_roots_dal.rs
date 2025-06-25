@@ -105,15 +105,15 @@ impl InteropRootDal<'_, '_> {
 
     pub async fn reset_interop_roots_state(
         &mut self,
-        l2block_number: L2BlockNumber,
+        last_correct_l2_block: L2BlockNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE interop_roots
             SET processed_block_number = NULL
-            WHERE processed_block_number = $1
+            WHERE processed_block_number > $1
             "#,
-            l2block_number.0 as i32
+            last_correct_l2_block.0 as i32
         )
         .instrument("reset_interop_roots_state")
         .fetch_optional(self.storage)
