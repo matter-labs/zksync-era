@@ -506,12 +506,10 @@ jobs:
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
 
-      # `sleep 60` because we need to wait until server added all transactions
       - name: Migrate to gateway again
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway --chain era --no-deps
-          ci_run sleep 60
           ci_run pkill -9 zksync_server
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway

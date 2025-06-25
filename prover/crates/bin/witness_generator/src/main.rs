@@ -10,7 +10,7 @@ use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{DatabaseSecrets, GeneralConfig},
+    configs::{GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -21,7 +21,6 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
     rounds::{
@@ -95,8 +94,9 @@ async fn ensure_protocol_alignment(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let started_at = Instant::now();
     let opt = Opt::from_args();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -108,9 +108,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
-
-    let started_at = Instant::now();
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = prover_config.prover_object_store;
@@ -121,19 +119,11 @@ async fn main() -> anyhow::Result<()> {
         .clone();
     let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
-    let prometheus_config = &general_config.prometheus_config;
-    let prometheus_exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
-        let url = PrometheusExporterConfig::gateway_endpoint(base_url);
-        Some(PrometheusExporterConfig::push(
-            url,
-            prometheus_config.push_interval(),
-        ))
-    } else {
-        let prometheus_listener_port = config
-            .prometheus_listener_port
-            .or(prometheus_config.listener_port);
-        prometheus_listener_port.map(PrometheusExporterConfig::pull)
-    };
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(config.prometheus_listener_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
     let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
@@ -168,14 +158,9 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut tasks = Vec::new();
-    if let Some(config) = prometheus_exporter_config {
-        tracing::info!("Using Prometheus exporter with {config:?}");
-        let prometheus_task = tokio::spawn(config.run(stop_receiver.clone()));
-        tasks.push(prometheus_task);
-    } else {
-        tracing::info!("Prometheus exporter is not configured");
-    }
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(stop_receiver.clone()),
+    )];
 
     for round in rounds {
         tracing::info!(

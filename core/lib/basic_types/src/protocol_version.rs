@@ -214,6 +214,10 @@ impl ProtocolVersionId {
     pub fn is_pre_v29_interop(&self) -> bool {
         self < &Self::Version29
     }
+
+    pub fn is_pre_fast_blocks(&self) -> bool {
+        self < &Self::Version29
+    }
 }
 
 impl Default for ProtocolVersionId {

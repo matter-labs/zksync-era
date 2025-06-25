@@ -38,6 +38,6 @@
     "typescript": "^4.3.5",
     "yaml": "^2.4.2",
     "js-yaml": "^4.0.9",
-    "zksync-ethers": "git+https://github.com/zksync-sdk/zksync-ethers#kl/interop-ethers-support-real"
+    "zksync-ethers": "^6.18.0"
   }
 }

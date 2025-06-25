@@ -4,7 +4,8 @@ use zksync_concurrency::net;
 use zksync_consensus_engine::Last;
 use zksync_consensus_roles::{node, validator};
 use zksync_types::{
-    commitment::PubdataParams, ethabi, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256,
+    commitment::PubdataParams, ethabi, Address, InteropRoot, L1BatchNumber, ProtocolVersionId,
+    Transaction, H256,
 };
 
 mod conv;
@@ -77,6 +78,7 @@ pub struct Payload {
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
     pub pubdata_params: PubdataParams,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl Payload {

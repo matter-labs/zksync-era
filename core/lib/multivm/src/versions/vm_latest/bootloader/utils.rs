@@ -23,6 +23,15 @@ use crate::{
     },
 };
 
+pub(super) struct L2BlockApplicationConfig {
+    pub txs_index: usize,
+    pub start_new_l2_block: bool,
+    pub subversion: MultiVmSubversion,
+    pub apply_interop_roots: bool,
+    pub preexisting_interop_roots_number: usize,
+    pub preexisting_blocks_number: usize,
+}
+
 pub(super) fn get_memory_for_compressed_bytecodes(
     compressed_bytecodes: &[CompressedBytecodeInfo],
 ) -> Vec<U256> {
@@ -79,12 +88,14 @@ pub(super) fn apply_tx_to_memory(
     apply_l2_block_inner(
         memory,
         bootloader_l2_block,
-        tx_index,
-        start_new_l2_block,
-        subversion,
-        apply_interop_roots,
-        preexisting_interop_roots_number,
-        preexisting_blocks_number,
+        L2BlockApplicationConfig {
+            txs_index: tx_index,
+            start_new_l2_block,
+            subversion,
+            apply_interop_roots,
+            preexisting_interop_roots_number,
+            preexisting_blocks_number,
+        },
     );
 
     // Note, +1 is moving for pointer
@@ -115,32 +126,28 @@ pub(crate) fn apply_l2_block(
     apply_l2_block_inner(
         memory,
         bootloader_l2_block,
-        txs_index,
-        true,
-        subversion,
-        apply_interop_roots,
-        preexisting_interop_roots_number,
-        preexisting_blocks_number,
+        L2BlockApplicationConfig {
+            txs_index,
+            start_new_l2_block: true,
+            subversion,
+            apply_interop_roots,
+            preexisting_interop_roots_number,
+            preexisting_blocks_number,
+        },
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn apply_l2_block_inner(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
-    txs_index: usize,
-    start_new_l2_block: bool,
-    subversion: MultiVmSubversion,
-    apply_interop_roots: bool,
-    preexisting_interop_roots_number: usize,
-    preexisting_blocks_number: usize,
+    config: L2BlockApplicationConfig,
 ) {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
 
-    let block_position = get_tx_operator_l2_block_info_offset(subversion)
-        + txs_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
+    let block_position = get_tx_operator_l2_block_info_offset(config.subversion)
+        + config.txs_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
     memory.extend(vec![
         (block_position, bootloader_l2_block.number.into()),
@@ -151,7 +158,7 @@ fn apply_l2_block_inner(
         ),
         (
             block_position + 3,
-            if start_new_l2_block {
+            if config.start_new_l2_block {
                 bootloader_l2_block.max_virtual_blocks_to_create.into()
             } else {
                 U256::zero()
@@ -159,7 +166,7 @@ fn apply_l2_block_inner(
         ),
     ]);
 
-    if subversion != MultiVmSubversion::Interop || !apply_interop_roots {
+    if config.subversion != MultiVmSubversion::Interop || !config.apply_interop_roots {
         return;
     }
 
@@ -170,22 +177,22 @@ fn apply_l2_block_inner(
         .for_each(|(offset, interop_root)| {
             apply_interop_root(
                 memory,
-                offset + preexisting_interop_roots_number,
+                offset + config.preexisting_interop_roots_number,
                 interop_root.clone(),
-                subversion,
+                config.subversion,
                 bootloader_l2_block.number,
             )
         });
 
-    if !start_new_l2_block {
+    if !config.start_new_l2_block {
         return;
     }
 
     apply_interop_root_number_in_block_number(
         memory,
-        subversion,
+        config.subversion,
         bootloader_l2_block.interop_roots.len(),
-        preexisting_blocks_number,
+        config.preexisting_blocks_number,
     );
 }
 
@@ -220,7 +227,7 @@ pub(crate) fn apply_interop_root_number_in_block_number(
     preexisting_blocks_number: usize,
 ) {
     let mut number_of_written_blocks = 0;
-    if let Some(_index) = memory.iter().position(|(slot, _)| {
+    if memory.iter().any(|(slot, _)| {
         if *slot < get_interop_blocks_begin_offset(subversion)
             || *slot >= get_interop_root_offset(subversion)
         {

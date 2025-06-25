@@ -66,7 +66,7 @@ impl WellKnown for ProtocolVersion {
 /// decide whether a hard fork is necessary (if present).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisSpec {
-    /// Chain ID.
+    /// Chain ID for L2.
     #[config(with = Serde![int])]
     pub chain_id: L2ChainId,
     /// Consensus protocol version.
@@ -86,8 +86,7 @@ pub struct GenesisSpec {
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct RpcConfig {
-    // FIXME: breaking change from `get_block_rate: Rate`, but it looks unused. (no mentions in configs)
-    /// Max number of blocks that can be sent from/to each peer. Defaults to 10 blocks/s/connection.
+    /// Max number of blocks that can be sent from/to each peer.
     #[config(default_t = NonZeroUsize::new(10).unwrap())]
     pub get_block_rps: NonZeroUsize,
 }

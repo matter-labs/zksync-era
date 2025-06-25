@@ -473,7 +473,6 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         eth_tx_finality_status: EthTxFinalityStatus,
         gas_used: U256,
-        confirmed_at_block: u32,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -490,8 +489,7 @@ impl EthSenderDal<'_, '_> {
                 updated_at = NOW(),
                 confirmed_at = NOW(),
                 finality_status = $2,
-                sent_successfully = TRUE,
-                confirmed_at_block = $3
+                sent_successfully = TRUE
             WHERE
                 tx_hash = $1
             RETURNING
@@ -499,8 +497,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
-            eth_tx_finality_status.to_string(),
-            confirmed_at_block as i32
+            eth_tx_finality_status.to_string()
         )
         .fetch_one(transaction.conn())
         .await?;
@@ -787,45 +784,6 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item)
     }
 
-    pub async fn get_last_sent_and_confirmed_eth_storage_tx(
-        &mut self,
-        eth_tx_id: u32,
-    ) -> sqlx::Result<Option<StorageTxHistory>> {
-        let history_item = sqlx::query_as!(
-            StorageTxHistory,
-            r#"
-            SELECT
-                eth_txs_history.*,
-                eth_txs.blob_sidecar
-            FROM
-                eth_txs_history
-            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
-            WHERE
-                eth_tx_id = $1
-                AND eth_txs_history.confirmed_at IS NOT NULL
-                AND eth_txs.has_failed IS FALSE
-            ORDER BY
-                eth_txs_history.created_at DESC
-            LIMIT
-                1
-            "#,
-            eth_tx_id as i32
-        )
-        .fetch_optional(self.storage.conn())
-        .await?;
-        Ok(history_item)
-    }
-
-    pub async fn get_last_sent_successfully_eth_tx(
-        &mut self,
-        eth_tx_id: u32,
-    ) -> sqlx::Result<Option<TxHistory>> {
-        let history_item = self
-            .get_last_sent_successfully_eth_storage_tx(eth_tx_id)
-            .await?;
-        Ok(history_item.map(|tx| tx.into()))
-    }
-
     pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -1012,9 +970,10 @@ impl EthSenderDal<'_, '_> {
         let eth_tx_id = self
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
             .await;
-        self.get_last_sent_successfully_eth_tx(eth_tx_id.unwrap()?)
+        self.get_last_sent_successfully_eth_storage_tx(eth_tx_id.unwrap()?)
             .await
             .unwrap()
+            .map(|tx| tx.into())
     }
 
     pub async fn is_using_blobs_in_latest_batch(&mut self) -> DalResult<bool> {

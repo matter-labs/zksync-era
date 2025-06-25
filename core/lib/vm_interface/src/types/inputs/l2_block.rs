@@ -23,21 +23,10 @@ impl L2BlockEnv {
 
 /// Current block information stored in the system context contract. Can be used to set up
 /// oneshot transaction / call execution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StoredL2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
     pub txs_rolling_hash: H256,
     pub interop_roots: Vec<InteropRoot>,
-}
-
-impl Clone for StoredL2BlockEnv {
-    fn clone(&self) -> Self {
-        Self {
-            number: self.number,
-            timestamp: self.timestamp,
-            txs_rolling_hash: self.txs_rolling_hash,
-            interop_roots: self.interop_roots.clone(),
-        }
-    }
 }

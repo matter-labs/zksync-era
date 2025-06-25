@@ -18,7 +18,7 @@ use zksync_types::{
     block::UnsealedL1BatchHeader,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
@@ -313,7 +313,7 @@ impl StateKeeperIO for ExternalIO {
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
-                        timestamp: params.first_l2_block.timestamp,
+                        timestamp: params.first_l2_block.timestamp(),
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
@@ -343,7 +343,7 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!(
@@ -460,24 +460,6 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let interop_root = storage.interop_root_dal().get_new_interop_roots().await?;
-        Ok(interop_root)
-    }
-
-    async fn load_l2_block_interop_root(
-        &self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let interop_root = storage
-            .interop_root_dal()
-            .get_interop_roots(l2block_number)
-            .await?;
-        Ok(interop_root)
-    }
-
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         tracing::info!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
@@ -540,11 +522,7 @@ mod tests {
             validation_computational_gas_limit: u32::MAX,
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_l2_block: L2BlockParams {
-                timestamp: 1,
-                virtual_blocks: 1,
-                interop_roots: vec![],
-            },
+            first_l2_block: L2BlockParams::new(1000),
             pubdata_params: Default::default(),
         };
         actions_sender

@@ -12,7 +12,7 @@ impl From<FastVmVersion> for MultiVmSubversion {
         match value {
             FastVmVersion::IncreasedBootloaderMemory => Self::IncreasedBootloaderMemory,
             FastVmVersion::Gateway => Self::Gateway,
-            FastVmVersion::Interop => Self::latest(),
+            FastVmVersion::Interop => Self::Interop,
         }
     }
 }

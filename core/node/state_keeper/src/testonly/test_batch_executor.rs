@@ -28,8 +28,8 @@ use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
-    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    L2ChainId, OrStopped, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    OrStopped, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -37,7 +37,7 @@ use crate::{
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
-    OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
+    OutputHandler, StateKeeperBuilder, StateKeeperOutputHandler,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -198,11 +198,11 @@ impl TestScenario {
     pub(crate) fn update_l2_block_timestamp(
         mut self,
         description: &'static str,
-        new_timestamp: u64,
+        new_timestamp_ms: u64,
     ) -> Self {
         self.actions.push_back(ScenarioItem::UpdateBlockTimestamp(
             description,
-            new_timestamp,
+            new_timestamp_ms,
         ));
         self
     }
@@ -215,7 +215,7 @@ impl TestScenario {
         let batch_executor = TestBatchExecutorBuilder::new(&self);
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
-        let state_keeper = ZkSyncStateKeeper::new(
+        let builder = StateKeeperBuilder::new(
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -223,6 +223,7 @@ impl TestScenario {
             Arc::new(MockReadStorageFactory),
             None,
         );
+        let state_keeper = builder.build(&stop_receiver).await.unwrap();
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
@@ -699,6 +700,7 @@ impl StateKeeperIO for TestIO {
             prev_l2_block_hash: H256::zero(),
             prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
             l1_batch: self.batch_number,
+            prev_l1_batch_timestamp: self.timestamp.saturating_sub(1),
         };
         let pending_batch = self.pending_batch.take();
         if pending_batch.is_some() {
@@ -720,11 +722,7 @@ impl StateKeeperIO for TestIO {
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
-            first_l2_block: L2BlockParams {
-                timestamp: self.timestamp,
-                virtual_blocks: 1,
-                interop_roots: vec![],
-            },
+            first_l2_block: L2BlockParams::new(self.timestamp * 1000),
             pubdata_params: Default::default(),
         };
         self.l2_block_number += 1;
@@ -739,12 +737,7 @@ impl StateKeeperIO for TestIO {
         _max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
-        let params = L2BlockParams {
-            timestamp: self.timestamp,
-            // 1 is just a constant used for tests.
-            virtual_blocks: 1,
-            interop_roots: vec![],
-        };
+        let params = L2BlockParams::new(self.timestamp * 1000);
         self.l2_block_number += 1;
         self.timestamp += 1;
         Ok(Some(params))
@@ -829,17 +822,6 @@ impl StateKeeperIO for TestIO {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
-    }
-
-    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
-        Ok(vec![])
-    }
-
-    async fn load_l2_block_interop_root(
-        &self,
-        _l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        Ok(vec![])
     }
 
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {

@@ -13,7 +13,7 @@ node to verify all transactions, the state of the rollup can be easily checked b
 the proof.
 
 These external validators of a rollup can be other rollups. This means we can connect rollups trustlessly, and create a
-network of rollups. This network is called the Elastic Network.
+network of rollups. This network is called the ZK Chain ecosystem.
 
 These specs will provide a high level overview of the zkEVM and a full specification of its more technical components,
-such as the prover, compiler, and the VM itself. We also specify the foundations of the Elastic Network.
+such as the prover, compiler, and the VM itself. We also specify the foundations of the ZK Chain ecosystem.

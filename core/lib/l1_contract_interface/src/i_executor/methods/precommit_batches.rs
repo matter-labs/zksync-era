@@ -4,7 +4,7 @@ use zksync_types::{
     L1BatchNumber, L2BlockNumber,
 };
 
-use crate::{i_executor::structures::SUPPORTED_ENCODING_VERSION, Tokenize};
+use crate::{i_executor::structures::EncodingVersion, Tokenize};
 
 /// Input required to encode `preCommitBatches` call for a contract
 #[derive(Debug)]
@@ -26,7 +26,7 @@ impl Tokenize for &PrecommitBatches<'_> {
             Token::Bytes(packed_txs),
             Token::Uint(self.last_l2_block.0.into()),
         ])]);
-        encoded_data.insert(0, SUPPORTED_ENCODING_VERSION);
+        encoded_data.insert(0, EncodingVersion::Supported.value());
         vec![
             Token::Uint(self.l1_batch_number.0.into()),
             Token::Bytes(encoded_data),
