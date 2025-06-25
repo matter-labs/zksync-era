@@ -6,13 +6,9 @@ use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 use super::*;
 
 #[derive(Debug)]
-struct GetTeeProofsTest {}
+struct GetTeeProofsTest;
 
-impl GetTeeProofsTest {
-    fn new() -> Self {
-        Self {}
-    }
-}
+impl TestInit for GetTeeProofsTest {}
 
 #[async_trait]
 impl HttpTest for GetTeeProofsTest {
@@ -60,5 +56,5 @@ impl HttpTest for GetTeeProofsTest {
 
 #[tokio::test]
 async fn get_tee_proofs() {
-    test_http_server(GetTeeProofsTest::new()).await;
+    test_http_server(GetTeeProofsTest).await;
 }

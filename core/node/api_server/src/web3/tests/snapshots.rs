@@ -26,6 +26,8 @@ impl SnapshotBasicsTest {
     }
 }
 
+impl TestInit for SnapshotBasicsTest {}
+
 #[async_trait]
 impl HttpTest for SnapshotBasicsTest {
     async fn test(

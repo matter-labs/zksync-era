@@ -472,7 +472,7 @@ impl EthSubscribe {
     /// Test-only helper spawning all 3 notifier tasks.
     pub(crate) fn spawn_notifiers(
         &self,
-        connection_pool: ConnectionPool<Core>,
+        connection_pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
         [

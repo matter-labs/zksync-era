@@ -1,6 +1,6 @@
 //! Test utilities useful for writing unit tests outside of this crate.
 
-use std::time::Instant;
+use std::{net::Ipv4Addr, time::Instant};
 
 use tokio::sync::watch;
 use zksync_config::configs::{
@@ -15,7 +15,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::L2ChainId;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
-use super::{metrics::ApiTransportLabel, *};
+use super::*;
 use crate::{
     execution_sandbox::SandboxExecutor,
     tx_sender::{SandboxExecutorOptions, TxSenderConfig},
@@ -63,6 +63,7 @@ pub(crate) async fn create_test_tx_sender(
 pub struct ApiServerHandles {
     pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
     pub health_check: ReactiveHealthCheck,
+    pub pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
 }
 
 impl ApiServerHandles {
@@ -157,31 +158,20 @@ impl TestServerBuilder {
 
     /// Builds an HTTP server.
     pub async fn build_http(self, stop_receiver: watch::Receiver<bool>) -> ApiServerHandles {
-        self.spawn_server(ApiTransportLabel::Http, None, stop_receiver)
-            .await
-            .0
-    }
-
-    /// Builds a WS server.
-    pub async fn build_ws(
-        self,
-        websocket_requests_per_minute_limit: Option<NonZeroU32>,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
         self.spawn_server(
-            ApiTransportLabel::Ws,
-            websocket_requests_per_minute_limit,
+            ApiTransport::Http((Ipv4Addr::LOCALHOST, 0).into()),
+            None,
             stop_receiver,
         )
         .await
     }
 
-    async fn spawn_server(
+    pub(crate) async fn spawn_server(
         self,
-        transport: ApiTransportLabel,
+        transport: ApiTransport,
         websocket_requests_per_minute_limit: Option<NonZeroU32>,
         stop_receiver: watch::Receiver<bool>,
-    ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
+    ) -> ApiServerHandles {
         let Self {
             tx_executor,
             executor_options,
@@ -198,7 +188,7 @@ impl TestServerBuilder {
         };
         let (tx_sender, vm_barrier) =
             create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
-        let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
+        let (pub_sub_events_sender, pub_sub_events) = mpsc::unbounded_channel();
 
         let mut namespaces = HashSet::from(Namespace::DEFAULT);
         namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
@@ -207,26 +197,19 @@ impl TestServerBuilder {
             BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
 
         let mut server_tasks = vec![];
-        let (pub_sub, server_builder) = match transport {
-            ApiTransportLabel::Http => (None, ApiBuilder::new(api_config, pool).http(0)),
-            ApiTransportLabel::Ws => {
-                let mut pub_sub = EthSubscribe::new(POLL_INTERVAL);
-                pub_sub.set_events_sender(pub_sub_events_sender);
-                server_tasks.extend(pub_sub.spawn_notifiers(pool.clone(), &stop_receiver));
+        let pub_sub = transport.has_ws().then(|| {
+            let mut pub_sub = EthSubscribe::new(POLL_INTERVAL);
+            pub_sub.set_events_sender(pub_sub_events_sender);
+            server_tasks.extend(pub_sub.spawn_notifiers(&pool, &stop_receiver));
+            pub_sub
+        });
 
-                let mut builder = ApiBuilder::new(api_config, pool)
-                    .ws(0)
-                    .with_subscriptions_limit(100);
-                if let Some(websocket_requests_per_minute_limit) =
-                    websocket_requests_per_minute_limit
-                {
-                    builder = builder.with_websocket_requests_per_minute_limit(
-                        websocket_requests_per_minute_limit,
-                    );
-                }
-                (Some(pub_sub), builder)
-            }
-        };
+        let mut server_builder = ApiBuilder::new(api_config, pool);
+        server_builder.transport = Some(transport);
+        if let Some(websocket_requests_per_minute_limit) = websocket_requests_per_minute_limit {
+            server_builder = server_builder
+                .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+        }
 
         let mut server_builder = server_builder
             .with_tx_sender(tx_sender)
@@ -243,10 +226,10 @@ impl TestServerBuilder {
         let server = server_builder.build().expect("Unable to build API server");
         let health_check = server.health_checks().pop().unwrap();
         server_tasks.push(tokio::spawn(server.run(pub_sub, stop_receiver)));
-        let handles = ApiServerHandles {
+        ApiServerHandles {
             tasks: server_tasks,
             health_check,
-        };
-        (handles, pub_sub_events_receiver)
+            pub_sub_events,
+        }
     }
 }

@@ -39,6 +39,8 @@ fn execute_l2_transaction_with_traces(index_in_block: u8) -> TransactionExecutio
 #[derive(Debug)]
 struct TraceBlockTest(L2BlockNumber);
 
+impl TestInit for TraceBlockTest {}
+
 #[async_trait]
 impl HttpTest for TraceBlockTest {
     async fn test(
@@ -106,6 +108,8 @@ async fn tracing_block() {
 
 #[derive(Debug)]
 struct TraceBlockFlatTest(L2BlockNumber);
+
+impl TestInit for TraceBlockFlatTest {}
 
 #[async_trait]
 impl HttpTest for TraceBlockFlatTest {
@@ -201,6 +205,8 @@ async fn tracing_block_flat() {
 #[derive(Debug)]
 struct TraceTransactionTest;
 
+impl TestInit for TraceTransactionTest {}
+
 #[async_trait]
 impl HttpTest for TraceTransactionTest {
     async fn test(
@@ -241,12 +247,14 @@ async fn tracing_transaction() {
 #[derive(Debug)]
 struct TraceBlockTestWithSnapshotRecovery;
 
-#[async_trait]
-impl HttpTest for TraceBlockTestWithSnapshotRecovery {
+impl TestInit for TraceBlockTestWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::empty_recovery()
     }
+}
 
+#[async_trait]
+impl HttpTest for TraceBlockTestWithSnapshotRecovery {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -282,6 +290,8 @@ async fn tracing_block_after_snapshot_recovery() {
 #[derive(Debug)]
 struct GetRawTransactionTest;
 
+impl TestInit for GetRawTransactionTest {}
+
 #[async_trait]
 impl HttpTest for GetRawTransactionTest {
     async fn test(
@@ -315,6 +325,8 @@ async fn get_raw_transaction() {
 
 #[derive(Debug)]
 struct GetRawTransactionsTest(L2BlockNumber);
+
+impl TestInit for GetRawTransactionsTest {}
 
 #[async_trait]
 impl HttpTest for GetRawTransactionsTest {

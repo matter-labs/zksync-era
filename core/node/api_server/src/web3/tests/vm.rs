@@ -120,12 +120,14 @@ impl CallTest {
     }
 }
 
-#[async_trait]
-impl HttpTest for CallTest {
+impl TestInit for CallTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
         Self::create_executor(L2BlockNumber(1), self.fee_input.clone())
     }
+}
 
+#[async_trait]
+impl HttpTest for CallTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -252,8 +254,7 @@ fn evm_emulator_responses(tx: &Transaction, env: &OneshotEnv) -> ExecutionResult
 #[derive(Debug)]
 struct CallTestWithEvmEmulator;
 
-#[async_trait]
-impl HttpTest for CallTestWithEvmEmulator {
+impl TestInit for CallTestWithEvmEmulator {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis_with_evm()
     }
@@ -263,7 +264,10 @@ impl HttpTest for CallTestWithEvmEmulator {
         executor.set_call_responses(evm_emulator_responses);
         executor
     }
+}
 
+#[async_trait]
+impl HttpTest for CallTestWithEvmEmulator {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -300,8 +304,7 @@ struct CallTestAfterSnapshotRecovery {
     fee_input: ExpectedFeeInput,
 }
 
-#[async_trait]
-impl HttpTest for CallTestAfterSnapshotRecovery {
+impl TestInit for CallTestAfterSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::empty_recovery()
     }
@@ -310,7 +313,10 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         CallTest::create_executor(first_local_l2_block, self.fee_input.clone())
     }
+}
 
+#[async_trait]
+impl HttpTest for CallTestAfterSnapshotRecovery {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -362,8 +368,7 @@ async fn call_method_after_snapshot_recovery() {
 #[derive(Debug)]
 struct CallTestWithSlowVm;
 
-#[async_trait]
-impl HttpTest for CallTestWithSlowVm {
+impl TestInit for CallTestWithSlowVm {
     fn transaction_executor(&self) -> MockOneshotExecutor {
         let mut tx_executor = MockOneshotExecutor::default();
         tx_executor.set_vm_delay(Duration::from_secs(3_600));
@@ -377,7 +382,10 @@ impl HttpTest for CallTestWithSlowVm {
             ..Web3JsonRpcConfig::for_tests()
         }
     }
+}
 
+#[async_trait]
+impl HttpTest for CallTestWithSlowVm {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -446,8 +454,7 @@ impl SendRawTransactionTest {
     }
 }
 
-#[async_trait]
-impl HttpTest for SendRawTransactionTest {
+impl TestInit for SendRawTransactionTest {
     fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
             let logs = vec![Self::balance_storage_log()];
@@ -474,7 +481,10 @@ impl HttpTest for SendRawTransactionTest {
         });
         tx_executor
     }
+}
 
+#[async_trait]
+impl HttpTest for SendRawTransactionTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -515,6 +525,8 @@ async fn send_raw_transaction_after_snapshot_recovery() {
 #[derive(Debug)]
 struct SendRawTransactionWithoutToAddressTest;
 
+impl TestInit for SendRawTransactionWithoutToAddressTest {}
+
 #[async_trait]
 impl HttpTest for SendRawTransactionWithoutToAddressTest {
     async fn test(
@@ -549,8 +561,7 @@ async fn send_raw_transaction_fails_without_to_address() {
 #[derive(Debug)]
 struct SendRawTransactionTestWithEvmEmulator;
 
-#[async_trait]
-impl HttpTest for SendRawTransactionTestWithEvmEmulator {
+impl TestInit for SendRawTransactionTestWithEvmEmulator {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis_with_evm()
     }
@@ -560,7 +571,10 @@ impl HttpTest for SendRawTransactionTestWithEvmEmulator {
         executor.set_tx_responses(evm_emulator_responses);
         executor
     }
+}
 
+#[async_trait]
+impl HttpTest for SendRawTransactionTestWithEvmEmulator {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -636,8 +650,8 @@ impl SendTransactionWithDetailedOutputTest {
         }]
     }
 }
-#[async_trait]
-impl HttpTest for SendTransactionWithDetailedOutputTest {
+
+impl TestInit for SendTransactionWithDetailedOutputTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
         let mut tx_executor = MockOneshotExecutor::default();
         let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash(true);
@@ -660,7 +674,10 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
         });
         tx_executor
     }
+}
 
+#[async_trait]
+impl HttpTest for SendTransactionWithDetailedOutputTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -733,12 +750,14 @@ impl TraceCallTest {
     }
 }
 
-#[async_trait]
-impl HttpTest for TraceCallTest {
+impl TestInit for TraceCallTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
         CallTest::create_executor(L2BlockNumber(1), self.fee_input.clone())
     }
+}
 
+#[async_trait]
+impl HttpTest for TraceCallTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -858,8 +877,7 @@ struct TraceCallTestAfterSnapshotRecovery {
     fee_input: ExpectedFeeInput,
 }
 
-#[async_trait]
-impl HttpTest for TraceCallTestAfterSnapshotRecovery {
+impl TestInit for TraceCallTestAfterSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::empty_recovery()
     }
@@ -868,7 +886,10 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         let number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         CallTest::create_executor(number, self.fee_input.clone())
     }
+}
 
+#[async_trait]
+impl HttpTest for TraceCallTestAfterSnapshotRecovery {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -923,8 +944,7 @@ async fn trace_call_after_snapshot_recovery() {
 #[derive(Debug)]
 struct TraceCallTestWithEvmEmulator;
 
-#[async_trait]
-impl HttpTest for TraceCallTestWithEvmEmulator {
+impl TestInit for TraceCallTestWithEvmEmulator {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis_with_evm()
     }
@@ -934,7 +954,10 @@ impl HttpTest for TraceCallTestWithEvmEmulator {
         executor.set_call_responses(evm_emulator_responses);
         executor
     }
+}
 
+#[async_trait]
+impl HttpTest for TraceCallTestWithEvmEmulator {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -1014,8 +1037,7 @@ impl EstimateGasTest {
     }
 }
 
-#[async_trait]
-impl HttpTest for EstimateGasTest {
+impl TestInit for EstimateGasTest {
     fn storage_initialization(&self) -> StorageInitialization {
         let snapshot_recovery = self.snapshot_recovery;
         SendRawTransactionTest { snapshot_recovery }.storage_initialization()
@@ -1048,7 +1070,10 @@ impl HttpTest for EstimateGasTest {
         });
         tx_executor
     }
+}
 
+#[async_trait]
+impl HttpTest for EstimateGasTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -1121,8 +1146,7 @@ struct EstimateGasWithStateOverrideTest {
     inner: EstimateGasTest,
 }
 
-#[async_trait]
-impl HttpTest for EstimateGasWithStateOverrideTest {
+impl TestInit for EstimateGasWithStateOverrideTest {
     fn storage_initialization(&self) -> StorageInitialization {
         self.inner.storage_initialization()
     }
@@ -1130,7 +1154,10 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
         self.inner.transaction_executor()
     }
+}
 
+#[async_trait]
+impl HttpTest for EstimateGasWithStateOverrideTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -1191,6 +1218,8 @@ struct EstimateGasWithoutToAddressTest {
     method: EstimateMethod,
 }
 
+impl TestInit for EstimateGasWithoutToAddressTest {}
+
 #[async_trait]
 impl HttpTest for EstimateGasWithoutToAddressTest {
     async fn test(
@@ -1222,8 +1251,7 @@ struct EstimateGasTestWithEvmEmulator {
     method: EstimateMethod,
 }
 
-#[async_trait]
-impl HttpTest for EstimateGasTestWithEvmEmulator {
+impl TestInit for EstimateGasTestWithEvmEmulator {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis_with_evm()
     }
@@ -1233,7 +1261,10 @@ impl HttpTest for EstimateGasTestWithEvmEmulator {
         executor.set_tx_responses(evm_emulator_responses);
         executor
     }
+}
 
+#[async_trait]
+impl HttpTest for EstimateGasTestWithEvmEmulator {
     async fn test(
         &self,
         client: &DynClient<L2>,
