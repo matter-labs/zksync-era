@@ -13,7 +13,7 @@ use ethers::{
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::validator;
@@ -136,11 +136,7 @@ struct Setup {
 
 impl Setup {
     async fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let ecosystem_config =
-            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
-        let chain = ecosystem_config
-            .load_current_chain()
-            .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
+        let chain = ZkStackConfig::current_chain(shell)?;
         let contracts = chain
             .get_contracts_config()
             .context("get_contracts_config()")?;

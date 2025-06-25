@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use super::args::new_migration::{DatabaseNewMigrationArgs, SelectedDatabase};
 use crate::commands::dev::{
@@ -17,9 +17,9 @@ pub async fn run(shell: &Shell, args: DatabaseNewMigrationArgs) -> anyhow::Resul
         SelectedDatabase::Core => get_core_dal(shell, None).await?,
         SelectedDatabase::Prover => get_prover_dal(shell, None).await?,
     };
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::from_file(shell)?;
 
-    generate_migration(shell, ecosystem_config.link_to_code, dal, args.name)?;
+    generate_migration(shell, config.link_to_code(), dal, args.name)?;
 
     logger::outro(MSG_DATABASE_NEW_MIGRATION_SUCCESS);
 

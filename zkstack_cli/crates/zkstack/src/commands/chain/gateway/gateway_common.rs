@@ -17,7 +17,7 @@ use zkstack_cli_common::{
     logger,
     spinner::Spinner,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_contracts::bridgehub_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
@@ -36,7 +36,6 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
     commands::chain::admin_call_builder::AdminCallBuilder,
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
-    messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -473,10 +472,7 @@ pub(crate) async fn notify_server(
     shell: &Shell,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let contracts = chain_config.get_contracts_config()?;

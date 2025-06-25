@@ -3,7 +3,7 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
-use zkstack_cli_config::{get_link_to_prover, EcosystemConfig};
+use zkstack_cli_config::{get_link_to_prover, ZkStackConfig};
 
 use crate::{
     commands::prover::{
@@ -15,13 +15,11 @@ use crate::{
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let link_to_prover = get_link_to_prover(&link_to_code);
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
-        let chain_config = ecosystem_config
-            .load_current_chain()
-            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
         let mut general_config = chain_config.get_general_config().await?.patched();
         let proof_compressor_setup_path = general_config
             .proof_compressor_setup_path()
@@ -40,7 +38,6 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         }
         std::env::set_var("COMPACT_CRS_FILE", &proof_compressor_setup_path);
 
-        let link_to_prover = get_link_to_prover(&ecosystem_config);
         shell.change_dir(&link_to_prover);
 
         let spinner = Spinner::new(MSG_GENERATING_SK_SPINNER);
@@ -63,9 +60,8 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
     } else {
         check_prerequisites(shell, &GCLOUD_PREREQUISITE, false);
 
-        let link_to_setup_keys = get_link_to_prover(&ecosystem_config).join("data/keys");
-        let path_to_keys_buckets =
-            get_link_to_prover(&ecosystem_config).join("setup-data-gpu-keys.json");
+        let link_to_setup_keys = link_to_prover.join("data/keys");
+        let path_to_keys_buckets = link_to_prover.join("setup-data-gpu-keys.json");
 
         let region = args.region.expect("Region is not provided");
 

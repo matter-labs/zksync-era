@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{cmd::Cmd, spinner::Spinner};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::sql_fmt::format_sql;
 use crate::commands::dev::{commands::lint_utils::Target, messages::msg_running_fmt_spinner};
@@ -63,7 +63,7 @@ pub struct FmtArgs {
 }
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(&shell)?;
+    let link_to_code = ZkStackConfig::from_file(&shell)?.link_to_code();
     shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let mut tasks = vec![];
 
@@ -74,7 +74,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             tasks.push(tokio::spawn(rustfmt(
                 shell.clone(),
                 args.check,
-                ecosystem.link_to_code.clone(),
+                link_to_code.clone(),
                 dir,
             )));
         }

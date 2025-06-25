@@ -107,7 +107,7 @@ pub(crate) fn resolve_link_to_code(
     } else {
         let path = PathBuf::from_str(&link_to_code)?;
         if update_submodules.is_none() || update_submodules == Some(true) {
-            git::submodule_update(shell, path.clone())?;
+            git::submodule_update(shell, &path)?;
         }
         Ok(path)
     }

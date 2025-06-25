@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Context;
 use xshell::{cmd, Shell};
@@ -10,7 +10,7 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    copy_configs, get_link_to_prover, EcosystemConfig, ObjectStoreConfig, ObjectStoreMode,
+    copy_configs, get_link_to_prover, ObjectStoreConfig, ObjectStoreMode, ZkStackConfig,
 };
 
 use super::{
@@ -24,20 +24,17 @@ use crate::{
     commands::prover::deploy_proving_networks::deploy_proving_networks,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
-        MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_INITIALIZING_PROVER_DATABASE, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let default_compressor_key_path = get_default_compressor_keys_path(&ecosystem_config)?;
+    let default_compressor_key_path =
+        get_default_compressor_keys_path(&chain_config.link_to_code.clone())?;
 
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 
     if chain_config.get_general_config().await.is_err()
@@ -45,7 +42,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         || chain_config.get_wallets_config().is_err()
         || chain_config.get_contracts_config().is_err()
     {
-        copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+        copy_configs(shell, &chain_config.link_to_code, &chain_config.configs)?;
     }
 
     let mut general_config = chain_config.get_general_config().await?.patched();
@@ -90,7 +87,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         initialize_prover_database(
             shell,
             &prover_db.database_config,
-            ecosystem_config.link_to_code.clone(),
+            &chain_config.link_to_code.clone(),
             prover_db.dont_drop,
         )
         .await?;
@@ -109,7 +106,7 @@ fn get_object_store_config(
     let object_store = match config {
         Some(ProofStorageConfig::FileBacked(config)) => Some(init_file_backed_proof_storage(
             shell,
-            &EcosystemConfig::from_file(shell)?,
+            &ZkStackConfig::from_file(shell)?.link_to_code(),
             config,
         )?),
         Some(ProofStorageConfig::GCS(config)) => Some(ObjectStoreConfig {
@@ -131,7 +128,7 @@ fn get_object_store_config(
 async fn initialize_prover_database(
     shell: &Shell,
     prover_db_config: &DatabaseConfig,
-    link_to_code: PathBuf,
+    link_to_code: &Path,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
     if global_config().verbose {
@@ -156,11 +153,11 @@ async fn initialize_prover_database(
 
 fn init_file_backed_proof_storage(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    link_to_code: &Path,
     config: ProofStorageFileBacked,
 ) -> anyhow::Result<ObjectStoreConfig> {
     let proof_store_dir = config.proof_store_dir.clone();
-    let prover_path = get_link_to_prover(ecosystem_config);
+    let prover_path = get_link_to_prover(link_to_code);
 
     let proof_store_dir = prover_path.join(proof_store_dir).join("witness_inputs");
 
