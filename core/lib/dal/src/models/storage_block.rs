@@ -412,10 +412,11 @@ impl From<StorageBlockDetails> for api::BlockDetails {
         let status =
             if details.number == 0 || execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
                 api::BlockStatus::Verified
+            } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
+                api::BlockStatus::FastFinalized
             } else {
                 api::BlockStatus::Sealed
             };
-
         let base = api::BlockDetailsBase {
             timestamp: details.timestamp as u64,
             l1_tx_count: details.l1_tx_count as usize,
