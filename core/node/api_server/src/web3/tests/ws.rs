@@ -170,6 +170,24 @@ async fn test_ws_server(test: impl WsTest) {
     server_handles.shutdown().await;
 }
 
+#[tokio::test]
+async fn ws_server_cannot_be_accessed_via_http() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let transport = ApiTransport::Ws((Ipv4Addr::LOCALHOST, 0).into());
+    let (local_addr, server_handles) =
+        prepare_server(transport, &pool, &HttpServerBasicsTest, stop_receiver).await;
+
+    let client = Client::<L2>::http(format!("http://{local_addr}").parse().unwrap())
+        .unwrap()
+        .build();
+    let err = client.get_block_number().await.unwrap_err();
+    assert_matches!(&err, Error::Transport(err) if err.to_string().contains("403"));
+
+    stop_sender.send_replace(true);
+    server_handles.shutdown().await;
+}
+
 #[derive(Debug)]
 pub(super) struct WsServerCanStartTest;
 

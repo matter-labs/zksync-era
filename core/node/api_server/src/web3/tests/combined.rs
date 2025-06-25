@@ -1,12 +1,7 @@
 //! Tests for combined HTTP / WS server.
 
-use std::fmt;
-
 use zksync_types::web3::BlockHeader;
-use zksync_web3_decl::{
-    client::WsClient,
-    jsonrpsee::core::client::{Error, SubscriptionClientT},
-};
+use zksync_web3_decl::{client::WsClient, jsonrpsee::core::client::SubscriptionClientT};
 
 use super::{ws::WsTest, *};
 use crate::web3::metrics::SubscriptionType;
@@ -47,13 +42,6 @@ async fn test_combined_server(test: impl CombinedTest) {
 
     stop_sender.send_replace(true);
     server_handles.shutdown().await;
-}
-
-fn assert_not_found<T: fmt::Debug>(result: Result<T, Error>) {
-    assert_matches!(result, Err(Error::Call(e)) => {
-        assert_eq!(e.code(), ErrorCode::MethodNotFound.code());
-        assert_eq!(e.message(), ErrorCode::MethodNotFound.message());
-    });
 }
 
 #[derive(Debug)]

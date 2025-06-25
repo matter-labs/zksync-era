@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     net::Ipv4Addr,
 };
 
@@ -48,7 +49,11 @@ use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     jsonrpsee::{
-        core::{client::ClientT, params::BatchRequestBuilder, ClientError},
+        core::{
+            client::{ClientT, Error},
+            params::BatchRequestBuilder,
+            ClientError,
+        },
         http_client::HttpClient,
         rpc_params,
         types::{
@@ -478,6 +483,31 @@ fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
     FeeParams::sensible_v1_default().scale(scale, scale)
 }
 
+fn assert_not_found<T: fmt::Debug>(result: Result<T, Error>) {
+    assert_matches!(result, Err(Error::Call(e)) => {
+        assert_eq!(e.code(), ErrorCode::MethodNotFound.code());
+        assert_eq!(e.message(), ErrorCode::MethodNotFound.message());
+    });
+}
+
+#[tokio::test]
+async fn http_server_cannot_be_accessed_via_ws() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let transport = ApiTransport::Http((Ipv4Addr::LOCALHOST, 0).into());
+    let (local_addr, server_handles) =
+        prepare_server(transport, &pool, &HttpServerBasicsTest, stop_receiver).await;
+
+    let err = Client::<L2, _>::ws(format!("ws://{local_addr}").parse().unwrap())
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("403"), "{err}");
+
+    stop_sender.send_replace(true);
+    server_handles.shutdown().await;
+}
+
 #[derive(Debug)]
 struct HttpServerBasicsTest;
 
@@ -501,6 +531,14 @@ impl HttpTest for HttpServerBasicsTest {
             .await?
             .context("No genesis L1 batch")?;
         assert!(genesis_l1_batch.base.root_hash.is_some());
+
+        // The HTTP server must not support subscriptions.
+        assert_not_found(
+            client
+                .request::<String, _>("eth_subscribe", rpc_params!["newHeads"])
+                .await,
+        );
+
         Ok(())
     }
 }
