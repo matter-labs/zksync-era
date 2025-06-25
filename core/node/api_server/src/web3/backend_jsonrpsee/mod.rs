@@ -11,7 +11,7 @@ pub(crate) use self::{
     metadata::{MethodMetadata, MethodTracer},
     middleware::{
         CorrelationMiddleware, LimitMiddleware, MetadataLayer, RpcMethodFilter,
-        ServerTimeoutMiddleware, ShutdownMiddleware, TrafficTracker,
+        RpcMethodFilterConfig, ServerTimeoutMiddleware, ShutdownMiddleware, TrafficTracker,
     },
 };
 use crate::tx_sender::SubmitTxError;

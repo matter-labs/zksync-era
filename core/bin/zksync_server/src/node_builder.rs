@@ -420,14 +420,19 @@ impl MainNodeBuilder {
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
 
         // TODO(PLA-1153): Make the node do what the config says
-        let mut namespaces = rpc_config.api_namespaces.clone();
+        let mut http_namespaces = rpc_config.api_namespaces.clone();
         if state_keeper_config.shared.save_call_traces {
-            namespaces.insert(Namespace::Debug);
+            http_namespaces.insert(Namespace::Debug);
         }
-        namespaces.insert(Namespace::Snapshots);
+        http_namespaces.insert(Namespace::Snapshots);
+        let ws_namespaces = rpc_config
+            .ws_api_namespaces
+            .clone()
+            .unwrap_or_else(|| http_namespaces.clone());
 
         let optional_config = Web3ServerOptionalConfig {
-            namespaces,
+            http_namespaces,
+            ws_namespaces,
             filters_limit: rpc_config.filters_limit,
             subscriptions_limit: rpc_config.subscriptions_limit,
             batch_request_size_limit: rpc_config.max_batch_request_size.get(),

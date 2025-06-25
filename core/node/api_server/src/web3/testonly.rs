@@ -232,7 +232,8 @@ impl TestServerBuilder {
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .with_method_tracer(method_tracer)
-            .enable_api_namespaces(namespaces)
+            .enable_http_namespaces(namespaces.clone())
+            .enable_ws_namespaces(namespaces)
             .with_sealed_l2_block_handle(sealed_l2_block_handle)
             .with_bridge_addresses_handle(bridge_addresses_handle);
         if let Some(timeout) = request_timeout {

@@ -36,7 +36,8 @@ mod sealed_l2_block;
 /// Set of optional variables that can be altered to modify the behavior of API builder.
 #[derive(Debug)]
 pub struct Web3ServerOptionalConfig {
-    pub namespaces: HashSet<Namespace>,
+    pub http_namespaces: HashSet<Namespace>,
+    pub ws_namespaces: HashSet<Namespace>,
     pub filters_limit: usize,
     pub subscriptions_limit: usize,
     pub batch_request_size_limit: usize,
@@ -52,7 +53,8 @@ pub struct Web3ServerOptionalConfig {
 impl Web3ServerOptionalConfig {
     fn apply(self, mut api_builder: ApiBuilder) -> ApiBuilder {
         api_builder = api_builder
-            .enable_api_namespaces(self.namespaces)
+            .enable_http_namespaces(self.http_namespaces)
+            .enable_ws_namespaces(self.ws_namespaces)
             .with_filter_limit(self.filters_limit)
             .with_subscriptions_limit(self.subscriptions_limit)
             .with_batch_request_size_limit(self.batch_request_size_limit)
@@ -190,8 +192,11 @@ impl WiringLayer for Web3ServerLayer {
         };
 
         // Build pub-sub notifier tasks.
-        let contains_pub_sub_namespace =
-            self.optional_config.namespaces.contains(&Namespace::Pubsub);
+        // We ignore `http_namespaces` because HTTP doesn't support pub-sub anyway.
+        let contains_pub_sub_namespace = self
+            .optional_config
+            .ws_namespaces
+            .contains(&Namespace::Pubsub);
         let enable_pub_sub = self.ws_port.is_some() && contains_pub_sub_namespace;
         let polling_interval = self.optional_config.polling_interval;
         let pub_sub = enable_pub_sub.then(|| EthSubscribe::new(polling_interval));

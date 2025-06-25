@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, Entries, NamedEntries, OrString, Serde, ToEntries, WellKnown},
+    de::{Delimited, Entries, NamedEntries, Optional, OrString, Serde, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -290,9 +290,12 @@ pub struct Web3JsonRpcConfig {
     /// (additionally to natively bridged tokens).
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
-    /// Enabled JSON RPC API namespaces.
+    /// Enabled JSON-RPC API namespaces. Applies to the HTTP server, and to the WS server unless `ws_api_namespaces` param is set.
     #[config(with = Delimited(","), default_t = Namespace::DEFAULT.into())]
     pub api_namespaces: HashSet<Namespace>,
+    /// JSON-RPC API namespaces for the WS server. If `null`, the WS server will use `api_namespaces`.
+    #[config(with = Optional(Delimited(",")))]
+    pub ws_api_namespaces: Option<HashSet<Namespace>>,
     /// Enables extended tracing of RPC calls. This is useful for debugging, but may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
     #[config(default, alias = "extended_rpc_tracing")]
@@ -443,6 +446,7 @@ mod tests {
                     Address::from_low_u64_be(2),
                 ],
                 api_namespaces: HashSet::from([Namespace::Debug]),
+                ws_api_namespaces: Some(HashSet::from([Namespace::Pubsub])), // FIXME: update fixtures
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
             },

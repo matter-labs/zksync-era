@@ -395,20 +395,23 @@ impl<F: Future<Output = MethodResponse>> Future for WithServerTimeout<'_, F> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct RpcMethodFilterConfig {
+    pub http_only_methods: HashSet<&'static str>,
+    pub ws_only_methods: HashSet<&'static str>,
+}
+
 /// Filtering for RPC methods based on the method name. Required because otherwise subscriptions will return
 /// internal errors when called via HTTP.
 #[derive(Debug)]
 pub(crate) struct RpcMethodFilter<S> {
     inner: S,
-    ws_only_methods: Arc<HashSet<&'static str>>,
+    config: Arc<RpcMethodFilterConfig>,
 }
 
 impl<Svc> RpcMethodFilter<Svc> {
-    pub fn new(inner: Svc, ws_only_methods: Arc<HashSet<&'static str>>) -> Self {
-        Self {
-            inner,
-            ws_only_methods,
-        }
+    pub fn new(inner: Svc, config: Arc<RpcMethodFilterConfig>) -> Self {
+        Self { inner, config }
     }
 }
 
@@ -425,8 +428,8 @@ where
             .expect("no transport label");
         let method = request.method.as_ref();
         let should_reject = match transport {
-            ApiTransportLabel::Http => self.ws_only_methods.contains(&method),
-            ApiTransportLabel::Ws => false, // We don't require HTTP-only methods right now
+            ApiTransportLabel::Http => self.config.ws_only_methods.contains(&method),
+            ApiTransportLabel::Ws => self.config.http_only_methods.contains(&method),
         };
         if should_reject {
             let err = MethodResponse::error(

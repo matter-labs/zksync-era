@@ -49,7 +49,7 @@ use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
     web3::{
-        backend_jsonrpsee::{RpcMethodFilter, ServerTimeoutMiddleware},
+        backend_jsonrpsee::{RpcMethodFilter, RpcMethodFilterConfig, ServerTimeoutMiddleware},
         http_middleware::TransportLayer,
     },
 };
@@ -95,6 +95,16 @@ pub(crate) enum ApiTransport {
     HttpAndWs(SocketAddr),
 }
 
+impl ApiTransport {
+    fn has_http(&self) -> bool {
+        matches!(self, Self::Http(_) | Self::HttpAndWs(_))
+    }
+
+    fn has_ws(&self) -> bool {
+        matches!(self, Self::Ws(_) | Self::HttpAndWs(_))
+    }
+}
+
 /// Optional part of the API server parameters.
 #[derive(Debug, Clone, Default)]
 struct OptionalApiParams {
@@ -123,7 +133,8 @@ pub struct ApiServer {
     transport: ApiTransport,
     tx_sender: TxSender,
     pruning_info_refresh_interval: Duration,
-    namespaces: HashSet<Namespace>,
+    http_namespaces: HashSet<Namespace>,
+    ws_namespaces: HashSet<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
     bridge_addresses_handle: BridgeAddressesHandle,
@@ -140,9 +151,8 @@ pub struct ApiBuilder {
     tx_sender: Option<TxSender>,
     bridge_addresses_handle: Option<BridgeAddressesHandle>,
     sealed_l2_block_handle: Option<SealedL2BlockNumber>,
-    // Optional params that may or may not be set using builder methods. We treat `namespaces`
-    // specially because we want to output a warning if they are not set.
-    namespaces: Option<HashSet<Namespace>>,
+    http_namespaces: HashSet<Namespace>,
+    ws_namespaces: HashSet<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
@@ -159,7 +169,8 @@ impl ApiBuilder {
             tx_sender: None,
             bridge_addresses_handle: None,
             sealed_l2_block_handle: None,
-            namespaces: None,
+            http_namespaces: Namespace::DEFAULT.into_iter().collect(),
+            ws_namespaces: Namespace::DEFAULT.into_iter().collect(),
             method_tracer: Arc::new(MethodTracer::default()),
             optional: OptionalApiParams::default(),
         }
@@ -234,8 +245,13 @@ impl ApiBuilder {
         self
     }
 
-    pub fn enable_api_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
-        self.namespaces = Some(namespaces);
+    pub fn enable_http_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
+        self.http_namespaces = namespaces;
+        self
+    }
+
+    pub fn enable_ws_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
+        self.ws_namespaces = namespaces;
         self
     }
 
@@ -304,10 +320,8 @@ impl ApiBuilder {
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             pruning_info_refresh_interval: self.pruning_info_refresh_interval,
-            namespaces: self.namespaces.unwrap_or_else(|| {
-                tracing::warn!("debug_ and snapshots_ API namespace will be disabled by default");
-                Namespace::DEFAULT.into()
-            }),
+            http_namespaces: self.http_namespaces,
+            ws_namespaces: self.ws_namespaces,
             method_tracer: self.method_tracer,
             optional: self.optional,
             sealed_l2_block_handle: self
@@ -357,52 +371,110 @@ impl ApiServer {
 
     async fn build_rpc_module(
         self,
-        pub_sub: Option<RpcModule<EthSubscribe>>,
-    ) -> anyhow::Result<RpcModule<()>> {
-        let namespaces = self.namespaces.clone();
-        let zksync_network_id = self.config.l2_chain_id;
+        pub_sub: Option<EthSubscribe>,
+    ) -> anyhow::Result<(RpcModule<()>, RpcMethodFilterConfig)> {
+        #[derive(Debug)]
+        struct FilterConfigBuilder {
+            http_only_namespaces: HashSet<Namespace>,
+            http_only_methods: HashSet<&'static str>,
+            ws_only_namespaces: HashSet<Namespace>,
+            ws_only_methods: HashSet<&'static str>,
+        }
+
+        impl FilterConfigBuilder {
+            fn new(server: &ApiServer) -> (Self, HashSet<Namespace>) {
+                let mut http_namespaces = if server.transport.has_http() {
+                    server.http_namespaces.clone()
+                } else {
+                    HashSet::new()
+                };
+                http_namespaces.remove(&Namespace::Pubsub); // HTTP transport is incapable of serving subscriptions
+                let ws_namespaces = if server.transport.has_ws() {
+                    server.ws_namespaces.clone()
+                } else {
+                    HashSet::new()
+                };
+
+                let all_namespaces: HashSet<_> =
+                    http_namespaces.union(&ws_namespaces).copied().collect();
+                let http_only_namespaces: HashSet<_> = http_namespaces
+                    .difference(&ws_namespaces)
+                    .copied()
+                    .collect();
+                let ws_only_namespaces: HashSet<_> = ws_namespaces
+                    .difference(&http_namespaces)
+                    .copied()
+                    .collect();
+                let this = Self {
+                    http_only_namespaces,
+                    http_only_methods: HashSet::new(),
+                    ws_only_namespaces,
+                    ws_only_methods: HashSet::new(),
+                };
+                (this, all_namespaces)
+            }
+
+            fn apply_namespace(&mut self, namespace: Namespace, rpc: &Methods) {
+                if self.http_only_namespaces.contains(&namespace) {
+                    self.http_only_methods.extend(rpc.method_names());
+                } else if self.ws_only_namespaces.contains(&namespace) {
+                    self.ws_only_methods.extend(rpc.method_names());
+                }
+            }
+
+            fn build(self) -> RpcMethodFilterConfig {
+                RpcMethodFilterConfig {
+                    http_only_methods: self.http_only_methods,
+                    ws_only_methods: self.ws_only_methods,
+                }
+            }
+        }
+
+        macro_rules! from_state_fn {
+            ($ty:ident) => {
+                |state: &RpcState| Methods::from($ty::new(state.clone()).into_rpc())
+            };
+        }
+
+        type ConstructorFn = fn(&RpcState) -> Methods;
+
+        const NAMESPACE_CONSTRUCTORS: &[(Namespace, ConstructorFn)] = &[
+            (Namespace::Debug, from_state_fn!(DebugNamespace)),
+            (Namespace::Eth, from_state_fn!(EthNamespace)),
+            (Namespace::Web3, |_| Web3Namespace.into_rpc().into()),
+            (Namespace::Zks, from_state_fn!(ZksNamespace)),
+            (Namespace::En, from_state_fn!(EnNamespace)),
+            (Namespace::Snapshots, from_state_fn!(SnapshotsNamespace)),
+            (Namespace::Unstable, from_state_fn!(UnstableNamespace)),
+            (Namespace::Net, |state| {
+                NetNamespace::new(state.api_config.l2_chain_id)
+                    .into_rpc()
+                    .into()
+            }),
+        ];
+
+        let (mut config_builder, all_namespaces) = FilterConfigBuilder::new(&self);
         let rpc_state = self.build_rpc_state().await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
-        if let Some(pub_sub) = pub_sub {
+        // Pubsub namespace requires special handling since its module is obtained from outside rather than constructed.
+        if all_namespaces.contains(&Namespace::Pubsub) {
+            let pub_sub = pub_sub.context("missing pub-sub module")?.into_rpc().into();
+            config_builder.apply_namespace(Namespace::Pubsub, &pub_sub);
             rpc.merge(pub_sub)
-                .context("cannot merge eth pubsub namespace")?;
+                .context("cannot merge pub-sub namespace")?;
         }
 
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
-                .context("cannot merge debug namespace")?;
+        for &(namespace, constructor) in NAMESPACE_CONSTRUCTORS {
+            if all_namespaces.contains(&namespace) {
+                let namespace_rpc = constructor(&rpc_state);
+                config_builder.apply_namespace(namespace, &namespace_rpc);
+                rpc.merge(namespace_rpc)
+                    .with_context(|| format!("cannot merge {namespace:?} namespace"))?;
+            }
         }
-        if namespaces.contains(&Namespace::Eth) {
-            rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge eth namespace")?;
-        }
-        if namespaces.contains(&Namespace::Net) {
-            rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .context("cannot merge net namespace")?;
-        }
-        if namespaces.contains(&Namespace::Web3) {
-            rpc.merge(Web3Namespace.into_rpc())
-                .context("cannot merge web3 namespace")?;
-        }
-        if namespaces.contains(&Namespace::Zks) {
-            rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge zks namespace")?;
-        }
-        if namespaces.contains(&Namespace::En) {
-            rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge en namespace")?;
-        }
-        if namespaces.contains(&Namespace::Snapshots) {
-            rpc.merge(SnapshotsNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge snapshots namespace")?;
-        }
-        if namespaces.contains(&Namespace::Unstable) {
-            rpc.merge(UnstableNamespace::new(rpc_state).into_rpc())
-                .context("cannot merge unstable namespace")?;
-        }
-        Ok(rpc)
+        Ok((rpc, config_builder.build()))
     }
 
     pub(crate) async fn run(
@@ -541,19 +613,12 @@ impl ApiServer {
             tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
         }
 
-        let (pub_sub, ws_only_methods) = if let Some(pub_sub) = pub_sub {
-            let pub_sub = pub_sub.into_rpc();
-            let ws_only_methods: HashSet<_> = pub_sub.method_names().collect();
-            (Some(pub_sub), ws_only_methods)
-        } else {
-            (None, HashSet::new())
-        };
-        let ws_only_methods = Arc::new(ws_only_methods);
-        let rpc = self.build_rpc_module(pub_sub).await?;
+        let (rpc, method_filter_config) = self.build_rpc_module(pub_sub).await?;
+        let method_filter_config = Arc::new(method_filter_config);
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}, \
-             WS-only methods: {ws_only_methods:?}",
+             filtering: {method_filter_config:?}",
             registered_method_names.len()
         );
         let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
@@ -590,7 +655,7 @@ impl ApiServer {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
             // We aren't interested in tracking errors for method rejections, hence placement before the metadata layer.
-            .layer_fn(move |svc| RpcMethodFilter::new(svc, ws_only_methods.clone()))
+            .layer_fn(move |svc| RpcMethodFilter::new(svc, method_filter_config.clone()))
             // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
             .option_layer(
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
@@ -607,6 +672,7 @@ impl ApiServer {
             .set_http_middleware(http_middleware)
             .max_response_body_size(response_body_size_limit)
             .set_batch_request_config(batch_request_config)
+            .set_id_provider(EthSubscriptionIdProvider)
             .set_rpc_middleware(rpc_middleware);
 
         match transport {
@@ -621,7 +687,6 @@ impl ApiServer {
         }
 
         let server = server_builder
-            .set_id_provider(EthSubscriptionIdProvider)
             .build(addr)
             .await
             .context("Failed building JSON-RPC server")?;
