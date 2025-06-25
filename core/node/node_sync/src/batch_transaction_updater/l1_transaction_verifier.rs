@@ -62,7 +62,7 @@ impl L1TransactionVerifier {
     ) -> Result<L1BatchMetadata, TransactionValidationError> {
         match self
             .pool
-            .connection_tagged("sync_layer")
+            .connection_tagged("l1_transaction_verifier")
             .await?
             .blocks_dal()
             .get_optional_l1_batch_metadata(batch_number)
@@ -88,7 +88,7 @@ impl L1TransactionVerifier {
     ) -> Result<bool, TransactionValidationError> {
         match self
             .pool
-            .connection_tagged("sync_layer")
+            .connection_tagged("l1_transaction_verifier")
             .await?
             .blocks_dal()
             .get_batch_protocol_version_id(batch_number)

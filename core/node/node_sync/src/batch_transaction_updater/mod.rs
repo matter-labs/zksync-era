@@ -68,7 +68,7 @@ impl BatchTransactionUpdater {
     /// Validation errors are fatal.
     async fn apply_status_update(
         &self,
-        eth_history_id: u32,
+        db_eth_history_id: u32,
         receipt: TransactionReceipt,
         l1_block_numbers: &L1BlockNumbers,
     ) -> anyhow::Result<bool> {
@@ -90,7 +90,7 @@ impl BatchTransactionUpdater {
 
         let eth_history_tx = connection
             .eth_sender_dal()
-            .get_eth_tx_history_by_id(eth_history_id)
+            .get_eth_tx_history_by_id(db_eth_history_id)
             .await?;
 
         let batches = connection
