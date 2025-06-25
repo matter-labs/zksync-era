@@ -154,7 +154,6 @@ impl UpdatesManager {
         self.previous_batch_protocol_version
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
