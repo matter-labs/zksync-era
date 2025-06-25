@@ -120,7 +120,7 @@ impl BatchTransactionUpdater {
                 }
             };
             match ret {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(e) => {
                     if e.is_retryable() {
                         tracing::warn!(

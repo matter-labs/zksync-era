@@ -148,15 +148,15 @@ impl L1TransactionVerifier {
                 }
                 let parsed_log = event.parse_log_whole(log.clone().into()).ok()?; // Skip logs that are of different event type
 
-                let block_number_from_log = get_param(&parsed_log.params, "batchNumber")
+                let batch_number_from_log = get_param(&parsed_log.params, "batchNumber")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|x| u32::try_from(x).ok())
                         .map(L1BatchNumber)
                         .expect("Missing expected `batchNumber` parameter in `BlockCommit` event log");
 
-                if block_number_from_log != batch_number {
+                if batch_number_from_log != batch_number {
                     tracing::warn!(
-                        "Commit transaction {0:?} has `BlockCommit` event log with batchNumber={block_number_from_log}, \
+                        "Commit transaction {0:?} has `BlockCommit` event log with batchNumber={batch_number_from_log}, \
                         but we are checking for batchNumber={batch_number}", receipt.transaction_hash
                     );
                     return None;
@@ -239,21 +239,21 @@ impl L1TransactionVerifier {
                     .parse_log_whole(log.clone().into())
                     .ok()?; // Skip logs that are of different event type
 
-                let block_number_from = get_param(&parsed_log.params, "previousLastVerifiedBatch")
+                let batch_number_from = get_param(&parsed_log.params, "previousLastVerifiedBatch")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|batch_number_from_log| {
                             u32::try_from(batch_number_from_log).ok()
                         })
                         .expect("Missing expected `previousLastVerifiedBatch` parameter in `BlocksVerification` event log");
-                let block_number_to = get_param(&parsed_log.params, "currentLastVerifiedBatch")
+                let batch_number_to = get_param(&parsed_log.params, "currentLastVerifiedBatch")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|batch_number_to_log| {
                             u32::try_from(batch_number_to_log).ok()
                         })
                         .expect("Missing expected `currentLastVerifiedBatch` parameter in `BlocksVerification` event log");
                 Some((
-                    block_number_from,
-                    block_number_to,
+                    batch_number_from,
+                    batch_number_to,
                 ))
             });
 
@@ -332,11 +332,10 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                                        .parse_log_whole(log.clone().into())
-
+                    .parse_log_whole(log.clone().into())
                     .ok()?; // Skip logs that are of different event type
 
-                let block_number_from_log = get_param(&parsed_log.params, "batchNumber")
+                let batch_number_from_log = get_param(&parsed_log.params, "batchNumber")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|batch_number_from_log| {
                             u32::try_from(batch_number_from_log)
@@ -345,9 +344,9 @@ impl L1TransactionVerifier {
                         })
                         .expect("Missing expected `batchNumber` parameter in `BlockExecution` event log");
 
-                if block_number_from_log != batch_number {
+                if batch_number_from_log != batch_number {
                     tracing::debug!(
-                        "Skipping event log batchNumber={block_number_from_log} for commit transaction {}. \
+                        "Skipping event log batchNumber={batch_number_from_log} for execute transaction {}. \
                         We are checking for batchNumber={batch_number}", receipt.transaction_hash,
                     );
                     return None;

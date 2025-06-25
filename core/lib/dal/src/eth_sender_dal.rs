@@ -682,7 +682,8 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         limit: NonZeroU64,
         chain_id: Option<SLChainId>,
-    ) -> sqlx::Result<Vec<TxHistory>> {
+    ) -> DalResult<Vec<TxHistory>> {
+        let limit = i64::try_from(limit.get()).expect("limit overflow");
         let tx_history = match_query_as!(
             StorageTxHistory,
             [r#"
@@ -704,11 +705,13 @@ impl EthSenderDal<'_, '_> {
                 $1
             "#],
             match (chain_id) {
-                Some(chain_id) => ("AND eth_txs.chain_id = $2"; i64::try_from(limit.get()).expect("limit overflow"), chain_id.0 as i64),
-                None => (""; i64::try_from(limit.get()).expect("limit overflow")),
+                Some(chain_id) => ("AND eth_txs.chain_id = $2"; limit, chain_id.0 as i64),
+                None => (""; limit),
             }
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_unfinalized_transactions")
+        .with_arg("chain_id", &chain_id)
+        .fetch_all(self.storage)
         .await?;
         Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
     }
@@ -719,7 +722,7 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         tx_history_id: u32,
         block_number: u32,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE eth_txs_history
@@ -729,14 +732,17 @@ impl EthSenderDal<'_, '_> {
             tx_history_id as i32,
             block_number as i32,
         )
-        .execute(self.storage.conn())
+        .instrument("set_sent_at_block")
+        .with_arg("tx_history_id", &tx_history_id)
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
     /// Sets sent_at_block to null in eth_txs_history row.
     /// Used for ExternalNode when a previously included transaction on SL is excluded due to fork
-    pub async fn unset_sent_at_block(&mut self, tx_history_id: u32) -> sqlx::Result<()> {
+    pub async fn unset_sent_at_block(&mut self, tx_history_id: u32) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE eth_txs_history
@@ -745,7 +751,9 @@ impl EthSenderDal<'_, '_> {
             "#,
             tx_history_id as i32,
         )
-        .execute(self.storage.conn())
+        .instrument("unset_sent_at_block")
+        .with_arg("tx_history_id", &tx_history_id)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -753,7 +761,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_eth_tx_history_by_id(
         &mut self,
         eth_tx_history_id: u32,
-    ) -> sqlx::Result<TxHistory> {
+    ) -> DalResult<TxHistory> {
         let tx_history = sqlx::query_as!(
             StorageTxHistory,
             r#"
@@ -770,7 +778,9 @@ impl EthSenderDal<'_, '_> {
             "#,
             eth_tx_history_id as i32,
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_eth_tx_history_by_id")
+        .with_arg("eth_tx_history_id", &eth_tx_history_id)
+        .fetch_one(self.storage)
         .await?;
         Ok(tx_history.into())
     }

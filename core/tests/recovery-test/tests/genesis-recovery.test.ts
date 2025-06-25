@@ -112,7 +112,7 @@ describe('genesis recovery', () => {
         if (status === 'ready' && details !== undefined) {
             console.log('Received reorg detector health details', details);
             if (details.last_correct_l1_batch !== undefined && details.last_correct_l1_batch >= catchUpBatchNumber) {
-                console.log('Reorg detector cought up to L1 batch #', catchUpBatchNumber);
+                console.log('Reorg detector caught up to L1 batch #', catchUpBatchNumber);
                 return true;
             }
         } else {
@@ -132,7 +132,7 @@ describe('genesis recovery', () => {
                 details.last_checked_batch !== undefined &&
                 details.last_checked_batch >= catchUpBatchNumber
             ) {
-                console.log('Consistency checker cought up to L1 batch #', catchUpBatchNumber);
+                console.log('Consistency checker caught up to L1 batch #', catchUpBatchNumber);
                 return true;
             }
         } else {
@@ -183,7 +183,7 @@ describe('genesis recovery', () => {
                     console.log('Received tree health details', details);
                     if (details.last_updated_l1_batch >= CATCH_UP_BATCH_COUNT) {
                         treeFetcherSucceeded = true;
-                        console.log('Tree cought up to L1 batch #', CATCH_UP_BATCH_COUNT);
+                        console.log('Tree caught up to L1 batch #', CATCH_UP_BATCH_COUNT);
                     }
                 }
             }
@@ -266,7 +266,7 @@ describe('genesis recovery', () => {
                     expect(details.min_l1_batch_number).to.be.equal(0);
                     if (details.next_l1_batch_number > catchUpBatchNumber) {
                         treeSucceeded = true;
-                        console.log('Tree cought up to L1 batch #', catchUpBatchNumber);
+                        console.log('Tree caught up to L1 batch #', catchUpBatchNumber);
                     }
                 } else {
                     console.log('Tree not ready', details);

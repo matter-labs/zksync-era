@@ -1,15 +1,13 @@
 use std::{num::NonZeroU64, time::Duration};
 
-use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
-
-use crate::utils::Fallback;
+use smart_config::{DescribeConfig, DeserializeConfig};
 
 /// Configuration for node synchronization
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct NodeSyncConfig {
     /// Interval between batch transaction updates
-    #[config(default_t = Duration::from_millis(5000), with = Fallback(TimeUnit::Millis))]
+    #[config(default_t = Duration::from_millis(5000))]
     pub batch_transaction_updater_interval: Duration,
     /// Maximum number of transactions to process in a single batch
     #[config(default_t = NonZeroU64::new(10_000).unwrap())]
@@ -32,7 +30,7 @@ mod tests {
     #[test]
     fn parsing_from_env() {
         let env = r#"
-            NODE_SYNC_BATCH_TRANSACTION_UPDATER_INTERVAL=2000
+            NODE_SYNC_BATCH_TRANSACTION_UPDATER_INTERVAL=2sec
             NODE_SYNC_BATCH_TRANSACTION_UPDATER_BATCH_SIZE=100
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -46,7 +44,7 @@ mod tests {
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"
-          batch_transaction_updater_interval: 2000
+          batch_transaction_updater_interval: 2sec
           batch_transaction_updater_batch_size: 100
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
