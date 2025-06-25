@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{ContractVerifierSecrets, DatabaseSecrets},
+    configs::{ContractVerifierSecrets, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
     ContractVerifierConfig,
@@ -72,9 +72,9 @@ async fn main() -> anyhow::Result<()> {
 
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
     let contract_verifier_secrets: ContractVerifierSecrets = repo.parse()?;
     let verifier_config: ContractVerifierConfig = repo.parse()?;
 

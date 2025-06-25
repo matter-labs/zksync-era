@@ -313,7 +313,7 @@ impl StateKeeperIO for ExternalIO {
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
-                        timestamp: params.first_l2_block.timestamp,
+                        timestamp: params.first_l2_block.timestamp(),
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
@@ -460,9 +460,15 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
+    async fn load_latest_interop_root(
+        &self,
+        number_of_roots: usize,
+    ) -> anyhow::Result<Vec<InteropRoot>> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let interop_root = storage.interop_root_dal().get_new_interop_roots().await?;
+        let interop_root = storage
+            .interop_root_dal()
+            .get_new_interop_roots(number_of_roots)
+            .await?;
         Ok(interop_root)
     }
 
@@ -540,11 +546,7 @@ mod tests {
             validation_computational_gas_limit: u32::MAX,
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_l2_block: L2BlockParams {
-                timestamp: 1,
-                virtual_blocks: 1,
-                interop_roots: vec![],
-            },
+            first_l2_block: L2BlockParams::new(1000),
             pubdata_params: Default::default(),
         };
         actions_sender

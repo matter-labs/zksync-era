@@ -1,13 +1,13 @@
-# Interop Trigger and Interop Transactions
+# Interop Transactions
 
 ## Basics
 
-The **InteropTrigger** sits at the top of our interop stack, acting as the “delivery” mechanism for **Interop
-Bundles**. The **InteropTrigger** together with its bundles is called an **InteropTransaction**.
+The **InteropTransaction** sits at the top of our interop stack, acting as the “delivery” mechanism for **Interop
+Bundles**.
 
 Think of it like a car that picks up our "hitchhiker" bundles and carries them to their destination.
 
-![interoptx.png](../img/level_trigger.png)
+![interoptx.png](../img/interoptx.png)
 
 **Note:** Interop Transactions aren’t the only way to execute a bundle. Once an interop bundle is created on the source
 chain, users can simply send a regular transaction on the destination chain to execute it.
@@ -15,59 +15,56 @@ chain, users can simply send a regular transaction on the destination chain to e
 However, this approach can be inconvenient as it requires users to have funds on the destination chain to cover gas fees
 and to configure the necessary network settings (like the RPC address).
 
-**InteropTriggers** simplify this process by handling everything from the source chain. They allow you to select
+**InteropTransactions** simplify this process by handling everything from the source chain. They allow you to select
 which **interopBundle** to execute, specify gas details (such as gas amount and gas price), and determine who will cover
 the gas costs. This can be achieved using tokens on the source chain or through a paymaster.
 
-The inteorp transaction will "automatically" execute. It will be picked up by the InteropSwitch component and sent to the destination chain.
+Once configured, the transaction will automatically execute, either by the chain operator, the gateway, or off-chain
+tools.
 
-An **InteropTrigger** contains two hashes pointing to the bundles:
+An **InteropTransaction** contains two pointers to bundles:
 
-- **feesBundleHash**: Holds interop calls to cover fees.
-- **executionBundleHash**: Contains the main execution bundle.
+- **feesBundle**: Holds interop calls to cover fees.
+- **bundleHash**: Contains the main execution.
 
-![ipointers.png](../img/trigger.png)
+![ipointers.png](../img/ipointers.png)
 
 ## Interface
 
-The function `sendInteropTrigger` provides all the options. For simpler use cases, refer to the helper methods
+The function `sendInteropTransaction` provides all the options. For simpler use cases, refer to the helper methods
 defined later in the article.
 
 ```solidity
 contract InteropCenter {
-  /// Creates a trigger that will attempt to execute a given feePayment and execution bundles on the destination chain.
+  /// Creates a transaction that will attempt to execute a given Bundle on the destination chain.
+  /// Such transaction can be 'picked up' by the destination chain automatically.
+  /// This function covers all the cases - we expect most users to use the helper
+  /// functions defined later.
+ function sendInteropTransaction(
+  destinationChain,
+  bundleHash,        // the main bundle that you want to execute on destination chain
+  gasLimit,          // gasLimit & price for execution
+  gasPrice,
+  feesBundleHash,  // this is the bundle that contains the calls to pay for gas
+  destinationPaymaster,  // optionally - you can use a paymaster on destination chain
+  destinationPaymasterInput); // with specific params
 
-  function sendInteropTrigger(
-        InteropTrigger memory _interopTrigger
-  )
 
-  struct InteropTrigger {
-    uint256 destinationChainId;
-    address sender;
-    // the address used to trigger the interop transaction
-    address recipient;
-    // this is the bundle that contains the calls to pay for gas
-    bytes32 feeBundleHash;
-    // the main bundle that you want to execute on destination chain
-    bytes32 executionBundleHash;
-    // gasLimit & price for execution
-    GasFields gasFields;
-    // optionally - you can use a paymaster on destination chain
-    // with specific params
-    address paymaster;
-    bytes paymasterInput;
-  }
-
-  struct GasFields {
-      uint256 gasLimit;
-      uint256 gasPerPubdataByteLimit;
-      address refundRecipient;
-  }
-
+ struct InteropTransaction {
+  address sourceChainSender
+  uint256 destinationChain
+   uint256 gasLimit;
+   uint256 gasPrice;
+   uint256 value;
+   bytes32 bundleHash;
+   bytes32 feesBundleHash;
+    address destinationPaymaster;
+   bytes destinationPaymasterInput;
+ }
 }
 ```
 
-After creating the **InteropBundle**s, you can simply call `sendInteropTrigger` to create the complete transaction
+After creating the **InteropBundle**, you can simply call `sendInteropTransaction` to create the complete transaction
 that will execute the bundle.
 
 ## Retries
@@ -75,7 +72,7 @@ that will execute the bundle.
 If your transaction fails to execute the bundle (e.g., due to a low gas limit) or isn’t included at all (e.g., due to
 too low gasPrice), you can send another transaction to **attempt to execute the same bundle again**.
 
-Simply call `sendInteropTrigger` again with updated gas settings.
+Simply call `sendInteropTransaction` again with updated gas settings.
 
 ### Example of Retrying
 
@@ -90,13 +87,13 @@ You sent your first interop transaction to the destination chain, but it failed 
 
 Now, you have two options: either cancel the execution bundle (the one with 100 ETH) or retry.
 
-To retry, you decide to set a higher gas limit (e.g., 10,000) and create another fee bundle (e.g., 0.01) but use **the
-same execution bundle** as before. You also create a new **InteropTrigger** with the updated gas settings.
+To retry, you decide to set a higher gas limit (e.g., 10,000) and create another fee transfer (e.g., 0.01) but use **the
+same execution bundle** as before.
 
 This time, the transaction succeeds — the swap completes on the destination chain, and the resulting tokens are
 successfully transferred back to the source chain.
 
-![retryexample.png](../img/reexecute.png)
+![retryexample.png](../img/retryexample.png)
 
 ## Fees & Restrictions
 
@@ -111,14 +108,14 @@ primarily designed to prevent DoS attacks. Key restrictions include:
 - **Lower gas limits**
 - **Limited access to specific slots**
 
-<!-- Additionally, when the `INTEROP_CENTER` constructs an **InteropTrigger**, it enforces extra restrictions on
+Additionally, when the `INTEROP_CENTER` constructs an **InteropTransaction**, it enforces extra restrictions on
 **feePaymentBundles**:
 
 - **Restricted Executors**:  
   Only your **AliasedAccount** on the receiving side can execute the `feePaymentBundle`.
 
 This restriction is crucial for security, preventing others from executing your **fee bundle**, which could cause your
-transaction to fail and prevent the **execution bundle** from processing. -->
+transaction to fail and prevent the **execution bundle** from processing.
 
 ### **Types of Fees**
 
@@ -158,7 +155,7 @@ Once there, you’ll use it to pay the paymaster on the destination chain to cov
 
 Your **InteropTransaction** would look like this:
 
-![paymastertx.png](../img/trigger_paymaster.png)
+![paymastertx.png](../img/paymastertx.png)
 
 ## **Automatic Execution**
 
@@ -166,27 +163,27 @@ One of the main advantages of **InteropTransactions** is that they execute autom
 chain, you don’t need to worry about technical details like RPC addresses or obtaining proofs — it’s all handled for
 you.
 
-After creating an **InteropTrigger**, it can be relayed to the destination chain by anyone. The transaction already
+After creating an **InteropTransaction**, it can be relayed to the destination chain by anyone. The transaction already
 includes a signature (also known as an interop message proof), making it fully self-contained and ready to send without
-requiring additional permissions. KL todo add more details. 
+requiring additional permissions.
 
-Typically, the sender chain’s operator will handle and include incoming **InteropTransactions**. However, if they
-don’t, other participants can step in to prepare and send them.
+Typically, the destination chain’s operator will handle and include incoming **InteropTransactions**. However, if they
+don’t, the **Gateway** or other participants can step in to prepare and send them.
 
 You can also use the available tools to create and send the destination transaction yourself. Since the transaction is
 self-contained, it doesn’t require additional funds or signatures to execute.
 
-<!-- ![Usually destination chain operator will keep querying gateway to see if there are any messages for their chain.](../img/automatic_exec.png)
+![Usually destination chain operator will keep querying gateway to see if there are any messages for their chain.](../img/autoexecution.png)
 
-Once they see the message, they can request the proof from the **ChainOperator** and also fetch the **InteropBundles**
-contained within the message (along with their respective proofs). -->
+Once they see the message, they can request the proof from the **Gateway** and also fetch the **InteropBundles**
+contained within the message (along with their respective proofs).
 
-<!-- ![Operator getting necessary data from Gateway.](../img/automatic_exec_2.png)
+![Operator getting necessary data from Gateway.](../img/chainop.png)
 
 As the final step, the operator can use the received data to create a regular transaction, which can then be sent to
 their chain.
 
-![Creating the final transaction to send to the destination chain](../img/automatic_exec_3.png)
+![Creating the final transaction to send to the destination chain](../img/finaltx.png)
 
 The steps above don’t require any special permissions and can be executed by anyone.
 
@@ -196,4 +193,4 @@ information can still be constructed off-chain using data available on L1.
 ### How it Works Under the hood
 
 We’ll modify the default account to accept interop proofs as signatures, seamlessly integrating with the existing ZKSync
-native **Account Abstraction** model. See [Interop handler](../interop_handler.md) for more details. -->
+native **Account Abstraction** model.

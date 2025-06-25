@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     let config_sources = ConfigFilePaths::default().into_config_sources("ZKSYNC_")?;
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
     let db_config: DBConfig = repo.parse()?;
     Cli::parse().run(&db_config)

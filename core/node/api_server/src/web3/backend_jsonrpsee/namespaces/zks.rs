@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
@@ -13,7 +11,6 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::ZksNamespaceServer,
-    types::Token,
 };
 
 use crate::web3::ZksNamespace;
@@ -64,21 +61,6 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(self.l1_chain_id_impl())
-    }
-
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        self.get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_all_account_balances(
-        &self,
-        address: Address,
-    ) -> RpcResult<HashMap<Address, U256>> {
-        self.get_all_account_balances_impl(address)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_l2_to_l1_log_proof(

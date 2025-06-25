@@ -1,6 +1,6 @@
 //! S3-based [`ObjectStore`] implementation.
 
-use std::fmt;
+use std::{fmt, path::PathBuf};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -34,7 +34,7 @@ impl fmt::Debug for S3Store {
 #[non_exhaustive]
 pub enum S3StoreAuthMode {
     /// Authentication via a credentials file at the specified path.
-    AuthenticatedWithCredentialFile(String),
+    AuthenticatedWithCredentialFile(PathBuf),
     /// Anonymous access (only works for public buckets for read operations).
     Anonymous,
 }

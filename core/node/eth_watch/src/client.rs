@@ -226,6 +226,7 @@ where
                 || err_message.contains(TOO_BIG_RANGE_RETH)
                 || err_message.contains(TOO_MANY_RESULTS_CHAINSTACK)
                 || err_message.contains(REQUEST_REJECTED_503)
+                || err.is_timeout()
             {
                 // get the numeric block ids
                 let from_number = match from {
@@ -580,7 +581,7 @@ pub trait ZkSyncExtentionEthClient: EthClient {
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>>;
 
-    async fn get_inner_chain_log_proof(
+    async fn get_chain_log_proof_until_msg_root(
         &self,
         block_number: L2BlockNumber,
         chain_id: L2ChainId,
@@ -611,7 +612,7 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
         ))
     }
 
-    async fn get_inner_chain_log_proof(
+    async fn get_chain_log_proof_until_msg_root(
         &self,
         _block_number: L2BlockNumber,
         _chain_id: L2ChainId,
@@ -619,7 +620,7 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
         //TODO(EVM-959): Implement it using l1 contracts
         Err(EnrichedClientError::custom(
             "Method is not supported",
-            "get_chain_log_proof_inner",
+            "get_chain_log_proof_until_msg_root",
         ))
     }
 
@@ -652,15 +653,15 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
             .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))
     }
 
-    async fn get_inner_chain_log_proof(
+    async fn get_chain_log_proof_until_msg_root(
         &self,
         block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         self.client
-            .get_inner_chain_log_proof(block_number, chain_id)
+            .get_chain_log_proof_until_msg_root(block_number, chain_id)
             .await
-            .map_err(|err| EnrichedClientError::new(err, "unstable_getInnerChainLogProof"))
+            .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProofUntilMsgRoot"))
     }
 
     async fn get_chain_root_l2(

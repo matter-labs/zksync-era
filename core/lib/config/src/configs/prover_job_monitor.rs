@@ -7,7 +7,7 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProverJobMonitorConfig {
     /// Port for prometheus metrics connection.
-    pub prometheus_port: u16,
+    pub prometheus_port: Option<u16>,
     /// Maximum number of database connections per pool.
     /// In a balanced system it should match the number of Tasks ran by ProverJobMonitor.
     /// If lower, components will wait on one another for a connection.
@@ -62,7 +62,7 @@ mod tests {
 
     fn expected_config() -> ProverJobMonitorConfig {
         ProverJobMonitorConfig {
-            prometheus_port: 3317,
+            prometheus_port: Some(3317),
             max_db_connections: 9,
             graceful_shutdown_timeout: Duration::from_secs(5),
             gpu_prover_archiver_run_interval: Duration::from_secs(86400),

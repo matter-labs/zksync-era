@@ -215,8 +215,8 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.3.1"
-vise-exporter = "0.3.1"
+vise = "0.3.2"
+vise-exporter = "0.3.2"
 smart-config = "=0.2.0-pre"
 smart-config-commands = "=0.2.0-pre"
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
@@ -267,16 +267,16 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 zksync_vm2 = "=0.4.0"
 
 # Consensus dependencies.
-zksync_concurrency = "=0.11.3"
-zksync_consensus_bft = "=0.11.3"
-zksync_consensus_crypto = "=0.11.3"
-zksync_consensus_engine = "=0.11.3"
-zksync_consensus_executor = "=0.11.3"
-zksync_consensus_network = "=0.11.3"
-zksync_consensus_roles = "=0.11.3"
-zksync_consensus_utils = "=0.11.3"
-zksync_protobuf = "=0.11.3"
-zksync_protobuf_build = "=0.11.3"
+zksync_concurrency = "=0.11.4"
+zksync_consensus_bft = "=0.11.4"
+zksync_consensus_crypto = "=0.11.4"
+zksync_consensus_engine = "=0.11.4"
+zksync_consensus_executor = "=0.11.4"
+zksync_consensus_network = "=0.11.4"
+zksync_consensus_roles = "=0.11.4"
+zksync_consensus_utils = "=0.11.4"
+zksync_protobuf = "=0.11.4"
+zksync_protobuf_build = "=0.11.4"
 
 # "Local" dependencies
 zksync_multivm = { version = "28.6.0-non-semver-compat", path = "lib/multivm" }

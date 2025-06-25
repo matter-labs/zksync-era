@@ -1,1 +1,0 @@
-# Gateway upgrade diff

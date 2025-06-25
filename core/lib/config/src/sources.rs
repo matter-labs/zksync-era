@@ -4,7 +4,9 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{Environment, Prefixed, Yaml};
+use smart_config::{ConfigSchema, ConfigSource, DescribeConfig, Environment, Prefixed, Yaml};
+
+use crate::{configs::ObservabilityConfig, repository::log_all_errors, ConfigRepository};
 
 /// Wrapper around configuration sources.
 #[derive(Debug, Default)]
@@ -17,15 +19,32 @@ impl ConfigSources {
         Ok(self)
     }
 
-    #[cfg(any(test, feature = "observability_ext"))]
-    pub(crate) fn build_raw_repository(
-        self,
-        schema: &smart_config::ConfigSchema,
-    ) -> smart_config::ConfigRepository<'_> {
+    /// Pushes a config source.
+    pub fn push(&mut self, source: impl ConfigSource) {
+        self.0.push(source);
+    }
+
+    fn build_raw_repository(self, schema: &ConfigSchema) -> smart_config::ConfigRepository<'_> {
         let mut repo = smart_config::ConfigRepository::new(schema);
         repo.deserializer_options().coerce_variant_names = true;
         repo.deserializer_options().coerce_serde_enums = true;
         repo.with_all(self.0)
+    }
+
+    /// Returns the observability config. It should be used to install observability early in the executable lifecycle.
+    pub fn observability(&self) -> anyhow::Result<ObservabilityConfig> {
+        let schema = ConfigSchema::new(&ObservabilityConfig::DESCRIPTION, "observability");
+        let mut repo = smart_config::ConfigRepository::new(&schema).with_all(self.0.clone());
+        repo.deserializer_options().coerce_variant_names = true;
+        // - `unwrap()` is safe: `Self` is the only top-level config, so an error would require for it to have a recursive definition.
+        // - While logging is not enabled at this point, we use `log_all_errors()` for more intelligent error summarization.
+        repo.single().unwrap().parse().map_err(log_all_errors)
+    }
+
+    /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
+    /// with the existing file-based configs (e.g., coerce enum variant names).
+    pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
+        self.build_raw_repository(schema).into()
     }
 }
 
@@ -53,7 +72,11 @@ impl ConfigFilePaths {
     }
 
     /// **Important.** This method is blocking.
-    pub fn into_config_sources(self, env_prefix: &str) -> anyhow::Result<ConfigSources> {
+    pub fn into_config_sources<'a>(
+        self,
+        env_prefix: impl Into<Option<&'a str>>,
+    ) -> anyhow::Result<ConfigSources> {
+        let env_prefix = env_prefix.into();
         let mut sources = smart_config::ConfigSources::default();
 
         if let Some(path) = &self.general {
@@ -74,13 +97,20 @@ impl ConfigFilePaths {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "wallets"));
         }
         if let Some(path) = &self.external_node {
-            sources.push(Prefixed::new(Self::read_yaml(path)?, "external_node"));
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "networks"));
         }
         if let Some(path) = &self.consensus {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "consensus"));
         }
 
-        sources.push(Environment::prefixed(env_prefix));
+        if let Some(env_prefix) = env_prefix {
+            let mut environment = Environment::prefixed(env_prefix);
+            if let Err(err) = environment.coerce_json() {
+                // We don't consider coercion errors fatal, but they obviously signify something wrong with the setup.
+                tracing::error!("{err}");
+            }
+            sources.push(environment);
+        }
         Ok(ConfigSources(sources))
     }
 }

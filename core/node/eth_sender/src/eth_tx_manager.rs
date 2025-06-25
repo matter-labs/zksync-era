@@ -138,9 +138,10 @@ impl EthTxManager {
     ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
             .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx(tx.id)
+            .get_last_sent_successfully_eth_storage_tx(tx.id)
             .await
-            .unwrap();
+            .unwrap()
+            .map(|tx| tx.into());
 
         let operator_type = self.operator_type(tx);
         let EthFees {
@@ -649,16 +650,10 @@ impl EthTxManager {
             .receipt
             .gas_used
             .expect("light ETH clients are not supported");
-        let confirmed_at_block = tx_status.receipt.block_number.unwrap().as_u32();
 
         storage
             .eth_sender_dal()
-            .confirm_tx(
-                tx_status.tx_hash,
-                eth_tx_finality_status,
-                gas_used,
-                confirmed_at_block,
-            )
+            .confirm_tx(tx_status.tx_hash, eth_tx_finality_status, gas_used)
             .await
             .unwrap();
 

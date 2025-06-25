@@ -135,6 +135,31 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    /// Returns the number and the timestamp of the last sealed L1 batch present in the DB, or `None` if there are no L1 batches.
+    pub async fn get_sealed_l1_batch_number_and_timestamp(
+        &mut self,
+    ) -> DalResult<Option<(L1BatchNumber, u64)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number,
+                timestamp
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+            ORDER BY number DESC
+            LIMIT 1
+            "#
+        )
+        .instrument("get_sealed_l1_batch_number_and_timestamp")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| (L1BatchNumber(row.number as u32), row.timestamp as u64)))
+    }
+
     /// Returns latest L1 batch's header (could be unsealed). The header contains fields that are
     /// common for both unsealed and sealed batches. Returns `None` if there are no L1 batches.
     pub async fn get_latest_l1_batch_header(&mut self) -> DalResult<Option<CommonL1BatchHeader>> {
@@ -2498,14 +2523,14 @@ impl BlocksDal<'_, '_> {
         ))
     }
 
-    pub async fn get_batch_chain_local_merkle_path(
+    pub async fn get_batch_chain_merkle_path_until_msg_root(
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<BatchAndChainMerklePath>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                batch_chain_local_merkle_path
+                batch_chain_merkle_path_until_msg_root
             FROM
                 l1_batches
             WHERE
@@ -2513,18 +2538,20 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(number.0)
         )
-        .instrument("get_batch_chain_local_merkle_path")
+        .instrument("get_batch_chain_merkle_path_until_msg_root")
         .with_arg("number", &number)
         .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
         };
-        let Some(batch_chain_local_merkle_path) = row.batch_chain_local_merkle_path else {
+        let Some(batch_chain_merkle_path_until_msg_root) =
+            row.batch_chain_merkle_path_until_msg_root
+        else {
             return Ok(None);
         };
         Ok(Some(
-            bincode::deserialize(&batch_chain_local_merkle_path).unwrap(),
+            bincode::deserialize(&batch_chain_merkle_path_until_msg_root).unwrap(),
         ))
     }
 
@@ -2611,7 +2638,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn set_batch_chain_local_merkle_path(
+    pub async fn set_batch_chain_merkle_path_until_msg_root(
         &mut self,
         number: L1BatchNumber,
         proof: BatchAndChainMerklePath,
@@ -2622,40 +2649,14 @@ impl BlocksDal<'_, '_> {
             UPDATE
             l1_batches
             SET
-                batch_chain_local_merkle_path = $2
+                batch_chain_merkle_path_until_msg_root = $2
             WHERE
                 number = $1
             "#,
             i64::from(number.0),
             &proof_bin
         )
-        .instrument("batch_chain_local_merkle_path")
-        .with_arg("number", &number)
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn set_batch_chain_global_merkle_path(
-        &mut self,
-        number: L1BatchNumber,
-        proof: BatchAndChainMerklePath,
-    ) -> DalResult<()> {
-        let proof_bin = bincode::serialize(&proof).unwrap();
-        sqlx::query!(
-            r#"
-            UPDATE
-            l1_batches
-            SET
-                batch_chain_global_merkle_path = $2
-            WHERE
-                number = $1
-            "#,
-            i64::from(number.0),
-            &proof_bin
-        )
-        .instrument("set_batch_chain_global_merkle_path")
+        .instrument("set_batch_chain_merkle_path_until_msg_root")
         .with_arg("number", &number)
         .execute(self.storage)
         .await?;

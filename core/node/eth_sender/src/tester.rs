@@ -1,7 +1,7 @@
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc};
 
 use zksync_config::{
-    configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};

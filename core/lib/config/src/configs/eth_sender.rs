@@ -37,7 +37,6 @@ impl EthConfig {
                 max_txs_in_flight: 30,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 max_aggregated_tx_gas: 4000000,
-                max_eth_tx_data_size: 6000000,
                 max_aggregated_blocks_to_commit: 10,
                 max_aggregated_blocks_to_execute: 10,
                 aggregated_block_commit_deadline: Duration::from_secs(1),
@@ -133,8 +132,6 @@ pub struct SenderConfig {
     pub proof_sending_mode: ProofSendingMode,
     #[config(default_t = 4_000_000)]
     pub max_aggregated_tx_gas: u64,
-    #[config(default_t = 6_000_000)]
-    pub max_eth_tx_data_size: usize, // FIXME: never read
     #[config(default_t = 10)]
     pub max_aggregated_blocks_to_commit: u32,
     #[config(default_t = 10)]
@@ -283,7 +280,6 @@ mod tests {
                 aggregated_block_prove_deadline: Duration::from_secs(3_000),
                 aggregated_block_execute_deadline: Duration::from_secs(4_000),
                 max_aggregated_tx_gas: 4_000_000,
-                max_eth_tx_data_size: 120_000,
                 timestamp_criteria_max_allowed_lag: 30,
                 max_aggregated_blocks_to_commit: 3,
                 max_aggregated_blocks_to_execute: 4,

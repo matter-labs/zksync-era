@@ -913,8 +913,7 @@ impl Default for TracerConfig {
 pub enum BlockStatus {
     Sealed,
     Verified,
-    // note: not enabling this status for backwards compatibility
-    // FastFinalized,
+    FastFinalized,
 }
 
 /// Result tracers need to have a nested result field for compatibility. So we have two different

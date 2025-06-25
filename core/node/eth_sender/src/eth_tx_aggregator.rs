@@ -151,7 +151,7 @@ impl EthTxAggregator {
         }
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
 
@@ -161,22 +161,25 @@ impl EthTxAggregator {
         );
 
         let pool = self.pool.clone();
-        loop {
+        while !*stop_receiver.borrow() {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
-
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
-                break;
-            }
-
             if let Err(err) = self.loop_iteration(&mut storage).await {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {err:?}");
             }
+            drop(storage);
 
-            tokio::time::sleep(self.config.aggregate_tx_poll_period).await;
+            // The stop receiver status will be checked immediately in the loop condition.
+            tokio::time::timeout(
+                self.config.aggregate_tx_poll_period,
+                stop_receiver.changed(),
+            )
+            .await
+            .ok();
         }
+
+        tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
         Ok(())
     }
 
@@ -850,7 +853,7 @@ impl EthTxAggregator {
             AggregatedOperation::L1Batch(op) => {
                 let protocol_version = op.protocol_version();
 
-                let mut args = if protocol_version.is_pre_v29_interop() {
+                let mut args = if protocol_version.is_pre_interop_fast_blocks() {
                     vec![Token::Uint(self.rollup_chain_id.as_u64().into())]
                 } else {
                     vec![Token::Address(self.state_transition_chain_contract)]
@@ -875,7 +878,7 @@ impl EthTxAggregator {
                         let commit_data = args;
                         let encoding_fn = if protocol_version.is_pre_gateway() {
                             &self.functions.post_shared_bridge_commit
-                        } else if protocol_version.is_pre_v29_interop() {
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_commit
                         } else {
                             &self.functions.post_v29_interop_commit
@@ -893,7 +896,7 @@ impl EthTxAggregator {
                         args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
                         let encoding_fn = if protocol_version.is_pre_gateway() {
                             &self.functions.post_shared_bridge_prove
-                        } else if protocol_version.is_pre_v29_interop() {
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_prove
                         } else {
                             &self.functions.post_v29_timelock_interop_prove
@@ -909,7 +912,7 @@ impl EthTxAggregator {
                             && chain_protocol_version_id.is_pre_gateway()
                         {
                             &self.functions.post_shared_bridge_execute
-                        } else if protocol_version.is_pre_v29_interop() {
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
                         } else {
                             &self.functions.post_v29_interop_execute

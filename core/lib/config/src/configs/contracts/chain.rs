@@ -201,7 +201,7 @@ impl ContractsConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
                 state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
-                message_root_proxy_addr: (ecosystem.message_root_proxy_addr),
+                message_root_proxy_addr: ecosystem.message_root_proxy_addr,
                 multicall3: Some(self.l1.multicall3_addr),
                 validator_timelock_addr: Some(self.l1.validator_timelock_addr),
             },
