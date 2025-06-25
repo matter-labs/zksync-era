@@ -524,7 +524,10 @@ jobs:
           # Override config for part of chains to test the default config as well
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
-          
+          # Run the combined HTTP / WS server for some chains
+          sudo yq -i '.api.web3_json_rpc.ws_port = .api.web3_json_rpc.http_port' ./chains/era/configs/general.yaml
+          sudo yq -i '.api.web3_json_rpc.ws_url = "ws://127.0.0.1:\(.api.web3_json_rpc.http_port)/"' ./chains/era/configs/general.yaml
+
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
@@ -677,6 +680,10 @@ jobs:
 
       - name: Run external nodes
         run: |
+          # Run the combined HTTP / WS server on the EN for some chains
+          sudo yq -i '.api.web3_json_rpc.ws_port = .api.web3_json_rpc.http_port' ./chains/validium/configs/external_node/general.yaml
+          sudo yq -i '.api.web3_json_rpc.ws_url = "ws://127.0.0.1:\(.api.web3_json_rpc.http_port)/"' ./chains/validium/configs/external_node/general.yaml
+
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
