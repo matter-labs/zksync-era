@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, net::SocketAddr, ops::Range, path::Path};
+use std::{collections::HashMap, fmt, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
 use serde_yaml::Value;
@@ -32,6 +32,34 @@ impl fmt::Display for PortInfo {
     }
 }
 
+/// Maps known address / URL params to the corresponding port params.
+#[derive(Debug)]
+pub struct AddressPortMap(HashMap<&'static str, &'static str>);
+
+impl AddressPortMap {
+    pub fn general() -> Self {
+        Self(HashMap::from([
+            ("api.web3_json_rpc.http_url", "api.web3_json_rpc.http_port"),
+            ("api.web3_json_rpc.ws_url", "api.web3_json_rpc.ws_port"),
+            ("prover_gateway.api_url", "data_handler.http_port"),
+            ("data_handler.gateway_api_url", "prover_gateway.port"),
+            (
+                "tee_prover_gateway.api_url",
+                "tee_proof_data_handler.http_port",
+            ),
+            ("consensus.server_addr", "consensus.port"),
+            ("consensus.public_addr", "consensus.port"),
+        ]))
+    }
+
+    pub fn consensus() -> Self {
+        Self(HashMap::from([
+            ("server_addr", "port"),
+            ("public_addr", "port"),
+        ]))
+    }
+}
+
 impl EcosystemPorts {
     pub fn is_port_assigned(&self, port: u16) -> bool {
         self.ports.contains_key(&port)
@@ -53,10 +81,7 @@ impl EcosystemPorts {
                 return Ok(port);
             }
         }
-        anyhow::bail!(format!(
-            "No available ports in the given range. Failed to allocate port for: {}",
-            info
-        ));
+        anyhow::bail!("No available ports in the given range. Failed to allocate port for: {info}");
     }
 
     pub fn allocate_ports_with_offset_from_defaults<T: ConfigWithChainPorts>(
@@ -91,11 +116,13 @@ impl EcosystemPorts {
         shell: &Shell,
         file_path: &Path,
         chain_number: u32,
+        address_map: &AddressPortMap,
     ) -> Result<()> {
         let file_contents = shell.read_file(file_path)?;
         let mut value: Value = serde_yaml::from_str(&file_contents)?;
         let offset = (chain_number - 1) * 100;
         self.traverse_allocate_ports_in_yaml(&mut value, offset)?;
+        self.use_new_ports_in_addresses(&mut value, address_map)?;
         let new_contents = serde_yaml::to_string(&value)?;
         if new_contents != file_contents {
             shell.write_file(file_path, new_contents)?;
@@ -123,27 +150,6 @@ impl EcosystemPorts {
                         }
                     }
                 }
-                // Update ports in URLs
-                for (key, val) in &mut *map {
-                    if key.as_str().map(|s| s.ends_with("url")).unwrap_or(false) {
-                        let mut url = Url::parse(val.as_str().unwrap())?;
-                        if let Some(port) = url.port() {
-                            if let Some(new_port) = updated_ports.get(&port) {
-                                if let Err(()) = url.set_port(Some(*new_port)) {
-                                    bail!("Failed to update port in URL {}", url);
-                                } else {
-                                    *val = Value::String(url.to_string());
-                                }
-                            }
-                        }
-                    } else if key.as_str().map(|s| s.ends_with("addr")).unwrap_or(false) {
-                        let socket_addr = val.as_str().unwrap().parse::<SocketAddr>()?;
-                        if let Some(new_port) = updated_ports.get(&socket_addr.port()) {
-                            let new_socket_addr = SocketAddr::new(socket_addr.ip(), *new_port);
-                            *val = Value::String(new_socket_addr.to_string());
-                        }
-                    }
-                }
                 // Continue traversing
                 for (_, val) in map {
                     self.traverse_allocate_ports_in_yaml(val, offset)?;
@@ -156,7 +162,60 @@ impl EcosystemPorts {
             }
             _ => {}
         }
+        Ok(())
+    }
 
+    fn use_new_ports_in_addresses(
+        &self,
+        value: &mut Value,
+        mapping: &AddressPortMap,
+    ) -> anyhow::Result<()> {
+        fn get_port(value: &Value, path: &str) -> anyhow::Result<Option<u16>> {
+            let value = path.split('.').try_fold(value, |ptr, segment| match ptr {
+                Value::Mapping(map) => map.get(segment),
+                _ => None,
+            });
+            let Some(value) = value else {
+                return Ok(None);
+            };
+            serde_yaml::from_value(value.clone())
+                .with_context(|| format!("value at '{path}' ({value:?}) is not a valid port"))
+        }
+
+        fn get_raw_mut<'v>(value: &'v mut Value, path: &str) -> Option<&'v mut Value> {
+            path.split('.').try_fold(value, |ptr, segment| match ptr {
+                Value::Mapping(map) => map.get_mut(segment),
+                _ => None,
+            })
+        }
+
+        for (&address_path, &port_path) in &mapping.0 {
+            let Some(port_value) = get_port(value, port_path)? else {
+                continue;
+            };
+            let Some(raw_value) = get_raw_mut(value, address_path) else {
+                continue;
+            };
+
+            if address_path.ends_with("addr") {
+                // Socket address format
+                *raw_value = format!("127.0.0.1:{port_value}").into();
+            } else if address_path.ends_with("url") {
+                // URL format. Copy the existing URL, replacing the host / port.
+                let mut url: Url =
+                    serde_yaml::from_value(raw_value.clone()).with_context(|| {
+                        format!("invalid value at '{address_path}', expected a URL")
+                    })?;
+                url.set_host(Some("127.0.0.1"))?;
+                url.set_port(Some(port_value))
+                    .map_err(|()| anyhow::anyhow!("cannot set port for URL {url:?}"))?;
+                *raw_value = serde_yaml::to_value(url).unwrap();
+            } else {
+                anyhow::bail!(
+                    "incorrect address path: {address_path}, must add with 'url' or 'addr'"
+                );
+            }
+        }
         Ok(())
     }
 
@@ -417,7 +476,7 @@ impl ConfigWithChainPorts for ExplorerBackendPorts {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::utils::ports::{EcosystemPorts, EcosystemPortsScanner, PortInfo};
+    use super::*;
 
     #[test]
     fn test_traverse_yaml() {
@@ -582,6 +641,9 @@ mod tests {
         ecosystem_ports
             .traverse_allocate_ports_in_yaml(&mut value, offset)
             .unwrap();
+        ecosystem_ports
+            .use_new_ports_in_addresses(&mut value, &AddressPortMap::general())
+            .unwrap();
 
         let api = value["api"].as_mapping().unwrap();
         let web3_json_rpc = api["web3_json_rpc"].as_mapping().unwrap();
@@ -626,6 +688,57 @@ mod tests {
         let offset = chain_number * 100;
         ecosystem_ports
             .traverse_allocate_ports_in_yaml(&mut value, offset)
+            .unwrap();
+        ecosystem_ports
+            .use_new_ports_in_addresses(&mut value, &AddressPortMap::general())
+            .unwrap();
+
+        let api = value["api"].as_mapping().unwrap();
+        let web3_json_rpc = api["web3_json_rpc"].as_mapping().unwrap();
+        let prometheus = api["prometheus"].as_mapping().unwrap();
+
+        assert_eq!(web3_json_rpc["http_port"].as_u64().unwrap(), 3150);
+        assert_eq!(web3_json_rpc["ws_port"].as_u64().unwrap(), 3151);
+        assert_eq!(prometheus["listener_port"].as_u64().unwrap(), 3512);
+        assert_eq!(
+            web3_json_rpc["http_url"].as_str().unwrap(),
+            "http://127.0.0.1:3150/"
+        );
+        assert_eq!(
+            web3_json_rpc["ws_url"].as_str().unwrap(),
+            "ws://127.0.0.1:3151/"
+        );
+        assert_eq!(
+            prometheus["pushgateway_url"].as_str().unwrap(),
+            "http://127.0.0.1:9091"
+        );
+    }
+
+    #[test]
+    fn test_traverse_allocate_ports_in_yaml_with_duplicate_source_ports() {
+        let yaml_content = r#"
+            api:
+                web3_json_rpc:
+                    http_port: 3050
+                    http_url: http://127.0.0.1:3050
+                    ws_port: 3050
+                    ws_url: ws://127.0.0.1:3050
+                    gas_price_scale_factor: 1.5
+                prometheus:
+                    listener_port: 3412
+                    pushgateway_url: http://127.0.0.1:9091
+                    push_interval_ms: 100
+        "#;
+
+        let mut value = serde_yaml::from_str(yaml_content).unwrap();
+        let mut ecosystem_ports = EcosystemPorts::default();
+        let chain_number = 1;
+        let offset = chain_number * 100;
+        ecosystem_ports
+            .traverse_allocate_ports_in_yaml(&mut value, offset)
+            .unwrap();
+        ecosystem_ports
+            .use_new_ports_in_addresses(&mut value, &AddressPortMap::general())
             .unwrap();
 
         let api = value["api"].as_mapping().unwrap();

@@ -18,7 +18,7 @@ use crate::{
     },
     utils::{
         consensus::node_public_key,
-        ports::EcosystemPortsScanner,
+        ports::{AddressPortMap, EcosystemPortsScanner},
         rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
     },
 };
@@ -107,8 +107,18 @@ async fn prepare_configs(
     general_en.save().await?;
 
     let offset = 0; // This is zero because general_en ports already have a chain offset
-    ports.allocate_ports_in_yaml(shell, &general_config_path, offset)?;
-    ports.allocate_ports_in_yaml(shell, &en_configs_path.join(CONSENSUS_CONFIG_FILE), offset)?;
+    ports.allocate_ports_in_yaml(
+        shell,
+        &general_config_path,
+        offset,
+        &AddressPortMap::general(),
+    )?;
+    ports.allocate_ports_in_yaml(
+        shell,
+        &en_configs_path.join(CONSENSUS_CONFIG_FILE),
+        offset,
+        &AddressPortMap::consensus(),
+    )?;
 
     Ok(())
 }
