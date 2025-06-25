@@ -73,5 +73,6 @@ pub mod tee_proof_data_handler;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;
+pub mod eth_proof_manager;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;

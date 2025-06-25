@@ -12501,6 +12501,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eth_proof_manager"
+version = "28.6.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "jsonrpsee",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_circuit_breaker",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_eth_watch",
+ "zksync_health_check",
+ "zksync_l1_contract_interface",
+ "zksync_mini_merkle_tree",
+ "zksync_node_fee_model",
+ "zksync_node_framework",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_shared_metrics",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_eth_sender"
 version = "28.6.0-non-semver-compat"
 dependencies = [
