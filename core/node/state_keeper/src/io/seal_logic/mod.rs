@@ -507,7 +507,7 @@ impl L2BlockSealCommand {
     fn report_transaction_metrics(&self) {
         const SLOW_INCLUSION_DELAY: Duration = Duration::from_secs(600);
 
-        if self.pre_insert_txs {
+        if self.pre_insert_data {
             // This I/O logic is running on the EN. The reported metrics / logs would be meaningless:
             //
             // - If `received_timestamp_ms` are copied from the main node, they can be far in the past (especially during the initial EN sync).

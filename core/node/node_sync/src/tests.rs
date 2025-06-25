@@ -67,6 +67,7 @@ impl MockMainNodeClient {
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
             pubdata_params: Default::default(),
+            interop_roots: vec![],
         };
 
         Self {

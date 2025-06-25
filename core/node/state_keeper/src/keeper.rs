@@ -9,15 +9,14 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         Halt, L1BatchEnv, SystemEnv,
     },
-    utils::{get_bootloader_max_msg_roots_in_batch, StorageWritesDeduplicator},
+    utils::StorageWritesDeduplicator,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, OrStopped, StopContext,
-    Transaction,
+    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -236,7 +235,6 @@ impl StateKeeperBuilder {
             )
             .await?;
         StateKeeperInner::restore_state(
-            &mut inner.io,
             &mut *batch_executor,
             &mut updates_manager,
             pending_l2_blocks,
@@ -381,15 +379,6 @@ impl StateKeeperInner {
             .load_upgrade_tx(protocol_version)
             .await
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
-    }
-
-    async fn load_l2_block_interop_root(
-        io: &mut Box<dyn StateKeeperIO>,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        io.load_l2_block_interop_root(l2block_number)
-            .await
-            .with_context(|| "failed loading message root".to_string())
     }
 
     #[tracing::instrument(
@@ -550,7 +539,6 @@ impl StateKeeperInner {
         fields(n_blocks = %l2_blocks_to_reexecute.len())
     )]
     async fn restore_state(
-        io: &mut Box<dyn StateKeeperIO>,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
@@ -564,10 +552,10 @@ impl StateKeeperInner {
             if index > 0 {
                 Self::set_l2_block_params(
                     updates_manager,
-                    L2BlockParams::with_custom_virtual_block_count_and_interop_roots(
+                    L2BlockParams::new_raw(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
-                        Self::load_l2_block_interop_root(io, l2_block.number).await?,
+                        l2_block.interop_roots,
                     ),
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -914,20 +902,11 @@ impl StateKeeper {
             // Params for the first L2 block in the batch are pushed with batch params.
             // For non-first L2 block they must be set manually.
             if updates_manager.pending_executed_transactions_len() > 0 {
-                let mut next_l2_block_params = self
+                let next_l2_block_params = self
                     .inner
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .stop_context("failed getting L2 block params")?;
-                let number_of_roots = get_bootloader_max_msg_roots_in_batch(
-                    updates_manager.protocol_version().into(),
-                );
-                next_l2_block_params.set_interop_roots(
-                    self.inner
-                        .io
-                        .load_latest_interop_root(number_of_roots)
-                        .await?,
-                );
                 StateKeeperInner::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
@@ -1095,6 +1074,7 @@ impl StateKeeper {
         self.inner
             .report_seal_criteria_capacity(&state.updates_manager);
 
+        // During the batch sealing we must ensure that the fictive l2 block has no interop roots.
         state.updates_manager.clear_interop_roots();
         let (finished_batch, _) = state.batch_executor.finish_batch().await?;
         state.updates_manager.finish_batch(finished_batch);

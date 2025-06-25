@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                interop_roots.chain_id,\n                interop_roots.dependency_block_number,\n                interop_roots.interop_root_sides,\n                interop_roots.received_timestamp\n            FROM interop_roots\n            WHERE processed_block_number = $1\n            ORDER BY received_timestamp, dependency_block_number;\n            ",
+  "query": "\n            SELECT\n                interop_roots.chain_id,\n                interop_roots.dependency_block_number,\n                interop_roots.interop_root_sides,\n                interop_roots.received_timestamp\n            FROM interop_roots\n            WHERE processed_block_number = $1\n            ORDER BY chain_id, dependency_block_number;\n            ",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "aa5e467269f627a4825f95adf428d16690349fe40a9be2c98f2f7c4b7fd2a07f"
+  "hash": "072be277022bf7a31cefe62b8dc39392e1b8d02d1fc861b8800ae028fee7fee2"
 }

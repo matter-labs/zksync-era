@@ -11,15 +11,17 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{
+    interface::Halt,
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
-    H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -214,7 +216,18 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        Ok(Some(L2BlockParams::new(timestamp_ms)))
+        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        let interop_roots = storage
+            .interop_root_dal()
+            .get_new_interop_roots(limit)
+            .await?;
+        Ok(Some(L2BlockParams::new_raw(
+            timestamp_ms,
+            // This value is effectively ignored by the protocol.
+            1,
+            interop_roots,
+        )))
     }
 
     fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u64) {
@@ -354,28 +367,6 @@ impl StateKeeperIO for MempoolIO {
             .get_protocol_upgrade_tx(version_id)
             .await
             .map_err(Into::into)
-    }
-
-    async fn load_latest_interop_root(
-        &self,
-        number_of_roots: usize,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
-            .interop_root_dal()
-            .get_new_interop_roots(number_of_roots)
-            .await?)
-    }
-
-    async fn load_l2_block_interop_root(
-        &self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
-            .interop_root_dal()
-            .get_interop_roots(l2block_number)
-            .await?)
     }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
