@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use super::sql_fmt::format_sql;
 use crate::commands::dev::{
@@ -41,7 +41,7 @@ async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
     Ok(Cmd::new(prettier_command).run()?)
 }
 
-async fn rustfmt(shell: Shell, check: bool, link_to_code: PathBuf) -> anyhow::Result<()> {
+async fn rustfmt(shell: Shell, check: bool, link_to_code: &Path) -> anyhow::Result<()> {
     for dir in ["core", "prover", "zkstack_cli"] {
         let spinner = Spinner::new(&msg_running_rustfmt_for_dir_spinner(dir));
         let _dir = shell.push_dir(link_to_code.join(dir));
@@ -61,7 +61,7 @@ async fn run_all_rust_formatters(
     link_to_code: PathBuf,
 ) -> anyhow::Result<()> {
     format_sql(shell.clone(), check).await?;
-    rustfmt(shell.clone(), check, link_to_code).await?;
+    rustfmt(shell.clone(), check, &link_to_code).await?;
     Ok(())
 }
 
@@ -84,7 +84,7 @@ pub struct FmtArgs {
 }
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(&shell)?;
+    let link_to_code = ZkStackConfig::from_file(&shell)?.link_to_code();
     shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     match args.formatter {
         None => {
@@ -98,7 +98,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             tasks.push(tokio::spawn(run_all_rust_formatters(
                 shell.clone(),
                 args.check,
-                ecosystem.link_to_code,
+                link_to_code.clone(),
             )));
             tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
 
@@ -117,7 +117,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             spinner.finish()
         }
         Some(Formatter::Rustfmt) => {
-            run_all_rust_formatters(shell.clone(), args.check, ".".into()).await?
+            run_all_rust_formatters(shell.clone(), args.check, PathBuf::from(".")).await?
         }
         Some(Formatter::Contract) => prettier_contracts(shell.clone(), args.check).await?,
     }

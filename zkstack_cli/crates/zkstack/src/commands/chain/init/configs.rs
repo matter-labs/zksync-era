@@ -3,7 +3,7 @@ use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
     copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ConsensusGenesisSpecs,
-    ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted,
+    ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted, ZkStackConfig,
 };
 use zksync_basic_types::Address;
 
@@ -27,7 +27,8 @@ use crate::{
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    // TODO Make it possible to run this command without ecosystem config
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
