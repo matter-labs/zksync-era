@@ -21,7 +21,6 @@ use pin_project_lite::pin_project;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use tokio::sync::watch;
 use tracing::instrument::{Instrument, Instrumented};
-use vise::{Counter, Family, Metrics};
 use zksync_instrument::alloc::AllocationAccumulator;
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
@@ -30,25 +29,13 @@ use zksync_web3_decl::jsonrpsee::{
 };
 
 use super::metadata::{MethodCall, MethodTracer};
-use crate::web3::metrics::{ApiTransportLabel, ObservedRpcParams};
-
-// FIXME: move to `metrics` module
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "api_jsonrpc_backend_batch")]
-struct LimitMiddlewareMetrics {
-    /// Number of rate-limited requests.
-    rate_limited: Family<ApiTransportLabel, Counter>,
-}
-
-#[vise::register]
-static METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
+use crate::web3::metrics::{ApiTransportLabel, ObservedRpcParams, LIMIT_METRICS};
 
 /// A rate-limiting middleware.
 ///
 /// `jsonrpsee` will allocate the instance of this struct once per session.
 pub(crate) struct LimitMiddleware<S> {
     inner: S,
-    // TODO: allow HTTP rate-limiting as well?
     ws_rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
 }
 
@@ -78,7 +65,7 @@ where
 
             // Note: if required, we can extract data on rate limiting from the error.
             if rate_limiter.check_n(num_requests).is_err() {
-                METRICS.rate_limited[&ApiTransportLabel::Ws].inc();
+                LIMIT_METRICS.rate_limited[&ApiTransportLabel::Ws].inc();
 
                 let rp = MethodResponse::error(
                     request.id,

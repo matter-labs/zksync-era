@@ -63,6 +63,9 @@ api:
     api_namespaces:
       - zks
       - eth
+    ws_api_namespaces:
+      - eth
+      - pubsub
     latest_values_max_block_lag: 30
     mempool_cache_update_interval_ms: 75
     max_response_body_size_mb: 5

@@ -500,6 +500,16 @@ pub(super) struct TxReceiptMetrics {
 #[vise::register]
 pub(super) static TX_RECEIPT_METRICS: vise::Global<TxReceiptMetrics> = vise::Global::new();
 
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_jsonrpc_backend_batch")] // FIXME: prefix is bogus; there's no `jsonrpc_backend`
+pub(super) struct LimitMiddlewareMetrics {
+    /// Number of rate-limited requests.
+    pub rate_limited: Family<ApiTransportLabel, Counter>,
+}
+
+#[vise::register]
+pub(super) static LIMIT_METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;

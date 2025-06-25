@@ -249,21 +249,25 @@ impl WiringLayer for Web3ServerLayer {
 
         // Insert healthchecks.
         if let Some(server) = &http_server {
-            input
-                .app_health
-                .insert_component(server.health_check())
-                .map_err(WiringError::internal)?;
+            for health_check in server.health_checks() {
+                input
+                    .app_health
+                    .insert_component(health_check)
+                    .map_err(WiringError::internal)?;
+            }
         }
         let http_server_task = http_server.map(|server| Web3ApiTask {
             server,
-            pub_sub: pub_sub.clone(), // FIXME: double-check
+            pub_sub: pub_sub.clone(),
         });
 
         if let Some(server) = &ws_server {
-            input
-                .app_health
-                .insert_component(server.health_check())
-                .map_err(WiringError::internal)?;
+            for health_check in server.health_checks() {
+                input
+                    .app_health
+                    .insert_component(health_check)
+                    .map_err(WiringError::internal)?;
+            }
         }
         let ws_server_task = ws_server.map(|server| Web3ApiTask { server, pub_sub });
 

@@ -241,7 +241,7 @@ impl TestServerBuilder {
         }
 
         let server = server_builder.build().expect("Unable to build API server");
-        let health_check = server.health_check();
+        let health_check = server.health_checks().pop().unwrap();
         server_tasks.push(tokio::spawn(server.run(pub_sub, stop_receiver)));
         let handles = ApiServerHandles {
             tasks: server_tasks,

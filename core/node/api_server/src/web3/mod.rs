@@ -1,4 +1,6 @@
-use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet, iter, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration,
+};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
@@ -306,7 +308,6 @@ impl ApiBuilder {
 impl ApiBuilder {
     pub fn build(self) -> anyhow::Result<ApiServer> {
         let transport = self.transport.context("API transport not set")?;
-        // FIXME: incorrect; should have 2 healthchecks if combined
         let health_check_name = match &transport {
             ApiTransport::Http(_) | ApiTransport::HttpAndWs(_) => "http_api",
             ApiTransport::Ws(_) => "ws_api",
@@ -339,9 +340,14 @@ impl ApiServer {
         &self.transport
     }
 
-    pub fn health_check(&self) -> ReactiveHealthCheck {
+    /// Returns health check(s) associated with this server. There's 2 checks for a combined HTTP / WS server,
+    /// and 1 check otherwise.
+    pub fn health_checks(&self) -> Vec<ReactiveHealthCheck> {
         // `unwrap()` is safe by construction; `health_updater` is only taken out when the server is getting started
-        self.health_updater.as_ref().unwrap().subscribe()
+        let check = self.health_updater.as_ref().unwrap().subscribe();
+        let additional_check = matches!(&self.transport, ApiTransport::HttpAndWs(_))
+            .then(|| check.clone().renamed("ws_api"));
+        iter::once(check).chain(additional_check).collect()
     }
 
     async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
@@ -430,6 +436,7 @@ impl ApiServer {
             }
         }
 
+        // A macro is required because `into_rpc()` is defined in each RPC server trait.
         macro_rules! from_state_fn {
             ($ty:ident) => {
                 |state: &RpcState| Methods::from($ty::new(state.clone()).into_rpc())
@@ -616,7 +623,7 @@ impl ApiServer {
         let (rpc, method_filter_config) = self.build_rpc_module(pub_sub).await?;
         let method_filter_config = Arc::new(method_filter_config);
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
-        tracing::debug!(
+        tracing::info!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}, \
              filtering: {method_filter_config:?}",
             registered_method_names.len()
