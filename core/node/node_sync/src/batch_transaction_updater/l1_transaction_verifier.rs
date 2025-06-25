@@ -28,8 +28,6 @@ pub enum TransactionValidationError {
     TransactionFailed { tx_hash: H256 },
     #[error("Database error")]
     DatabaseError(#[from] zksync_dal::DalError),
-    #[error("SL client error")]
-    SlClientError(#[from] zksync_eth_client::EnrichedClientError),
     #[error("Batch transaction invalid: {reason}")]
     BatchTransactionInvalid { reason: String },
     #[error("Other validation error")]
@@ -38,14 +36,7 @@ pub enum TransactionValidationError {
 
 impl TransactionValidationError {
     pub fn is_retryable(&self) -> bool {
-        match self {
-            TransactionValidationError::BatchNotFound { .. } => true,
-            TransactionValidationError::TransactionFailed { .. } => false,
-            TransactionValidationError::DatabaseError(_) => false,
-            TransactionValidationError::SlClientError(_) => false,
-            TransactionValidationError::BatchTransactionInvalid { .. } => false,
-            TransactionValidationError::OtherValidationError(_) => false,
-        }
+        matches!(self, TransactionValidationError::BatchNotFound { .. })
     }
 }
 

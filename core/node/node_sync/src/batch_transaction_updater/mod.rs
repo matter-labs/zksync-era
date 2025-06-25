@@ -130,17 +130,13 @@ impl BatchTransactionUpdater {
                 Err(e) => {
                     if e.is_retryable() {
                         tracing::warn!(
-                            "Transaction {} cannot be verified right now",
-                            receipt.transaction_hash
+                            "Transaction {} cannot be verified right now due to {}",
+                            receipt.transaction_hash,
+                            e
                         );
                         return Ok(false);
                     } else {
-                        return Err(e).with_context(|| {
-                            format!(
-                                "Transaction {} ({} for batch {}) verification failed",
-                                receipt.transaction_hash, db_eth_history_tx.tx_type, batch_number,
-                            )
-                        });
+                        return Err(e.into());
                     }
                 }
             }
@@ -188,7 +184,17 @@ impl BatchTransactionUpdater {
             let sent_at_block = match db_eth_tx_history.sent_at_block {
                 Some(block) => block,
                 None => {
-                    receipt = self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await?;
+                    receipt = match self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await {
+                        Ok(receipt) => receipt,
+                        Err(e) => {
+                            tracing::warn!(
+                                "Skipping transaction {} as failed to fetch transaction receipt: {}",
+                                db_eth_tx_history.tx_hash,
+                                e
+                            );
+                            continue;
+                        }
+                    };
                     match &receipt {
                         None => {
                             // transaction was not included, skip. We will try fetching on next iteration.
@@ -210,7 +216,7 @@ impl BatchTransactionUpdater {
             };
 
             // transaction as included, check if we can potentially update
-            // its finality status. This value is untrusted as seen_at_block may have been cached
+            // its finality status. This value is untrusted as sent_at_block may have been cached
             let Some(finality_update) = l1_block_numbers
                 .get_finality_update(db_eth_tx_history.eth_tx_finality_status, sent_at_block)
             else {
@@ -221,7 +227,17 @@ impl BatchTransactionUpdater {
             // validate all properties including block number as it may
             // have been cached
             let receipt = if receipt.is_none() {
-                self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await?
+                match self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await {
+                    Ok(receipt) => receipt,
+                    Err(e) => {
+                        tracing::warn!(
+                            "Skipping transaction {} as failed to fetch transaction receipt: {}",
+                            db_eth_tx_history.tx_hash,
+                            e
+                        );
+                        continue;
+                    }
+                }
             } else {
                 receipt
             };
