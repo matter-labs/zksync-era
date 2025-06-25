@@ -3,6 +3,7 @@
 use std::{num::NonZeroU64, time::Duration};
 
 use anyhow::Context;
+use serde::Serialize;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
@@ -20,6 +21,11 @@ mod l1_transaction_verifier;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Serialize)]
+struct BatchTransactionUpdaterHealthDetails {
+    unfinalized_txs_checked: usize,
+}
 
 /// Module responsible for updating L1 batch status. (Pending->FastFinalized->Finalized)
 /// Its currently the component that should terminate EN when gateway migration happens.
@@ -214,27 +220,25 @@ impl BatchTransactionUpdater {
             // we can potentially update finality status, but we need to
             // validate all properties including block number as it may
             // have been cached
-            let receipt = match receipt {
-                Some(receipt) => receipt,
-                None => {
-                    let Some(receipt) =
-                        self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await?
-                    else {
-                        tracing::warn!(
+            let receipt = if receipt.is_none() {
+                self.sl_client.tx_receipt(db_eth_tx_history.tx_hash).await?
+            } else {
+                receipt
+            };
+
+            let Some(receipt) = receipt else {
+                tracing::warn!(
                             "Expected transaction {} to be mined at block {}, but transaction not mined at all on SL",
                             db_eth_tx_history.tx_hash,
                             sent_at_block
                         );
-                        self.pool
-                            .connection_tagged("batch_transaction_updater")
-                            .await?
-                            .eth_sender_dal()
-                            .unset_sent_at_block(db_eth_tx_history.id)
-                            .await?;
-                        continue;
-                    };
-                    receipt
-                }
+                self.pool
+                    .connection_tagged("batch_transaction_updater")
+                    .await?
+                    .eth_sender_dal()
+                    .unset_sent_at_block(db_eth_tx_history.id)
+                    .await?;
+                continue;
             };
 
             let db_eth_history_id = db_eth_tx_history.id;
@@ -245,12 +249,15 @@ impl BatchTransactionUpdater {
                     &l1_block_numbers,
                 )
                 .await
-                .with_context(|| format!("Failed to update finality status for transaction {} with type {} from {:?} to {:?}",
+                .with_context(|| {
+                    format!(
+                        "Failed to update finality status for transaction {} with type {} from {:?} to {:?}",
                         db_eth_tx_history.tx_hash,
                         db_eth_tx_history.tx_type,
                         db_eth_tx_history.eth_tx_finality_status,
-                        finality_update))
-                ?;
+                        finality_update
+                    )
+                })?;
 
             if result {
                 updated_count += 1;
@@ -295,6 +302,16 @@ impl BatchTransactionUpdater {
             }
         }
         drop(connection);
+
+        // unfinalized_txs_checked is the number of transactions considered for
+        // finalization in this iteration. It is essentially the count of unfinalized
+        // transactions, but including the transactions finalized in current iteration.
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready).with_details(
+                BatchTransactionUpdaterHealthDetails {
+                    unfinalized_txs_checked: to_process.len(),
+                },
+            ));
 
         self.update_statuses(to_process, l1_block_numbers).await
     }
