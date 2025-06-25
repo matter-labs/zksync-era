@@ -1,5 +1,6 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
+use anyhow::Context;
 use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use tokio::sync::watch;
 use zksync_health_check::{AppHealth, AppHealthCheck};
@@ -16,11 +17,11 @@ async fn check_health(
     (response_code, Json(response))
 }
 
-async fn run_server(
+async fn run_server_inner(
     bind_address: &SocketAddr,
     app_health_check: Arc<AppHealthCheck>,
     mut stop_receiver: watch::Receiver<bool>,
-) {
+) -> anyhow::Result<()> {
     tracing::debug!(
         "Starting healthcheck server with checks {app_health_check:?} on {bind_address}"
     );
@@ -31,7 +32,7 @@ async fn run_server(
         .with_state(app_health_check);
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
-        .unwrap_or_else(|err| panic!("Failed binding healthcheck server to {bind_address}: {err}"));
+        .with_context(|| format!("Failed binding healthcheck server to {bind_address}"))?;
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
@@ -40,41 +41,38 @@ async fn run_server(
             tracing::info!("Stop request received, healthcheck server is shutting down");
         })
         .await
-        .expect("Healthcheck server failed");
+        .context("Healthcheck server failed")?;
     tracing::info!("Healthcheck server shut down");
+    Ok(())
 }
 
-#[derive(Debug)]
-pub struct HealthCheckHandle {
-    server: tokio::task::JoinHandle<()>,
-    stop_sender: watch::Sender<bool>,
-}
+pub(crate) async fn run_server(
+    addr: SocketAddr,
+    app_health_check: Arc<AppHealthCheck>,
+    mut stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Paradoxically, `hyper` server is quite slow to shut down if it isn't queried during shutdown:
+    // <https://github.com/hyperium/hyper/issues/3188>. It is thus recommended to set a timeout for shutdown.
+    const GRACEFUL_SHUTDOWN_WAIT: Duration = Duration::from_secs(10);
 
-impl HealthCheckHandle {
-    pub fn spawn_server(addr: SocketAddr, app_health_check: Arc<AppHealthCheck>) -> Self {
-        let (stop_sender, stop_receiver) = watch::channel(false);
-        let server = tokio::spawn(async move {
-            run_server(&addr, app_health_check, stop_receiver).await;
-        });
+    let server_future = run_server_inner(&addr, app_health_check, stop_receiver.clone());
+    tokio::pin!(server_future);
 
-        Self {
-            server,
-            stop_sender,
+    tokio::select! {
+        server_result = &mut server_future => {
+            server_result?;
+            anyhow::ensure!(*stop_receiver.borrow(), "Healthcheck server stopped on its own");
+            Ok(())
         }
-    }
-
-    pub async fn stop(self) {
-        // Paradoxically, `hyper` server is quite slow to shut down if it isn't queried during shutdown:
-        // <https://github.com/hyperium/hyper/issues/3188>. It is thus recommended to set a timeout for shutdown.
-        const GRACEFUL_SHUTDOWN_WAIT: Duration = Duration::from_secs(10);
-
-        self.stop_sender.send(true).ok();
-        let server_result = tokio::time::timeout(GRACEFUL_SHUTDOWN_WAIT, self.server).await;
-        if let Ok(server_result) = server_result {
-            // Propagate potential panics from the server task.
-            server_result.unwrap();
-        } else {
-            tracing::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
+        _ = stop_receiver.changed() => {
+            let server_result = tokio::time::timeout(GRACEFUL_SHUTDOWN_WAIT, server_future).await;
+            if let Ok(server_result) = server_result {
+                // Propagate potential errors from the server task.
+                server_result
+            } else {
+                tracing::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
+                Ok(())
+            }
         }
     }
 }

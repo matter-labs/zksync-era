@@ -105,6 +105,10 @@ impl EnrichedClientError {
     pub fn is_retryable(&self) -> bool {
         is_retryable(&self.inner_error)
     }
+
+    pub fn is_timeout(&self) -> bool {
+        matches!(self.inner_error, ClientError::RequestTimeout)
+    }
 }
 
 impl AsRef<ClientError> for EnrichedClientError {

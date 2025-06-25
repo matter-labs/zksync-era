@@ -25,7 +25,7 @@ use zksync_types::{
 
 use crate::{
     io::{BatchInitParams, PendingBatchData},
-    keeper::POLL_WAIT_DURATION,
+    keeper::{StateKeeperInner, POLL_WAIT_DURATION},
     seal_criteria::{criteria::SlotsCriterion, SequencerSealer, UnexecutableReason},
     testonly::{
         successful_exec,
@@ -36,7 +36,7 @@ use crate::{
         BASE_SYSTEM_CONTRACTS,
     },
     updates::UpdatesManager,
-    ZkSyncStateKeeper,
+    StateKeeperBuilder,
 };
 
 pub(crate) fn seconds_since_epoch() -> u64 {
@@ -309,14 +309,14 @@ async fn load_upgrade_tx() {
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
-    let mut sk = ZkSyncStateKeeper::new(
+    let mut sk = StateKeeperInner::from(StateKeeperBuilder::new(
         Box::new(io),
         Box::new(batch_executor),
         output_handler,
         Arc::new(sealer),
         Arc::new(MockReadStorageFactory),
         None,
-    );
+    ));
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any
     // upgrade transactions.
