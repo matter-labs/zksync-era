@@ -16,22 +16,22 @@ async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true
 hex.workspace = true
-intel-dcap-api = "0.3.0"
+intel-dcap-api = "0.6.0"
 jsonrpsee = { workspace = true, features = [
-    "async-client",
-    "ws-client",
-    "macros",
-    "client-ws-transport-tls",
+  "async-client",
+  "ws-client",
+  "macros",
+  "client-ws-transport-tls",
 ] }
 reqwest.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-teepot = { git = "https://github.com/matter-labs/teepot.git", branch = "add-dcap-collateral-updater", default-features = false }
+teepot = { version = "0.6.0", default-features = false }
 thiserror.workspace = true
 tokio.workspace = true
 tower-http = { workspace = true, features = [
-    "compression-zstd",
-    "decompression-zstd",
+  "compression-zstd",
+  "decompression-zstd",
 ] }
 tower.workspace = true
 tracing.workspace = true
