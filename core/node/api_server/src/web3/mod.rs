@@ -2,12 +2,11 @@ use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, tim
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
-use futures::future;
 use tokio::{
     sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
-use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
+use tower_http::cors::CorsLayer;
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -38,7 +37,6 @@ use self::{
         TrafficTracker,
     },
     mempool_cache::MempoolCache,
-    metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace,
         UnstableNamespace, Web3Namespace, ZksNamespace,
@@ -51,8 +49,8 @@ use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
     web3::{
-        backend_jsonrpsee::ServerTimeoutMiddleware, http_middleware::TransportLayer,
-        metrics::ApiTransportLabel,
+        backend_jsonrpsee::{RpcMethodFilter, ServerTimeoutMiddleware},
+        http_middleware::TransportLayer,
     },
 };
 
@@ -359,7 +357,7 @@ impl ApiServer {
 
     async fn build_rpc_module(
         self,
-        pub_sub: Option<EthSubscribe>,
+        pub_sub: Option<RpcModule<EthSubscribe>>,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
@@ -368,8 +366,7 @@ impl ApiServer {
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
-            // FIXME: should only be available via WS
-            rpc.merge(pub_sub.into_rpc())
+            rpc.merge(pub_sub)
                 .context("cannot merge eth pubsub namespace")?;
         }
 
@@ -544,10 +541,19 @@ impl ApiServer {
             tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
         }
 
+        let (pub_sub, ws_only_methods) = if let Some(pub_sub) = pub_sub {
+            let pub_sub = pub_sub.into_rpc();
+            let ws_only_methods: HashSet<_> = pub_sub.method_names().collect();
+            (Some(pub_sub), ws_only_methods)
+        } else {
+            (None, HashSet::new())
+        };
+        let ws_only_methods = Arc::new(ws_only_methods);
         let rpc = self.build_rpc_module(pub_sub).await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
-            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
+            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}, \
+             WS-only methods: {ws_only_methods:?}",
             registered_method_names.len()
         );
         let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
@@ -559,21 +565,10 @@ impl ApiServer {
             // Allow requests from any origin
             .allow_origin(tower_http::cors::Any)
             .allow_headers([http::header::CONTENT_TYPE]);
-        let transport_layer = TransportLayer { cors };
+        let transport_layer = TransportLayer::new(cors);
 
-        // Setup metrics for the number of in-flight requests.
-        let (in_flight_requests, counter) = InFlightRequestsLayer::pair();
-        tokio::spawn(
-            counter.run_emitter(Duration::from_millis(100), move |count| {
-                // FIXME: incorrect; move to HTTP middleware
-                API_METRICS.web3_in_flight_requests[&ApiTransportLabel::Ws].observe(count);
-                future::ready(())
-            }),
-        );
         // Assemble server middleware.
-        let middleware = tower::ServiceBuilder::new()
-            .layer(in_flight_requests)
-            .layer(transport_layer);
+        let http_middleware = tower::ServiceBuilder::new().layer(transport_layer);
 
         // Settings shared by HTTP and WS servers.
         // FIXME: do not hard-code the default
@@ -594,6 +589,8 @@ impl ApiServer {
             .layer_fn(move |svc| {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
+            // We aren't interested in tracking errors for method rejections, hence placement before the metadata layer.
+            .layer_fn(move |svc| RpcMethodFilter::new(svc, ws_only_methods.clone()))
             // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
             .option_layer(
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
@@ -607,7 +604,7 @@ impl ApiServer {
 
         let mut server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
-            .set_http_middleware(middleware)
+            .set_http_middleware(http_middleware)
             .max_response_body_size(response_body_size_limit)
             .set_batch_request_config(batch_request_config)
             .set_rpc_middleware(rpc_middleware);

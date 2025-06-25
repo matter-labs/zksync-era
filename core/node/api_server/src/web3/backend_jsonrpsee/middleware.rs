@@ -395,6 +395,55 @@ impl<F: Future<Output = MethodResponse>> Future for WithServerTimeout<'_, F> {
     }
 }
 
+/// Filtering for RPC methods based on the method name. Required because otherwise subscriptions will return
+/// internal errors when called via HTTP.
+#[derive(Debug)]
+pub(crate) struct RpcMethodFilter<S> {
+    inner: S,
+    ws_only_methods: Arc<HashSet<&'static str>>,
+}
+
+impl<Svc> RpcMethodFilter<Svc> {
+    pub fn new(inner: Svc, ws_only_methods: Arc<HashSet<&'static str>>) -> Self {
+        Self {
+            inner,
+            ws_only_methods,
+        }
+    }
+}
+
+impl<'a, S> RpcServiceT<'a> for RpcMethodFilter<S>
+where
+    S: Send + Sync + RpcServiceT<'a>,
+{
+    type Future = ResponseFuture<S::Future>;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        let transport = *request
+            .extensions()
+            .get::<ApiTransportLabel>()
+            .expect("no transport label");
+        let method = request.method.as_ref();
+        let should_reject = match transport {
+            ApiTransportLabel::Http => self.ws_only_methods.contains(&method),
+            ApiTransportLabel::Ws => false, // We don't require HTTP-only methods right now
+        };
+        if should_reject {
+            let err = MethodResponse::error(
+                request.id,
+                ErrorObject::borrowed(
+                    ErrorCode::MethodNotFound.code(),
+                    ErrorCode::MethodNotFound.message(),
+                    None,
+                ),
+            );
+            ResponseFuture::ready(err)
+        } else {
+            ResponseFuture::future(self.inner.call(request))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
