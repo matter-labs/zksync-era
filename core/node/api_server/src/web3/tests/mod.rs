@@ -66,6 +66,7 @@ use crate::{
     web3::testonly::{ApiServerHandles, TestServerBuilder},
 };
 
+mod combined;
 mod debug;
 mod filters;
 mod snapshots;
@@ -157,7 +158,14 @@ trait TestInit: Send + Sync {
 
     /// Provides a custom Web3 config. Note that only some config options are actually used in the tests.
     fn web3_config(&self) -> Web3JsonRpcConfig {
-        Web3JsonRpcConfig::for_tests()
+        Web3JsonRpcConfig {
+            // Enable all API namespaces.
+            api_namespaces: Namespace::DEFAULT
+                .into_iter()
+                .chain([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable])
+                .collect(),
+            ..Web3JsonRpcConfig::for_tests()
+        }
     }
 }
 
@@ -311,17 +319,12 @@ async fn prepare_server(
 
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())
-        .with_method_tracer(test.method_tracer())
-        .with_request_timeout(web3_config.request_timeout);
+        .with_method_tracer(test.method_tracer());
     if let Some(executor_options) = test.executor_options() {
         server_builder = server_builder.with_executor_options(executor_options);
     }
     let mut server_handles = server_builder
-        .spawn_server(
-            transport,
-            Some(web3_config.websocket_requests_per_minute_limit),
-            stop_receiver,
-        )
+        .spawn_server(transport, Some(&web3_config), stop_receiver)
         .await;
 
     let local_addr = server_handles.wait_until_ready().await;

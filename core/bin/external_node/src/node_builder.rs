@@ -492,10 +492,7 @@ impl ExternalNodeBuilder {
     fn web3_api_optional_config(&self) -> anyhow::Result<Web3ServerOptionalConfig> {
         let config = &self.config.local.api.web3_json_rpc;
         let http_namespaces = config.api_namespaces.clone();
-        let ws_namespaces = config
-            .ws_api_namespaces
-            .clone()
-            .unwrap_or_else(|| http_namespaces.clone());
+        let ws_namespaces = config.ws_namespaces().clone();
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
         let pruning_info_refresh_interval = self.config.local.pruning.removal_delay / 5;

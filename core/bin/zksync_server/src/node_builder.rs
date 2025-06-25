@@ -425,10 +425,7 @@ impl MainNodeBuilder {
             http_namespaces.insert(Namespace::Debug);
         }
         http_namespaces.insert(Namespace::Snapshots);
-        let ws_namespaces = rpc_config
-            .ws_api_namespaces
-            .clone()
-            .unwrap_or_else(|| http_namespaces.clone());
+        let ws_namespaces = rpc_config.ws_namespaces().clone();
 
         let optional_config = Web3ServerOptionalConfig {
             http_namespaces,

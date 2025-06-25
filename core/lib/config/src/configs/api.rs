@@ -330,6 +330,13 @@ impl Web3JsonRpcConfig {
             overrides: self.max_response_body_size_overrides.scale(scale),
         }
     }
+
+    /// Returns enabled RPC namespaces for the WS server.
+    pub fn ws_namespaces(&self) -> &HashSet<Namespace> {
+        self.ws_api_namespaces
+            .as_ref()
+            .unwrap_or(&self.api_namespaces)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]

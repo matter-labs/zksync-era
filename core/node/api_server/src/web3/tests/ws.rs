@@ -25,7 +25,7 @@ use zksync_web3_decl::{
 use super::*;
 use crate::web3::metrics::SubscriptionType;
 
-async fn wait_for_subscription(
+pub(super) async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
 ) {
@@ -203,8 +203,8 @@ async fn ws_server_can_start() {
     test_ws_server(WsServerCanStartTest).await;
 }
 
-#[derive(Debug)]
-struct BasicSubscriptionsTest {
+#[derive(Debug, Default)]
+pub(super) struct BasicSubscriptionsTest {
     snapshot_recovery: bool,
 }
 

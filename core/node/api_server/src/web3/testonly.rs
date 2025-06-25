@@ -110,7 +110,6 @@ impl ApiServerHandles {
 pub struct TestServerBuilder {
     pool: ConnectionPool<Core>,
     api_config: InternalApiConfig,
-    request_timeout: Option<Duration>,
     tx_executor: MockOneshotExecutor,
     executor_options: Option<SandboxExecutorOptions>,
     method_tracer: Arc<MethodTracer>,
@@ -122,7 +121,6 @@ impl TestServerBuilder {
         Self {
             api_config,
             pool,
-            request_timeout: None,
             tx_executor: MockOneshotExecutor::default(),
             executor_options: None,
             method_tracer: Arc::default(),
@@ -150,12 +148,6 @@ impl TestServerBuilder {
         self
     }
 
-    #[must_use]
-    pub fn with_request_timeout(mut self, timeout: Option<Duration>) -> Self {
-        self.request_timeout = timeout;
-        self
-    }
-
     /// Builds an HTTP server.
     pub async fn build_http(self, stop_receiver: watch::Receiver<bool>) -> ApiServerHandles {
         self.spawn_server(
@@ -166,16 +158,16 @@ impl TestServerBuilder {
         .await
     }
 
+    /// **Important.** Only a few of `web3_config` params are used!
     pub(crate) async fn spawn_server(
         self,
         transport: ApiTransport,
-        websocket_requests_per_minute_limit: Option<NonZeroU32>,
+        web3_config: Option<&Web3JsonRpcConfig>,
         stop_receiver: watch::Receiver<bool>,
     ) -> ApiServerHandles {
         let Self {
             tx_executor,
             executor_options,
-            request_timeout,
             pool,
             api_config,
             method_tracer,
@@ -190,8 +182,6 @@ impl TestServerBuilder {
             create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
         let (pub_sub_events_sender, pub_sub_events) = mpsc::unbounded_channel();
 
-        let mut namespaces = HashSet::from(Namespace::DEFAULT);
-        namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
             BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
@@ -206,22 +196,30 @@ impl TestServerBuilder {
 
         let mut server_builder = ApiBuilder::new(api_config, pool);
         server_builder.transport = Some(transport);
-        if let Some(websocket_requests_per_minute_limit) = websocket_requests_per_minute_limit {
+        if let Some(web3_config) = web3_config {
             server_builder = server_builder
-                .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+                .with_websocket_requests_per_minute_limit(
+                    web3_config.websocket_requests_per_minute_limit,
+                )
+                .enable_http_namespaces(web3_config.api_namespaces.clone())
+                .enable_ws_namespaces(web3_config.ws_namespaces().clone());
+            if let Some(timeout) = web3_config.request_timeout {
+                server_builder = server_builder.with_request_timeout(timeout);
+            }
+        } else {
+            let mut namespaces = HashSet::from(Namespace::DEFAULT);
+            namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
+            server_builder = server_builder
+                .enable_http_namespaces(namespaces.clone())
+                .enable_ws_namespaces(namespaces);
         }
 
-        let mut server_builder = server_builder
+        let server_builder = server_builder
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .with_method_tracer(method_tracer)
-            .enable_http_namespaces(namespaces.clone())
-            .enable_ws_namespaces(namespaces)
             .with_sealed_l2_block_handle(sealed_l2_block_handle)
             .with_bridge_addresses_handle(bridge_addresses_handle);
-        if let Some(timeout) = request_timeout {
-            server_builder = server_builder.with_request_timeout(timeout);
-        }
 
         let server = server_builder.build().expect("Unable to build API server");
         let health_check = server.health_checks().pop().unwrap();
