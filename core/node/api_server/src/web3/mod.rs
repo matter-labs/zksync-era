@@ -378,7 +378,7 @@ impl ApiServer {
     async fn build_rpc_module(
         self,
         pub_sub: Option<EthSubscribe>,
-    ) -> anyhow::Result<(RpcModule<()>, RpcMethodFilterConfig)> {
+    ) -> anyhow::Result<(RpcModule<()>, Option<RpcMethodFilterConfig>)> {
         #[derive(Debug)]
         struct FilterConfigBuilder {
             http_only_namespaces: HashSet<Namespace>,
@@ -388,7 +388,7 @@ impl ApiServer {
         }
 
         impl FilterConfigBuilder {
-            fn new(server: &ApiServer) -> (Self, HashSet<Namespace>) {
+            fn new(server: &ApiServer) -> (Option<Self>, HashSet<Namespace>) {
                 let mut http_namespaces = if server.transport.has_http() {
                     server.http_namespaces.clone()
                 } else {
@@ -403,6 +403,11 @@ impl ApiServer {
 
                 let all_namespaces: HashSet<_> =
                     http_namespaces.union(&ws_namespaces).copied().collect();
+                if !matches!(&server.transport, ApiTransport::HttpAndWs(_)) {
+                    // No need to employ transport filtering since there's single transport.
+                    return (None, all_namespaces);
+                }
+
                 let http_only_namespaces: HashSet<_> = http_namespaces
                     .difference(&ws_namespaces)
                     .copied()
@@ -417,7 +422,7 @@ impl ApiServer {
                     ws_only_namespaces,
                     ws_only_methods: HashSet::new(),
                 };
-                (this, all_namespaces)
+                (Some(this), all_namespaces)
             }
 
             fn apply_namespace(&mut self, namespace: Namespace, rpc: &Methods) {
@@ -468,7 +473,9 @@ impl ApiServer {
         // Pubsub namespace requires special handling since its module is obtained from outside rather than constructed.
         if all_namespaces.contains(&Namespace::Pubsub) {
             let pub_sub = pub_sub.context("missing pub-sub module")?.into_rpc().into();
-            config_builder.apply_namespace(Namespace::Pubsub, &pub_sub);
+            if let Some(config_builder) = &mut config_builder {
+                config_builder.apply_namespace(Namespace::Pubsub, &pub_sub);
+            }
             rpc.merge(pub_sub)
                 .context("cannot merge pub-sub namespace")?;
         }
@@ -476,12 +483,14 @@ impl ApiServer {
         for &(namespace, constructor) in NAMESPACE_CONSTRUCTORS {
             if all_namespaces.contains(&namespace) {
                 let namespace_rpc = constructor(&rpc_state);
-                config_builder.apply_namespace(namespace, &namespace_rpc);
+                if let Some(config_builder) = &mut config_builder {
+                    config_builder.apply_namespace(namespace, &namespace_rpc);
+                }
                 rpc.merge(namespace_rpc)
                     .with_context(|| format!("cannot merge {namespace:?} namespace"))?;
             }
         }
-        Ok((rpc, config_builder.build()))
+        Ok((rpc, config_builder.map(FilterConfigBuilder::build)))
     }
 
     pub(crate) async fn run(
@@ -621,7 +630,6 @@ impl ApiServer {
         }
 
         let (rpc, method_filter_config) = self.build_rpc_module(pub_sub).await?;
-        let method_filter_config = Arc::new(method_filter_config);
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::info!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}, \
@@ -662,7 +670,10 @@ impl ApiServer {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
             // We aren't interested in tracking errors for method rejections, hence placement before the metadata layer.
-            .layer_fn(move |svc| RpcMethodFilter::new(svc, method_filter_config.clone()))
+            .option_layer(method_filter_config.map(|config| {
+                let config = Arc::new(config);
+                tower::layer::layer_fn(move |svc| RpcMethodFilter::new(svc, config.clone()))
+            }))
             // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
             .option_layer(
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),

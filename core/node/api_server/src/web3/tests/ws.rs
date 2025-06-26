@@ -5,6 +5,7 @@ use std::{collections::HashSet, str::FromStr};
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
+use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
@@ -219,6 +220,58 @@ impl WsTest for WsServerCanStartTest {
 #[tokio::test]
 async fn ws_server_can_start() {
     test_ws_server(WsServerCanStartTest).await;
+}
+
+#[derive(Debug)]
+struct WsNamespaceFilteringTest {
+    fine_grained: bool,
+}
+
+impl TestInit for WsNamespaceFilteringTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        if self.fine_grained {
+            Web3JsonRpcConfig {
+                ws_api_namespaces: Some(HashSet::from([Namespace::Eth])),
+                ..Web3JsonRpcConfig::for_tests()
+            }
+        } else {
+            Web3JsonRpcConfig {
+                api_namespaces: HashSet::from([Namespace::Eth]),
+                ..Web3JsonRpcConfig::for_tests()
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl WsTest for WsNamespaceFilteringTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        _pool: &ConnectionPool<Core>,
+        _pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        // `eth` namespace methods should work.
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, U64::from(0));
+        // `zks` namespace shouldn't work.
+        assert_not_found(client.get_l1_batch_number().await);
+        // `en` namespace shouldn't work either.
+        assert_not_found(client.genesis_config().await);
+        // Subscriptions must not work since they are considered a distinct namespace.
+        assert_not_found(
+            client
+                .request::<String, _>("eth_subscribe", rpc_params!["newHeads"])
+                .await,
+        );
+        Ok(())
+    }
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn filtering_api_namespaces(fine_grained: bool) {
+    test_ws_server(WsNamespaceFilteringTest { fine_grained }).await;
 }
 
 #[derive(Debug, Default)]

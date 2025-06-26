@@ -549,6 +549,41 @@ async fn http_server_basics() {
 }
 
 #[derive(Debug)]
+struct NamespaceFilteringTest;
+
+impl TestInit for NamespaceFilteringTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            api_namespaces: HashSet::from([Namespace::Eth]),
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+}
+
+#[async_trait]
+impl HttpTest for NamespaceFilteringTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // `eth` namespace methods should work.
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, U64::from(0));
+        // `zks` namespace shouldn't work.
+        assert_not_found(client.get_l1_batch_number().await);
+        // `en` namespace shouldn't work either.
+        assert_not_found(client.genesis_config().await);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn filtering_api_namespaces() {
+    test_http_server(NamespaceFilteringTest).await;
+}
+
+#[derive(Debug)]
 struct BlockMethodsWithSnapshotRecovery;
 
 impl TestInit for BlockMethodsWithSnapshotRecovery {
