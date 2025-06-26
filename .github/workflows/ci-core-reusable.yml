@@ -430,7 +430,7 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Migrate chains to gateway
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.integration_test_type == 'MIGRATE_TO_GATEWAY'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
