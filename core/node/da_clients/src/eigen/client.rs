@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PolynomialForm, Version},
+    configs::da_client::eigen::{EigenSecrets, PolynomialForm},
     EigenConfig,
 };
 use zksync_da_client::{
@@ -31,7 +31,9 @@ const PROOF_NOT_FOUND_ERROR_CODE: i64 = -32001;
 pub struct EigenDAClient {
     client: PayloadDisperser,
     sidecar_client: Client,
-    sidecar_rpc: String,
+    sidecar_rpc: Option<String>,
+    // The secure field is analogous to checking if the sidecar_rpc is set or not.
+    // We have it as a separate field for better code clarity.
     secure: bool,
 }
 
@@ -66,10 +68,7 @@ impl EigenDAClient {
         let signer = Signer::new(private_key);
         let client = PayloadDisperser::new(payload_disperser_config, signer).await?;
 
-        let secure = match config.version {
-            Version::V2 => false,
-            Version::V2Secure => true,
-        };
+        let secure = config.eigenda_sidecar_rpc.is_some();
 
         Ok(Self {
             client,
@@ -90,7 +89,7 @@ impl EigenDAClient {
         });
         let response = self
             .sidecar_client
-            .post(&self.sidecar_rpc)
+            .post(self.sidecar_rpc.clone().unwrap()) // Safe unwrap as we know sidecar_rpc is set when secure is true
             .json(&body)
             .send()
             .await
@@ -117,7 +116,7 @@ impl EigenDAClient {
         });
         let response = self
             .sidecar_client
-            .post(&self.sidecar_rpc)
+            .post(self.sidecar_rpc.clone().unwrap()) // Safe unwrap as we know sidecar_rpc is set when secure is true
             .json(&body)
             .send()
             .await

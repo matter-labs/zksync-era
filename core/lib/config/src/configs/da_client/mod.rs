@@ -338,7 +338,10 @@ mod tests {
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
 
-        assert_eq!(config.eigenda_sidecar_rpc, "http://localhost:9999");
+        assert_eq!(
+            config.eigenda_sidecar_rpc,
+            Some("http://localhost:9999".to_string())
+        );
     }
 
     #[test]
@@ -390,7 +393,10 @@ mod tests {
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
 
-        assert_eq!(config.eigenda_sidecar_rpc, "http://localhost:9999");
+        assert_eq!(
+            config.eigenda_sidecar_rpc,
+            Some("http://localhost:9999".to_string())
+        );
     }
 
     #[test]
