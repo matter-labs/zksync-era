@@ -122,7 +122,6 @@ jobs:
         shell: bash
         run: |
           cp etc/tokens/{test,localhost}.json
-          set -euxo pipefail                            # verbose, exit-on-error
   
           echo "=== WHO AM I? ========================="
           id -a                                         # uid/gid/groups
