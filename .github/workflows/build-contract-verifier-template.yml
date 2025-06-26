@@ -137,7 +137,7 @@ jobs:
           namei -l /home/runner/_work/zksync-era/zksync-era/contracts/node_modules \
           ls -l /home/runner/_work/zksync-era/zksync-era/contracts \
           /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
-          lsattr - /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
+          lsattr /home/runner/_work/zksync-era/zksync-era/contracts || true
           
           echo "=== GIT TRUST SETTINGS (safe.directory) ="
           git config --show-origin --get-all safe.directory || true
