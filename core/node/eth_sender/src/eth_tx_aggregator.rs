@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
@@ -9,14 +9,16 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
-        methods::CommitBatches,
+        methods::{CommitBatches, PrecommitBatches},
     },
     multicall3::{Multicall3Call, Multicall3Result},
     Tokenizable, Tokenize,
 };
-use zksync_shared_metrics::BlockL1Stage;
+use zksync_shared_metrics::L1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
     commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
@@ -29,7 +31,9 @@ use zksync_types::{
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
-use super::aggregated_operations::AggregatedOperation;
+use super::aggregated_operations::{
+    AggregatedOperation, L1BatchAggregatedOperation, L2BlockAggregatedOperation,
+};
 use crate::{
     aggregator::OperationSkippingRestrictions,
     health::{EthTxAggregatorHealthDetails, EthTxDetails},
@@ -86,6 +90,7 @@ pub struct EthTxAggregator {
     priority_tree_start_index: Option<usize>,
     settlement_layer: Option<SettlementLayer>,
     initial_pending_nonces: HashMap<Address, u64>,
+    needs_to_check_precommit: bool,
 }
 
 struct TxData {
@@ -142,6 +147,7 @@ impl EthTxAggregator {
             priority_tree_start_index: None,
             settlement_layer,
             initial_pending_nonces,
+            needs_to_check_precommit: true,
         }
     }
 
@@ -636,6 +642,8 @@ impl EthTxAggregator {
             )
             .await
             .then_some("there is a pending gateway upgrade"),
+            // For precommit operations, we could safely use the commit restriction.
+            precommit_restriction: commit_restriction,
         };
 
         // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
@@ -653,17 +661,21 @@ impl EthTxAggregator {
             op_restrictions.commit_restriction = reason;
             op_restrictions.prove_restriction = reason;
             op_restrictions.execute_restriction = reason;
+            op_restrictions.precommit_restriction = reason;
         }
 
         if gateway_migration_state == GatewayMigrationState::InProgress {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
+            op_restrictions.precommit_restriction = reason;
             // For the migration from gateway to L1, we need to wait for all blocks to be executed
             if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
                 op_restrictions.prove_restriction = reason;
                 op_restrictions.execute_restriction = reason;
             }
         }
+
+        let precommit_params = self.precommit_params(storage).await?;
 
         if let Some(agg_op) = self
             .aggregator
@@ -674,6 +686,7 @@ impl EthTxAggregator {
                 l1_verifier_config,
                 op_restrictions,
                 priority_tree_start_index,
+                precommit_params.as_ref(),
             )
             .await?
         {
@@ -700,6 +713,82 @@ impl EthTxAggregator {
                 .into(),
             );
         }
+
+        if precommit_params.is_some() {
+            // If we are using precommit operations,
+            // we need to set the final precommit operation for l1 batches
+            self.set_final_precommit_operation(storage).await?;
+        }
+        Ok(())
+    }
+
+    /// If we need to disable precommit operations, we can't do it straight away,
+    /// we have to fully precommit the last batch with precommit txs.
+    /// But we only need it for one batch, so after this one batch we have to return to execution without precommit operations.
+    async fn precommit_params(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<Option<PrecommitParams>, EthSenderError> {
+        if let Some(params) = self.config.precommit_params.clone() {
+            return Ok(Some(params));
+        }
+
+        if !self.needs_to_check_precommit {
+            return Ok(None);
+        }
+
+        let Some(last_committed) = storage
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_on_eth()
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let needs_to_precommit = storage
+            .blocks_dal()
+            .any_precommit_txs_after_batch(last_committed)
+            .await?;
+
+        if needs_to_precommit {
+            Ok(Some(PrecommitParams::fast_precommit()))
+        } else {
+            self.needs_to_check_precommit = false;
+            Ok(None)
+        }
+    }
+
+    /// The server is doing precommits based on the txs.
+    /// That means, that the last fictive l2 block will never be included into precommit txs and it's the only way how the miniblock will have no txs.
+    /// So we have to check if the last 2 rolling txs hashes for miniblocks are equal and if yes, we can set the final precommit tx id for the batch,
+    /// and that will mean we can commit the batch.
+    async fn set_final_precommit_operation(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), EthSenderError> {
+        let l2_blocks_by_batch = storage
+            .blocks_dal()
+            .get_last_l2_block_rolling_txs_hashes_by_batches()
+            .await?;
+        for (batch_number, l2_block) in l2_blocks_by_batch {
+            if l2_block.len() != 2 {
+                // We expect exactly 2 miniblocks for each batch. If not we will wait for the next iteration
+                continue;
+            }
+            // l2_blocks[0] is the newest, l2_blocks[1] is previous (because of DESC order)
+            if l2_block[0].rolling_txs_hash == l2_block[1].rolling_txs_hash {
+                if let Some(eth_tx_id) = l2_block[1].precommit_eth_tx_id {
+                    storage
+                        .blocks_dal()
+                        .set_eth_tx_id_for_l1_batches(
+                            batch_number..=batch_number,
+                            eth_tx_id as u32,
+                            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
+                        )
+                        .await?
+                }
+            }
+        }
         Ok(())
     }
 
@@ -708,32 +797,51 @@ impl EthTxAggregator {
         aggregated_op: &AggregatedOperation,
         tx: &EthTx,
     ) {
-        let l1_batch_number_range = aggregated_op.l1_batch_range();
-        tracing::info!(
-            "eth_tx with ID {} for op {} was saved for L1 batches {l1_batch_number_range:?}",
-            tx.id,
-            aggregated_op.get_action_caption()
-        );
+        match aggregated_op {
+            AggregatedOperation::L1Batch(aggregated_op) => {
+                let l1_batch_number_range = aggregated_op.l1_batch_range();
+                tracing::info!(
+                    "eth_tx with ID {} for op {} was saved for L1 batches {l1_batch_number_range:?}",
+                    tx.id,
+                    aggregated_op.get_action_caption()
+                );
 
-        if let AggregatedOperation::Commit(_, l1_batches, _, _) = aggregated_op {
-            for batch in l1_batches {
-                METRICS.pubdata_size[&PubdataKind::StateDiffs]
-                    .observe(batch.metadata.state_diffs_compressed.len());
-                METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
-                    .observe(batch.header.l2_to_l1_logs.len() * UserL2ToL1Log::SERIALIZED_SIZE);
-                METRICS.pubdata_size[&PubdataKind::LongL2ToL1Messages]
-                    .observe(batch.header.l2_to_l1_messages.iter().map(Vec::len).sum());
-                METRICS.pubdata_size[&PubdataKind::RawPublishedBytecodes]
-                    .observe(batch.raw_published_factory_deps.iter().map(Vec::len).sum());
+                if let L1BatchAggregatedOperation::Commit(_, l1_batches, _, _) = aggregated_op {
+                    for batch in l1_batches {
+                        METRICS.pubdata_size[&PubdataKind::StateDiffs]
+                            .observe(batch.metadata.state_diffs_compressed.len());
+                        METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs].observe(
+                            batch.header.l2_to_l1_logs.len() * UserL2ToL1Log::SERIALIZED_SIZE,
+                        );
+                        METRICS.pubdata_size[&PubdataKind::LongL2ToL1Messages]
+                            .observe(batch.header.l2_to_l1_messages.iter().map(Vec::len).sum());
+                        METRICS.pubdata_size[&PubdataKind::RawPublishedBytecodes]
+                            .observe(batch.raw_published_factory_deps.iter().map(Vec::len).sum());
+                    }
+                }
+
+                let range_size =
+                    l1_batch_number_range.end().0 - l1_batch_number_range.start().0 + 1;
+                METRICS.block_range_size[&aggregated_op.get_action_type().into()]
+                    .observe(range_size.into());
+                METRICS
+                    .track_eth_tx_metrics(storage, L1Stage::Saved, tx)
+                    .await;
+            }
+            AggregatedOperation::L2Block(op) => {
+                let l2_block_number_range = op.l2_blocks_range();
+                tracing::info!(
+                    "eth_tx with ID {} for op {} was saved for L2 block {l2_block_number_range:?}",
+                    tx.id,
+                    op.get_action_caption(),
+                );
+
+                let range_size =
+                    l2_block_number_range.end().0 - l2_block_number_range.start().0 + 1;
+                METRICS.l2_blocks_range_size[&op.get_action_type().into()]
+                    .observe(range_size.into());
             }
         }
-
-        let range_size = l1_batch_number_range.end().0 - l1_batch_number_range.start().0 + 1;
-        METRICS.block_range_size[&aggregated_op.get_action_type().into()]
-            .observe(range_size.into());
-        METRICS
-            .track_eth_tx_metrics(storage, BlockL1Stage::Saved, tx)
-            .await;
     }
 
     fn encode_aggregated_op(
@@ -741,67 +849,112 @@ impl EthTxAggregator {
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
-        let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
+        match op {
+            AggregatedOperation::L1Batch(op) => {
+                let protocol_version = op.protocol_version();
 
-        let (calldata, sidecar) = match op {
-            AggregatedOperation::Commit(
-                last_committed_l1_batch,
-                l1_batches,
-                pubdata_da,
-                commitment_mode,
-            ) => {
-                let commit_batches = CommitBatches {
-                    last_committed_l1_batch,
-                    l1_batches,
-                    pubdata_da: *pubdata_da,
-                    mode: *commitment_mode,
-                };
-                let commit_data_base = commit_batches.into_tokens();
-
-                args.extend(commit_data_base);
-                let commit_data = args;
-                let encoding_fn = if is_op_pre_gateway {
-                    &self.functions.post_shared_bridge_commit
+                let mut args = if protocol_version.is_pre_interop_fast_blocks() {
+                    vec![Token::Uint(self.rollup_chain_id.as_u64().into())]
                 } else {
-                    &self.functions.post_gateway_commit
+                    vec![Token::Address(self.state_transition_chain_contract)]
                 };
 
-                let l1_batch_for_sidecar = if PubdataSendingMode::Blobs == *pubdata_da {
-                    Some(l1_batches[0].clone())
-                } else {
-                    None
-                };
+                let (calldata, sidecar) = match op {
+                    L1BatchAggregatedOperation::Commit(
+                        last_committed_l1_batch,
+                        l1_batches,
+                        pubdata_da,
+                        commitment_mode,
+                    ) => {
+                        let commit_batches = CommitBatches {
+                            last_committed_l1_batch,
+                            l1_batches,
+                            pubdata_da: *pubdata_da,
+                            mode: *commitment_mode,
+                        };
+                        let commit_data_base = commit_batches.into_tokens();
 
-                Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
+                        args.extend(commit_data_base);
+                        let commit_data = args;
+                        let encoding_fn = if protocol_version.is_pre_gateway() {
+                            &self.functions.post_shared_bridge_commit
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                            &self.functions.post_v26_gateway_commit
+                        } else {
+                            &self.functions.post_v29_interop_commit
+                        };
+
+                        let l1_batch_for_sidecar = if PubdataSendingMode::Blobs == *pubdata_da {
+                            Some(l1_batches[0].clone())
+                        } else {
+                            None
+                        };
+
+                        Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
+                    }
+                    L1BatchAggregatedOperation::PublishProofOnchain(op) => {
+                        args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
+                        let encoding_fn = if protocol_version.is_pre_gateway() {
+                            &self.functions.post_shared_bridge_prove
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                            &self.functions.post_v26_gateway_prove
+                        } else {
+                            &self.functions.post_v29_timelock_interop_prove
+                        };
+                        let calldata = encoding_fn
+                            .encode_input(&args)
+                            .expect("Failed to encode prove transaction data");
+                        (calldata, None)
+                    }
+                    L1BatchAggregatedOperation::Execute(op) => {
+                        args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                        let encoding_fn = if protocol_version.is_pre_gateway()
+                            && chain_protocol_version_id.is_pre_gateway()
+                        {
+                            &self.functions.post_shared_bridge_execute
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                            &self.functions.post_v26_gateway_execute
+                        } else {
+                            &self.functions.post_v29_interop_execute
+                        };
+
+                        let calldata = encoding_fn
+                            .encode_input(&args)
+                            .expect("Failed to encode execute transaction data");
+                        (calldata, None)
+                    }
+                };
+                TxData { calldata, sidecar }
             }
-            AggregatedOperation::PublishProofOnchain(op) => {
-                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
-                let encoding_fn = if is_op_pre_gateway {
-                    &self.functions.post_shared_bridge_prove
-                } else {
-                    &self.functions.post_gateway_prove
-                };
-                let calldata = encoding_fn
-                    .encode_input(&args)
-                    .expect("Failed to encode prove transaction data");
-                (calldata, None)
-            }
-            AggregatedOperation::Execute(op) => {
-                args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
-                let encoding_fn = if is_op_pre_gateway && chain_protocol_version_id.is_pre_gateway()
-                {
-                    &self.functions.post_shared_bridge_execute
-                } else {
-                    &self.functions.post_gateway_execute
-                };
-                let calldata = encoding_fn
-                    .encode_input(&args)
-                    .expect("Failed to encode execute transaction data");
-                (calldata, None)
-            }
-        };
-        TxData { calldata, sidecar }
+            AggregatedOperation::L2Block(op) => match op {
+                L2BlockAggregatedOperation::Precommit {
+                    l1_batch: l1_batch_number,
+                    last_l2_block,
+                    txs,
+                    ..
+                } => {
+                    let mut args = vec![Token::Address(self.state_transition_chain_contract)];
+
+                    let precommit_batches = PrecommitBatches {
+                        txs,
+                        last_l2_block: *last_l2_block,
+                        l1_batch_number: *l1_batch_number,
+                    };
+                    let precommit_data_base = precommit_batches.into_tokens();
+
+                    args.extend(precommit_data_base);
+                    let encoding_fn = &self.functions.post_v29_interop_precommit;
+
+                    let calldata = encoding_fn
+                        .encode_input(&args)
+                        .expect("Failed to encode execute transaction data");
+                    TxData {
+                        calldata,
+                        sidecar: None,
+                    }
+                }
+            },
+        }
     }
 
     fn encode_commit_data(
@@ -855,7 +1008,7 @@ impl EthTxAggregator {
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
         let sender_addr = match (op_type, is_gateway) {
-            (AggregatedActionType::Commit, false) => self
+            (AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit), false) => self
                 .eth_client_blobs
                 .as_ref()
                 .map(|c| (c.sender_account()))
@@ -865,26 +1018,37 @@ impl EthTxAggregator {
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
-        let l1_batch_number_range = aggregated_op.l1_batch_range();
-        let dependency_roots_per_batch = aggregated_op.dependency_roots_per_batch();
 
-        let eth_tx_predicted_gas = match op_type {
-            AggregatedActionType::Execute => {
-                L1GasCriterion::total_execute_gas_amount(
-                    &mut transaction,
-                    l1_batch_number_range.clone(),
-                    dependency_roots_per_batch,
-                    is_gateway,
-                )
-                .await
+        let eth_tx_predicted_gas = match aggregated_op {
+            AggregatedOperation::L2Block(op) => match op {
+                L2BlockAggregatedOperation::Precommit { txs, .. } => {
+                    L1GasCriterion::total_precommit_gas_amount(is_gateway, txs.len())
+                }
+            },
+            AggregatedOperation::L1Batch(agg_op) => {
+                let l1_batch_number_range = agg_op.l1_batch_range();
+                let dependency_roots_per_batch = agg_op.dependency_roots_per_batch();
+                match agg_op.get_action_type() {
+                    L1BatchAggregatedActionType::Execute => {
+                        L1GasCriterion::total_execute_gas_amount(
+                            &mut transaction,
+                            l1_batch_number_range.clone(),
+                            dependency_roots_per_batch,
+                            is_gateway,
+                        )
+                        .await
+                    }
+                    L1BatchAggregatedActionType::PublishProofOnchain => {
+                        L1GasCriterion::total_proof_gas_amount(is_gateway)
+                    }
+                    L1BatchAggregatedActionType::Commit => {
+                        L1GasCriterion::total_commit_validium_gas_amount(
+                            l1_batch_number_range.clone(),
+                            is_gateway,
+                        )
+                    }
+                }
             }
-            AggregatedActionType::PublishProofOnchain => {
-                L1GasCriterion::total_proof_gas_amount(is_gateway)
-            }
-            AggregatedActionType::Commit => L1GasCriterion::total_commit_validium_gas_amount(
-                l1_batch_number_range.clone(),
-                is_gateway,
-            ),
         };
 
         let mut eth_tx = transaction
@@ -908,11 +1072,30 @@ impl EthTxAggregator {
             .await
             .unwrap();
         eth_tx.chain_id = Some(self.sl_chain_id);
-        transaction
-            .blocks_dal()
-            .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
-            .await
-            .unwrap();
+        match aggregated_op {
+            AggregatedOperation::L2Block(agg_op) => {
+                transaction
+                    .blocks_dal()
+                    .set_eth_tx_id_for_l2_blocks(
+                        agg_op.l2_blocks_range(),
+                        eth_tx.id,
+                        agg_op.get_action_type(),
+                    )
+                    .await
+                    .unwrap();
+            }
+            AggregatedOperation::L1Batch(agg_op) => {
+                transaction
+                    .blocks_dal()
+                    .set_eth_tx_id_for_l1_batches(
+                        agg_op.l1_batch_range(),
+                        eth_tx.id,
+                        aggregated_op.get_action_type(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
         transaction.commit().await.unwrap();
         Ok(eth_tx)
     }
