@@ -14,17 +14,12 @@ pub use self::{
     experimental::{ExperimentalDBConfig, ExperimentalVmConfig, ExperimentalVmPlaygroundConfig},
     external_price_api_client::ExternalPriceApiClientConfig,
     external_proof_integration_api::ExternalProofIntegrationApiConfig,
-    fri_proof_compressor::FriProofCompressorConfig,
-    fri_prover::FriProverConfig,
-    fri_prover_gateway::FriProverGatewayConfig,
-    fri_witness_generator::FriWitnessGeneratorConfig,
     gateway_migrator::GatewayMigratorConfig,
     general::{full_config_schema, GeneralConfig},
     genesis::{GenesisConfig, GenesisConfigWrapper},
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
-    prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
@@ -50,10 +45,6 @@ pub mod eth_watch;
 mod experimental;
 pub mod external_price_api_client;
 pub mod external_proof_integration_api;
-pub mod fri_proof_compressor;
-pub mod fri_prover;
-pub mod fri_prover_gateway;
-pub mod fri_witness_generator;
 mod gateway_migrator;
 mod general;
 pub mod genesis;
@@ -62,7 +53,6 @@ pub mod networks;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
-pub mod prover_job_monitor;
 pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;

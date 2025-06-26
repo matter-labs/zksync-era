@@ -97,7 +97,6 @@ impl<R> ExternalNodeBuilder<R> {
         // or are not used in the context of the external node.
         config.max_connections_master = config.max_connections;
         config.server_replica_url = config.server_url.clone();
-        config.prover_url = None;
 
         let pools_layer = PoolsLayer::empty(config)
             .with_master(true)

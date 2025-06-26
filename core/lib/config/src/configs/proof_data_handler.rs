@@ -1,10 +1,14 @@
 use std::time::Duration;
 
-use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use smart_config::{de::Serde, metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use zksync_basic_types::basic_fri_types::ApiMode;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
+    // Copy the API mode from the prover gateway config
+    #[config(with = Serde![str], alias = "..prover_gateway.api_mode")]
+    pub api_mode: ApiMode,
     #[config(default_t = 1 * TimeUnit::Minutes)]
     pub proof_generation_timeout: Duration,
     pub gateway_api_url: Option<String>,
@@ -25,6 +29,7 @@ mod tests {
     fn expected_config() -> ProofDataHandlerConfig {
         ProofDataHandlerConfig {
             http_port: 3320,
+            api_mode: ApiMode::ProverCluster,
             proof_generation_timeout: Duration::from_secs(18000),
             gateway_api_url: Some("http://gateway/".to_owned()),
             proof_fetch_interval: Duration::from_secs(15),
@@ -38,6 +43,7 @@ mod tests {
         let env = r#"
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
+            PROOF_DATA_HANDLER_API_MODE="ProverCluster"
             PROOF_DATA_HANDLER_GATEWAY_API_URL="http://gateway/"
             PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS=15
             PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS=20
@@ -55,6 +61,7 @@ mod tests {
     fn parsing_from_yaml() {
         let yaml = r#"
           http_port: 3320
+          api_mode: ProverCluster
           proof_generation_timeout_in_secs: 18000
           gateway_api_url: "http://gateway/"
           proof_fetch_interval_in_secs: 15
@@ -66,6 +73,7 @@ mod tests {
         assert_eq!(config, expected_config());
     }
 
+    // FIXME: test with api_mode alias
     #[test]
     fn parsing_from_idiomatic_yaml() {
         let yaml = r#"

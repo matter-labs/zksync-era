@@ -121,10 +121,6 @@ pub struct PostgresConfig {
     #[config(fallback = &fallback::Env("DATABASE_URL"))]
     #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
     pub server_url: Option<SensitiveUrl>,
-    /// Postgres connection string for the prover database. Not used by external nodes.
-    // FIXME: try removing
-    #[config(secret, with = Serde![str])]
-    pub prover_url: Option<SensitiveUrl>,
     /// Postgres connection string for the server replica (readonly).
     #[config(alias = "replica_url", secret, with = Serde![str])]
     #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
@@ -172,11 +168,6 @@ impl PostgresConfig {
         } else {
             self.master_url()
         }
-    }
-
-    /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
-    pub fn prover_url(&self) -> anyhow::Result<SensitiveUrl> {
-        self.prover_url.clone().context("Prover DB URL is absent")
     }
 }
 
@@ -308,10 +299,6 @@ mod tests {
         assert_eq!(
             config.server_replica_url.as_ref().unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost/zksync_replica_local"
-        );
-        assert_eq!(
-            config.prover_url.as_ref().unwrap().expose_str(),
-            "postgres://postgres:notsecurepassword@localhost/prover_local"
         );
 
         assert_eq!(config.max_connections().unwrap(), 50);

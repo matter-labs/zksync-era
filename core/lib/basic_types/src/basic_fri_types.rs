@@ -360,6 +360,16 @@ impl JobIdentifiers {
     }
 }
 
+// FIXME: is this a good location for the type?
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub enum ApiMode {
+    /// The legacy API mode, which is compatible with the old prover API.
+    #[default]
+    Legacy,
+    /// The new API mode, which is compatible with the prover cluster API.
+    ProverCluster,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

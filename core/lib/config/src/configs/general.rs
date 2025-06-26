@@ -7,16 +7,14 @@ use crate::{
         consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
         house_keeper::HouseKeeperConfig,
-        prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         wallets::Wallets,
         CommitmentGeneratorConfig, ConsistencyCheckerConfig, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, GatewayMigratorConfig,
-        GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        Secrets, TeeProofDataHandlerConfig,
+        ExternalPriceApiClientConfig, GatewayMigratorConfig, GenesisConfigWrapper,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
+        TeeProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -38,15 +36,6 @@ pub struct GeneralConfig {
     pub state_keeper_config: Option<StateKeeperConfig>,
     #[config(nest, rename = "house_keeper")]
     pub house_keeper_config: HouseKeeperConfig,
-
-    #[config(nest, rename = "proof_compressor", alias = "fri_proof_compressor")]
-    pub proof_compressor_config: Option<FriProofCompressorConfig>,
-    #[config(nest, rename = "prover", alias = "fri_prover")]
-    pub prover_config: Option<FriProverConfig>,
-    #[config(nest, alias = "fri_prover_gateway")]
-    pub prover_gateway: Option<FriProverGatewayConfig>,
-    #[config(nest, rename = "witness_generator", alias = "fri_witness")]
-    pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
 
     #[config(nest, rename = "prometheus")]
     pub prometheus_config: PrometheusConfig,
@@ -86,8 +75,6 @@ pub struct GeneralConfig {
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     #[config(nest, rename = "experimental_vm")]
     pub experimental_vm_config: ExperimentalVmConfig,
-    #[config(nest, rename = "prover_job_monitor")]
-    pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     #[config(nest, rename = "timestamp_asserter")]
     pub timestamp_asserter_config: TimestampAsserterConfig,
     #[config(nest, rename = "gateway_migrator")]

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig};
+use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core,
@@ -12,7 +12,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::ObjectStore;
-use zksync_types::L2ChainId;
+use zksync_types::{basic_fri_types::ApiMode, L2ChainId};
 
 use crate::ProofDataHandlerClient;
 
@@ -21,7 +21,6 @@ use crate::ProofDataHandlerClient;
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
-    api_mode: ApiMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -37,15 +36,10 @@ pub struct Output {
 }
 
 impl ProofDataHandlerLayer {
-    pub fn new(
-        proof_data_handler_config: ProofDataHandlerConfig,
-        l2_chain_id: L2ChainId,
-        api_mode: ApiMode,
-    ) -> Self {
+    pub fn new(proof_data_handler_config: ProofDataHandlerConfig, l2_chain_id: L2ChainId) -> Self {
         Self {
             proof_data_handler_config,
             l2_chain_id,
-            api_mode,
         }
     }
 }
@@ -64,11 +58,10 @@ impl WiringLayer for ProofDataHandlerLayer {
         let blob_store = input.object_store;
 
         let task = ProofDataHandlerTask {
-            proof_data_handler_config: self.proof_data_handler_config,
+            config: self.proof_data_handler_config,
             blob_store,
             main_pool,
             l2_chain_id: self.l2_chain_id,
-            api_mode: self.api_mode,
         };
 
         Ok(Output { task })
@@ -77,10 +70,9 @@ impl WiringLayer for ProofDataHandlerLayer {
 
 #[derive(Debug)]
 pub struct ProofDataHandlerTask {
-    proof_data_handler_config: ProofDataHandlerConfig,
+    config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
-    api_mode: ApiMode,
     l2_chain_id: L2ChainId,
 }
 
@@ -92,21 +84,20 @@ impl Task for ProofDataHandlerTask {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let server_task = crate::run_server(
-            self.proof_data_handler_config.clone(),
+            self.config.clone(),
             self.blob_store.clone(),
             self.main_pool.clone(),
             self.l2_chain_id,
-            self.api_mode.clone(),
             stop_receiver.clone().0,
         );
 
-        if self.api_mode == ApiMode::Legacy {
+        if self.config.api_mode == ApiMode::Legacy {
             server_task.await
         } else {
             let client = ProofDataHandlerClient::new(
                 self.blob_store,
                 self.main_pool,
-                self.proof_data_handler_config,
+                self.config,
                 self.l2_chain_id,
             );
 

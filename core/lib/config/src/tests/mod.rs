@@ -48,7 +48,6 @@ fn assert_general_config(general: GeneralConfig) {
         server_url.expose_str(),
         "postgres://postgres:notsecurepassword@localhost/zksync_local"
     );
-    postgres.prover_url.unwrap();
 
     let snapshot_recovery_store = general.snapshot_recovery.unwrap().object_store.unwrap();
     let ObjectStoreMode::FileBacked {
