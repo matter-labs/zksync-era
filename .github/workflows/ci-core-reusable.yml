@@ -285,6 +285,7 @@ jobs:
           --validium-type no-da
 
       - name: Create and initialize DA migration chain
+        if: matrix.integration_test_type == 'DA_MIGRATION'
         run: |
           ci_run zkstack chain create \
           --chain-name da_migration \
@@ -391,7 +392,7 @@ jobs:
 
       - name: Export chain list to environment variable
         run: |
-          CHAINS="era,validium,custom_token,da_migration,consensus"
+          CHAINS="era,validium,custom_token,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
       # ----------------------------------------------------------------
@@ -600,10 +601,6 @@ jobs:
           ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_da_migration --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain da_migration
-          ci_run zkstack external-node init --ignore-prerequisites --chain da_migration
-
-          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
@@ -630,13 +627,11 @@ jobs:
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain da_migration --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/da_migration.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
 
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain custom_token
-          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain da_migration
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Run integration tests en (only in EN_INTEGRATION_TESTS)
