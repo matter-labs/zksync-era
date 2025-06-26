@@ -114,7 +114,7 @@ impl BootloaderState {
         self.subversion
     }
 
-    pub(crate) fn get_preexisting_interop_roots_number(&self) -> usize {
+    pub(crate) fn get_number_of_applied_interop_roots(&self) -> usize {
         self.l2_blocks
             .iter()
             .take(self.l2_blocks.len() - 1)
@@ -158,7 +158,7 @@ impl BootloaderState {
             self.last_l2_block().txs.is_empty(),
             self.subversion,
             self.last_l2_block().txs.is_empty(),
-            self.get_preexisting_interop_roots_number(),
+            self.get_number_of_applied_interop_roots(),
             self.get_preexisting_blocks_number(),
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
@@ -212,7 +212,7 @@ impl BootloaderState {
                     num == 0,
                     self.subversion,
                     num == 0,
-                    self.get_preexisting_interop_roots_number(),
+                    self.get_number_of_applied_interop_roots(),
                     self.get_preexisting_blocks_number(),
                 );
                 offset += tx.encoded_len();
@@ -226,7 +226,7 @@ impl BootloaderState {
                     tx_index,
                     self.subversion,
                     true,
-                    self.get_preexisting_interop_roots_number(),
+                    self.get_number_of_applied_interop_roots(),
                     self.get_preexisting_blocks_number(),
                 )
             }

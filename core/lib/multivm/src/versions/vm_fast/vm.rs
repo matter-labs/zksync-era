@@ -577,7 +577,7 @@ where
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
                     let preexisting_interop_roots_number =
-                        self.bootloader_state.get_preexisting_interop_roots_number();
+                        self.bootloader_state.get_number_of_applied_interop_roots();
                     let preexisting_blocks_number =
                         self.bootloader_state.get_preexisting_blocks_number();
                     let txs_index = self.bootloader_state.free_tx_index();
