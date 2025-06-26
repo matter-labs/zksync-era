@@ -1,5 +1,5 @@
 # Will work locally only after prior universal setup key download
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
