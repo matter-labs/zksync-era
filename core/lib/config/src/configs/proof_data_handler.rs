@@ -6,7 +6,7 @@ use zksync_basic_types::basic_fri_types::ApiMode;
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
-    // Copy the API mode from the prover gateway config
+    // Copy the API mode from the prover gateway config if it's not present locally
     #[config(with = Serde![str], alias = "..prover_gateway.api_mode")]
     pub api_mode: ApiMode,
     #[config(default_t = 1 * TimeUnit::Minutes)]
@@ -22,7 +22,10 @@ pub struct ProofDataHandlerConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test_complete, Tester},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -73,19 +76,24 @@ mod tests {
         assert_eq!(config, expected_config());
     }
 
-    // FIXME: test with api_mode alias
     #[test]
     fn parsing_from_idiomatic_yaml() {
         let yaml = r#"
+        data_handler:
           http_port: 3320
           proof_generation_timeout: 5 hours
           gateway_api_url: "http://gateway/"
           proof_fetch_interval: 15s
           proof_gen_data_submit_interval: 20 secs
           fetch_zero_chain_id_proofs: false
+        prover_gateway:
+          api_mode: ProverCluster
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
+        let config: ProofDataHandlerConfig = Tester::default()
+            .insert("data_handler")
+            .test_complete(yaml)
+            .unwrap();
         assert_eq!(config, expected_config());
     }
 }
