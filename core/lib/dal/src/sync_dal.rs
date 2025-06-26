@@ -1,8 +1,5 @@
 use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-    instrument::{InstrumentExt, Instrumented},
-    metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
 use zksync_types::{api::en, L2BlockNumber};
 
@@ -29,10 +26,13 @@ impl SyncDal<'_, '_> {
         let blocks = sqlx::query_as!(
             StorageSyncBlock,
             r#"
-            SELECT
-                miniblocks.number,
-                COALESCE(
-                    miniblocks.l1_batch_number,
+            WITH l1_batch AS (
+                SELECT COALESCE(
+                    (
+                        SELECT miniblocks.l1_batch_number
+                        FROM miniblocks
+                        WHERE number = $1
+                    ),
                     (
                         SELECT
                             (MAX(number) + 1)
@@ -47,7 +47,12 @@ impl SyncDal<'_, '_> {
                         FROM
                             snapshot_recovery
                     )
-                ) AS "l1_batch_number!",
+                ) AS number
+            )
+            
+            SELECT
+                miniblocks.number,
+                l1_batch.number AS "l1_batch_number!",
                 (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
@@ -61,9 +66,12 @@ impl SyncDal<'_, '_> {
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
                 miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
-                miniblocks.pubdata_type AS "pubdata_type!"
+                miniblocks.pubdata_type AS "pubdata_type!",
+                l1_batches.pubdata_limit
             FROM
                 miniblocks
+            INNER JOIN l1_batch ON true
+            INNER JOIN l1_batches ON l1_batches.number = l1_batch.number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             "#,
@@ -106,18 +114,7 @@ impl SyncDal<'_, '_> {
         } else {
             None
         };
-
-        let pubdata_limit = self
-            .storage
-            .blocks_dal()
-            .get_common_l1_batch_header(block.l1_batch_number)
-            .await?
-            .ok_or_else(|| {
-                Instrumented::new("sync_block")
-                    .constraint_error(anyhow::anyhow!("Missing common L1 batch header for block"))
-            })?
-            .pubdata_limit;
-        Ok(Some(block.into_api(transactions, pubdata_limit)))
+        Ok(Some(block.into_api(transactions)))
     }
 }
 
