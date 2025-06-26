@@ -433,10 +433,10 @@ jobs:
       - name: Migrate chains to gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          if [ "${{ matrix.integration_test_type }}" != "MIGRATE_TO_GATEWAY" ]; then
-            ci_run zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
-          else
+          if [ "${{ matrix.integration_test_type }}" == "MIGRATE_TO_GATEWAY" ]; then
             ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
+          else
+            ci_run zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
           fi
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
