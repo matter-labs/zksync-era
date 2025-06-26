@@ -436,7 +436,9 @@ jobs:
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
-          ci_run zkstack chain gateway migrate-to-gateway --chain da_migration --gateway-chain-name gateway
+          if [ "${{ matrix.integration_test_type }}" == "DA_MIGRATION" ]; then
+              ci_run zkstack chain gateway migrate-to-gateway --chain da_migration --gateway-chain-name gateway
+          fi
           ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era (only in MIGRATE_TO_GATEWAY)
@@ -467,7 +469,9 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack server --ignore-prerequisites --chain da_migration &> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          if [ "${{ matrix.integration_test_type }}" == "DA_MIGRATION" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain da_migration &> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          fi
           ci_run zkstack server --ignore-prerequisites --chain consensus \
             --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
@@ -475,7 +479,9 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain da_migration
+          if [ "${{ matrix.integration_test_type }}" == "DA_MIGRATION" ]; then
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain da_migration
+          fi
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
       - name: DA migration tests (only in DA_MIGRATION)
