@@ -3,7 +3,7 @@
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 pub(crate) use self::metrics::METRICS;
-use crate::configs::{ObservabilityConfig, PrometheusConfig};
+use crate::configs::{observability::LogFormat, ObservabilityConfig, PrometheusConfig};
 
 mod metrics;
 
@@ -17,7 +17,7 @@ impl ObservabilityConfig {
         self,
         logs_transform: impl FnOnce(zksync_vlog::Logs) -> zksync_vlog::Logs,
     ) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
-        let logs = logs_transform(zksync_vlog::Logs::try_from(self.clone())?);
+        let logs = logs_transform(self.clone().into());
         let sentry = Option::<zksync_vlog::Sentry>::try_from(self.clone())?;
         let opentelemetry = Option::<zksync_vlog::OpenTelemetry>::try_from(self.clone())?;
 
@@ -31,12 +31,19 @@ impl ObservabilityConfig {
     }
 }
 
-impl TryFrom<ObservabilityConfig> for zksync_vlog::Logs {
-    type Error = anyhow::Error;
+impl From<LogFormat> for zksync_vlog::logs::LogFormat {
+    fn from(format: LogFormat) -> Self {
+        match format {
+            LogFormat::Plain => Self::Plain,
+            LogFormat::Json => Self::Json,
+        }
+    }
+}
 
-    fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        Ok(zksync_vlog::Logs::new(&config.log_format)?
-            .with_log_directives(Some(config.log_directives)))
+impl From<ObservabilityConfig> for zksync_vlog::Logs {
+    fn from(config: ObservabilityConfig) -> Self {
+        zksync_vlog::Logs::new(config.log_format.into())
+            .with_log_directives(Some(config.log_directives))
     }
 }
 
@@ -44,11 +51,11 @@ impl TryFrom<ObservabilityConfig> for Option<zksync_vlog::Sentry> {
     type Error = anyhow::Error;
 
     fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        let Some(sentry_config) = config.sentry else {
+        let Some(url) = &config.sentry.url else {
             return Ok(None);
         };
-        let sentry = zksync_vlog::Sentry::new(&sentry_config.url)?;
-        Ok(Some(sentry.with_environment(sentry_config.environment)))
+        let sentry = zksync_vlog::Sentry::new(url)?;
+        Ok(Some(sentry.with_environment(config.sentry.environment)))
     }
 }
 
@@ -76,7 +83,7 @@ impl PrometheusConfig {
             let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
             Some(PrometheusExporterConfig::push(
                 gateway_endpoint,
-                self.push_interval(),
+                self.push_interval,
             ))
         } else {
             self.to_pull_config()

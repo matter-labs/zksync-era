@@ -236,6 +236,12 @@ pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON
 pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
 pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
 
+pub(super) const MSG_RICH_ACCOUNT_ABOUT: &str = "Make L2 account rich";
+
+pub(super) fn msg_rich_account_outro(account: &str) -> String {
+    format!("$$ You are rich $$: {:?}", account)
+}
+
 // Status related messages
 pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
 pub(super) const MSG_STATUS_URL_HELP: &str = "URL of the health check endpoint";

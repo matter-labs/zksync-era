@@ -24,8 +24,8 @@ fn pre_smart_config_files_can_be_parsed() {
         consensus: None,
         external_node: None,
     };
-    let config_sources = paths.into_config_sources("###").unwrap();
-    let schema = full_config_schema(false);
+    let config_sources = paths.into_config_sources(None).unwrap();
+    let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
     let general: GeneralConfig = repo.parse().unwrap();
     assert_general_config(general);
@@ -66,12 +66,12 @@ fn assert_general_config(general: GeneralConfig) {
 
 // These checks aren't intended to be exhaustive; they mostly check parsing completeness.
 fn assert_secrets(secrets: Secrets) {
-    let server_url = secrets.database.server_url.unwrap();
+    let server_url = secrets.postgres.server_url.unwrap();
     assert_eq!(
         server_url.expose_str(),
         "postgres://postgres:notsecurepassword@localhost/zksync_local"
     );
-    secrets.database.prover_url.unwrap();
+    secrets.postgres.prover_url.unwrap();
 
     let l1_rpc_url = secrets.l1.l1_rpc_url.unwrap();
     assert_eq!(l1_rpc_url.expose_str(), "http://127.0.0.1:8545/");

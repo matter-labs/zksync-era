@@ -12,8 +12,6 @@
       "contracts/system-contracts",
       "etc/ERC20",
       "etc/utils",
-      "infrastructure/zk",
-      "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
       "core/tests/recovery-test",
       "core/tests/upgrade-test",
@@ -27,7 +25,6 @@
     ]
   },
   "scripts": {
-    "local-prep": "yarn workspace local-setup-preparation",
     "l1-contracts": "yarn workspace l1-contracts",
     "l2-contracts": "yarn workspace l2-contracts",
     "da-contracts": "yarn workspace da-contracts",
@@ -36,8 +33,7 @@
     "gateway-migration-test": "yarn workspace gateway-migration-test",
     "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
-    "utils": "yarn workspace utils",
-    "zk": "yarn workspace zk"
+    "utils": "yarn workspace utils"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.7.4",

@@ -3,15 +3,14 @@ use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, tim
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
 use futures::future;
-use serde::Deserialize;
 use tokio::{
-    sync::{mpsc, oneshot, watch, Mutex},
+    sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
+use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
-use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     tree::TreeApiClient,
@@ -51,14 +50,14 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    web3::backend_jsonrpsee::ServerTimeoutMiddleware,
+    web3::{backend_jsonrpsee::ServerTimeoutMiddleware, metrics::ApiTransportLabel},
 };
 
 pub mod backend_jsonrpsee;
 pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
-mod pubsub;
+pub(crate) mod pubsub;
 pub(super) mod receipts;
 pub mod state;
 pub mod testonly;
@@ -93,41 +92,6 @@ enum ApiTransport {
     Http(SocketAddr),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, strum::EnumString)]
-#[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
-pub enum Namespace {
-    Eth,
-    Net,
-    Web3,
-    Debug,
-    Zks,
-    En,
-    Pubsub,
-    Snapshots,
-    Unstable,
-}
-
-impl Namespace {
-    pub const DEFAULT: &'static [Self] = &[
-        Self::Eth,
-        Self::Net,
-        Self::Web3,
-        Self::Zks,
-        Self::En,
-        Self::Pubsub,
-    ];
-}
-
-/// Handles to the initialized API server.
-#[derive(Debug)]
-pub struct ApiServerHandles {
-    pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
-    pub health_check: ReactiveHealthCheck,
-    #[allow(unused)] // only used in tests
-    pub(crate) local_addr: future::TryMaybeDone<oneshot::Receiver<SocketAddr>>,
-}
-
 /// Optional part of the API server parameters.
 #[derive(Debug, Default)]
 struct OptionalApiParams {
@@ -142,7 +106,6 @@ struct OptionalApiParams {
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
-    pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
     l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
 }
 
@@ -151,13 +114,13 @@ struct OptionalApiParams {
 #[derive(Debug)]
 pub struct ApiServer {
     pool: ConnectionPool<Core>,
-    health_updater: Arc<HealthUpdater>,
+    // INVARIANT: only taken out when the server is started.
+    health_updater: Option<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
-    polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
-    namespaces: Vec<Namespace>,
+    namespaces: HashSet<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
     bridge_addresses_handle: BridgeAddressesHandle,
@@ -168,7 +131,6 @@ pub struct ApiServer {
 pub struct ApiBuilder {
     pool: ConnectionPool<Core>,
     config: InternalApiConfig,
-    polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
@@ -177,20 +139,18 @@ pub struct ApiBuilder {
     sealed_l2_block_handle: Option<SealedL2BlockNumber>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
-    namespaces: Option<Vec<Namespace>>,
+    namespaces: Option<HashSet<Namespace>>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
 impl ApiBuilder {
-    const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
     const DEFAULT_PRUNING_INFO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
-    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
             pool,
             config,
-            polling_interval: Self::DEFAULT_POLLING_INTERVAL,
             pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
@@ -261,17 +221,12 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_polling_interval(mut self, polling_interval: Duration) -> Self {
-        self.polling_interval = polling_interval;
-        self
-    }
-
     pub fn with_pruning_info_refresh_interval(mut self, interval: Duration) -> Self {
         self.pruning_info_refresh_interval = interval;
         self
     }
 
-    pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
+    pub fn enable_api_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
         self
     }
@@ -318,13 +273,6 @@ impl ApiBuilder {
 
     // Intended for tests only.
     #[doc(hidden)]
-    fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
-        self.optional.pub_sub_events_sender = Some(sender);
-        self
-    }
-
-    // Intended for tests only.
-    #[doc(hidden)]
     fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
         self.method_tracer = method_tracer;
         self
@@ -342,17 +290,14 @@ impl ApiBuilder {
 
         Ok(ApiServer {
             pool: self.pool,
-            health_updater: Arc::new(health_updater),
+            health_updater: Some(health_updater),
             config: self.config,
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
-            polling_interval: self.polling_interval,
             pruning_info_refresh_interval: self.pruning_info_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
-                tracing::warn!(
-                    "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
-                );
-                Namespace::DEFAULT.to_vec()
+                tracing::warn!("debug_ and snapshots_ API namespace will be disabled by default");
+                Namespace::DEFAULT.into()
             }),
             method_tracer: self.method_tracer,
             optional: self.optional,
@@ -368,7 +313,8 @@ impl ApiBuilder {
 
 impl ApiServer {
     pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.health_updater.subscribe()
+        // `unwrap()` is safe by construction; `health_updater` is only taken out when the server is getting started
+        self.health_updater.as_ref().unwrap().subscribe()
     }
 
     async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
@@ -454,10 +400,11 @@ impl ApiServer {
         Ok(rpc)
     }
 
-    pub async fn run(
+    pub(crate) async fn run(
         self,
+        pub_sub: Option<EthSubscribe>, // FIXME: awkward
         stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<ApiServerHandles> {
+    ) -> anyhow::Result<()> {
         if self.config.filters_disabled {
             if self.optional.filters_limit.is_some() {
                 tracing::warn!(
@@ -488,7 +435,7 @@ impl ApiServer {
             _ => {}
         }
 
-        self.build_jsonrpsee(stop_receiver).await
+        self.run_jsonrpsee_server(stop_receiver, pub_sub).await
     }
 
     async fn wait_for_vm(vm_barrier: VmConcurrencyBarrier, transport: &str) {
@@ -502,46 +449,6 @@ impl ApiServer {
         } else {
             tracing::info!("VM execution on {transport} JSON-RPC server stopped");
         }
-    }
-
-    async fn build_jsonrpsee(
-        self,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<ApiServerHandles> {
-        let transport = self.transport;
-        let mut tasks = vec![];
-
-        let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
-            && self.namespaces.contains(&Namespace::Pubsub)
-        {
-            let mut pub_sub = EthSubscribe::new();
-            if let Some(sender) = &self.optional.pub_sub_events_sender {
-                pub_sub.set_events_sender(sender.clone());
-            }
-
-            tasks.extend(pub_sub.spawn_notifiers(
-                self.pool.clone(),
-                self.polling_interval,
-                stop_receiver.clone(),
-            ));
-            Some(pub_sub)
-        } else {
-            None
-        };
-
-        // TODO (QIT-26): We still expose `health_check` in `ApiServerHandles` for the old code. After we switch to the
-        // framework it'll no longer be needed.
-        let health_check = self.health_updater.subscribe();
-        let (local_addr_sender, local_addr) = oneshot::channel();
-        let server_task =
-            tokio::spawn(self.run_jsonrpsee_server(stop_receiver, pub_sub, local_addr_sender));
-
-        tasks.push(server_task);
-        Ok(ApiServerHandles {
-            health_check,
-            tasks,
-            local_addr: future::try_maybe_done(local_addr),
-        })
     }
 
     /// Overrides max response sizes for specific RPC methods by additionally wrapping their callbacks
@@ -600,23 +507,18 @@ impl ApiServer {
     }
 
     async fn run_jsonrpsee_server(
-        self,
+        mut self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
+        const L1_BATCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
         let transport = self.transport;
         let (transport_str, is_http, addr) = match transport {
             ApiTransport::Http(addr) => ("HTTP", true, addr),
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
         };
-        let transport_label = (&transport).into();
-        API_METRICS.observe_config(
-            transport_label,
-            self.polling_interval,
-            &self.config,
-            &self.optional,
-        );
+        let transport_label = ApiTransportLabel::from(&transport);
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
@@ -624,7 +526,7 @@ impl ApiServer {
         // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
         // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
         let earliest_l1_batch_number =
-            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver).await;
+            wait_for_l1_batch(&self.pool, L1_BATCH_POLL_INTERVAL, &mut stop_receiver).await;
         let earliest_l1_batch_number =
             try_stoppable!(earliest_l1_batch_number
                 .stop_context("error while waiting for L1 batch in Postgres"));
@@ -646,7 +548,7 @@ impl ApiServer {
         let subscriptions_limit = self.optional.subscriptions_limit;
         let server_request_timeout = self.optional.request_timeout;
         let vm_barrier = self.optional.vm_barrier.clone();
-        let health_updater = self.health_updater.clone();
+        let health_updater = self.health_updater.take().expect("only taken here");
         let method_tracer = self.method_tracer.clone();
 
         let extended_tracing = self.optional.extended_tracing;
@@ -748,58 +650,55 @@ impl ApiServer {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
-        local_addr_sender.send(local_addr).ok();
-        health_updater.update(HealthStatus::Ready.into());
+        let health = Health::from(HealthStatus::Ready).with_details(serde_json::json!({
+            "local_addr": local_addr,
+        }));
+        health_updater.update(health);
 
-        // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
-        // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
-        let closing_vm_barrier = vm_barrier.clone();
-        // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
-        // TODO (QIT-26): While `Arc<HealthUpdater>` is stored in `self`, we rely on the fact that `self` is consumed and
-        // dropped by `self.build_rpc_module` above, so we should still have just one strong reference.
-        let closing_health_updater = Arc::downgrade(&health_updater);
-        tokio::spawn(async move {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!(
-                    "Stop request sender for {transport_str} JSON-RPC server was dropped \
-                     without sending a signal"
-                );
+        let server_stopped_future = server_handle.stopped();
+        tokio::pin!(server_stopped_future);
+
+        tokio::select! {
+            _ = stop_receiver.changed() => {
+                // Handled below.
             }
-            if let Some(health_updater) = closing_health_updater.upgrade() {
-                health_updater.update(HealthStatus::ShuttingDown.into());
+            () = &mut server_stopped_future => {
+                // We cannot race with the other `select!` branch since its handler is the only trigger of the normal server shutdown
+                // via `close_handle.stop()`.
+                anyhow::bail!("{transport_str} JSON-RPC server unexpectedly stopped");
             }
-            tracing::info!(
-                "Stop request received, {transport_str} JSON-RPC server is shutting down"
+        }
+
+        health_updater.update(HealthStatus::ShuttingDown.into());
+        tracing::info!("Stop request received, {transport_str} JSON-RPC server is shutting down");
+
+        // Wait some time until the traffic to the server stops. This may be necessary if the API server
+        // is behind a load balancer which is not immediately aware of API server termination. In this case,
+        // the load balancer will continue directing traffic to the server for some time until it reads
+        // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
+        // would lead to all this traffic to get dropped.
+        //
+        // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
+        // which is fairly short.
+        let wait_result = tokio::time::timeout(
+            NO_REQUESTS_WAIT_TIMEOUT,
+            traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
+        )
+        .await;
+
+        if wait_result.is_err() {
+            tracing::warn!(
+                "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
             );
+        }
+        tracing::info!("Stopping serving new {transport_str} traffic");
+        if let Some(closing_vm_barrier) = &vm_barrier {
+            closing_vm_barrier.close();
+        }
+        close_handle.stop().ok();
+        server_stopped_future.await;
 
-            // Wait some time until the traffic to the server stops. This may be necessary if the API server
-            // is behind a load balancer which is not immediately aware of API server termination. In this case,
-            // the load balancer will continue directing traffic to the server for some time until it reads
-            // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
-            // would lead to all this traffic to get dropped.
-            //
-            // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
-            // which is fairly short.
-            let wait_result = tokio::time::timeout(
-                NO_REQUESTS_WAIT_TIMEOUT,
-                traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
-            )
-            .await;
-
-            if wait_result.is_err() {
-                tracing::warn!(
-                    "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
-                );
-            }
-            tracing::info!("Stopping serving new {transport_str} traffic");
-            if let Some(closing_vm_barrier) = closing_vm_barrier {
-                closing_vm_barrier.close();
-            }
-            close_handle.stop().ok();
-        });
-
-        server_handle.stopped().await;
         drop(health_updater);
         tracing::info!("{transport_str} JSON-RPC server stopped");
         if let Some(vm_barrier) = vm_barrier {

@@ -18,12 +18,10 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // We don't want to introduce dependency on `zksync_env_config` in loadnext,
-    // but we historically rely on the environment variables for the observability configuration,
-    // so we load them directly here.
     let log_format: zksync_vlog::logs::LogFormat = std::env::var("MISC_LOG_FORMAT")
         .ok()
-        .unwrap_or("plain".to_string())
+        .as_deref()
+        .unwrap_or("plain")
         .parse()?;
     let sentry_url = std::env::var("MISC_SENTRY_URL")
         .ok()
@@ -39,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let logs = zksync_vlog::Logs::from(log_format);
+    let logs = zksync_vlog::Logs::new(log_format);
     let sentry = sentry_url
         .map(|url| {
             anyhow::Ok(
