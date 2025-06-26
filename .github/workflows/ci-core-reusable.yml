@@ -438,12 +438,12 @@ jobs:
           ci_run zkstack chain gateway migrate-to-gateway --chain da_migration --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
-      - name: Migrate back era
+      - name: Migrate back era (only in MIGRATE_TO_GATEWAY)
         if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.integration_test_type == 'MIGRATE_TO_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
 
-      - name: Migrate to gateway again
+      - name: Migrate to gateway again (only in MIGRATE_TO_GATEWAY)
         if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.integration_test_type == 'MIGRATE_TO_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway --chain era --no-deps
@@ -477,7 +477,7 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain da_migration
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
-      - name: DA migration tests
+      - name: DA migration tests (only in DA_MIGRATION)
         if: matrix.integration_test_type == 'DA_MIGRATION'
         run: |
           echo "Increasing L1 batch seal timeout and restarting server"
@@ -565,14 +565,14 @@ jobs:
           ci_run sleep 30
           echo "Server restart wait completed"
 
-      - name: Run integration tests
+      - name: Run integration tests (only in INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'INTEGRATION_TESTS'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
 
-      - name: Repeat integration tests on push to main to check for flakiness
+      - name: Repeat integration tests on push to main to check for flakiness (only in INTEGRATION_TESTS)
         if: ${{ (github.ref == 'refs/heads/main') && matrix.integration_test_type == 'INTEGRATION_TESTS' }}
         run: |
           for i in {1..10}; do
@@ -583,8 +583,7 @@ jobs:
               'era:--evm' 'validium:--evm'
           done
 
-      - name: Init external nodes
-        if: matrix.integration_test_type == 'EN_INTEGRATION_TESTS'
+      - name: Init external nodes (only in EN_INTEGRATION_TESTS)
         run: |
           GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3650' || '' }}"
           
@@ -608,17 +607,24 @@ jobs:
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
-      - name: Run recovery tests (from snapshot)
+      - name: Run recovery tests (from snapshot) (only in INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'INTEGRATION_TESTS'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}
 
-      - name: Run recovery tests (from genesis)
+      - name: Run recovery tests (from genesis) (only in INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'INTEGRATION_TESTS'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.GENESIS_RECOVERY_LOGS_DIR }}
 
-      - name: Run external nodes
+      - name: Generate some transactions needed for EN to be able to init correctly (only in EN_INTEGRATION_TESTS)
+        if: matrix.integration_test_type == 'EN_INTEGRATION_TESTS'
+        run: |
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
+
+      - name: Run external nodes (only in EN_INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'EN_INTEGRATION_TESTS'
         run: |
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
@@ -633,14 +639,14 @@ jobs:
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain da_migration
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
 
-      - name: Run integration tests en
+      - name: Run integration tests en (only in EN_INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'EN_INTEGRATION_TESTS'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
 
-      - name: Repeat integration tests en on push to main to check for flakiness
+      - name: Repeat integration tests en on push to main to check for flakiness (only in EN_INTEGRATION_TESTS)
         if: ${{ (github.ref == 'refs/heads/main') && matrix.integration_test_type == 'EN_INTEGRATION_TESTS' }}
         run: |
           for i in {1..10}; do
@@ -651,7 +657,7 @@ jobs:
               'era:--evm' 'validium:--evm'
           done
 
-      - name: Fee projection tests
+      - name: Fee projection tests (only in INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'INTEGRATION_TESTS'
         run: |
           ci_run ./bin/stop_nodes.sh
@@ -665,7 +671,7 @@ jobs:
           # Always run the chain-specific fee tests
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
-      - name: Repeat fee projection tests on push to main to check for flakiness
+      - name: Repeat fee projection tests on push to main to check for flakiness (only in INTEGRATION_TESTS)
         if: ${{ (github.ref == 'refs/heads/main') && matrix.integration_test_type == 'INTEGRATION_TESTS' }}
         run: |
           for i in {1..10}; do
@@ -674,7 +680,7 @@ jobs:
             ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}/$i
           done
 
-      - name: Run revert tests
+      - name: Run revert tests (only in INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'INTEGRATION_TESTS'
         run: |
           ci_run ./bin/stop_nodes.sh
@@ -692,7 +698,7 @@ jobs:
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
       # TODO make upgrade tests safe to run multiple times
-      - name: Run upgrade test
+      - name: Run upgrade test (only in INTEGRATION_TESTS)
         if: matrix.integration_test_type == 'INTEGRATION_TESTS'
         run: |
           ci_run ./bin/stop_nodes.sh
