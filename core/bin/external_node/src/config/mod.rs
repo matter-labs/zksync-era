@@ -286,7 +286,7 @@ impl LocalConfig {
     fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         use zksync_config::configs::{
             consensus::ConsensusSecrets, database::MerkleTreeConfig, secrets::PostgresSecrets,
-            ContractVerifierSecrets, ExperimentalDBConfig,
+            ExperimentalDBConfig,
         };
 
         let mut api = ApiConfig::for_tests();
@@ -327,7 +327,6 @@ impl LocalConfig {
                     l1_rpc_url: Some("http://localhost:8545/".parse().unwrap()), // Not used, but must be provided
                     ..L1Secrets::default()
                 },
-                contract_verifier: ContractVerifierSecrets::default(),
             },
         }
     }

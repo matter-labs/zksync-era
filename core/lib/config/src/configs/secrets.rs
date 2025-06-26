@@ -1,11 +1,8 @@
 // TODO: remove non-secret / secret config split (isn't necessary)
 
 use anyhow::Context;
-use smart_config::{
-    de::{FromSecretString, Serde},
-    fallback, DescribeConfig, DeserializeConfig,
-};
-use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
+use smart_config::{de::Serde, fallback, DescribeConfig, DeserializeConfig};
+use zksync_basic_types::url::SensitiveUrl;
 
 use crate::configs::consensus::ConsensusSecrets;
 
@@ -42,15 +39,6 @@ pub struct L1Secrets {
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
-pub struct ContractVerifierSecrets {
-    /// Etherscan API key that is used for contract verification in Etherscan.
-    /// If not set, the Etherscan verification is disabled.
-    #[config(with = FromSecretString)]
-    pub etherscan_api_key: Option<APIKey>,
-}
-
-#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 pub struct Secrets {
     #[config(nest)]
     pub consensus: ConsensusSecrets,
@@ -58,8 +46,6 @@ pub struct Secrets {
     pub postgres: PostgresSecrets,
     #[config(nest)]
     pub l1: L1Secrets,
-    #[config(nest)]
-    pub contract_verifier: ContractVerifierSecrets,
 }
 
 impl PostgresSecrets {
@@ -134,12 +120,6 @@ mod tests {
             # Was `ETH_CLIENT_GATEWAY_WEB3_URL`
             L1_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
 
-            DA_CLIENT="Avail"
-            DA_SEED_PHRASE="correct horse battery staple"
-            DA_GAS_RELAY_API_KEY="SUPER_SECRET"
-
-            CONTRACT_VERIFIER_ETHERSCAN_API_KEY=correct horse battery staple
-
             CONSENSUS_VALIDATOR_KEY="validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
             CONSENSUS_NODE_KEY="node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
         "#;
@@ -161,12 +141,6 @@ mod tests {
             consensus:
               validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
               node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
-            contract_verifier:
-              etherscan_api_key: null
-            da:
-              client: Avail
-              seed_phrase: 'correct horse battery staple'
-              gas_relay_api_key: SUPER_SECRET
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let secrets: Secrets = test_complete(yaml).unwrap();
