@@ -535,7 +535,6 @@ impl MainNodeBuilder {
                 .consensus
                 .clone()
                 .context("Consensus config has to be provided")?,
-            secrets: self.secrets.consensus.clone(),
         });
 
         Ok(self)

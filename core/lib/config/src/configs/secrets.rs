@@ -4,8 +4,6 @@ use anyhow::Context;
 use smart_config::{de::Serde, fallback, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::url::SensitiveUrl;
 
-use crate::configs::consensus::ConsensusSecrets;
-
 const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432/zksync";
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
@@ -40,8 +38,6 @@ pub struct L1Secrets {
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 pub struct Secrets {
-    #[config(nest)]
-    pub consensus: ConsensusSecrets,
     #[config(nest, alias = "database")]
     pub postgres: PostgresSecrets,
     #[config(nest)]
@@ -71,7 +67,6 @@ impl PostgresSecrets {
 
 #[cfg(test)]
 mod tests {
-    use secrecy::ExposeSecret;
     use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
@@ -97,14 +92,6 @@ mod tests {
             secrets.l1.gateway_rpc_url.unwrap().expose_str(),
             "http://127.0.0.1:4050/"
         );
-        assert_eq!(
-            secrets.consensus.validator_key.unwrap().expose_secret(),
-            "validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
-        );
-        assert_eq!(
-            secrets.consensus.node_key.unwrap().expose_secret(),
-            "node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
-        );
     }
 
     // Migration path: change `DA_SECRETS_*` -> `DA_*`
@@ -119,9 +106,6 @@ mod tests {
             L1_ETH_CLIENT_URL=http://127.0.0.1:8545/
             # Was `ETH_CLIENT_GATEWAY_WEB3_URL`
             L1_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
-
-            CONSENSUS_VALIDATOR_KEY="validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
-            CONSENSUS_NODE_KEY="node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
         let secrets: Secrets = test_complete(env).unwrap();
@@ -138,9 +122,6 @@ mod tests {
             l1:
               l1_rpc_url: http://127.0.0.1:8545/
               gateway_rpc_url: http://127.0.0.1:4050/
-            consensus:
-              validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
-              node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let secrets: Secrets = test_complete(yaml).unwrap();

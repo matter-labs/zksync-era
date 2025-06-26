@@ -137,7 +137,8 @@ impl de::DeserializeParam<Duration> for CustomDurationFormat {
 }
 
 /// Config (shared between main node and external node).
-#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ConsensusConfig {
     pub port: Option<u16>,
     /// Local socket address to listen for the incoming connections.
@@ -183,6 +184,9 @@ pub struct ConsensusConfig {
 
     /// Local socket address to expose the node debug page.
     pub debug_page_addr: Option<std::net::SocketAddr>,
+    /// Secret part of the config.
+    #[config(flatten)]
+    pub secrets: ConsensusSecrets,
 }
 
 impl ConsensusConfig {
@@ -202,6 +206,20 @@ pub struct ConsensusSecrets {
 }
 
 #[cfg(test)]
+impl PartialEq for ConsensusSecrets {
+    fn eq(&self, other: &Self) -> bool {
+        use secrecy::ExposeSecret;
+
+        fn secret_eq(this: Option<&SecretString>, other: Option<&SecretString>) -> bool {
+            this.map(SecretString::expose_secret) == other.map(SecretString::expose_secret)
+        }
+
+        secret_eq(self.validator_key.as_ref(), other.validator_key.as_ref())
+            && secret_eq(self.node_key.as_ref(), other.node_key.as_ref())
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use smart_config::{testing::test_complete, Yaml};
 
@@ -213,6 +231,10 @@ mod tests {
             6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a";
 
         ConsensusConfig {
+            secrets: ConsensusSecrets {
+                validator_key: Some("validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866".into()),
+                node_key: Some("node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3".into()),
+            },
             port: Some(2954),
             server_addr: "127.0.0.1:2954".parse().unwrap(),
             public_addr: Host("127.0.0.1:2954".into()),
@@ -274,6 +296,8 @@ mod tests {
               registry_address: 0x2469b58c37e02d53a65cdf248d4086beba17de85
             max_batch_size: 125001024
             port: 2954
+            validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
+            node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
             rpc:
               get_block_rps: 5
         "#;
@@ -306,6 +330,8 @@ mod tests {
               registry_address: 0x2469b58c37e02d53a65cdf248d4086beba17de85
             max_batch_size: 125001024 bytes
             port: 2954
+            validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
+            node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
             rpc:
               get_block_rps: 5
         "#;

@@ -81,7 +81,4 @@ fn assert_secrets(secrets: Secrets) {
 
     let l1_rpc_url = secrets.l1.l1_rpc_url.unwrap();
     assert_eq!(l1_rpc_url.expose_str(), "http://127.0.0.1:8545/");
-
-    secrets.consensus.node_key.unwrap();
-    secrets.consensus.validator_key.unwrap();
 }

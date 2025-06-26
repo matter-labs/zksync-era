@@ -285,8 +285,7 @@ impl LocalConfig {
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         use zksync_config::configs::{
-            consensus::ConsensusSecrets, database::MerkleTreeConfig, secrets::PostgresSecrets,
-            ExperimentalDBConfig,
+            database::MerkleTreeConfig, secrets::PostgresSecrets, ExperimentalDBConfig,
         };
 
         let mut api = ApiConfig::for_tests();
@@ -318,7 +317,6 @@ impl LocalConfig {
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
             secrets: Secrets {
-                consensus: ConsensusSecrets::default(),
                 postgres: PostgresSecrets {
                     server_url: Some(test_pool.database_url().clone()),
                     ..PostgresSecrets::default()

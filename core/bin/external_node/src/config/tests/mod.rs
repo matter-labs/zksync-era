@@ -421,10 +421,10 @@ fn parsing_with_consensus_from_yaml() {
     let mut repo = config_sources.build_repository(&schema);
 
     let config: ConsensusConfig = repo.parse().unwrap();
-    assert_consensus_config(config);
+    assert_consensus_config(config, false);
 }
 
-fn assert_consensus_config(config: ConsensusConfig) {
+fn assert_consensus_config(config: ConsensusConfig, expect_secrets: bool) {
     assert_eq!(config.port, Some(3_055));
     assert_eq!(config.max_payload_size, ByteSize(2_500_000));
     assert_eq!(config.gossip_dynamic_inbound_limit, 100);
@@ -433,6 +433,19 @@ fn assert_consensus_config(config: ConsensusConfig) {
     assert_eq!(host.0, "127.0.0.1:3154");
     let genesis_spec = config.genesis_spec.unwrap();
     assert_eq!(genesis_spec.chain_id, L2ChainId::from(272));
+
+    if expect_secrets {
+        let node_key = config.secrets.node_key.unwrap();
+        assert_eq!(
+            node_key.expose_secret(),
+            "node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c"
+        );
+        let validator_key = config.secrets.validator_key.unwrap();
+        assert_eq!(validator_key.expose_secret(), "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4");
+    } else {
+        assert!(config.secrets.node_key.is_none());
+        assert!(config.secrets.validator_key.is_none());
+    }
 }
 
 #[test]
@@ -588,12 +601,5 @@ fn parsing_consensus_from_env_vars() {
     let repo = config_sources.build_repository(&schema);
     let config = ExternalNodeConfig::new(repo, true).unwrap();
 
-    assert_consensus_config(config.consensus.unwrap());
-    let node_key = config.local.secrets.consensus.node_key.unwrap();
-    assert_eq!(
-        node_key.expose_secret(),
-        "node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c"
-    );
-    let validator_key = config.local.secrets.consensus.validator_key.unwrap();
-    assert_eq!(validator_key.expose_secret(), "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4");
+    assert_consensus_config(config.consensus.unwrap(), true);
 }

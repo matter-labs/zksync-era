@@ -220,13 +220,11 @@ impl<R> ExternalNodeBuilder<R> {
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.consensus.clone();
-        let secrets = self.config.local.secrets.consensus.clone();
         let layer = ExternalNodeConsensusLayer {
             build_version: crate::metadata::SERVER_VERSION
                 .parse()
                 .context("CRATE_VERSION.parse()")?,
             config,
-            secrets: Some(secrets),
         };
         self.node.add_layer(layer);
         Ok(self)
