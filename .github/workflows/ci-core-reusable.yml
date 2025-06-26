@@ -583,7 +583,7 @@ jobs:
               'era:--evm' 'validium:--evm'
           done
 
-      - name: Init external nodes (only in EN_INTEGRATION_TESTS)
+      - name: Init external nodes
         run: |
           GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3650' || '' }}"
           

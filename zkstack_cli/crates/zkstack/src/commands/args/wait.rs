@@ -29,8 +29,8 @@ impl fmt::Display for PolledComponent {
 
 #[derive(Debug, Parser, Serialize, Deserialize)]
 pub struct WaitArgs {
-    #[arg(long, short = 't', value_name = "SECONDS", help = MSG_WAIT_TIMEOUT_HELP)]
-    timeout: Option<u64>,
+    #[arg(long, short = 't', value_name = "SECONDS", help = MSG_WAIT_TIMEOUT_HELP, default_value_t = 60)]
+    timeout: u64,
     #[arg(long, value_name = "MILLIS", help = MSG_WAIT_POLL_INTERVAL_HELP, default_value_t = 100)]
     poll_interval: u64,
 }
@@ -58,12 +58,9 @@ impl WaitArgs {
         component: impl fmt::Display,
         action: impl Future<Output = anyhow::Result<()>>,
     ) -> anyhow::Result<()> {
-        match self.timeout {
-            None => action.await,
-            Some(timeout) => tokio::time::timeout(Duration::from_secs(timeout), action)
-                .await
-                .map_err(|_| anyhow::Error::msg(msg_wait_timeout(&component)))?,
-        }
+        tokio::time::timeout(Duration::from_secs(60), action)
+            .await
+            .map_err(|_| anyhow::Error::msg(msg_wait_timeout(&component)))?
     }
 
     async fn poll_inner(
@@ -90,7 +87,13 @@ impl WaitArgs {
 
             let response = match client.get(url).send().await {
                 Ok(response) => response,
-                Err(_) => {
+                Err(err) => {
+                    if verbose {
+                        logger::debug(format!(
+                            "Failed to send request to {}: {}",
+                            component, err
+                        ));
+                    }
                     continue;
                 }
             };
