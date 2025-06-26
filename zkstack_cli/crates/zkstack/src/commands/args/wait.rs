@@ -89,10 +89,7 @@ impl WaitArgs {
                 Ok(response) => response,
                 Err(err) => {
                     if verbose {
-                        logger::debug(format!(
-                            "Failed to send request to {}: {}",
-                            component, err
-                        ));
+                        logger::debug(format!("Failed to send request to {}: {}", component, err));
                     }
                     continue;
                 }
