@@ -1,14 +1,7 @@
 use anyhow::Context as _;
-use zksync_dal::{blocks_dal::L1BatchWithOptionalMetadata, ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber,
-    ProtocolVersionId, H256, U64,
-};
-
-const FIRST_VALIDATED_PROTOCOL_VERSION_ID: ProtocolVersionId = if cfg!(test) {
-    ProtocolVersionId::latest() // necessary for tests
-} else {
-    ProtocolVersionId::Version29
+    commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber, H256,
+    U64,
 };
 
 /// Verifies the L1 transaction against the database and the SL.
@@ -17,27 +10,16 @@ pub struct L1TransactionVerifier {
     diamond_proxy_addr: Address,
     /// ABI of the ZKsync contract
     contract: ethabi::Contract,
-    pool: ConnectionPool<Core>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionValidationError {
-    #[error("Batch {batch_number} is not found in the database")]
-    BatchNotFound { batch_number: L1BatchNumber },
     #[error("Batch transaction {tx_hash} failed on SL")]
     TransactionFailed { tx_hash: H256 },
-    #[error("Database error")]
-    DatabaseError(#[from] zksync_dal::DalError),
     #[error("Batch transaction invalid: {reason}")]
     BatchTransactionInvalid { reason: String },
     #[error("Other validation error")]
     OtherValidationError(#[from] anyhow::Error),
-}
-
-impl TransactionValidationError {
-    pub fn is_retryable(&self) -> bool {
-        matches!(self, TransactionValidationError::BatchNotFound { .. })
-    }
 }
 
 pub fn get_param(log_params: &[ethabi::LogParam], name: &str) -> Option<ethabi::Token> {
@@ -48,74 +30,19 @@ pub fn get_param(log_params: &[ethabi::LogParam], name: &str) -> Option<ethabi::
 }
 
 impl L1TransactionVerifier {
-    pub fn new(diamond_proxy_addr: Address, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(diamond_proxy_addr: Address) -> Self {
         Self {
             diamond_proxy_addr,
             contract: zksync_contracts::hyperchain_contract(),
-            pool,
         }
     }
 
-    async fn get_db_batch_metadata(
-        &self,
-        batch_number: L1BatchNumber,
-    ) -> Result<L1BatchMetadata, TransactionValidationError> {
-        match self
-            .pool
-            .connection_tagged("l1_transaction_verifier")
-            .await?
-            .blocks_dal()
-            .get_optional_l1_batch_metadata(batch_number)
-            .await?
-        {
-            Some(L1BatchWithOptionalMetadata {
-                header: _,
-                metadata: Ok(batch),
-            }) => Ok(batch),
-            _ => {
-                tracing::debug!(
-                    "Metadata for batch {} is not found in the database. Cannot verify transaction right now",
-                    batch_number
-                );
-                Err(TransactionValidationError::BatchNotFound { batch_number })
-            }
-        }
-    }
-
-    async fn should_perform_logs_validation(
-        &self,
-        batch_number: L1BatchNumber,
-    ) -> Result<bool, TransactionValidationError> {
-        match self
-            .pool
-            .connection_tagged("l1_transaction_verifier")
-            .await?
-            .blocks_dal()
-            .get_batch_protocol_version_id(batch_number)
-            .await?
-        {
-            Some(version) => Ok(version >= FIRST_VALIDATED_PROTOCOL_VERSION_ID),
-            None => {
-                tracing::debug!(
-                    "Batch {} is not found in the database. Cannot verify transaction right now",
-                    batch_number
-                );
-                Err(TransactionValidationError::BatchNotFound { batch_number })
-            }
-        }
-    }
-
-    pub async fn validate_commit_tx(
+    pub fn validate_commit_tx(
         &self,
         receipt: &TransactionReceipt,
+        db_batch: L1BatchMetadata,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        if !self.should_perform_logs_validation(batch_number).await? {
-            return Ok(());
-        }
-
-        let db_batch = self.get_db_batch_metadata(batch_number).await?;
-
         if receipt.status != Some(U64::one()) {
             return Err(TransactionValidationError::TransactionFailed {
                 tx_hash: receipt.transaction_hash,
@@ -204,15 +131,12 @@ impl L1TransactionVerifier {
         }
     }
 
-    pub async fn validate_prove_tx(
+    pub fn validate_prove_tx(
         &self,
         receipt: &TransactionReceipt,
+        _batch_metadata: L1BatchMetadata,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        if !(self.should_perform_logs_validation(batch_number).await?) {
-            return Ok(());
-        }
-
         if receipt.status != Some(U64::one()) {
             return Err(TransactionValidationError::TransactionFailed {
                 tx_hash: receipt.transaction_hash,
@@ -298,17 +222,12 @@ impl L1TransactionVerifier {
     }
 
     /// Validates the execute transaction against the database.
-    pub async fn validate_execute_tx(
+    pub fn validate_execute_tx(
         &self,
         receipt: &TransactionReceipt,
+        db_batch: L1BatchMetadata,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        if !(self.should_perform_logs_validation(batch_number).await?) {
-            return Ok(());
-        }
-
-        let db_batch = self.get_db_batch_metadata(batch_number).await?;
-
         if receipt.status != Some(U64::one()) {
             return Err(TransactionValidationError::TransactionFailed {
                 tx_hash: receipt.transaction_hash,

@@ -5,14 +5,14 @@ use std::{num::NonZeroU64, time::Duration};
 use anyhow::Context;
 use serde::Serialize;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{blocks_dal::L1BatchWithOptionalMetadata, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
     web3::TransactionReceipt,
-    Address, SLChainId,
+    Address, ProtocolVersionId, SLChainId,
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
@@ -26,6 +26,12 @@ mod tests;
 struct BatchTransactionUpdaterHealthDetails {
     unfinalized_txs_checked: usize,
 }
+
+const FIRST_VALIDATED_PROTOCOL_VERSION_ID: ProtocolVersionId = if cfg!(test) {
+    ProtocolVersionId::latest() // necessary for tests
+} else {
+    ProtocolVersionId::Version29
+};
 
 /// Module responsible for updating L1 batch status. (Pending->FastFinalized->Finalized)
 /// Its currently the component that should terminate EN when gateway migration happens.
@@ -50,7 +56,7 @@ impl BatchTransactionUpdater {
     ) -> Self {
         Self {
             sl_client,
-            l1_transaction_verifier: L1TransactionVerifier::new(diamond_proxy_addr, pool.clone()),
+            l1_transaction_verifier: L1TransactionVerifier::new(diamond_proxy_addr),
             pool,
             health_updater: ReactiveHealthCheck::new("batch_transaction_updater").1,
             sleep_interval,
@@ -108,38 +114,59 @@ impl BatchTransactionUpdater {
         // validate the transaction against db
         for batch in &batches {
             let batch_number = batch.number;
-            let ret = match eth_history_tx.tx_type {
-                AggregatedActionType::Commit => {
-                    self.l1_transaction_verifier
-                        .validate_commit_tx(&receipt, batch.number)
-                        .await
-                }
-                AggregatedActionType::PublishProofOnchain => {
-                    self.l1_transaction_verifier
-                        .validate_prove_tx(&receipt, batch_number)
-                        .await
-                }
-                AggregatedActionType::Execute => {
-                    self.l1_transaction_verifier
-                        .validate_execute_tx(&receipt, batch_number)
-                        .await
+
+            let Some(protocol_version) = connection
+                .blocks_dal()
+                .get_batch_protocol_version_id(batch_number)
+                .await?
+            else {
+                tracing::debug!(
+                    "Batch {} protocol version is not found in the database. Cannot verify transaction {} right now",
+                    batch_number,
+                    eth_history_tx.tx_hash
+                );
+                return Ok(false);
+            };
+
+            // Do not validate transactions for batches with protocol version before 29
+            if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
+                continue;
+            }
+
+            let batch_metadata = match connection
+                .blocks_dal()
+                .get_optional_l1_batch_metadata(batch_number)
+                .await?
+            {
+                Some(L1BatchWithOptionalMetadata {
+                    header: _,
+                    metadata: Ok(batch_metadata),
+                }) => batch_metadata,
+                _ => {
+                    tracing::debug!(
+                            "Batch {} metadata is not found in the database. Cannot verify transaction {} right now",
+                            batch_number,
+                            eth_history_tx.tx_hash
+                        );
+                    return Ok(false);
                 }
             };
-            match ret {
-                Ok(()) => {}
-                Err(e) => {
-                    if e.is_retryable() {
-                        tracing::warn!(
-                            "Transaction {} cannot be verified right now due to {}",
-                            receipt.transaction_hash,
-                            e
-                        );
-                        return Ok(false);
-                    } else {
-                        return Err(e.into());
-                    }
-                }
-            }
+
+            match eth_history_tx.tx_type {
+                AggregatedActionType::Commit => self.l1_transaction_verifier.validate_commit_tx(
+                    &receipt,
+                    batch_metadata,
+                    batch_number,
+                )?,
+                AggregatedActionType::PublishProofOnchain => self
+                    .l1_transaction_verifier
+                    .validate_prove_tx(&receipt, batch_metadata, batch_number)?,
+                AggregatedActionType::Execute => self.l1_transaction_verifier.validate_execute_tx(
+                    &receipt,
+                    batch_metadata,
+                    batch_number,
+                )?,
+            };
         }
 
         connection
