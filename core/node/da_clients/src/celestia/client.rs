@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
-use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
+use zksync_config::configs::da_client::celestia::CelestiaConfig;
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
@@ -29,13 +29,13 @@ pub struct CelestiaClient {
 }
 
 impl CelestiaClient {
-    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
+    pub async fn new(config: CelestiaConfig) -> anyhow::Result<Self> {
         let grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(config.timeout)
             .connect()
             .await?;
 
-        let private_key = secrets.private_key.0.expose_secret().to_string();
+        let private_key = config.private_key.0.expose_secret().to_owned();
         let client = RawCelestiaClient::new(grpc_channel, private_key, config.chain_id.clone())
             .expect("could not create Celestia client");
 

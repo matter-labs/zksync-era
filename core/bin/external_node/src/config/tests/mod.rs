@@ -466,25 +466,16 @@ fn avail_da_client_from_env() {
     };
     assert_eq!(config.timeout, Duration::from_secs(2));
     assert_eq!(config.bridge_api_url, "localhost:54321");
-    let AvailClientConfig::FullClient(config) = &config.config else {
+    let AvailClientConfig::FullClient(config) = &config.client else {
         panic!("unexpected config: {config:?}");
     };
     assert_eq!(config.app_id, 1);
     assert_eq!(config.api_node_url, "localhost:12345");
     assert_eq!(config.dispatch_timeout, Duration::from_secs(30));
     assert_eq!(config.max_blocks_to_look_back, 10);
-
-    let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
-    let DataAvailabilitySecrets::Avail(secrets) = secrets else {
-        panic!("unexpected DA secrets");
-    };
     assert_eq!(
-        secrets.seed_phrase.unwrap().expose_secret(),
+        config.seed_phrase.expose_secret(),
         "correct horse battery staple"
-    );
-    assert_eq!(
-        secrets.gas_relay_api_key.unwrap().expose_secret(),
-        "key_123456"
     );
 }
 
@@ -515,13 +506,8 @@ fn celestia_da_client_from_env() {
     assert_eq!(config.namespace, "0x1234567890abcdef");
     assert_eq!(config.chain_id, "mocha-4");
     assert_eq!(config.timeout, Duration::from_secs(7));
-
-    let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
-    let DataAvailabilitySecrets::Celestia(secrets) = secrets else {
-        panic!("unexpected DA secrets");
-    };
     assert_eq!(
-        secrets.private_key.expose_secret(),
+        config.private_key.expose_secret(),
         "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
     );
 }
@@ -573,13 +559,8 @@ fn eigen_da_client_from_env() {
     };
     assert_eq!(path, "resources");
     assert_eq!(config.custom_quorum_numbers, [2]);
-
-    let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
-    let DataAvailabilitySecrets::Eigen(secrets) = secrets else {
-        panic!("unexpected DA secrets");
-    };
     assert_eq!(
-        secrets.private_key.expose_secret(),
+        config.private_key.expose_secret(),
         "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
     );
 }

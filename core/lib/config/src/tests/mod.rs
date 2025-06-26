@@ -2,10 +2,12 @@
 
 use std::path::Path;
 
+use secrecy::ExposeSecret;
+
 use crate::{
     configs::{
         da_client::avail::AvailClientConfig, object_store::ObjectStoreMode, wallets::Wallets,
-        DataAvailabilitySecrets, GeneralConfig, GenesisConfigWrapper, Secrets,
+        GeneralConfig, GenesisConfigWrapper, Secrets,
     },
     full_config_schema,
     sources::ConfigFilePaths,
@@ -58,10 +60,14 @@ fn assert_general_config(general: GeneralConfig) {
         da_client.bridge_api_url,
         "https://turing-bridge-api.avail.so"
     );
-    let AvailClientConfig::FullClient(client) = &da_client.config else {
+    let AvailClientConfig::FullClient(client) = &da_client.client else {
         panic!("unexpected DA config: {da_client:?}");
     };
     assert_eq!(client.app_id, 123_456);
+    assert_eq!(
+        client.seed_phrase.0.expose_secret(),
+        "correct horse battery staple"
+    );
 }
 
 // These checks aren't intended to be exhaustive; they mostly check parsing completeness.
@@ -78,10 +84,4 @@ fn assert_secrets(secrets: Secrets) {
 
     secrets.consensus.node_key.unwrap();
     secrets.consensus.validator_key.unwrap();
-
-    let da_client = secrets.data_availability.unwrap();
-    let DataAvailabilitySecrets::Avail(da_client) = da_client else {
-        panic!("unexpected secrets: {da_client:?}");
-    };
-    da_client.gas_relay_api_key.unwrap();
 }

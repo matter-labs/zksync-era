@@ -22,7 +22,7 @@ use crate::{
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 pub struct GeneralConfig {
     #[config(nest, rename = "postgres", alias = "database")]
     pub postgres_config: PostgresConfig,
@@ -62,7 +62,7 @@ pub struct GeneralConfig {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     #[config(nest)]
     pub observability: ObservabilityConfig,
-    #[config(nest, rename = "da_client")]
+    #[config(nest, rename = "da_client", deprecated = "da")]
     pub da_client_config: Option<DAClientConfig>,
     #[config(nest, rename = "da_dispatcher")]
     pub da_dispatcher_config: Option<DADispatcherConfig>,

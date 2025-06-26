@@ -7,10 +7,7 @@ use smart_config::{
 };
 use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
-use crate::configs::{
-    consensus::ConsensusSecrets,
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
-};
+use crate::configs::consensus::ConsensusSecrets;
 
 const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432/zksync";
 
@@ -45,16 +42,6 @@ pub struct L1Secrets {
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
-#[config(tag = "client")]
-pub enum DataAvailabilitySecrets {
-    Avail(AvailSecrets),
-    Celestia(CelestiaSecrets),
-    Eigen(EigenSecrets),
-    // Needed for compatibility with the non-secret part of the DA config
-    NoDA,
-}
-
-#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct ContractVerifierSecrets {
     /// Etherscan API key that is used for contract verification in Etherscan.
@@ -71,8 +58,6 @@ pub struct Secrets {
     pub postgres: PostgresSecrets,
     #[config(nest)]
     pub l1: L1Secrets,
-    #[config(nest, rename = "da_client", alias = "da")]
-    pub data_availability: Option<DataAvailabilitySecrets>,
     #[config(nest)]
     pub contract_verifier: ContractVerifierSecrets,
 }
@@ -133,18 +118,6 @@ mod tests {
         assert_eq!(
             secrets.consensus.node_key.unwrap().expose_secret(),
             "node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
-        );
-
-        let DataAvailabilitySecrets::Avail(avail) = secrets.data_availability.unwrap() else {
-            panic!("unexpected DA secrets");
-        };
-        assert_eq!(
-            avail.seed_phrase.unwrap().0.expose_secret(),
-            "correct horse battery staple"
-        );
-        assert_eq!(
-            avail.gas_relay_api_key.unwrap().0.expose_secret(),
-            "SUPER_SECRET"
         );
     }
 

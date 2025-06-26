@@ -6,7 +6,7 @@ pub mod avail;
 pub mod celestia;
 pub mod eigen;
 
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(tag = "client")]
 pub enum DAClientConfig {
     Avail(AvailConfig),
@@ -27,6 +27,7 @@ impl From<AvailConfig> for DAClientConfig {
 mod tests {
     use std::time::Duration;
 
+    use assert_matches::assert_matches;
     use secrecy::ExposeSecret;
     use smart_config::{
         testing::{test, test_complete, Tester},
@@ -34,14 +35,14 @@ mod tests {
     };
 
     use super::{avail::AvailClientConfig, eigen::PointsSource, *};
-    use crate::configs::{object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
+    use crate::configs::object_store::ObjectStoreMode;
 
     #[test]
     fn no_da_config_from_yaml() {
         let yaml = "client: NoDA";
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test_complete::<DAClientConfig>(yaml).unwrap();
-        assert_eq!(config, DAClientConfig::NoDA);
+        assert_matches!(config, DAClientConfig::NoDA);
     }
 
     #[test]
@@ -119,7 +120,7 @@ mod tests {
             .insert::<DAClientConfig>("")
             .test(yaml)
             .unwrap();
-        assert_eq!(config, DAClientConfig::NoDA);
+        assert_matches!(config, DAClientConfig::NoDA);
     }
 
     #[test]
@@ -131,6 +132,7 @@ mod tests {
           DA_TIMEOUT_MS="2000"
           DA_API_NODE_URL="localhost:12345"
           DA_APP_ID="1"
+          DA_SECRETS_SEED_PHRASE="correct horse"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -142,11 +144,12 @@ mod tests {
         };
         assert_eq!(config.bridge_api_url, "localhost:54321");
         assert_eq!(config.timeout, Duration::from_secs(2));
-        let AvailClientConfig::FullClient(client) = config.config else {
+        let AvailClientConfig::FullClient(client) = config.client else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(client.app_id, 1);
         assert_eq!(client.api_node_url, "localhost:12345");
+        assert_eq!(client.seed_phrase.expose_secret(), "correct horse");
     }
 
     #[test]
@@ -157,6 +160,7 @@ mod tests {
           timeout_ms: 20000
           avail_client_type: GasRelay
           gas_relay_api_url: https://lens-turbo-api.availproject.org
+          gas_relay_api_key: key_secret
           max_retries: 4
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -171,7 +175,7 @@ mod tests {
         };
         assert_eq!(config.bridge_api_url, "https://bridge-api.avail.so");
         assert_eq!(config.timeout, Duration::from_secs(20));
-        let AvailClientConfig::GasRelay(client) = &config.config else {
+        let AvailClientConfig::GasRelay(client) = &config.client else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(
@@ -179,6 +183,7 @@ mod tests {
             "https://lens-turbo-api.availproject.org"
         );
         assert_eq!(client.max_retries, 4);
+        assert_eq!(client.gas_relay_api_key.expose_secret(), "key_secret");
     }
 
     #[test]
@@ -189,6 +194,7 @@ mod tests {
             timeout_ms: 20000
             gas_relay:
               gas_relay_api_url: https://lens-turbo-api.availproject.org
+              gas_relay_api_key: key_secret
               max_retries: 4
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -215,13 +221,13 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
         let mut schema = ConfigSchema::new(&DAClientConfig::DESCRIPTION, "da_client");
-        schema.insert(&Secrets::DESCRIPTION, "").unwrap();
+        schema
+            .single_mut(&DAClientConfig::DESCRIPTION)
+            .unwrap()
+            .push_alias("da")
+            .unwrap();
 
         let repo = ConfigRepository::new(&schema).with(yaml);
-        let config: DAClientConfig = repo.single().unwrap().parse().unwrap();
-        assert!(matches!(&config, DAClientConfig::Avail(_)));
-        let secrets: DataAvailabilitySecrets = repo.single().unwrap().parse().unwrap();
-        assert!(matches!(&secrets, DataAvailabilitySecrets::Avail(_)));
 
         let secrets = r#"
           da:
@@ -232,13 +238,14 @@ mod tests {
         let repo = repo.with(secrets);
 
         let config: DAClientConfig = repo.single().unwrap().parse().unwrap();
-        assert!(matches!(&config, DAClientConfig::Avail(_)));
-        let secrets: DataAvailabilitySecrets = repo.single().unwrap().parse().unwrap();
-        let DataAvailabilitySecrets::Avail(secrets) = secrets else {
-            panic!("unexpected secrets: {secrets:?}");
+        let DAClientConfig::Avail(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+        let AvailClientConfig::GasRelay(gas_relay) = config.client else {
+            panic!("unexpected client config: {config:?}");
         };
         assert_eq!(
-            secrets.gas_relay_api_key.unwrap().0.expose_secret(),
+            gas_relay.gas_relay_api_key.0.expose_secret(),
             "SUPER_SECRET_KEY"
         );
     }
@@ -252,6 +259,7 @@ mod tests {
           dispatch_timeout: 5s
           avail_client_type: FullClient
           api_node_url: wss://turing-rpc.avail.so/ws
+          seed_phrase: correct horse
           app_id: 123456
           max_blocks_to_look_back: 5
         "#;
@@ -267,10 +275,11 @@ mod tests {
         };
         assert_eq!(config.bridge_api_url, "https://turing-bridge-api.avail.so");
         assert_eq!(config.timeout, Duration::from_secs(20));
-        let AvailClientConfig::FullClient(client) = &config.config else {
+        let AvailClientConfig::FullClient(client) = &config.client else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(client.api_node_url, "wss://turing-rpc.avail.so/ws");
+        assert_eq!(client.seed_phrase.expose_secret(), "correct horse");
         assert_eq!(client.app_id, 123_456);
     }
 
@@ -282,6 +291,7 @@ mod tests {
             timeout: 20s
             full_client:
               api_node_url: wss://turing-rpc.avail.so/ws
+              seed_phrase: correct horse
               app_id: 123456
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -307,6 +317,7 @@ mod tests {
           DA_POINTS_SOURCE="Path"
           DA_POINTS_PATH="./resources"
           DA_CUSTOM_QUORUM_NUMBERS="2,3"
+          DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -350,6 +361,7 @@ mod tests {
           custom_quorum_numbers:
             - 1
             - 3
+          private_key: "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -383,6 +395,10 @@ mod tests {
         };
         assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
         assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
+        assert_eq!(
+            config.private_key.expose_secret(),
+            "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
+        );
     }
 
     #[test]
@@ -399,6 +415,7 @@ mod tests {
               url:
                 g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
                 g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+            private_key: f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

@@ -13,8 +13,8 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
-        CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
-        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        CommitmentGeneratorConfig, ConsistencyCheckerConfig, L1Secrets, ObservabilityConfig,
+        PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -279,9 +279,6 @@ impl LocalConfig {
             .single_mut(&L1Secrets::DESCRIPTION)?
             .push_alias("networks")?
             .push_deprecated_alias("")?;
-        schema
-            .single_mut(&DataAvailabilitySecrets::DESCRIPTION)?
-            .push_deprecated_alias("da_secrets")?;
         Ok(schema)
     }
 
@@ -330,7 +327,6 @@ impl LocalConfig {
                     l1_rpc_url: Some("http://localhost:8545/".parse().unwrap()), // Not used, but must be provided
                     ..L1Secrets::default()
                 },
-                data_availability: None,
                 contract_verifier: ContractVerifierSecrets::default(),
             },
         }
