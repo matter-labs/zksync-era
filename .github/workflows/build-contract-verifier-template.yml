@@ -122,6 +122,30 @@ jobs:
         shell: bash
         run: |
           cp etc/tokens/{test,localhost}.json
+          set -euxo pipefail                            # verbose, exit-on-error
+  
+          echo "=== WHO AM I? ========================="
+          id -a                                         # uid/gid/groups
+          whoami
+          umask                                         # default file-mode mask
+          
+          echo "=== WHERE AM I & WHAT FS? ============="
+          pwd
+          df -Th . | (read _ && cat)                    # filesystem type & free space
+          mount | grep -E "($(df -Th . | tail -1 | awk '{print $1}'))" || true
+          
+          echo "=== OWNERSHIP/PERMS OF WHOLE PATH ====="
+          namei -l /home/runner/_work/zksync-era/zksync-era/contracts/node_modules \
+          | column -t                            # each component’s owner/mode
+          ls -ld /home/runner/_work/zksync-era/zksync-era/contracts \
+          /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
+          lsattr -d /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
+          
+          echo "=== GIT TRUST SETTINGS (safe.directory) ="
+          git config --show-origin --get-all safe.directory || true
+          
+          echo "=== EXISTING ROOT-OWNED FILES? ========="
+          find /home/runner/_work/zksync-era -maxdepth 4 -type d -user root 2>/dev/null | head
           zkstack dev contracts
 
       - name: Upload contracts
