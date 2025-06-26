@@ -20,31 +20,37 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
 }
 
 /// Cursor of the L2 block / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperIO) implementations.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct IoCursor {
     pub next_l2_block: L2BlockNumber,
     pub prev_l2_block_hash: H256,
     pub prev_l2_block_timestamp: u64,
     pub l1_batch: L1BatchNumber,
+    pub prev_l1_batch_timestamp: u64,
 }
 
 impl IoCursor {
     /// Loads the cursor from Postgres.
     pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let last_sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await?;
+        let last_sealed_l1_batch_number_and_timestamp = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number_and_timestamp()
+            .await?;
         let last_l2_block_header = storage
             .blocks_dal()
             .get_last_sealed_l2_block_header()
             .await?;
 
-        if let (Some(l1_batch_number), Some(l2_block_header)) =
-            (last_sealed_l1_batch_number, &last_l2_block_header)
-        {
+        if let (Some((l1_batch_number, l1_batch_timestamp)), Some(l2_block_header)) = (
+            last_sealed_l1_batch_number_and_timestamp,
+            &last_l2_block_header,
+        ) {
             Ok(Self {
                 next_l2_block: l2_block_header.number + 1,
                 prev_l2_block_hash: l2_block_header.hash,
                 prev_l2_block_timestamp: l2_block_header.timestamp,
                 l1_batch: l1_batch_number + 1,
+                prev_l1_batch_timestamp: l1_batch_timestamp,
             })
         } else {
             let snapshot_recovery = storage
@@ -52,8 +58,17 @@ impl IoCursor {
                 .get_applied_snapshot_status()
                 .await?
                 .context("Postgres contains neither blocks nor snapshot recovery info")?;
-            let l1_batch =
-                last_sealed_l1_batch_number.unwrap_or(snapshot_recovery.l1_batch_number) + 1;
+            let (l1_batch, prev_l1_batch_timestamp) =
+                if let Some((l1_batch_number, l1_batch_timestamp)) =
+                    last_sealed_l1_batch_number_and_timestamp
+                {
+                    (l1_batch_number + 1, l1_batch_timestamp)
+                } else {
+                    (
+                        snapshot_recovery.l1_batch_number + 1,
+                        snapshot_recovery.l1_batch_timestamp,
+                    )
+                };
 
             let (next_l2_block, prev_l2_block_hash, prev_l2_block_timestamp);
             if let Some(l2_block_header) = &last_l2_block_header {
@@ -71,6 +86,7 @@ impl IoCursor {
                 prev_l2_block_hash,
                 prev_l2_block_timestamp,
                 l1_batch,
+                prev_l1_batch_timestamp,
             })
         }
     }

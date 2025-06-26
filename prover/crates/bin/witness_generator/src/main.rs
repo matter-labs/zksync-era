@@ -10,7 +10,7 @@ use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{DatabaseSecrets, GeneralConfig},
+    configs::{GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -96,7 +96,7 @@ async fn ensure_protocol_alignment(
 async fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let opt = Opt::from_args();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -108,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = prover_config.prover_object_store;

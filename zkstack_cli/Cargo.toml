@@ -32,11 +32,12 @@ zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
 zksync_contracts = { path = "../core/lib/contracts" }
-zksync_consensus_roles = "=0.11.3"
-zksync_consensus_crypto = "=0.11.3"
+zksync_consensus_roles = "=0.11.4"
+zksync_consensus_crypto = "=0.11.4"
 
 # External dependencies
 anyhow = "1.0.82"
+alloy = "0.14.0"
 clap = { version = "4.4", features = ["derive", "wrap_help", "string"] }
 clap_complete = "4.5.33"
 dirs = "5.0.1"
