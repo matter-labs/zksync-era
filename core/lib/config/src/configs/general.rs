@@ -98,7 +98,11 @@ pub struct GeneralConfig {
 
 /// Returns the config schema for the main node.
 pub fn full_config_schema() -> ConfigSchema {
-    let mut schema = ConfigSchema::new(&GeneralConfig::DESCRIPTION, "");
+    let mut schema = ConfigSchema::default();
+    schema
+        .coerce_serde_enums(true)
+        .insert(&GeneralConfig::DESCRIPTION, "")
+        .unwrap();
 
     // Add global aliases for the snapshots object store.
     schema

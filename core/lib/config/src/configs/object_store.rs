@@ -192,7 +192,11 @@ mod tests {
           max_retries: 3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: ObjectStoreConfig = Tester::default().coerce_serde_enums().test(yaml).unwrap();
+        let config: ObjectStoreConfig = Tester::default()
+            .coerce_serde_enums()
+            .insert("")
+            .test(yaml)
+            .unwrap();
         assert_eq!(config.max_retries, 3);
         assert_eq!(
             config.mode,

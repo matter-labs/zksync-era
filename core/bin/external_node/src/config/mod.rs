@@ -245,7 +245,10 @@ impl LocalConfig {
     /// Schema is chosen to be compatible both with file-based and env-based configs used for the node
     /// previously. This leads to deprecated aliases all around, which will hopefully be removed soon-ish.
     pub fn schema() -> anyhow::Result<ConfigSchema> {
-        let mut schema = ConfigSchema::new(&Self::DESCRIPTION, "");
+        let mut schema = ConfigSchema::default();
+        schema
+            .coerce_serde_enums(true)
+            .insert(&Self::DESCRIPTION, "")?;
         // We don't get observability config from the schema directly.
         schema
             .insert(&ObservabilityConfig::DESCRIPTION, "observability")?

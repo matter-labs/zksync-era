@@ -1,5 +1,5 @@
 use smart_config::{
-    de::{Delimited, FromSecretString, Optional, Serde},
+    de::{Delimited, FromSecretString, Serde},
     DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl, Address};
@@ -21,7 +21,7 @@ pub struct EigenConfig {
     #[config(default_t = 0)]
     pub settlement_layer_confirmation_depth: u32,
     /// URL of the Ethereum RPC server
-    #[config(secret, with = Optional(Serde![str]))]
+    #[config(secret, with = Serde![str])]
     pub eigenda_eth_rpc: Option<SensitiveUrl>,
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: Address,

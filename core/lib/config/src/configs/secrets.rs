@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use smart_config::{
-    de::{FromSecretString, Optional, Serde},
+    de::{FromSecretString, Serde},
     fallback, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
@@ -18,15 +18,15 @@ const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localh
 #[config(derive(Default))]
 pub struct PostgresSecrets {
     /// Postgres connection string for the server database.
-    #[config(alias = "url", secret, with = Optional(Serde![str]))]
+    #[config(alias = "url", secret, with = Serde![str])]
     #[config(fallback = &fallback::Env("DATABASE_URL"))]
     #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
     pub server_url: Option<SensitiveUrl>,
     /// Postgres connection string for the prover database. Not used by external nodes.
-    #[config(secret, with = Optional(Serde![str]))]
+    #[config(secret, with = Serde![str])]
     pub prover_url: Option<SensitiveUrl>,
     /// Postgres connection string for the server replica (readonly).
-    #[config(alias = "replica_url", secret, with = Optional(Serde![str]))]
+    #[config(alias = "replica_url", secret, with = Serde![str])]
     #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
     pub server_replica_url: Option<SensitiveUrl>,
 }
@@ -35,11 +35,11 @@ pub struct PostgresSecrets {
 #[config(derive(Default))]
 pub struct L1Secrets {
     /// RPC URL for L1.
-    #[config(alias = "eth_client_url", secret, with = Optional(Serde![str]))]
+    #[config(alias = "eth_client_url", secret, with = Serde![str])]
     #[config(example = Some("https://ethereum-rpc.publicnode.com/".parse().unwrap()))]
     pub l1_rpc_url: Option<SensitiveUrl>,
     /// Web3 RPC URL for the gateway layer.
-    #[config(secret, with = Optional(Serde![str]))]
+    #[config(secret, with = Serde![str])]
     #[config(alias = "gateway_web3_url", alias = "gateway_url")]
     pub gateway_rpc_url: Option<SensitiveUrl>,
 }
@@ -59,7 +59,7 @@ pub enum DataAvailabilitySecrets {
 pub struct ContractVerifierSecrets {
     /// Etherscan API key that is used for contract verification in Etherscan.
     /// If not set, the Etherscan verification is disabled.
-    #[config(with = Optional(FromSecretString))]
+    #[config(with = FromSecretString)]
     pub etherscan_api_key: Option<APIKey>,
 }
 

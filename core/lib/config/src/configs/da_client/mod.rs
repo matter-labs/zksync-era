@@ -96,8 +96,9 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = Tester::<DAClientConfig>::default()
+        let config = Tester::default()
             .coerce_serde_enums()
+            .insert::<DAClientConfig>("")
             .test(yaml)
             .unwrap();
         let DAClientConfig::ObjectStore(config) = config else {
@@ -113,8 +114,9 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = Tester::<DAClientConfig>::default()
+        let config = Tester::default()
             .coerce_serde_enums()
+            .insert::<DAClientConfig>("")
             .test(yaml)
             .unwrap();
         assert_eq!(config, DAClientConfig::NoDA);
@@ -191,8 +193,9 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = Tester::<DAClientConfig>::default()
+        let config = Tester::default()
             .coerce_serde_enums()
+            .insert::<DAClientConfig>("")
             .test(yaml)
             .unwrap();
         assert_gas_relay_avail_config(&config);
@@ -283,8 +286,9 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = Tester::<DAClientConfig>::default()
+        let config = Tester::default()
             .coerce_serde_enums()
+            .insert::<DAClientConfig>("")
             .test(yaml)
             .unwrap();
         assert_full_avail_config(&config);
@@ -398,8 +402,9 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = Tester::<DAClientConfig>::default()
+        let config = Tester::default()
             .coerce_serde_enums()
+            .insert::<DAClientConfig>("")
             .test(yaml)
             .unwrap();
         assert_eigen_config(&config);
