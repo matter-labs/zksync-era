@@ -12,11 +12,8 @@ pub async fn run(shell: &Shell, args: InsertBatchArgs) -> anyhow::Result<()> {
 
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let version = info::get_protocol_version(
-        shell,
-        &get_link_to_prover(&chain_config.link_to_code.clone()),
-    )
-    .await?;
+    let version =
+        info::get_protocol_version(shell, &get_link_to_prover(&chain_config.link_to_code)).await?;
     let prover_url = info::get_database_url(&chain_config).await?.to_string();
 
     let InsertBatchArgsFinal { number, version } = args.fill_values_with_prompts(version);

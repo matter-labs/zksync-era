@@ -33,7 +33,7 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
     } else {
         check_prerequisites(shell, &GCLOUD_PREREQUISITE, false);
 
-        let link_to_setup_keys = get_link_to_prover(&link_to_code.clone()).join("data/keys");
+        let link_to_setup_keys = get_link_to_prover(&link_to_code).join("data/keys");
         let path_to_keys_buckets =
             get_link_to_prover(&link_to_code).join("setup-data-gpu-keys.json");
 

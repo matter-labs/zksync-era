@@ -12,16 +12,12 @@ pub async fn run(shell: &Shell, args: InsertVersionArgs) -> anyhow::Result<()> {
 
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let version = info::get_protocol_version(
-        shell,
-        &get_link_to_prover(&chain_config.link_to_code.clone()),
-    )
-    .await?;
+    let version =
+        info::get_protocol_version(shell, &get_link_to_prover(&chain_config.link_to_code)).await?;
     let snark_wrapper =
-        info::get_snark_wrapper(&get_link_to_prover(&chain_config.link_to_code.clone())).await?;
+        info::get_snark_wrapper(&get_link_to_prover(&chain_config.link_to_code)).await?;
     let fflonk_snark_wrapper =
-        info::get_fflonk_snark_wrapper(&get_link_to_prover(&chain_config.link_to_code.clone()))
-            .await?;
+        info::get_fflonk_snark_wrapper(&get_link_to_prover(&chain_config.link_to_code)).await?;
 
     let prover_url = info::get_database_url(&chain_config).await?.to_string();
 

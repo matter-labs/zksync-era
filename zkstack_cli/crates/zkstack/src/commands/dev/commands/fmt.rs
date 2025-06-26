@@ -98,7 +98,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             tasks.push(tokio::spawn(run_all_rust_formatters(
                 shell.clone(),
                 args.check,
-                link_to_code.clone(),
+                link_to_code,
             )));
             tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
 
