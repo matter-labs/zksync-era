@@ -8,13 +8,15 @@ The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains 
 
 ![MessageRoot](../img/message_root.png)
 
-> The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `ChainBatchRoot` show different  binary merkle trees. The `MessageRoot` will be the root of a `FullMerkleTree` of `chainRoot`, while `chainRoot` is the merkle root of a `DynamicIncrementalMerkleTree` of `ChainBatchRoot`.
+The tree forming the whole `MessageRoot` at one given chain is called `sharedTree` on implementation level. It's the tree formed by taking `MessageRoot` node, and all of it's children in the picture above.
 
-For each chain that settles on L1, the root will have the following format:
+> The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `ChainBatchRoot` show different binary merkle trees. The `MessageRoot` will be the root of a `FullMerkleTree` of `chainRoot`, while `chainRoot` is the merkle root of a `DynamicIncrementalMerkleTree` of `ChainBatchRoot`.
+
+The root has the following format:
 
 `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)`
 
-where `LocalLogsRoot` is the root of the tree of messages that come from the chain itself, while the `MessageRoot` is the root of aggregated messages from all of the chains that settle on top of the chain. For most chains the `MessageRoot` is empty (except for Gateway and L1). The `ChainBatchRoot` will be settled on the layer below, and be used to update the `ChainRoot` in the `MessageRoot` contract on that layer.
+where `LocalLogsRoot` is the root of the tree of messages that come from the chain itself in the given batch, while the `MessageRoot` is the root of aggregated messages from all of the chains that settle on top of the chain. For most chains the `MessageRoot` is empty (except for Gateway and L1, as currently only they are whitelisted as settlement layers). The `ChainBatchRoot` will be settled on the layer below, and be used to update the `ChainRoot` in the `MessageRoot` contract on that layer.
 
 The structure has the following recursive format:
 
@@ -31,9 +33,9 @@ Note that the `MessageRoot` appears twice in the structure. So the structure is 
 
 ## Appending new batch root leaves
 
-At the end of each batch, the `L1Messenger` system contract would query the `MessageRoot` contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s), calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)` and propagate it to L1. Only the chain's final `ChainBatchRoot`s get stored on L1.
+At the end of each batch, the `L1Messenger` system contract would query the `MessageRoot` contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s, which is the `sharedTree` root, the upmost node of the `MessageRoot` on the chain), calculate the `LocalLogsRoot` itself, and finally calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, AggregatedRootHash)` and propagate it to L1. Only the chain's final `ChainBatchRoot`s get stored on L1.
 
-At the execution stage of every batch, the ZK Chain would call the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
+When ZKsync chain's batch gets executed on the settlement layer, the chain calls the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
 
 ## Proving that a message belongs to a MessageRoot
 
@@ -121,5 +123,4 @@ message root.
 
 #### Dependency Set
 
-- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the message root can exchange
-  messages with any other chain, effectively forming an undirected graph.
+- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the message root can exchange messages with any other chain, effectively forming an undirected graph.
