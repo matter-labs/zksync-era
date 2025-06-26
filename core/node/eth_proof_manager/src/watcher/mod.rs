@@ -2,27 +2,30 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_eth_client::clients::L1;
 use zksync_object_store::ObjectStore;
+use zksync_types::web3::BlockNumber;
 
 use crate::{
     client::{EthProofManagerClient, RETRY_LIMIT},
-    watcher::events::{Event, ProofRequestAcknowledged, ProofRequestProven, RewardClaimed},
+    watcher::events::{
+        EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler,
+        RewardClaimedHandler,
+    },
 };
 
 mod events;
 
 pub struct EthProofWatcher {
-    client: EthProofManagerClient<L1>,
+    client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
     poll_interval: Duration,
-    events: Vec<Box<dyn Event>>,
+    event_handlers: Vec<Box<dyn EventHandler>>,
 }
 
 impl EthProofWatcher {
     pub fn new(
-        client: EthProofManagerClient<L1>,
+        client: Box<dyn EthProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         poll_interval: Duration,
@@ -32,15 +35,17 @@ impl EthProofWatcher {
             connection_pool,
             blob_store,
             poll_interval,
-            events: vec![
-                Box::new(ProofRequestAcknowledged::empty()),
-                Box::new(ProofRequestProven::empty()),
-                Box::new(RewardClaimed::empty()),
+            event_handlers: vec![
+                Box::new(ProofRequestAcknowledgedHandler),
+                Box::new(ProofRequestProvenHandler),
+                Box::new(RewardClaimedHandler),
             ],
         }
     }
 
-    pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!("Starting eth proof watcher");
+
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop request received, eth proof sender is shutting down");
@@ -52,21 +57,21 @@ impl EthProofWatcher {
             // todo: this should be changed
             let from_block = to_block.saturating_sub(100);
 
-            for event in &mut self.events {
+            for event in &self.event_handlers {
                 let events = self
                     .client
                     .get_events_with_retry(
-                        from_block,
-                        to_block,
+                        BlockNumber::Number(from_block.into()),
+                        BlockNumber::Number(to_block.into()),
                         Some(vec![event.signature()]),
                         None,
                         RETRY_LIMIT,
                     )
                     .await?;
 
-                for event in events {
+                for log in events {
                     event
-                        .handle_event(event, self.connection_pool.clone(), self.blob_store.clone())
+                        .handle(log, self.connection_pool.clone(), self.blob_store.clone())
                         .await?;
                 }
             }
@@ -75,5 +80,9 @@ impl EthProofWatcher {
                 .await
                 .ok();
         }
+
+        tracing::info!("Eth proof watcher stopped");
+
+        Ok(())
     }
 }

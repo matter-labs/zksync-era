@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, BoundEthInterface, ContractCallError, EnrichedClientError, EthInterface
+    clients::DynClient, web3_decl::client::Network, BoundEthInterface, EnrichedClientError,
+    EthInterface,
 };
 use zksync_eth_watch::GetLogsClient;
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
@@ -10,13 +12,13 @@ use zksync_types::{
     api::Log,
     ethabi::{Address, Contract},
     web3::{BlockId, BlockNumber, FilterBuilder},
-    H256
+    H256,
 };
 
 use crate::types::ClientError;
 
 #[derive(Clone, Debug)]
-pub struct EthProofManagerClient<Net: Network> {
+pub struct ProofManagerClient<Net: Network> {
     client: Box<DynClient<Net>>,
     gas_adjuster: Arc<dyn TxParamsProvider>,
     proof_manager_abi: Contract,
@@ -32,7 +34,21 @@ const TOO_BIG_RANGE_RETH: &str = "query exceeds max block range";
 const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
-impl<Net: Network> EthProofManagerClient<Net>
+#[async_trait]
+pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
+    async fn get_events_with_retry(
+        &self,
+        from: BlockNumber,
+        to: BlockNumber,
+        topics1: Option<Vec<H256>>,
+        topics2: Option<Vec<H256>>,
+        retries_left: usize,
+    ) -> Result<Vec<Log>, EnrichedClientError>;
+
+    async fn get_finalized_block(&self) -> Result<u64, ClientError>;
+}
+
+impl<Net: Network> ProofManagerClient<Net>
 where
     Box<DynClient<Net>>: EthInterface + BoundEthInterface + GetLogsClient,
 {
@@ -51,15 +67,21 @@ where
             client_config,
         }
     }
+}
 
-    pub async fn get_events_with_retry(
+#[async_trait]
+impl<Net: Network> EthProofManagerClient for ProofManagerClient<Net>
+where
+    Box<DynClient<Net>>: EthInterface + BoundEthInterface + GetLogsClient,
+{
+    async fn get_events_with_retry(
         &self,
         from: BlockNumber,
         to: BlockNumber,
         topics1: Option<Vec<H256>>,
         topics2: Option<Vec<H256>>,
         retries_left: usize,
-    ) -> Result<Vec<Log>, ClientError> {
+    ) -> Result<Vec<Log>, EnrichedClientError> {
         let filter = FilterBuilder::default()
             .from_block(from)
             .to_block(to)
@@ -67,7 +89,7 @@ where
             .address(vec![self.proof_manager_address])
             .build();
 
-        let mut result: Result<Vec<Log>, ClientError> =
+        let mut result: Result<Vec<Log>, EnrichedClientError> =
             self.client.get_logs(filter).await.map_err(Into::into);
 
         // This code is compatible with both Infura and Alchemy API providers.
@@ -75,7 +97,7 @@ where
         if let Err(err) = &result {
             tracing::warn!("Provider returned error message: {err}");
             let err_message = err.to_string();
-            let err_code = if let ClientError::ContractCallError(err) = err {
+            let err_code = if let jsonrpsee::core::ClientError::Call(err) = err.as_ref() {
                 Some(err.code())
             } else {
                 None
@@ -155,7 +177,7 @@ where
         result
     }
 
-    pub async fn get_finalized_block(&self) -> Result<u64, ClientError> {
+    async fn get_finalized_block(&self) -> Result<u64, ClientError> {
         let block = self
             .client
             .block(BlockId::Number(BlockNumber::Finalized))
