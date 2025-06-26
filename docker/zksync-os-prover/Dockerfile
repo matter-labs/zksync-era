@@ -19,9 +19,9 @@ RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ g
     pkg-config build-essential libclang-dev && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
-    chmod +x cmake-3.24.2-linux-x86_64.sh && \
-    ./cmake-3.24.2-linux-x86_64.sh --skip-license --prefix=/usr/local
+RUN curl -Lo cmake-3.30.0-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.30.0/cmake-3.30.0-linux-x86_64.sh && \
+    chmod +x cmake-3.30.0-linux-x86_64.sh && \
+    ./cmake-3.30.0-linux-x86_64.sh --skip-license --prefix=/usr/local
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
