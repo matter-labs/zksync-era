@@ -62,9 +62,9 @@ jobs:
           run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
           run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
           run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
-          tar -C ./contracts -zxf l1-contracts.tar.gz
-          tar -C ./contracts -zxf l2-contracts.tar.gz
-          tar -C ./contracts -zxf system-contracts.tar.gz
+          tar --no-same-owner --no-same-permissions -C ./contracts -zxf l1-contracts.tar.gz
+          tar --no-same-owner --no-same-permissions -C ./contracts -zxf l2-contracts.tar.gz
+          tar --no-same-owner --no-same-permissions -C ./contracts -zxf system-contracts.tar.gz
 
       - name: Install Apt dependencies
         if: env.BUILD_CONTRACTS == 'true'
