@@ -18,7 +18,6 @@ tracing.workspace = true
 bincode.workspace = true
 hex.workspace = true
 anyhow.workspace = true
-zksync_config.workspace = true
 zksync_db_connection.workspace = true
 zksync_basic_types.workspace = true
 zksync_types.workspace = true
