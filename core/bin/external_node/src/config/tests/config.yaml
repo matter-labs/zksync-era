@@ -8,6 +8,10 @@ observability:
   log_directives: warn,zksync=info
   sentry_url: https://example.com/new
   sentry_environment: 'mainnet - mainnet2'
+  opentelemetry:
+    level: debug
+    endpoint: http://otel/v1/traces
+    logs_endpoint: http://otel/v1/logs
 
 postgres:
   server_url: postgres://postgres:notsecurepassword@localhost:5432/en

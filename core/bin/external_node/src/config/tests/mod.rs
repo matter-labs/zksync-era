@@ -184,127 +184,7 @@ fn parsing_testnet_docker_compose_env() {
 
 #[test]
 fn parsing_from_full_env() {
-    let env = r#"
-        # Observability config
-        EN_PROMETHEUS_PORT=3322
-        EN_PROMETHEUS_PUSHGATEWAY_URL=http://prometheus/
-        EN_PROMETHEUS_PUSH_INTERVAL_MS=150
-        EN_LOG_FORMAT=json
-        EN_SENTRY_ENVIRONMENT="mainnet - mainnet2"
-        EN_SENTRY_URL=https://example.com/new
-        EN_LOG_DIRECTIVES=warn,zksync=info
-
-        # Optional config, in the order its params were defined.
-        EN_FILTERS_LIMIT=5000
-        EN_SUBSCRIPTIONS_LIMIT=5000
-        EN_REQ_ENTITIES_LIMIT=1000
-        EN_MAX_TX_SIZE_BYTES=1000000
-        EN_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
-        EN_FEE_HISTORY_LIMIT=100
-        EN_MAX_BATCH_REQUEST_SIZE=50
-        EN_MAX_RESPONSE_BODY_SIZE_MB=5
-        EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="zks_getProof=100,eth_call=2"
-        EN_PUBSUB_POLLING_INTERVAL_MS=200
-        EN_MAX_NONCE_AHEAD=33
-        EN_VM_CONCURRENCY_LIMIT=100
-        EN_FACTORY_DEPS_CACHE_SIZE_MB=100
-        EN_INITIAL_WRITES_CACHE_SIZE_MB=50
-        EN_LATEST_VALUES_CACHE_SIZE_MB=200
-        EN_API_NAMESPACES="zks,eth"
-        EN_FILTERS_DISABLED=true
-        EN_MEMPOOL_CACHE_UPDATE_INTERVAL_MS=75
-        EN_MEMPOOL_CACHE_SIZE=1000
-        EN_EXTENDED_RPC_TRACING=true
-
-        EN_HEALTHCHECK_SLOW_TIME_LIMIT_MS=75
-        EN_HEALTHCHECK_HARD_TIME_LIMIT_MS=2500
-        EN_ESTIMATE_GAS_SCALE_FACTOR=1.2
-        EN_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=2000
-        EN_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
-        EN_GAS_PRICE_SCALE_FACTOR=1.4
-
-        # NEW PARAMS: From Web3RpcConfig
-        EN_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=1000
-        EN_LATEST_VALUES_MAX_BLOCK_LAG=30
-        EN_WHITELISTED_TOKENS_FOR_AA=0x0000000000000000000000000000000000000001
-        EN_REQUEST_TIMEOUT_SEC=20
-        EN_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.35
-        # NEW PARAMS: From HealthcheckConfig
-        EN_HEALTHCHECK_EXPOSE_CONFIG=true
-
-        EN_MERKLE_TREE_PROCESSING_DELAY_MS=100
-        EN_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=5
-        EN_MERKLE_TREE_MAX_OPEN_FILES=1024
-        EN_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=1000
-        EN_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=4096
-        EN_MERKLE_TREE_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=true
-        EN_MERKLE_TREE_MEMTABLE_CAPACITY_MB=256
-        EN_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=15
-        # MIGRATION NEEDED: was `EN_MERKLE_TREE_REPAIR_STALE_KEYS` (w/o `experimental` infix)
-        EN_EXPERIMENTAL_MERKLE_TREE_REPAIR_STALE_KEYS=true
-        # NEW PARAMS: In MerkleTreeConfig; not used
-        EN_MERKLE_TREE_MODE=Lightweight
-
-        EN_DATABASE_LONG_CONNECTION_THRESHOLD_MS=2500
-        EN_DATABASE_SLOW_QUERY_THRESHOLD_MS=1500
-        # NEW PARAMS: From PostgresConfig
-        EN_DATABASE_ACQUIRE_TIMEOUT_SEC=15
-        EN_DATABASE_ACQUIRE_RETRIES=2
-        EN_DATABASE_STATEMENT_TIMEOUT_SEC=20
-        # NEW PARAMS: From PostgresConfig; not used
-        EN_DATABASE_MAX_CONNECTIONS_MASTER=10
-
-        EN_L2_BLOCK_SEAL_QUEUE_CAPACITY=20
-        EN_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
-        # NEW PARAMS: From SharedStateKeeperConfig
-        EN_SAVE_CALL_TRACES=false
-
-        EN_CONTRACTS_DIAMOND_PROXY_ADDR=0x0000000000000000000000000000000000010001
-        EN_MAIN_NODE_RATE_LIMIT_RPS=150
-
-        EN_SNAPSHOTS_RECOVERY_ENABLED=true
-        EN_SNAPSHOTS_RECOVERY_POSTGRES_MAX_CONCURRENCY=5
-        EN_SNAPSHOTS_OBJECT_STORE_MODE=GCSAnonymousReadOnly
-        EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL=zksync-era-mainnet-external-node-snapshots
-        EN_SNAPSHOTS_OBJECT_STORE_MAX_RETRIES=5
-        EN_SNAPSHOTS_OBJECT_STORE_LOCAL_MIRROR_PATH=/tmp/object-store
-
-        EN_PRUNING_ENABLED=true
-        EN_PRUNING_CHUNK_SIZE=5
-        EN_PRUNING_REMOVAL_DELAY_SEC=120
-        EN_PRUNING_DATA_RETENTION_SEC=86400
-
-        EN_GATEWAY_URL=https://127.0.0.1:3150/
-        EN_BRIDGE_ADDRESSES_REFRESH_INTERVAL_SEC=300
-        EN_TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC=90
-        EN_CONSISTENCY_CHECKER_MAX_BATCHES_TO_RECHECK=5
-
-        # Required config, in the order its params were defined.
-        EN_L1_CHAIN_ID=8
-        EN_GATEWAY_CHAIN_ID=277
-        EN_L2_CHAIN_ID=270
-        EN_HTTP_PORT=2950
-        EN_WS_PORT=2951
-        EN_HEALTHCHECK_PORT=2952
-        EN_ETH_CLIENT_URL=https://127.0.0.1:8545/
-        EN_MAIN_NODE_URL=https://127.0.0.1:3050/
-        EN_STATE_CACHE_PATH=/db/state-keeper
-        EN_MERKLE_TREE_PATH=/db/merkle-tree
-
-        # Experimental config
-        EN_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB=256
-        EN_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES=512
-        EN_SNAPSHOTS_RECOVERY_L1_BATCH=123
-        EN_SNAPSHOTS_RECOVERY_DROP_STORAGE_KEY_PREIMAGES=true
-        EN_SNAPSHOTS_RECOVERY_TREE_CHUNK_SIZE=50000
-        EN_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER=5
-        EN_COMMITMENT_GENERATOR_MAX_PARALLELISM=4
-
-        # API component config
-        EN_API_TREE_API_REMOTE_URL=http://tree/
-        # Tree component config
-        EN_TREE_API_PORT=2955
-    "#;
+    let env = include_str!("full.env");
     let env = smart_config::Environment::from_dotenv("test.env", env)
         .unwrap()
         .strip_prefix("EN_");
@@ -332,6 +212,10 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let sentry = config.sentry;
     assert_eq!(sentry.url.unwrap(), "https://example.com/new");
     assert_eq!(sentry.environment.unwrap(), "mainnet - mainnet2");
+    let opentelemetry = config.opentelemetry.unwrap();
+    assert_eq!(opentelemetry.level, "debug");
+    assert_eq!(opentelemetry.endpoint, "http://otel/v1/traces");
+    assert_eq!(opentelemetry.logs_endpoint.unwrap(), "http://otel/v1/logs");
 
     let config: Web3JsonRpcConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.filters_limit, 5_000);
