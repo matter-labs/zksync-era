@@ -116,6 +116,7 @@ fn create_proof(
         &mut Some(gpu_state),
         #[cfg(not(feature = "gpu"))]
         &mut None,
+        &mut Some(0_f64),
     );
     let basic_proofs = proof_list.basic_proofs.len();
     let delegation_proofs = proof_list
@@ -131,6 +132,7 @@ fn create_proof(
         &mut Some(gpu_state),
         #[cfg(not(feature = "gpu"))]
         &mut None,
+        &mut Some(0_f64),
     );
 
     program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
@@ -163,12 +165,12 @@ pub async fn main() {
 
     let binary = load_binary_from_path(&bin_path);
     tracing::debug!("Loaded binary from path: {}", bin_path);
-    let mut gpu_state = GpuSharedState::default();
-    #[cfg(feature = "gpu")]
-    {
-        gpu_state.preheat_for_universal_verifier(&binary);
-        gpu_state.enable_multigpu();
-    }
+    let mut gpu_state = GpuSharedState::new(&binary);
+    // #[cfg(feature = "gpu")]
+    // {
+    //     gpu_state.preheat_for_universal_verifier(&binary);
+    //     gpu_state.enable_multigpu();
+    // }
     tracing::info!("Starting ZKsync OS FRI prover connected to {}", cli.url);
 
     loop {
