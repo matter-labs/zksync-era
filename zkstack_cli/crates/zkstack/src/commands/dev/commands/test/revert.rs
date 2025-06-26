@@ -14,7 +14,7 @@ pub async fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
     logger::info(MSG_REVERT_TEST_RUN_INFO);
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &ecosystem_config.link_to_code.clone())?;
+        install_and_build_dependencies(shell, &ecosystem_config.link_to_code)?;
     }
 
     run_test(shell, &args, &ecosystem_config).await?;

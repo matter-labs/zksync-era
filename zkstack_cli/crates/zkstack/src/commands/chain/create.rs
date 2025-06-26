@@ -36,7 +36,7 @@ pub async fn create(
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
             tokens,
-            ecosystem_config.link_to_code.clone().display().to_string(),
+            &ecosystem_config.link_to_code.display().to_string(),
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -79,7 +79,7 @@ pub(crate) async fn create_chain_inner(
     let link_to_code = resolve_link_to_code(
         shell,
         chain_path.clone(),
-        args.link_to_code.clone(),
+        args.link_to_code,
         args.update_submodules,
     )?;
     let genesis_config_path =

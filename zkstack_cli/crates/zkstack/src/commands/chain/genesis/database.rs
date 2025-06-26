@@ -93,7 +93,7 @@ pub async fn update_configs(
     general.set_file_artifacts(file_artifacts)?;
     general.save().await?;
 
-    let link_to_code = config.link_to_code.clone();
+    let link_to_code = &config.link_to_code;
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,

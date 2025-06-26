@@ -63,7 +63,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     if in_docker {
         let path_to_configs = chain.configs.clone();
-        let path_to_prover = get_link_to_prover(&chain.link_to_code.clone());
+        let path_to_prover = get_link_to_prover(&chain.link_to_code);
         update_setup_data_path(&chain, "prover/data/keys").await?;
         run_dockerized_component(
             shell,

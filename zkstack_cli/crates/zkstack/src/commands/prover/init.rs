@@ -32,8 +32,7 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let default_compressor_key_path =
-        get_default_compressor_keys_path(&chain_config.link_to_code.clone())?;
+    let default_compressor_key_path = get_default_compressor_keys_path(&chain_config.link_to_code)?;
 
     let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 
@@ -87,7 +86,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         initialize_prover_database(
             shell,
             &prover_db.database_config,
-            &chain_config.link_to_code.clone(),
+            &chain_config.link_to_code,
             prover_db.dont_drop,
         )
         .await?;

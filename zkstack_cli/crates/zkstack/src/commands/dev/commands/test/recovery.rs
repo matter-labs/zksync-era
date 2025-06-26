@@ -15,7 +15,7 @@ pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
     Server::new(None, None, config.link_to_code.clone(), false).build(shell)?;
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &config.link_to_code.clone())?;
+        install_and_build_dependencies(shell, &config.link_to_code)?;
     }
 
     run_test(shell, &args, &config).await?;

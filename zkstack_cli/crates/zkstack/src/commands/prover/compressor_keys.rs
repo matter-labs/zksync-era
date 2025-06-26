@@ -12,7 +12,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
     let chain_config = ZkStackConfig::current_chain(shell)?;
     let mut general_config = chain_config.get_general_config().await?.patched();
 
-    let default_path = get_default_compressor_keys_path(&chain_config.link_to_code.clone())?;
+    let default_path = get_default_compressor_keys_path(&chain_config.link_to_code)?;
     let args = args.fill_values_with_prompt(&default_path);
 
     let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;

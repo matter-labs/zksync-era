@@ -72,7 +72,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
     let ecosystem_config = EcosystemConfig {
         name: ecosystem_name.clone(),
         l1_network: args.l1_network,
-        link_to_code: link_to_code.clone(),
+        link_to_code,
         bellman_cuda_dir: None,
         chains: chains_path.clone(),
         config: configs_path,
@@ -101,7 +101,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
-        initialize_docker(shell, &ecosystem_config.link_to_code.clone())?;
+        initialize_docker(shell, &ecosystem_config.link_to_code)?;
         start_containers(shell, false)?;
         spinner.finish();
     }

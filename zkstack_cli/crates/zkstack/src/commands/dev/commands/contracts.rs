@@ -105,7 +105,7 @@ impl ContractBuilder {
 
     fn build(self, shell: Shell) -> anyhow::Result<()> {
         let spinner = Spinner::new(&self.msg);
-        (self.cmd)(shell, &self.link_to_code.clone())?;
+        (self.cmd)(shell, &self.link_to_code)?;
         spinner.finish();
         Ok(())
     }

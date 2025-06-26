@@ -19,7 +19,7 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let chain = ZkStackConfig::current_chain(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 
-    initialize_docker(shell, &chain.link_to_code.clone())?;
+    initialize_docker(shell, &chain.link_to_code)?;
 
     logger::info(MSG_STARTING_CONTAINERS);
 
