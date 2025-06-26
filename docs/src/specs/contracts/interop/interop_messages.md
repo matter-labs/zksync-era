@@ -31,6 +31,8 @@ When you call `sendToL1`, the `L1Messenger` returns a `hash`, which is the `kecc
 
 ![msg\_flow.png](./img/msg_flow.png)
 
+Note, that currently only message flow between chains settling on Gateway is possible, so we'll have this in mind while going over step-by-step process.
+
 A high-level overview of the send-and-verify flow:
 
 1. **Send**.
@@ -48,7 +50,7 @@ A high-level overview of the send-and-verify flow:
 7. **Verification Complete**.
    At this point, the interop root for the batch is confirmed.
 8. **User Proof Submission**.
-   The user calls `proveL2MessageInclusionShared` on **L2_B**’s mailbox, supplying the message data and a proof of inclusion (see below).
+   The user calls `proveL2MessageInclusionShared` on **L2_B**’s Mailbox facet, supplying the message data and a proof of inclusion (see below). Note, that this step could be done in the same batch as steps 6-7, not necessarily strictly later.
 9. **Final Verification**.
    This triggers `L2InteropRootStorage` to verify the corresponding interop-root inclusion on **L2_B**.
 

@@ -1,7 +1,10 @@
 # Interop Message Simple Use Case
 
-For this example, imagine a basic cross-chain contract where the `signup()` method can be called on chains other than `A`
-only if someone has first called `signup_open()` on chain `A`.
+For this example, imagine you want to allow users to signup on multiple chains - but you want to coordinate when the signup starts.
+
+With the help of interop, you only have to open the signup once, on one chain, no need to do that as many times as there are chains you want to open the signup on!
+
+An example of this being done:
 
 ```solidity
 // Contract deployed on chain A.
