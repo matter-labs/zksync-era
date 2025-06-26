@@ -135,7 +135,6 @@ jobs:
           
           echo "=== OWNERSHIP/PERMS OF WHOLE PATH ====="
           namei -l /home/runner/_work/zksync-era/zksync-era/contracts/node_modules \
-          | column -t                            # each component’s owner/mode
           ls -ld /home/runner/_work/zksync-era/zksync-era/contracts \
           /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
           lsattr -d /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
