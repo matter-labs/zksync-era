@@ -182,7 +182,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
-        integration_test_type: [ "EN_INTEGRATION_TESTS", "INTEGRATION_TESTS", "DA_MIGRATION" ]
+        integration_test_type: [ "EN_INTEGRATION_TESTS", "INTEGRATION_TESTS", "DA_MIGRATION", "MIGRATE_TO_GATEWAY" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
@@ -430,7 +430,7 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Migrate chains to gateway
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.integration_test_type == 'MIGRATE_TO_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
@@ -439,12 +439,12 @@ jobs:
           ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.integration_test_type == 'MIGRATE_TO_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
 
       - name: Migrate to gateway again
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.integration_test_type == 'MIGRATE_TO_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway --chain era --no-deps
           ci_run pkill -9 zksync_server
