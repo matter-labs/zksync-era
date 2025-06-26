@@ -1,5 +1,5 @@
 # Will work locally only after prior universal setup key download
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -14,9 +14,16 @@ ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
 ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
 ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
+ARG CUDA_ARCH=89
+ENV CUDAARCHS=${CUDA_ARCH}
+
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ git \
     pkg-config build-essential libclang-dev && \
     rm -rf /var/lib/apt/lists/*
+
+RUN curl -Lo cmake-3.30.0-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.30.0/cmake-3.30.0-linux-x86_64.sh && \
+    chmod +x cmake-3.30.0-linux-x86_64.sh && \
+    ./cmake-3.30.0-linux-x86_64.sh --skip-license --prefix=/usr/local
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
@@ -37,7 +44,7 @@ RUN curl -Lo sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz https://github.com/
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cd zkos_prover && cargo build  --release
+RUN cd zkos_prover && cargo build  --release --features gpu
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
