@@ -181,8 +181,8 @@ jobs:
       # we will test both cases here
       # ----------------------------------------------
       matrix:
-        use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
         integration_test_type: [ "EN_INTEGRATION_TESTS", "INTEGRATION_TESTS", "DA_MIGRATION", "MIGRATE_TO_GATEWAY" ]
+        use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
@@ -710,7 +710,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: logs_${{matrix.use_gateway_chain}}
+          name: logs_${{matrix.use_gateway_chain}}_${{matrix.integration_test_type}}
           path: |
             logs/
             chains/*/artifacts/vm_dumps/
