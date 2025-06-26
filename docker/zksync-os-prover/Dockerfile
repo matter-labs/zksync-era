@@ -14,9 +14,14 @@ ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
 ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
 ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
+
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ git \
     pkg-config build-essential libclang-dev && \
     rm -rf /var/lib/apt/lists/*
+
+RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
+    chmod +x cmake-3.24.2-linux-x86_64.sh && \
+    ./cmake-3.24.2-linux-x86_64.sh --skip-license --prefix=/usr/local
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
