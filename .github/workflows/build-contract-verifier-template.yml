@@ -135,9 +135,9 @@ jobs:
           
           echo "=== OWNERSHIP/PERMS OF WHOLE PATH ====="
           namei -l /home/runner/_work/zksync-era/zksync-era/contracts/node_modules \
-          ls -ld /home/runner/_work/zksync-era/zksync-era/contracts \
+          ls -l /home/runner/_work/zksync-era/zksync-era/contracts \
           /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
-          lsattr -d /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
+          lsattr - /home/runner/_work/zksync-era/zksync-era/contracts/node_modules || true
           
           echo "=== GIT TRUST SETTINGS (safe.directory) ="
           git config --show-origin --get-all safe.directory || true
