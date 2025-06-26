@@ -44,7 +44,6 @@ impl InteropRootDal<'_, '_> {
         number: L1BatchNumber,
         interop_root: &[H256],
         timestamp: u64,
-        // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
         let sides = interop_root
             .iter()
