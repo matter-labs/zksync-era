@@ -182,6 +182,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
+        integration_tests_mode: [ "MAIN_NODE", "EXTERNAL_NODE" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
@@ -605,10 +606,12 @@ jobs:
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
       - name: Run recovery tests (from snapshot)
+        if: matrix.integration_tests_mode == 'EXTERNAL_NODE'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}
 
       - name: Run recovery tests (from genesis)
+        if: matrix.integration_tests_mode == 'EXTERNAL_NODE'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.GENESIS_RECOVERY_LOGS_DIR }}
 
@@ -627,6 +630,7 @@ jobs:
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Run integration tests en
+        if: matrix.integration_tests_mode == 'EXTERNAL_NODE'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
@@ -644,6 +648,7 @@ jobs:
           done
 
       - name: Fee projection tests
+        if: matrix.integration_tests_mode == 'MAIN_NODE'
         run: |
           ci_run ./bin/stop_nodes.sh
 
@@ -666,6 +671,7 @@ jobs:
           done
 
       - name: Run revert tests
+        if: matrix.integration_tests_mode == 'MAIN_NODE'
         run: |
           ci_run ./bin/stop_nodes.sh
           ci_run ./bin/stop_nodes.sh --en
@@ -683,6 +689,7 @@ jobs:
       # finish the bootloader will be different
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
+        if: matrix.integration_tests_mode == 'MAIN_NODE'
         run: |
           ci_run ./bin/stop_nodes.sh
 
