@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - zksync-os-integration
+      - deniallugo-gpu-flag
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
