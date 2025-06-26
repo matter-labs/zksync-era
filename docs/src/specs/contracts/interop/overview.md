@@ -1,5 +1,9 @@
 # Interop Overview
 
+Interop (short for interoperability) is the ability of different systems to exchange and make use of information. 
+
+In our case, interop refers specifically to seamless communication between ZKsync chains. That includes exchanging messages, and using the data gathered via exchanging the messages to enable more complex workflows.
+
 This section provides up-to-date information about interop components (and components directly related to interop) that are either already part of mainnet or whose development is complete and awaiting a protocol upgrade for inclusion.
 
 As a prerequisite to understanding the interop mechanism, the reader should familiarize themselves with the following documents:
