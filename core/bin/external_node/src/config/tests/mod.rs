@@ -67,7 +67,7 @@ fn assert_common_prepared_env(config: &LocalConfig, observability: &Observabilit
         config.db.merkle_tree.path.as_os_str(),
         "./db/ext-node/lightweight"
     );
-    let postgres_url = config.secrets.postgres.server_url.as_ref().unwrap();
+    let postgres_url = config.postgres.server_url.as_ref().unwrap();
     assert!(
         postgres_url.expose_str().starts_with("postgres://"),
         "{postgres_url:?}"
@@ -295,8 +295,11 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         Some(NonZeroU32::new(512).unwrap())
     );
 
-    let config: zksync_config::PostgresConfig =
-        tester.for_config().test_complete(source.clone()).unwrap();
+    let config: PostgresConfig = tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(
+        config.server_url.unwrap().expose_str(),
+        "postgres://postgres:notsecurepassword@localhost:5432/en"
+    );
     assert_eq!(config.max_connections, Some(50));
     assert_eq!(
         config.long_connection_threshold,
@@ -382,10 +385,6 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.main_node_url.expose_str(), "https://127.0.0.1:3050/");
 
     let secrets: Secrets = tester.for_config().test(source.clone()).unwrap();
-    assert_eq!(
-        secrets.postgres.server_url.unwrap().expose_str(),
-        "postgres://postgres:notsecurepassword@localhost:5432/en"
-    );
     assert_eq!(
         secrets.l1.l1_rpc_url.unwrap().expose_str(),
         "https://127.0.0.1:8545/"

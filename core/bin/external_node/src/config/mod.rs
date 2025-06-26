@@ -284,9 +284,7 @@ impl LocalConfig {
 
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
-        use zksync_config::configs::{
-            database::MerkleTreeConfig, secrets::PostgresSecrets, ExperimentalDBConfig,
-        };
+        use zksync_config::configs::{database::MerkleTreeConfig, ExperimentalDBConfig};
 
         let mut api = ApiConfig::for_tests();
         // Set all ports to 0 to assign free ports, so that they don't conflict for high-level tests.
@@ -304,6 +302,7 @@ impl LocalConfig {
             },
             prometheus: PrometheusConfig::default(),
             postgres: PostgresConfig {
+                server_url: Some(test_pool.database_url().clone()),
                 max_connections: Some(test_pool.max_size()),
                 ..PostgresConfig::default()
             },
@@ -317,10 +316,6 @@ impl LocalConfig {
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
             secrets: Secrets {
-                postgres: PostgresSecrets {
-                    server_url: Some(test_pool.database_url().clone()),
-                    ..PostgresSecrets::default()
-                },
                 l1: L1Secrets {
                     l1_rpc_url: Some("http://localhost:8545/".parse().unwrap()), // Not used, but must be provided
                     ..L1Secrets::default()

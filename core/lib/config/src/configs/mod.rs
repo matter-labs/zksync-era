@@ -26,7 +26,7 @@ pub use self::{
     proof_data_handler::ProofDataHandlerConfig,
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
-    secrets::{L1Secrets, PostgresSecrets, Secrets},
+    secrets::{L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     tee_proof_data_handler::TeeProofDataHandlerConfig,

@@ -16,11 +16,11 @@ use zksync_block_reverter::{
 use zksync_config::{
     configs::{
         wallets::Wallets, BasicWitnessInputProducerConfig, GenesisConfigWrapper, L1Secrets,
-        PostgresSecrets, ProtectiveReadsWriterConfig,
+        PostgresConfig, ProtectiveReadsWriterConfig,
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ContractsConfig, DBConfig, EthConfig, PostgresConfig,
+    ContractsConfig, DBConfig, EthConfig,
 };
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
@@ -142,7 +142,6 @@ async fn main() -> anyhow::Result<()> {
     let basic_witness_input_producer_config: BasicWitnessInputProducerConfig = repo.parse()?;
     let contracts: ContractsConfig = repo.parse()?;
     let postgres_config: PostgresConfig = repo.parse()?;
-    let database_secrets: PostgresSecrets = repo.parse()?;
     let l1_secrets: L1Secrets = repo.parse()?;
 
     let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
@@ -216,7 +215,7 @@ async fn main() -> anyhow::Result<()> {
     )?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
-        database_secrets.master_url()?,
+        postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )
     .build()

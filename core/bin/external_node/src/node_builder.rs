@@ -96,12 +96,10 @@ impl<R> ExternalNodeBuilder<R> {
         // Settings unconditionally set to `None` are either not supported by the EN configuration layer
         // or are not used in the context of the external node.
         config.max_connections_master = config.max_connections;
+        config.server_replica_url = config.server_url.clone();
+        config.prover_url = None;
 
-        let mut secrets = self.config.local.secrets.postgres.clone();
-        secrets.server_replica_url = secrets.server_url.clone();
-        secrets.prover_url = None;
-
-        let pools_layer = PoolsLayer::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config)
             .with_master(true)
             .with_replica(true);
         self.node.add_layer(pools_layer);

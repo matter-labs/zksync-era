@@ -42,6 +42,14 @@ fn pre_smart_config_files_can_be_parsed() {
 fn assert_general_config(general: GeneralConfig) {
     assert_eq!(general.api_config.unwrap().web3_json_rpc.http_port, 3050);
 
+    let postgres = general.postgres_config;
+    let server_url = postgres.server_url.unwrap();
+    assert_eq!(
+        server_url.expose_str(),
+        "postgres://postgres:notsecurepassword@localhost/zksync_local"
+    );
+    postgres.prover_url.unwrap();
+
     let snapshot_recovery_store = general.snapshot_recovery.unwrap().object_store.unwrap();
     let ObjectStoreMode::FileBacked {
         file_backed_base_path,
@@ -72,13 +80,6 @@ fn assert_general_config(general: GeneralConfig) {
 
 // These checks aren't intended to be exhaustive; they mostly check parsing completeness.
 fn assert_secrets(secrets: Secrets) {
-    let server_url = secrets.postgres.server_url.unwrap();
-    assert_eq!(
-        server_url.expose_str(),
-        "postgres://postgres:notsecurepassword@localhost/zksync_local"
-    );
-    secrets.postgres.prover_url.unwrap();
-
     let l1_rpc_url = secrets.l1.l1_rpc_url.unwrap();
     assert_eq!(l1_rpc_url.expose_str(), "http://127.0.0.1:8545/");
 }
