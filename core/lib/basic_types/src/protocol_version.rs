@@ -212,7 +212,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_fast_blocks(&self) -> bool {
-        self < &ProtocolVersionId::Version29
+        true
     }
 }
 
