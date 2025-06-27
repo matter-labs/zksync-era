@@ -24,6 +24,8 @@ mod fri_prover;
 mod fri_prover_gateway;
 mod fri_witness_generator;
 mod prover_job_monitor;
+#[cfg(test)]
+mod tests;
 
 /// Prover-specific Postgres config.
 #[derive(Debug, DescribeConfig, DeserializeConfig)]
@@ -83,11 +85,19 @@ impl CompleteProverConfig {
         config_path: Option<PathBuf>,
         secrets_path: Option<PathBuf>,
     ) -> anyhow::Result<ConfigSources> {
+        Self::config_sources_inner(config_path, secrets_path, true)
+    }
+
+    fn config_sources_inner(
+        config_path: Option<PathBuf>,
+        secrets_path: Option<PathBuf>,
+        read_env: bool,
+    ) -> anyhow::Result<ConfigSources> {
         let config_file_paths = ConfigFilePaths {
             general: config_path,
             secrets: secrets_path,
             ..ConfigFilePaths::default()
         };
-        config_file_paths.into_config_sources("ZKSYNC_")
+        config_file_paths.into_config_sources(read_env.then_some("ZKSYNC_"))
     }
 }

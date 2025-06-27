@@ -18,4 +18,5 @@ zksync_basic_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 
 [dev-dependencies]
+assert_matches.workspace = true
 serde_yaml.workspace = true
