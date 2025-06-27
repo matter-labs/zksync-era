@@ -27,8 +27,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 63_800_000,
-        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 63_800_000,
     }
 }
 

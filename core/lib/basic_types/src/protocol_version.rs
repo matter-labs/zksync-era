@@ -167,7 +167,6 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_interop(&self) -> bool {
-        // note fflonk version has not been merged yet
         self < &Self::Version29
     }
 
