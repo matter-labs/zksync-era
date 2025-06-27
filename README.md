@@ -110,7 +110,8 @@ cd contracts/tools && cp /tmp/snark_vk_expected.json data/plonk_scheduler_key.js
 ```
 
   * this will update the L2Verifier.sol automatically
-* create PR with the new app.bin and the contract changes. 
+* create PR with the new app.bin and the contract changes.
+* remember to also update genesis.yaml and commitments.json files - and add new verification key hash there. 
 
 
 # ZKsync Era: A ZK Rollup For Scaling Ethereum

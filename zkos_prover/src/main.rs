@@ -101,6 +101,7 @@ fn create_proof(
     binary: &Vec<u32>,
     gpu_state: &mut GpuSharedState,
 ) -> ProgramProof {
+    let mut timing = Some(0f64);
     let (proof_list, proof_metadata) = create_proofs_internal(
         binary,
         prover_input,
@@ -112,7 +113,7 @@ fn create_proof(
         &mut Some(gpu_state),
         #[cfg(not(feature = "gpu"))]
         &mut None,
-        &mut None, // timing info
+        &mut timing, // timing info
     );
     let basic_proofs = proof_list.basic_proofs.len();
     let delegation_proofs = proof_list
@@ -128,7 +129,7 @@ fn create_proof(
         &mut Some(gpu_state),
         #[cfg(not(feature = "gpu"))]
         &mut None,
-        &mut None, // timing info
+        &mut timing, // timing info
     );
 
     program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
