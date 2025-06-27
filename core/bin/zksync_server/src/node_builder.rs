@@ -583,6 +583,18 @@ impl MainNodeBuilder {
                     config.eigenda_eth_rpc = l1_secrets.l1_rpc_url.clone();
                 }
 
+                if config.eigenda_sidecar_rpc.is_none() {
+                    let use_dummy_inclusion_data = self
+                        .configs
+                        .da_dispatcher_config
+                        .clone()
+                        .context("No config for DA dispatcher")?
+                        .use_dummy_inclusion_data;
+                    if !use_dummy_inclusion_data {
+                        bail!("If EigenDA sidecar RPC is not configured, use_dummy_inclusion_data should be set.");
+                    }
+                }
+
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
