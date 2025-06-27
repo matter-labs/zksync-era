@@ -1,8 +1,6 @@
 use anyhow::Context;
-use zksync_config::configs::{
-    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
-};
 use zksync_db_connection::connection::Connection;
+use zksync_prover_config::{FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_task::Task;
 use zksync_types::basic_fri_types::AggregationRound;

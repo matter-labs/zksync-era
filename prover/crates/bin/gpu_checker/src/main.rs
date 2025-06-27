@@ -19,14 +19,11 @@ use zksync_circuit_prover_service::{
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
-use zksync_config::{
-    configs::{
-        observability::{LogFormat, SentryConfig},
-        ObservabilityConfig,
-    },
-    ObjectStoreConfig,
-};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_config::{
+    object_store::{ObjectStoreConfig, ObjectStoreMode},
+    observability::{LogFormat, ObservabilityConfig, SentryConfig},
+};
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::{
         cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
@@ -225,7 +222,7 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to install observability")?;
 
     let object_store_config = ObjectStoreConfig {
-        mode: zksync_config::configs::object_store::ObjectStoreMode::FileBacked {
+        mode: ObjectStoreMode::FileBacked {
             file_backed_base_path: opt.object_store_path,
         },
         max_retries: 1,

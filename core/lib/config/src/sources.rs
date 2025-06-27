@@ -27,7 +27,6 @@ impl ConfigSources {
     fn build_raw_repository(self, schema: &ConfigSchema) -> smart_config::ConfigRepository<'_> {
         let mut repo = smart_config::ConfigRepository::new(schema);
         repo.deserializer_options().coerce_variant_names = true;
-        repo.deserializer_options().coerce_serde_enums = true;
         repo.with_all(self.0)
     }
 

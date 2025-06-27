@@ -1,5 +1,5 @@
 use zksync_concurrency::{ctx, scope, sync};
-use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
+use zksync_config::configs::consensus::ConsensusConfig;
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core,
@@ -15,7 +15,6 @@ use zksync_node_framework::{
 #[derive(Debug)]
 pub struct MainNodeConsensusLayer {
     pub config: ConsensusConfig,
-    pub secrets: ConsensusSecrets,
 }
 
 #[derive(Debug, FromContext)]
@@ -43,7 +42,6 @@ impl WiringLayer for MainNodeConsensusLayer {
 
         let consensus_task = MainNodeConsensusTask {
             config: self.config,
-            secrets: self.secrets,
             pool,
         };
 
@@ -54,7 +52,6 @@ impl WiringLayer for MainNodeConsensusLayer {
 #[derive(Debug)]
 pub struct MainNodeConsensusTask {
     config: ConsensusConfig,
-    secrets: ConsensusSecrets,
     pool: ConnectionPool<Core>,
 }
 
@@ -72,12 +69,7 @@ impl Task for MainNodeConsensusTask {
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for a stop request once, and it will be propagated to all child contexts.
         scope::run!(&ctx::root(), |ctx, s| async move {
-            s.spawn_bg(crate::run_main_node(
-                ctx,
-                self.config,
-                self.secrets,
-                self.pool,
-            ));
+            s.spawn_bg(crate::run_main_node(ctx, self.config, self.pool));
             // `run_main_node` might return an error or panic,
             // in which case we need to return immediately,
             // rather than wait for the `stop_receiver`.

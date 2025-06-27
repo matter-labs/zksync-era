@@ -1,6 +1,6 @@
 use std::{error::Error, sync::Arc};
 
-use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
+use zksync_config::EigenConfig;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::{
     node::{MasterPool, PoolResource},
@@ -16,12 +16,11 @@ use crate::eigen::{BlobProvider, EigenDAClient};
 #[derive(Debug)]
 pub struct EigenWiringLayer {
     config: EigenConfig,
-    secrets: EigenSecrets,
 }
 
 impl EigenWiringLayer {
-    pub fn new(config: EigenConfig, secrets: EigenSecrets) -> Self {
-        Self { config, secrets }
+    pub fn new(config: EigenConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -42,8 +41,7 @@ impl WiringLayer for EigenWiringLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool.get().await?;
         let get_blob_from_db = GetBlobFromDB { pool: master_pool };
-        let client =
-            EigenDAClient::new(self.config, self.secrets, Arc::new(get_blob_from_db)).await?;
+        let client = EigenDAClient::new(self.config, Arc::new(get_blob_from_db)).await?;
         Ok(Box::new(client))
     }
 }

@@ -13,7 +13,7 @@ publish = false
 
 [dependencies]
 zksync_prover_dal.workspace = true
-zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_prover_config.workspace = true
 zksync_object_store.workspace = true
 zksync_task_management.workspace = true
 zksync_prover_fri_types.workspace = true

@@ -3,7 +3,7 @@
 
 use std::mem;
 
-use anyhow::{bail, Context as _};
+use anyhow::Context as _;
 use zksync_block_reverter::{
     node::{BlockReverterLayer, UnconditionalRevertLayer},
     NodeRole,
@@ -13,7 +13,6 @@ use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Namespace},
         database::MerkleTreeMode,
-        DataAvailabilitySecrets,
     },
     DAClientConfig,
 };
@@ -97,12 +96,9 @@ impl<R> ExternalNodeBuilder<R> {
         // Settings unconditionally set to `None` are either not supported by the EN configuration layer
         // or are not used in the context of the external node.
         config.max_connections_master = config.max_connections;
+        config.server_replica_url = config.server_url.clone();
 
-        let mut secrets = self.config.local.secrets.postgres.clone();
-        secrets.server_replica_url = secrets.server_url.clone();
-        secrets.prover_url = None;
-
-        let pools_layer = PoolsLayer::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config)
             .with_master(true)
             .with_replica(true);
         self.node.add_layer(pools_layer);
@@ -221,13 +217,11 @@ impl<R> ExternalNodeBuilder<R> {
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.consensus.clone();
-        let secrets = self.config.local.secrets.consensus.clone();
         let layer = ExternalNodeConsensusLayer {
             build_version: crate::metadata::SERVER_VERSION
                 .parse()
                 .context("CRATE_VERSION.parse()")?,
             config,
-            secrets: Some(secrets),
         };
         self.node.add_layer(layer);
         Ok(self)
@@ -285,36 +279,27 @@ impl<R> ExternalNodeBuilder<R> {
         let da_client_config = self.config.local.da_client.clone();
         let da_client_config = da_client_config.context("DA client config is missing")?;
 
-        if matches!(da_client_config, DAClientConfig::NoDA) {
-            self.node.add_layer(NoDAClientWiringLayer);
-            return Ok(self);
-        }
-
-        if let DAClientConfig::ObjectStore(config) = da_client_config {
-            self.node
-                .add_layer(ObjectStorageClientWiringLayer::new(config));
-            return Ok(self);
-        }
-
-        let da_client_secrets = self.config.local.secrets.data_availability.clone();
-        let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
-        match (da_client_config, da_client_secrets) {
-            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
-                self.node.add_layer(AvailWiringLayer::new(config, secret));
+        match da_client_config {
+            DAClientConfig::NoDA => {
+                self.node.add_layer(NoDAClientWiringLayer);
             }
-            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
+            DAClientConfig::ObjectStore(config) => {
                 self.node
-                    .add_layer(CelestiaWiringLayer::new(config, secret));
+                    .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+            DAClientConfig::Avail(config) => {
+                self.node.add_layer(AvailWiringLayer::new(config));
+            }
+            DAClientConfig::Celestia(config) => {
+                self.node.add_layer(CelestiaWiringLayer::new(config));
+            }
+            DAClientConfig::Eigen(mut config) => {
                 if config.eigenda_eth_rpc.is_none() {
                     config.eigenda_eth_rpc = self.config.local.secrets.l1.l1_rpc_url.clone();
                 }
-                self.node.add_layer(EigenWiringLayer::new(config, secret));
+                self.node.add_layer(EigenWiringLayer::new(config));
             }
-            _ => bail!("invalid pair of da_client and da_secrets"),
         }
-
         Ok(self)
     }
 

@@ -1,4 +1,4 @@
-use zksync_config::configs::{PostgresConfig, PostgresSecrets};
+use zksync_config::configs::PostgresConfig;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -17,7 +17,6 @@ use crate::{ConnectionPool, Core};
 #[derive(Debug)]
 pub struct PoolsLayer {
     config: PostgresConfig,
-    secrets: PostgresSecrets,
     with_master: bool,
     with_replica: bool,
 }
@@ -25,12 +24,11 @@ pub struct PoolsLayer {
 impl PoolsLayer {
     /// Creates a new builder with the provided configuration and secrets.
     /// By default, no pulls are enabled.
-    pub fn empty(config: PostgresConfig, secrets: PostgresSecrets) -> Self {
+    pub fn empty(config: PostgresConfig) -> Self {
         Self {
             config,
             with_master: false,
             with_replica: false,
-            secrets,
         }
     }
 
@@ -81,7 +79,7 @@ impl WiringLayer for PoolsLayer {
             let pool_size_master = self.config.max_connections_master.unwrap_or(pool_size);
 
             Some(PoolResource::<MasterPool>::new(
-                self.secrets.master_url()?,
+                self.config.master_url()?,
                 pool_size_master,
             ))
         } else {
@@ -92,7 +90,7 @@ impl WiringLayer for PoolsLayer {
             // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
             // on Postgres.
             let pool = PoolResource::<ReplicaPool>::new(
-                self.secrets.replica_url()?,
+                self.config.replica_url()?,
                 self.config.max_connections()?,
             );
             let pool = pool

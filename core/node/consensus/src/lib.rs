@@ -4,7 +4,7 @@
 #![allow(clippy::needless_pass_by_ref_mut)]
 
 use zksync_concurrency::ctx;
-use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
+use zksync_config::configs::consensus::ConsensusConfig;
 use zksync_dal::Core;
 use zksync_node_sync::sync_action::ActionQueueSender;
 use zksync_shared_resources::api::SyncState;
@@ -28,17 +28,16 @@ mod vm;
 pub async fn run_main_node(
     ctx: &ctx::Ctx,
     cfg: ConsensusConfig,
-    secrets: ConsensusSecrets,
     pool: zksync_dal::ConnectionPool<Core>,
 ) -> anyhow::Result<()> {
     tracing::info!(
-        is_validator = secrets.validator_key.is_some(),
+        is_validator = cfg.secrets.validator_key.is_some(),
         "running main node"
     );
 
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = mn::run_main_node(ctx, cfg, secrets, storage::ConnectionPool(pool)).await {
+    if let Err(err) = mn::run_main_node(ctx, cfg, storage::ConnectionPool(pool)).await {
         tracing::error!("Consensus actor failed: {err:#}");
     } else {
         tracing::info!("Consensus actor stopped");
@@ -51,7 +50,7 @@ pub async fn run_main_node(
 /// using JSON RPC, without starting the consensus node.
 pub async fn run_external_node(
     ctx: &ctx::Ctx,
-    cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
+    cfg: Option<ConsensusConfig>,
     pool: zksync_dal::ConnectionPool<Core>,
     sync_state: SyncState,
     main_node_client: Box<DynClient<L2>>,
@@ -64,13 +63,12 @@ pub async fn run_external_node(
         client: main_node_client.for_component("block_fetcher"),
     };
     let res = match cfg {
-        Some((cfg, secrets)) => {
+        Some(cfg) => {
             tracing::info!(
-                is_validator = secrets.validator_key.is_some(),
+                is_validator = cfg.secrets.validator_key.is_some(),
                 "running external node"
             );
-            en.run(ctx, actions, cfg, secrets, Some(build_version))
-                .await
+            en.run(ctx, actions, cfg, Some(build_version)).await
         }
         None => {
             tracing::info!("running fetcher");

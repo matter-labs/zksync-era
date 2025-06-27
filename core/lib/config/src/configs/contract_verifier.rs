@@ -3,11 +3,12 @@ use std::{
     time::Duration,
 };
 
-use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use smart_config::{de::FromSecretString, metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use zksync_basic_types::secrets::APIKey;
 
 use crate::utils::Fallback;
 
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct ContractVerifierConfig {
     /// Max time of a single compilation.
@@ -22,6 +23,10 @@ pub struct ContractVerifierConfig {
     /// Etherscan API URL that is used for contract verification in Etherscan.
     /// If not set, the Etherscan verification is disabled.
     pub etherscan_api_url: Option<String>,
+    /// Etherscan API key that is used for contract verification in Etherscan.
+    /// If not set, the Etherscan verification is disabled.
+    #[config(with = FromSecretString)]
+    pub etherscan_api_key: Option<APIKey>,
 }
 
 impl ContractVerifierConfig {
@@ -32,9 +37,27 @@ impl ContractVerifierConfig {
 
 #[cfg(test)]
 mod tests {
+    use secrecy::ExposeSecret;
     use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
+
+    impl PartialEq for ContractVerifierConfig {
+        fn eq(&self, other: &Self) -> bool {
+            self.compilation_timeout == other.compilation_timeout
+                && self.prometheus_port == other.prometheus_port
+                && self.port == other.port
+                && self.etherscan_api_url == other.etherscan_api_url
+                && self
+                    .etherscan_api_key
+                    .as_ref()
+                    .map(ExposeSecret::expose_secret)
+                    == other
+                        .etherscan_api_key
+                        .as_ref()
+                        .map(ExposeSecret::expose_secret)
+        }
+    }
 
     fn expected_config() -> ContractVerifierConfig {
         ContractVerifierConfig {
@@ -42,6 +65,7 @@ mod tests {
             prometheus_port: 3314,
             port: 3070,
             etherscan_api_url: Some("https://api.etherscan.io/".to_owned()),
+            etherscan_api_key: Some(APIKey("CORRECT_HORSE".into())),
         }
     }
 
@@ -52,6 +76,7 @@ mod tests {
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
             CONTRACT_VERIFIER_PORT=3070
             CONTRACT_VERIFIER_ETHERSCAN_API_URL="https://api.etherscan.io/"
+            CONTRACT_VERIFIER_ETHERSCAN_API_KEY=CORRECT_HORSE
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -68,6 +93,7 @@ mod tests {
           compilation_timeout: 30
           prometheus_port: 3314
           etherscan_api_url: https://api.etherscan.io/
+          etherscan_api_key: CORRECT_HORSE
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ContractVerifierConfig = test_complete(yaml).unwrap();
@@ -81,6 +107,7 @@ mod tests {
           compilation_timeout: 30s
           prometheus_port: 3314
           etherscan_api_url: https://api.etherscan.io/
+          etherscan_api_key: CORRECT_HORSE
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ContractVerifierConfig = test_complete(yaml).unwrap();

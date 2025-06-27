@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use zksync_config::{configs::PostgresSecrets, full_config_schema, sources::ConfigFilePaths};
+use zksync_config::{configs::PostgresConfig, full_config_schema, sources::ConfigFilePaths};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::contract_verification::api::SourceCodeData;
 
@@ -12,7 +12,7 @@ async fn main() {
 
     let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
-    let config: PostgresSecrets = repo.parse().unwrap();
+    let config: PostgresConfig = repo.parse().unwrap();
 
     let pool = ConnectionPool::<Core>::singleton(config.replica_url().unwrap())
         .build()

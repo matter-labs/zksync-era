@@ -1,9 +1,6 @@
 use std::num::NonZeroUsize;
 
-use smart_config::{
-    de::{Optional, Serde},
-    DescribeConfig, DeserializeConfig,
-};
+use smart_config::{de::Serde, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::L1BatchNumber;
 
 use crate::ObjectStoreConfig;
@@ -44,7 +41,7 @@ pub struct SnapshotRecoveryConfig {
     #[config(default)]
     pub enabled: bool,
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
-    #[config(with = Optional(Serde![int]))]
+    #[config(with = Serde![int])]
     pub l1_batch: Option<L1BatchNumber>,
     /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
     /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.

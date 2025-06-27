@@ -9,10 +9,7 @@ use rust_eigenda_client::{
 };
 use subxt_signer::ExposeSecret;
 use url::Url;
-use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PointsSource},
-    EigenConfig,
-};
+use zksync_config::{configs::da_client::eigen::PointsSource, EigenConfig};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
@@ -29,7 +26,6 @@ pub struct EigenDAClient {
 impl EigenDAClient {
     pub async fn new(
         config: EigenConfig,
-        secrets: EigenSecrets,
         blob_provider: Arc<dyn BlobProvider>,
     ) -> anyhow::Result<Self> {
         let url = Url::from_str(
@@ -57,7 +53,7 @@ impl EigenDAClient {
             config.custom_quorum_numbers,
         )?;
         let signer = Signer::new(
-            SecretKey::from_str(secrets.private_key.0.expose_secret())
+            SecretKey::from_str(config.private_key.0.expose_secret())
                 .map_err(|_| anyhow::anyhow!("Invalid private key"))?,
         );
 

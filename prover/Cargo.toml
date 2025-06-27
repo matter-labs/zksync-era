@@ -16,6 +16,7 @@ categories = ["cryptography"]
 [workspace.dependencies]
 # Common dependencies
 anyhow = "1.0"
+assert_matches = "1.5"
 async-trait = "0.1"
 axum = "0.7.5"
 bincode = "1"
@@ -65,7 +66,7 @@ tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.3.2"
-smart-config = "=0.2.0-pre"
+smart-config = "=0.3.0-pre"
 
 circuit_definitions = "=0.152.3"
 circuit_sequencer_api = "=0.152.3"
@@ -102,6 +103,7 @@ zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 
 # Prover workspace dependencies
+zksync_prover_config = { version = "=21.1.0", path = "crates/lib/prover_config" }
 zksync_prover_dal = { version = "=21.1.0", path = "crates/lib/prover_dal" }
 zksync_prover_fri_types = { version = "=21.1.0", path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { version = "=21.1.0", path = "crates/lib/prover_fri_utils" }

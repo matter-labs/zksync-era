@@ -13,7 +13,7 @@ use anyhow::Context as _;
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
-    configs::{PostgresSecrets, PrometheusConfig},
+    configs::{PostgresConfig, PrometheusConfig},
     full_config_schema,
     sources::ConfigFilePaths,
     SnapshotsCreatorConfig,
@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let postgres_config: PostgresConfig = repo.parse()?;
     let creator_config: SnapshotsCreatorConfig = repo.parse()?;
     let prometheus_config: PrometheusConfig = repo.parse()?;
 
@@ -88,13 +88,13 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let replica_pool = ConnectionPool::<Core>::builder(
-        database_secrets.replica_url()?,
+        postgres_config.replica_url()?,
         creator_config.concurrent_queries_count,
     )
     .build()
     .await?;
 
-    let master_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
+    let master_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await?;
 

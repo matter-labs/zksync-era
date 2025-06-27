@@ -13,8 +13,8 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
-        CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
-        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        CommitmentGeneratorConfig, ConsistencyCheckerConfig, L1Secrets, ObservabilityConfig,
+        PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -245,7 +245,10 @@ impl LocalConfig {
     /// Schema is chosen to be compatible both with file-based and env-based configs used for the node
     /// previously. This leads to deprecated aliases all around, which will hopefully be removed soon-ish.
     pub fn schema() -> anyhow::Result<ConfigSchema> {
-        let mut schema = ConfigSchema::new(&Self::DESCRIPTION, "");
+        let mut schema = ConfigSchema::default();
+        schema
+            .coerce_serde_enums(true)
+            .insert(&Self::DESCRIPTION, "")?;
         // We don't get observability config from the schema directly.
         schema
             .insert(&ObservabilityConfig::DESCRIPTION, "observability")?
@@ -276,18 +279,12 @@ impl LocalConfig {
             .single_mut(&L1Secrets::DESCRIPTION)?
             .push_alias("networks")?
             .push_deprecated_alias("")?;
-        schema
-            .single_mut(&DataAvailabilitySecrets::DESCRIPTION)?
-            .push_deprecated_alias("da_secrets")?;
         Ok(schema)
     }
 
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
-        use zksync_config::configs::{
-            consensus::ConsensusSecrets, database::MerkleTreeConfig, secrets::PostgresSecrets,
-            ContractVerifierSecrets, ExperimentalDBConfig,
-        };
+        use zksync_config::configs::{database::MerkleTreeConfig, ExperimentalDBConfig};
 
         let mut api = ApiConfig::for_tests();
         // Set all ports to 0 to assign free ports, so that they don't conflict for high-level tests.
@@ -305,6 +302,7 @@ impl LocalConfig {
             },
             prometheus: PrometheusConfig::default(),
             postgres: PostgresConfig {
+                server_url: Some(test_pool.database_url().clone()),
                 max_connections: Some(test_pool.max_size()),
                 ..PostgresConfig::default()
             },
@@ -318,17 +316,10 @@ impl LocalConfig {
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
             secrets: Secrets {
-                consensus: ConsensusSecrets::default(),
-                postgres: PostgresSecrets {
-                    server_url: Some(test_pool.database_url().clone()),
-                    ..PostgresSecrets::default()
-                },
                 l1: L1Secrets {
                     l1_rpc_url: Some("http://localhost:8545/".parse().unwrap()), // Not used, but must be provided
                     ..L1Secrets::default()
                 },
-                data_availability: None,
-                contract_verifier: ContractVerifierSecrets::default(),
             },
         }
     }

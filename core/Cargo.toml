@@ -218,8 +218,8 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.3.2"
 vise-exporter = "0.3.2"
-smart-config = "=0.2.0-pre"
-smart-config-commands = "=0.2.0-pre"
+smart-config = "=0.3.0-pre"
+smart-config-commands = "=0.3.0-pre"
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies

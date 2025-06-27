@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
-use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
+use zksync_config::configs::consensus::ConsensusConfig;
 use zksync_consensus_engine::EngineManager;
 use zksync_consensus_executor::{self as executor};
 
@@ -18,7 +18,6 @@ use crate::{
 pub async fn run_main_node(
     ctx: &ctx::Ctx,
     cfg: ConsensusConfig,
-    secrets: ConsensusSecrets,
     pool: ConnectionPool,
 ) -> anyhow::Result<()> {
     let res: ctx::Result<()> = scope::run!(&ctx, |ctx, s| async {
@@ -61,7 +60,7 @@ pub async fn run_main_node(
         s.spawn_bg(async { Ok(engine_runner.run(ctx).await.context("BlockStore::run()")?) });
 
         let executor = executor::Executor {
-            config: config::executor(&cfg, &secrets, &global_config, None)?,
+            config: config::executor(&cfg, &global_config, None)?,
             engine_manager,
         };
 

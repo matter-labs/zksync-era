@@ -4,10 +4,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{ContractVerifierSecrets, PostgresSecrets},
-    full_config_schema,
-    sources::ConfigFilePaths,
-    ContractVerifierConfig,
+    full_config_schema, sources::ConfigFilePaths, ContractVerifierConfig, PostgresConfig,
 };
 use zksync_contract_verifier_lib::{
     etherscan::{metrics::EtherscanVerifierMetrics, EtherscanVerifier},
@@ -74,12 +71,11 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
-    let database_secrets: PostgresSecrets = repo.parse()?;
-    let contract_verifier_secrets: ContractVerifierSecrets = repo.parse()?;
+    let postgres_config: PostgresConfig = repo.parse()?;
     let verifier_config: ContractVerifierConfig = repo.parse()?;
 
     let pool = ConnectionPool::<Core>::singleton(
-        database_secrets
+        postgres_config
             .master_url()
             .context("Master DB URL is absent")?,
     )
@@ -89,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     perform_storage_migration(&pool).await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let etherscan_api_key = contract_verifier_secrets.etherscan_api_key;
+    let etherscan_api_key = verifier_config.etherscan_api_key;
     let etherscan_verifier_enabled =
         verifier_config.etherscan_api_url.is_some() && etherscan_api_key.is_some();
     let contract_verifier = ContractVerifier::new(

@@ -1,8 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
-
-use crate::ObjectStoreConfig;
+use zksync_config::ObjectStoreConfig;
 
 /// Configuration for the fri prover application
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -23,9 +22,9 @@ mod tests {
         testing::{test_complete, Tester},
         Environment, Yaml,
     };
+    use zksync_config::configs::object_store::ObjectStoreMode;
 
     use super::*;
-    use crate::configs::object_store::ObjectStoreMode;
 
     fn expected_config() -> FriProverConfig {
         FriProverConfig {

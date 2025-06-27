@@ -1,4 +1,4 @@
-use zksync_config::{configs::da_client::celestia::CelestiaSecrets, CelestiaConfig};
+use zksync_config::CelestiaConfig;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::wiring_layer::{WiringError, WiringLayer};
 
@@ -7,12 +7,11 @@ use crate::celestia::CelestiaClient;
 #[derive(Debug)]
 pub struct CelestiaWiringLayer {
     config: CelestiaConfig,
-    secrets: CelestiaSecrets,
 }
 
 impl CelestiaWiringLayer {
-    pub fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> Self {
-        Self { config, secrets }
+    pub fn new(config: CelestiaConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -26,7 +25,7 @@ impl WiringLayer for CelestiaWiringLayer {
     }
 
     async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
-        let client = CelestiaClient::new(self.config, self.secrets).await?;
+        let client = CelestiaClient::new(self.config).await?;
         Ok(Box::new(client))
     }
 }

@@ -10,13 +10,9 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
-use zksync_config::{
-    configs::{FriProofCompressorConfig, GeneralConfig, PostgresSecrets},
-    full_config_schema,
-    sources::ConfigFilePaths,
-};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_proof_fri_compressor_service::proof_fri_compressor_runner;
+use zksync_prover_config::{CompleteProverConfig, FriProofCompressorConfig};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::{compressor::load_all_resources, keystore::Keystore};
@@ -86,23 +82,18 @@ async fn run_inner(
     let start_time = Instant::now();
     let opt = Cli::parse();
     let is_fflonk = opt.fflonk.unwrap_or(false);
-    let schema = full_config_schema();
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path,
-        secrets: opt.secrets_path,
-        ..ConfigFilePaths::default()
-    };
-    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+    let schema = CompleteProverConfig::schema()?;
+    let config_sources = CompleteProverConfig::config_sources(opt.config_path, opt.secrets_path)?;
 
     let _observability_guard = config_sources.observability()?.install()?;
 
     let mut repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let general_config: CompleteProverConfig = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config
         .context("FriProofCompressorConfig")?;
+    let postgres_config = general_config.postgres_config;
     let prover_config = general_config
         .prover_config
         .context("ProverConfig doesn't exist")?;
@@ -118,7 +109,7 @@ async fn run_inner(
         prometheus_exporter_config.run(metrics_stop_receiver),
     )];
 
-    let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
+    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;

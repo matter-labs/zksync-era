@@ -11,13 +11,8 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
-use zksync_config::{
-    configs::{GeneralConfig, PostgresSecrets},
-    full_config_schema,
-    sources::ConfigFilePaths,
-    ObjectStoreConfig,
-};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_config::{object_store::ObjectStoreConfig, CompleteProverConfig, PostgresConfig};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
@@ -98,19 +93,13 @@ async fn run_inner(
     let start_time = Instant::now();
 
     let opt = Cli::parse();
-    let schema = full_config_schema();
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path,
-        secrets: opt.secrets_path,
-        ..ConfigFilePaths::default()
-    };
-    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+    let schema = CompleteProverConfig::schema()?;
+    let config_sources = CompleteProverConfig::config_sources(opt.config_path, opt.secrets_path)?;
 
     let _observability_guard = config_sources.observability()?.install()?;
 
     let mut repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let general_config: CompleteProverConfig = repo.parse()?;
 
     let prover_config = general_config
         .prover_config
@@ -129,7 +118,7 @@ async fn run_inner(
     )];
 
     let (connection_pool, object_store, prover_context, setup_data_cache, hints) = load_resources(
-        database_secrets,
+        general_config.postgres_config,
         opt.max_allocation,
         object_store_config,
         prover_config.setup_data_path,
@@ -187,7 +176,7 @@ async fn run_inner(
 /// - setup data - necessary for circuit proving
 /// - finalization hints - necessary for generating witness vectors
 async fn load_resources(
-    database_secrets: PostgresSecrets,
+    postgres_config: PostgresConfig,
     max_gpu_vram_allocation: Option<usize>,
     object_store_config: ObjectStoreConfig,
     setup_data_path: PathBuf,
@@ -198,9 +187,7 @@ async fn load_resources(
     SetupDataCache,
     FinalizationHintsCache,
 )> {
-    let database_url = database_secrets
-        .prover_url
-        .context("no prover DB URl present")?;
+    let database_url = postgres_config.prover_url()?;
     // 2 connections for the witness vector generator job pickers (1 each) and 1 for gpu circuit prover job saver
     let max_connections = 3;
     let connection_pool = ConnectionPool::<Prover>::builder(database_url, max_connections)

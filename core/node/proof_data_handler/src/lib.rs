@@ -4,14 +4,14 @@ use anyhow::Context as _;
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use processor::Locking;
 use tokio::sync::watch;
-use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig};
+use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, SubmitProofRequest,
     SubmitProofResponse,
 };
-use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
+use zksync_types::{basic_fri_types::ApiMode, L1BatchId, L1BatchNumber, L2ChainId};
 
 pub use crate::{
     client::ProofDataHandlerClient,
@@ -30,13 +30,11 @@ pub async fn run_server(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
-    api_mode: ApiMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::info!("Starting proof data handler server on {bind_address}");
-    let app =
-        create_proof_processing_router(blob_store, connection_pool, config, api_mode, l2_chain_id);
+    let app = create_proof_processing_router(blob_store, connection_pool, config, l2_chain_id);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -58,12 +56,11 @@ fn create_proof_processing_router(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
-    api_mode: ApiMode,
     l2_chain_id: L2ChainId,
 ) -> Router {
     let mut router = Router::new();
 
-    if api_mode == ApiMode::Legacy {
+    if config.api_mode == ApiMode::Legacy {
         let get_proof_gen_processor = Processor::<Locking>::new(
             blob_store.clone(),
             connection_pool.clone(),

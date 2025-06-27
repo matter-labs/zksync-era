@@ -31,6 +31,9 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+assert_matches.workspace = true
+
 [features]
 default = []
 observability_ext = ["dep:zksync_vlog", "dep:vise"]

@@ -6,14 +6,11 @@ use client::{proof_gen_data_fetcher::ProofGenDataFetcher, proof_submitter::Proof
 use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
-use zksync_config::{
-    configs::{fri_prover_gateway::ApiMode, GeneralConfig, PostgresSecrets},
-    full_config_schema,
-    sources::ConfigFilePaths,
-};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_config::CompleteProverConfig;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
+use zksync_types::basic_fri_types::ApiMode;
 
 mod client;
 mod error;
@@ -25,19 +22,13 @@ mod traits;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let schema = full_config_schema();
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path,
-        secrets: opt.secrets_path,
-        ..ConfigFilePaths::default()
-    };
-    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+    let schema = CompleteProverConfig::schema()?;
+    let config_sources = CompleteProverConfig::config_sources(opt.config_path, opt.secrets_path)?;
 
     let _observability_guard = config_sources.observability()?.install()?;
 
     let mut repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let general_config: CompleteProverConfig = repo.parse()?;
 
     let config = general_config
         .prover_gateway
@@ -45,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
 
     let postgres_config = general_config.postgres_config;
     let pool = ConnectionPool::<Prover>::builder(
-        database_secrets.prover_url()?,
+        postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()

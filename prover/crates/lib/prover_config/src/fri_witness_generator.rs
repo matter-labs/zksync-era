@@ -1,10 +1,6 @@
 use std::time::Duration;
 
-use smart_config::{
-    de::{Optional, Serde},
-    metadata::TimeUnit,
-    DescribeConfig, DeserializeConfig,
-};
+use smart_config::{de::Serde, metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::L1BatchNumber;
 
 /// Configuration for the fri witness generation
@@ -26,7 +22,7 @@ pub struct FriWitnessGeneratorConfig {
     // Optional l1 batch number to process block until(inclusive).
     // This parameter is used in case of performing circuit upgrades(VK/Setup keys),
     // to not let witness-generator pick new job and finish all the existing jobs with old circuit.
-    #[config(with = Optional(Serde![int]))]
+    #[config(with = Serde![int])]
     pub last_l1_batch_to_process: Option<L1BatchNumber>,
 
     pub prometheus_listener_port: Option<u16>,

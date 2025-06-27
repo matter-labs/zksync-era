@@ -1,9 +1,6 @@
 use std::{num::NonZeroUsize, time::Duration};
 
-use smart_config::{
-    de::{Optional, Serde},
-    DescribeConfig, DeserializeConfig,
-};
+use smart_config::{de::Serde, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{url::SensitiveUrl, Address, L1ChainId, L2ChainId, SLChainId};
 
 /// L1 contract configuration shared with the main node.
@@ -25,7 +22,7 @@ pub struct NetworksConfig {
     #[config(with = Serde![int])]
     pub l1_chain_id: L1ChainId,
     /// Chain ID of the gateway network, if this network settles on one.
-    #[config(with = Optional(Serde![int]))]
+    #[config(with = Serde![int])]
     pub gateway_chain_id: Option<SLChainId>,
     /// URL of an L2 peer node used to sync from.
     #[config(secret, with = Serde![str])]

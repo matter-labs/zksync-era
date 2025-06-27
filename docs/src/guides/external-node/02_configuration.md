@@ -116,6 +116,6 @@ long-term commitment or irreversible decisions, unlike enabling pruning for a no
   the other option is `json` (recommended for deployments).
 - `RUST_LOG` variable allows you to set up the logs granularity (e.g. make the Node emit fewer logs). You can read about
   the format [here](https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging).
-- `MISC_SENTRY_URL` and `MISC_OTLP_URL` variables can be configured to set up Sentry and OpenTelemetry exporters.
+- `MISC_SENTRY_URL` variable can be configured to set up a Sentry exporter.
 - If Sentry is configured, you also have to set `EN_SENTRY_ENVIRONMENT` variable to configure the environment in events
   reported to sentry.
