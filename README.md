@@ -82,6 +82,26 @@ And then upload via the webpage: https://fri-verifier.vercel.app/
 
 Go to `zksync_os_snark_prover` directory, and follow instructions from there.
 
+
+## Updating app.bin & Verification keys
+
+Snark verification key (that is put inside Verifier.sol) is computed based off app.bin and air-bender versions. So any change to any of those things,
+means that we have to recompute it.
+
+Here are the steps:
+
+* pick a version of airbender (for example 0.3.1)
+* choose the same version of zksync-os-wrapper (if it doesn't exist - you'll have to create it - instructions are in zksync-os-wrapper readme)
+* create a version of zksync-os - preferably try to depend on the same airbender version as above (otherwise there might be some incompatibilities)
+  * once you submit the PR with zksync-os dependency - the CI will generate the new app.bin automatically
+  * copy this app.bin into zksync-era
+* now, to generate the key, use the generate-snark-vk command from https://github.com/matter-labs/zkos-wrapper/blob/main/docs/end_to_end.md
+  * make sure to pass the same app.bin that you're using, and the same trusted setup, that your snark wrapper will use
+  * once you have the vk file - put it into contracts/tools/data/plonk_scheduler_key.json file, and run the command zksync_verifier_contract_generator described in contracts/tools/README
+  * this will update the L2Verifier.sol automatically
+* create PR with the new app.bin and the contract changes. 
+
+
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
 
 [![Logo](eraLogo.png)](https://zksync.io/)
