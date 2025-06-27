@@ -162,6 +162,14 @@ impl ChainConfig {
         self.configs.join(GATEWAY_CHAIN_FILE)
     }
 
+    pub fn abosulte_path_to_configs(&self) -> PathBuf {
+        if self.configs.is_absolute() {
+            return self.configs.clone();
+        } else {
+            self.self_path.join(self.configs.clone())
+        }
+    }
+
     pub fn path_to_l1_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
     }
