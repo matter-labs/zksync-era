@@ -59,7 +59,7 @@ A high-level overview of the send-and-verify flow:
 The `proveL2MessageInclusionShared` function requires a Merkle-tree proof (see [message root](./message_root.md)). You can obtain it by:
 
 * Querying the chain via the [zksync RPC API](https://docs.zksync.io/build/api-reference/zks-rpc#zks_getl2tol1msgproof)
-* Generating it off-chain from the L1 state
+* Generating it off-chain from the SL state
 
 #### How does this differ from other layers (InteropTransactions, InteropCalls)?
 
