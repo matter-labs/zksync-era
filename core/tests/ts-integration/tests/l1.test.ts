@@ -8,7 +8,13 @@
 import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { bigIntMax, deployContract, getTestContract, scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import {
+    deployContract,
+    getTestContract,
+    scaledGasPrice,
+    waitForL2ToL1LogProof,
+    maxL2GasLimitForPriorityTxs
+} from '../src/helpers';
 import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 import { waitForNewL1Batch } from 'utils';
 
@@ -365,21 +371,3 @@ describe('Tests for L1 behavior', () => {
         await testMaster.deinitialize();
     });
 });
-
-function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
-    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
-    // using binary search.
-    const overhead = getOverheadForTransaction(
-        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
-        // will be greater than `overheadForLength` for a typical transacction
-        0n
-    );
-    return maxGasBodyLimit + overhead;
-}
-
-function getOverheadForTransaction(encodingLength: bigint): bigint {
-    const TX_SLOT_OVERHEAD_GAS = 10_000n;
-    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
-
-    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
-}

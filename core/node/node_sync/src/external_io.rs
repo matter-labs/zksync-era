@@ -343,7 +343,7 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!(

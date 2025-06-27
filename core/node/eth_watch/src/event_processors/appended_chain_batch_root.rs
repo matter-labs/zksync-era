@@ -121,7 +121,7 @@ impl EventProcessor for BatchRootProcessor {
                 .await?
                 .context("Missing chain log proof for finalized batch")?;
             let chain_proof_vector =
-                Self::chain_proof_vector(sl_l1_batch_number, chain_agg_proof, sl_chain_id);
+                Self::chain_proof_vector(sl_l1_batch_number.0, chain_agg_proof, sl_chain_id);
 
             for (batch_number, batch_root) in &chain_batches {
                 let root_from_db = transaction
@@ -214,13 +214,13 @@ impl BatchRootProcessor {
         full_preimage
     }
 
-    fn chain_proof_vector(
-        sl_l1_batch_number: L1BatchNumber,
+    pub(crate) fn chain_proof_vector(
+        batch_or_block_number: u32, // we use u32 here as this method is shared between two processors
         chain_agg_proof: ChainAggProof,
         sl_chain_id: SLChainId,
     ) -> Vec<H256> {
-        let sl_encoded_data =
-            (U256::from(sl_l1_batch_number.0) << 128u32) + chain_agg_proof.chain_id_leaf_proof_mask;
+        let sl_encoded_data = (U256::from(batch_or_block_number) << 128u32)
+            + chain_agg_proof.chain_id_leaf_proof_mask;
 
         let mut metadata = [0u8; 32];
         metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;

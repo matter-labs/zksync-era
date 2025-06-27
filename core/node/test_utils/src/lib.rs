@@ -56,6 +56,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
             timestamp,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             fair_l2_gas_price: 1,

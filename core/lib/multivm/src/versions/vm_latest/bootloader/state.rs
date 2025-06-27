@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::{max, Ordering};
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -17,7 +17,7 @@ use crate::{
         bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
-            utils::{apply_l2_block, apply_tx_to_memory},
+            utils::{apply_l2_block, apply_tx_to_memory, L2BlockApplicationConfig},
         },
         constants::get_tx_description_offset,
         types::TransactionData,
@@ -114,6 +114,18 @@ impl BootloaderState {
         self.subversion
     }
 
+    pub(crate) fn get_number_of_applied_interop_roots(&self) -> usize {
+        self.l2_blocks
+            .iter()
+            .take(self.l2_blocks.len() - 1)
+            .map(|block| block.interop_roots.len())
+            .sum()
+    }
+
+    pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
+        max(self.l2_blocks.len(), 1) - 1
+    }
+
     pub(crate) fn push_tx(
         &mut self,
         tx: TransactionData,
@@ -135,16 +147,22 @@ impl BootloaderState {
         );
 
         let mut memory = vec![];
+        let config: L2BlockApplicationConfig = L2BlockApplicationConfig {
+            tx_index: self.free_tx_index(),
+            start_new_l2_block: self.last_l2_block().txs.is_empty(),
+            subversion: self.subversion,
+            apply_interop_roots: self.last_l2_block().txs.is_empty(),
+            number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
+            preexisting_blocks_number: self.get_preexisting_blocks_number(),
+        };
         let compressed_bytecode_size = apply_tx_to_memory(
             &mut memory,
             &bootloader_tx,
             self.last_l2_block(),
-            self.free_tx_index(),
             self.free_tx_offset(),
             self.compressed_bytecodes_encoding,
             self.execution_mode,
-            self.last_l2_block().txs.is_empty(),
-            self.subversion,
+            config,
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
@@ -186,23 +204,37 @@ impl BootloaderState {
         let mut tx_index = 0;
         for l2_block in &self.l2_blocks {
             for (num, tx) in l2_block.txs.iter().enumerate() {
+                let config: L2BlockApplicationConfig = L2BlockApplicationConfig {
+                    tx_index,
+                    start_new_l2_block: num == 0,
+                    subversion: self.subversion,
+                    apply_interop_roots: num == 0,
+                    number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
+                    preexisting_blocks_number: self.get_preexisting_blocks_number(),
+                };
                 let compressed_bytecodes_size = apply_tx_to_memory(
                     &mut initial_memory,
                     tx,
                     l2_block,
-                    tx_index,
                     offset,
                     compressed_bytecodes_offset,
                     self.execution_mode,
-                    num == 0,
-                    self.subversion,
+                    config,
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(&mut initial_memory, l2_block, tx_index, self.subversion)
+                apply_l2_block(
+                    &mut initial_memory,
+                    l2_block,
+                    tx_index,
+                    self.subversion,
+                    true,
+                    self.get_number_of_applied_interop_roots(),
+                    self.get_preexisting_blocks_number(),
+                )
             }
         }
 
@@ -272,8 +304,13 @@ impl BootloaderState {
                 number: block.number + 1,
                 prev_block_hash: block.get_hash(),
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             });
+        } else {
+            let block = self.last_mut_l2_block();
+            block.interop_roots = vec![];
         }
+
         self.last_l2_block()
     }
 

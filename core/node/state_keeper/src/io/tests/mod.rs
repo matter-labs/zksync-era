@@ -247,7 +247,7 @@ fn create_block_seal_command(
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_legacy_shared_bridge_addr: Some(Address::default()),
-        pre_insert_txs: false,
+        pre_insert_data: false,
         pubdata_params: PubdataParams::default(),
     }
 }
@@ -262,6 +262,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let tx = create_transaction(10, 100);
@@ -353,6 +354,7 @@ async fn processing_events_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let events = (0_u8..10).map(|i| VmEvent {
@@ -429,6 +431,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let static_factory_deps: Vec<_> = (0_u8..10)

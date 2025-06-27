@@ -52,6 +52,7 @@ fn to_fetched_block(
             .into_iter()
             .map(FetchedTransaction::new)
             .collect(),
+        interop_roots: payload.interop_roots.clone(),
     })
 }
 

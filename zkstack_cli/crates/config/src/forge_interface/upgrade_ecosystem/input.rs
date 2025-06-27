@@ -1,4 +1,4 @@
-use ethers::types::{Address, H256};
+use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
@@ -9,18 +9,22 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GatewayEcosystemUpgradeInput {
+pub struct EcosystemUpgradeInput {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
-    pub contracts: GatewayUpgradeContractsConfig,
+    pub contracts: EcosystemUpgradeContractsConfig,
     pub tokens: GatewayUpgradeTokensConfig,
     pub governance_upgrade_timer_initial_delay: u64,
+    pub support_l2_legacy_shared_bridge_test: bool,
+    pub old_protocol_version: String,
+    pub priority_txs_l2_gas_limit: u64,
+    pub max_expected_l1_gas_price: u64,
 }
 
-impl ZkStackConfig for GatewayEcosystemUpgradeInput {}
+impl ZkStackConfig for EcosystemUpgradeInput {}
 
-impl GatewayEcosystemUpgradeInput {
+impl EcosystemUpgradeInput {
     pub fn new(
         new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
@@ -36,7 +40,7 @@ impl GatewayEcosystemUpgradeInput {
             owner_address: current_contracts_config.l1.governance_addr,
             // TODO: for local testing, even 0 is fine - but before prod, we should load it from some configuration.
             governance_upgrade_timer_initial_delay: 0,
-            contracts: GatewayUpgradeContractsConfig {
+            contracts: EcosystemUpgradeContractsConfig {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
@@ -69,7 +73,7 @@ impl GatewayEcosystemUpgradeInput {
                 bridgehub_proxy_address: current_contracts_config
                     .ecosystem_contracts
                     .bridgehub_proxy_addr,
-                old_shared_bridge_proxy_address: current_contracts_config.bridges.shared.l1_address,
+                shared_bridge_proxy_address: current_contracts_config.bridges.shared.l1_address,
                 state_transition_manager_address: current_contracts_config
                     .ecosystem_contracts
                     .state_transition_proxy_addr,
@@ -81,16 +85,29 @@ impl GatewayEcosystemUpgradeInput {
                 old_validator_timelock: current_contracts_config
                     .ecosystem_contracts
                     .validator_timelock_addr,
+                governance_security_council_address: Address::zero(),
+                latest_protocol_version: new_genesis_input.protocol_version.pack(),
+                evm_emulator_hash: new_genesis_input.evm_emulator_hash.unwrap_or_default(),
+                l1_bytecodes_supplier_addr: current_contracts_config
+                    .ecosystem_contracts
+                    .l1_bytecodes_supplier_addr
+                    .expect("l1_bytecodes_supplier_addr is not set"),
+                protocol_upgrade_handler_proxy_address: Address::zero(),
+                rollup_da_manager: Address::zero(),
             },
             tokens: GatewayUpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
+            support_l2_legacy_shared_bridge_test: false,
+            old_protocol_version: "0x1c00000000".to_string(),
+            priority_txs_l2_gas_limit: 800,
+            max_expected_l1_gas_price: 10000000000,
         }
     }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GatewayUpgradeContractsConfig {
+pub struct EcosystemUpgradeContractsConfig {
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
     pub create2_factory_salt: H256,
@@ -114,12 +131,19 @@ pub struct GatewayUpgradeContractsConfig {
     pub default_aa_hash: H256,
 
     pub bridgehub_proxy_address: Address,
-    pub old_shared_bridge_proxy_address: Address,
+    pub shared_bridge_proxy_address: Address,
     pub state_transition_manager_address: Address,
     pub transparent_proxy_admin: Address,
     pub era_diamond_proxy: Address,
     pub legacy_erc20_bridge_address: Address,
     pub old_validator_timelock: Address,
+
+    pub governance_security_council_address: Address,
+    pub latest_protocol_version: U256,
+    pub evm_emulator_hash: H256,
+    pub l1_bytecodes_supplier_addr: Address,
+    pub protocol_upgrade_handler_proxy_address: Address,
+    pub rollup_da_manager: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

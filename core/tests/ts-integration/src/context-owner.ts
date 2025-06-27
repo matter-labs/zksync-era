@@ -193,7 +193,7 @@ export class TestContextOwner {
         const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        const erc20Bridge = await bridgehub.sharedBridge();
+        const erc20Bridge = await this.mainSyncWallet.getL1AssetRouter();
         const baseToken = await bridgehub.baseToken(chainId);
 
         const erc20Token = this.env.erc20Token.l1Address;

@@ -275,6 +275,15 @@ impl UpdatesManager {
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
         tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
     }
+
+    pub fn clear_interop_roots(&mut self) {
+        tracing::debug!(
+            "Clearing interop roots for l2 block {:?}: {:?}",
+            self.l2_block.number,
+            self.l2_block.interop_roots
+        );
+        self.l2_block.interop_roots.clear();
+    }
 }
 
 #[derive(Debug)]
@@ -415,6 +424,10 @@ impl L2BlockSealCommand {
                 self.l2_block.executed_transactions.is_empty(),
                 "fictive L2 block must not have transactions"
             );
+            anyhow::ensure!(
+                self.l2_block.interop_roots.is_empty(),
+                "fictive L2 block must not have interop roots"
+            );
         } else {
             anyhow::ensure!(
                 !self.l2_block.executed_transactions.is_empty(),
@@ -494,7 +507,7 @@ impl L2BlockSealCommand {
     fn report_transaction_metrics(&self) {
         const SLOW_INCLUSION_DELAY: Duration = Duration::from_secs(600);
 
-        if self.pre_insert_txs {
+        if self.pre_insert_data {
             // This I/O logic is running on the EN. The reported metrics / logs would be meaningless:
             //
             // - If `received_timestamp_ms` are copied from the main node, they can be far in the past (especially during the initial EN sync).
