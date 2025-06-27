@@ -164,7 +164,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
-    let src_permissions_path = ecosystem_path.join("private-rpc/example-permissions.yaml");
+    let src_permissions_path = "example-permissions.yaml";
     let dst_permissions_dir = ecosystem_path
         .join("chains")
         .join(chain_name.clone())
