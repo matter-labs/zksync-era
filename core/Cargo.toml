@@ -282,16 +282,16 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 #zk_os_evm_interpreter = { package = "evm_interpreter", path="../../zk_ee/evm_interpreter" }
 
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", tag = "0.0.2", features = ["evm-compatibility", "unlimited_native"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", tag = "0.0.2"}
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", tag = "0.0.2"}
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", tag = "0.0.2", features = ["evm-compatibility"] }
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4", features = ["evm-compatibility", "unlimited_native"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4"}
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4"}
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4"}
 
 # only used for verifinfg proofs
-air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.2.0" }
-execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.2.0" }
-verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.2.0" }
-full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.2.0" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
+verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
+full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
 
 # New VM
 zksync_vm2 = "=0.4.0"
