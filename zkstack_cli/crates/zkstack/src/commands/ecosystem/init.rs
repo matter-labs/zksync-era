@@ -382,7 +382,7 @@ async fn init_chains(
             .load_chain(Some(chain_name.clone()))
             .context(msg_chain_load_err(chain_name))?;
 
-        let chain_init_args = chain::args ::init::InitArgs {
+        let chain_init_args = chain::args::init::InitArgs {
             forge_args: final_init_args.forge_args.clone(),
             server_db_url: genesis_args.server_db_url.clone(),
             server_db_name: genesis_args.server_db_name.clone(),
