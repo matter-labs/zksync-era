@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{
@@ -17,6 +18,7 @@ use zksync_shared_metrics::EN_METRICS;
 use zksync_shared_resources::api::{SyncState, SyncStateData};
 use zksync_web3_decl::{
     client::{DynClient, L2},
+    error::ClientRpcContext,
     namespaces::EthNamespaceClient,
 };
 
@@ -93,6 +95,45 @@ pub struct SyncStateUpdater {
     main_node_client: Box<DynClient<L2>>,
 }
 
+impl SyncStateUpdater {
+    const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
+
+    async fn step(&self) -> anyhow::Result<()> {
+        let local_block = self
+            .connection_pool
+            .connection_tagged("sync_layer")
+            .await?
+            .blocks_dal()
+            .get_sealed_l2_block_number()
+            .await?;
+        let Some(local_block) = local_block else {
+            // No local blocks yet, no need to query the main node.
+            return Ok(());
+        };
+
+        let fetch_result = self
+            .main_node_client
+            .get_block_number()
+            .rpc_context("get_block_number")
+            .await;
+        let main_node_block = match fetch_result {
+            Ok(block) => block,
+            Err(err) if err.is_retryable() => {
+                tracing::warn!(%err, "Failed fetching latest block number from main node, will retry after {:?}", Self::UPDATE_INTERVAL);
+                return Ok(());
+            }
+            Err(err) => {
+                return Err(err).context("Fatal error fetching latest block number from main node")
+            }
+        };
+
+        self.sync_state.set_local_block(local_block);
+        self.sync_state
+            .set_main_node_block(main_node_block.as_u32().into());
+        Ok(())
+    }
+}
+
 #[async_trait::async_trait]
 impl Task for SyncStateUpdater {
     fn id(&self) -> TaskId {
@@ -100,26 +141,9 @@ impl Task for SyncStateUpdater {
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
-
         while !*stop_receiver.0.borrow_and_update() {
-            let local_block = self
-                .connection_pool
-                .connection()
-                .await?
-                .blocks_dal()
-                .get_sealed_l2_block_number()
-                .await?;
-
-            let main_node_block = self.main_node_client.get_block_number().await?;
-
-            if let Some(local_block) = local_block {
-                self.sync_state.set_local_block(local_block);
-                self.sync_state
-                    .set_main_node_block(main_node_block.as_u32().into());
-            }
-
-            tokio::time::timeout(UPDATE_INTERVAL, stop_receiver.0.changed())
+            self.step().await?;
+            tokio::time::timeout(Self::UPDATE_INTERVAL, stop_receiver.0.changed())
                 .await
                 .ok();
         }
