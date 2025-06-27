@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use tokio::time::MissedTickBehavior;
 use zkstack_cli_common::logger;
 
@@ -104,10 +105,21 @@ impl WaitArgs {
                 }
                 PolledComponent::HealthCheck => {
                     if response.status().is_success() {
-                        return Ok(());
-                    }
+                        // Parse response as JSON and check status field
+                        let json: serde_json::Value = response.json().await.with_context(|| {
+                            format!("failed to parse JSON response from {}", url)
+                        })?;
 
-                    if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        if let Some(status) = json.get("status") {
+                            if status.as_str() == Some("ready") {
+                                return Ok(());
+                            }
+                        }
+
+                        if verbose {
+                            logger::debug(msg_wait_not_healthy(url));
+                        }
+                    } else if response.status() == StatusCode::SERVICE_UNAVAILABLE {
                         if verbose {
                             logger::debug(msg_wait_not_healthy(url));
                         }

@@ -310,7 +310,7 @@ pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server"
 pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
 
 pub(super) fn msg_waiting_for_server_success(health_check_url: &str) -> String {
-    format!("Server is alive with health check server on {health_check_url}")
+    format!("Server reports itself as ready with health check server on {health_check_url}")
 }
 
 /// Portal related messages
