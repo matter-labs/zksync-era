@@ -5,7 +5,7 @@ use ethers::types::Address;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, docker, ethereum, logger};
 use zkstack_cli_config::{
-    portal::*, traits::SaveConfig, AppsEcosystemConfig, ChainConfig, EcosystemConfig,
+    portal::*, traits::SaveConfig, AppsEcosystemConfig, ChainConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{BaseToken, TokenInfo};
 
@@ -111,7 +111,7 @@ async fn validate_portal_config(
 }
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config: EcosystemConfig = ZkStackConfig::ecosystem(shell)?;
     // Get ecosystem level apps.yaml config
     let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;
     // Display all chains, unless --chain is passed
