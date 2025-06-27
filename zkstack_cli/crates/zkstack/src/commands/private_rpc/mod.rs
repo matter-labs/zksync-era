@@ -34,9 +34,6 @@ pub struct PrivateRpcCommandInitArgs {
     /// Initializes private proxy with network host mode. This is useful for environments that don't support host.docker.internal.
     #[clap(long)]
     pub docker_network_host: bool,
-    /// Use test permissions file for integration tests
-    #[clap(long)]
-    pub integration_test: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -167,11 +164,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
-    let src_permissions_path = if args.integration_test {
-        ecosystem_path.join("private-rpc/example-permissions-test.yaml")
-    } else {
-        ecosystem_path.join("private-rpc/example-permissions.yaml")
-    };
+    let src_permissions_path = ecosystem_path.join("private-rpc/example-permissions.yaml");
     let dst_permissions_dir = ecosystem_path
         .join("chains")
         .join(chain_name.clone())
