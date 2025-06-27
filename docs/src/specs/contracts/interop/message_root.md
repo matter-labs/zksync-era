@@ -4,7 +4,7 @@
 
 The message root is the contract on ZKsync chains that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the `MessageRoot`, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
 
-The `MessageRoot` contract is deployed both on L1 and all ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/messaging_via_gateway.md).
+The `MessageRoot` contract is deployed both on L1 and all ZKsync chains, but on ZKsync chains it is only used on GW (since it's the only ZKsync chain which is whitelisted as settlement layer, as of now). On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/messaging_via_gateway.md).
 
 ![MessageRoot](../img/message_root.png)
 
@@ -16,7 +16,7 @@ The root has the following format:
 
 `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)`
 
-where `LocalLogsRoot` is the root of the tree of messages that come from the chain itself in the given batch, while the `MessageRoot` is the root of aggregated messages from all of the chains that settle on top of the chain. For most chains the `MessageRoot` is empty (except for Gateway and L1, as currently only they are whitelisted as settlement layers). The `ChainBatchRoot` will be settled on the layer below, and be used to update the `ChainRoot` in the `MessageRoot` contract on that layer.
+where `LocalLogsRoot` is the root of the tree of messages that come from the chain itself in the given batch, while the `MessageRoot` is the root of aggregated messages from all of the chains that settle on top of the chain. For most chains the `MessageRoot` is empty. The `ChainBatchRoot` will be settled on the layer below, and be used to update the `ChainRoot` in the `MessageRoot` contract on that layer.
 
 The structure has the following recursive format:
 
@@ -33,7 +33,7 @@ Note that the `MessageRoot` appears twice in the structure. So the structure is 
 
 ## Appending new batch root leaves
 
-At the end of each batch, the `L1Messenger` system contract would query the `MessageRoot` contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s, which is the `sharedTree` root, the upmost node of the `MessageRoot` on the chain), calculate the `LocalLogsRoot` itself, and finally calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, AggregatedRootHash)` and propagate it to L1. Only the chain's final `ChainBatchRoot`s get stored on L1.
+At the end of each batch, the `L1Messenger` system contract would query the `MessageRoot` contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s, which is the `sharedTree` root, the upmost node of the `MessageRoot` on the chain), calculate the `LocalLogsRoot` itself, and finally calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, AggregatedRootHash)` and propagate it to the settlement layer. We store `ChainBatchRoot` for each executed batch on settlement layer.
 
 When ZKsync chain's batch gets executed on the settlement layer, the chain calls the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
 
@@ -43,7 +43,7 @@ When ZKsync chain's batch gets executed on the settlement layer, the chain calls
 
 To prove that a message belongs to a `MessageRoot`, we need to understand the verification process conceptually. The proof system works through a hierarchical structure where messages are aggregated at multiple levels:
 
-1. Message to Batch: First, we prove that a specific message was included in a particular batch on its origin chain. This uses the same verification mechanism as standard L2→L1 log proofs.
+1. Message to Batch: First, we prove that a specific message was included in a particular batch on its origin chain. This uses the same verification mechanism as standard L2->L1 log proofs.
 2. Batch to Chain: Next, we prove that the batch containing our message was included in the origin chain's aggregated root (`ChainRoot`). This involves proving the `BatchRootLeaf`'s inclusion in the chain's `DynamicIncrementalMerkle` tree.
 3. Chain to MessageRoot: Finally, we prove that the origin chain's root was included in the `MessageRoo`t's shared tree. This involves proving the `ChainIdLeaf`'s inclusion in the `MessageRoot`'s FullMerkle tree.
 
@@ -121,8 +121,7 @@ Another notable example of the redundancy of data, is that we also have total `M
 
 #### What if Chain doesn’t provide the proof
 
-If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
-interop message is also sent to L1.
+If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on its settlement layer.
 
 #### Message roots change frequently
 
