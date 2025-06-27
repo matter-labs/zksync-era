@@ -52,7 +52,7 @@ impl ApiConfig {
 ///
 /// - Just a `u16` port. This will bind a server to all IPv4 interfaces (i.e., `0.0.0.0`) for backward compatibility.
 /// - Full socket address (e.g., `127.0.0.1:8080`).
-/// - (For Unix systems) Path to a Unix domain socket (UDS) prefixed by `ipc:` (e.g., `ipc:chains/era/health.sock` or `ipc:/var/zksync.sock`).
+/// - (For Unix systems) Path to a Unix domain socket (UDS) prefixed by `ipc://` (e.g., `ipc://./chains/era/health.sock` or `ipc:///var/zksync.sock`).
 ///   If the path is relative, it will resolve relative to the current working directory.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BindAddress {
@@ -63,7 +63,7 @@ pub enum BindAddress {
 
 impl BindAddress {
     #[cfg(unix)]
-    const EXPECTING: &'static str = "port number (to bind to 0.0.0.0), socket address or path to the unix socket prefixed by 'ipc:'";
+    const EXPECTING: &'static str = "port number (to bind to 0.0.0.0), socket address or path to the unix socket prefixed by 'ipc://'";
     #[cfg(not(unix))]
     const EXPECTING: &'static str = "port number (to bind to 0.0.0.0) or socket address";
 
@@ -104,7 +104,7 @@ impl Serialize for BindAddress {
                 let path = path
                     .to_str()
                     .ok_or_else(|| ser::Error::custom("path cannot be encoded to UTF-8"))?;
-                format!("ipc:{path}").serialize(serializer)
+                format!("ipc://{path}").serialize(serializer)
             }
         }
     }
@@ -125,7 +125,7 @@ impl<'de> Deserialize<'de> for BindAddress {
             SerdePort::Tcp(addr) => addr.into(),
             SerdePort::String(s) => {
                 #[cfg(unix)]
-                if let Some(path) = s.strip_prefix("ipc:") {
+                if let Some(path) = s.strip_prefix("ipc://") {
                     return Ok(Self::Ipc(path.into()));
                 }
 
@@ -759,7 +759,7 @@ mod tests {
     #[test]
     fn parsing_unix_domain_socket_binding() {
         let yaml = r#"
-          port: ipc:/var/era/health.sock
+          port: ipc:///var/era/health.sock
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test::<HealthCheckConfig>(yaml).unwrap();
@@ -784,7 +784,7 @@ mod tests {
     fn unix_port_roundtrip() {
         let port = BindAddress::Ipc("/var/node.sock".into());
         let json = serde_json::to_value(port.clone()).unwrap();
-        assert_eq!(json, serde_json::json!("ipc:/var/node.sock"));
+        assert_eq!(json, serde_json::json!("ipc:///var/node.sock"));
         assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
     }
 
