@@ -4,13 +4,20 @@ use smart_config::{de::Serde, metadata::TimeUnit, DescribeConfig, DeserializeCon
 use zksync_basic_types::basic_fri_types::ApiMode;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(validate(
+    Self::validate_gateway_api_url,
+    "gateway_api_url must be set in `ProverCluster` API mode"
+))]
 pub struct ProofDataHandlerConfig {
+    /// Port to bind proof data handler HTTP REST API to.
     pub http_port: u16,
+    /// API mode (`Legacy` or `ProverCluster`).
     // Copy the API mode from the prover gateway config if it's not present locally
-    #[config(with = Serde![str], alias = "..prover_gateway.api_mode")]
+    #[config(default, with = Serde![str], alias = "..prover_gateway.api_mode")]
     pub api_mode: ApiMode,
     #[config(default_t = 1 * TimeUnit::Minutes)]
     pub proof_generation_timeout: Duration,
+    /// URL of the prover gateway. Must be set in `ProverCluster` API mode.
     pub gateway_api_url: Option<String>,
     #[config(default_t = Duration::from_secs(10))]
     pub proof_fetch_interval: Duration,
@@ -20,10 +27,16 @@ pub struct ProofDataHandlerConfig {
     pub fetch_zero_chain_id_proofs: bool,
 }
 
+impl ProofDataHandlerConfig {
+    fn validate_gateway_api_url(&self) -> bool {
+        !matches!(self.api_mode, ApiMode::ProverCluster) || self.gateway_api_url.is_some()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use smart_config::{
-        testing::{test_complete, Tester},
+        testing::{test, test_complete, test_minimal, Tester},
         Environment, Yaml,
     };
 
@@ -95,5 +108,31 @@ mod tests {
             .test_complete(yaml)
             .unwrap();
         assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_minimal_yaml() {
+        let yaml = r#"
+          http_port: 3320
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ProofDataHandlerConfig = test_minimal(yaml).unwrap();
+        assert_eq!(config.http_port, 3_320);
+    }
+
+    #[test]
+    fn validation_error() {
+        let yaml = r#"
+          http_port: 3320
+          api_mode: ProverCluster
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let err = test::<ProofDataHandlerConfig>(yaml).unwrap_err();
+        assert_eq!(err.len(), 1);
+        let err = err.first();
+        assert!(err
+            .validation()
+            .unwrap()
+            .contains("gateway_api_url must be set"));
     }
 }

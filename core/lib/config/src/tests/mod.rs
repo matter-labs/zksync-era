@@ -75,6 +75,9 @@ fn assert_general_config(general: GeneralConfig) {
         client.seed_phrase.0.expose_secret(),
         "correct horse battery staple"
     );
+
+    let proof_data_handler = general.proof_data_handler_config.unwrap();
+    assert_eq!(proof_data_handler.http_port, 3_320);
 }
 
 // These checks aren't intended to be exhaustive; they mostly check parsing completeness.
