@@ -199,14 +199,6 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
 
-      - name: Install yq
-        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
-
-      - name: Install psql
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
