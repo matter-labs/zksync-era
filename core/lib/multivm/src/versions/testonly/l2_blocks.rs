@@ -310,13 +310,13 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         test_new_l2_block::<VM>(
             correct_first_block.clone(),
             None,
-            Some(0),
+            Some(1),
             None,
             Some(Halt::FailedToSetL2Block(
                 encode_function_call(
                     "NonMonotonicL2BlockTimestamp",
                     &[ParamType::Uint(128), ParamType::Uint(128)],
-                    &[Token::Uint(U256::from(0)), Token::Uint(U256::from(1))],
+                    &[Token::Uint(U256::from(1)), Token::Uint(U256::from(1))],
                 )
                 .unwrap(),
             )),
