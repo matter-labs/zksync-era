@@ -62,7 +62,6 @@ da_client:
   registry_coordinator_addr: 0x53012C69A189cfA2D9d29eb6F19B32e0A2EA3490
   blob_version: 0
   polynomial_form: coeff
-  eigenda_sidecar_rpc: http://localhost:9999
 ```
 
 ### V2Secure specific client configuration
@@ -90,5 +89,6 @@ da_client:
   blob_version: 0
   polynomial_form: coeff
   eigenda_sidecar_rpc: http://localhost:9999
-  version: V2Secure
 ```
+
+> Note: The `eigenda_sidecar_rpc` field determines wheter the client will use secure mode or not.
