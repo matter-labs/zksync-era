@@ -2,9 +2,9 @@
 
 ## Introduction
 
-The message root is the contract on ZKsync chains that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
+The message root is the contract on ZKsync chains that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the `MessageRoot`, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
 
-The MessageRoot contract is deployed both on L1 and all ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/messaging_via_gateway.md).
+The `MessageRoot` contract is deployed both on L1 and all ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/messaging_via_gateway.md).
 
 ![MessageRoot](../img/message_root.png)
 
@@ -39,18 +39,34 @@ When ZKsync chain's batch gets executed on the settlement layer, the chain calls
 
 ## Proving that a message belongs to a MessageRoot
 
-We need to construct merkle proofs and concatenate them to prove that a message belongs to a MessageRoot. The process will consist of two steps:
+### Concepts
+
+To prove that a message belongs to a `MessageRoot`, we need to understand the verification process conceptually. The proof system works through a hierarchical structure where messages are aggregated at multiple levels:
+
+1. Message to Batch: First, we prove that a specific message was included in a particular batch on its origin chain. This uses the same verification mechanism as standard L2→L1 log proofs.
+2. Batch to Chain: Next, we prove that the batch containing our message was included in the origin chain's aggregated root (`ChainRoot`). This involves proving the `BatchRootLeaf`'s inclusion in the chain's `DynamicIncrementalMerkle` tree.
+3. Chain to MessageRoot: Finally, we prove that the origin chain's root was included in the `MessageRoo`t's shared tree. This involves proving the `ChainIdLeaf`'s inclusion in the `MessageRoot`'s FullMerkle tree.
+
+The verification process follows the hierarchical structure described earlier in this document, working up through the tree levels from individual messages to the final `MessageRoot`. Each level uses Merkle proofs to cryptographically verify inclusion, ensuring that the message authentically belongs to the claimed `MessageRoot`.
+
+### Technical Implementation
+
+We construct concatenated Merkle proofs to prove that a message belongs to a `MessageRoot`. The process consists of two main steps:
 
 1. Construct the proof to the chain's `ChainBatchRoot`. This is the same proof that is used to verify [L2->L1 logs](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md).
-2. Prove that it belonged to the MessageRoot. We will explain this in the following.
+2. Prove that it belonged to the `MessageRoot`.
 
 The concatenated proof is passed into the `proveL2LogInclusion` method. This will split the proof into the two parts listed above, and then verify the two merkle proofs. The first verification is done via the normal process of log inclusion, while the second uses `proveL2LeafInclusion`. The final root is checked to be stored in storage.
 
-We want to avoid breaking changes to SDKs, so we will modify the `zks_getL2ToL1LogProof` to return the data in the following format (the results of it are directly passed into the `proveL2LogInclusion` method, so returned value must be supported by the contract):
+#### RPC Method and Proof Format
+
+To avoid breaking changes to SDKs, the `zks_getL2ToL1LogProof` RPC method returns the proof data in a format directly supported by the `proveL2LogInclusion` contract method:
 
 First `bytes32` corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
 
 Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `ChainBatchRoot`). The second byte contains the `batchLeafProofLen`. It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainRoot`. The third byte, `isFinalNode`, is a boolean value representing if the proof is for the top level in the aggregation.
+
+#### Proof Verification Process
 
 Then, the following happens:
 
@@ -71,7 +87,7 @@ Then, the following happens:
 - The second element read from `_proof` contains the settlement layer Chain ID.
 
 The `proveL2LeafInclusion` function will be internally used by the existing `_proveL2LogInclusion` function to prove that a certain node existed in the tree. 
-Now, we can call the function to verify that the batch belonged to the settlement layer's MessageRoot:
+Now, we can call the function to verify that the batch belonged to the settlement layer's `MessageRoot`:
 
 ```solidity
     proveL2LeafInclusion(
