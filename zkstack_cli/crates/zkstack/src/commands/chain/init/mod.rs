@@ -82,75 +82,55 @@ pub async fn init(
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    // Initialize configs
-    let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
-    let mut contracts_config =
-        init_configs(&init_configs_args, shell, ecosystem_config, chain_config).await?;
-
-    // Fund some wallet addresses with ETH or base token (only for Localhost)
-    distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
-    mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
-
-    // Register chain on BridgeHub (run by L1 Governor)
-    let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
-    register_chain(
-        shell,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        chain_config,
-        &mut contracts_config,
-        init_args.l1_rpc_url.clone(),
-        None,
-        true,
-    )
-    .await?;
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-    spinner.finish();
-
-    // Accept ownership for DiamondProxy (run by L2 Governor)
-    let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
-    accept_admin(
-        shell,
-        ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
-        &chain_config.get_wallets_config()?.governor,
-        contracts_config.l1.diamond_proxy_addr,
-        &init_args.forge_args,
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
-
-    // Set token multiplier setter address (run by L2 Governor)
-    if chain_config.base_token != BaseToken::eth() {
-        let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
-        let chain_contracts = chain_config.get_contracts_config()?;
-        set_token_multiplier_setter(
-            shell,
-            ecosystem_config,
-            &chain_config.get_wallets_config()?.governor,
-            chain_contracts
-                .l1
-                .access_control_restriction_addr
-                .context("chain_contracts.l1.access_control_restriction_addr")?,
-            chain_contracts.l1.diamond_proxy_addr,
-            chain_config
-                .get_wallets_config()
-                .unwrap()
-                .token_multiplier_setter
-                .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
-                .address,
-            chain_contracts.l1.chain_admin_addr,
-            &init_args.forge_args.clone(),
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        spinner.finish();
+    // Validate that both phase flags are not used together
+    if init_args.phase1 && init_args.phase2 {
+        anyhow::bail!("Cannot use both --phase1 and --phase2 flags together");
     }
 
-    // Enable EVM emulation if needed (run by L2 Governor)
-    if chain_config.evm_emulator {
-        enable_evm_emulator(
+    // Phase 1: Initialize configs, distribute ETH, mint base token, and register chain
+    if !init_args.phase2 {
+        // Initialize configs
+        let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
+        let mut contracts_config =
+            init_configs(&init_configs_args, shell, ecosystem_config, chain_config).await?;
+
+        // Fund some wallet addresses with ETH or base token (only for Localhost)
+        distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
+        mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
+
+        // Register chain on BridgeHub (run by L1 Governor)
+        let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
+        register_chain(
+            shell,
+            init_args.forge_args.clone(),
+            ecosystem_config,
+            chain_config,
+            &mut contracts_config,
+            init_args.l1_rpc_url.clone(),
+            None,
+            true,
+        )
+        .await?;
+        contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+        spinner.finish();
+
+        // If phase1 is set, return early
+        if init_args.phase1 {
+            logger::success(
+                "Phase 1 completed: Configs initialized, ETH distributed, and chain registered",
+            );
+            return Ok(());
+        }
+    }
+
+    // Phase 2: Accept admin, deploy L2 contracts, set DA validator pair, and complete initialization
+    if !init_args.phase1 {
+        // Load contracts config for phase 2 operations
+        let contracts_config = chain_config.get_contracts_config()?;
+
+        // Accept ownership for DiamondProxy (run by L2 Governor)
+        let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
+        accept_admin(
             shell,
             ecosystem_config,
             contracts_config.l1.chain_admin_addr,
@@ -160,90 +140,138 @@ pub async fn init(
             init_args.l1_rpc_url.clone(),
         )
         .await?;
-    }
+        spinner.finish();
 
-    // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
-    deploy_l2_contracts::deploy_l2_contracts(
-        shell,
-        chain_config,
-        ecosystem_config,
-        &mut contracts_config,
-        init_args.forge_args.clone(),
-        true,
-    )
-    .await?;
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+        // Set token multiplier setter address (run by L2 Governor)
+        if chain_config.base_token != BaseToken::eth() {
+            let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+            let chain_contracts = chain_config.get_contracts_config()?;
+            set_token_multiplier_setter(
+                shell,
+                ecosystem_config,
+                &chain_config.get_wallets_config()?.governor,
+                chain_contracts
+                    .l1
+                    .access_control_restriction_addr
+                    .context("chain_contracts.l1.access_control_restriction_addr")?,
+                chain_contracts.l1.diamond_proxy_addr,
+                chain_config
+                    .get_wallets_config()
+                    .unwrap()
+                    .token_multiplier_setter
+                    .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
+                    .address,
+                chain_contracts.l1.chain_admin_addr,
+                &init_args.forge_args.clone(),
+                init_args.l1_rpc_url.clone(),
+            )
+            .await?;
+            spinner.finish();
+        }
 
-    let l1_da_validator_addr = get_l1_da_validator(chain_config)
-        .await
-        .context("l1_da_validator_addr")?;
+        // Enable EVM emulation if needed (run by L2 Governor)
+        if chain_config.evm_emulator {
+            enable_evm_emulator(
+                shell,
+                ecosystem_config,
+                contracts_config.l1.chain_admin_addr,
+                &chain_config.get_wallets_config()?.governor,
+                contracts_config.l1.diamond_proxy_addr,
+                &init_args.forge_args,
+                init_args.l1_rpc_url.clone(),
+            )
+            .await?;
+        }
 
-    let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
-    set_da_validator_pair(
-        shell,
-        &init_args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
-        crate::admin_functions::AdminScriptMode::Broadcast(
-            chain_config.get_wallets_config()?.governor,
-        ),
-        chain_config.chain_id.as_u64(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        l1_da_validator_addr,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
-
-    if init_args.make_permanent_rollup {
-        println!("Making permanent rollup!");
-        make_permanent_rollup(
-            shell,
-            ecosystem_config,
-            contracts_config.l1.chain_admin_addr,
-            &chain_config.get_wallets_config()?.governor,
-            contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args.clone(),
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        println!("Done");
-    }
-
-    // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
-    if let Some(true) = chain_config.legacy_bridge {
-        setup_legacy_bridge(
+        // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
+        let mut contracts_config = chain_config.get_contracts_config()?;
+        deploy_l2_contracts::deploy_l2_contracts(
             shell,
             chain_config,
             ecosystem_config,
-            &contracts_config,
-            init_args.forge_args.clone(),
-        )
-        .await?;
-    }
-
-    // Deploy Paymaster contract (run by L2 Governor)
-    if init_args.deploy_paymaster {
-        let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
-        deploy_paymaster::deploy_paymaster(
-            shell,
-            chain_config,
             &mut contracts_config,
             init_args.forge_args.clone(),
-            None,
             true,
         )
         .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-        spinner.finish();
-    }
 
-    genesis(init_args.genesis_args.clone(), shell, chain_config)
-        .await
-        .context(MSG_GENESIS_DATABASE_ERR)?;
+        let l1_da_validator_addr = get_l1_da_validator(chain_config)
+            .await
+            .context("l1_da_validator_addr")?;
+
+        let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+        set_da_validator_pair(
+            shell,
+            &init_args.forge_args,
+            &ecosystem_config.path_to_l1_foundry(),
+            crate::admin_functions::AdminScriptMode::Broadcast(
+                chain_config.get_wallets_config()?.governor,
+            ),
+            chain_config.chain_id.as_u64(),
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            l1_da_validator_addr,
+            contracts_config
+                .l2
+                .da_validator_addr
+                .context("da_validator_addr")?,
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+
+        if init_args.make_permanent_rollup {
+            println!("Making permanent rollup!");
+            make_permanent_rollup(
+                shell,
+                ecosystem_config,
+                contracts_config.l1.chain_admin_addr,
+                &chain_config.get_wallets_config()?.governor,
+                contracts_config.l1.diamond_proxy_addr,
+                &init_args.forge_args.clone(),
+                init_args.l1_rpc_url.clone(),
+            )
+            .await?;
+            println!("Done");
+        }
+
+        // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
+        if let Some(true) = chain_config.legacy_bridge {
+            setup_legacy_bridge(
+                shell,
+                chain_config,
+                ecosystem_config,
+                &contracts_config,
+                init_args.forge_args.clone(),
+            )
+            .await?;
+        }
+
+        // Deploy Paymaster contract (run by L2 Governor)
+        if init_args.deploy_paymaster {
+            let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
+            deploy_paymaster::deploy_paymaster(
+                shell,
+                chain_config,
+                &mut contracts_config,
+                init_args.forge_args.clone(),
+                None,
+                true,
+            )
+            .await?;
+            contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+            spinner.finish();
+        }
+
+        genesis(init_args.genesis_args.clone(), shell, chain_config)
+            .await
+            .context(MSG_GENESIS_DATABASE_ERR)?;
+
+        if init_args.phase2 {
+            logger::success("Phase 2 completed: Admin accepted, L2 contracts deployed, and initialization completed");
+            return Ok(());
+        }
+    }
 
     Ok(())
 }

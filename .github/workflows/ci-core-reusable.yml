@@ -275,7 +275,15 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator true
 
-          ci_run zkstack chain init \
+          ci_run zkstack chain init --phase1 \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_validium \
+          --chain validium \
+          --validium-type no-da
+
+          ci_run zkstack chain init --phase2 \
           --deploy-paymaster \
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -298,7 +306,15 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
           
-          ci_run zkstack chain init \
+          ci_run zkstack chain init --phase1 \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_da_migration \
+          --chain da_migration \
+          --validium-type no-da
+
+          ci_run zkstack chain init --phase2 \
           --deploy-paymaster \
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -321,7 +337,15 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
 
-          ci_run zkstack chain init \
+          ci_run zkstack chain init --phase1 \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_custom_token \
+          --chain custom_token \
+          --validium-type no-da
+
+          ci_run zkstack chain init --phase2 \
           --deploy-paymaster \
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -380,7 +404,15 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
 
-          ci_run zkstack chain init \
+          ci_run zkstack chain init --phase1 \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_consensus \
+          --chain consensus \
+          --validium-type no-da
+
+          ci_run zkstack chain init --phase2 \
           --deploy-paymaster \
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -412,7 +444,15 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
           
-          ci_run zkstack chain init \
+          ci_run zkstack chain init --phase1 \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway \
+          --validium-type no-da
+
+          ci_run zkstack chain init --phase2 \
           --deploy-paymaster \
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
