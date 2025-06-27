@@ -267,15 +267,15 @@ fflonk = "=0.32.1"
 #bellman = { package = "zksync_bellman", git = "https://github.com/matter-labs/zksync-crypto", branch = "main" }
 bellman = { package = "zksync_bellman", version = "=0.32.1" }
 
-#zk_os_forward_system = { package = "forward_system", path = "../../zksync-os/forward_system", features = ["evm-compatibility"] }
-#zk_ee = { package = "zk_ee", path = "../../zksync-os/zk_ee" }
-#zk_os_basic_system = { package = "basic_system", path = "../../zksync-os//basic_system" }
-#zk_os_evm_interpreter = { package = "evm_interpreter", path = "../../zksync-os//evm_interpreter", features = ["evm-compatibility"] }
+zk_os_forward_system = { package = "forward_system", path = "../../zksync-os/forward_system", features = ["evm-compatibility"] }
+zk_ee = { package = "zk_ee", path = "../../zksync-os/zk_ee" }
+zk_os_basic_system = { package = "basic_system", path = "../../zksync-os//basic_system" }
+zk_os_evm_interpreter = { package = "evm_interpreter", path = "../../zksync-os//evm_interpreter" }
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader", features = ["evm-compatibility", "unlimited_native"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader"}
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader"}
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader", features = ["evm-compatibility"] }
+#zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader", features = ["evm-compatibility", "unlimited_native"] }
+#zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader"}
+#zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader"}
+#zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "sb-allow-force-deploy-for-complex-upgrader", features = ["evm-compatibility"] }
 
 # only used for verifinfg proofs
 air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.2.0" }

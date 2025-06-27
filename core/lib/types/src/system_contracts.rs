@@ -10,7 +10,7 @@ use zksync_system_constants::{
     EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS,
     L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
-    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
 };
 
 use crate::{
@@ -30,7 +30,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 37] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 38] = [
     (
         "",
         "AccountCodeStorage",
@@ -245,6 +245,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 37] = [
         L2_WRAPPED_BASE_TOKEN_IMPL,
         ContractLanguage::Sol,
     ),
+    (
+        "../../l1-contracts/zkout/",
+        "UpgradeableBeaconDeployer",
+        UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
 ];
 
 /// Gets default set of system contracts, based on Cargo workspace location.
@@ -291,6 +297,10 @@ pub fn get_zk_os_system_smart_contracts() -> Vec<DeployedContract> {
     system_contracts.push(DeployedContract {
         account_id: AccountTreeId::new(L2_NATIVE_TOKEN_VAULT_ADDRESS),
         bytecode: read_l1_evm_contract("L2NativeTokenVaultZKOS"),
+    });
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(UPGRADEABLE_BEACON_DEPLOYER_ADDRESS),
+        bytecode: read_l1_evm_contract("UpgradeableBeaconDeployer"),
     });
 
     system_contracts
