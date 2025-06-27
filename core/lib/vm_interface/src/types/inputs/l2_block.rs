@@ -29,5 +29,4 @@ pub struct StoredL2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
     pub txs_rolling_hash: H256,
-    pub interop_roots: Vec<InteropRoot>,
 }
