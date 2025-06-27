@@ -544,7 +544,7 @@ impl MempoolIO {
             // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
             //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
             // Note, that when the first v29 batch is starting it should still follow v28 rules since upgrade tx wasn't executed yet.
-            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_fast_blocks() {
+            let timestamp_to_sleep_past = if true {
                 cursor.prev_l2_block_timestamp
             } else {
                 cursor
