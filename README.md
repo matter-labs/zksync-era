@@ -96,8 +96,19 @@ Here are the steps:
   * once you submit the PR with zksync-os dependency - the CI will generate the new app.bin automatically
   * copy this app.bin into zksync-era
 * now, to generate the key, use the generate-snark-vk command from https://github.com/matter-labs/zkos-wrapper/blob/main/docs/end_to_end.md
+
+```shell
+# from zkos-wrapper dir
+cargo run --bin wrapper --release -- generate-snark-vk --input-binary ../zksync-era/execution_environment/app.bin  --output-dir /tmp
+```
+
   * make sure to pass the same app.bin that you're using, and the same trusted setup, that your snark wrapper will use
   * once you have the vk file - put it into contracts/tools/data/plonk_scheduler_key.json file, and run the command zksync_verifier_contract_generator described in contracts/tools/README
+```shell
+
+cd contracts/tools && cp /tmp/snark_vk_expected.json data/plonk_scheduler_key.json && cargo run --bin zksync_verifier_contract_generator --release -- --plonk_input_path data/plonk_scheduler_key.json --fflonk_input_path data/fflonk_scheduler_key.json --plonk_output_path ../l1-contracts/contracts/state-transition/verifiers/L1VerifierPlonk.sol --fflonk_output_path ../l1-contracts/contracts/state-transition/verifiers/L1VerifierFflonk.sol
+```
+
   * this will update the L2Verifier.sol automatically
 * create PR with the new app.bin and the contract changes. 
 
