@@ -82,8 +82,6 @@ async fn wait_for_server(args: WaitArgs, chain_config: &ChainConfig) -> anyhow::
     let health_check_url = chain_config.get_general_config().await?.healthcheck_url()?;
     logger::info(MSG_WAITING_FOR_SERVER);
     args.poll_health_check(&health_check_url, verbose).await?;
-    let rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
-    args.poll_chain_id(&rpc_url, verbose).await?;
     logger::info(msg_waiting_for_server_success(&health_check_url));
     Ok(())
 }
