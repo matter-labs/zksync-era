@@ -145,6 +145,10 @@ impl<S: Storage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::HistoryEn
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        self.vm.snapshots.pop();
+        self.vm.snapshots.pop_back();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        self.vm.snapshots.pop_front();
     }
 }

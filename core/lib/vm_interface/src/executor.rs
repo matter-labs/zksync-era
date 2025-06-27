@@ -45,6 +45,9 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 
     /// Finished the current L1 batch.
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;
+
+    /// Rolls back the last executed l2 block.
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()>;
 }
 
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).

@@ -149,6 +149,10 @@ impl ActionQueue {
             .ok()?;
         self.peeked.clone()
     }
+
+    pub(super) fn validate_ready_for_next_block(&self) {
+        assert!(self.peeked.is_none());
+    }
 }
 
 /// An instruction for the ExternalIO to request a certain action from the state keeper.

@@ -1,4 +1,7 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 use serde::{Deserialize, Serialize};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256};
@@ -130,7 +133,7 @@ pub(super) struct DumpingVm<S, Vm> {
     l1_batch_env: L1BatchEnv,
     system_env: SystemEnv,
     l2_blocks: Vec<L2BlockExecutionData>,
-    l2_blocks_snapshot: Option<L2BlocksSnapshot>,
+    l2_blocks_snapshot: VecDeque<L2BlocksSnapshot>,
 }
 
 impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
@@ -213,10 +216,11 @@ where
     Vm: VmInterfaceHistoryEnabled + VmTrackingContracts,
 {
     fn make_snapshot(&mut self) {
-        self.l2_blocks_snapshot = Some(L2BlocksSnapshot {
+        let snapshot = L2BlocksSnapshot {
             block_count: self.l2_blocks.len(),
             tx_count_in_last_block: self.last_block_mut().txs.len(),
-        });
+        };
+        self.l2_blocks_snapshot.push_back(snapshot);
         self.inner.make_snapshot();
     }
 
@@ -224,7 +228,7 @@ where
         self.inner.rollback_to_the_latest_snapshot();
         let snapshot = self
             .l2_blocks_snapshot
-            .take()
+            .pop_back()
             .expect("rollback w/o snapshot");
         self.l2_blocks.truncate(snapshot.block_count);
         assert_eq!(
@@ -239,7 +243,12 @@ where
 
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot_no_rollback();
-        self.l2_blocks_snapshot = None;
+        self.l2_blocks_snapshot.pop_back();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        self.inner.pop_front_snapshot_no_rollback();
+        self.l2_blocks_snapshot.pop_front();
     }
 }
 
@@ -265,7 +274,7 @@ where
             l1_batch_env,
             system_env,
             l2_blocks: vec![first_block],
-            l2_blocks_snapshot: None,
+            l2_blocks_snapshot: VecDeque::new(),
             storage,
             inner,
         }
