@@ -337,7 +337,6 @@ mod tests {
         let yaml = r#"
           server_url: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era
           server_replica_url: postgres://postgres:notsecurepassword@localhost/zksync_replica_local
-          prover_url: postgres://postgres:notsecurepassword@localhost/prover_local
           max_connections: 50
           max_connections_master: 20
           acquire_timeout_sec: 15

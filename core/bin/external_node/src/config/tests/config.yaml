@@ -16,7 +16,6 @@ observability:
 postgres:
   server_url: postgres://postgres:notsecurepassword@localhost:5432/en
   server_replica_url: postgres://postgres:notsecurepassword@localhost:5432/en # Not used; required for config completeness
-  prover_url: postgres://postgres:notsecurepassword@localhost:5432/en # Not used; required for config completeness
   max_connections: 50
   max_connections_master: 10 # Not used; required for config completeness
   statement_timeout_sec: 20
