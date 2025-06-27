@@ -76,12 +76,12 @@ describe('Tests for the private rpc', () => {
         const runCommand = `zkstack private-rpc run --verbose --chain ${chainName}`;
 
         await executeCommandWithLogs(initCommand, await logsPath('private-rpc-init.log'));
-        
+
         // Set whitelisted wallets to "all" for integration tests
         const pathToHome = path.join(__dirname, '../../../..');
         const permissionsPath = path.join(pathToHome, `chains/${chainName}/configs/private-rpc-permissions.yaml`);
-        await setWhitelistedWallets(permissionsPath, "all");
-        
+        await setWhitelistedWallets(permissionsPath, 'all');
+
         executeCommandWithLogs(runCommand, await logsPath('private-rpc-run.log'));
 
         await waitForHealth(rpcUrl());

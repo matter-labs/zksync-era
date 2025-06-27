@@ -10,10 +10,10 @@ type YamlMethod = {
 };
 
 type YamlContract = { address: string; methods: YamlMethod[] };
-type YamlRoot = { 
+type YamlRoot = {
     whitelisted_wallets?: string | string[];
-    groups: any[]; 
-    contracts: YamlContract[] 
+    groups: any[];
+    contracts: YamlContract[];
 };
 const mutex = new Mutex();
 /**
@@ -69,14 +69,11 @@ export async function injectPermissionsToFile(
 
 /**
  * Sets the whitelisted wallets in the YAML file.
- * 
+ *
  * @param filePath - absolute or relative path to the YAML file
  * @param wallets - either "all" to allow all wallets, or an array of wallet addresses
  */
-export async function setWhitelistedWallets(
-    filePath: string,
-    wallets: string | string[]
-): Promise<void> {
+export async function setWhitelistedWallets(filePath: string, wallets: string | string[]): Promise<void> {
     await mutex.acquire();
     try {
         // --- load & parse ---------------------------------------------------------
