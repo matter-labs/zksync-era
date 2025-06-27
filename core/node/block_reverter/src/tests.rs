@@ -91,6 +91,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             pubdata_input: None,
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            pubdata_limit: Some(100_000),
         };
         storage
             .blocks_dal()

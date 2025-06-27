@@ -16,7 +16,7 @@ use zksync_state::{
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, try_stoppable, L1BatchNumber, L2ChainId,
 };
-use zksync_vm_executor::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
 use crate::{metrics::METRICS, VmRunnerIo};
@@ -396,7 +396,12 @@ pub(crate) async fn load_batch_execute_data(
     l1_batch_params_provider: &L1BatchParamsProvider,
     chain_id: L2ChainId,
 ) -> anyhow::Result<Option<BatchExecuteData>> {
-    let Some((system_env, l1_batch_env, pubdata_params)) = l1_batch_params_provider
+    let Some(RestoredL1BatchEnv {
+        system_env,
+        l1_batch_env,
+        pubdata_params,
+        ..
+    }) = l1_batch_params_provider
         .load_l1_batch_env(
             conn,
             l1_batch_number,

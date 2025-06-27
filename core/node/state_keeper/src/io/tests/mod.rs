@@ -81,6 +81,9 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fair_l2_gas_price: 1000,
         fair_pubdata_price: 500,
     });
+    tester
+        .insert_unsealed_batch(&connection_pool, 2, fee_input)
+        .await;
     tester.set_timestamp(2);
     tester
         .insert_l2_block(&connection_pool, 2, 10, fee_input)
@@ -731,6 +734,9 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
     // Pre-insert L2 block without its unsealed L1 batch counterpart
+    tester
+        .insert_unsealed_batch(&connection_pool, 2, fee_input)
+        .await;
     tester.set_timestamp(2);
     tester
         .insert_l2_block(&connection_pool, 2, 5, fee_input)

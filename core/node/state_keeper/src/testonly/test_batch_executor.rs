@@ -724,6 +724,7 @@ impl StateKeeperIO for TestIO {
             fee_input: self.fee_input,
             first_l2_block: L2BlockParams::new(self.timestamp * 1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;

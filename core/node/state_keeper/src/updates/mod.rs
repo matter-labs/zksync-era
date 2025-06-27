@@ -36,6 +36,7 @@ pub struct UpdatesManager {
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
     pubdata_params: PubdataParams,
+    pubdata_limit: Option<u64>,
     next_l2_block_params: Option<L2BlockParams>,
     previous_batch_protocol_version: ProtocolVersionId,
 }
@@ -75,6 +76,7 @@ impl UpdatesManager {
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             pubdata_params: batch_init_params.pubdata_params,
+            pubdata_limit: batch_init_params.pubdata_limit,
             next_l2_block_params: None,
             previous_batch_protocol_version,
         }
@@ -232,6 +234,10 @@ impl UpdatesManager {
 
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
         self.l1_batch.txs_encoding_size + self.l2_block.txs_encoding_size
+    }
+
+    pub fn pubdata_limit(&self) -> Option<u64> {
+        self.pubdata_limit
     }
 }
 
