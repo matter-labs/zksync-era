@@ -74,7 +74,7 @@ impl Harness {
                 Self::STORAGE_CONTRACT_ADDRESS,
             ),
             storage_contract_abi: &TestContract::storage_test().abi,
-            current_block: l1_batch_env.first_l2_block.clone(),
+            current_block: l1_batch_env.first_l2_block,
         }
     }
 
@@ -116,9 +116,8 @@ impl Harness {
             timestamp: self.current_block.timestamp + 1,
             prev_block_hash: hash_block(&self.current_block, tx_hashes),
             max_virtual_blocks_to_create: self.current_block.max_virtual_blocks_to_create,
-            interop_roots: vec![],
         };
-        vm.start_new_l2_block(self.current_block.clone());
+        vm.start_new_l2_block(self.current_block);
     }
 
     fn execute_on_vm(&mut self, vm: &mut impl VmInterface) {

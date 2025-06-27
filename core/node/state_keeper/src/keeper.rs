@@ -503,7 +503,7 @@ impl StateKeeperInner {
             display_timestamp(block_env.timestamp)
         );
         batch_executor
-            .start_next_l2_block(block_env.clone())
+            .start_next_l2_block(block_env)
             .await
             .with_context(|| {
                 format!("failed starting L2 block with {block_env:?} in batch executor")

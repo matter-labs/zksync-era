@@ -35,7 +35,7 @@ impl BootloaderL2Block {
             first_tx_index: first_tx_place,
             max_virtual_blocks_to_create: l2_block.max_virtual_blocks_to_create,
             txs: vec![],
-            interop_roots: l2_block.interop_roots,
+            interop_roots: vec![],
         }
     }
 

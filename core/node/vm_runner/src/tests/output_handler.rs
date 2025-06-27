@@ -52,7 +52,6 @@ impl OutputHandlerTester {
                 timestamp: 0,
                 prev_block_hash: Default::default(),
                 max_virtual_blocks_to_create: 0,
-                interop_roots: vec![],
             },
         };
         let system_env = SystemEnv {

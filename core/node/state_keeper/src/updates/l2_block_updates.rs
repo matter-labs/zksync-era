@@ -180,7 +180,6 @@ impl L2BlockUpdates {
             timestamp: self.timestamp(),
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
-            interop_roots: self.interop_roots.clone(),
         }
     }
 

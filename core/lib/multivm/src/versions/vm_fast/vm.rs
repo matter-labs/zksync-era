@@ -156,7 +156,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
-                batch_env.first_l2_block.clone(),
+                batch_env.first_l2_block,
                 system_env.version,
             ),
             system_env,

@@ -190,7 +190,6 @@ fn default_l1_batch() -> L1BatchEnv {
             timestamp: 100,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
-            interop_roots: vec![],
         },
     }
 }
