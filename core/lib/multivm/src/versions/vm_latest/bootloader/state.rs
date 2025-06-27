@@ -1,4 +1,4 @@
-use std::cmp::{min, Ordering};
+use std::cmp::{max, Ordering};
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -123,7 +123,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        min(self.l2_blocks.len(), 0)
+        max(self.l2_blocks.len(), 1) - 1
     }
 
     pub(crate) fn push_tx(
