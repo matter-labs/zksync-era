@@ -359,7 +359,7 @@ async fn remove_stuck_txs() {
 
     let storage = transactions_dal.storage;
     BlocksDal { storage }
-        .insert_l2_block(&create_l2_block_header(1))
+        .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(1))
         .await
         .unwrap();
 

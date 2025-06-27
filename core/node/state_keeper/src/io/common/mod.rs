@@ -105,7 +105,7 @@ pub async fn load_pending_batch(
 ) -> anyhow::Result<PendingBatchData> {
     let pending_l2_blocks = storage
         .transactions_dal()
-        .get_l2_blocks_to_reexecute()
+        .get_l2_blocks_to_reexecute(l1_batch_env.number)
         .await?;
     let first_pending_l2_block = pending_l2_blocks
         .first()

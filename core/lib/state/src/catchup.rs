@@ -238,7 +238,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
-        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
         drop(conn);
 
@@ -273,7 +273,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
-        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
         drop(conn);
 
@@ -290,7 +290,13 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         // Batch info should be inserted atomically.
         let mut transaction = conn.start_transaction().await.unwrap();
-        create_l2_block(&mut transaction, L2BlockNumber(2), &storage_logs).await;
+        create_l2_block(
+            &mut transaction,
+            L2BlockNumber(2),
+            &storage_logs,
+            L1BatchNumber(2),
+        )
+        .await;
         create_l1_batch(&mut transaction, L1BatchNumber(2), &storage_logs).await;
         transaction.commit().await.unwrap();
         drop(conn);
@@ -334,7 +340,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
-        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
         drop(conn);
 

@@ -19,7 +19,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
     let l2_block = create_l2_block(number.0);
     storage
         .blocks_dal()
-        .insert_l2_block(&l2_block)
+        .insert_l2_block(&l2_block, number)
         .await
         .unwrap();
 
@@ -27,11 +27,6 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
     storage
         .blocks_dal()
         .insert_mock_l1_batch(&l1_batch)
-        .await
-        .unwrap();
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(number)
         .await
         .unwrap();
     storage.commit().await.unwrap();

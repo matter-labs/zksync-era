@@ -896,7 +896,10 @@ mod tests {
             l2_tx_count: 5,
             ..create_l2_block_header(0)
         };
-        conn.blocks_dal().insert_l2_block(&header).await.unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&header, L1BatchNumber(0))
+            .await
+            .unwrap();
 
         let block_hash = L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
@@ -938,7 +941,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -972,7 +975,7 @@ mod tests {
         assert_eq!(l2_block_number, Some(L2BlockNumber(0)));
 
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -994,7 +997,7 @@ mod tests {
         assert_eq!(l2_block_number.unwrap(), None);
 
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
         let l2_block_number = conn
@@ -1045,7 +1048,7 @@ mod tests {
 
         let l2_block_header = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -1055,10 +1058,10 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
-            .await
-            .unwrap();
+        // conn.blocks_dal()
+        //     .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
+        //     .await
+        //     .unwrap();
 
         let resolved_l2_block_number = conn
             .blocks_web3_dal()
@@ -1127,7 +1130,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -1157,7 +1160,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
 

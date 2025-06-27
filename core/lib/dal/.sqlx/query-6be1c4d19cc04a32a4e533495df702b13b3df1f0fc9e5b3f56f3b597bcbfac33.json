@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                transactions\n            WHERE\n                miniblock_number IS NOT NULL\n                AND l1_batch_number IS NULL\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                transactions\n            WHERE\n                miniblock_number IS NOT NULL\n                AND l1_batch_number = $1\n            ORDER BY\n                miniblock_number,\n                index_in_block\n            ",
   "describe": {
     "columns": [
       {
@@ -195,7 +195,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -238,5 +240,5 @@
       true
     ]
   },
-  "hash": "1689c212d411ebd99a22210519ea2d505a1aabf52ff4136d2ed1b39c70dd1632"
+  "hash": "6be1c4d19cc04a32a4e533495df702b13b3df1f0fc9e5b3f56f3b597bcbfac33"
 }

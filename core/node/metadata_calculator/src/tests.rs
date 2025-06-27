@@ -814,7 +814,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, batch_number)
             .await
             .unwrap();
         storage
@@ -822,11 +822,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .insert_storage_logs(next_l2_block, &batch_logs)
             .await
             .unwrap();
-        storage
-            .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(batch_number)
-            .await
-            .unwrap();
+
         storage
             .vm_runner_dal()
             .mark_protective_reads_batch_as_processing(batch_number)

@@ -920,7 +920,11 @@ impl BlocksDal<'_, '_> {
         Ok(batch.map(|b| b.into()))
     }
 
-    pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
+    pub async fn insert_l2_block(
+        &mut self,
+        l2_block_header: &L2BlockHeader,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<()> {
         let instrumentation =
             Instrumented::new("insert_l2_block").with_arg("number", &l2_block_header.number);
 
@@ -956,6 +960,7 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
+                l1_batch_number,
                 created_at,
                 updated_at
             )
@@ -981,6 +986,7 @@ impl BlocksDal<'_, '_> {
                 $18,
                 $19,
                 $20,
+                $21,
                 NOW(),
                 NOW()
             )
@@ -1018,6 +1024,7 @@ impl BlocksDal<'_, '_> {
                 .l2_da_validator_address
                 .as_bytes(),
             l2_block_header.pubdata_params.pubdata_type.to_string(),
+            i64::from(l1_batch_number.0),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1105,27 +1112,6 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(header.map(Into::into))
-    }
-
-    pub async fn mark_l2_blocks_as_executed_in_l1_batch(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            UPDATE miniblocks
-            SET
-                l1_batch_number = $1
-            WHERE
-                l1_batch_number IS NULL
-            "#,
-            l1_batch_number.0 as i32,
-        )
-        .instrument("mark_l2_blocks_as_executed_in_l1_batch")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .execute(self.storage)
-        .await?;
-        Ok(())
     }
 
     pub async fn save_l1_batch_tree_data(
@@ -2593,7 +2579,7 @@ impl BlocksDal<'_, '_> {
     /// to any batch yet).
     pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
         let count = sqlx::query_scalar!(
-            "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
+            "SELECT COUNT(miniblocks.number) FROM miniblocks JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number WHERE l1_batches.is_sealed = FALSE"
         )
         .instrument("pending_batch_exists")
         .fetch_one(self.storage)
@@ -2720,9 +2706,31 @@ impl BlocksDal<'_, '_> {
         .and_then(|row| row.sealed_at.map(|d| d.and_utc())))
     }
 
+    pub async fn set_l1_batch_number_for_pending_miniblocks(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                l1_batch_number = $1
+            WHERE
+                l1_batch_number IS NULL
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("set_l1_batch_number_for_pending_miniblocks")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn set_protocol_version_for_pending_l2_blocks(
         &mut self,
         id: ProtocolVersionId,
+        l1batch_number: L1BatchNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -2730,12 +2738,14 @@ impl BlocksDal<'_, '_> {
             SET
                 protocol_version = $1
             WHERE
-                l1_batch_number IS NULL
+                l1_batch_number = $2
             "#,
             id as i32,
+            i64::from(l1batch_number.0)
         )
         .instrument("set_protocol_version_for_pending_l2_blocks")
         .with_arg("id", &id)
+        .with_arg("l1_batch_number", &l1batch_number)
         .execute(self.storage)
         .await?;
         Ok(())
@@ -3297,7 +3307,7 @@ mod tests {
         let mut l2_block_header = create_l2_block_header(1);
         l2_block_header.base_system_contracts_hashes.evm_emulator = Some(H256::repeat_byte(0x23));
         conn.blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -3335,14 +3345,14 @@ mod tests {
         let l2_block_header = create_l2_block_header(1);
 
         conn.blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(1))
             .await
             .unwrap();
 
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
-            .await
-            .unwrap();
+        // conn.blocks_dal()
+        //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
+        //     .await
+        //     .unwrap();
 
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),

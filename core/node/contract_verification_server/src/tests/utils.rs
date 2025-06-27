@@ -19,7 +19,7 @@ use zksync_types::{
         },
         etherscan::EtherscanResponse,
     },
-    get_code_key, Address, L2BlockNumber, ProtocolVersion, StorageLog, H256,
+    get_code_key, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, H256,
 };
 
 use crate::{api_impl::ApiError, RestApi};
@@ -35,7 +35,7 @@ pub(super) async fn prepare_storage(storage: &mut Connection<'_, Core>) {
         .unwrap();
     storage
         .blocks_dal()
-        .insert_l2_block(&create_l2_block(0))
+        .insert_l2_block(&create_l2_block(0), L1BatchNumber(0))
         .await
         .unwrap();
 

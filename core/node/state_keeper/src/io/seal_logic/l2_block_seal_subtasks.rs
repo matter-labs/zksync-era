@@ -616,7 +616,7 @@ mod tests {
             .unwrap();
         connection
             .blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(1))
             .await
             .unwrap();
 

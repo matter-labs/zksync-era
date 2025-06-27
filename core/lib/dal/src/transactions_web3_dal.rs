@@ -535,7 +535,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{l2::L2Tx, L1BatchNumber, Nonce, ProtocolVersion, ProtocolVersionId};
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
@@ -561,13 +561,13 @@ mod tests {
                 .unwrap();
         }
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
         let mut l2_block_header = create_l2_block_header(1);
         l2_block_header.l2_tx_count = txs.len() as u16;
         conn.blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -826,7 +826,10 @@ mod tests {
         // Include transactions in a L2 block (including the rejected one), so that they are taken into account again.
         let mut l2_block = create_l2_block_header(1);
         l2_block.l2_tx_count = 2;
-        conn.blocks_dal().insert_l2_block(&l2_block).await.unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block, L1BatchNumber(1))
+            .await
+            .unwrap();
         let executed_txs = [
             mock_execution_result(tx_by_nonce[&0].clone()),
             mock_execution_result(tx_by_nonce[&1].clone()),

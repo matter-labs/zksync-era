@@ -2021,7 +2021,10 @@ impl TransactionsDal<'_, '_> {
     /// These are the transactions that are included to some L2 block,
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.
-    pub async fn get_l2_blocks_to_reexecute(&mut self) -> DalResult<Vec<L2BlockExecutionData>> {
+    pub async fn get_l2_blocks_to_reexecute(
+        &mut self,
+        l1batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<L2BlockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -2031,11 +2034,12 @@ impl TransactionsDal<'_, '_> {
                 transactions
             WHERE
                 miniblock_number IS NOT NULL
-                AND l1_batch_number IS NULL
+                AND l1_batch_number = $1
             ORDER BY
                 miniblock_number,
                 index_in_block
             "#,
+            i64::from(l1batch_number.0)
         )
         .instrument("get_l2_blocks_to_reexecute#transactions")
         .fetch_all(self.storage)
@@ -2364,7 +2368,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
 
