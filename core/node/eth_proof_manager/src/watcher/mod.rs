@@ -15,6 +15,7 @@ use crate::{
 
 mod events;
 
+#[derive(Debug)]
 pub struct EthProofWatcher {
     client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,

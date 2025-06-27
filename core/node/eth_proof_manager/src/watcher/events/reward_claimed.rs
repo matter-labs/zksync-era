@@ -10,11 +10,13 @@ use crate::{types::ProvingNetwork, watcher::events::EventHandler};
 
 // event RewardClaimed(ProvingNetwork indexed by, uint256 amount);
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RewardClaimed {
     pub by: ProvingNetwork,
     pub amount: U256,
 }
 
+#[derive(Debug)]
 pub struct RewardClaimedHandler;
 
 #[async_trait]

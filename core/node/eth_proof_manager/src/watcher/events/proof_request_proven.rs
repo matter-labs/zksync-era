@@ -12,6 +12,7 @@ use crate::{types::ProvingNetwork, watcher::events::EventHandler};
 //    uint256 indexed chainId, uint256 indexed blockNumber, bytes proof, ProvingNetwork assignedTo
 //);
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ProofRequestProven {
     pub chain_id: U256,
     pub block_number: U256,
@@ -19,6 +20,7 @@ pub struct ProofRequestProven {
     pub assigned_to: ProvingNetwork,
 }
 
+#[derive(Debug)]
 pub struct ProofRequestProvenHandler;
 
 #[async_trait]

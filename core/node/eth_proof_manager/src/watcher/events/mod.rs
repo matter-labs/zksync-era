@@ -14,7 +14,7 @@ pub use proof_request_proven::ProofRequestProvenHandler;
 pub use reward_claimed::RewardClaimedHandler;
 
 #[async_trait]
-pub trait EventHandler {
+pub trait EventHandler: std::fmt::Debug + Send + Sync {
     // using reference to self here, otherwise we cannot call signature() on dyn traits
     fn signature(&self) -> H256;
 

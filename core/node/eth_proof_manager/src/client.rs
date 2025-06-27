@@ -1,13 +1,10 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
+use zksync_contracts::proof_manager_contract;
 use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, BoundEthInterface, EnrichedClientError,
-    EthInterface,
+    clients::DynClient, web3_decl::client::Network, EnrichedClientError, EthInterface,
 };
 use zksync_eth_watch::GetLogsClient;
-use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
     api::Log,
     ethabi::{Address, Contract},
@@ -18,12 +15,12 @@ use zksync_types::{
 use crate::types::ClientError;
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct ProofManagerClient<Net: Network> {
     client: Box<DynClient<Net>>,
-    gas_adjuster: Arc<dyn TxParamsProvider>,
     proof_manager_abi: Contract,
     proof_manager_address: Address,
-    client_config: EthProofManagerConfig,
+    proof_manager_config: EthProofManagerConfig,
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -50,21 +47,18 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
 
 impl<Net: Network> ProofManagerClient<Net>
 where
-    Box<DynClient<Net>>: EthInterface + BoundEthInterface + GetLogsClient,
+    Box<DynClient<Net>>: GetLogsClient,
 {
     pub fn new(
         client: Box<DynClient<Net>>,
-        gas_adjuster: Arc<dyn TxParamsProvider>,
         proof_manager_address: Address,
-        proof_manager_abi: Contract,
-        client_config: EthProofManagerConfig,
+        proof_manager_config: EthProofManagerConfig,
     ) -> Self {
         Self {
             client,
-            gas_adjuster,
-            proof_manager_abi,
+            proof_manager_abi: proof_manager_contract(),
             proof_manager_address,
-            client_config,
+            proof_manager_config,
         }
     }
 }
@@ -72,7 +66,7 @@ where
 #[async_trait]
 impl<Net: Network> EthProofManagerClient for ProofManagerClient<Net>
 where
-    Box<DynClient<Net>>: EthInterface + BoundEthInterface + GetLogsClient,
+    Box<DynClient<Net>>: GetLogsClient,
 {
     async fn get_events_with_retry(
         &self,

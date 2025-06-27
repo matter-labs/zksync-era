@@ -15,6 +15,7 @@ use crate::{types::ProvingNetwork, watcher::events::EventHandler};
 //     ProvingNetwork indexed assignedTo
 // );
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ProofRequestAcknowledged {
     pub chain_id: U256,
     pub block_number: U256,
@@ -22,17 +23,7 @@ pub struct ProofRequestAcknowledged {
     pub assigned_to: ProvingNetwork,
 }
 
-impl ProofRequestAcknowledged {
-    pub fn empty() -> Self {
-        Self {
-            chain_id: U256::zero(),
-            block_number: U256::zero(),
-            accepted: false,
-            assigned_to: ProvingNetwork::None,
-        }
-    }
-}
-
+#[derive(Debug)]
 pub struct ProofRequestAcknowledgedHandler;
 
 #[async_trait]
