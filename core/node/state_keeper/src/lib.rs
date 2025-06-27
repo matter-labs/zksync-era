@@ -3,7 +3,7 @@ pub use self::{
         mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     },
-    keeper::ZkSyncStateKeeper,
+    keeper::{StateKeeper, StateKeeperBuilder},
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
     state_keeper_storage::AsyncRocksdbCache,
