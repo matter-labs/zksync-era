@@ -103,7 +103,7 @@ impl VmRunner {
             if i > 0 {
                 // First L2 block in every batch is already preloaded
                 batch_executor
-                    .start_next_l2_block(block_env.clone())
+                    .start_next_l2_block(block_env)
                     .await
                     .with_context(|| {
                         format!("failed starting L2 block with {block_env:?} in batch executor")
