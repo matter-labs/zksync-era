@@ -63,7 +63,6 @@ da_client:
   blob_version: 0
   polynomial_form: coeff
   eigenda_sidecar_rpc: http://localhost:9999
-  version: V2
 ```
 
 ### V2Secure specific client configuration
