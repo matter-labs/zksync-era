@@ -83,7 +83,11 @@ impl EigenDAClient {
         });
         let response = self
             .sidecar_client
-            .post(self.sidecar_rpc.clone().unwrap()) // Safe unwrap as we know sidecar_rpc is set when secure is true
+            .post(
+                self.sidecar_rpc
+                    .clone()
+                    .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
+            )
             .json(&body)
             .send()
             .await
@@ -110,7 +114,11 @@ impl EigenDAClient {
         });
         let response = self
             .sidecar_client
-            .post(self.sidecar_rpc.clone().unwrap()) // Safe unwrap as we know sidecar_rpc is set when secure is true
+            .post(
+                self.sidecar_rpc
+                    .clone()
+                    .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
+            ) // Safe unwrap as we know sidecar_rpc is set when secure is true
             .json(&body)
             .send()
             .await
