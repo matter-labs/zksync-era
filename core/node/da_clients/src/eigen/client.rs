@@ -32,9 +32,6 @@ pub struct EigenDAClient {
     client: PayloadDisperser,
     sidecar_client: Client,
     sidecar_rpc: Option<String>,
-    // The secure field is analogous to checking if the sidecar_rpc is set or not.
-    // We have it as a separate field for better code clarity.
-    secure: bool,
 }
 
 impl EigenDAClient {
@@ -68,13 +65,10 @@ impl EigenDAClient {
         let signer = Signer::new(private_key);
         let client = PayloadDisperser::new(payload_disperser_config, signer).await?;
 
-        let secure = config.eigenda_sidecar_rpc.is_some();
-
         Ok(Self {
             client,
             sidecar_client: Client::new(),
             sidecar_rpc: config.eigenda_sidecar_rpc,
-            secure,
         })
     }
 }
@@ -161,7 +155,8 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        if self.secure {
+        // Sidecar RPC being set means we are using EigenDA V2 Secure
+        if self.sidecar_rpc.is_some() {
             // In V2Secure, we need to send the blob key to the sidecar for proof generation
             self.send_blob_key(blob_key.to_hex())
                 .await
@@ -219,7 +214,8 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            if self.secure {
+            // Sidecar RPC being set means we are using EigenDA V2 Secure
+            if self.sidecar_rpc.is_some() {
                 if let Some(proof) = self
                     .get_proof(blob_id)
                     .await
