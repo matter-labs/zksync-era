@@ -1,3 +1,10 @@
+# To allow any wallet to connect, use the literal string "all".
+# Example: whitelisted_wallets: "all"
+
+# To restrict access to specific wallets, provide a non-empty list of addresses.
+whitelisted_wallets:
+  - "0x742d35Cc6634C0532925a3b8D69C7F16F6d34d2c"  # Example wallet address
+  
 groups:
   - name: "group1"
     members:
