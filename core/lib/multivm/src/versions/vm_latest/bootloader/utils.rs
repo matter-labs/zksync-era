@@ -186,12 +186,17 @@ pub(crate) fn apply_interop_root(
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
-        U256::from(interop_root.chain_id),
+        U256::from(interop_root.chain_id.as_u64()),
         U256::from(interop_root.block_number),
         U256::from(interop_root.sides.len()),
     ];
 
-    u256_words.extend(interop_root.sides);
+    u256_words.extend(
+        interop_root
+            .sides
+            .iter()
+            .map(|hash| U256::from(hash.as_bytes())),
+    );
     let start_slot = interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE;
     memory.extend((start_slot..).zip(u256_words));
 }
