@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, Entries, NamedEntries, OrString, Serde, ToEntries, WellKnown},
+    de::{Delimited, Entries, NamedEntries, Optional, OrString, Serde, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -171,7 +171,7 @@ impl WellKnown for MaxResponseSizeOverrides {
 }
 
 /// Response size limits for JSON-RPC servers.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MaxResponseSize {
     /// Global limit applied to all RPC methods. Measured in bytes.
     pub global: usize,
@@ -290,9 +290,12 @@ pub struct Web3JsonRpcConfig {
     /// (additionally to natively bridged tokens).
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
-    /// Enabled JSON RPC API namespaces.
+    /// Enabled JSON-RPC API namespaces. Applies to the HTTP server, and to the WS server unless `ws_api_namespaces` param is set.
     #[config(with = Delimited(","), default_t = Namespace::DEFAULT.into())]
     pub api_namespaces: HashSet<Namespace>,
+    /// JSON-RPC API namespaces for the WS server. If `null`, the WS server will use `api_namespaces`.
+    #[config(with = Optional(Delimited(",")))]
+    pub ws_api_namespaces: Option<HashSet<Namespace>>,
     /// Enables extended tracing of RPC calls. This is useful for debugging, but may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
     #[config(default, alias = "extended_rpc_tracing")]
@@ -326,6 +329,13 @@ impl Web3JsonRpcConfig {
             global: self.max_response_body_size.0 as usize,
             overrides: self.max_response_body_size_overrides.scale(scale),
         }
+    }
+
+    /// Returns enabled RPC namespaces for the WS server.
+    pub fn ws_namespaces(&self) -> &HashSet<Namespace> {
+        self.ws_api_namespaces
+            .as_ref()
+            .unwrap_or(&self.api_namespaces)
     }
 }
 
@@ -443,6 +453,7 @@ mod tests {
                     Address::from_low_u64_be(2),
                 ],
                 api_namespaces: HashSet::from([Namespace::Debug]),
+                ws_api_namespaces: Some(HashSet::from([Namespace::Eth, Namespace::Pubsub])),
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
             },
@@ -474,6 +485,7 @@ mod tests {
             API_WEB3_JSON_RPC_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
             API_WEB3_JSON_RPC_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
+            API_WEB3_JSON_RPC_WS_API_NAMESPACES=eth,pubsub
             API_WEB3_JSON_RPC_EXTENDED_API_TRACING=true
             API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
@@ -548,6 +560,9 @@ mod tests {
             filters_disabled: false
             api_namespaces:
             - debug
+            ws_api_namespaces:
+            - eth
+            - pubsub
             whitelisted_tokens_for_aa:
             - "0x0000000000000000000000000000000000000001"
             - "0x0000000000000000000000000000000000000002"
@@ -610,6 +625,9 @@ mod tests {
             filters_disabled: false
             api_namespaces:
             - debug
+            ws_api_namespaces:
+            - eth
+            - pubsub
             whitelisted_tokens_for_aa:
             - "0x0000000000000000000000000000000000000001"
             - "0x0000000000000000000000000000000000000002"

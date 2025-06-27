@@ -1,13 +1,14 @@
-use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet, iter, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration,
+};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
-use futures::future;
 use tokio::{
     sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
-use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
+use tower_http::cors::CorsLayer;
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -38,7 +39,6 @@ use self::{
         TrafficTracker,
     },
     mempool_cache::MempoolCache,
-    metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace,
         UnstableNamespace, Web3Namespace, ZksNamespace,
@@ -50,10 +50,14 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    web3::{backend_jsonrpsee::ServerTimeoutMiddleware, metrics::ApiTransportLabel},
+    web3::{
+        backend_jsonrpsee::{RpcMethodFilter, RpcMethodFilterConfig, ServerTimeoutMiddleware},
+        http_middleware::TransportLayer,
+    },
 };
 
 pub mod backend_jsonrpsee;
+mod http_middleware;
 pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
@@ -87,13 +91,24 @@ pub(crate) enum TypedFilter {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ApiTransport {
-    WebSocket(SocketAddr),
+pub(crate) enum ApiTransport {
+    Ws(SocketAddr),
     Http(SocketAddr),
+    HttpAndWs(SocketAddr),
+}
+
+impl ApiTransport {
+    fn has_http(&self) -> bool {
+        matches!(self, Self::Http(_) | Self::HttpAndWs(_))
+    }
+
+    fn has_ws(&self) -> bool {
+        matches!(self, Self::Ws(_) | Self::HttpAndWs(_))
+    }
 }
 
 /// Optional part of the API server parameters.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct OptionalApiParams {
     vm_barrier: Option<VmConcurrencyBarrier>,
     sync_state: Option<SyncState>,
@@ -120,14 +135,15 @@ pub struct ApiServer {
     transport: ApiTransport,
     tx_sender: TxSender,
     pruning_info_refresh_interval: Duration,
-    namespaces: HashSet<Namespace>,
+    http_namespaces: HashSet<Namespace>,
+    ws_namespaces: HashSet<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
     bridge_addresses_handle: BridgeAddressesHandle,
     sealed_l2_block_handle: SealedL2BlockNumber,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ApiBuilder {
     pool: ConnectionPool<Core>,
     config: InternalApiConfig,
@@ -137,9 +153,8 @@ pub struct ApiBuilder {
     tx_sender: Option<TxSender>,
     bridge_addresses_handle: Option<BridgeAddressesHandle>,
     sealed_l2_block_handle: Option<SealedL2BlockNumber>,
-    // Optional params that may or may not be set using builder methods. We treat `namespaces`
-    // specially because we want to output a warning if they are not set.
-    namespaces: Option<HashSet<Namespace>>,
+    http_namespaces: HashSet<Namespace>,
+    ws_namespaces: HashSet<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
@@ -156,19 +171,25 @@ impl ApiBuilder {
             tx_sender: None,
             bridge_addresses_handle: None,
             sealed_l2_block_handle: None,
-            namespaces: None,
+            http_namespaces: Namespace::DEFAULT.into_iter().collect(),
+            ws_namespaces: Namespace::DEFAULT.into_iter().collect(),
             method_tracer: Arc::new(MethodTracer::default()),
             optional: OptionalApiParams::default(),
         }
     }
 
     pub fn ws(mut self, port: u16) -> Self {
-        self.transport = Some(ApiTransport::WebSocket(([0, 0, 0, 0], port).into()));
+        self.transport = Some(ApiTransport::Ws(([0, 0, 0, 0], port).into()));
         self
     }
 
     pub fn http(mut self, port: u16) -> Self {
         self.transport = Some(ApiTransport::Http(([0, 0, 0, 0], port).into()));
+        self
+    }
+
+    pub fn http_and_ws(mut self, port: u16) -> Self {
+        self.transport = Some(ApiTransport::HttpAndWs(([0, 0, 0, 0], port).into()));
         self
     }
 
@@ -226,8 +247,13 @@ impl ApiBuilder {
         self
     }
 
-    pub fn enable_api_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
-        self.namespaces = Some(namespaces);
+    pub fn enable_http_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
+        self.http_namespaces = namespaces;
+        self
+    }
+
+    pub fn enable_ws_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
+        self.ws_namespaces = namespaces;
         self
     }
 
@@ -283,8 +309,8 @@ impl ApiBuilder {
     pub fn build(self) -> anyhow::Result<ApiServer> {
         let transport = self.transport.context("API transport not set")?;
         let health_check_name = match &transport {
-            ApiTransport::Http(_) => "http_api",
-            ApiTransport::WebSocket(_) => "ws_api",
+            ApiTransport::Http(_) | ApiTransport::HttpAndWs(_) => "http_api",
+            ApiTransport::Ws(_) => "ws_api",
         };
         let (_, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
@@ -295,10 +321,8 @@ impl ApiBuilder {
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             pruning_info_refresh_interval: self.pruning_info_refresh_interval,
-            namespaces: self.namespaces.unwrap_or_else(|| {
-                tracing::warn!("debug_ and snapshots_ API namespace will be disabled by default");
-                Namespace::DEFAULT.into()
-            }),
+            http_namespaces: self.http_namespaces,
+            ws_namespaces: self.ws_namespaces,
             method_tracer: self.method_tracer,
             optional: self.optional,
             sealed_l2_block_handle: self
@@ -312,9 +336,18 @@ impl ApiBuilder {
 }
 
 impl ApiServer {
-    pub fn health_check(&self) -> ReactiveHealthCheck {
+    pub(crate) fn transport(&self) -> &ApiTransport {
+        &self.transport
+    }
+
+    /// Returns health check(s) associated with this server. There's 2 checks for a combined HTTP / WS server,
+    /// and 1 check otherwise.
+    pub fn health_checks(&self) -> Vec<ReactiveHealthCheck> {
         // `unwrap()` is safe by construction; `health_updater` is only taken out when the server is getting started
-        self.health_updater.as_ref().unwrap().subscribe()
+        let check = self.health_updater.as_ref().unwrap().subscribe();
+        let additional_check = matches!(&self.transport, ApiTransport::HttpAndWs(_))
+            .then(|| check.clone().renamed("ws_api"));
+        iter::once(check).chain(additional_check).collect()
     }
 
     async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
@@ -323,15 +356,7 @@ impl ApiServer {
             BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
         drop(storage);
 
-        // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag
-        let installed_filters =
-            if matches!(self.transport, ApiTransport::Http(_)) && self.config.filters_disabled {
-                None
-            } else {
-                Some(Arc::new(Mutex::new(Filters::new(
-                    self.optional.filters_limit,
-                ))))
-            };
+        let installed_filters = Arc::new(Mutex::new(Filters::new(self.optional.filters_limit)));
 
         Ok(RpcState {
             current_method: self.method_tracer,
@@ -353,56 +378,124 @@ impl ApiServer {
     async fn build_rpc_module(
         self,
         pub_sub: Option<EthSubscribe>,
-    ) -> anyhow::Result<RpcModule<()>> {
-        let namespaces = self.namespaces.clone();
-        let zksync_network_id = self.config.l2_chain_id;
+    ) -> anyhow::Result<(RpcModule<()>, Option<RpcMethodFilterConfig>)> {
+        #[derive(Debug)]
+        struct FilterConfigBuilder {
+            http_only_namespaces: HashSet<Namespace>,
+            http_only_methods: HashSet<&'static str>,
+            ws_only_namespaces: HashSet<Namespace>,
+            ws_only_methods: HashSet<&'static str>,
+        }
+
+        impl FilterConfigBuilder {
+            fn new(server: &ApiServer) -> (Option<Self>, HashSet<Namespace>) {
+                let mut http_namespaces = if server.transport.has_http() {
+                    server.http_namespaces.clone()
+                } else {
+                    HashSet::new()
+                };
+                http_namespaces.remove(&Namespace::Pubsub); // HTTP transport is incapable of serving subscriptions
+                let ws_namespaces = if server.transport.has_ws() {
+                    server.ws_namespaces.clone()
+                } else {
+                    HashSet::new()
+                };
+
+                let all_namespaces: HashSet<_> =
+                    http_namespaces.union(&ws_namespaces).copied().collect();
+                if !matches!(&server.transport, ApiTransport::HttpAndWs(_)) {
+                    // No need to employ transport filtering since there's single transport.
+                    return (None, all_namespaces);
+                }
+
+                let http_only_namespaces: HashSet<_> = http_namespaces
+                    .difference(&ws_namespaces)
+                    .copied()
+                    .collect();
+                let ws_only_namespaces: HashSet<_> = ws_namespaces
+                    .difference(&http_namespaces)
+                    .copied()
+                    .collect();
+                let this = Self {
+                    http_only_namespaces,
+                    http_only_methods: HashSet::new(),
+                    ws_only_namespaces,
+                    ws_only_methods: HashSet::new(),
+                };
+                (Some(this), all_namespaces)
+            }
+
+            fn apply_namespace(&mut self, namespace: Namespace, rpc: &Methods) {
+                if self.http_only_namespaces.contains(&namespace) {
+                    self.http_only_methods.extend(rpc.method_names());
+                } else if self.ws_only_namespaces.contains(&namespace) {
+                    self.ws_only_methods.extend(rpc.method_names());
+                }
+            }
+
+            fn build(self) -> RpcMethodFilterConfig {
+                RpcMethodFilterConfig {
+                    http_only_methods: self.http_only_methods,
+                    ws_only_methods: self.ws_only_methods,
+                }
+            }
+        }
+
+        // A macro is required because `into_rpc()` is defined in each RPC server trait.
+        macro_rules! from_state_fn {
+            ($ty:ident) => {
+                |state: &RpcState| Methods::from($ty::new(state.clone()).into_rpc())
+            };
+        }
+
+        type ConstructorFn = fn(&RpcState) -> Methods;
+
+        const NAMESPACE_CONSTRUCTORS: &[(Namespace, ConstructorFn)] = &[
+            (Namespace::Debug, from_state_fn!(DebugNamespace)),
+            (Namespace::Eth, from_state_fn!(EthNamespace)),
+            (Namespace::Web3, |_| Web3Namespace.into_rpc().into()),
+            (Namespace::Zks, from_state_fn!(ZksNamespace)),
+            (Namespace::En, from_state_fn!(EnNamespace)),
+            (Namespace::Snapshots, from_state_fn!(SnapshotsNamespace)),
+            (Namespace::Unstable, from_state_fn!(UnstableNamespace)),
+            (Namespace::Net, |state| {
+                NetNamespace::new(state.api_config.l2_chain_id)
+                    .into_rpc()
+                    .into()
+            }),
+        ];
+
+        let (mut config_builder, all_namespaces) = FilterConfigBuilder::new(&self);
         let rpc_state = self.build_rpc_state().await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
-        if let Some(pub_sub) = pub_sub {
-            rpc.merge(pub_sub.into_rpc())
-                .context("cannot merge eth pubsub namespace")?;
+        // Pubsub namespace requires special handling since its module is obtained from outside rather than constructed.
+        if all_namespaces.contains(&Namespace::Pubsub) {
+            let pub_sub = pub_sub.context("missing pub-sub module")?.into_rpc().into();
+            if let Some(config_builder) = &mut config_builder {
+                config_builder.apply_namespace(Namespace::Pubsub, &pub_sub);
+            }
+            rpc.merge(pub_sub)
+                .context("cannot merge pub-sub namespace")?;
         }
 
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
-                .context("cannot merge debug namespace")?;
+        for &(namespace, constructor) in NAMESPACE_CONSTRUCTORS {
+            if all_namespaces.contains(&namespace) {
+                let namespace_rpc = constructor(&rpc_state);
+                if let Some(config_builder) = &mut config_builder {
+                    config_builder.apply_namespace(namespace, &namespace_rpc);
+                }
+                rpc.merge(namespace_rpc)
+                    .with_context(|| format!("cannot merge {namespace:?} namespace"))?;
+            }
         }
-        if namespaces.contains(&Namespace::Eth) {
-            rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge eth namespace")?;
-        }
-        if namespaces.contains(&Namespace::Net) {
-            rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .context("cannot merge net namespace")?;
-        }
-        if namespaces.contains(&Namespace::Web3) {
-            rpc.merge(Web3Namespace.into_rpc())
-                .context("cannot merge web3 namespace")?;
-        }
-        if namespaces.contains(&Namespace::Zks) {
-            rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge zks namespace")?;
-        }
-        if namespaces.contains(&Namespace::En) {
-            rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge en namespace")?;
-        }
-        if namespaces.contains(&Namespace::Snapshots) {
-            rpc.merge(SnapshotsNamespace::new(rpc_state.clone()).into_rpc())
-                .context("cannot merge snapshots namespace")?;
-        }
-        if namespaces.contains(&Namespace::Unstable) {
-            rpc.merge(UnstableNamespace::new(rpc_state).into_rpc())
-                .context("cannot merge unstable namespace")?;
-        }
-        Ok(rpc)
+        Ok((rpc, config_builder.map(FilterConfigBuilder::build)))
     }
 
     pub(crate) async fn run(
         self,
-        pub_sub: Option<EthSubscribe>, // FIXME: awkward
+        pub_sub: Option<EthSubscribe>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         if self.config.filters_disabled {
@@ -413,26 +506,6 @@ impl ApiServer {
             }
         } else if self.optional.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
-        }
-
-        if self.namespaces.contains(&Namespace::Pubsub)
-            && matches!(&self.transport, ApiTransport::Http(_))
-        {
-            tracing::debug!("pubsub API is not supported for HTTP transport, ignoring");
-        }
-
-        match (&self.transport, self.optional.subscriptions_limit) {
-            (ApiTransport::WebSocket(_), None) => {
-                tracing::warn!(
-                    "`subscriptions_limit` is not set - unlimited subscriptions are allowed"
-                );
-            }
-            (ApiTransport::Http(_), Some(_)) => {
-                tracing::warn!(
-                    "`subscriptions_limit` is ignored for HTTP transport, use WebSocket instead"
-                );
-            }
-            _ => {}
         }
 
         self.run_jsonrpsee_server(stop_receiver, pub_sub).await
@@ -514,11 +587,11 @@ impl ApiServer {
         const L1_BATCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
         let transport = self.transport;
-        let (transport_str, is_http, addr) = match transport {
-            ApiTransport::Http(addr) => ("HTTP", true, addr),
-            ApiTransport::WebSocket(addr) => ("WS", false, addr),
+        let (transport_str, addr) = match transport {
+            ApiTransport::Http(addr) => ("HTTP", addr),
+            ApiTransport::Ws(addr) => ("WS", addr),
+            ApiTransport::HttpAndWs(addr) => ("HTTP / WS", addr),
         };
-        let transport_label = ApiTransportLabel::from(&transport);
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
@@ -556,41 +629,30 @@ impl ApiServer {
             tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
         }
 
-        let rpc = self.build_rpc_module(pub_sub).await?;
+        let (rpc, method_filter_config) = self.build_rpc_module(pub_sub).await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
-        tracing::debug!(
-            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
+        tracing::info!(
+            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}, \
+             filtering: {method_filter_config:?}",
             registered_method_names.len()
         );
         let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
 
         // Setup CORS.
-        let cors = is_http.then(|| {
-            CorsLayer::new()
-                // Allow `POST` when accessing the resource
-                .allow_methods([http::Method::POST])
-                // Allow requests from any origin
-                .allow_origin(tower_http::cors::Any)
-                .allow_headers([http::header::CONTENT_TYPE])
-        });
-        // Setup metrics for the number of in-flight requests.
-        let (in_flight_requests, counter) = InFlightRequestsLayer::pair();
-        tokio::spawn(
-            counter.run_emitter(Duration::from_millis(100), move |count| {
-                API_METRICS.web3_in_flight_requests[&transport_label].observe(count);
-                future::ready(())
-            }),
-        );
+        let cors = CorsLayer::new()
+            // Allow `POST` when accessing the resource
+            .allow_methods([http::Method::POST])
+            // Allow requests from any origin
+            .allow_origin(tower_http::cors::Any)
+            .allow_headers([http::header::CONTENT_TYPE]);
+        let transport_layer = TransportLayer::new(cors);
+
         // Assemble server middleware.
-        let middleware = tower::ServiceBuilder::new()
-            .layer(in_flight_requests)
-            .option_layer(cors);
+        let http_middleware = tower::ServiceBuilder::new().layer(transport_layer);
 
         // Settings shared by HTTP and WS servers.
-        let max_connections = !is_http
-            .then_some(subscriptions_limit)
-            .flatten()
-            .unwrap_or(5_000);
+        // FIXME: do not hard-code the default
+        let max_connections = subscriptions_limit.unwrap_or(5_000);
 
         let metadata_layer = MetadataLayer::new(registered_method_names, method_tracer);
         let metadata_layer = if extended_tracing {
@@ -607,6 +669,11 @@ impl ApiServer {
             .layer_fn(move |svc| {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
+            // We aren't interested in tracking errors for method rejections, hence placement before the metadata layer.
+            .option_layer(method_filter_config.map(|config| {
+                let config = Arc::new(config);
+                tower::layer::layer_fn(move |svc| RpcMethodFilter::new(svc, config.clone()))
+            }))
             // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
             .option_layer(
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
@@ -616,39 +683,36 @@ impl ApiServer {
                 tower::layer::layer_fn(move |svc| ServerTimeoutMiddleware::new(svc, timeout))
             }))
             // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
-            .option_layer((!is_http).then(|| {
-                tower::layer::layer_fn(move |svc| {
-                    LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
-                })
-            }));
+            .layer_fn(move |svc| LimitMiddleware::new(svc, websocket_requests_per_minute_limit));
 
-        let server_builder = ServerBuilder::default()
+        let mut server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
-            .set_http_middleware(middleware)
+            .set_http_middleware(http_middleware)
             .max_response_body_size(response_body_size_limit)
             .set_batch_request_config(batch_request_config)
+            .set_id_provider(EthSubscriptionIdProvider)
             .set_rpc_middleware(rpc_middleware);
 
-        let (local_addr, server_handle) = if is_http {
-            // HTTP-specific settings
-            let server = server_builder
-                .http_only()
-                .build(addr)
-                .await
-                .context("Failed building HTTP JSON-RPC server")?;
-            (server.local_addr(), server.start(rpc))
-        } else {
-            // WS-specific settings
-            let server = server_builder
-                .set_id_provider(EthSubscriptionIdProvider)
-                .build(addr)
-                .await
-                .context("Failed building WS JSON-RPC server")?;
-            (server.local_addr(), server.start(rpc))
-        };
-        let local_addr = local_addr.with_context(|| {
+        match transport {
+            ApiTransport::Http(_) => {
+                server_builder = server_builder.http_only();
+            }
+            ApiTransport::Ws(_) => {
+                // FIXME: WS server didn't have `ws_only` set; why?
+                server_builder = server_builder.ws_only();
+            }
+            ApiTransport::HttpAndWs(_) => { /* Do not limit the transport */ }
+        }
+
+        let server = server_builder
+            .build(addr)
+            .await
+            .context("Failed building JSON-RPC server")?;
+        let local_addr = server.local_addr().with_context(|| {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
+        let server_handle = server.start(rpc);
+
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         let health = Health::from(HealthStatus::Ready).with_details(serde_json::json!({
             "local_addr": local_addr,

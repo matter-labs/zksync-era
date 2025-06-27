@@ -23,7 +23,7 @@ use crate::{
         MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
-    utils::ports::EcosystemPortsScanner,
+    utils::ports::{AddressPortMap, EcosystemPortsScanner},
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -54,6 +54,7 @@ pub async fn init_configs(
             shell,
             &chain_config.path_to_general_config(),
             chain_config.id,
+            &AddressPortMap::general(),
         )?;
     }
 

@@ -229,6 +229,7 @@ fn parsing_from_full_env() {
         EN_WHITELISTED_TOKENS_FOR_AA=0x0000000000000000000000000000000000000001
         EN_REQUEST_TIMEOUT_SEC=20
         EN_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.35
+        EN_WS_API_NAMESPACES=eth,pubsub
         # NEW PARAMS: From HealthcheckConfig
         EN_HEALTHCHECK_EXPOSE_CONFIG=true
 
@@ -358,6 +359,10 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(
         config.api_namespaces,
         HashSet::from([Namespace::Zks, Namespace::Eth])
+    );
+    assert_eq!(
+        config.ws_api_namespaces,
+        Some(HashSet::from([Namespace::Pubsub, Namespace::Eth]))
     );
     assert!(config.filters_disabled);
     assert_eq!(

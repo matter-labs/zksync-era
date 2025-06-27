@@ -412,6 +412,15 @@ impl ReactiveHealthCheck {
             Err(_) => future::pending().await,
         }
     }
+
+    /// Switches the name for this healthcheck, while still reporting health from the same [`HealthUpdater`].
+    /// This can be used to report a single component with multiple health checks.
+    pub fn renamed(self, other_name: &'static str) -> Self {
+        Self {
+            name: other_name,
+            health_receiver: self.health_receiver,
+        }
+    }
 }
 
 #[async_trait]

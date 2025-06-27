@@ -491,12 +491,15 @@ impl<R> ExternalNodeBuilder<R> {
 impl ExternalNodeBuilder {
     fn web3_api_optional_config(&self) -> anyhow::Result<Web3ServerOptionalConfig> {
         let config = &self.config.local.api.web3_json_rpc;
+        let http_namespaces = config.api_namespaces.clone();
+        let ws_namespaces = config.ws_namespaces().clone();
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
         let pruning_info_refresh_interval = self.config.local.pruning.removal_delay / 5;
 
         Ok(Web3ServerOptionalConfig {
-            namespaces: config.api_namespaces.clone(),
+            http_namespaces,
+            ws_namespaces,
             filters_limit: config.filters_limit,
             subscriptions_limit: config.subscriptions_limit,
             batch_request_size_limit: config.max_batch_request_size.get(),
@@ -544,28 +547,15 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let mut optional_config = self.web3_api_optional_config()?;
-        // Not relevant for HTTP server, so we reset to prevent a logged warning.
-        optional_config.websocket_requests_per_minute_limit = None;
-        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
-
-        self.node.add_layer(Web3ServerLayer::http(
-            self.config.local.api.web3_json_rpc.http_port,
-            internal_api_config_base,
-            optional_config,
-        ));
-
-        Ok(self)
-    }
-
-    fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
+    fn add_web3_api_layer(mut self, enable_http: bool, enable_ws: bool) -> anyhow::Result<Self> {
         // TODO: Support websocket requests per minute limit
         let optional_config = self.web3_api_optional_config()?;
         let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+        let api = &self.config.local.api;
 
-        self.node.add_layer(Web3ServerLayer::ws(
-            self.config.local.api.web3_json_rpc.ws_port,
+        self.node.add_layer(Web3ServerLayer::new(
+            enable_http.then_some(api.web3_json_rpc.http_port),
+            enable_ws.then_some(api.web3_json_rpc.ws_port),
             internal_api_config_base,
             optional_config,
         ));
@@ -620,7 +610,9 @@ impl ExternalNodeBuilder {
 
         for component in &components {
             match component {
-                Component::HttpApi => {
+                Component::HttpApi | Component::WsApi => {
+                    let enable_http = components.contains(&Component::HttpApi);
+                    let enable_ws = components.contains(&Component::WsApi);
                     self = self
                         .add_sync_state_updater_layer()?
                         .add_bridge_addresses_updater_layer()?
@@ -628,17 +620,7 @@ impl ExternalNodeBuilder {
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?
-                        .add_http_web3_api_layer()?;
-                }
-                Component::WsApi => {
-                    self = self
-                        .add_sync_state_updater_layer()?
-                        .add_bridge_addresses_updater_layer()?
-                        .add_mempool_cache_layer()?
-                        .add_tree_api_client_layer()?
-                        .add_main_node_fee_params_fetcher_layer()?
-                        .add_tx_sender_layer()?
-                        .add_ws_web3_api_layer()?;
+                        .add_web3_api_layer(enable_http, enable_ws)?;
                 }
                 Component::Tree => {
                     // Right now, distributed mode for EN is not fully supported, e.g. there are some

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     net::Ipv4Addr,
 };
 
@@ -48,7 +49,11 @@ use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     jsonrpsee::{
-        core::{client::ClientT, params::BatchRequestBuilder, ClientError},
+        core::{
+            client::{ClientT, Error},
+            params::BatchRequestBuilder,
+            ClientError,
+        },
         http_client::HttpClient,
         rpc_params,
         types::{
@@ -63,9 +68,10 @@ use super::*;
 use crate::{
     testonly::{mock_execute_transaction, store_custom_l2_block},
     tx_sender::SandboxExecutorOptions,
-    web3::testonly::TestServerBuilder,
+    web3::testonly::{ApiServerHandles, TestServerBuilder},
 };
 
+mod combined;
 mod debug;
 mod filters;
 mod snapshots;
@@ -136,8 +142,7 @@ async fn setting_response_size_limits() {
     server_handle.stop().ok();
 }
 
-#[async_trait]
-trait HttpTest: Send + Sync {
+trait TestInit: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis()
@@ -158,9 +163,19 @@ trait HttpTest: Send + Sync {
 
     /// Provides a custom Web3 config. Note that only some config options are actually used in the tests.
     fn web3_config(&self) -> Web3JsonRpcConfig {
-        Web3JsonRpcConfig::for_tests()
+        Web3JsonRpcConfig {
+            // Enable all API namespaces.
+            api_namespaces: Namespace::DEFAULT
+                .into_iter()
+                .chain([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable])
+                .collect(),
+            ..Web3JsonRpcConfig::for_tests()
+        }
     }
+}
 
+#[async_trait]
+trait HttpTest: TestInit {
     async fn test(&self, client: &DynClient<L2>, pool: &ConnectionPool<Core>)
         -> anyhow::Result<()>;
 }
@@ -268,6 +283,25 @@ impl StorageInitialization {
 
 async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let transport = ApiTransport::Http((Ipv4Addr::LOCALHOST, 0).into());
+    let (local_addr, server_handles) = prepare_server(transport, &pool, &test, stop_receiver).await;
+
+    let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
+        .unwrap()
+        .build();
+    test.test(&client, &pool).await.unwrap();
+
+    stop_sender.send_replace(true);
+    server_handles.shutdown().await;
+}
+
+async fn prepare_server(
+    transport: ApiTransport,
+    pool: &ConnectionPool<Core>,
+    test: &impl TestInit,
+    stop_receiver: watch::Receiver<bool>,
+) -> (SocketAddr, ApiServerHandles) {
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&mut storage)
@@ -275,7 +309,6 @@ async fn test_http_server(test: impl HttpTest) {
         .expect("Failed preparing storage for test");
     drop(storage);
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = test.web3_config();
     let genesis = GenesisConfig::for_tests();
@@ -291,21 +324,16 @@ async fn test_http_server(test: impl HttpTest) {
 
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())
-        .with_method_tracer(test.method_tracer())
-        .with_request_timeout(web3_config.request_timeout);
+        .with_method_tracer(test.method_tracer());
     if let Some(executor_options) = test.executor_options() {
         server_builder = server_builder.with_executor_options(executor_options);
     }
-    let mut server_handles = server_builder.build_http(stop_receiver).await;
+    let mut server_handles = server_builder
+        .spawn_server(transport, Some(&web3_config), stop_receiver)
+        .await;
 
     let local_addr = server_handles.wait_until_ready().await;
-    let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
-        .unwrap()
-        .build();
-    test.test(&client, &pool).await.unwrap();
-
-    stop_sender.send_replace(true);
-    server_handles.shutdown().await;
+    (local_addr, server_handles)
 }
 
 fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
@@ -455,8 +483,35 @@ fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
     FeeParams::sensible_v1_default().scale(scale, scale)
 }
 
+fn assert_not_found<T: fmt::Debug>(result: Result<T, Error>) {
+    assert_matches!(result, Err(Error::Call(e)) => {
+        assert_eq!(e.code(), ErrorCode::MethodNotFound.code());
+        assert_eq!(e.message(), ErrorCode::MethodNotFound.message());
+    });
+}
+
+#[tokio::test]
+async fn http_server_cannot_be_accessed_via_ws() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let transport = ApiTransport::Http((Ipv4Addr::LOCALHOST, 0).into());
+    let (local_addr, server_handles) =
+        prepare_server(transport, &pool, &HttpServerBasicsTest, stop_receiver).await;
+
+    let err = Client::<L2, _>::ws(format!("ws://{local_addr}").parse().unwrap())
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("403"), "{err}");
+
+    stop_sender.send_replace(true);
+    server_handles.shutdown().await;
+}
+
 #[derive(Debug)]
 struct HttpServerBasicsTest;
+
+impl TestInit for HttpServerBasicsTest {}
 
 #[async_trait]
 impl HttpTest for HttpServerBasicsTest {
@@ -476,6 +531,14 @@ impl HttpTest for HttpServerBasicsTest {
             .await?
             .context("No genesis L1 batch")?;
         assert!(genesis_l1_batch.base.root_hash.is_some());
+
+        // The HTTP server must not support subscriptions.
+        assert_not_found(
+            client
+                .request::<String, _>("eth_subscribe", rpc_params!["newHeads"])
+                .await,
+        );
+
         Ok(())
     }
 }
@@ -486,14 +549,51 @@ async fn http_server_basics() {
 }
 
 #[derive(Debug)]
-struct BlockMethodsWithSnapshotRecovery;
+struct NamespaceFilteringTest;
+
+impl TestInit for NamespaceFilteringTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            api_namespaces: HashSet::from([Namespace::Eth]),
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+}
 
 #[async_trait]
-impl HttpTest for BlockMethodsWithSnapshotRecovery {
+impl HttpTest for NamespaceFilteringTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // `eth` namespace methods should work.
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, U64::from(0));
+        // `zks` namespace shouldn't work.
+        assert_not_found(client.get_l1_batch_number().await);
+        // `en` namespace shouldn't work either.
+        assert_not_found(client.genesis_config().await);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn filtering_api_namespaces() {
+    test_http_server(NamespaceFilteringTest).await;
+}
+
+#[derive(Debug)]
+struct BlockMethodsWithSnapshotRecovery;
+
+impl TestInit for BlockMethodsWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::empty_recovery()
     }
+}
 
+#[async_trait]
+impl HttpTest for BlockMethodsWithSnapshotRecovery {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -565,12 +665,14 @@ async fn block_methods_with_snapshot_recovery() {
 #[derive(Debug)]
 struct L1BatchMethodsWithSnapshotRecovery;
 
-#[async_trait]
-impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
+impl TestInit for L1BatchMethodsWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::empty_recovery()
     }
+}
 
+#[async_trait]
+impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -647,8 +749,7 @@ async fn l1_batch_methods_with_snapshot_recovery() {
 #[derive(Debug)]
 struct StorageAccessWithSnapshotRecovery;
 
-#[async_trait]
-impl HttpTest for StorageAccessWithSnapshotRecovery {
+impl TestInit for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         let address = Address::repeat_byte(1);
         let code_key = get_code_key(&address);
@@ -665,7 +766,10 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
         let factory_deps = [(code_hash, b"code".to_vec())].into();
         StorageInitialization::Recovery { logs, factory_deps }
     }
+}
 
+#[async_trait]
+impl HttpTest for StorageAccessWithSnapshotRecovery {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -708,6 +812,8 @@ async fn storage_access_with_snapshot_recovery() {
 
 #[derive(Debug)]
 struct TransactionCountTest;
+
+impl TestInit for TransactionCountTest {}
 
 #[async_trait]
 impl HttpTest for TransactionCountTest {
@@ -805,8 +911,7 @@ async fn getting_transaction_count_for_account() {
 #[derive(Debug)]
 struct TransactionCountAfterSnapshotRecoveryTest;
 
-#[async_trait]
-impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
+impl TestInit for TransactionCountAfterSnapshotRecoveryTest {
     fn storage_initialization(&self) -> StorageInitialization {
         let test_address = Address::repeat_byte(11);
         let nonce_log =
@@ -816,7 +921,10 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
             factory_deps: HashMap::new(),
         }
     }
+}
 
+#[async_trait]
+impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -878,6 +986,8 @@ async fn getting_transaction_count_for_account_after_snapshot_recovery() {
 #[derive(Debug)]
 struct TransactionReceiptsTest;
 
+impl TestInit for TransactionReceiptsTest {}
+
 #[async_trait]
 impl HttpTest for TransactionReceiptsTest {
     async fn test(
@@ -938,12 +1048,14 @@ struct RpcCallsTracingTest {
     tracer: Arc<MethodTracer>,
 }
 
-#[async_trait]
-impl HttpTest for RpcCallsTracingTest {
+impl TestInit for RpcCallsTracingTest {
     fn method_tracer(&self) -> Arc<MethodTracer> {
         self.tracer.clone()
     }
+}
 
+#[async_trait]
+impl HttpTest for RpcCallsTracingTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -1048,6 +1160,8 @@ async fn tracing_rpc_calls() {
 #[derive(Debug, Default)]
 struct GenesisConfigTest;
 
+impl TestInit for GenesisConfigTest {}
+
 #[async_trait]
 impl HttpTest for GenesisConfigTest {
     async fn test(
@@ -1093,6 +1207,8 @@ impl GetBytecodeTest {
         Ok(())
     }
 }
+
+impl TestInit for GetBytecodeTest {}
 
 #[async_trait]
 impl HttpTest for GetBytecodeTest {
@@ -1190,6 +1306,8 @@ async fn getting_bytecodes() {
 
 #[derive(Debug)]
 struct FeeHistoryTest;
+
+impl TestInit for FeeHistoryTest {}
 
 #[async_trait]
 impl HttpTest for FeeHistoryTest {
@@ -1309,6 +1427,8 @@ async fn getting_fee_history() {
 
 #[derive(Debug)]
 struct HttpServerBatchStatusTest;
+
+impl TestInit for HttpServerBatchStatusTest {}
 
 #[async_trait]
 impl HttpTest for HttpServerBatchStatusTest {
@@ -1470,12 +1590,14 @@ impl HttpServerBlockNumberTest {
     }
 }
 
+#[derive(Debug)]
 enum PromotionBatchStates {
     L1Committed,
     Proved,
     FastFinalized,
     Executed(Option<H256>),
 }
+
 async fn promote_l1_batch_to_the_state(
     storage: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
@@ -1548,6 +1670,8 @@ async fn promote_l1_batch_to_the_state(
     };
     Ok(tx_hash)
 }
+
+impl TestInit for HttpServerBlockNumberTest {}
 
 #[async_trait]
 impl HttpTest for HttpServerBlockNumberTest {

@@ -28,8 +28,8 @@ pub(crate) struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new(state: RpcState) -> anyhow::Result<Self> {
-        Ok(Self { state })
+    pub fn new(state: RpcState) -> Self {
+        Self { state }
     }
 
     pub(crate) fn map_call(

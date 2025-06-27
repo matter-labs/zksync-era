@@ -11,12 +11,13 @@ use super::testonly::RecordedMethodCalls;
 use crate::{
     execution_sandbox::SANDBOX_METRICS,
     tx_sender::SubmitTxError,
-    web3::metrics::{ObservedRpcParams, API_METRICS},
+    web3::metrics::{ApiTransportLabel, ObservedRpcParams, API_METRICS},
 };
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
 pub(crate) struct MethodMetadata {
+    pub transport: ApiTransportLabel,
     pub name: &'static str,
     pub started_at: Instant,
     /// Block ID requested by the call.
@@ -28,8 +29,9 @@ pub(crate) struct MethodMetadata {
 }
 
 impl MethodMetadata {
-    fn new(name: &'static str) -> Self {
+    fn new(transport: ApiTransportLabel, name: &'static str) -> Self {
         Self {
+            transport,
             name,
             started_at: Instant::now(),
             block_id: None,
@@ -61,13 +63,19 @@ impl Drop for CurrentMethodGuard<'_> {
 // is being polled. We use the drop guard pattern to handle corner cases like the handler panicking.
 // Method handlers are wrapped using RPC-level middleware in `jsonrpsee`.
 #[derive(Debug, Default)]
-pub struct MethodTracer {
+pub(crate) struct MethodTracer {
     inner: ThreadLocal<CurrentMethodInner>,
     #[cfg(test)]
     recorder: RecordedMethodCalls,
 }
 
 impl MethodTracer {
+    /// Returns transport (HTTP or WS) for the current method.
+    pub fn transport(&self) -> Option<ApiTransportLabel> {
+        let cell = self.inner.get_or_default();
+        cell.borrow().as_ref().map(|metadata| metadata.transport)
+    }
+
     /// Sets the block ID for the current JSON-RPC method call. It will be used as a metric label for method latency etc.
     ///
     /// This should be called inside JSON-RPC method handlers; otherwise, this method is a no-op.
@@ -99,13 +107,14 @@ impl MethodTracer {
 
     pub(super) fn new_call<'a>(
         self: &Arc<Self>,
+        transport: ApiTransportLabel,
         name: &'static str,
         raw_params: ObservedRpcParams<'a>,
     ) -> MethodCall<'a> {
         MethodCall {
             tracer: self.clone(),
             params: raw_params,
-            meta: MethodMetadata::new(name),
+            meta: MethodMetadata::new(transport, name),
             is_completed: false,
         }
     }

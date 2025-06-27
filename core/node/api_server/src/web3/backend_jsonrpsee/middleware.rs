@@ -21,9 +21,6 @@ use pin_project_lite::pin_project;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use tokio::sync::watch;
 use tracing::instrument::{Instrument, Instrumented};
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
-};
 use zksync_instrument::alloc::AllocationAccumulator;
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
@@ -32,47 +29,22 @@ use zksync_web3_decl::jsonrpsee::{
 };
 
 use super::metadata::{MethodCall, MethodTracer};
-use crate::web3::metrics::{ObservedRpcParams, API_METRICS};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "transport", rename_all = "snake_case")]
-pub(crate) enum Transport {
-    Ws,
-}
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "api_jsonrpc_backend_batch")]
-struct LimitMiddlewareMetrics {
-    /// Number of rate-limited requests.
-    rate_limited: Family<Transport, Counter>,
-    /// Size of batch requests.
-    #[metrics(buckets = Buckets::exponential(1.0..=512.0, 2.0))]
-    size: Family<Transport, Histogram<usize>>,
-    /// Number of requests rejected by the limiter.
-    rejected: Family<Transport, Counter>,
-}
-
-#[vise::register]
-static METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
+use crate::web3::metrics::{ApiTransportLabel, ObservedRpcParams, LIMIT_METRICS};
 
 /// A rate-limiting middleware.
 ///
 /// `jsonrpsee` will allocate the instance of this struct once per session.
 pub(crate) struct LimitMiddleware<S> {
     inner: S,
-    rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
-    transport: Transport,
-    _guard: GaugeGuard,
+    ws_rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>,
 }
 
 impl<S> LimitMiddleware<S> {
     pub(crate) fn new(inner: S, requests_per_minute_limit: Option<NonZeroU32>) -> Self {
         Self {
             inner,
-            rate_limiter: requests_per_minute_limit
+            ws_rate_limiter: requests_per_minute_limit
                 .map(|limit| RateLimiter::direct(Quota::per_minute(limit))),
-            transport: Transport::Ws,
-            _guard: API_METRICS.ws_open_sessions.inc_guard(1),
         }
     }
 }
@@ -84,12 +56,16 @@ where
     type Future = ResponseFuture<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
-        if let Some(rate_limiter) = &self.rate_limiter {
-            let num_requests = NonZeroU32::MIN; // 1 request, no batches possible
+        let transport = *request
+            .extensions()
+            .get::<ApiTransportLabel>()
+            .expect("no transport label");
+        if let (ApiTransportLabel::Ws, Some(rate_limiter)) = (transport, &self.ws_rate_limiter) {
+            let num_requests = NonZeroU32::MIN; // 1 request (applied on the RPC request level)
 
             // Note: if required, we can extract data on rate limiting from the error.
             if rate_limiter.check_n(num_requests).is_err() {
-                METRICS.rate_limited[&self.transport].inc();
+                LIMIT_METRICS.rate_limited[&ApiTransportLabel::Ws].inc();
 
                 let rp = MethodResponse::error(
                     request.id,
@@ -131,6 +107,10 @@ where
     type Future = WithMethodCall<'a, S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
+        let transport = *request
+            .extensions()
+            .get::<ApiTransportLabel>()
+            .expect("transport label not set");
         // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
         // of the name to `'static` and maps unknown methods to "", so that method name metric labels don't have unlimited cardinality.
         let method_name = self
@@ -144,7 +124,9 @@ where
         } else {
             ObservedRpcParams::Unknown
         };
-        let call = self.method_tracer.new_call(method_name, observed_params);
+        let call = self
+            .method_tracer
+            .new_call(transport, method_name, observed_params);
         let mut future = WithMethodCall::new(self.inner.call(request), call);
         if TRACE_PARAMS {
             future.alloc = Some(AllocationAccumulator::new(method_name));
@@ -400,6 +382,58 @@ impl<F: Future<Output = MethodResponse>> Future for WithServerTimeout<'_, F> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct RpcMethodFilterConfig {
+    pub http_only_methods: HashSet<&'static str>,
+    pub ws_only_methods: HashSet<&'static str>,
+}
+
+/// Filtering for RPC methods based on the method name. Required because otherwise subscriptions will return
+/// internal errors when called via HTTP.
+#[derive(Debug)]
+pub(crate) struct RpcMethodFilter<S> {
+    inner: S,
+    config: Arc<RpcMethodFilterConfig>,
+}
+
+impl<Svc> RpcMethodFilter<Svc> {
+    pub fn new(inner: Svc, config: Arc<RpcMethodFilterConfig>) -> Self {
+        Self { inner, config }
+    }
+}
+
+impl<'a, S> RpcServiceT<'a> for RpcMethodFilter<S>
+where
+    S: Send + Sync + RpcServiceT<'a>,
+{
+    type Future = ResponseFuture<S::Future>;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        let transport = *request
+            .extensions()
+            .get::<ApiTransportLabel>()
+            .expect("no transport label");
+        let method = request.method.as_ref();
+        let should_reject = match transport {
+            ApiTransportLabel::Http => self.config.ws_only_methods.contains(&method),
+            ApiTransportLabel::Ws => self.config.http_only_methods.contains(&method),
+        };
+        if should_reject {
+            let err = MethodResponse::error(
+                request.id,
+                ErrorObject::borrowed(
+                    ErrorCode::MethodNotFound.code(),
+                    ErrorCode::MethodNotFound.message(),
+                    None,
+                ),
+            );
+            ResponseFuture::ready(err)
+        } else {
+            ResponseFuture::future(self.inner.call(request))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -445,7 +479,7 @@ mod tests {
 
             WithMethodCall::new(
                 inner,
-                method_tracer.new_call("test", ObservedRpcParams::None),
+                method_tracer.new_call(ApiTransportLabel::Http, "test", ObservedRpcParams::None),
             )
         });
 

@@ -5,11 +5,10 @@ use std::{collections::HashSet, str::FromStr};
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
+use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
-use zksync_types::{
-    api, settlement::SettlementLayer, Address, Bloom, L1BatchNumber, H160, H256, U64,
-};
+use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
 use zksync_web3_decl::{
     client::{WsClient, L2},
     jsonrpsee::{
@@ -27,7 +26,7 @@ use zksync_web3_decl::{
 use super::*;
 use crate::web3::metrics::SubscriptionType;
 
-async fn wait_for_subscription(
+pub(super) async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
 ) {
@@ -112,7 +111,7 @@ async fn notifiers_start_after_snapshot_recovery() {
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
     let mut subscribe_logic = EthSubscribe::new(POLL_INTERVAL);
     subscribe_logic.set_events_sender(events_sender);
-    let notifier_handles = subscribe_logic.spawn_notifiers(pool.clone(), &stop_receiver);
+    let notifier_handles = subscribe_logic.spawn_notifiers(&pool, &stop_receiver);
     assert!(!notifier_handles.is_empty());
 
     // Wait a little doing nothing and check that notifier tasks are still active (i.e., have not panicked).
@@ -144,63 +143,56 @@ async fn notifiers_start_after_snapshot_recovery() {
 }
 
 #[async_trait]
-trait WsTest: Send + Sync {
-    /// Prepares the storage before the server is started. The default implementation performs genesis.
-    fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::genesis()
-    }
-
+pub(super) trait WsTest: TestInit {
     async fn test(
         &self,
         client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
-        pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
-
-    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
-        None
-    }
 }
 
 async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let contracts_config = ContractsConfig::for_tests();
-    let web3_config = Web3JsonRpcConfig::for_tests();
-    let genesis_config = GenesisConfig::for_tests();
-    let api_config = InternalApiConfig::new(
-        &web3_config,
-        &contracts_config.settlement_layer_specific_contracts(),
-        &contracts_config.l1_specific_contracts(),
-        &contracts_config.l2_contracts(),
-        &genesis_config,
-        false,
-        SettlementLayer::for_tests(),
-    );
-    let mut storage = pool.connection().await.unwrap();
-    test.storage_initialization()
-        .prepare_storage(&mut storage)
-        .await
-        .expect("Failed preparing storage for test");
-    drop(storage);
-
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (mut server_handles, pub_sub_events) = TestServerBuilder::new(pool.clone(), api_config)
-        .build_ws(test.websocket_requests_per_minute_limit(), stop_receiver)
-        .await;
+    let transport = ApiTransport::Ws((Ipv4Addr::LOCALHOST, 0).into());
+    let (local_addr, mut server_handles) =
+        prepare_server(transport, &pool, &test, stop_receiver).await;
 
-    let local_addr = server_handles.wait_until_ready().await;
     let client = Client::ws(format!("ws://{local_addr}").parse().unwrap())
         .await
         .unwrap()
         .build();
-    test.test(&client, &pool, pub_sub_events).await.unwrap();
+    test.test(&client, &pool, &mut server_handles.pub_sub_events)
+        .await
+        .unwrap();
+
+    stop_sender.send_replace(true);
+    server_handles.shutdown().await;
+}
+
+#[tokio::test]
+async fn ws_server_cannot_be_accessed_via_http() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let transport = ApiTransport::Ws((Ipv4Addr::LOCALHOST, 0).into());
+    let (local_addr, server_handles) =
+        prepare_server(transport, &pool, &HttpServerBasicsTest, stop_receiver).await;
+
+    let client = Client::<L2>::http(format!("http://{local_addr}").parse().unwrap())
+        .unwrap()
+        .build();
+    let err = client.get_block_number().await.unwrap_err();
+    assert_matches!(&err, Error::Transport(err) if err.to_string().contains("403"));
 
     stop_sender.send_replace(true);
     server_handles.shutdown().await;
 }
 
 #[derive(Debug)]
-struct WsServerCanStartTest;
+pub(super) struct WsServerCanStartTest;
+
+impl TestInit for WsServerCanStartTest {}
 
 #[async_trait]
 impl WsTest for WsServerCanStartTest {
@@ -208,7 +200,7 @@ impl WsTest for WsServerCanStartTest {
         &self,
         client: &WsClient<L2>,
         _pool: &ConnectionPool<Core>,
-        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
@@ -231,12 +223,63 @@ async fn ws_server_can_start() {
 }
 
 #[derive(Debug)]
-struct BasicSubscriptionsTest {
-    snapshot_recovery: bool,
+struct WsNamespaceFilteringTest {
+    fine_grained: bool,
+}
+
+impl TestInit for WsNamespaceFilteringTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        if self.fine_grained {
+            Web3JsonRpcConfig {
+                ws_api_namespaces: Some(HashSet::from([Namespace::Eth])),
+                ..Web3JsonRpcConfig::for_tests()
+            }
+        } else {
+            Web3JsonRpcConfig {
+                api_namespaces: HashSet::from([Namespace::Eth]),
+                ..Web3JsonRpcConfig::for_tests()
+            }
+        }
+    }
 }
 
 #[async_trait]
-impl WsTest for BasicSubscriptionsTest {
+impl WsTest for WsNamespaceFilteringTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        _pool: &ConnectionPool<Core>,
+        _pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        // `eth` namespace methods should work.
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, U64::from(0));
+        // `zks` namespace shouldn't work.
+        assert_not_found(client.get_l1_batch_number().await);
+        // `en` namespace shouldn't work either.
+        assert_not_found(client.genesis_config().await);
+        // Subscriptions must not work since they are considered a distinct namespace.
+        assert_not_found(
+            client
+                .request::<String, _>("eth_subscribe", rpc_params!["newHeads"])
+                .await,
+        );
+        Ok(())
+    }
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn filtering_api_namespaces(fine_grained: bool) {
+    test_ws_server(WsNamespaceFilteringTest { fine_grained }).await;
+}
+
+#[derive(Debug, Default)]
+pub(super) struct BasicSubscriptionsTest {
+    snapshot_recovery: bool,
+}
+
+impl TestInit for BasicSubscriptionsTest {
     fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
@@ -244,17 +287,20 @@ impl WsTest for BasicSubscriptionsTest {
             StorageInitialization::genesis()
         }
     }
+}
 
+#[async_trait]
+impl WsTest for BasicSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
-        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Wait for the notifiers to get initialized so that they don't skip notifications
         // for the created subscriptions.
         wait_for_notifiers(
-            &mut pub_sub_events,
+            pub_sub_events,
             &[SubscriptionType::Blocks, SubscriptionType::Txs],
         )
         .await;
@@ -263,13 +309,13 @@ impl WsTest for BasicSubscriptionsTest {
         let mut blocks_subscription = client
             .subscribe::<BlockHeader, _>("eth_subscribe", params, "eth_unsubscribe")
             .await?;
-        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+        wait_for_subscription(pub_sub_events, SubscriptionType::Blocks).await;
 
         let params = rpc_params!["newPendingTransactions"];
         let mut txs_subscription = client
             .subscribe::<H256, _>("eth_subscribe", params, "eth_unsubscribe")
             .await?;
-        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
+        wait_for_subscription(pub_sub_events, SubscriptionType::Txs).await;
 
         let mut storage = pool.connection().await?;
         let tx_result = mock_execute_transaction(create_l2_transaction(1, 2).into());
@@ -404,8 +450,7 @@ impl LogSubscriptions {
     }
 }
 
-#[async_trait]
-impl WsTest for LogSubscriptionsTest {
+impl TestInit for LogSubscriptionsTest {
     fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
@@ -413,18 +458,21 @@ impl WsTest for LogSubscriptionsTest {
             StorageInitialization::genesis()
         }
     }
+}
 
+#[async_trait]
+impl WsTest for LogSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
-        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
             mut all_logs_subscription,
             mut address_subscription,
             mut topic_subscription,
-        } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
+        } = LogSubscriptions::new(client, pub_sub_events).await?;
 
         let mut storage = pool.connection().await?;
         let next_l2_block_number = if self.snapshot_recovery {
@@ -451,7 +499,7 @@ impl WsTest for LogSubscriptionsTest {
         let topic_logs = collect_logs(&mut topic_subscription, 2).await?;
         assert_logs_match(&topic_logs, &[events[1], events[3]]);
 
-        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
+        wait_for_notifiers(pub_sub_events, &[SubscriptionType::Logs]).await;
 
         // Check that no new notifications were sent to subscribers.
         tokio::time::timeout(POLL_INTERVAL, all_logs_subscription.next())
@@ -501,19 +549,21 @@ async fn log_subscriptions_after_snapshot_recovery() {
 #[derive(Debug)]
 struct LogSubscriptionsWithNewBlockTest;
 
+impl TestInit for LogSubscriptionsWithNewBlockTest {}
+
 #[async_trait]
 impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
-        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
             mut all_logs_subscription,
             mut address_subscription,
             ..
-        } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
+        } = LogSubscriptions::new(client, pub_sub_events).await?;
 
         let mut storage = pool.connection().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
@@ -549,19 +599,21 @@ async fn log_subscriptions_with_new_block() {
 #[derive(Debug)]
 struct LogSubscriptionsWithManyBlocksTest;
 
+impl TestInit for LogSubscriptionsWithManyBlocksTest {}
+
 #[async_trait]
 impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
-        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
             mut all_logs_subscription,
             mut address_subscription,
             ..
-        } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
+        } = LogSubscriptions::new(client, pub_sub_events).await?;
 
         // Add two blocks in the storage atomically.
         let mut storage = pool.connection().await?;
@@ -595,16 +647,18 @@ async fn log_subscriptions_with_many_new_blocks_at_once() {
 #[derive(Debug)]
 struct LogSubscriptionsWithDelayTest;
 
+impl TestInit for LogSubscriptionsWithDelayTest {}
+
 #[async_trait]
 impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         pool: &ConnectionPool<Core>,
-        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Wait until notifiers are initialized.
-        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
+        wait_for_notifiers(pub_sub_events, &[SubscriptionType::Logs]).await;
 
         // Store an L2 block w/o subscriptions being present.
         let mut storage = pool.connection().await?;
@@ -612,12 +666,7 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         drop(storage);
 
         // Wait for the log notifier to process the new L2 block.
-        wait_for_notifier_l2_block(
-            &mut pub_sub_events,
-            SubscriptionType::Logs,
-            L2BlockNumber(1),
-        )
-        .await;
+        wait_for_notifier_l2_block(pub_sub_events, SubscriptionType::Logs, L2BlockNumber(1)).await;
 
         let params = rpc_params!["logs"];
         let mut all_logs_subscription = client
@@ -632,7 +681,7 @@ impl WsTest for LogSubscriptionsWithDelayTest {
             .subscribe::<api::Log, _>("eth_subscribe", params, "eth_unsubscribe")
             .await?;
         for _ in 0..2 {
-            wait_for_subscription(&mut pub_sub_events, SubscriptionType::Logs).await;
+            wait_for_subscription(pub_sub_events, SubscriptionType::Logs).await;
         }
 
         let mut storage = pool.connection().await?;
@@ -665,13 +714,22 @@ async fn log_subscriptions_with_delay() {
 #[derive(Debug)]
 struct RateLimitingTest;
 
+impl TestInit for RateLimitingTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            websocket_requests_per_minute_limit: NonZeroU32::new(3).unwrap(),
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+}
+
 #[async_trait]
 impl WsTest for RateLimitingTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         _pool: &ConnectionPool<Core>,
-        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
         client.chain_id().await.unwrap();
@@ -688,10 +746,6 @@ impl WsTest for RateLimitingTest {
 
         Ok(())
     }
-
-    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
-        Some(NonZeroU32::new(3).unwrap())
-    }
 }
 
 #[tokio::test]
@@ -702,13 +756,22 @@ async fn rate_limiting() {
 #[derive(Debug)]
 struct BatchGetsRateLimitedTest;
 
+impl TestInit for BatchGetsRateLimitedTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            websocket_requests_per_minute_limit: NonZeroU32::new(3).unwrap(),
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+}
+
 #[async_trait]
 impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
         client: &WsClient<L2>,
         _pool: &ConnectionPool<Core>,
-        _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+        _pub_sub_events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
         client.chain_id().await.unwrap();
@@ -731,10 +794,6 @@ impl WsTest for BatchGetsRateLimitedTest {
         assert!(error.data().is_none());
 
         Ok(())
-    }
-
-    fn websocket_requests_per_minute_limit(&self) -> Option<NonZeroU32> {
-        Some(NonZeroU32::new(3).unwrap())
     }
 }
 

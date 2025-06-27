@@ -49,7 +49,7 @@ use super::{
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
-    web3::metrics::FilterMetrics,
+    web3::metrics::{ApiTransportLabel, FilterMetrics},
 };
 
 #[derive(Debug)]
@@ -292,7 +292,8 @@ impl SealedL2BlockNumber {
 #[derive(Debug, Clone)]
 pub(crate) struct RpcState {
     pub(super) current_method: Arc<MethodTracer>,
-    pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
+    // Should be accessed via the getter.
+    pub(super) installed_filters: Arc<Mutex<Filters>>,
     pub(super) connection_pool: ConnectionPool<Core>,
     pub(super) tree_api: Option<Arc<dyn TreeApiClient>>,
     pub(super) tx_sender: TxSender,
@@ -332,6 +333,16 @@ impl RpcState {
         } else {
             L2BlockNumber(n.as_u32())
         }
+    }
+
+    pub(crate) fn installed_filters(&self) -> Option<&Mutex<Filters>> {
+        // Filters are unconditionally enabled for WS requests.
+        if self.api_config.filters_disabled
+            && !matches!(self.current_method.transport(), Some(ApiTransportLabel::Ws))
+        {
+            return None;
+        }
+        Some(&self.installed_filters)
     }
 
     pub(crate) fn tx_sink(&self) -> &dyn TxSink {

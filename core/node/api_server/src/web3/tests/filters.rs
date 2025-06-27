@@ -17,8 +17,7 @@ struct BasicFilterChangesTest {
     snapshot_recovery: bool,
 }
 
-#[async_trait]
-impl HttpTest for BasicFilterChangesTest {
+impl TestInit for BasicFilterChangesTest {
     fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
@@ -26,7 +25,10 @@ impl HttpTest for BasicFilterChangesTest {
             StorageInitialization::genesis()
         }
     }
+}
 
+#[async_trait]
+impl HttpTest for BasicFilterChangesTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -103,8 +105,7 @@ struct LogFilterChangesTest {
     snapshot_recovery: bool,
 }
 
-#[async_trait]
-impl HttpTest for LogFilterChangesTest {
+impl TestInit for LogFilterChangesTest {
     fn storage_initialization(&self) -> StorageInitialization {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
@@ -112,7 +113,10 @@ impl HttpTest for LogFilterChangesTest {
             StorageInitialization::genesis()
         }
     }
+}
 
+#[async_trait]
+impl HttpTest for LogFilterChangesTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -185,6 +189,8 @@ async fn log_filter_changes_after_snapshot_recovery() {
 
 #[derive(Debug)]
 struct LogFilterChangesWithBlockBoundariesTest;
+
+impl TestInit for LogFilterChangesWithBlockBoundariesTest {}
 
 #[async_trait]
 impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
@@ -294,6 +300,15 @@ fn assert_not_implemented<T: fmt::Debug>(result: Result<T, Error>) {
 #[derive(Debug)]
 struct DisableFiltersTest;
 
+impl TestInit for DisableFiltersTest {
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            filters_disabled: true,
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+}
+
 #[async_trait]
 impl HttpTest for DisableFiltersTest {
     async fn test(
@@ -313,13 +328,6 @@ impl HttpTest for DisableFiltersTest {
         assert_not_implemented(client.get_filter_changes(1.into()).await);
 
         Ok(())
-    }
-
-    fn web3_config(&self) -> Web3JsonRpcConfig {
-        Web3JsonRpcConfig {
-            filters_disabled: true,
-            ..Web3JsonRpcConfig::for_tests()
-        }
     }
 }
 

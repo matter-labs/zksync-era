@@ -420,14 +420,16 @@ impl MainNodeBuilder {
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
 
         // TODO(PLA-1153): Make the node do what the config says
-        let mut namespaces = rpc_config.api_namespaces.clone();
+        let mut http_namespaces = rpc_config.api_namespaces.clone();
         if state_keeper_config.shared.save_call_traces {
-            namespaces.insert(Namespace::Debug);
+            http_namespaces.insert(Namespace::Debug);
         }
-        namespaces.insert(Namespace::Snapshots);
+        http_namespaces.insert(Namespace::Snapshots);
+        let ws_namespaces = rpc_config.ws_namespaces().clone();
 
         let optional_config = Web3ServerOptionalConfig {
-            namespaces,
+            http_namespaces,
+            ws_namespaces,
             filters_limit: rpc_config.filters_limit,
             subscriptions_limit: rpc_config.subscriptions_limit,
             batch_request_size_limit: rpc_config.max_batch_request_size.get(),
@@ -446,25 +448,7 @@ impl MainNodeBuilder {
         Ok((base, optional_config))
     }
 
-    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let (internal_config_base, mut optional_config) = self.create_api_config()?;
-        // Not relevant for HTTP server, so we reset to prevent a logged warning.
-        optional_config.websocket_requests_per_minute_limit = None;
-
-        let api = self
-            .configs
-            .api_config
-            .as_ref()
-            .context("self.configs.api_config")?;
-        self.node.add_layer(Web3ServerLayer::http(
-            api.web3_json_rpc.http_port,
-            internal_config_base,
-            optional_config,
-        ));
-        Ok(self)
-    }
-
-    fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
+    fn add_web3_api_layer(mut self, enable_http: bool, enable_ws: bool) -> anyhow::Result<Self> {
         let (internal_config_base, optional_config) = self.create_api_config()?;
 
         let api = self
@@ -472,8 +456,9 @@ impl MainNodeBuilder {
             .api_config
             .as_ref()
             .context("self.configs.api_config")?;
-        self.node.add_layer(Web3ServerLayer::ws(
-            api.web3_json_rpc.ws_port,
+        self.node.add_layer(Web3ServerLayer::new(
+            enable_http.then_some(api.web3_json_rpc.http_port),
+            enable_ws.then_some(api.web3_json_rpc.ws_port),
             internal_config_base,
             optional_config,
         ));
@@ -772,7 +757,9 @@ impl MainNodeBuilder {
                         .add_state_keeper_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }
-                Component::HttpApi => {
+                Component::WsApi | Component::HttpApi => {
+                    let enable_http = components.contains(&Component::HttpApi);
+                    let enable_ws = components.contains(&Component::WsApi);
                     self = self
                         .add_allow_list_task_layer()?
                         .add_bridge_addresses_updater_layer()?
@@ -780,17 +767,7 @@ impl MainNodeBuilder {
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
                         .add_api_caches_layer()?
-                        .add_http_web3_api_layer()?;
-                }
-                Component::WsApi => {
-                    self = self
-                        .add_allow_list_task_layer()?
-                        .add_bridge_addresses_updater_layer()?
-                        .add_l1_gas_layer()?
-                        .add_tx_sender_layer()?
-                        .add_tree_api_client_layer()?
-                        .add_api_caches_layer()?
-                        .add_ws_web3_api_layer()?;
+                        .add_web3_api_layer(enable_http, enable_ws)?;
                 }
                 Component::ContractVerificationApi => {
                     self = self.add_contract_verification_api_layer()?;
