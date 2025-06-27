@@ -134,40 +134,34 @@ fn apply_l2_block_inner(
     let block_position = get_tx_operator_l2_block_info_offset(config.subversion)
         + config.tx_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-    memory.extend(vec![
-        (block_position, bootloader_l2_block.number.into()),
-        (block_position + 1, bootloader_l2_block.timestamp.into()),
-        (
-            block_position + 2,
-            h256_to_u256(bootloader_l2_block.prev_block_hash),
-        ),
-        (
-            block_position + 3,
-            if config.start_new_l2_block {
-                bootloader_l2_block.max_virtual_blocks_to_create.into()
-            } else {
-                U256::zero()
-            },
-        ),
-    ]);
+    memory.push((block_position, bootloader_l2_block.number.into()));
+    memory.push((block_position + 1, bootloader_l2_block.timestamp.into()));
+    memory.push((
+        block_position + 2,
+        h256_to_u256(bootloader_l2_block.prev_block_hash),
+    ));
+    memory.push((
+        block_position + 3,
+        if config.start_new_l2_block {
+            bootloader_l2_block.max_virtual_blocks_to_create.into()
+        } else {
+            U256::zero()
+        },
+    ));
 
     if config.subversion != MultiVmSubversion::Interop || !config.apply_interop_roots {
         return;
     }
 
-    bootloader_l2_block
-        .interop_roots
-        .iter()
-        .enumerate()
-        .for_each(|(offset, interop_root)| {
-            apply_interop_root(
-                memory,
-                offset + config.number_of_applied_interop_roots,
-                interop_root.clone(),
-                config.subversion,
-                bootloader_l2_block.number,
-            )
-        });
+    for (offset, interop_root) in bootloader_l2_block.interop_roots.iter().enumerate() {
+        apply_interop_root(
+            memory,
+            offset + config.number_of_applied_interop_roots,
+            interop_root.clone(),
+            config.subversion,
+            bootloader_l2_block.number,
+        );
+    }
 
     if !config.start_new_l2_block {
         return;
@@ -198,11 +192,8 @@ pub(crate) fn apply_interop_root(
     ];
 
     u256_words.extend(interop_root.sides);
-    memory.extend(
-        (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
-            ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
-            .zip(u256_words),
-    )
+    let start_slot = interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE;
+    memory.extend((start_slot..).zip(u256_words));
 }
 
 pub(crate) fn apply_interop_root_number_in_block_number(
@@ -228,11 +219,11 @@ pub(crate) fn apply_interop_root_number_in_block_number(
         first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
     }
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
-    memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
-    memory.extend(vec![(
+    memory.push((first_empty_slot, number_of_interop_roots_plus_one));
+    memory.push((
         get_current_number_of_roots_in_block_offset(subversion),
         preexisting_blocks_number.into(),
-    )]);
+    ));
 }
 
 fn bootloader_memory_input(
