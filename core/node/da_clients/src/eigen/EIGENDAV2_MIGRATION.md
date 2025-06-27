@@ -35,10 +35,9 @@ da_client:
   registry_coordinator_addr: 0x53012C69A189cfA2D9d29eb6F19B32e0A2EA3490
   blob_version: 0
   polynomial_form: coeff #Either coeff or eval
-  eigenda_sidecar_rpc: http://localhost:9999
 ```
 
-> Note: The `eigenda_sidecar_rpc` field determines wheter the client will use secure mode or not.
+> Note: There is a missing field, `eigenda_sidecar_rpc`, this determines wheter the client will use secure mode or not.
 
 Check the [README.md](./README.md) for more details on the new fields.
 
