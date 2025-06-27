@@ -244,7 +244,6 @@ fn test_env() -> (SystemEnv, L1BatchEnv) {
             timestamp,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
-            interop_roots: vec![],
         },
     };
     (system_env, l1_batch_env)

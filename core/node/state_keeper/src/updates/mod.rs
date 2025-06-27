@@ -72,11 +72,7 @@ impl UpdatesManager {
                     .first_l2_block
                     .max_virtual_blocks_to_create,
                 protocol_version,
-                batch_init_params
-                    .l1_batch_env
-                    .first_l2_block
-                    .interop_roots
-                    .clone(),
+                vec![],
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             pubdata_params: batch_init_params.pubdata_params,

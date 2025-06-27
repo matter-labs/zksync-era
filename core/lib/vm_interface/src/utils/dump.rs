@@ -100,7 +100,6 @@ impl VmDump {
                     timestamp: l2_block.timestamp,
                     prev_block_hash: l2_block.prev_block_hash,
                     max_virtual_blocks_to_create: l2_block.virtual_blocks,
-                    interop_roots: vec![],
                 });
             }
 

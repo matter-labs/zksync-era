@@ -125,8 +125,8 @@ where
 
     fn push_l2_block_unchecked(&mut self, block: L2BlockEnv) {
         self.get_mut("push_l2_block_unchecked", |r| match r {
-            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block.clone()),
-            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block.clone()),
+            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block),
+            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block),
         });
     }
 
