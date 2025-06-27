@@ -118,7 +118,7 @@ impl EigenDAClient {
                 self.sidecar_rpc
                     .clone()
                     .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
-            ) // Safe unwrap as we know sidecar_rpc is set when secure is true
+            )
             .json(&body)
             .send()
             .await
