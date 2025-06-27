@@ -6470,8 +6470,9 @@ dependencies = [
 
 [[package]]
 name = "smart-config"
-version = "0.2.0-pre"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=70cdc58c5be769515f331bd4353354d097ec131e#70cdc58c5be769515f331bd4353354d097ec131e"
+version = "0.3.0-pre"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6a368144b1c691f7021f49eb036f2d2e91d47f9adddf4b7955eb1a58d5f7fbb"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -6486,8 +6487,9 @@ dependencies = [
 
 [[package]]
 name = "smart-config-derive"
-version = "0.2.0-pre"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=70cdc58c5be769515f331bd4353354d097ec131e#70cdc58c5be769515f331bd4353354d097ec131e"
+version = "0.3.0-pre"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac89cdcacc9bb31f9df46938305f7a4180108d7c98dc399aee03ddc78c205f92"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
