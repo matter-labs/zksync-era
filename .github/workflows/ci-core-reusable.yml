@@ -199,6 +199,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
 
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
@@ -462,7 +465,12 @@ jobs:
 
       - name: Init external nodes
         run: |
-          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            GATEWAY_RPC_URL="--gateway-rpc-url=$(yq -e '.api.web3_json_rpc.http_url' './chains/gateway/configs/general.yaml')"
+            echo "GATEWAY_RPC_URL=$GATEWAY_RPC_URL"
+          else
+            GATEWAY_RPC_URL=""
+          fi
           
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain era
