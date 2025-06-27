@@ -148,10 +148,10 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     assert_eq!(mempool.filter(), &want_filter);
 }
 
-async fn test_timestamps_are_distinct(
+async fn test_timestamps(
     connection_pool: ConnectionPool<Core>,
+    prev_l1_batch_timestamp: u64,
     prev_l2_block_timestamp: u64,
-    delay_prev_l2_block_compared_to_batch: bool,
     mut tester: Tester,
 ) {
     tester.genesis(&connection_pool).await;
@@ -160,9 +160,7 @@ async fn test_timestamps_are_distinct(
     let tx_result = tester
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
-    if delay_prev_l2_block_compared_to_batch {
-        tester.set_timestamp(prev_l2_block_timestamp - 1);
-    }
+    tester.set_timestamp(prev_l1_batch_timestamp);
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
@@ -188,7 +186,8 @@ async fn test_timestamps_are_distinct(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
+    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l1_batch_timestamp);
+    assert!(l1_batch_params.first_l2_block.timestamp() >= prev_l2_block_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -197,7 +196,13 @@ async fn l1_batch_timestamp_basics(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp,
+        current_timestamp,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -206,7 +211,13 @@ async fn l1_batch_timestamp_with_clock_skew(commitment_mode: L1BatchCommitmentMo
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp + 2,
+        current_timestamp + 2,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -215,7 +226,13 @@ async fn l1_batch_timestamp_respects_prev_l2_block(commitment_mode: L1BatchCommi
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp,
+        current_timestamp - 1,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -226,7 +243,13 @@ async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp + 2,
+        current_timestamp + 1,
+        tester,
+    )
+    .await;
 }
 
 fn create_block_seal_command(
