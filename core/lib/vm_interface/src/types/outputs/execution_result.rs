@@ -151,6 +151,14 @@ impl ExecutionResult {
     pub fn is_failed(&self) -> bool {
         matches!(self, Self::Revert { .. } | Self::Halt { .. })
     }
+
+    pub fn revert_reason(&self) -> Option<String> {
+        match self {
+            Self::Revert { output } => Some(output.to_user_friendly_string()),
+            Self::Halt { reason } => Some(reason.to_string()),
+            _ => None,
+        }
+    }
 }
 
 impl VmExecutionResultAndLogs {

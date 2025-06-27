@@ -568,15 +568,6 @@ impl TransactionsDal<'_, '_> {
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
-        let mut call_traces_tx_hashes = Vec::with_capacity(transactions.len());
-        let mut bytea_call_traces = Vec::with_capacity(transactions.len());
-        for tx_res in transactions {
-            if let Some(call_trace) = tx_res.call_trace() {
-                bytea_call_traces.push(serialize_call_into_bytes(call_trace, protocol_version));
-                call_traces_tx_hashes.push(tx_res.hash.as_bytes());
-            }
-        }
-
         if insert_txs {
             // There can be transactions in the DB in case of block rollback or if the DB was restored from a dump.
             let tx_hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
@@ -649,6 +640,21 @@ impl TransactionsDal<'_, '_> {
                 .await?;
         }
 
+        transaction.commit().await
+    }
+
+    pub async fn insert_call_traces(
+        &mut self,
+        transactions: Vec<(H256, Call)>,
+        protocol_version: ProtocolVersionId,
+    ) -> DalResult<()> {
+        let mut call_traces_tx_hashes = Vec::with_capacity(transactions.len());
+        let mut bytea_call_traces = Vec::with_capacity(transactions.len());
+        for (tx_hash, call) in transactions.iter() {
+            bytea_call_traces.push(serialize_call_into_bytes(call.clone(), protocol_version));
+            call_traces_tx_hashes.push(tx_hash.as_bytes());
+        }
+
         if !bytea_call_traces.is_empty() {
             sqlx::query!(
                 r#"
@@ -665,11 +671,10 @@ impl TransactionsDal<'_, '_> {
             )
             .instrument("insert_call_tracer")
             .report_latency()
-            .execute(&mut transaction)
+            .execute(self.storage)
             .await?;
         }
-
-        transaction.commit().await
+        Ok(())
     }
 
     // Bootloader currently doesn't return detailed errors.

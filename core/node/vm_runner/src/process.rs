@@ -10,13 +10,17 @@ use tokio::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::OwnedStorage;
-use zksync_types::L1BatchNumber;
-use zksync_vm_interface::{executor::BatchExecutorFactory, L2BlockEnv};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
+use zksync_vm_executor::storage::FirstL2BlockInBatch;
+use zksync_vm_interface::{
+    executor::{BatchExecutor, BatchExecutorFactory},
+    L2BlockEnv,
+};
 
 use crate::{
     metrics::{StorageKind, METRICS},
     storage::StorageLoader,
-    L1BatchOutput, L2BlockOutput, OutputHandlerFactory, VmRunnerIo,
+    L1BatchOutput, L2BlockOutput, OutputHandler, OutputHandlerFactory, VmRunnerIo,
 };
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
@@ -80,6 +84,7 @@ impl VmRunner {
         let kind = StorageKind::new(&storage);
         METRICS.data_and_storage_latency[&kind].observe(stage_started_at.elapsed());
 
+        let protocol_version = batch_data.system_env.version;
         let mut batch_executor = self.batch_executor_factory.lock().await.init_batch(
             storage,
             batch_data.l1_batch_env.clone(),
@@ -99,33 +104,16 @@ impl VmRunner {
 
         let latency = METRICS.run_vm_time.start();
         for (i, l2_block) in batch_data.l2_blocks.into_iter().enumerate() {
-            let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
-            if i > 0 {
-                // First L2 block in every batch is already preloaded
-                batch_executor
-                    .start_next_l2_block(block_env)
-                    .await
-                    .with_context(|| {
-                        format!("failed starting L2 block with {block_env:?} in batch executor")
-                    })?;
-            }
-
-            let mut block_output = L2BlockOutput::default();
-            for tx in l2_block.txs {
-                let exec_result = batch_executor
-                    .execute_tx(tx.clone())
-                    .await
-                    .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
-                anyhow::ensure!(
-                    !exec_result.was_halted(),
-                    "Unexpected non-successful transaction"
-                );
-                block_output.push(tx, exec_result);
-            }
-            output_handler
-                .handle_l2_block(block_env, &block_output)
-                .await
-                .context("VM runner failed to handle L2 block")?;
+            let first_l2block_in_batch = i == 0;
+            self.process_l2_block(
+                protocol_version,
+                &mut *batch_executor,
+                l2_block,
+                &mut *output_handler,
+                first_l2block_in_batch,
+            )
+            .await
+            .context("VM runner failed to process L2 block")?;
         }
 
         let (batch, storage_view) = batch_executor
@@ -141,6 +129,44 @@ impl VmRunner {
             .handle_l1_batch(Arc::new(output))
             .await
             .context("VM runner failed to handle L1 batch")?;
+        Ok(())
+    }
+
+    async fn process_l2_block(
+        &self,
+        protocol_version: zksync_types::ProtocolVersionId,
+        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
+        l2_block: L2BlockExecutionData,
+        output_handler: &mut dyn OutputHandler,
+        first_l2block_in_batch: bool,
+    ) -> anyhow::Result<()> {
+        let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
+        if !first_l2block_in_batch {
+            // First L2 block in every batch is already preloaded
+            batch_executor
+                .start_next_l2_block(block_env)
+                .await
+                .with_context(|| {
+                    format!("failed starting L2 block with {block_env:?} in batch executor")
+                })?;
+        }
+
+        let mut block_output = L2BlockOutput::default();
+        for tx in l2_block.txs {
+            let exec_result = batch_executor
+                .execute_tx(tx.clone())
+                .await
+                .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
+            anyhow::ensure!(
+                !exec_result.was_halted(),
+                "Unexpected non-successful transaction"
+            );
+            block_output.push(tx, exec_result);
+        }
+        output_handler
+            .handle_l2_block(protocol_version, block_env, &block_output)
+            .await
+            .context("VM runner failed to handle L2 block")?;
         Ok(())
     }
 

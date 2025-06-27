@@ -169,6 +169,8 @@ impl OutputHandlerFactory for TestOutputFactory {
         impl OutputHandler for TestOutputHandler {
             async fn handle_l2_block(
                 &mut self,
+                _protocol_version_id: ProtocolVersionId,
+
                 _env: L2BlockEnv,
                 _output: &L2BlockOutput,
             ) -> anyhow::Result<()> {

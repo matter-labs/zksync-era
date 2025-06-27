@@ -1,6 +1,7 @@
 //! Components powered by a VM runner.
 
 mod bwip;
+mod call_traces;
 mod playground;
 mod protective_reads;
 

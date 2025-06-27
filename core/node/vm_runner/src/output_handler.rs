@@ -9,7 +9,7 @@ use tokio::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::interface::StorageViewCache;
-use zksync_types::{L1BatchNumber, Transaction};
+use zksync_types::{L1BatchNumber, ProtocolVersionId, Transaction};
 use zksync_vm_interface::{
     BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
 };
@@ -46,6 +46,7 @@ pub trait OutputHandler: fmt::Debug + Send {
     /// Handles an L2 block processed by the VM.
     async fn handle_l2_block(
         &mut self,
+        protocol_version_id: ProtocolVersionId,
         env: L2BlockEnv,
         output: &L2BlockOutput,
     ) -> anyhow::Result<()>;
@@ -190,10 +191,13 @@ impl fmt::Debug for AsyncOutputHandler {
 impl OutputHandler for AsyncOutputHandler {
     async fn handle_l2_block(
         &mut self,
+        protocol_version_id: ProtocolVersionId,
         env: L2BlockEnv,
         output: &L2BlockOutput,
     ) -> anyhow::Result<()> {
-        self.handler.handle_l2_block(env, output).await
+        self.handler
+            .handle_l2_block(protocol_version_id, env, output)
+            .await
     }
 
     async fn handle_l1_batch(self: Box<Self>, output: Arc<L1BatchOutput>) -> anyhow::Result<()> {

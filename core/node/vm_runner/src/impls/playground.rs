@@ -17,7 +17,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
-use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
+use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId, ProtocolVersionId};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
 use zksync_vm_interface::{
     utils::{DivergenceHandler, VmDump},
@@ -449,6 +449,8 @@ struct VmPlaygroundOutputHandler;
 impl OutputHandler for VmPlaygroundOutputHandler {
     async fn handle_l2_block(
         &mut self,
+        _protocol_version_id: ProtocolVersionId,
+
         env: L2BlockEnv,
         _output: &L2BlockOutput,
     ) -> anyhow::Result<()> {

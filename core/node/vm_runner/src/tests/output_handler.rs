@@ -80,7 +80,11 @@ impl OutputHandlerTester {
             .await?;
         let join_handle = tokio::task::spawn(async move {
             output_handler
-                .handle_l2_block(l1_batch_env.first_l2_block, &L2BlockOutput::default())
+                .handle_l2_block(
+                    system_env.version,
+                    l1_batch_env.first_l2_block,
+                    &L2BlockOutput::default(),
+                )
                 .await
                 .unwrap();
             output_handler

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE vm_runner_call_traces_runner\n            SET\n                time_taken = NOW() - processing_started_at\n            WHERE\n                l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "16d67693ef627b507a8ccf9bd959b9dbe6f0558e2651c31cb8407886650e4dad"
+}

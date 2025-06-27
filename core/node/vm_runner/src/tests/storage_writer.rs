@@ -91,6 +91,8 @@ impl StorageWriterIo {
 impl OutputHandler for StorageWriterIo {
     async fn handle_l2_block(
         &mut self,
+        _protocol_version_id: ProtocolVersionId,
+
         env: L2BlockEnv,
         output: &L2BlockOutput,
     ) -> anyhow::Result<()> {

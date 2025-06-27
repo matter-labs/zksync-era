@@ -13,7 +13,7 @@ use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state::OwnedStorage;
 use zksync_types::{
     block::StorageOracleInfo, bytecode::BytecodeMarker, h256_to_u256, u256_to_h256,
-    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, H256,
+    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
 };
 use zksync_vm_interface::{executor::BatchExecutorFactory, L1BatchEnv, L2BlockEnv, SystemEnv};
 
@@ -158,6 +158,7 @@ struct BasicWitnessInputProducerOutputHandler {
 impl OutputHandler for BasicWitnessInputProducerOutputHandler {
     async fn handle_l2_block(
         &mut self,
+        _protocol_version: ProtocolVersionId,
         _env: L2BlockEnv,
         _output: &L2BlockOutput,
     ) -> anyhow::Result<()> {

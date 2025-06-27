@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, StorageLog};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
+use zksync_vm_interface::{Call, L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
@@ -15,11 +15,11 @@ use crate::{
 
 /// A standalone component that writes protective reads asynchronously to state keeper.
 #[derive(Debug)]
-pub struct ProtectiveReadsWriter {
+pub struct CallTracesWriter {
     vm_runner: VmRunner,
 }
 
-impl ProtectiveReadsWriter {
+impl CallTracesWriter {
     /// Create a new protective reads writer from the provided DB parameters and window size which
     /// regulates how many batches this component can handle at the same time.
     pub async fn new(
@@ -28,17 +28,17 @@ impl ProtectiveReadsWriter {
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,
         window_size: u32,
-    ) -> anyhow::Result<(Self, ProtectiveReadsWriterTasks)> {
-        let io = ProtectiveReadsIo {
+    ) -> anyhow::Result<(Self, CallTracesWriterTasks)> {
+        let io = CallTracesIo {
             first_processed_batch,
             window_size,
         };
         let (loader, loader_task) =
             VmRunnerStorage::new(pool.clone(), rocksdb_path, io.clone(), chain_id).await?;
-        let output_handler_factory = ProtectiveReadsOutputHandlerFactory { pool: pool.clone() };
+        let output_handler_factory = CallTracesOutputHandlerFactory { pool: pool.clone() };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let batch_processor = MainBatchExecutorFactory::<()>::new(false);
+        let batch_processor = MainBatchExecutorFactory::<()>::new(true);
         let vm_runner = VmRunner::new(
             pool,
             Arc::new(io),
@@ -48,7 +48,7 @@ impl ProtectiveReadsWriter {
         );
         Ok((
             Self { vm_runner },
-            ProtectiveReadsWriterTasks {
+            CallTracesWriterTasks {
                 loader_task,
                 output_handler_factory_task,
             },
@@ -69,22 +69,22 @@ impl ProtectiveReadsWriter {
 /// A collections of tasks that need to be run in order for protective reads writer to work as
 /// intended.
 #[derive(Debug)]
-pub struct ProtectiveReadsWriterTasks {
+pub struct CallTracesWriterTasks {
     /// Task that synchronizes storage with new available batches.
-    pub loader_task: StorageSyncTask<ProtectiveReadsIo>,
+    pub loader_task: StorageSyncTask<CallTracesIo>,
     /// Task that handles output from processed batches.
-    pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
+    pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<CallTracesIo>,
 }
 
 /// `VmRunnerIo` implementation for protective reads.
 #[derive(Debug, Clone)]
-pub struct ProtectiveReadsIo {
+pub struct CallTracesIo {
     first_processed_batch: L1BatchNumber,
     window_size: u32,
 }
 
 #[async_trait]
-impl VmRunnerIo for ProtectiveReadsIo {
+impl VmRunnerIo for CallTracesIo {
     fn name(&self) -> &'static str {
         "protective_reads_writer"
     }
@@ -95,7 +95,7 @@ impl VmRunnerIo for ProtectiveReadsIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch()
+            .get_call_traces_latest_processed_batch()
             .await?
             .unwrap_or(self.first_processed_batch))
     }
@@ -106,7 +106,7 @@ impl VmRunnerIo for ProtectiveReadsIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_protective_reads_last_ready_batch(self.first_processed_batch, self.window_size)
+            .get_call_traces_last_ready_batch(self.first_processed_batch, self.window_size)
             .await?)
     }
 
@@ -117,7 +117,7 @@ impl VmRunnerIo for ProtectiveReadsIo {
     ) -> anyhow::Result<()> {
         Ok(conn
             .vm_runner_dal()
-            .mark_protective_reads_batch_as_processing(l1_batch_number)
+            .mark_call_traces_batch_as_processing(l1_batch_number)
             .await?)
     }
 
@@ -127,31 +127,55 @@ impl VmRunnerIo for ProtectiveReadsIo {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<()> {
         conn.vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(l1_batch_number)
+            .mark_call_traces_batch_as_complete(l1_batch_number)
             .await
     }
 }
 
 #[derive(Debug)]
-struct ProtectiveReadsOutputHandler {
+struct CallTracesOutputHandler {
     l1_batch_number: L1BatchNumber,
     pool: ConnectionPool<Core>,
 }
 
 #[async_trait]
-impl OutputHandler for ProtectiveReadsOutputHandler {
+impl OutputHandler for CallTracesOutputHandler {
     async fn handle_l2_block(
         &mut self,
-        _protocol_version_id: ProtocolVersionId,
-
+        protocol_version_id: ProtocolVersionId,
         _env: L2BlockEnv,
-        _output: &L2BlockOutput,
+        output: &L2BlockOutput,
     ) -> anyhow::Result<()> {
+        let mut connection = self.pool.connection_tagged("call_traces_writer").await?;
+
+        let traces = output
+            .transactions
+            .iter()
+            .filter(|(_, res)| !res.call_traces.is_empty())
+            .map(|(transaction, res)| {
+                (
+                    transaction.hash(),
+                    Call::new_high_level(
+                        transaction.gas_limit().as_u64(),
+                        transaction.gas_limit().as_u64() - res.tx_result.refunds.gas_refunded,
+                        transaction.execute.value,
+                        transaction.execute.calldata.clone(),
+                        vec![],
+                        res.tx_result.result.revert_reason(),
+                        res.call_traces.clone(),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        connection
+            .transactions_dal()
+            .insert_call_traces(traces, protocol_version_id)
+            .await?;
         Ok(())
     }
 
     #[tracing::instrument(
-        name = "ProtectiveReadsOutputHandler::handle_l1_batch",
+        name = "CallTracesOutputHandler::handle_l1_batch",
         skip_all,
         fields(l1_batch = %self.l1_batch_number)
     )]
@@ -214,18 +238,18 @@ impl OutputHandler for ProtectiveReadsOutputHandler {
 }
 
 #[derive(Debug)]
-struct ProtectiveReadsOutputHandlerFactory {
+struct CallTracesOutputHandlerFactory {
     pool: ConnectionPool<Core>,
 }
 
 #[async_trait]
-impl OutputHandlerFactory for ProtectiveReadsOutputHandlerFactory {
+impl OutputHandlerFactory for CallTracesOutputHandlerFactory {
     async fn create_handler(
         &self,
         _system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {
-        Ok(Box::new(ProtectiveReadsOutputHandler {
+        Ok(Box::new(CallTracesOutputHandler {
             pool: self.pool.clone(),
             l1_batch_number: l1_batch_env.number,
         }))
