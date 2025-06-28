@@ -235,6 +235,10 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
+      - name: Build test dependencies
+        run: |
+          ci_run zkstack dev test build
+
       - name: Build code and init ecosystem
         run: |
           ci_run build_and_init_ecosystem
