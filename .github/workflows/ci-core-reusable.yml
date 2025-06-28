@@ -493,7 +493,7 @@ jobs:
       - name: Run tests
         if: matrix.use_gateway_chain == 'WITHOUT_GATEWAY'
         run: |
-          ci_run cd core/tests/highlevel-test-tools && yarn test
+          ci_run yarn highlevel-test-tools test
 
       - name: Initialize Contract verifier
         run: |
