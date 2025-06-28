@@ -11,7 +11,6 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_instrument.workspace = true
 zksync_node_framework_derive.workspace = true
 zksync_utils.workspace = true
 
@@ -21,8 +20,8 @@ thiserror.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 anyhow.workspace = true
+serde.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "macros", "rt-multi-thread"] }
-vise.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

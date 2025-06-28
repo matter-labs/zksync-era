@@ -552,7 +552,7 @@ where
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        self.main.start_new_l2_block(l2_block_env);
+        self.main.start_new_l2_block(l2_block_env.clone());
         if let Some(shadow) = self.shadow.get_mut() {
             shadow.vm.start_new_l2_block(l2_block_env);
         }

@@ -1,4 +1,7 @@
-use std::{borrow::Cow, fmt};
+use std::{
+    fmt::{Display, Formatter},
+    ops::Deref,
+};
 
 /// Task kind.
 /// See [`Task`](super::Task) documentation for more details.
@@ -23,22 +26,36 @@ impl TaskKind {
 
 /// A unique human-readable identifier of a task.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TaskId(pub(crate) Cow<'static, str>);
+pub struct TaskId(String);
 
-impl fmt::Display for TaskId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
+impl TaskId {
+    pub fn new(value: String) -> Self {
+        TaskId(value)
     }
 }
 
-impl From<&'static str> for TaskId {
-    fn from(value: &'static str) -> Self {
-        Self(Cow::Borrowed(value))
+impl Display for TaskId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<&str> for TaskId {
+    fn from(value: &str) -> Self {
+        TaskId(value.to_owned())
     }
 }
 
 impl From<String> for TaskId {
     fn from(value: String) -> Self {
-        Self(Cow::Owned(value))
+        TaskId(value)
+    }
+}
+
+impl Deref for TaskId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
