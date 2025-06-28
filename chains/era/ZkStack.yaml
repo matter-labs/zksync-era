@@ -2,9 +2,9 @@ id: 1
 name: era
 chain_id: 271
 prover_version: NoProofs
-configs: /home/tomek/RustroverProjects/zksync-era/./chains/era/configs/
+configs: ./chains/era/configs/
 rocks_db_path: ./chains/era/db/
-external_node_config_path: null
+external_node_config_path: ./chains/era/configs/external_node
 artifacts_path: ./chains/era/artifacts/
 l1_batch_commit_data_generator_mode: Rollup
 base_token:
@@ -12,4 +12,4 @@ base_token:
   nominator: 1
   denominator: 1
 wallet_creation: Localhost
-evm_emulator: false
+evm_emulator: true
