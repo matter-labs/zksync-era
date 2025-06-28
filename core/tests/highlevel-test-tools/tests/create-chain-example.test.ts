@@ -36,7 +36,8 @@ async function getChainId(chainName: string): Promise<number> {
   }
 }
 
-async function waitForL1BatchExecution(chainName: string, batchNumber: number, timeoutMs: number = 300000): Promise<any> {
+async function waitForL1BatchExecution(chainName: string, timeoutMs: number = 300000): Promise<any> {
+  const batchNumber = await getL1BatchNumber(chainName);
   console.log(`⏳ Waiting for L1 batch ${batchNumber} execution (executeTxHash to become not null)...`);
   
   const startTime = Date.now();
@@ -63,88 +64,26 @@ async function waitForL1BatchExecution(chainName: string, batchNumber: number, t
 
 describe('Chain Creation Tests', () => {
   beforeAll(async () => {
-    // Kill any existing zksync_server processes
     try {
       await execAsync('pkill zksync_server');
-    } catch (error) {
-      // Ignore errors if no processes were found
-    }
+    } catch (error) {}
 
-    // Clean logs and test chains at the start of this test suite
     cleanHistoricalLogs();
     cleanTestChains('../../.././chains');
-
-    // Clean up any leftover mutex lock files from previous test runs
     cleanMutexLockFiles();
-
     await setupDbTemplate()
   });
 
-  it.concurrent.each<ChainType>(CHAIN_TYPES)('should create and start %s chain and run integration tests', async (chainType) => {
+  it.concurrent.each<ChainType>(CHAIN_TYPES)('fee test for %s chain', async (chainType) => {
     const { chainId, config, serverHandle } = await createChain(chainType);
 
-    console.log(`Created ${chainType} chain with ID: ${chainId}`);
-    console.log(`Chain config:`, config);
-
-    // Query and print the actual chainId from the RPC endpoint
-    const actualChainId = await getChainId(chainId);
-    console.log(`🔍 Actual chain ID from RPC: ${actualChainId}`);
-
-    // //Run integration tests for the created chain
-    console.log(`🧪 Running integration tests for ${chainType} chain: ${chainId}`);
     await runIntegrationTests(chainId, 'ETH token checks');
-    //
-    // // Query and print the L1 batch number
-    const l1BatchNumber = await getL1BatchNumber(chainId);
-    console.log(`📦 L1 batch number: ${l1BatchNumber}`);
-    //
-    // // Wait for L1 batch execution and print details
-    console.log(`🔍 Waiting for L1 batch ${l1BatchNumber} execution...`);
-    await waitForL1BatchExecution(chainId, l1BatchNumber);
-    //
-    // Kill the server before starting upgrade test
+
+    await waitForL1BatchExecution(chainId);
+
     await serverHandle.kill();
 
-    // await feesTest(chainId)
+    await feesTest(chainId)
 
-  }, 600000); // 10 minutes timeout
-
-  // it('should create 10 consensus chains in parallel with mutex protection', async () => {
-  //   // This test creates 10 consensus chains in parallel to test the mutex functionality
-  //   // under high concurrency. The mutex should ensure only one chain is in phase1
-  //   // initialization at a time, while phase2 can run concurrently.
-  //   const chainCount = 10;
-  //   const startTime = Date.now();
-  //
-  //   console.log(`Starting parallel creation of ${chainCount} consensus chains...`);
-  //
-  //   const chainPromises = Array.from({ length: chainCount }, (_, index) =>
-  //     createChain('consensus').then(({ chainId }) => {
-  //       console.log(`Chain ${index + 1}/${chainCount} created: ${chainId}`);
-  //       return chainId;
-  //     })
-  //   );
-  //
-  //   const chainIds = await Promise.all(chainPromises);
-  //   const endTime = Date.now();
-  //   const duration = (endTime - startTime) / 1000;
-  //
-  //   console.log(`✅ Successfully created ${chainCount} consensus chains in ${duration.toFixed(2)} seconds`);
-  //
-  //   // Verify all chains were created successfully
-  //   expect(chainIds).toHaveLength(chainCount);
-  //
-  //   // Verify all chain IDs follow the expected pattern
-  //   chainIds.forEach((chainId, index) => {
-  //     expect(chainId).toMatch(/^consensus_[a-f0-9]{8}$/);
-  //     console.log(`Verified chain ${index + 1}: ${chainId}`);
-  //   });
-  //
-  //   // Verify all chain IDs are unique
-  //   const uniqueChainIds = new Set(chainIds);
-  //   expect(uniqueChainIds.size).toBe(chainCount);
-  //
-  //   console.log(`🎉 All ${chainCount} consensus chains created successfully with mutex protection!`);
-  // }, 1800000); // 30 minutes timeout for parallel test
-
+  }, 600 * 1000);
 });
