@@ -10,7 +10,6 @@ pub(crate) struct StorageInteropRoot {
     pub chain_id: i64,
     pub dependency_block_number: i64,
     pub interop_root_sides: Vec<Vec<u8>>,
-    pub received_timestamp: i64,
 }
 
 impl TryFrom<StorageInteropRoot> for InteropRoot {
@@ -27,7 +26,6 @@ impl TryFrom<StorageInteropRoot> for InteropRoot {
             chain_id: rec.chain_id as u32,
             block_number: rec.dependency_block_number as u32,
             sides,
-            received_timestamp: rec.received_timestamp as u64,
         })
     }
 }
@@ -52,16 +50,15 @@ impl InteropRootDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO interop_roots (
-                chain_id, dependency_block_number, interop_root_sides, received_timestamp
+                chain_id, dependency_block_number, interop_root_sides
             )
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3)
             ON CONFLICT (chain_id, dependency_block_number)
             DO UPDATE SET interop_root_sides = excluded.interop_root_sides;
             "#,
             chain_id.0 as i64,
             i64::from(number.0),
             &sides,
-            timestamp as i64
         )
         .instrument("set_interop_root")
         .with_arg("chain_id", &chain_id)
@@ -84,8 +81,7 @@ impl InteropRootDal<'_, '_> {
             SELECT
                 interop_roots.chain_id,
                 interop_roots.dependency_block_number,
-                interop_roots.interop_root_sides,
-                interop_roots.received_timestamp
+                interop_roots.interop_root_sides
             FROM interop_roots
             WHERE processed_block_number IS NULL
             ORDER BY chain_id, dependency_block_number
@@ -156,10 +152,9 @@ impl InteropRootDal<'_, '_> {
                     chain_id,
                     dependency_block_number,
                     interop_root_sides,
-                    received_timestamp,
                     processed_block_number
                 )
-                VALUES ($1, $2, $3, $4, $5)
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT (chain_id, dependency_block_number)
                 DO UPDATE SET interop_root_sides = excluded.interop_root_sides,
                 processed_block_number = excluded.processed_block_number;
@@ -167,7 +162,6 @@ impl InteropRootDal<'_, '_> {
                 root.chain_id as i32,
                 root.block_number as i32,
                 &sides,
-                root.received_timestamp as i64,
                 l2block_number.0 as i32,
             )
             .instrument("mark_interop_roots_as_executed")
@@ -216,8 +210,7 @@ impl InteropRootDal<'_, '_> {
             SELECT
                 interop_roots.chain_id,
                 interop_roots.dependency_block_number,
-                interop_roots.interop_root_sides,
-                interop_roots.received_timestamp
+                interop_roots.interop_root_sides
             FROM interop_roots
             WHERE processed_block_number = $1
             ORDER BY chain_id, dependency_block_number;
@@ -243,8 +236,7 @@ impl InteropRootDal<'_, '_> {
             SELECT
                 interop_roots.chain_id,
                 interop_roots.dependency_block_number,
-                interop_roots.interop_root_sides,
-                interop_roots.received_timestamp
+                interop_roots.interop_root_sides
             FROM interop_roots
             JOIN miniblocks
                 ON interop_roots.processed_block_number = miniblocks.number
