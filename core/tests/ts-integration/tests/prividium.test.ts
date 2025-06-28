@@ -162,12 +162,10 @@ describe('Tests for the private rpc', () => {
         const absurdly_high_value = ethers.parseEther('1000000.0');
         const gasPrice = await scaledGasPrice(alice);
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
-        // FIXME: passing gasPerPubdata on purpose to avoid calling zks_estimateFee; to be removed after zksync-ethers stops using it
         await expect(
             aliceErc20.transfer(bob.address, absurdly_high_value, {
                 gasLimit,
-                gasPrice,
-                customData: { gasPerPubdata: 50_000n }
+                gasPrice
             })
         ).toBeReverted([noBalanceChange, feeTaken]);
     });
