@@ -235,24 +235,9 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
-      - name: Build tested binaries
+      - name: Build code and init ecosystem
         run: |
-          ci_run zkstack server build
-          ci_run zkstack external-node build
-          ci_run zkstack contract-verifier build
-
-      - name: Build test dependencies
-        run: |
-          ci_run zkstack dev test build
-
-      - name: Initialize ecosystem
-        run: |
-          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_era \
-          --ignore-prerequisites --verbose \
-          --observability=false
+          ci_run build_and_init_ecosystem
 
       - name: Read Custom Token address and set as environment variable
         run: |
