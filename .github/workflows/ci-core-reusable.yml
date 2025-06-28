@@ -490,6 +490,11 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
+      - name: Run tests
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run cd core/tests/highlevel-test-tools && yarn test
+
       - name: Initialize Contract verifier
         run: |
           ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era

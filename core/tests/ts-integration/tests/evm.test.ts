@@ -1,6 +1,10 @@
 import { TestMaster } from '../src';
 import * as fs from 'fs';
 import { ethers } from 'ethers';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 interface ContractData {
     readonly abi: ethers.InterfaceAbi;
@@ -225,7 +229,14 @@ function describeEvm(providerKind: ProviderKind) {
     });
 }
 
-describe.each([ProviderKind.ZKSYNC, ProviderKind.ETHERS, ProviderKind.L1_ETHERS])(
-    'EVM contract checks (provider: %s)',
-    describeEvm
-);
+describe('EVM contract checks (provider: zksync)', () => {
+    describeEvm(ProviderKind.ZKSYNC);
+});
+
+describe('EVM contract checks (provider: ethers)', () => {
+    describeEvm(ProviderKind.ETHERS);
+});
+
+describe('EVM contract checks (provider: l1-ethers)', () => {
+    describeEvm(ProviderKind.L1_ETHERS);
+});

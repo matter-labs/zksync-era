@@ -63,6 +63,24 @@ pub async fn init_db(db: &DatabaseConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub async fn init_db_with_template(db: &DatabaseConfig, template_url: &Url) -> anyhow::Result<()> {
+    // Connect to the database.
+    let mut connection = PgConnection::connect(db.url.as_str()).await?;
+
+    // Extract template database name from the template URL
+    let template_db_name = template_url
+        .path_segments()
+        .ok_or(anyhow!("Failed to parse template database name from URL"))?
+        .next_back()
+        .ok_or(anyhow!("Failed to parse template database name from URL"))?;
+
+    let query = format!("CREATE DATABASE \"{}\" WITH TEMPLATE \"{}\"", db.name, template_db_name);
+    // Create DB with template.
+    sqlx::query(&query).execute(&mut connection).await?;
+
+    Ok(())
+}
+
 pub async fn drop_db_if_exists(db: &DatabaseConfig) -> anyhow::Result<()> {
     // Connect to the database.
     let mut connection = PgConnection::connect(db.url.as_str()).await?;

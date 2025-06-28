@@ -20,6 +20,8 @@ pub struct GenesisArgs {
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
+    #[clap(long, help = "Database URL to use as template for creating the new database")]
+    pub db_template: Option<Url>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
     pub dev: bool,
     #[clap(long, short, action)]
@@ -37,6 +39,7 @@ impl GenesisArgs {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,
                 server_command: self.server_command,
+                db_template: self.db_template,
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
@@ -56,6 +59,7 @@ impl GenesisArgs {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 dont_drop: self.dont_drop,
                 server_command: self.server_command,
+                db_template: self.db_template,
             }
         }
     }
@@ -92,4 +96,5 @@ pub struct GenesisArgsFinal {
     pub server_command: Option<String>,
     pub server_db: DatabaseConfig,
     pub dont_drop: bool,
+    pub db_template: Option<Url>,
 }

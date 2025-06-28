@@ -61,7 +61,8 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let mut final_ecosystem_args = args
         .clone()
-        .fill_values_with_prompt(ecosystem_config.l1_network);
+        .fill_values_with_prompt(ecosystem_config.l1_network)
+        .await?;
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
@@ -386,6 +387,7 @@ async fn init_chains(
             forge_args: final_init_args.forge_args.clone(),
             server_db_url: genesis_args.server_db_url.clone(),
             server_db_name: genesis_args.server_db_name.clone(),
+            db_template: genesis_args.db_template.clone(),
             dont_drop: genesis_args.dont_drop,
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),

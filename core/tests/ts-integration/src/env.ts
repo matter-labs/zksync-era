@@ -95,6 +95,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
     let mainLogs = await nodefs.open(pathToMainLogs, 'a');
     let l2Node;
+    console.log(`Loading test environment from file: spawnNode: ${spawnNode}, noKill: ${process.env.NO_KILL}`)
     if (spawnNode) {
         // Before starting any actual logic, we need to ensure that the server is running (it may not
         // be the case, for example, right after deployment on stage).

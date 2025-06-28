@@ -162,10 +162,10 @@ export class TestContextOwner {
         // For each transaction to override it, we need to provide greater fee.
         // We would manually provide a value high enough (for a testnet) to be both valid
         // and higher than the previous one. It's OK as we'll only be charged for the base fee
-        // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
+        // anyways. We will also set the miner's tip to 50 gwei, which is also much higher than the normal one.
         // Scaled gas price to be used to prevent transactions from being stuck.
-        const maxPriorityFeePerGas = ethers.parseEther('0.000000005'); // 5 gwei
-        const maxFeePerGas = ethers.parseEther('0.00000025'); // 250 gwei
+        const maxPriorityFeePerGas = ethers.parseEther('0.000000050'); // 50 gwei
+        const maxFeePerGas = ethers.parseEther('0.00000250'); // 2500 gwei
         this.reporter.debug(`Max nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
 
         const cancellationTxs = [];
