@@ -6,9 +6,9 @@ set -euo pipefail   # fail fast, catch unset vars and pipe errors
 ################################################################################
 build_tested_binaries() {
   echo "[build_tested_binaries] started"
-  ci_run zkstack server build
-  ci_run zkstack external-node build
-  ci_run zkstack contract-verifier build
+  zkstack server build
+  zkstack external-node build
+  zkstack contract-verifier build
   echo "[build_tested_binaries] finished"
 }
 
@@ -17,7 +17,7 @@ build_tested_binaries() {
 ################################################################################
 build_test_dependencies() {
   echo "[build_test_dependencies] started"
-  ci_run zkstack dev test build
+  zkstack dev test build
   echo "[build_test_dependencies] finished"
 }
 
@@ -26,7 +26,7 @@ build_test_dependencies() {
 ################################################################################
 initialize_ecosystem() {
   echo "[initialize_ecosystem] started"
-  ci_run zkstack ecosystem init \
+  zkstack ecosystem init \
     --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
     --l1-rpc-url=http://localhost:8545 \
     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \

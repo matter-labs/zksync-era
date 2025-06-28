@@ -12,7 +12,7 @@ if [ ! -z "$PASSED_ENV_VARS" ]; then
         value=$(eval echo \$$var)
         env_vars_option="${env_vars_option} -e ${var}=${value}"
     done
-    docker compose -f $compose_file exec -T $env_vars_option zk "$@"
+    docker-compose -f $compose_file exec -T $env_vars_option zk "$@"
 else
-    docker compose -f $compose_file exec -T zk "$@"
+    docker-compose -f $compose_file exec -T zk "$@"
 fi

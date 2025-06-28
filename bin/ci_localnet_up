@@ -5,5 +5,5 @@ set -e
 cd $ZKSYNC_HOME
 compose_file="${RUNNER_COMPOSE_FILE:-docker-compose.yml}"
 
-run_retried docker compose -f $compose_file pull
-docker compose --profile runner -f $compose_file up -d --wait
+run_retried docker-compose -f $compose_file pull
+docker-compose --profile runner -f $compose_file up -d --wait
