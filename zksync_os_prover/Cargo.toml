@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", branch = "rr/delegations_fix" }
-execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", branch = "rr/delegations_fix" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.2" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.2" }
 
 anyhow = "1.0.98"
 base64 = "0.22.1"
