@@ -112,6 +112,7 @@ zksync_prover_job_processor = { version = "=21.1.0", path = "crates/lib/prover_j
 zksync_circuit_prover_service = { version = "=21.1.0", path = "crates/lib/circuit_prover_service" }
 zksync_prover_job_monitor = { version = "=21.1.0", path = "crates/bin/prover_job_monitor" }
 zksync_proof_fri_compressor_service = { version = "=21.1.0", path = "crates/lib/proof_fri_compressor_service" }
+zksync_witness_generator_service = { version = "=21.1.0", path = "crates/lib/witness_generator_service" }
 
 # for `perf` profiling
 [profile.perf]
