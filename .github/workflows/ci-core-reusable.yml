@@ -491,7 +491,7 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Run tests
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        if: matrix.use_gateway_chain == 'WITHOUT_GATEWAY'
         run: |
           ci_run cd core/tests/highlevel-test-tools && yarn test
 
