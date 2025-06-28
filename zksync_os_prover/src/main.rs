@@ -110,7 +110,7 @@ fn create_proof(
         prover_input,
         &Machine::Standard,
         // FIXME: figure out how many instances (currently gpu ignores this).
-        100,
+        1000,
         None,
         #[cfg(feature = "gpu")]
         &mut Some(gpu_state),
