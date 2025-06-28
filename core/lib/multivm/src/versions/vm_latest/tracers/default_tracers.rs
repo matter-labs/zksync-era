@@ -116,7 +116,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         bootloader_state: &mut BootloaderState,
     ) {
         let current_timestamp = Timestamp(state.local_state.timestamp);
-        let preexisting_interop_roots_number =
+        let number_of_applied_interop_roots =
             bootloader_state.get_number_of_applied_interop_roots();
         let preexisting_blocks_number = bootloader_state.get_preexisting_blocks_number();
         let subversion = bootloader_state.get_vm_subversion();
@@ -129,7 +129,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             txs_index,
             subversion,
             true,
-            preexisting_interop_roots_number,
+            number_of_applied_interop_roots,
             preexisting_blocks_number,
         );
         state.memory.populate_page(

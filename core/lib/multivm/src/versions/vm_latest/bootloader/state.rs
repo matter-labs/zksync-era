@@ -53,6 +53,8 @@ pub struct BootloaderState {
     free_tx_offset: usize,
     /// Information about the the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
+    /// The number of applied interop roots
+    number_of_applied_interop_roots: usize,
     /// Protocol version.
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
@@ -75,6 +77,7 @@ impl BootloaderState {
             execution_mode,
             free_tx_offset: 0,
             pubdata_information: Default::default(),
+            number_of_applied_interop_roots: 0,
             protocol_version,
             subversion: MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
         }
@@ -115,11 +118,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_number_of_applied_interop_roots(&self) -> usize {
-        self.l2_blocks
-            .iter()
-            .take(self.l2_blocks.len() - 1)
-            .map(|block| block.interop_roots.len())
-            .sum()
+        self.number_of_applied_interop_roots
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
@@ -155,7 +154,7 @@ impl BootloaderState {
             number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
             preexisting_blocks_number: self.get_preexisting_blocks_number(),
         };
-        let compressed_bytecode_size = apply_tx_to_memory(
+        let (compressed_bytecode_size, number_of_applied_interop_roots) = apply_tx_to_memory(
             &mut memory,
             &bootloader_tx,
             self.last_l2_block(),
@@ -165,6 +164,7 @@ impl BootloaderState {
             config,
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
+        self.number_of_applied_interop_roots += number_of_applied_interop_roots;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
         self.last_mut_l2_block().push_tx(bootloader_tx);
         (memory, ecrecover_call)
@@ -201,6 +201,7 @@ impl BootloaderState {
         let mut initial_memory = self.initial_memory.clone();
         let mut offset = 0;
         let mut compressed_bytecodes_offset = 0;
+        let mut applied_interop_roots_offset = 0;
         let mut tx_index = 0;
         for l2_block in &self.l2_blocks {
             for (num, tx) in l2_block.txs.iter().enumerate() {
@@ -209,24 +210,26 @@ impl BootloaderState {
                     start_new_l2_block: num == 0,
                     subversion: self.subversion,
                     apply_interop_roots: num == 0,
-                    number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
+                    number_of_applied_interop_roots: applied_interop_roots_offset,
                     preexisting_blocks_number: self.get_preexisting_blocks_number(),
                 };
-                let compressed_bytecodes_size = apply_tx_to_memory(
-                    &mut initial_memory,
-                    tx,
-                    l2_block,
-                    offset,
-                    compressed_bytecodes_offset,
-                    self.execution_mode,
-                    config,
-                );
+                let (compressed_bytecodes_size, number_of_applied_interop_roots) =
+                    apply_tx_to_memory(
+                        &mut initial_memory,
+                        tx,
+                        l2_block,
+                        offset,
+                        compressed_bytecodes_offset,
+                        self.execution_mode,
+                        config,
+                    );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
+                applied_interop_roots_offset += number_of_applied_interop_roots;
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(
+                applied_interop_roots_offset += apply_l2_block(
                     &mut initial_memory,
                     l2_block,
                     tx_index,
@@ -234,7 +237,7 @@ impl BootloaderState {
                     true,
                     self.get_number_of_applied_interop_roots(),
                     self.get_preexisting_blocks_number(),
-                )
+                );
             }
         }
 
