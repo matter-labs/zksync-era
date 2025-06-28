@@ -13,16 +13,7 @@ build_tested_binaries() {
 }
 
 ################################################################################
-# ❷ Build test dependencies
-################################################################################
-build_test_dependencies() {
-  echo "[build_test_dependencies] started"
-  zkstack dev test build
-  echo "[build_test_dependencies] finished"
-}
-
-################################################################################
-# ❸ Initialize ecosystem
+# ❷ Initialize ecosystem
 ################################################################################
 initialize_ecosystem() {
   echo "[initialize_ecosystem] started"
@@ -37,10 +28,9 @@ initialize_ecosystem() {
 }
 
 ################################################################################
-# Run all three jobs in parallel and capture their PIDs
+# Run all jobs in parallel and capture their PIDs
 ################################################################################
 build_tested_binaries      & PID_BUILD_BINARIES=$!
-build_test_dependencies     & PID_TEST_DEPS=$!
 initialize_ecosystem        & PID_INIT_ECO=$!
 
 ################################################################################
@@ -48,7 +38,7 @@ initialize_ecosystem        & PID_INIT_ECO=$!
 ################################################################################
 EXIT_CODE=0
 
-for pid in "$PID_BUILD_BINARIES" "$PID_TEST_DEPS" "$PID_INIT_ECO"; do
+for pid in "$PID_BUILD_BINARIES" "$PID_INIT_ECO"; do
   if ! wait "$pid"; then
     echo "❌ Sub-process with PID $pid exited with error."
     EXIT_CODE=1
