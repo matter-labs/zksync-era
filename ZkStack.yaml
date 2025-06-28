@@ -1,7 +1,6 @@
 name: zk
 l1_network: Localhost
-link_to_code: /home/tomek/RustroverProjects/zksync-era/.
-bellman_cuda_dir: null
+link_to_code: .
 chains: ./chains
 config: ./configs/
 default_chain: era
