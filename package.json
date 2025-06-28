@@ -17,6 +17,7 @@
       "core/tests/upgrade-test",
       "core/tests/gateway-migration-test/",
       "core/tests/ts-integration",
+      "core/tests/highlevel-test-tools",
       "infrastructure/protocol-upgrade"
     ],
     "nohoist": [
@@ -33,6 +34,7 @@
     "gateway-migration-test": "yarn workspace gateway-migration-test",
     "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
+    "highlevel-test-tools": "yarn workspace highlevel-test-tools",
     "utils": "yarn workspace utils"
   },
   "devDependencies": {

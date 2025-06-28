@@ -17,6 +17,45 @@ use crate::{
     },
 };
 
+/// Check if L1 RPC is healthy by calling eth_chainId
+async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
+    use reqwest::Client;
+    use serde_json::{json, Value};
+    
+    let client = Client::new();
+    let request_body = json!({
+        "jsonrpc": "2.0",
+        "method": "eth_chainId",
+        "params": [],
+        "id": 1
+    });
+    
+    let response = client
+        .post(l1_rpc_url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to connect to L1 RPC: {}", e))?;
+    
+    if !response.status().is_success() {
+        anyhow::bail!("L1 RPC returned non-success status: {}", response.status());
+    }
+    
+    let json_response: Value = response.json().await
+        .map_err(|e| anyhow::anyhow!("Failed to parse L1 RPC response: {}", e))?;
+    
+    if let Some(error) = json_response.get("error") {
+        anyhow::bail!("L1 RPC returned error: {}", error);
+    }
+    
+    if json_response.get("result").is_none() {
+        anyhow::bail!("L1 RPC response missing 'result' field");
+    }
+    
+    println!("✅ L1 RPC health check passed - chain ID: {}", json_response["result"]);
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {
     /// Deploy ecosystem contracts
@@ -30,7 +69,7 @@ pub struct EcosystemArgs {
 }
 
 impl EcosystemArgs {
-    pub fn fill_values_with_prompt(self, l1_network: L1Network, dev: bool) -> EcosystemArgsFinal {
+    pub async fn fill_values_with_prompt(self, l1_network: L1Network, dev: bool) -> anyhow::Result<EcosystemArgsFinal> {
         let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
             if dev {
                 true
@@ -57,11 +96,16 @@ impl EcosystemArgs {
                 })
                 .ask()
         });
-        EcosystemArgsFinal {
+        
+        // Check L1 RPC health after getting the URL
+        println!("🔍 Checking L1 RPC health...");
+        check_l1_rpc_health(&l1_rpc_url).await?;
+        
+        Ok(EcosystemArgsFinal {
             deploy_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
             l1_rpc_url,
-        }
+        })
     }
 }
 
@@ -122,13 +166,14 @@ impl EcosystemInitArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
+            db_template: None,
             dev: self.dev,
             dont_drop: self.dont_drop,
             server_command: self.server_command.clone(),
         }
     }
 
-    pub fn fill_values_with_prompt(self, l1_network: L1Network) -> EcosystemInitArgsFinal {
+    pub async fn fill_values_with_prompt(self, l1_network: L1Network) -> anyhow::Result<EcosystemInitArgsFinal> {
         let deploy_erc20 = if self.dev {
             true
         } else {
@@ -138,7 +183,7 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
-        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev);
+        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev).await?;
         let observability = if self.dev {
             true
         } else {
@@ -149,7 +194,7 @@ impl EcosystemInitArgs {
             })
         };
 
-        EcosystemInitArgsFinal {
+        Ok(EcosystemInitArgsFinal {
             deploy_erc20,
             ecosystem,
             forge_args: self.forge_args.clone(),
@@ -162,7 +207,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test: self
                 .support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
-        }
+        })
     }
 }
 

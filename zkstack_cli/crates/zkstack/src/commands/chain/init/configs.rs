@@ -54,6 +54,7 @@ pub async fn init_configs(
             shell,
             &chain_config.path_to_general_config(),
             chain_config.id,
+            chain_config.tight_ports
         )?;
     }
 

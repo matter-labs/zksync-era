@@ -4,7 +4,7 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
-    db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
+    db::{drop_db_if_exists, init_db, init_db_with_template, migrate_db, DatabaseConfig},
     logger,
 };
 use zkstack_cli_config::{override_config, ChainConfig, EcosystemConfig, FileArtifacts};
@@ -41,6 +41,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
         &args.server_db,
         chain_config.link_to_code.clone(),
         args.dont_drop,
+        args.db_template.as_ref(),
     )
     .await?;
     logger::outro(MSG_GENESIS_DATABASES_INITIALIZED);
@@ -53,6 +54,7 @@ pub async fn initialize_server_database(
     server_db_config: &DatabaseConfig,
     link_to_code: PathBuf,
     dont_drop: bool,
+    db_template: Option<&url::Url>,
 ) -> anyhow::Result<()> {
     let path_to_server_migration = link_to_code.join(SERVER_MIGRATIONS);
 
@@ -63,7 +65,12 @@ pub async fn initialize_server_database(
         drop_db_if_exists(server_db_config)
             .await
             .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;
-        init_db(server_db_config).await?;
+        
+        if let Some(template_url) = db_template {
+            init_db_with_template(server_db_config, template_url).await?;
+        } else {
+            init_db(server_db_config).await?;
+        }
     }
     migrate_db(
         shell,

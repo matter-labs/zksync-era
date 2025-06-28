@@ -114,6 +114,19 @@ pub async fn init(
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
 
+        // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
+        let mut contracts_config = chain_config.get_contracts_config()?;
+        deploy_l2_contracts::deploy_l2_contracts(
+            shell,
+            chain_config,
+            ecosystem_config,
+            &mut contracts_config,
+            init_args.forge_args.clone(),
+            true,
+        )
+            .await?;
+        contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
         // If phase1 is set, return early
         if init_args.phase1 {
             logger::success(
@@ -126,7 +139,7 @@ pub async fn init(
     // Phase 2: Accept admin, deploy L2 contracts, set DA validator pair, and complete initialization
     if !init_args.phase1 {
         // Load contracts config for phase 2 operations
-        let contracts_config = chain_config.get_contracts_config()?;
+        let mut contracts_config = chain_config.get_contracts_config()?;
 
         // Accept ownership for DiamondProxy (run by L2 Governor)
         let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
@@ -182,19 +195,6 @@ pub async fn init(
             )
             .await?;
         }
-
-        // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
-        let mut contracts_config = chain_config.get_contracts_config()?;
-        deploy_l2_contracts::deploy_l2_contracts(
-            shell,
-            chain_config,
-            ecosystem_config,
-            &mut contracts_config,
-            init_args.forge_args.clone(),
-            true,
-        )
-        .await?;
-        contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
         let l1_da_validator_addr = get_l1_da_validator(chain_config)
             .await
