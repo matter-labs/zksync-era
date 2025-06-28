@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail   # fail fast, catch unset vars and pipe errors
+
+################################################################################
+# ❶ Build tested binaries
+################################################################################
+build_tested_binaries() {
+  echo "[build_tested_binaries] started"
+  ci_run zkstack server build
+  ci_run zkstack external-node build
+  ci_run zkstack contract-verifier build
+  echo "[build_tested_binaries] finished"
+}
+
+################################################################################
+# ❷ Build test dependencies
+################################################################################
+build_test_dependencies() {
+  echo "[build_test_dependencies] started"
+  ci_run zkstack dev test build
+  echo "[build_test_dependencies] finished"
+}
+
+################################################################################
+# ❸ Initialize ecosystem
+################################################################################
+initialize_ecosystem() {
+  echo "[initialize_ecosystem] started"
+  ci_run zkstack ecosystem init \
+    --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
+    --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_era \
+    --ignore-prerequisites --verbose \
+    --observability=false
+  echo "[initialize_ecosystem] finished"
+}
+
+################################################################################
+# Run all three jobs in parallel and capture their PIDs
+################################################################################
+build_tested_binaries      & PID_BUILD_BINARIES=$!
+build_test_dependencies     & PID_TEST_DEPS=$!
+initialize_ecosystem        & PID_INIT_ECO=$!
+
+################################################################################
+# Wait for them to finish and propagate the first non-zero exit code (if any)
+################################################################################
+EXIT_CODE=0
+
+for pid in "$PID_BUILD_BINARIES" "$PID_TEST_DEPS" "$PID_INIT_ECO"; do
+  if ! wait "$pid"; then
+    echo "❌ Sub-process with PID $pid exited with error."
+    EXIT_CODE=1
+  fi
+done
+
+exit "$EXIT_CODE"
