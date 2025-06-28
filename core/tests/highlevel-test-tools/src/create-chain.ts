@@ -47,6 +47,15 @@ export function getCustomTokenAddress(configPath: string = '../../../configs/erc
   }
 }
 
+export async function setupDbTemplate(){
+  await executeCommand('zkstack', [
+    'dev',
+    'db',
+    'setup',
+    '--core-url', 'postgres://postgres:notsecurepassword@localhost:5432/db_template'
+  ], "db_template_creation");
+}
+
 /**
  * Creates and initializes a chain based on the specified chain type.
  * Supports four predefined chain types: consensus, validium, da_migration, custom_token
@@ -168,7 +177,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainId: stri
         '--chain', chainConfig.chainName,
         '--validium-type', 'no-da',
         '--update-submodules', 'false',
-        // '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era',
+        '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/db_template',
         '--verbose'
       ], chainConfig.chainName);
       timer.endStep('Phase 1 initialization');
@@ -189,7 +198,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainId: stri
       '--chain', chainConfig.chainName,
       '--validium-type', 'no-da',
       '--update-submodules', 'false',
-      // '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era',
+      '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/db_template',
       '--verbose'
     ], chainConfig.chainName);
     timer.endStep('Phase 2 initialization');

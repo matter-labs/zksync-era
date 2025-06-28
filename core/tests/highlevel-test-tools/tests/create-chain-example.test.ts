@@ -11,6 +11,7 @@ import {
 } from '../src';
 import { getRpcUrl, queryJsonRpc, getL1BatchNumber, getL1BatchDetails } from '../src/rpc-utils';
 import {feesTest, revertTest, upgradeTest} from "../src/run-integration-tests";
+import {setupDbTemplate} from "../src/create-chain";
 
 const execAsync = promisify(exec);
 
@@ -75,6 +76,8 @@ describe('Chain Creation Tests', () => {
 
     // Clean up any leftover mutex lock files from previous test runs
     cleanMutexLockFiles();
+
+    await setupDbTemplate()
   });
 
   it.concurrent.each<ChainType>(CHAIN_TYPES)('should create and start %s chain and run integration tests', async (chainType) => {
