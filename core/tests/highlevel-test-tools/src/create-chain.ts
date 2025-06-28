@@ -168,7 +168,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainId: stri
         '--chain', chainConfig.chainName,
         '--validium-type', 'no-da',
         '--update-submodules', 'false',
-        '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era',
+        // '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era',
         '--verbose'
       ], chainConfig.chainName);
       timer.endStep('Phase 1 initialization');
@@ -189,7 +189,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainId: stri
       '--chain', chainConfig.chainName,
       '--validium-type', 'no-da',
       '--update-submodules', 'false',
-      '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era',
+      // '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era',
       '--verbose'
     ], chainConfig.chainName);
     timer.endStep('Phase 2 initialization');
