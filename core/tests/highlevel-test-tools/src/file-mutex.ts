@@ -84,7 +84,7 @@ export class FileMutex {
 /**
  * Removes all historical log files from the specified directory
  */
-export function cleanHistoricalLogs(logsDir: string = './logs'): void {
+export function cleanHistoricalLogs(logsDir: string = '../../../logs/highlevel'): void {
   if (fs.existsSync(logsDir)) {
     const files = fs.readdirSync(logsDir);
     let removedCount = 0;

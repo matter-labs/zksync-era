@@ -22,7 +22,7 @@ function stripAnsiEscapeCodes(str: string): string {
  * @param isDetached - Whether this is a detached/background command
  */
 function logExecutedCommand(chainName: string, command: string, args: string[], startTime: number, endTime?: number, isDetached: boolean = false): void {
-  const logsDir = './logs';
+  const logsDir = '../../../logs/highlevel';
   
   // Ensure logs directory exists
   if (!fs.existsSync(logsDir)) {
@@ -54,7 +54,7 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
  * Executes a command and returns a promise
  */
 export async function executeCommand(command: string, args: string[], chainName: string, logFileSuffix?: string): Promise<void> {
-  const logsDir = './logs';
+  const logsDir = '../../../logs/highlevel';
   const startTime = Date.now();
   
   return new Promise((resolve, reject) => {
@@ -134,7 +134,7 @@ export async function executeCommand(command: string, args: string[], chainName:
  * @returns Promise that resolves when the command starts (not when it finishes)
  */
 export async function executeBackgroundCommand(command: string, args: string[], chainName: string): Promise<ChildProcess> {
-  const logsDir = './logs';
+  const logsDir = '../../../logs/highlevel';
   const startTime = Date.now();
   
   return new Promise((resolve, reject) => {

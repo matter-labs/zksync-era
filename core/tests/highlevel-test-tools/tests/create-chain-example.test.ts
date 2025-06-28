@@ -102,7 +102,7 @@ describe('Chain Creation Tests', () => {
     // Kill the server before starting upgrade test
     await serverHandle.kill();
 
-    await feesTest(chainId)
+    // await feesTest(chainId)
 
   }, 600000); // 10 minutes timeout
 

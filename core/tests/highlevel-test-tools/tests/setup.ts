@@ -7,7 +7,7 @@ beforeAll(() => {
   console.log('Setting up test environment...');
   
   // Clean historical logs at the start of integration tests
-  cleanHistoricalLogs('./logs');
+  cleanHistoricalLogs('../../../logs/highlevel');
 });
 
 // Global test cleanup
