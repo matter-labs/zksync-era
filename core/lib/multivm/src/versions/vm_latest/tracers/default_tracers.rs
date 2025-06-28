@@ -128,7 +128,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             l2_block,
             txs_index,
             subversion,
-            true,
             number_of_applied_interop_roots,
             preexisting_blocks_number,
         );

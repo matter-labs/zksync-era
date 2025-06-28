@@ -584,7 +584,6 @@ where
                         l2_block,
                         txs_index,
                         self.vm_version.into(),
-                        false,
                         0,
                         0,
                     );

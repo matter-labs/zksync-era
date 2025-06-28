@@ -27,7 +27,6 @@ pub(super) struct L2BlockApplicationConfig {
     pub tx_index: usize,
     pub start_new_l2_block: bool,
     pub subversion: MultiVmSubversion,
-    pub apply_interop_roots: bool,
     pub number_of_applied_interop_roots: usize,
     pub preexisting_blocks_number: usize,
 }
@@ -106,7 +105,6 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     tx_index: usize,
     subversion: MultiVmSubversion,
-    apply_interop_roots: bool,
     number_of_applied_interop_roots: usize,
     preexisting_blocks_number: usize,
 ) -> usize {
@@ -117,7 +115,6 @@ pub(crate) fn apply_l2_block(
             tx_index,
             start_new_l2_block: true,
             subversion,
-            apply_interop_roots,
             number_of_applied_interop_roots,
             preexisting_blocks_number,
         },
@@ -151,7 +148,9 @@ fn apply_l2_block_inner(
         },
     ));
 
-    if config.subversion != MultiVmSubversion::Interop || !config.apply_interop_roots {
+    if config.subversion != MultiVmSubversion::Interop
+        || bootloader_l2_block.interop_roots.is_empty()
+    {
         return 0;
     }
 

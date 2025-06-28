@@ -150,7 +150,6 @@ impl BootloaderState {
             tx_index: self.free_tx_index(),
             start_new_l2_block: self.last_l2_block().txs.is_empty(),
             subversion: self.subversion,
-            apply_interop_roots: self.last_l2_block().txs.is_empty(),
             number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
             preexisting_blocks_number: self.get_preexisting_blocks_number(),
         };
@@ -209,7 +208,6 @@ impl BootloaderState {
                     tx_index,
                     start_new_l2_block: num == 0,
                     subversion: self.subversion,
-                    apply_interop_roots: num == 0,
                     number_of_applied_interop_roots: applied_interop_roots_offset,
                     preexisting_blocks_number: self.get_preexisting_blocks_number(),
                 };
@@ -234,7 +232,6 @@ impl BootloaderState {
                     l2_block,
                     tx_index,
                     self.subversion,
-                    true,
                     self.get_number_of_applied_interop_roots(),
                     self.get_preexisting_blocks_number(),
                 );
