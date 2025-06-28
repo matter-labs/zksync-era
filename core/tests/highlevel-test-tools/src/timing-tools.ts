@@ -62,7 +62,7 @@ const globalTimers: Record<string, StepTimer> = {};
 
 export function getStepTimer(chainName: string): StepTimer {
   if (!globalTimers[chainName]) {
-    const timingLogFile = `./logs/${chainName}_timing.log`;
+    const timingLogFile = `../../../logs/highlevel/${chainName}_timing.log`;
     globalTimers[chainName] = new StepTimer(timingLogFile, 'chain initialization');
   }
   return globalTimers[chainName];

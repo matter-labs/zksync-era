@@ -116,7 +116,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainId: stri
   }
   
   // Initialize timing utility after chainConfig is defined
-  const timingLogFile = path.join('./logs', `${chainConfig.chainName}_timing.log`);
+  const timingLogFile = path.join('../../../logs/highlevel', `${chainConfig.chainName}_timing.log`);
   
   // Ensure logs directory exists
   const logsDir = path.dirname(timingLogFile);
