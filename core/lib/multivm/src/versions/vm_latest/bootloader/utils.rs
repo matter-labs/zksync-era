@@ -173,6 +173,7 @@ fn apply_l2_block_inner(
         memory,
         config.subversion,
         bootloader_l2_block.interop_roots.len(),
+        config.number_of_applied_interop_roots + bootloader_l2_block.interop_roots.len(),
         config.preexisting_blocks_number,
     );
 
@@ -209,24 +210,15 @@ fn apply_interop_root_number_in_block_number(
     memory: &mut BootloaderMemory,
     subversion: MultiVmSubversion,
     number_of_interop_roots: usize,
+    number_of_applied_interop_roots: usize,
     preexisting_blocks_number: usize,
 ) {
-    let mut number_of_written_blocks = 0;
-    if memory.iter().any(|(slot, _)| {
-        if *slot < get_interop_blocks_begin_offset(subversion)
-            || *slot >= get_interop_root_offset(subversion)
-        {
-            return false;
-        }
-        true
-    }) {
-        number_of_written_blocks += 1;
-    }
-    let mut first_empty_slot =
-        get_interop_blocks_begin_offset(subversion) + number_of_written_blocks;
-    if number_of_written_blocks == 0 {
-        first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
-    }
+    let first_empty_slot = if number_of_applied_interop_roots == 0 {
+        get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number
+    } else {
+        get_interop_blocks_begin_offset(subversion) + number_of_applied_interop_roots
+    };
+
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
     memory.push((first_empty_slot, number_of_interop_roots_plus_one));
     memory.push((
