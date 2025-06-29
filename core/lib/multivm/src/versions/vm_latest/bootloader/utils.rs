@@ -23,13 +23,16 @@ use crate::{
     },
 };
 
+pub struct InteropRootApplicationConfig {
+    pub number_of_applied_interop_roots: usize,
+    pub preexisting_blocks_number: usize,
+}
+
 pub(super) struct L2BlockApplicationConfig {
     pub tx_index: usize,
     pub start_new_l2_block: bool,
     pub subversion: MultiVmSubversion,
-    pub apply_interop_roots: bool,
-    pub number_of_applied_interop_roots: usize,
-    pub preexisting_blocks_number: usize,
+    pub interop_root_application_config: Option<InteropRootApplicationConfig>,
 }
 
 pub(super) fn get_memory_for_compressed_bytecodes(
@@ -104,9 +107,7 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     tx_index: usize,
     subversion: MultiVmSubversion,
-    apply_interop_roots: bool,
-    number_of_applied_interop_roots: usize,
-    preexisting_blocks_number: usize,
+    interop_root_application_config: Option<InteropRootApplicationConfig>,
 ) {
     apply_l2_block_inner(
         memory,
@@ -115,9 +116,7 @@ pub(crate) fn apply_l2_block(
             tx_index,
             start_new_l2_block: true,
             subversion,
-            apply_interop_roots,
-            number_of_applied_interop_roots,
-            preexisting_blocks_number,
+            interop_root_application_config,
         },
     )
 }
@@ -149,14 +148,17 @@ fn apply_l2_block_inner(
         },
     ));
 
-    if config.subversion != MultiVmSubversion::Interop || !config.apply_interop_roots {
+    if config.subversion != MultiVmSubversion::Interop
+        || config.interop_root_application_config.is_none()
+    {
         return;
     }
 
+    let interop_root_application_config = config.interop_root_application_config.unwrap();
     for (offset, interop_root) in bootloader_l2_block.interop_roots.iter().enumerate() {
         apply_interop_root(
             memory,
-            offset + config.number_of_applied_interop_roots,
+            interop_root_application_config.number_of_applied_interop_roots + offset,
             interop_root.clone(),
             config.subversion,
             bootloader_l2_block.number,
@@ -171,7 +173,7 @@ fn apply_l2_block_inner(
         memory,
         config.subversion,
         bootloader_l2_block.interop_roots.len(),
-        config.preexisting_blocks_number,
+        interop_root_application_config.preexisting_blocks_number,
     );
 }
 
