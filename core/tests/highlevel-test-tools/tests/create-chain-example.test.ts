@@ -36,7 +36,7 @@ async function getChainId(chainName: string): Promise<number> {
   }
 }
 
-async function waitForL1BatchExecution(chainName: string, timeoutMs: number = 300000): Promise<any> {
+async function waitForAllBatchesToBeExecuted(chainName: string, timeoutMs: number = 300000): Promise<any> {
   const batchNumber = await getL1BatchNumber(chainName);
   console.log(`⏳ Waiting for L1 batch ${batchNumber} execution (executeTxHash to become not null)...`);
   
@@ -75,11 +75,11 @@ describe('Chain Creation Tests', () => {
   });
 
   it.concurrent.each<ChainType>(CHAIN_TYPES)('fee test for %s chain', async (chainType) => {
-    const { chainId, config, serverHandle } = await createChain(chainType);
+    const { chainId, serverHandle } = await createChain(chainType);
 
     await runIntegrationTests(chainId, 'ETH token checks');
 
-    await waitForL1BatchExecution(chainId);
+    await waitForAllBatchesToBeExecuted(chainId);
 
     await serverHandle.kill();
 
