@@ -17,9 +17,9 @@ pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExten
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        BatchRootProcessor, BatchRootProcessorInterop, DecentralizedUpgradesEventProcessor,
-        EventProcessor, EventProcessorError, EventsSource, GatewayMigrationProcessor,
-        InteropRootProcessor, PriorityOpsEventProcessor,
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
     },
     metrics::METRICS,
 };
@@ -35,7 +35,7 @@ mod tests;
 struct EthWatchState {
     last_seen_protocol_version: ProtocolSemanticVersion,
     next_expected_priority_id: PriorityOpId,
-    chain_batch_root_number_lower_bound: L1BatchNumber,
+    last_processed_sl_l1_batch_number: L1BatchNumber,
     batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
     batch_merkle_tree_interop: MiniMerkleTree<[u8; 96]>,
 }
@@ -93,20 +93,14 @@ impl EthWatch {
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {
             let batch_root_processor = BatchRootProcessor::new(
-                state.chain_batch_root_number_lower_bound,
+                state.last_processed_sl_l1_batch_number,
                 state.batch_merkle_tree,
-                chain_id,
-                sl_client.clone(),
-            );
-            let batch_root_processor_interop = BatchRootProcessorInterop::new(
-                state.batch_merkle_tree_interop,
                 chain_id,
                 sl_client.clone(),
             );
             let sl_interop_root_processor =
                 InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
-            event_processors.push(Box::new(batch_root_processor_interop));
             event_processors.push(Box::new(sl_interop_root_processor));
         }
 
@@ -143,7 +137,7 @@ impl EthWatch {
             .get_executed_batch_roots_on_sl(sl_chain_id)
             .await?;
 
-        let chain_batch_root_number_lower_bound = batch_hashes
+        let last_processed_sl_l1_batch_number = batch_hashes
             .last()
             .map(|(n, _)| *n + 1)
             .unwrap_or(L1BatchNumber(0));
@@ -156,7 +150,7 @@ impl EthWatch {
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
-            chain_batch_root_number_lower_bound,
+            last_processed_sl_l1_batch_number,
             batch_merkle_tree,
             batch_merkle_tree_interop,
         })
