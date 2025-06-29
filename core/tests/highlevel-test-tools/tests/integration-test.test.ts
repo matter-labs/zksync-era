@@ -1,11 +1,10 @@
 import {describe, it} from "vitest";
-import {CHAIN_TYPES, ChainType, createChainAndStartServer, runIntegrationTests} from "../src";
+import {ALL_CHAIN_TYPES, ChainType, createChainAndStartServer, runIntegrationTests} from "../src";
 
 describe('Integration Test', () => {
-    it.concurrent.each<ChainType>(CHAIN_TYPES)('for %s chain', async (chainType) => {
-        const chain = await createChainAndStartServer(chainType);
+    it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
+        const { chainName } = await createChainAndStartServer(chainType);
 
-        await runIntegrationTests(chain.chainName)
-
+        await runIntegrationTests(chainName);
     });
 });

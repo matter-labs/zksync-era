@@ -74,7 +74,10 @@ pub async fn init_db_with_template(db: &DatabaseConfig, template_url: &Url) -> a
         .next_back()
         .ok_or(anyhow!("Failed to parse template database name from URL"))?;
 
-    let query = format!("CREATE DATABASE \"{}\" WITH TEMPLATE \"{}\"", db.name, template_db_name);
+    let query = format!(
+        "CREATE DATABASE \"{}\" WITH TEMPLATE \"{}\"",
+        db.name, template_db_name
+    );
     // Create DB with template.
     sqlx::query(&query).execute(&mut connection).await?;
 

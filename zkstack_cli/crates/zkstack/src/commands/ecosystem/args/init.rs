@@ -21,7 +21,7 @@ use crate::{
 async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
     use reqwest::Client;
     use serde_json::{json, Value};
-    
+
     let client = Client::new();
     let request_body = json!({
         "jsonrpc": "2.0",
@@ -29,30 +29,35 @@ async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
         "params": [],
         "id": 1
     });
-    
+
     let response = client
         .post(l1_rpc_url)
         .json(&request_body)
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to connect to L1 RPC: {}", e))?;
-    
+
     if !response.status().is_success() {
         anyhow::bail!("L1 RPC returned non-success status: {}", response.status());
     }
-    
-    let json_response: Value = response.json().await
+
+    let json_response: Value = response
+        .json()
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to parse L1 RPC response: {}", e))?;
-    
+
     if let Some(error) = json_response.get("error") {
         anyhow::bail!("L1 RPC returned error: {}", error);
     }
-    
+
     if json_response.get("result").is_none() {
         anyhow::bail!("L1 RPC response missing 'result' field");
     }
-    
-    println!("✅ L1 RPC health check passed - chain ID: {}", json_response["result"]);
+
+    println!(
+        "✅ L1 RPC health check passed - chain ID: {}",
+        json_response["result"]
+    );
     Ok(())
 }
 
@@ -69,7 +74,11 @@ pub struct EcosystemArgs {
 }
 
 impl EcosystemArgs {
-    pub async fn fill_values_with_prompt(self, l1_network: L1Network, dev: bool) -> anyhow::Result<EcosystemArgsFinal> {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+        dev: bool,
+    ) -> anyhow::Result<EcosystemArgsFinal> {
         let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
             if dev {
                 true
@@ -96,11 +105,11 @@ impl EcosystemArgs {
                 })
                 .ask()
         });
-        
+
         // Check L1 RPC health after getting the URL
         println!("🔍 Checking L1 RPC health...");
         check_l1_rpc_health(&l1_rpc_url).await?;
-        
+
         Ok(EcosystemArgsFinal {
             deploy_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
@@ -173,7 +182,10 @@ impl EcosystemInitArgs {
         }
     }
 
-    pub async fn fill_values_with_prompt(self, l1_network: L1Network) -> anyhow::Result<EcosystemInitArgsFinal> {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+    ) -> anyhow::Result<EcosystemInitArgsFinal> {
         let deploy_erc20 = if self.dev {
             true
         } else {
@@ -183,7 +195,10 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
-        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev).await?;
+        let ecosystem = self
+            .ecosystem
+            .fill_values_with_prompt(l1_network, self.dev)
+            .await?;
         let observability = if self.dev {
             true
         } else {

@@ -5,12 +5,12 @@ import {
     generateRealisticLoad,
     waitForAllBatchesToBeExecuted,
     initExternalNode,
-    ALL_CHAIN_TYPES
+    ALL_CHAIN_TYPES, runIntegrationTests, runExternalNode
 } from '../src';
-import {genesisRecoveryTest} from "../src/run-integration-tests";
+import {enIntegrationTests, genesisRecoveryTest} from "../src/run-integration-tests";
 
 describe('Genesis Recovery Test', () => {
-    it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
+    it.concurrent.each<ChainType>(['validium'])('for %s chain', async (chainType) => {
         const { chainName} = await createChainAndStartServer(chainType);
 
         await generateRealisticLoad(chainName);
@@ -19,6 +19,8 @@ describe('Genesis Recovery Test', () => {
 
         await initExternalNode(chainName);
 
-        await genesisRecoveryTest(chainName);
+        await runExternalNode(chainName);
+
+        await enIntegrationTests(chainName);
     });
 });

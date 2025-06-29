@@ -124,7 +124,7 @@ pub async fn init(
             init_args.forge_args.clone(),
             true,
         )
-            .await?;
+        .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
         // If phase1 is set, return early

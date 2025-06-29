@@ -1,6 +1,7 @@
 import {ChildProcess, spawn} from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import {log} from "utils";
 
 /**
  * Strips ANSI escape sequences from a string
@@ -133,7 +134,7 @@ export async function executeCommand(command: string, args: string[], chainName:
  * @param chainName - Name for logging
  * @returns Promise that resolves when the command starts (not when it finishes)
  */
-export async function executeBackgroundCommand(command: string, args: string[], chainName: string): Promise<ChildProcess> {
+export async function executeBackgroundCommand(command: string, args: string[], chainName: string, logFileSuffix?: string): Promise<ChildProcess> {
   const logsDir = '../../../logs/highlevel';
   const startTime = Date.now();
   
@@ -146,7 +147,8 @@ export async function executeBackgroundCommand(command: string, args: string[], 
     }
     
     // Create log file for this chain
-    const logFileName = `${chainName}.log`;
+    const suffix = logFileSuffix ?? "";
+    const logFileName = `${chainName}${suffix}.log`;
     const logFilePath = path.join(logsDir, logFileName);
     
     // Create write stream for the log file (append mode)
