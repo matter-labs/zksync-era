@@ -20,7 +20,6 @@ message BlockMetadata {
 message InteropRoot {
   optional uint32 chain_id = 1; // required; u32
   optional uint32 block_number = 2; // required; u32
-  optional uint64 received_timestamp = 3; // required; seconds since UNIX epoch
   repeated bytes sides = 4; // required; Vec<U256>
 }
 

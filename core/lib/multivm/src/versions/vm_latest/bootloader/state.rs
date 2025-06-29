@@ -17,7 +17,10 @@ use crate::{
         bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
-            utils::{apply_l2_block, apply_tx_to_memory, L2BlockApplicationConfig},
+            utils::{
+                apply_l2_block, apply_tx_to_memory, InteropRootApplicationConfig,
+                L2BlockApplicationConfig,
+            },
         },
         constants::get_tx_description_offset,
         types::TransactionData,
@@ -126,6 +129,13 @@ impl BootloaderState {
         max(self.l2_blocks.len(), 1) - 1
     }
 
+    pub(crate) fn get_interop_root_application_config(&self) -> InteropRootApplicationConfig {
+        InteropRootApplicationConfig {
+            number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
+            preexisting_blocks_number: self.get_preexisting_blocks_number(),
+        }
+    }
+
     pub(crate) fn push_tx(
         &mut self,
         tx: TransactionData,
@@ -147,13 +157,16 @@ impl BootloaderState {
         );
 
         let mut memory = vec![];
+        let interop_root_application_config = if self.last_l2_block().txs.is_empty() {
+            Some(self.get_interop_root_application_config())
+        } else {
+            None
+        };
         let config: L2BlockApplicationConfig = L2BlockApplicationConfig {
             tx_index: self.free_tx_index(),
             start_new_l2_block: self.last_l2_block().txs.is_empty(),
             subversion: self.subversion,
-            apply_interop_roots: self.last_l2_block().txs.is_empty(),
-            number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
-            preexisting_blocks_number: self.get_preexisting_blocks_number(),
+            interop_root_application_config,
         };
         let compressed_bytecode_size = apply_tx_to_memory(
             &mut memory,
@@ -204,13 +217,19 @@ impl BootloaderState {
         let mut tx_index = 0;
         for l2_block in &self.l2_blocks {
             for (num, tx) in l2_block.txs.iter().enumerate() {
+                let interop_root_application_config = if num == 0 {
+                    Some(InteropRootApplicationConfig {
+                        number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
+                        preexisting_blocks_number: self.get_preexisting_blocks_number(),
+                    })
+                } else {
+                    None
+                };
                 let config: L2BlockApplicationConfig = L2BlockApplicationConfig {
                     tx_index,
                     start_new_l2_block: num == 0,
                     subversion: self.subversion,
-                    apply_interop_roots: num == 0,
-                    number_of_applied_interop_roots: self.get_number_of_applied_interop_roots(),
-                    preexisting_blocks_number: self.get_preexisting_blocks_number(),
+                    interop_root_application_config,
                 };
                 let compressed_bytecodes_size = apply_tx_to_memory(
                     &mut initial_memory,
@@ -231,10 +250,8 @@ impl BootloaderState {
                     l2_block,
                     tx_index,
                     self.subversion,
-                    true,
-                    self.get_number_of_applied_interop_roots(),
-                    self.get_preexisting_blocks_number(),
-                )
+                    Some(self.get_interop_root_application_config()),
+                );
             }
         }
 

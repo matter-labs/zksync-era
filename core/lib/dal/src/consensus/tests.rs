@@ -78,7 +78,6 @@ fn interop_root(rng: &mut impl Rng) -> InteropRoot {
         chain_id: rng.gen(),
         block_number: rng.gen(),
         sides: (0..10).map(|_| h256_to_u256(rng.gen())).collect(),
-        received_timestamp: rng.gen(),
     }
 }
 

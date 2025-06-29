@@ -143,8 +143,6 @@ impl ProtoRepr for proto::InteropRoot {
                 .iter()
                 .map(|s| parse_h256(s).context("sides").map(h256_to_u256))
                 .collect::<anyhow::Result<_>>()?,
-            received_timestamp: *required(&self.received_timestamp)
-                .context("received_timestamp")?,
         })
     }
 
@@ -159,7 +157,6 @@ impl ProtoRepr for proto::InteropRoot {
                 .map(u256_to_h256)
                 .map(|h| h.as_bytes().to_vec())
                 .collect(),
-            received_timestamp: Some(r.received_timestamp),
         }
     }
 }
