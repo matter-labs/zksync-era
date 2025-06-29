@@ -42,8 +42,8 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
     timeInfo = '(detached)';
   } else if (endTime) {
     const duration = endTime - startTime;
-    const failedPrefix = failed ? '[FAILED] ' : '';
-    timeInfo = `(${failedPrefix}${duration.toString().padStart(6)}ms)`;
+    const failedPrefix = failed ? '[❌FAILED] ' : '';
+    timeInfo = `(${duration.toString().padStart(6)}ms)${failedPrefix}`;
   } else {
     timeInfo = '(running)';
   }
@@ -109,7 +109,18 @@ export async function executeCommand(command: string, args: string[], chainName:
         console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
         resolve();
       } else {
-        const errorMessage = `Command ${command} ${args.join(" ")} failed with exit code ${code}. Check logs at: ${logFilePath}`;
+        // Rename the log directory to indicate failure
+        const failedLogsDir = `../../../logs/highlevel/${chainName}[FAILED]`;
+        try {
+          if (fs.existsSync(logsDir)) {
+            fs.renameSync(logsDir, failedLogsDir);
+            console.log(`📁 Renamed log directory to: ${failedLogsDir}`);
+          }
+        } catch (renameError) {
+          console.warn(`⚠️ Failed to rename log directory: ${renameError}`);
+        }
+        
+        const errorMessage = `Command failed with exit code ${code}. Check logs at: ${logFilePath}`;
         console.error(`❌ ${errorMessage}`);
         reject(new Error(errorMessage));
       }
@@ -124,6 +135,18 @@ export async function executeCommand(command: string, args: string[], chainName:
       const errorMessage = `[${new Date().toISOString()}] Command error: ${error.message}\n`;
       logStream.write(errorMessage);
       logStream.end();
+      
+      // Rename the log directory to indicate failure
+      const failedLogsDir = `../../../logs/highlevel/${chainName}[FAILED]`;
+      try {
+        if (fs.existsSync(logsDir)) {
+          fs.renameSync(logsDir, failedLogsDir);
+          console.log(`📁 Renamed log directory to: ${failedLogsDir}`);
+        }
+      } catch (renameError) {
+        console.warn(`⚠️ Failed to rename log directory: ${renameError}`);
+      }
+      
       reject(error);
     });
   });
@@ -186,6 +209,18 @@ export async function executeBackgroundCommand(command: string, args: string[], 
       const errorMessage = `[${new Date().toISOString()}] Background command error: ${error.message}\n`;
       logStream.write(errorMessage);
       logStream.end();
+      
+      // Rename the log directory to indicate failure
+      const failedLogsDir = `../../../logs/highlevel/${chainName}[FAILED]`;
+      try {
+        if (fs.existsSync(logsDir)) {
+          fs.renameSync(logsDir, failedLogsDir);
+          console.log(`📁 Renamed log directory to: ${failedLogsDir}`);
+        }
+      } catch (renameError) {
+        console.warn(`⚠️ Failed to rename log directory: ${renameError}`);
+      }
+      
       reject(error);
     });
     
