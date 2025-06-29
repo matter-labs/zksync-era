@@ -1,11 +1,41 @@
 import { executeCommand, executeBackgroundCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
 import * as console from "node:console";
+import { ChildProcess } from 'child_process';
+import { promisify } from "node:util";
+import { exec } from "node:child_process";
 
 /**
  * Global mutex for phase1 chain initialization (same as in create-chain.ts)
  */
 const fileMutex = new FileMutex();
+
+/**
+ * External node handle interface
+ */
+export interface ExternalNodeHandle {
+  chainName: string;
+  process?: ChildProcess;
+  kill(): Promise<void>;
+}
+
+async function killPidWithAllChilds(pid: number, signalNumber: number) {
+  let childs = [pid];
+  while (true) {
+    try {
+      let child = childs.at(-1);
+      childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
+    } catch (e) {
+      break;
+    }
+  }
+  // We always run the test using additional tools, that means we have to kill not the main process, but the child process
+  for (let i = childs.length - 1; i >= 0; i--) {
+    try {
+      await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
+    } catch (e) {}
+  }
+}
 
 /**
  * Initializes an external node with the specified configuration
@@ -69,7 +99,7 @@ export async function initExternalNode(chainName: string = 'era', gatewayRpcUrl?
  * @param chainName - The name of the chain (chain type will be extracted by removing last 9 characters)
  * @returns Promise that resolves when the external node is running
  */
-export async function runExternalNode(chainName: string): Promise<void> {
+export async function runExternalNode(chainName: string): Promise<ExternalNodeHandle> {
   // Extract chain type by removing last 9 characters (UUID suffix)
   const chainType = chainName.slice(0, -9);
   
@@ -104,7 +134,7 @@ export async function runExternalNode(chainName: string): Promise<void> {
     }
     
     // Run the external node in background
-    await executeBackgroundCommand('zkstack', runArgs, chainName, "_external_node");
+    const process = await executeBackgroundCommand('zkstack', runArgs, chainName, "_external_node");
     
     console.log(`✅ External node started successfully: ${chainName}`);
     
@@ -118,6 +148,19 @@ export async function runExternalNode(chainName: string): Promise<void> {
     ], chainName, 'external_node');
     
     console.log(`✅ External node is ready: ${chainName}`);
+
+    return {
+      chainName,
+      process,
+      async kill() {
+        if (process?.pid) {
+          console.log(`🛑 Killing external node process for chain: ${chainName}`);
+          await killPidWithAllChilds(process.pid, 9);
+        } else {
+          throw new Error("External node is not running!")
+        }
+      }
+    };
   } catch (error) {
     console.error(`❌ Error running external node: ${error}`);
     throw error;
