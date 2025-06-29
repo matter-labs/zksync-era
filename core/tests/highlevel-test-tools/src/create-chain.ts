@@ -61,7 +61,7 @@ export async function setupDbTemplate(){
  * Supports four predefined chain types: consensus, validium, da_migration, custom_token
  * Returns the chain ID, configuration, and server handle
  */
-export async function createChain(chainType: ChainType): Promise<{ chainId: string; config: ChainConfig; serverHandle: ServerHandle }> {
+export async function createChain(chainType: ChainType): Promise<{ chainId: string; serverHandle: ServerHandle }> {
   
   // Default configuration
   const finalConfig: ChainConfig = {
@@ -216,7 +216,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainId: stri
     // Log total time
     timer.logTotalTime();
     
-    return { chainId: chainConfig.chainName, config: finalConfig, serverHandle };
+    return { chainId: chainConfig.chainName, serverHandle };
   } catch (error) {
     console.error(`❌ Failed to create chain ${chainConfig.chainName}:`, error);
     throw error;
