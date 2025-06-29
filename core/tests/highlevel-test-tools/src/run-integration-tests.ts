@@ -1,5 +1,4 @@
 import { executeCommand } from './execute-command';
-import { getStepTimer } from './timing-tools';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -43,21 +42,19 @@ async function runTest(
   };
   const emoji = emojiMap[testName] || '🧪';
   console.log(`${emoji} Running ${testName} tests for chain: ${chainName}${testPattern ? ` with pattern: ${testPattern}` : ''}`);
-  const timer = getStepTimer(chainName);
   const command = 'zkstack';
   const args = ['dev', 'test', testName, '--no-deps', '--chain', chainName, ...additionalArgs];
   if (testPattern) {
     args.push(`--test-pattern='${testPattern}'`);
   }
   try {
-    timer.startStep(`${testName} tests execution`);
+    console.log(`⏳ Executing ${testName} tests for chain: ${chainName}`);
     await executeCommand(command, args, chainName, `${testName}_tests`);
-    timer.endStep(`${testName} tests execution`);
+    console.log(`✅ ${testName} tests execution completed for chain: ${chainName}`);
     
     // Append server logs after test completion
     appendServerLogs(chainName, testName);
     
-    timer.logTotalTime();
     console.log(`✅ ${testName} tests completed successfully for chain: ${chainName}`);
   } catch (error) {
     console.error(`❌ ${testName} tests failed for chain: ${chainName}`, error);
@@ -66,7 +63,6 @@ async function runTest(
 }
 
 export async function runIntegrationTests(chainName: string, testPattern?: string): Promise<void> {
-  const timer = getStepTimer(chainName);
   await runTest('integration', chainName, testPattern, ['--verbose', '--ignore-prerequisites']);
 }
 
@@ -83,9 +79,9 @@ export async function upgradeTest(chainName: string): Promise<void> {
 }
 
 export async function snapshotsRecoveryTest(chainName: string): Promise<void> {
-  await runTest('recovery', chainName, undefined, ['--snapshot', '--no-deps', '--ignore-prerequisites', '--verbose']);
+  await runTest('recovery', chainName, undefined, ['--snapshot',  '--ignore-prerequisites', '--verbose']);
 }
 
 export async function genesisRecoveryTest(chainName: string): Promise<void> {
-  await runTest('recovery', chainName, undefined, ['--no-deps', '--no-kill', '--ignore-prerequisites', '--verbose']);
+  await runTest('recovery', chainName, undefined, ['--no-kill', '--ignore-prerequisites', '--verbose']);
 }

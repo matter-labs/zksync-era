@@ -1,4 +1,5 @@
 import { getL1BatchDetails, getL1BatchNumber } from './rpc-utils';
+import { runIntegrationTests } from './run-integration-tests';
 
 /**
  * Waits for all L1 batches to be executed by checking if executeTxHash becomes not null
@@ -28,4 +29,15 @@ export async function waitForAllBatchesToBeExecuted(chainName: string, timeoutMs
   }
   
   throw new Error(`Timeout waiting for L1 batch ${batchNumber} execution after ${timeoutMs}ms`);
+}
+
+/**
+ * Generates realistic load on the chain by running integration tests with ETH token checks
+ * @param chainName - The name of the chain to generate load on
+ * @returns Promise that resolves when the load generation is complete
+ */
+export async function generateRealisticLoad(chainName: string): Promise<void> {
+  console.log(`🚀 Generating realistic load on chain: ${chainName}`);
+  await runIntegrationTests(chainName, 'ETH token checks');
+  console.log(`✅ Realistic load generation completed for chain: ${chainName}`);
 } 

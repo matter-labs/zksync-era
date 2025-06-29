@@ -1,18 +1,18 @@
 import {describe, it} from 'vitest';
 import {
   type ChainType,
-  createChain,
-  runIntegrationTests,
+  createChainAndStartServer,
+  generateRealisticLoad,
   waitForAllBatchesToBeExecuted,
+  feesTest,
   CHAIN_TYPES
 } from '../src';
-import {feesTest} from "../src/run-integration-tests";
 
 describe('Fees Test', () => {
   it.concurrent.each<ChainType>(CHAIN_TYPES)('for %s chain', async (chainType) => {
-    const { chainName, serverHandle } = await createChain(chainType);
+    const { chainName, serverHandle } = await createChainAndStartServer(chainType);
 
-    await runIntegrationTests(chainName, 'ETH token checks');
+    await generateRealisticLoad(chainName);
 
     await waitForAllBatchesToBeExecuted(chainName);
 
