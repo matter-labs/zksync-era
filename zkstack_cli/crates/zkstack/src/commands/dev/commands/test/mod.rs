@@ -27,7 +27,7 @@ mod recovery;
 mod revert;
 mod rust;
 mod upgrade;
-mod utils;
+pub mod utils;
 mod wallet;
 
 #[derive(Subcommand, Debug)]

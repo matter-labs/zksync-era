@@ -5,11 +5,11 @@ import {
   generateRealisticLoad,
   waitForAllBatchesToBeExecuted,
   feesTest,
-  CHAIN_TYPES
+  ALL_CHAIN_TYPES
 } from '../src';
 
 describe('Fees Test', () => {
-  it.concurrent.each<ChainType>(CHAIN_TYPES)('for %s chain', async (chainType) => {
+  it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
     const { chainName, serverHandle } = await createChainAndStartServer(chainType);
 
     await generateRealisticLoad(chainName);
@@ -18,7 +18,6 @@ describe('Fees Test', () => {
 
     await serverHandle.kill();
 
-    await feesTest(chainName)
-
+    await feesTest(chainName);
   });
 });

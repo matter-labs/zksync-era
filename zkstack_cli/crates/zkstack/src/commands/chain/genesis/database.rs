@@ -65,7 +65,7 @@ pub async fn initialize_server_database(
         drop_db_if_exists(server_db_config)
             .await
             .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;
-        
+
         if let Some(template_url) = db_template {
             init_db_with_template(server_db_config, template_url).await?;
         } else {
