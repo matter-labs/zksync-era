@@ -15,7 +15,7 @@ use crate::commands::dev::messages::{
 };
 
 pub const TEST_WALLETS_PATH: &str = "etc/test_config/constant/eth.json";
-const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
+const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 10_000 * 1_000_000_000_000_000_000; // 10k ETH
 pub const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
 
 #[derive(Deserialize)]

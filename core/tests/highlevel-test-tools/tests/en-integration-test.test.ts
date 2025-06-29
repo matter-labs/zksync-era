@@ -9,7 +9,7 @@ import {
 } from '../src';
 import {enIntegrationTests, genesisRecoveryTest} from "../src/run-integration-tests";
 
-describe('Genesis Recovery Test', () => {
+describe('External Node Integration tests Test', () => {
     it.concurrent.each<ChainType>(['validium'])('for %s chain', async (chainType) => {
         const { chainName} = await createChainAndStartServer(chainType);
 

@@ -21,9 +21,10 @@ function stripAnsiEscapeCodes(str: string): string {
  * @param startTime - The start time of the command
  * @param endTime - The end time of the command (optional for detached commands)
  * @param isDetached - Whether this is a detached/background command
+ * @param failed - Whether the command failed
  */
-function logExecutedCommand(chainName: string, command: string, args: string[], startTime: number, endTime?: number, isDetached: boolean = false): void {
-  const logsDir = '../../../logs/highlevel';
+function logExecutedCommand(chainName: string, command: string, args: string[], startTime: number, endTime?: number, isDetached: boolean = false, failed: boolean = false): void {
+  const logsDir = `../../../logs/highlevel/${chainName}`;
   
   // Ensure logs directory exists
   if (!fs.existsSync(logsDir)) {
@@ -31,7 +32,7 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
   }
   
   // Create executed commands log file for this chain
-  const executedCommandsLogFile = path.join(logsDir, `${chainName}_executed_commands.log`);
+  const executedCommandsLogFile = path.join(logsDir, 'executed_commands.log');
   
   const timestamp = new Date(startTime).toISOString();
   const fullCommand = `${command} ${args.join(' ')}`;
@@ -41,7 +42,8 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
     timeInfo = '(detached)';
   } else if (endTime) {
     const duration = endTime - startTime;
-    timeInfo = `(${duration.toString().padStart(6)}ms)`;
+    const failedPrefix = failed ? '[FAILED] ' : '';
+    timeInfo = `(${failedPrefix}${duration.toString().padStart(6)}ms)`;
   } else {
     timeInfo = '(running)';
   }
@@ -55,7 +57,7 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
  * Executes a command and returns a promise
  */
 export async function executeCommand(command: string, args: string[], chainName: string, logFileSuffix?: string): Promise<void> {
-  const logsDir = '../../../logs/highlevel';
+  const logsDir = `../../../logs/highlevel/${chainName}`;
   const startTime = Date.now();
   
   return new Promise((resolve, reject) => {
@@ -67,7 +69,7 @@ export async function executeCommand(command: string, args: string[], chainName:
     }
     
     // Create log file for this chain (one file per chain, no timestamp)
-    const logFileName = logFileSuffix ? `${chainName}_${logFileSuffix}.log` : `${chainName}.log`;
+    const logFileName = logFileSuffix ? `${logFileSuffix}.log` : 'main.log';
     const logFilePath = path.join(logsDir, logFileName);
     
     // Create write stream for the log file (append mode)
@@ -97,7 +99,7 @@ export async function executeCommand(command: string, args: string[], chainName:
       const endTime = Date.now();
       
       // Log the command completion to executed commands log
-      logExecutedCommand(chainName, command, args, startTime, endTime, false);
+      logExecutedCommand(chainName, command, args, startTime, endTime, false, code !== 0);
       
       const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code}\n`;
       logStream.write(closeMessage);
@@ -107,7 +109,7 @@ export async function executeCommand(command: string, args: string[], chainName:
         console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
         resolve();
       } else {
-        const errorMessage = `Command failed with exit code ${code}. Check logs at: ${logFilePath}`;
+        const errorMessage = `Command ${command} ${args.join(" ")} failed with exit code ${code}. Check logs at: ${logFilePath}`;
         console.error(`❌ ${errorMessage}`);
         reject(new Error(errorMessage));
       }
@@ -117,7 +119,7 @@ export async function executeCommand(command: string, args: string[], chainName:
       const endTime = Date.now();
       
       // Log the command error to executed commands log
-      logExecutedCommand(chainName, command, args, startTime, endTime, false);
+      logExecutedCommand(chainName, command, args, startTime, endTime, false, true);
       
       const errorMessage = `[${new Date().toISOString()}] Command error: ${error.message}\n`;
       logStream.write(errorMessage);
@@ -135,7 +137,7 @@ export async function executeCommand(command: string, args: string[], chainName:
  * @returns Promise that resolves when the command starts (not when it finishes)
  */
 export async function executeBackgroundCommand(command: string, args: string[], chainName: string, logFileSuffix?: string): Promise<ChildProcess> {
-  const logsDir = '../../../logs/highlevel';
+  const logsDir = `../../../logs/highlevel/${chainName}`;
   const startTime = Date.now();
   
   return new Promise((resolve, reject) => {
@@ -148,7 +150,7 @@ export async function executeBackgroundCommand(command: string, args: string[], 
     
     // Create log file for this chain
     const suffix = logFileSuffix ?? "";
-    const logFileName = `${chainName}${suffix}.log`;
+    const logFileName = `background${suffix}.log`;
     const logFilePath = path.join(logsDir, logFileName);
     
     // Create write stream for the log file (append mode)
@@ -179,7 +181,7 @@ export async function executeBackgroundCommand(command: string, args: string[], 
       const endTime = Date.now();
       
       // Log the command error to executed commands log
-      logExecutedCommand(chainName, command, args, startTime, endTime, true);
+      logExecutedCommand(chainName, command, args, startTime, endTime, true, true);
       
       const errorMessage = `[${new Date().toISOString()}] Background command error: ${error.message}\n`;
       logStream.write(errorMessage);
@@ -190,7 +192,7 @@ export async function executeBackgroundCommand(command: string, args: string[], 
     // Resolve immediately after the process starts
     child.on('spawn', () => {
       // Log the command start to executed commands log
-      logExecutedCommand(chainName, command, args, startTime, undefined, true);
+      logExecutedCommand(chainName, command, args, startTime, undefined, true, false);
       
       console.log(`✅ Background command started successfully. Logs saved to: ${logFilePath}`);
       resolve(child);

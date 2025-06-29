@@ -12,7 +12,7 @@ const phase1Mutex = new FileMutex('zkstack_chain_init_phase1');
  */
 function appendServerLogs(chainName: string, testName: string): void {
   const serverLogPath = `../../../logs/server/${chainName}/server.log`;
-  const mainLogPath = `../../../logs/highlevel/${chainName}_${testName}_tests.log`;
+  const mainLogPath = `../../../logs/highlevel/${chainName}/${testName}_tests.log`;
   
   if (fs.existsSync(serverLogPath) && fs.existsSync(mainLogPath)) {
     try {

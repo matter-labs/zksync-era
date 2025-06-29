@@ -90,15 +90,43 @@ export function cleanHistoricalLogs(logsDir: string = '../../../logs/highlevel')
     let removedCount = 0;
     
     for (const file of files) {
-      if (file.endsWith('.log')) {
-        const filePath = path.join(logsDir, file);
-        try {
-          fs.unlinkSync(filePath);
-          removedCount++;
-        } catch (error: any) {
-          if (error.code !== 'ENOENT') {
-            console.warn(`⚠️  Failed to remove log file ${filePath}:`, error.message);
+      const filePath = path.join(logsDir, file);
+      try {
+        const stat = fs.statSync(filePath);
+        
+        if (stat.isDirectory()) {
+          // Remove all files in chain-specific directories
+          const chainLogsDir = path.join(filePath);
+          if (fs.existsSync(chainLogsDir)) {
+            const chainFiles = fs.readdirSync(chainLogsDir);
+            for (const chainFile of chainFiles) {
+              if (chainFile.endsWith('.log')) {
+                const chainFilePath = path.join(chainLogsDir, chainFile);
+                try {
+                  fs.unlinkSync(chainFilePath);
+                  removedCount++;
+                } catch (error: any) {
+                  if (error.code !== 'ENOENT') {
+                    console.warn(`⚠️  Failed to remove log file ${chainFilePath}:`, error.message);
+                  }
+                }
+              }
+            }
           }
+        } else if (file.endsWith('.log')) {
+          // Remove old-style log files (for backward compatibility)
+          try {
+            fs.unlinkSync(filePath);
+            removedCount++;
+          } catch (error: any) {
+            if (error.code !== 'ENOENT') {
+              console.warn(`⚠️  Failed to remove log file ${filePath}:`, error.message);
+            }
+          }
+        }
+      } catch (error: any) {
+        if (error.code !== 'ENOENT') {
+          console.warn(`⚠️  Failed to process ${filePath}:`, error.message);
         }
       }
     }
