@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { FileMutex } from './file-mutex';
 
-const phase1Mutex = new FileMutex('zkstack_chain_init_phase1');
+const fileMutex = new FileMutex();
 
 /**
  * Appends server logs from the specific server log file to the main chain log file
@@ -32,11 +32,11 @@ function appendServerLogs(chainName: string, testName: string): void {
 
 async function initTestWallet(chainName: string): Promise<void> {
   console.log(`🔑 Initializing test wallet for chain: ${chainName}`);
-  await phase1Mutex.acquire();
+  await fileMutex.acquire();
   try {
     await executeCommand('zkstack', ['dev', 'init-test-wallet', '--chain', chainName], chainName, 'init_test_wallet');
   } finally {
-    phase1Mutex.release();
+    fileMutex.release();
   }
 }
 
@@ -61,12 +61,8 @@ async function runTest(
     args.push(`--test-pattern='${testPattern}'`);
   }
   try {
-    console.log(`⏳ Executing ${testName} tests for chain: ${chainName}`);
     const en_prefix = additionalArgs.includes("--external-node") ? "en_" : "";
     await executeCommand(command, args, chainName, `${en_prefix}${testName}_tests`);
-    console.log(`✅ ${testName} tests execution completed for chain: ${chainName}`);
-    
-    // Append server logs after test completion
     appendServerLogs(chainName, testName);
     
     console.log(`✅ ${testName} tests completed successfully for chain: ${chainName}`);

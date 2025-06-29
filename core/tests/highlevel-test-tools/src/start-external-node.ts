@@ -5,7 +5,7 @@ import * as console from "node:console";
 /**
  * Global mutex for phase1 chain initialization (same as in create-chain.ts)
  */
-const phase1Mutex = new FileMutex('zkstack_chain_init_phase1');
+const fileMutex = new FileMutex();
 
 /**
  * Initializes an external node with the specified configuration
@@ -19,7 +19,7 @@ export async function initExternalNode(chainName: string = 'era', gatewayRpcUrl?
   try {
     // Acquire mutex for external node initialization
     console.log(`🔒 Acquiring mutex for external node initialization of ${chainName}...`);
-    await phase1Mutex.acquire();
+    await fileMutex.acquire();
     console.log(`✅ Mutex acquired for external node initialization of ${chainName}`);
     
     try {
@@ -56,7 +56,7 @@ export async function initExternalNode(chainName: string = 'era', gatewayRpcUrl?
       
       console.log(`✅ External node initialized successfully: ${chainName}`);
     } finally {
-      phase1Mutex.release();
+      fileMutex.release();
     }
   } catch (error) {
     console.error(`❌ Error during external node initialization: ${error}`);

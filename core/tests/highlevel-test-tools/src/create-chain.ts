@@ -17,7 +17,7 @@ export interface ChainConfig {
 /**
  * Global mutex for phase1 chain initialization
  */
-const phase1Mutex = new FileMutex('zkstack_chain_init_phase1');
+const fileMutex = new FileMutex();
 
 /**
  * Reads the custom token address from the erc20.yaml configuration file
@@ -52,7 +52,7 @@ export async function setupDbTemplate(){
     'db',
     'setup',
     '--core-url', 'postgres://postgres:notsecurepassword@localhost:5432/db_template'
-  ], "db_template_creation");
+  ], "db_template", "template_creation");
 }
 
 /**
@@ -128,7 +128,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
   try {
     // Acquire mutex for the entire chain creation and initialization process
     console.log(`🔒 Acquiring mutex for chain creation and phase1 initialization of ${chainConfig.chainName}...`);
-    await phase1Mutex.acquire();
+    await fileMutex.acquire();
     console.log(`✅ Mutex acquired for ${chainConfig.chainName}`);
     
     try {
@@ -150,7 +150,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
         '--evm-emulator', chainConfig.evmEmulator.toString(),
         '--tight-ports',
         '--verbose'
-      ], chainConfig.chainName);
+      ], chainConfig.chainName, "main_node");
       console.log(`✅ Chain creation completed for ${chainConfig.chainName}`);
       
       // Step 2: Initialize the chain - Phase 1 (under mutex protection)
@@ -166,12 +166,12 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
         '--update-submodules', 'false',
         '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/db_template',
         '--verbose'
-      ], chainConfig.chainName);
+      ], chainConfig.chainName, "main_node");
       console.log(`✅ Phase 1 initialization completed for ${chainConfig.chainName}`);
       
       console.log(`✅ Chain creation and Phase 1 initialization completed for ${chainConfig.chainName}`);
     } finally {
-      phase1Mutex.release();
+      fileMutex.release();
     }
     
     // Step 3: Initialize the chain - Phase 2 (without mutex protection)
@@ -187,7 +187,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
       '--update-submodules', 'false',
       '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/db_template',
       '--verbose'
-    ], chainConfig.chainName);
+    ], chainConfig.chainName, 'main_node');
     console.log(`✅ Phase 2 initialization completed for ${chainConfig.chainName}`);
     
     // Step 4: Start the server
