@@ -70,8 +70,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.refunded_gas,
                 transactions.gas_limit,
                 transactions.nonce,
+                transactions.l1_batch_number AS "l1_batch_number?",
                 miniblocks.hash AS "block_hash",
-                miniblocks.l1_batch_number AS "l1_batch_number?",
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
