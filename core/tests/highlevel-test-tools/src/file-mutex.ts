@@ -35,30 +35,6 @@ export class FileMutex {
         return;
       } catch (error: any) {
         if (error.code === 'EEXIST') {
-          // Lock file exists, check if it's stale
-          try {
-            const lockContent = fs.readFileSync(this.lockFile, 'utf8');
-            const lockInfo = JSON.parse(lockContent);
-            const lockTime = new Date(lockInfo.timestamp);
-            const now = new Date();
-            
-            // Consider lock stale if it's older than 5 minutes
-            if (now.getTime() - lockTime.getTime() > 5 * 60 * 1000) {
-              console.log(`⚠️  Removing stale lock: ${this.lockFile}`);
-              fs.unlinkSync(this.lockFile);
-              continue;
-            }
-          } catch (readError) {
-            // If we can't read the lock file, it might be corrupted, so remove it
-            try {
-              fs.unlinkSync(this.lockFile);
-              continue;
-            } catch (unlinkError) {
-              // Ignore unlink errors
-            }
-          }
-          
-          // Wait before retrying
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         } else {
           throw error;
@@ -71,10 +47,8 @@ export class FileMutex {
 
   release(): void {
     try {
-      if (fs.existsSync(this.lockFile)) {
-        fs.unlinkSync(this.lockFile);
-        console.log(`🔓 Released mutex lock: ${this.lockFile}`);
-      }
+      fs.unlinkSync(this.lockFile);
+      console.log(`🔓 Released mutex lock: ${this.lockFile}`);
     } catch (error) {
       console.warn(`Warning: Failed to release mutex lock: ${this.lockFile}`, error);
     }
