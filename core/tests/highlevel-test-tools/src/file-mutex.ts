@@ -8,9 +8,9 @@ export class FileMutex {
   private lockFile: string;
   private lockDir: string;
 
-  constructor(name: string, lockDir: string = '/tmp') {
-    this.lockDir = lockDir;
-    this.lockFile = path.join(lockDir, `${name}.lock`);
+  constructor() {
+    this.lockDir = ".";
+    this.lockFile = path.join(this.lockDir, 'highlevel_tests.lock');
   }
 
   async acquire(): Promise<void> {
@@ -86,54 +86,7 @@ export class FileMutex {
  */
 export function cleanHistoricalLogs(logsDir: string = '../../../logs/highlevel'): void {
   if (fs.existsSync(logsDir)) {
-    const files = fs.readdirSync(logsDir);
-    let removedCount = 0;
-    
-    for (const file of files) {
-      const filePath = path.join(logsDir, file);
-      try {
-        const stat = fs.statSync(filePath);
-        
-        if (stat.isDirectory()) {
-          // Remove all files in chain-specific directories
-          const chainLogsDir = path.join(filePath);
-          if (fs.existsSync(chainLogsDir)) {
-            const chainFiles = fs.readdirSync(chainLogsDir);
-            for (const chainFile of chainFiles) {
-              if (chainFile.endsWith('.log')) {
-                const chainFilePath = path.join(chainLogsDir, chainFile);
-                try {
-                  fs.unlinkSync(chainFilePath);
-                  removedCount++;
-                } catch (error: any) {
-                  if (error.code !== 'ENOENT') {
-                    console.warn(`⚠️  Failed to remove log file ${chainFilePath}:`, error.message);
-                  }
-                }
-              }
-            }
-          }
-        } else if (file.endsWith('.log')) {
-          // Remove old-style log files (for backward compatibility)
-          try {
-            fs.unlinkSync(filePath);
-            removedCount++;
-          } catch (error: any) {
-            if (error.code !== 'ENOENT') {
-              console.warn(`⚠️  Failed to remove log file ${filePath}:`, error.message);
-            }
-          }
-        }
-      } catch (error: any) {
-        if (error.code !== 'ENOENT') {
-          console.warn(`⚠️  Failed to process ${filePath}:`, error.message);
-        }
-      }
-    }
-    
-    console.log(`🧹 Cleaned ${removedCount} historical log files from ${logsDir}`);
-  } else {
-    console.log(`📁 Logs directory ${logsDir} does not exist, nothing to clean`);
+    fs.rmSync(logsDir, {recursive: true, force: true});
   }
 }
 
@@ -174,7 +127,7 @@ export function cleanTestChains(chainsDir: string = './chains'): void {
  * Cleans up any leftover mutex lock files from previous test runs
  */
 export function cleanMutexLockFiles(): void {
-  const mutexLockFile = '/tmp/zkstack_chain_init_phase1.lock';
+  const mutexLockFile = 'highlevel_tests.lock';
   if (fs.existsSync(mutexLockFile)) {
     try {
       fs.unlinkSync(mutexLockFile);

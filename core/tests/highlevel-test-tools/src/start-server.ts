@@ -81,7 +81,7 @@ export async function startServer(chainName: string): Promise<ServerHandle> {
       '--ignore-prerequisites',
       '--verbose',
       '--chain', chainName
-    ], chainName);
+    ], chainName, "main_node");
     
     console.log(`✅ Server is ready: ${chainName}`);
   } catch (error) {
