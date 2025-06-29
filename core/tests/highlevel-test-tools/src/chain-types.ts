@@ -6,6 +6,7 @@ import { type ChainType } from './create-chain';
 export const ALL_CHAIN_TYPES: ChainType[] = [
   'consensus',
   'validium',
-  'da_migration',
-  'custom_token'
+  // 'da_migration',
+  'custom_token',
+  //'era'
 ]; 

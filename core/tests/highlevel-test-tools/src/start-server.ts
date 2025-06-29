@@ -55,22 +55,28 @@ export async function startServer(chainName: string): Promise<ServerHandle> {
   const serverHandle: ServerHandle = {
     chainName,
     kill: async () => {
-      console.log(serverHandle.process?.pid)
       if (serverHandle.process?.pid) {
-        console.log(`🛑 Killing server process for chain: ${chainName}`);
+        console.log(`🛑 Killing server process for chain: ${chainName} with pid ${serverHandle.process?.pid}`);
         await killPidWithAllChilds(serverHandle.process.pid, 9);
       } else {
         throw new Error("Server is not running!")
       }
     }
   };
-  
+
+  let extraArgs = [];
+  // Extract chain type by removing last 9 characters (UUID suffix)
+  const chainType = chainName.slice(0, -9);
+  if (chainType === 'consensus') {
+    extraArgs.push('--components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus')
+  }
+
   // Start the server in background using executeBackgroundCommand
   serverHandle.process = await executeBackgroundCommand('zkstack', [
     'server',
     '--ignore-prerequisites',
     '--chain', chainName
-  ], chainName, "main_node");
+  ].concat(extraArgs), chainName, "main_node");
   
   try {
     console.log(`⏳ Waiting for server to be ready: ${chainName}`);
