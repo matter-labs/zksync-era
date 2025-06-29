@@ -20,5 +20,5 @@ describe('Fees Test', () => {
 
     await feesTest(chainName)
 
-  }, 3600 * 1000);
+  });
 });
