@@ -70,7 +70,7 @@ export async function startServer(chainName: string): Promise<ServerHandle> {
     'server',
     '--ignore-prerequisites',
     '--chain', chainName
-  ], chainName, "_main_node");
+  ], chainName, "main_node");
   
   try {
     console.log(`⏳ Waiting for server to be ready: ${chainName}`);

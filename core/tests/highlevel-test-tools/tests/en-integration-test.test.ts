@@ -10,7 +10,7 @@ import {
 import {enIntegrationTests, genesisRecoveryTest} from "../src/run-integration-tests";
 
 describe('External Node Integration tests Test', () => {
-    it.concurrent.each<ChainType>(['validium'])('for %s chain', async (chainType) => {
+    it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
         const { chainName} = await createChainAndStartServer(chainType);
 
         await generateRealisticLoad(chainName);
