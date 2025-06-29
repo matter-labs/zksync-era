@@ -7,5 +7,5 @@ describe('Integration Test', () => {
 
         await runIntegrationTests(chain.chainName)
 
-    }, 3600 * 1000);
+    });
 });

@@ -18,8 +18,8 @@ export default defineConfig({
         'tests/setup.ts'
       ]
     },
-    testTimeout: 30000,
-    setupFiles: ['tests/setup.ts']
+    testTimeout: 3600 * 1000,
+    globalSetup: './global-setup.ts'
   },
   resolve: {
     alias: {
