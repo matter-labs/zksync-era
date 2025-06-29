@@ -109,6 +109,9 @@ export async function executeCommand(command: string, args: string[], chainName:
       if (code === 0) {
         console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
         resolve(child);
+      } else if (code === 137) {
+        console.log(`✅ Command completed by being killed using .kill(). Logs saved to: ${logFilePath}`);
+        resolve(child);
       } else {
         // Rename the log directory to indicate failure
         const failedLogsDir = `../../../logs/highlevel/[FAILED]${chainName}`;
