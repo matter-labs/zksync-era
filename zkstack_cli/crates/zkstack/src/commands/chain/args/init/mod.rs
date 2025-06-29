@@ -124,7 +124,6 @@ impl InitArgs {
             make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
             phase1: self.phase1,
             phase2: self.phase2,
-            db_template: self.db_template,
         }
     }
 }
@@ -140,5 +139,4 @@ pub struct InitArgsFinal {
     pub make_permanent_rollup: bool,
     pub phase1: bool,
     pub phase2: bool,
-    pub db_template: Option<Url>,
 }

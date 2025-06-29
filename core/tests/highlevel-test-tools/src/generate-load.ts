@@ -1,6 +1,5 @@
-import { runIntegrationTests } from './run-integration-tests';
+import { generateRealisticLoad } from './wait-for-batches';
 import { executeCommand } from './execute-command';
-import { getStepTimer } from './timing-tools';
 import * as path from 'path';
 import { getRpcUrl, queryJsonRpc, getL1BatchNumber } from './rpc-utils';
 
@@ -33,18 +32,15 @@ async function waitForL1Batch(chainName: string, timeoutMs: number = 300000): Pr
 export async function generateLoad(chainName: string): Promise<void> {
   console.log(`🚀 Starting load generation for chain: ${chainName}`);
   
-  const timer = getStepTimer(chainName);
-  
   try {
-    timer.startStep('ETH token checks integration test');
-    await runIntegrationTests(chainName, 'ETH token checks');
-    timer.endStep('ETH token checks integration test');
+    console.log(`⏳ Running ETH token checks integration test`);
+    await generateRealisticLoad(chainName);
+    console.log(`✅ ETH token checks integration test completed`);
     
-    timer.startStep('Wait for L1 batch execution');
+    console.log(`⏳ Waiting for L1 batch execution`);
     await waitForL1Batch(chainName);
-    timer.endStep('Wait for L1 batch execution');
+    console.log(`✅ L1 batch execution completed`);
     
-    timer.logTotalTime();
     console.log(`✅ Load generation completed successfully for chain: ${chainName}`);
   } catch (error) {
     console.error(`❌ Load generation failed for chain: ${chainName}`, error);

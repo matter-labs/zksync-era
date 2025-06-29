@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { executeCommand } from './execute-command';
-import { getStepTimer } from './timing-tools';
 import { FileMutex, cleanHistoricalLogs, cleanTestChains } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
 
@@ -61,7 +60,7 @@ export async function setupDbTemplate(){
  * Supports four predefined chain types: consensus, validium, da_migration, custom_token
  * Returns the chain ID, configuration, and server handle
  */
-export async function createChain(chainType: ChainType): Promise<{ chainName: string; serverHandle: ServerHandle }> {
+export async function createChainAndStartServer(chainType: ChainType): Promise<{ chainName: string; serverHandle: ServerHandle }> {
   
   // Default configuration
   const finalConfig: ChainConfig = {
@@ -124,29 +123,17 @@ export async function createChain(chainType: ChainType): Promise<{ chainName: st
     throw new Error(`Unsupported chain type: ${chainType}`);
   }
   
-  // Initialize timing utility after chainConfig is defined
-  const timingLogFile = path.join('../../../logs/highlevel', `${chainConfig.chainName}_timing.log`);
-  
-  // Ensure logs directory exists
-  const logsDir = path.dirname(timingLogFile);
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
-  }
-  
-  const timer = getStepTimer(chainConfig.chainName);
-  
   console.log(`Creating and initializing ${chainType} chain: ${chainConfig.chainName}...`);
   
   try {
     // Acquire mutex for the entire chain creation and initialization process
-    timer.startStep('Mutex acquisition');
     console.log(`🔒 Acquiring mutex for chain creation and phase1 initialization of ${chainConfig.chainName}...`);
     await phase1Mutex.acquire();
-    timer.endStep('Mutex acquisition');
+    console.log(`✅ Mutex acquired for ${chainConfig.chainName}`);
     
     try {
       // Step 1: Create the chain (under mutex protection)
-      timer.startStep('Chain creation');
+      console.log(`⏳ Creating chain: ${chainConfig.chainName}`);
       await executeCommand('zkstack', [
         'chain', 'create',
         '--update-submodules', 'false',
@@ -164,10 +151,10 @@ export async function createChain(chainType: ChainType): Promise<{ chainName: st
         '--tight-ports',
         '--verbose'
       ], chainConfig.chainName);
-      timer.endStep('Chain creation');
+      console.log(`✅ Chain creation completed for ${chainConfig.chainName}`);
       
       // Step 2: Initialize the chain - Phase 1 (under mutex protection)
-      timer.startStep('Phase 1 initialization');
+      console.log(`⏳ Phase 1 initialization for ${chainConfig.chainName}`);
       await executeCommand('zkstack', [
         'chain', 'init', '--phase1',
         '--deploy-paymaster',
@@ -180,7 +167,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainName: st
         '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/db_template',
         '--verbose'
       ], chainConfig.chainName);
-      timer.endStep('Phase 1 initialization');
+      console.log(`✅ Phase 1 initialization completed for ${chainConfig.chainName}`);
       
       console.log(`✅ Chain creation and Phase 1 initialization completed for ${chainConfig.chainName}`);
     } finally {
@@ -188,7 +175,7 @@ export async function createChain(chainType: ChainType): Promise<{ chainName: st
     }
     
     // Step 3: Initialize the chain - Phase 2 (without mutex protection)
-    timer.startStep('Phase 2 initialization');
+    console.log(`⏳ Phase 2 initialization for ${chainConfig.chainName}`);
     await executeCommand('zkstack', [
       'chain', 'init', '--phase2',
       '--deploy-paymaster',
@@ -201,20 +188,14 @@ export async function createChain(chainType: ChainType): Promise<{ chainName: st
       '--db-template', 'postgres://postgres:notsecurepassword@localhost:5432/db_template',
       '--verbose'
     ], chainConfig.chainName);
-    timer.endStep('Phase 2 initialization');
-    
     console.log(`✅ Phase 2 initialization completed for ${chainConfig.chainName}`);
     
     // Step 4: Start the server
-    timer.startStep('Server start');
     console.log(`🚀 Starting server for ${chainConfig.chainName}...`);
     const serverHandle = await startServer(chainConfig.chainName);
-    timer.endStep('Server start');
     console.log(`✅ Server started successfully for ${chainConfig.chainName}`);
 
-    
-    // Log total time
-    timer.logTotalTime();
+    console.log(`✅ Chain creation and initialization completed for ${chainConfig.chainName}`);
     
     return { chainName: chainConfig.chainName, serverHandle };
   } catch (error) {
