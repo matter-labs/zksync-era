@@ -10,7 +10,7 @@ use zksync_types::{
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
     },
-    u256_to_h256, L1BatchNumber, L2ChainId, SLChainId, H256, U256,
+    u256_to_h256, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -86,11 +86,11 @@ impl EventProcessor for BatchRootProcessor {
                 (
                     sl_block_number,
                     sl_l1_batch_number,
-                    batch_number,
+                    chain_l1_batch_number,
                     logs_root_hash,
                 )
             })
-            .chunk_by(|(sl_block_number, _, _)| *sl_block_number)
+            .chunk_by(|(sl_block_number, _, _, _)| *sl_block_number)
             .into_iter()
             .map(|(sl_block_number, group)| {
                 let group: Vec<_> = group
@@ -108,25 +108,25 @@ impl EventProcessor for BatchRootProcessor {
 
         let sl_chain_id = self.sl_l2_client.chain_id().await?;
         let last_processed_sl_l1_batch_number = self.last_processed_sl_l1_batch_number;
-        let mut sl_l1_chain_proof_vector = BatchRootProcessor::sl_l1_chain_proof_vector(
-            self.sl_l2_client,
-            last_processed_sl_l1_batch_number,
-            self.l2_chain_id,
-            sl_chain_id,
-        )
-        .await?;
+        let mut sl_l1_chain_proof_vector = self
+            .sl_l1_chain_proof_vector(
+                last_processed_sl_l1_batch_number,
+                self.l2_chain_id,
+                sl_chain_id,
+            )
+            .await?;
 
         for (sl_block_number, chain_batches) in grouped_events {
             let sl_l1_batch_number = chain_batches.first().unwrap().0;
             if sl_l1_batch_number > last_processed_sl_l1_batch_number {
                 // Update the SL L1 chain agg proof if we are in a new L1 batch
-                sl_l1_chain_proof_vector = BatchRootProcessor::sl_l1_chain_proof_vector(
-                    self.sl_l2_client,
-                    last_processed_sl_l1_batch_number,
-                    self.l2_chain_id,
-                    sl_chain_id,
-                )
-                .await?;
+                sl_l1_chain_proof_vector = self
+                    .sl_l1_chain_proof_vector(
+                        last_processed_sl_l1_batch_number,
+                        self.l2_chain_id,
+                        sl_chain_id,
+                    )
+                    .await?;
                 self.last_processed_sl_l1_batch_number = sl_l1_batch_number;
 
                 let chain_root_local = self.merkle_tree.merkle_root();
@@ -182,7 +182,7 @@ impl EventProcessor for BatchRootProcessor {
                 let batch_proof_len = batch_proof.len() as u32;
                 let mut proof = vec![H256::from_low_u64_be(leaf_position as u64)];
                 proof.extend(batch_proof);
-                let proof_until_msg_root = proof.clone();
+                let mut proof_until_msg_root = proof.clone();
                 proof.extend(sl_l1_chain_proof_vector.clone());
                 proof_until_msg_root.extend(chain_proof_vector_until_msg_root.clone());
 
@@ -199,7 +199,7 @@ impl EventProcessor for BatchRootProcessor {
             });
 
             // Set the batch chain proof and batch chain proof until msg root for each batch in the block
-            for ((batch_number, _), (proof, proof_until_msg_root)) in
+            for ((batch_number, _, _), (proof, proof_until_msg_root)) in
                 chain_batches.iter().zip(batch_proofs)
             {
                 tracing::info!(%batch_number, "Saving batch-chain merkle path");
@@ -256,17 +256,22 @@ impl BatchRootProcessor {
     }
 
     async fn sl_l1_chain_proof_vector(
-        sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
+        &self,
         sl_l1_batch_number: L1BatchNumber,
         l2_chain_id: L2ChainId,
         sl_chain_id: SLChainId,
-    ) -> Vec<H256> {
-        let sl_l1_chain_agg_proof = sl_l2_client
+    ) -> anyhow::Result<Vec<H256>> {
+        let sl_l1_chain_agg_proof = self
+            .sl_l2_client
             .get_chain_log_proof(sl_l1_batch_number, l2_chain_id)
             .await?
             .context("Missing chain log proof for finalized batch")?;
 
-        Self::chain_proof_vector(sl_l1_batch_number.0, sl_l1_chain_agg_proof, sl_chain_id)
+        Ok(Self::chain_proof_vector(
+            sl_l1_batch_number.0,
+            sl_l1_chain_agg_proof,
+            sl_chain_id,
+        ))
     }
 
     fn chain_proof_vector(

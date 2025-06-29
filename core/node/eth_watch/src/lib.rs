@@ -37,7 +37,6 @@ struct EthWatchState {
     next_expected_priority_id: PriorityOpId,
     last_processed_sl_l1_batch_number: L1BatchNumber,
     batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
-    batch_merkle_tree_interop: MiniMerkleTree<[u8; 96]>,
 }
 
 /// Ethereum watcher component.
@@ -144,15 +143,13 @@ impl EthWatch {
         let tree_leaves = batch_hashes.into_iter().map(|(batch_number, batch_root)| {
             BatchRootProcessor::batch_leaf_preimage(batch_root, batch_number)
         });
-        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves.clone(), None);
-        let batch_merkle_tree_interop = MiniMerkleTree::new(tree_leaves, None);
+        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves, None);
 
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
             last_processed_sl_l1_batch_number,
             batch_merkle_tree,
-            batch_merkle_tree_interop,
         })
     }
 
