@@ -30,6 +30,10 @@ struct Cli {
     ///
     #[arg(short, long, default_value = "../app.bin", value_name = "APP_BINARY_PATH")]
     binary_path: PathBuf,
+
+    /// Prover ID to be passed as query parameter when submitting proof
+    #[arg(long, value_name = "PROVER_ID")]
+    prover_id: Option<String>,
 }
 
 // Note: copied from zkos_prover_input_generator.rs
@@ -80,8 +84,11 @@ impl ProofDataClient {
 
     /// Submit a proof for the processed block
     /// Returns the vector of u32 as returned by the server.
-    pub async fn submit_proof(&self, block_number: u32, proof: String) -> Result<()> {
-        let url = format!("{}/prover-jobs/FRI/submit", self.base_url);
+    pub async fn submit_proof(&self, block_number: u32, proof: String, prover_id: Option<String>) -> Result<()> {
+        let mut url = format!("{}/prover-jobs/FRI/submit", self.base_url);
+        if let Some(id) = prover_id {
+            url = format!("{}?id={}", url, id);
+        }
         let payload = ProofPayload {
             block_number,
             proof,
@@ -216,7 +223,7 @@ pub async fn main() {
         // 2) base64-encode that binary blob
         let proof_b64 = base64::encode(&proof_bytes);
 
-        match client.submit_proof(block_number, proof_b64).await {
+        match client.submit_proof(block_number, proof_b64, cli.prover_id.clone()).await {
             Ok(_) => tracing::info!(
                 "Submitted proof for block number {} to sequencer at {}",
                 block_number,
