@@ -129,6 +129,9 @@ export async function runExternalNode(chainName: string): Promise<ExternalNodeHa
       case 'custom_token':
         // No additional arguments needed
         break;
+      case 'era':
+        // No additional arguments needed for era
+        break;
       default:
         console.warn(`⚠️ Unknown chain type: ${chainType}, using default arguments`);
     }
