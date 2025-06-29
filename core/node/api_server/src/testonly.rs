@@ -592,6 +592,7 @@ pub(crate) async fn store_custom_l2_block(
     storage: &mut Connection<'_, Core>,
     header: &L2BlockHeader,
     transaction_results: &[TransactionExecutionResult],
+    l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let number = header.number;
     for result in transaction_results {
@@ -620,7 +621,10 @@ pub(crate) async fn store_custom_l2_block(
         .append_storage_logs(number, &[l2_block_log])
         .await?;
 
-    storage.blocks_dal().insert_l2_block(header).await?;
+    storage
+        .blocks_dal()
+        .insert_l2_block(header, l1_batch_number)
+        .await?;
     storage
         .transactions_dal()
         .mark_txs_as_executed_in_l2_block(
@@ -723,9 +727,14 @@ pub(crate) async fn persist_block_with_transactions(
         .insert_storage_logs(block_number, &deduplicated_logs)
         .await
         .unwrap();
-    store_custom_l2_block(&mut storage, &block_header, &all_tx_results)
-        .await
-        .unwrap();
+    store_custom_l2_block(
+        &mut storage,
+        &block_header,
+        &all_tx_results,
+        L1BatchNumber(1),
+    )
+    .await
+    .unwrap();
 }
 
 #[cfg(test)]

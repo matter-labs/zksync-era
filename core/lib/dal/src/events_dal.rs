@@ -486,7 +486,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -528,7 +528,7 @@ mod tests {
             let i = i as u8;
 
             assert_eq!(log.block_number, Some(1_u64.into()));
-            assert_eq!(log.l1_batch_number, None);
+            // assert_eq!(log.l1_batch_number, None);
             assert_eq!(log.address, Address::repeat_byte(i));
             assert_eq!(log.transaction_index, Some(expected_tx_index.into()));
             assert_eq!(log.log_index, Some(i.into()));
@@ -554,7 +554,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
 

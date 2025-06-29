@@ -159,7 +159,7 @@ async fn rocksdb_storage_syncing_with_postgres() {
     let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
-    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
     drop(conn);
 
@@ -180,7 +180,13 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     let storage_logs = gen_storage_logs(100..200);
     for (i, block_logs) in storage_logs.chunks(20).enumerate() {
         let number = u32::try_from(i).unwrap() + 1;
-        create_l2_block(&mut conn, L2BlockNumber(number), block_logs).await;
+        create_l2_block(
+            &mut conn,
+            L2BlockNumber(number),
+            block_logs,
+            L1BatchNumber(number),
+        )
+        .await;
         create_l1_batch(&mut conn, L1BatchNumber(number), block_logs).await;
     }
 
@@ -247,9 +253,21 @@ async fn rocksdb_storage_revert() {
     let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
-    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs[..10]).await;
+    create_l2_block(
+        &mut conn,
+        L2BlockNumber(1),
+        &storage_logs[..10],
+        L1BatchNumber(1),
+    )
+    .await;
     insert_factory_deps(&mut conn, L2BlockNumber(1), 0..1).await;
-    create_l2_block(&mut conn, L2BlockNumber(2), &storage_logs[10..]).await;
+    create_l2_block(
+        &mut conn,
+        L2BlockNumber(2),
+        &storage_logs[10..],
+        L1BatchNumber(1),
+    )
+    .await;
     insert_factory_deps(&mut conn, L2BlockNumber(2), 1..3).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
@@ -265,7 +283,13 @@ async fn rocksdb_storage_revert() {
 
     let mut new_storage_logs = inserted_storage_logs.clone();
     new_storage_logs.extend_from_slice(&replaced_storage_logs);
-    create_l2_block(&mut conn, L2BlockNumber(3), &new_storage_logs).await;
+    create_l2_block(
+        &mut conn,
+        L2BlockNumber(3),
+        &new_storage_logs,
+        L1BatchNumber(2),
+    )
+    .await;
     insert_factory_deps(&mut conn, L2BlockNumber(3), 3..5).await;
     create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
@@ -391,6 +415,7 @@ async fn recovering_from_snapshot_and_following_logs() {
         &mut conn,
         snapshot_recovery.l2_block_number + 1,
         &new_storage_logs,
+        snapshot_recovery.l1_batch_number + 1,
     )
     .await;
     create_l1_batch(
@@ -413,6 +438,7 @@ async fn recovering_from_snapshot_and_following_logs() {
         &mut conn,
         snapshot_recovery.l2_block_number + 2,
         &updated_storage_logs,
+        snapshot_recovery.l1_batch_number + 2,
     )
     .await;
     create_l1_batch(&mut conn, snapshot_recovery.l1_batch_number + 2, &[]).await;
@@ -579,7 +605,7 @@ async fn recovery_with_pruning() {
     prepare_postgres(&mut conn).await;
 
     let mut storage_logs = gen_storage_logs(20..40);
-    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
     // Override a part of storage logs.
@@ -587,7 +613,13 @@ async fn recovery_with_pruning() {
     for log in &mut overwritten_logs {
         log.value = H256::repeat_byte(0xff);
     }
-    create_l2_block(&mut conn, L2BlockNumber(2), &overwritten_logs).await;
+    create_l2_block(
+        &mut conn,
+        L2BlockNumber(2),
+        &overwritten_logs,
+        L1BatchNumber(2),
+    )
+    .await;
     create_l1_batch(&mut conn, L1BatchNumber(2), &[]).await;
 
     prune_storage(&pool, L1BatchNumber(1)).await;
@@ -640,18 +672,18 @@ async fn recovery_with_pruning_and_overwritten_logs() {
     prepare_postgres(&mut conn).await;
 
     let mut storage_logs = gen_storage_logs(20..40);
-    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
     for log in &mut storage_logs {
         log.value = H256::repeat_byte(0xff);
     }
-    create_l2_block(&mut conn, L2BlockNumber(2), &storage_logs).await;
+    create_l2_block(&mut conn, L2BlockNumber(2), &storage_logs, L1BatchNumber(2)).await;
     create_l1_batch(&mut conn, L1BatchNumber(2), &[]).await;
 
     // Create another batch to not end up with an empty storage after pruning
     let new_logs = gen_storage_logs(40..60);
-    create_l2_block(&mut conn, L2BlockNumber(3), &new_logs).await;
+    create_l2_block(&mut conn, L2BlockNumber(3), &new_logs, L1BatchNumber(3)).await;
     create_l1_batch(&mut conn, L1BatchNumber(3), &new_logs).await;
     drop(conn);
 
@@ -697,7 +729,7 @@ async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
     for i in 1_u32..=2 {
         let log_start_idx = 10_000 * u64::from(i);
         let new_logs = gen_storage_logs(log_start_idx..log_start_idx + 50);
-        create_l2_block(&mut conn, latest_l2_block + i, &new_logs).await;
+        create_l2_block(&mut conn, latest_l2_block + i, &new_logs, L1BatchNumber(1)).await;
         create_l1_batch(&mut conn, latest_l1_batch + i, &new_logs).await;
     }
     drop(conn);
@@ -750,7 +782,7 @@ async fn recovery_detects_additional_pruning_in_progress() {
     for i in 1_u32..=2 {
         let log_start_idx = 10_000 * u64::from(i);
         let new_logs = gen_storage_logs(log_start_idx..log_start_idx + 50);
-        create_l2_block(&mut conn, L2BlockNumber(i), &new_logs).await;
+        create_l2_block(&mut conn, L2BlockNumber(i), &new_logs, L1BatchNumber(i)).await;
         create_l1_batch(&mut conn, L1BatchNumber(i), &new_logs).await;
     }
     drop(conn);

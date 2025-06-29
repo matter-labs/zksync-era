@@ -40,6 +40,10 @@ impl FirstL2BlockInBatch {
         );
         self.header.protocol_version = Some(version);
     }
+
+    pub fn l1_batch_number(&self) -> L1BatchNumber {
+        self.l1_batch_number
+    }
 }
 
 /// Returns the parameters required to initialize the VM for the next L1 batch.

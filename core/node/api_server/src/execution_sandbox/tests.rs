@@ -33,7 +33,7 @@ async fn creating_block_args() {
     let l2_block = create_l2_block(1);
     storage
         .blocks_dal()
-        .insert_l2_block(&l2_block)
+        .insert_l2_block(&l2_block, L1BatchNumber(1))
         .await
         .unwrap();
 
@@ -116,17 +116,12 @@ async fn creating_block_args_after_snapshot_recovery() {
     let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&l2_block)
+        .insert_l2_block(&l2_block, snapshot_recovery.l1_batch_number + 1)
         .await
         .unwrap();
     storage
         .blocks_dal()
         .insert_mock_l1_batch(&create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1))
-        .await
-        .unwrap();
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(snapshot_recovery.l1_batch_number + 1)
         .await
         .unwrap();
 

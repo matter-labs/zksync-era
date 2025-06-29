@@ -377,7 +377,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
-        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs, L1BatchNumber(1)).await;
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
         drop(conn);
 

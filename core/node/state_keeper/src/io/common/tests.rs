@@ -54,7 +54,7 @@ async fn creating_io_cursor_with_genesis() {
     let l2_block = create_l2_block(1);
     storage
         .blocks_dal()
-        .insert_l2_block(&l2_block)
+        .insert_l2_block(&l2_block, L1BatchNumber(1))
         .await
         .unwrap();
 
@@ -89,7 +89,7 @@ async fn creating_io_cursor_with_snapshot_recovery() {
     let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&l2_block)
+        .insert_l2_block(&l2_block, snapshot_recovery.l1_batch_number + 1)
         .await
         .unwrap();
 
@@ -204,30 +204,25 @@ async fn getting_first_l2_block_in_batch_with_genesis() {
     ]);
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
+    let new_l1_batch = create_l1_batch(1);
     let new_l2_block = create_l2_block(1);
     storage
         .blocks_dal()
-        .insert_l2_block(&new_l2_block)
+        .insert_l2_block(&new_l2_block, new_l1_batch.number)
         .await
         .unwrap();
     let new_l2_block = create_l2_block(2);
     storage
         .blocks_dal()
-        .insert_l2_block(&new_l2_block)
+        .insert_l2_block(&new_l2_block, new_l1_batch.number)
         .await
         .unwrap();
 
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
-    let new_l1_batch = create_l1_batch(1);
     storage
         .blocks_dal()
         .insert_mock_l1_batch(&new_l1_batch)
-        .await
-        .unwrap();
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(new_l1_batch.number)
         .await
         .unwrap();
 
@@ -280,23 +275,18 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
     let new_l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
+    let new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&new_l2_block)
+        .insert_l2_block(&new_l2_block, new_l1_batch.number)
         .await
         .unwrap();
 
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
-    let new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
     storage
         .blocks_dal()
         .insert_mock_l1_batch(&new_l1_batch)
-        .await
-        .unwrap();
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(new_l1_batch.number)
         .await
         .unwrap();
 
@@ -319,6 +309,7 @@ async fn loading_pending_batch_with_genesis() {
         &mut storage,
         1..=2,
         genesis_params.base_system_contracts().hashes(),
+        L1BatchNumber(1),
     )
     .await;
 
@@ -355,6 +346,7 @@ async fn store_pending_l2_blocks(
     storage: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
+    l1_batch_number: L1BatchNumber,
 ) {
     for l2_block_number in numbers {
         let tx = create_l2_transaction(10, 100);
@@ -371,7 +363,7 @@ async fn store_pending_l2_blocks(
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         storage
             .blocks_dal()
-            .insert_l2_block(&new_l2_block)
+            .insert_l2_block(&new_l2_block, l1_batch_number)
             .await
             .unwrap();
         let tx_result = execute_l2_transaction(tx);
@@ -401,6 +393,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         &mut storage,
         starting_l2_block_number..=starting_l2_block_number + 1,
         GenesisParams::mock().base_system_contracts().hashes(),
+        snapshot_recovery.l1_batch_number,
     )
     .await;
 

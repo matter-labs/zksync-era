@@ -326,7 +326,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
         let l1_batch_header = L1BatchHeader::new(
@@ -339,14 +339,14 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
-            .await
-            .unwrap();
+        // conn.blocks_dal()
+        //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        //     .await
+        //     .unwrap();
 
         let first_l2_block = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_l2_block(&first_l2_block)
+            .insert_l2_block(&first_l2_block, l1_batch_header.number)
             .await
             .unwrap();
 
@@ -401,7 +401,7 @@ mod tests {
 
         let first_l2_block = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
-            .insert_l2_block(&first_l2_block)
+            .insert_l2_block(&first_l2_block, L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -437,10 +437,10 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
-            .await
-            .unwrap();
+        // conn.blocks_dal()
+        //     .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
+        //     .await
+        //     .unwrap();
 
         let resolved = conn
             .storage_web3_dal()

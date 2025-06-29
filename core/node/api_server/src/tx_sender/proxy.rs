@@ -389,7 +389,7 @@ mod tests {
     use test_casing::test_casing;
     use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
     use zksync_node_test_utils::{create_l2_block, create_l2_transaction};
-    use zksync_types::{get_nonce_key, web3::Bytes, L2BlockNumber, StorageLog};
+    use zksync_types::{get_nonce_key, web3::Bytes, L1BatchNumber, L2BlockNumber, StorageLog};
     use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
 
     use super::*;
@@ -616,7 +616,7 @@ mod tests {
         // Emulate the transaction getting sealed.
         storage
             .blocks_dal()
-            .insert_l2_block(&create_l2_block(1))
+            .insert_l2_block(&create_l2_block(1), L1BatchNumber(1))
             .await
             .unwrap();
         let nonce_key = get_nonce_key(&tx.initiator_account());
@@ -717,7 +717,7 @@ mod tests {
         // Emulate the replacing transaction getting sealed.
         storage
             .blocks_dal()
-            .insert_l2_block(&create_l2_block(1))
+            .insert_l2_block(&create_l2_block(1), L1BatchNumber(1))
             .await
             .unwrap();
         let nonce_key = get_nonce_key(&tx.initiator_account());

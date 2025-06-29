@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL",
+  "query": "SELECT COUNT(miniblocks.number) FROM miniblocks JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number WHERE l1_batches.is_sealed = FALSE",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       null
     ]
   },
-  "hash": "dc16d0fac093a52480b66dfcb5976fb01e6629e8c982c265f2af1d5000090572"
+  "hash": "2284621d8750f4fa6862b791d4fb730dbebaa8c81ca00bcf568ba166904cff76"
 }

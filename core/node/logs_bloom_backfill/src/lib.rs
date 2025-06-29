@@ -164,7 +164,7 @@ mod tests {
         };
 
         conn.blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(l2_block_number.0))
             .await
             .unwrap();
 

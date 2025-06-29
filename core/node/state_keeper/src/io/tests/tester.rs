@@ -34,8 +34,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
-    H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    TransactionTimeRangeConstraint, H256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -189,6 +189,7 @@ impl Tester {
         number: u32,
         base_fee_per_gas: u64,
         fee_input: BatchFeeInput,
+        l1_batch_number: L1BatchNumber,
     ) -> TransactionExecutionResult {
         let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         let tx = create_l2_transaction(10, 100);
@@ -203,13 +204,16 @@ impl Tester {
             .unwrap();
         storage
             .blocks_dal()
-            .insert_l2_block(&L2BlockHeader {
-                timestamp: self.current_timestamp,
-                base_fee_per_gas,
-                batch_fee_input: fee_input,
-                base_system_contracts_hashes: self.base_system_contracts.hashes(),
-                ..create_l2_block(number)
-            })
+            .insert_l2_block(
+                &L2BlockHeader {
+                    timestamp: self.current_timestamp,
+                    base_fee_per_gas,
+                    batch_fee_input: fee_input,
+                    base_system_contracts_hashes: self.base_system_contracts.hashes(),
+                    ..create_l2_block(number)
+                },
+                l1_batch_number,
+            )
             .await
             .unwrap();
         let tx_result = execute_l2_transaction(tx.clone());
@@ -238,11 +242,6 @@ impl Tester {
         storage
             .blocks_dal()
             .insert_mock_l1_batch(&batch_header)
-            .await
-            .unwrap();
-        storage
-            .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
             .await
             .unwrap();
         storage

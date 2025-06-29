@@ -337,7 +337,13 @@ async fn store_l2_block(
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<L2BlockHeader> {
     let header = create_l2_block(number.0);
-    store_custom_l2_block(storage, &header, transaction_results).await?;
+    store_custom_l2_block(
+        storage,
+        &header,
+        transaction_results,
+        L1BatchNumber(number.0),
+    )
+    .await?;
     Ok(header)
 }
 
@@ -359,10 +365,6 @@ async fn seal_l1_batch(
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
     storage.blocks_dal().insert_mock_l1_batch(&header).await?;
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(number)
-        .await?;
     let metadata = create_l1_batch_metadata(number.0);
     storage
         .blocks_dal()
@@ -406,7 +408,10 @@ async fn store_events(
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
     let new_l2_block = create_l2_block(l2_block_number);
     let l1_batch_number = L1BatchNumber(l2_block_number);
-    storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
+    storage
+        .blocks_dal()
+        .insert_l2_block(&new_l2_block, l1_batch_number)
+        .await?;
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
         tx_index_in_l2_block: 0,
@@ -1204,13 +1209,13 @@ impl HttpTest for FeeHistoryTest {
             base_fee_per_gas: 100,
             ..create_l2_block(1)
         };
-        store_custom_l2_block(&mut connection, &block1, &[]).await?;
+        store_custom_l2_block(&mut connection, &block1, &[], L1BatchNumber(0)).await?;
         let block2 = L2BlockHeader {
             batch_fee_input: scaled_sensible_fee_input(2.0),
             base_fee_per_gas: 200,
             ..create_l2_block(2)
         };
-        store_custom_l2_block(&mut connection, &block2, &[]).await?;
+        store_custom_l2_block(&mut connection, &block2, &[], L1BatchNumber(0)).await?;
 
         let all_pubdata_prices = [
             0,

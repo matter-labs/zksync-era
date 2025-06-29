@@ -123,7 +123,9 @@ mod tests {
     use std::{collections::HashSet, slice};
 
     use zksync_system_constants::FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH;
-    use zksync_types::{get_code_key, tokens::TokenMetadata, ProtocolVersion, StorageLog, H256};
+    use zksync_types::{
+        get_code_key, tokens::TokenMetadata, L1BatchNumber, ProtocolVersion, StorageLog, H256,
+    };
 
     use super::*;
     use crate::{tests::create_l2_block_header, ConnectionPool, Core, CoreDal};
@@ -154,7 +156,7 @@ mod tests {
 
     async fn insert_l2_block(conn: &mut Connection<'_, Core>, number: u32, logs: Vec<StorageLog>) {
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(number))
+            .insert_l2_block(&create_l2_block_header(number), L1BatchNumber(number))
             .await
             .unwrap();
 

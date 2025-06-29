@@ -121,7 +121,7 @@ async fn getting_nonce_for_account() {
     // Insert another L2 block with a new nonce log.
     storage
         .blocks_dal()
-        .insert_l2_block(&create_l2_block(1))
+        .insert_l2_block(&create_l2_block(1), L1BatchNumber(1))
         .await
         .unwrap();
     let nonce_log = StorageLog {
@@ -153,9 +153,11 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
         StorageLog::new_write_log(get_nonce_key(&test_address), H256::from_low_u64_be(123)),
         StorageLog::new_write_log(get_nonce_key(&other_address), H256::from_low_u64_be(25)),
     ];
+    let batch_number = L1BatchNumber(23);
+
     prepare_recovery_snapshot(
         &mut storage,
-        L1BatchNumber(23),
+        batch_number,
         SNAPSHOT_L2_BLOCK_NUMBER,
         &nonce_logs,
     )
@@ -168,7 +170,10 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 
     storage
         .blocks_dal()
-        .insert_l2_block(&create_l2_block(SNAPSHOT_L2_BLOCK_NUMBER.0 + 1))
+        .insert_l2_block(
+            &create_l2_block(SNAPSHOT_L2_BLOCK_NUMBER.0 + 1),
+            batch_number + 1,
+        )
         .await
         .unwrap();
     let new_nonce_logs = vec![StorageLog::new_write_log(

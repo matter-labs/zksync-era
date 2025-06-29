@@ -67,7 +67,13 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     let tx_result = tester
-        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(55, 555),
+            L1BatchNumber(1),
+        )
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
@@ -83,7 +89,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
     });
     tester.set_timestamp(2);
     tester
-        .insert_l2_block(&connection_pool, 2, 10, fee_input)
+        .insert_l2_block(&connection_pool, 2, 10, fee_input, L1BatchNumber(1))
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool).await;
@@ -112,7 +118,13 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     let tx_result = tester
-        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(55, 555),
+            L1BatchNumber(1),
+        )
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
@@ -158,7 +170,13 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_l2_block_timestamp);
     let tx_result = tester
-        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(55, 555),
+            L1BatchNumber(1),
+        )
         .await;
     if delay_prev_l2_block_compared_to_batch {
         tester.set_timestamp(prev_l2_block_timestamp - 1);
@@ -314,11 +332,6 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     seal_command.seal(connection_pool.clone()).await.unwrap();
     let mut conn = connection_pool.connection().await.unwrap();
 
-    // Manually mark the L2 block as executed so that getting touched slots from it works
-    conn.blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
-        .await
-        .unwrap();
     let touched_slots = conn
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
@@ -725,7 +738,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
     tester.genesis(&connection_pool).await;
     let fee_input = BatchFeeInput::pubdata_independent(55, 555, 5555);
     let tx_result = tester
-        .insert_l2_block(&connection_pool, 1, 5, fee_input)
+        .insert_l2_block(&connection_pool, 1, 5, fee_input, L1BatchNumber(1))
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
@@ -733,7 +746,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
     // Pre-insert L2 block without its unsealed L1 batch counterpart
     tester.set_timestamp(2);
     tester
-        .insert_l2_block(&connection_pool, 2, 5, fee_input)
+        .insert_l2_block(&connection_pool, 2, 5, fee_input, L1BatchNumber(1))
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
@@ -763,7 +776,13 @@ async fn test_mempool_with_timestamp_assertion() {
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     let tx_result = tester
-        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(55, 555),
+            L1BatchNumber(1),
+        )
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])

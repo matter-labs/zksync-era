@@ -155,7 +155,7 @@ async fn snapshots_creator_can_successfully_recover_db(
     let l2_block = mock_l2_block_header(expected_status.l2_block_number + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&l2_block)
+        .insert_l2_block(&l2_block, expected_status.l1_batch_number + 1)
         .await
         .unwrap();
     drop(storage);
@@ -513,7 +513,7 @@ async fn applier_errors_after_genesis() {
     let genesis_l2_block = mock_l2_block_header(L2BlockNumber(0));
     storage
         .blocks_dal()
-        .insert_l2_block(&genesis_l2_block)
+        .insert_l2_block(&genesis_l2_block, L1BatchNumber(0))
         .await
         .unwrap();
     let genesis_l1_batch = L1BatchHeader::new(
@@ -527,11 +527,11 @@ async fn applier_errors_after_genesis() {
         .insert_mock_l1_batch(&genesis_l1_batch)
         .await
         .unwrap();
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
-        .await
-        .unwrap();
+    // storage
+    //     .blocks_dal()
+    //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
+    //     .await
+    //     .unwrap();
     drop(storage);
 
     let object_store = MockObjectStore::arc();

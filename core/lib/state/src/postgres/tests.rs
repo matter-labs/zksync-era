@@ -48,6 +48,7 @@ fn test_postgres_storage_basics(
         &mut storage.connection,
         L2BlockNumber(1),
         &non_existing_logs,
+        L1BatchNumber(1),
     ));
 
     // Check that the L2 block is not seen by `PostgresStorage` (it's not a part of an L1 batch)
@@ -158,6 +159,7 @@ fn test_postgres_storage_after_sealing_l2_block(
         &mut connection,
         L2BlockNumber(1),
         &new_logs,
+        L1BatchNumber(1),
     ));
 
     let mut storage = PostgresStorage::new(
@@ -335,6 +337,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         &mut storage.connection,
         L2BlockNumber(1),
         &logs,
+        L1BatchNumber(1),
     ));
     storage.rt_handle.block_on(create_l1_batch(
         &mut storage.connection,
@@ -501,6 +504,7 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         &mut storage.connection,
         L2BlockNumber(1),
         &logs,
+        L1BatchNumber(1),
     ));
 
     let mut storage = PostgresStorage::new(
@@ -669,7 +673,12 @@ fn mini_fuzz_values_cache_inner(
                 StorageLog::new_write_log(key, new_value)
             })
             .collect();
-        rt_handle.block_on(create_l2_block(&mut connection, next_block_number, &logs));
+        rt_handle.block_on(create_l2_block(
+            &mut connection,
+            next_block_number,
+            &logs,
+            L1BatchNumber(1),
+        ));
     }
 }
 

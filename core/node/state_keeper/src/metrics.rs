@@ -260,8 +260,6 @@ pub(super) enum L1BatchSealStage {
     FictiveL2Block,
     LogDeduplication,
     InsertL1BatchHeader,
-    #[metrics(name = "set_l1_batch_number_for_miniblocks")]
-    SetL1BatchNumberForL2Blocks,
     MarkTxsAsExecutedInL1Batch,
     InsertProtectiveReads,
     FilterWrittenSlots,

@@ -378,7 +378,7 @@ async fn prepare_storage(storage: &mut Connection<'_, Core>) {
         .unwrap();
     storage
         .blocks_dal()
-        .insert_l2_block(&create_l2_block(0))
+        .insert_l2_block(&create_l2_block(0), L1BatchNumber(0))
         .await
         .unwrap();
     storage

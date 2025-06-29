@@ -64,7 +64,7 @@ pub(super) async fn seal_l1_batch_with_timestamp(
     block_header.timestamp = timestamp;
     transaction
         .blocks_dal()
-        .insert_l2_block(&block_header)
+        .insert_l2_block(&block_header, number)
         .await
         .unwrap();
 
@@ -75,11 +75,11 @@ pub(super) async fn seal_l1_batch_with_timestamp(
         .insert_mock_l1_batch(&batch_header)
         .await
         .unwrap();
-    transaction
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
-        .await
-        .unwrap();
+    // transaction
+    //     .blocks_dal()
+    //     .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
+    //     .await
+    //     .unwrap();
 
     // One initial write per L1 batch
     let initial_writes = [StorageKey::new(
