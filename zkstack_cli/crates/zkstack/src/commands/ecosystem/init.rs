@@ -387,7 +387,6 @@ async fn init_chains(
             forge_args: final_init_args.forge_args.clone(),
             server_db_url: genesis_args.server_db_url.clone(),
             server_db_name: genesis_args.server_db_name.clone(),
-            db_template: genesis_args.db_template.clone(),
             dont_drop: genesis_args.dont_drop,
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),

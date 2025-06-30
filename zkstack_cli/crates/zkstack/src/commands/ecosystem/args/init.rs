@@ -175,7 +175,6 @@ impl EcosystemInitArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
-            db_template: None,
             dev: self.dev,
             dont_drop: self.dont_drop,
             server_command: self.server_command.clone(),

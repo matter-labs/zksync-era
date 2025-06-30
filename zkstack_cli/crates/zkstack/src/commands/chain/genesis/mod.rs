@@ -81,7 +81,6 @@ pub async fn genesis(
         &args.server_db,
         config.link_to_code.clone(),
         args.dont_drop,
-        args.db_template.as_ref(),
     )
     .await?;
     spinner.finish();

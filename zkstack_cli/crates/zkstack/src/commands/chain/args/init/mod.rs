@@ -31,11 +31,6 @@ pub struct InitArgs {
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
-    #[clap(
-        long,
-        help = "Database URL to use as template for creating the new database"
-    )]
-    pub db_template: Option<Url>,
     #[clap(long, short, action)]
     pub dont_drop: bool,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
@@ -67,7 +62,6 @@ impl InitArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
-            db_template: self.db_template.clone(),
             dev: self.dev,
             dont_drop: self.dont_drop,
             server_command: self.server_command.clone(),

@@ -5,7 +5,6 @@ import {
   cleanMutexLockFiles, 
   cleanTestChains 
 } from './src';
-import { setupDbTemplate } from './src/create-chain';
 
 const execAsync = promisify(exec);
 
@@ -67,10 +66,6 @@ export default async function globalSetup(): Promise<void> {
   // Clean mutex lock files
   console.log('🧹 Cleaning mutex lock files...');
   cleanMutexLockFiles();
-  
-  // Setup database template
-  console.log('🗄️ Setting up database template...');
-  await setupDbTemplate();
   
   console.log('✅ Global test setup completed');
 }
