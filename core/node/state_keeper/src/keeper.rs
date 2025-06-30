@@ -1221,7 +1221,10 @@ impl StateKeeper {
                     .map_err(Into::<ProcessBlockError>::into)?;
             }
             (false, SealResolution::ExcludeAndSeal | SealResolution::Unexecutable(_)) => {
-                return Err(ProcessBlockError::BlockVerificationFailed.into())
+                tracing::warn!(
+                    "Transaction {tx_hash:?} resulted in resolution {seal_resolution:?} while verifying block.",
+                );
+                return Err(ProcessBlockError::BlockVerificationFailed.into());
             }
         };
         let result = if inner.is_active_leader && seal_resolution.should_seal() {
