@@ -217,7 +217,7 @@ async fn getting_first_l2_block_in_batch_with_genesis() {
         .insert_l2_block(&new_l2_block, new_l1_batch.number)
         .await
         .unwrap();
-
+    batches_and_l2_blocks.insert(L1BatchNumber(2), Ok(Some(L2BlockNumber(3))));
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
     storage
@@ -226,7 +226,6 @@ async fn getting_first_l2_block_in_batch_with_genesis() {
         .await
         .unwrap();
 
-    batches_and_l2_blocks.insert(L1BatchNumber(2), Ok(Some(L2BlockNumber(3))));
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 }
 
@@ -282,6 +281,10 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
         .await
         .unwrap();
 
+    batches_and_l2_blocks.insert(
+        snapshot_recovery.l1_batch_number + 2,
+        Ok(Some(new_l2_block.number + 1)),
+    );
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
     storage
@@ -290,10 +293,6 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
         .await
         .unwrap();
 
-    batches_and_l2_blocks.insert(
-        snapshot_recovery.l1_batch_number + 2,
-        Ok(Some(new_l2_block.number + 1)),
-    );
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 }
 

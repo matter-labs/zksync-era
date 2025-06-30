@@ -729,7 +729,13 @@ async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
     for i in 1_u32..=2 {
         let log_start_idx = 10_000 * u64::from(i);
         let new_logs = gen_storage_logs(log_start_idx..log_start_idx + 50);
-        create_l2_block(&mut conn, latest_l2_block + i, &new_logs, L1BatchNumber(1)).await;
+        create_l2_block(
+            &mut conn,
+            latest_l2_block + i,
+            &new_logs,
+            latest_l1_batch + i,
+        )
+        .await;
         create_l1_batch(&mut conn, latest_l1_batch + i, &new_logs).await;
     }
     drop(conn);

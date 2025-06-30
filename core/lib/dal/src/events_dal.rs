@@ -528,7 +528,6 @@ mod tests {
             let i = i as u8;
 
             assert_eq!(log.block_number, Some(1_u64.into()));
-            // assert_eq!(log.l1_batch_number, None);
             assert_eq!(log.address, Address::repeat_byte(i));
             assert_eq!(log.transaction_index, Some(expected_tx_index.into()));
             assert_eq!(log.log_index, Some(i.into()));

@@ -28,11 +28,6 @@ async fn insert_l2_block(
         .await
         .unwrap();
 
-    // conn.blocks_dal()
-    //     .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
-    //     .await
-    //     .unwrap();
-
     insert_events(conn, l2_block_number).await;
     insert_l2_to_l1_logs(conn, l2_block_number).await;
 }

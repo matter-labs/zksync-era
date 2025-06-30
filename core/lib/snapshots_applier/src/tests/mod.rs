@@ -527,11 +527,6 @@ async fn applier_errors_after_genesis() {
         .insert_mock_l1_batch(&genesis_l1_batch)
         .await
         .unwrap();
-    // storage
-    //     .blocks_dal()
-    //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
-    //     .await
-    //     .unwrap();
     drop(storage);
 
     let object_store = MockObjectStore::arc();

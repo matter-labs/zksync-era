@@ -113,10 +113,6 @@ async fn insert_l2_blocks(
                 .insert_l2_block(&l2_block_header, l1_batch_number)
                 .await
                 .unwrap();
-            // conn.blocks_dal()
-            //     .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
-            //     .await
-            //     .unwrap();
         }
 
         let l1_batch_header = create_l1_batch(l1_batch_number.0);

@@ -166,7 +166,10 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         l2_block_number: L2BlockNumber,
     ) -> DalResult<ResolvedL1BatchForL2Block> {
-        let row = sqlx::query!(
+        let instrumentation = Instrumented::new("resolve_l1_batch_number_of_l2_block")
+            .with_arg("l2_block_number", &l2_block_number);
+
+        let query = sqlx::query!(
             r#"
             SELECT
                 (
@@ -196,14 +199,19 @@ impl StorageWeb3Dal<'_, '_> {
                 ) AS "pending_batch!"
             "#,
             i64::from(l2_block_number.0)
-        )
-        .instrument("resolve_l1_batch_number_of_l2_block")
-        .with_arg("l2_block_number", &l2_block_number)
-        .fetch_one(self.storage)
-        .await?;
+        );
+        let row = instrumentation
+            .clone()
+            .with(query)
+            .fetch_one(self.storage)
+            .await?;
 
+        let Some(batch_number) = row.block_batch else {
+            return Err(instrumentation
+                .constraint_error(anyhow::anyhow!("L2 block not found in miniblocks")));
+        };
         Ok(ResolvedL1BatchForL2Block {
-            block_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
+            block_l1_batch: L1BatchNumber(batch_number as u32),
             pending_l1_batch: L1BatchNumber(row.pending_batch as u32),
         })
     }
@@ -339,14 +347,10 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        // conn.blocks_dal()
-        //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
-        //     .await
-        //     .unwrap();
 
         let first_l2_block = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_l2_block(&first_l2_block, l1_batch_header.number)
+            .insert_l2_block(&first_l2_block, l1_batch_header.number + 1)
             .await
             .unwrap();
 
@@ -355,34 +359,30 @@ mod tests {
             .resolve_l1_batch_number_of_l2_block(L2BlockNumber(0))
             .await
             .unwrap();
-        assert_eq!(resolved.block_l1_batch, Some(L1BatchNumber(0)));
+        assert_eq!(resolved.block_l1_batch, L1BatchNumber(0));
         assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
-        assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(0));
 
         let timestamp = conn
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(&resolved)
+            .get_expected_l1_batch_timestamp(&resolved.block_l1_batch)
             .await
             .unwrap();
         assert_eq!(timestamp, Some(0));
 
-        for pending_l2_block_number in [1, 2] {
-            let resolved = conn
-                .storage_web3_dal()
-                .resolve_l1_batch_number_of_l2_block(L2BlockNumber(pending_l2_block_number))
-                .await
-                .unwrap();
-            assert_eq!(resolved.block_l1_batch, None);
-            assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
-            assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(1));
+        let resolved = conn
+            .storage_web3_dal()
+            .resolve_l1_batch_number_of_l2_block(L2BlockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(resolved.block_l1_batch, L1BatchNumber(1));
+        assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
 
-            let timestamp = conn
-                .blocks_web3_dal()
-                .get_expected_l1_batch_timestamp(&resolved)
-                .await
-                .unwrap();
-            assert_eq!(timestamp, Some(first_l2_block.timestamp));
-        }
+        let timestamp = conn
+            .blocks_web3_dal()
+            .get_expected_l1_batch_timestamp(&resolved.block_l1_batch)
+            .await
+            .unwrap();
+        assert_eq!(timestamp, Some(first_l2_block.timestamp));
     }
 
     #[tokio::test]
@@ -401,7 +401,7 @@ mod tests {
 
         let first_l2_block = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
-            .insert_l2_block(&first_l2_block, L1BatchNumber(1))
+            .insert_l2_block(&first_l2_block, snapshot_recovery.l1_batch_number + 1)
             .await
             .unwrap();
 
@@ -410,19 +410,18 @@ mod tests {
             .resolve_l1_batch_number_of_l2_block(snapshot_recovery.l2_block_number + 1)
             .await
             .unwrap();
-        assert_eq!(resolved.block_l1_batch, None);
         assert_eq!(
-            resolved.pending_l1_batch,
+            resolved.block_l1_batch,
             snapshot_recovery.l1_batch_number + 1
         );
         assert_eq!(
-            resolved.expected_l1_batch(),
+            resolved.pending_l1_batch,
             snapshot_recovery.l1_batch_number + 1
         );
 
         let timestamp = conn
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(&resolved)
+            .get_expected_l1_batch_timestamp(&resolved.block_l1_batch)
             .await
             .unwrap();
         assert_eq!(timestamp, Some(first_l2_block.timestamp));
@@ -437,23 +436,18 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        // conn.blocks_dal()
-        //     .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
-        //     .await
-        //     .unwrap();
 
         let resolved = conn
             .storage_web3_dal()
             .resolve_l1_batch_number_of_l2_block(snapshot_recovery.l2_block_number + 1)
             .await
             .unwrap();
-        assert_eq!(resolved.block_l1_batch, Some(l1_batch_header.number));
+        assert_eq!(resolved.block_l1_batch, l1_batch_header.number);
         assert_eq!(resolved.pending_l1_batch, l1_batch_header.number + 1);
-        assert_eq!(resolved.expected_l1_batch(), l1_batch_header.number);
 
         let timestamp = conn
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(&resolved)
+            .get_expected_l1_batch_timestamp(&resolved.block_l1_batch)
             .await
             .unwrap();
         assert_eq!(timestamp, Some(first_l2_block.timestamp));

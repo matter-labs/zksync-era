@@ -89,7 +89,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
     });
     tester.set_timestamp(2);
     tester
-        .insert_l2_block(&connection_pool, 2, 10, fee_input, L1BatchNumber(1))
+        .insert_l2_block(&connection_pool, 2, 10, fee_input, L1BatchNumber(2))
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool).await;
@@ -746,7 +746,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
     // Pre-insert L2 block without its unsealed L1 batch counterpart
     tester.set_timestamp(2);
     tester
-        .insert_l2_block(&connection_pool, 2, 5, fee_input, L1BatchNumber(1))
+        .insert_l2_block(&connection_pool, 2, 5, fee_input, L1BatchNumber(2))
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;

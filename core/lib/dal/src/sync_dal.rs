@@ -148,10 +148,6 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        // conn.blocks_dal()
-        //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
-        //     .await
-        //     .unwrap();
 
         assert!(conn
             .sync_dal()
@@ -244,10 +240,6 @@ mod tests {
             .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
-        // conn.blocks_dal()
-        //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
-        //     .await
-        //     .unwrap();
 
         let block = conn
             .sync_dal()

@@ -208,6 +208,13 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
+    rt_handle.block_on(create_l2_block(
+        &mut connection,
+        L2BlockNumber(1),
+        &[],
+        L1BatchNumber(1),
+    ));
+    rt_handle.block_on(create_l1_batch(&mut connection, L1BatchNumber(1), &[]));
     let caches = PostgresStorageCaches::new(128 * 1_024 * 1_024, 1_024);
     let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(1), true)
         .with_caches(caches.clone());
@@ -302,15 +309,14 @@ async fn using_factory_deps_cache() {
 }
 
 fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
-    let connection = rt_handle.block_on(pool.connection()).unwrap();
+    let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     let caches = PostgresStorageCaches::new(1_024, 4 * 1_024 * 1_024);
+
+    rt_handle.block_on(prepare_postgres(&mut connection));
+
     let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), false)
         .with_caches(caches.clone());
-    assert_eq!(storage.pending_l1_batch_number, L1BatchNumber(0));
-
-    storage
-        .rt_handle
-        .block_on(prepare_postgres(&mut storage.connection));
+    assert_eq!(storage.pending_l1_batch_number, L1BatchNumber(1));
 
     let mut logs = gen_storage_logs(100..120);
     let non_existing_key = logs[19].key;
@@ -386,7 +392,6 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     .with_caches(caches.clone());
     assert!(!storage.is_write_initial(&logs[0].key));
     assert!(storage.is_write_initial(&non_existing_key));
-
     // Check that the cache entries are still as expected.
     assert_eq!(
         caches.initial_writes.get(&logs[0].key.hashed_key()),
@@ -399,6 +404,12 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         Some(L1BatchNumber(2))
     );
 
+    storage.rt_handle.block_on(create_l2_block(
+        &mut storage.connection,
+        L2BlockNumber(2),
+        &logs,
+        L1BatchNumber(1),
+    ));
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,

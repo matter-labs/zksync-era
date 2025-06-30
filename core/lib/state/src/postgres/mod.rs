@@ -487,7 +487,7 @@ impl<'a> PostgresStorage<'a> {
             rt_handle,
             connection,
             l2_block_number: block_number,
-            l1_batch_number_for_l2_block: resolved.expected_l1_batch(),
+            l1_batch_number_for_l2_block: resolved.block_l1_batch,
             pending_l1_batch_number: resolved.pending_l1_batch,
             consider_new_l1_batch,
             caches: None,

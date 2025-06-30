@@ -3349,11 +3349,6 @@ mod tests {
             .await
             .unwrap();
 
-        // conn.blocks_dal()
-        //     .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
-        //     .await
-        //     .unwrap();
-
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_l2_block: 0,
