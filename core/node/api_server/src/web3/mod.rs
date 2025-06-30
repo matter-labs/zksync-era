@@ -402,7 +402,7 @@ impl ApiServer {
 
     pub(crate) async fn run(
         self,
-        pub_sub: Option<EthSubscribe>, // FIXME: awkward
+        pub_sub: Option<EthSubscribe>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         if self.config.filters_disabled {
