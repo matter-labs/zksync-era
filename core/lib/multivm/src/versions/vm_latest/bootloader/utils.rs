@@ -54,7 +54,7 @@ pub(super) fn apply_tx_to_memory(
     compressed_bytecodes_size: usize,
     execution_mode: TxExecutionMode,
     config: L2BlockApplicationConfig,
-) -> usize {
+) -> (usize, usize) {
     let bootloader_description_offset = get_bootloader_tx_description_offset(config.subversion)
         + BOOTLOADER_TX_DESCRIPTION_SIZE * config.tx_index;
     let tx_description_offset = get_tx_description_offset(config.subversion) + tx_offset;
@@ -88,7 +88,7 @@ pub(super) fn apply_tx_to_memory(
     let compressed_bytecodes_offset =
         get_compressed_bytecodes_offset(config.subversion) + 1 + compressed_bytecodes_size;
 
-    apply_l2_block_inner(memory, bootloader_l2_block, config);
+    let applied_interop_roots = apply_l2_block_inner(memory, bootloader_l2_block, config);
 
     let encoded_compressed_bytecodes =
         get_memory_for_compressed_bytecodes(&bootloader_tx.compressed_bytecodes);
@@ -99,16 +99,18 @@ pub(super) fn apply_tx_to_memory(
             ..compressed_bytecodes_offset + encoded_compressed_bytecodes.len())
             .zip(encoded_compressed_bytecodes),
     );
-    compressed_bytecodes_encoding
+
+    (compressed_bytecodes_encoding, applied_interop_roots)
 }
 
+// Returns the number of applied interop roots
 pub(crate) fn apply_l2_block(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
     tx_index: usize,
     subversion: MultiVmSubversion,
     interop_root_application_config: Option<InteropRootApplicationConfig>,
-) {
+) -> usize {
     apply_l2_block_inner(
         memory,
         bootloader_l2_block,
@@ -125,7 +127,7 @@ fn apply_l2_block_inner(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
     config: L2BlockApplicationConfig,
-) {
+) -> usize {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
@@ -153,7 +155,7 @@ fn apply_l2_block_inner(
     if config.subversion != MultiVmSubversion::Interop
         || config.interop_root_application_config.is_none()
     {
-        return;
+        return 0;
     }
 
     let interop_root_application_config = config.interop_root_application_config.unwrap();
@@ -168,7 +170,7 @@ fn apply_l2_block_inner(
     }
 
     if !config.start_new_l2_block {
-        return;
+        return bootloader_l2_block.interop_roots.len();
     }
 
     apply_interop_root_number_in_block_number(
@@ -177,9 +179,11 @@ fn apply_l2_block_inner(
         bootloader_l2_block.interop_roots.len(),
         interop_root_application_config.preexisting_blocks_number,
     );
+
+    bootloader_l2_block.interop_roots.len()
 }
 
-pub(crate) fn apply_interop_root(
+fn apply_interop_root(
     memory: &mut BootloaderMemory,
     interop_root_offset: usize,
     interop_root: InteropRoot,
@@ -203,7 +207,7 @@ pub(crate) fn apply_interop_root(
     )
 }
 
-pub(crate) fn apply_interop_root_number_in_block_number(
+fn apply_interop_root_number_in_block_number(
     memory: &mut BootloaderMemory,
     subversion: MultiVmSubversion,
     number_of_interop_roots: usize,
