@@ -50,7 +50,7 @@ async fn run_test(
         .await?;
 
     let cmd = cmd!(shell, "yarn mocha tests/revert-and-restart-en.test.ts");
-    let mut cmd = Cmd::new(cmd)
+    let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("NO_KILL", args.no_kill.to_string())
         .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);

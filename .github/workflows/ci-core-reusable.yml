@@ -461,7 +461,9 @@ jobs:
           echo "Increasing L1 batch seal timeout and restarting server"
           sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
-          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack server --ignore-prerequisites --chain da_migration \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           
@@ -483,7 +485,9 @@ jobs:
           echo "Deploying L2 DA validator and restarting server"
           ci_run zkstack chain deploy-l2da-validator --chain da_migration
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
-          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack server --ignore-prerequisites --chain da_migration \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           echo "Server restart wait completed"
@@ -538,7 +542,9 @@ jobs:
           sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.state_keeper.compute_overhead_part = 1' ./chains/da_migration/configs/general.yaml
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
-          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack server --ignore-prerequisites --chain da_migration \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           echo "Server restart wait completed"
