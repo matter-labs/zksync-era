@@ -78,6 +78,10 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
         panic!("unexpected l2 block rollback");
     }
+
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {

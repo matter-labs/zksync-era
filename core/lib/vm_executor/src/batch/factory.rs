@@ -330,10 +330,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
-        // Maximal block depth that can be rolled back. 2 is enough for the current consensus implementation.
-        // In simpler words, value equals 2 means that block #X can be rolled back up until block #(X+2) is started.
-        const MAX_BLOCK_ROLLBACK_DEPTH: usize = 2;
-
         tracing::info!(
             fast_vm_mode = ?self.fast_vm_mode,
             optional_bytecode_compression = self.optional_bytecode_compression,
@@ -365,7 +361,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         }
 
         let mut has_snapshot_before_tx = false;
-        let mut block_snapshot_depth = 0;
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
@@ -409,13 +404,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                             has_snapshot_before_tx = false;
                         }
                         vm.make_snapshot();
-
-                        block_snapshot_depth += 1;
-                        assert!(block_snapshot_depth <= MAX_BLOCK_ROLLBACK_DEPTH + 1);
-                        if block_snapshot_depth == MAX_BLOCK_ROLLBACK_DEPTH + 1 {
-                            vm.pop_front_snapshot_no_rollback();
-                            block_snapshot_depth -= 1;
-                        }
                     }
 
                     vm.start_new_l2_block(l2_block_env);
@@ -444,8 +432,16 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                         has_snapshot_before_tx = false;
                     }
                     vm.rollback_to_the_latest_snapshot();
-                    block_snapshot_depth -= 1;
 
+                    if resp.send(()).is_err() {
+                        break;
+                    }
+                }
+                Command::CommitL2Block(resp) => {
+                    // Only `FastVmMode::Old` keeps snapshots for block rollback.
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        vm.pop_front_snapshot_no_rollback();
+                    }
                     if resp.send(()).is_err() {
                         break;
                     }
@@ -476,7 +472,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         transaction: Transaction,
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
-        let _guard = AllocationGuard::new("batch_vm#execute_tx");
+        let _guard = AllocationGuard::for_operation("batch_vm#execute_tx");
         // Save pre-execution VM snapshot.
         vm.make_snapshot();
 
@@ -512,7 +508,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm: &mut BatchVm<S, Tr>,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<FinishedL1Batch> {
-        let guard = AllocationGuard::new("batch_vm#finish_batch");
+        let guard = AllocationGuard::for_operation("batch_vm#finish_batch");
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch(pubdata_builder);

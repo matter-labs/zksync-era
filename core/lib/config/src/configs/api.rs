@@ -1,15 +1,15 @@
 use std::{
-    collections::HashMap,
-    net::SocketAddr,
+    collections::{HashMap, HashSet},
+    net::{Ipv6Addr, SocketAddr},
     num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
     time::Duration,
 };
 
 use anyhow::Context as _;
-use serde::{Deserialize, Serialize};
+use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
 use smart_config::{
-    de::{Delimited, Entries, NamedEntries, OrString, ToEntries, WellKnown},
+    de::{Delimited, Entries, NamedEntries, OrString, Qualified, Serde, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -29,6 +29,152 @@ pub struct ApiConfig {
     /// Configuration options for Merkle tree API.
     #[config(nest)]
     pub merkle_tree: MerkleTreeApiConfig,
+}
+
+impl ApiConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            web3_json_rpc: Web3JsonRpcConfig::default(),
+            healthcheck: HealthCheckConfig {
+                port: 3052.into(),
+                slow_time_limit: None,
+                hard_time_limit: None,
+                expose_config: false,
+            },
+            merkle_tree: MerkleTreeApiConfig { port: 3053 },
+        }
+    }
+}
+
+/// Port binding specification.
+///
+/// Supports any of 3 formats:
+///
+/// - Just a `u16` port. This will bind a server to all IPv4 interfaces (i.e., `0.0.0.0`) for backward compatibility.
+/// - Full socket address (e.g., `127.0.0.1:8080`).
+/// - (For Unix systems) Path to a Unix domain socket (UDS) prefixed by `ipc://` (e.g., `ipc://./chains/era/health.sock` or `ipc:///var/zksync.sock`).
+///   If the path is relative, it will resolve relative to the current working directory.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BindAddress {
+    Tcp(SocketAddr),
+    #[cfg(unix)]
+    Ipc(std::path::PathBuf),
+}
+
+impl BindAddress {
+    #[cfg(unix)]
+    const EXPECTING: &'static str = "port number (to bind to 0.0.0.0), socket address or path to the unix socket prefixed by 'ipc://'";
+    #[cfg(not(unix))]
+    const EXPECTING: &'static str = "port number (to bind to 0.0.0.0) or socket address";
+
+    pub fn as_tcp(&self) -> Option<&SocketAddr> {
+        match self {
+            Self::Tcp(addr) => Some(addr),
+            #[cfg(unix)]
+            Self::Ipc(_) => None,
+        }
+    }
+}
+
+/// Will bind to all IPv4 interfaces (i.e., `0.0.0.0`) for backward compatibility.
+impl From<u16> for BindAddress {
+    fn from(port: u16) -> Self {
+        Self::Tcp(SocketAddr::new([0, 0, 0, 0].into(), port))
+    }
+}
+
+impl From<SocketAddr> for BindAddress {
+    fn from(addr: SocketAddr) -> Self {
+        Self::Tcp(addr)
+    }
+}
+
+impl Serialize for BindAddress {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Tcp(addr) => {
+                if addr.ip().is_unspecified() {
+                    addr.port().serialize(serializer)
+                } else {
+                    addr.serialize(serializer)
+                }
+            }
+            #[cfg(unix)]
+            Self::Ipc(path) => {
+                let path = path
+                    .to_str()
+                    .ok_or_else(|| ser::Error::custom("path cannot be encoded to UTF-8"))?;
+                format!("ipc://{path}").serialize(serializer)
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BindAddress {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Debug, Deserialize)]
+        #[serde(untagged)]
+        enum SerdePort {
+            Just(u16),
+            Tcp(SocketAddr),
+            String(String),
+        }
+
+        Ok(match SerdePort::deserialize(deserializer)? {
+            SerdePort::Just(port) => port.into(),
+            SerdePort::Tcp(addr) => addr.into(),
+            SerdePort::String(s) => {
+                #[cfg(unix)]
+                if let Some(path) = s.strip_prefix("ipc://") {
+                    return Ok(Self::Ipc(path.into()));
+                }
+
+                if let Ok(port) = s.parse::<u16>() {
+                    Self::from(port) // Necessary to support parsing from env vars
+                } else {
+                    return Err(de::Error::invalid_value(
+                        de::Unexpected::Str(&s),
+                        &Self::EXPECTING,
+                    ));
+                }
+            }
+        })
+    }
+}
+
+impl WellKnown for BindAddress {
+    type Deserializer = Qualified<Serde![int, str]>;
+    const DE: Self::Deserializer = Qualified::new(Serde![int, str], Self::EXPECTING);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Namespace {
+    Eth,
+    Net,
+    Web3,
+    Debug,
+    Zks,
+    En,
+    Pubsub,
+    Snapshots,
+    Unstable,
+}
+
+impl Namespace {
+    pub const DEFAULT: [Self; 6] = [
+        Self::Eth,
+        Self::Net,
+        Self::Web3,
+        Self::Zks,
+        Self::En,
+        Self::Pubsub,
+    ];
+}
+
+impl WellKnown for Namespace {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
 /// Response size limits for specific RPC methods.
@@ -174,6 +320,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 1.5, validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor: f64,
     /// The factor by which to scale the gas price when there is an open batch.
+    #[config(validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor_open_batch: Option<f64>,
     /// The factor by which to scale the gasLimit
     #[config(default_t = 1.3, validate(1.0.., "must be higher than one"))]
@@ -232,6 +379,7 @@ pub struct Web3JsonRpcConfig {
     pub request_timeout: Option<Duration>,
     /// Tree API URL used to proxy `getProof` calls to the tree. For external nodes, it's not necessary to specify
     /// since the server can communicate with the tree in-process.
+    #[config(alias = "tree_api_remote_url")]
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     #[config(default_t = Duration::from_millis(50), with = Fallback(TimeUnit::Millis))]
@@ -244,11 +392,11 @@ pub struct Web3JsonRpcConfig {
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
     /// Enabled JSON RPC API namespaces.
-    #[config(with = Delimited(","))]
-    pub api_namespaces: Option<Vec<String>>,
+    #[config(with = Delimited(","), default_t = Namespace::DEFAULT.into())]
+    pub api_namespaces: HashSet<Namespace>,
     /// Enables extended tracing of RPC calls. This is useful for debugging, but may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
-    #[config(default)]
+    #[config(default, alias = "extended_rpc_tracing")]
     pub extended_api_tracing: bool,
 }
 
@@ -284,8 +432,9 @@ impl Web3JsonRpcConfig {
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct HealthCheckConfig {
-    /// Port to which the healthcheck server is listening.
-    pub port: u16,
+    /// Port / address to bind the healthcheck server to.
+    #[config(example = BindAddress::Tcp((Ipv6Addr::LOCALHOST, 3071).into()))]
+    pub port: BindAddress,
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
     pub slow_time_limit: Option<Duration>,
@@ -295,12 +444,6 @@ pub struct HealthCheckConfig {
     /// Expose config parameters as the `config` component. Mostly useful for debugging purposes, automations or end-to-end testing.
     #[config(default)]
     pub expose_config: bool,
-}
-
-impl HealthCheckConfig {
-    pub fn bind_addr(&self) -> SocketAddr {
-        SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
-    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -395,12 +538,12 @@ mod tests {
                     Address::from_low_u64_be(1),
                     Address::from_low_u64_be(2),
                 ],
-                api_namespaces: Some(vec!["debug".to_string()]),
+                api_namespaces: HashSet::from([Namespace::Debug]),
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
             },
             healthcheck: HealthCheckConfig {
-                port: 8081,
+                port: 8081.into(),
                 slow_time_limit: Some(Duration::from_millis(250)),
                 hard_time_limit: Some(Duration::from_millis(2_000)),
                 expose_config: true,
@@ -600,6 +743,49 @@ mod tests {
         let config = test::<HealthCheckConfig>(yaml).unwrap();
         assert_eq!(config.slow_time_limit, None);
         assert_eq!(config.hard_time_limit, None);
+    }
+
+    #[test]
+    fn parsing_full_address_binding() {
+        let yaml = r#"
+          port: 127.0.0.1:3050
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.port, BindAddress::Tcp(([127, 0, 0, 1], 3050).into()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parsing_unix_domain_socket_binding() {
+        let yaml = r#"
+          port: ipc:///var/era/health.sock
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.port, BindAddress::Ipc("/var/era/health.sock".into()));
+    }
+
+    #[test]
+    fn port_roundtrip() {
+        let port = BindAddress::from(3050);
+        let json = serde_json::to_value(port.clone()).unwrap();
+        assert_eq!(json, serde_json::json!(3050));
+        assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
+
+        let port = BindAddress::Tcp(([10, 10, 0, 1], 3050).into());
+        let json = serde_json::to_value(port.clone()).unwrap();
+        assert_eq!(json, serde_json::json!("10.10.0.1:3050"));
+        assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_port_roundtrip() {
+        let port = BindAddress::Ipc("/var/node.sock".into());
+        let json = serde_json::to_value(port.clone()).unwrap();
+        assert_eq!(json, serde_json::json!("ipc:///var/node.sock"));
+        assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
     }
 
     #[test]

@@ -2,14 +2,14 @@
 
 ## Introduction
 
-This document assumes that the reader is already aware of how [L2→L1 logs](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) are aggregated into the [MessageRoot][TODO] and what the [Gateway](../gateway/overview.md) is. To reduce interactions with L1, the Gateway gathers all the `ChainBatchRoot`s from all the chains into the tree with following structure:
+This document assumes that the reader is already aware of how [L2→L1 logs](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) are aggregated into the [MessageRoot](../interop/message_root.md) and what the [Gateway](../gateway/overview.md) is. To reduce interactions with L1, the Gateway gathers all the `ChainBatchRoot`s from all the chains into the tree with following structure:
 
 ![NestedL2GWL1Messaging.png](./img/nested_l2_gw_l1_messaging.png)
 
 >
 ## Proving logs for chains settling on Gateway
 
-Proving these logs is almost the same as proving [interop][TODO] logs. For chain settling on Gateway the `MessageRoot` of Gateway is aggregated with the `LocalLogsRoot` of GW, and the `ChainBatchRoot` is sent to L1 to the GW's diamond proxy. The only difference is that the `ChainBatchRoot` is not stored in the `MessageRoot` but in the `LocalLogsRoot`.
+Proving these logs is almost the same as proving [interop](../interop/overview.md) logs. For chain settling on Gateway the `MessageRoot` of Gateway is aggregated with the `LocalLogsRoot` of GW, and the `ChainBatchRoot` is sent to L1 to the GW's diamond proxy. The only difference is that the `ChainBatchRoot` is not stored in the `MessageRoot` but in the `LocalLogsRoot`.
 
 ## Trust assumptions
 
