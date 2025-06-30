@@ -91,7 +91,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
     },
     validium: {
       chainName: `validium_${uuid}`,
-      chainId: randomChainId + 1,
+      chainId: randomChainId,
       l1BatchCommitDataGeneratorMode: 'validium',
       baseTokenAddress: ethTokenAddress,
       baseTokenPriceNominator: 1,
@@ -100,7 +100,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
     },
     da_migration: {
       chainName: `da_migration_${uuid}`,
-      chainId: randomChainId + 2,
+      chainId: randomChainId,
       l1BatchCommitDataGeneratorMode: 'rollup',
       baseTokenAddress: ethTokenAddress,
       baseTokenPriceNominator: 1,
@@ -109,7 +109,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
     },
     custom_token: {
       chainName: `custom_token_${uuid}`,
-      chainId: randomChainId + 3,
+      chainId: randomChainId,
       l1BatchCommitDataGeneratorMode: 'rollup',
       baseTokenAddress: customTokenAddress,
       baseTokenPriceNominator: 314,
@@ -118,7 +118,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
     },
     era: {
       chainName: `era_${uuid}`,
-      chainId: 271,
+      chainId: randomChainId,
       l1BatchCommitDataGeneratorMode: 'rollup',
       baseTokenAddress: ethTokenAddress,
       baseTokenPriceNominator: 1,
