@@ -51,14 +51,14 @@ pub async fn run_main_node(
 /// using JSON RPC, without starting the consensus node.
 pub async fn run_external_node(
     ctx: &ctx::Ctx,
-    config: ConsensusConfig,
-    secrets: ConsensusSecrets,
+    config: (ConsensusConfig, ConsensusSecrets),
     pool: zksync_dal::ConnectionPool<Core>,
     sync_state: SyncState,
     main_node_client: Box<DynClient<L2>>,
     actions: ActionQueueSender,
     build_version: semver::Version,
 ) -> anyhow::Result<()> {
+    let (cfg, secrets) = config;
     let en = en::EN {
         pool: storage::ConnectionPool(pool),
         sync_state: sync_state.clone(),
@@ -69,7 +69,7 @@ pub async fn run_external_node(
         "running external node"
     );
     let res = en
-        .run(ctx, actions, config, secrets, Some(build_version))
+        .run(ctx, actions, cfg, secrets, Some(build_version))
         .await;
     tracing::info!("Consensus actor stopped");
     res

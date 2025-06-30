@@ -59,8 +59,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
 
         let consensus_task = ExternalNodeTask {
             build_version: self.build_version,
-            config: self.config,
-            secrets: self.secrets,
+            config: (self.config, self.secrets),
             pool,
             main_node_client,
             sync_state,
@@ -73,8 +72,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
 #[derive(Debug)]
 pub struct ExternalNodeTask {
     build_version: semver::Version,
-    config: ConsensusConfig,
-    secrets: ConsensusSecrets,
+    config: (ConsensusConfig, ConsensusSecrets),
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
     sync_state: SyncState,
@@ -98,7 +96,6 @@ impl Task for ExternalNodeTask {
             s.spawn_bg(crate::run_external_node(
                 ctx,
                 self.config,
-                self.secrets,
                 self.pool,
                 self.sync_state,
                 self.main_node_client,
