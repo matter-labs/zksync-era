@@ -29,8 +29,8 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
     console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
     
     try {
-      await executeCommand('ci_run', [
-        'zkstack', 'chain', 'gateway', 'migrate-to-gateway',
+      await executeCommand('zkstack', [
+        'chain', 'gateway', 'migrate-to-gateway',
         '--chain', chainName,
         '--gateway-chain-name', 'gateway'
       ], chainName, 'gateway_migration');
