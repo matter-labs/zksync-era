@@ -593,6 +593,10 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         self.last_block -= 1;
         Ok(())
     }
+
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

@@ -48,6 +48,9 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 
     /// Rolls back the last executed l2 block.
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()>;
+
+    /// Commits the first uncommitted l2 block making so it cannot be rolled back anymore.
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()>;
 }
 
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
