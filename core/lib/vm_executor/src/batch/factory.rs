@@ -438,7 +438,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::CommitL2Block(resp) => {
-                    vm.pop_front_snapshot_no_rollback();
+                    // Only `FastVmMode::Old` keeps snapshots for block rollback.
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        vm.pop_front_snapshot_no_rollback();
+                    }
                     if resp.send(()).is_err() {
                         break;
                     }
