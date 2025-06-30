@@ -439,16 +439,16 @@ jobs:
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
           
           ci_run zkstack server --ignore-prerequisites --chain era \
-            --components==api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium \
-            --components==api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token \
-            --components==api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run zkstack server --ignore-prerequisites --chain da_migration \
-            --components==api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
 
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
