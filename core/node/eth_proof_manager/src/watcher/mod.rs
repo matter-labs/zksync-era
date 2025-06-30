@@ -61,8 +61,6 @@ impl EthProofWatcher {
                 to_block
             );
 
-            //tracing::info!("topic: {:?}", self.event_handlers[0].signature());
-
             for event in &self.event_handlers {
                 let events = self
                     .client
