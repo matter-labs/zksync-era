@@ -3,7 +3,6 @@ use zksync_types::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
-    block::BatchOrBlockNumber,
     tee_types::TeeType,
     web3, L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
@@ -40,7 +39,7 @@ impl UnstableNamespaceServer for UnstableNamespace {
         batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>> {
-        self.get_chain_log_proof_impl(BatchOrBlockNumber::BatchNumber(batch_number), chain_id)
+        self.get_chain_log_proof_impl(batch_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -50,7 +49,7 @@ impl UnstableNamespaceServer for UnstableNamespace {
         block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>> {
-        self.get_chain_log_proof_impl(BatchOrBlockNumber::BlockNumber(block_number), chain_id)
+        self.get_chain_log_proof_until_msg_root_impl(block_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
