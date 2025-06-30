@@ -45,6 +45,7 @@ pub struct SyncBlock {
     pub protocol_version: ProtocolVersionId,
     /// Pubdata params used for this batch
     pub pubdata_params: Option<PubdataParams>,
+    /// Interop roots for this block
     pub interop_roots: Vec<InteropRoot>,
 }
 
