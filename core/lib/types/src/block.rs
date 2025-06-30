@@ -160,7 +160,7 @@ pub struct L2BlockExecutionData {
 }
 
 impl L1BatchHeader {
-    pub fn mock(
+    pub fn new(
         number: L1BatchNumber,
         timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,

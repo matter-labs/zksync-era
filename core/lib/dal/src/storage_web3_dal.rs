@@ -329,7 +329,7 @@ mod tests {
             .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
-        let l1_batch_header = L1BatchHeader::mock(
+        let l1_batch_header = L1BatchHeader::new(
             L1BatchNumber(0),
             0,
             Default::default(),
@@ -427,7 +427,7 @@ mod tests {
             .unwrap();
         assert_eq!(timestamp, Some(first_l2_block.timestamp));
 
-        let l1_batch_header = L1BatchHeader::mock(
+        let l1_batch_header = L1BatchHeader::new(
             snapshot_recovery.l1_batch_number + 1,
             100,
             Default::default(),

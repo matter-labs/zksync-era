@@ -516,7 +516,7 @@ async fn applier_errors_after_genesis() {
         .insert_l2_block(&genesis_l2_block)
         .await
         .unwrap();
-    let genesis_l1_batch = L1BatchHeader::mock(
+    let genesis_l1_batch = L1BatchHeader::new(
         L1BatchNumber(0),
         0,
         Default::default(),

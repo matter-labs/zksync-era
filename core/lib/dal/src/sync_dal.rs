@@ -152,7 +152,7 @@ mod tests {
             .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
-        let mut l1_batch_header = L1BatchHeader::mock(
+        let mut l1_batch_header = L1BatchHeader::new(
             L1BatchNumber(0),
             0,
             Default::default(),

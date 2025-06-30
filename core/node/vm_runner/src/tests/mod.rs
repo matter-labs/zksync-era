@@ -315,7 +315,7 @@ async fn store_l1_batches(
         last_l2_block_hash = fictive_l2_block.hash;
         l2_block_number += 1;
 
-        let mut header = L1BatchHeader::mock(
+        let mut header = L1BatchHeader::new(
             l1_batch_number,
             l2_block_number.0 as u64 - 2, // Matches the first L2 block in the batch
             genesis_params.base_system_contracts().hashes(),

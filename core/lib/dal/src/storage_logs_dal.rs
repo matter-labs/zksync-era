@@ -833,7 +833,7 @@ mod tests {
     use crate::{tests::create_l2_block_header, ConnectionPool, Core};
 
     async fn insert_l2_block(conn: &mut Connection<'_, Core>, number: u32, logs: Vec<StorageLog>) {
-        let header = L1BatchHeader::mock(
+        let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
             BaseSystemContractsHashes::default(),

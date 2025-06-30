@@ -780,7 +780,7 @@ async fn setup_batch_roots(
     assert!(number_of_processed_batches <= batch_roots.len());
     for (i, root) in batch_roots.into_iter().enumerate() {
         let batch_number = L1BatchNumber(i as u32 + 1);
-        let header = L1BatchHeader::mock(
+        let header = L1BatchHeader::new(
             batch_number,
             i as u64,
             Default::default(),
