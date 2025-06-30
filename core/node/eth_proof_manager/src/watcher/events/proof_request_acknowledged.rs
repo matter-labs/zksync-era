@@ -54,13 +54,6 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
             ));
         }
 
-        if log.data.0.len() != 1 {
-            return Err(anyhow::anyhow!(
-                "invalid data length: {:?}, expected 1",
-                log.data.0
-            ));
-        }
-
         if *log.topics.get(0).context("missing topic 0")? != self.signature() {
             return Err(anyhow::anyhow!(
                 "invalid signature: {:?}, expected {:?}",
@@ -71,11 +64,17 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
 
         let chain_id = h256_to_u256(*log.topics.get(1).context("missing topic 1")?);
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
-        let accepted = match log.data.0.as_slice() {
-            [1] => true,
-            [0] => false,
-            _ => panic!("invalid accepted value: {:?}", log.data.0),
+
+        let accepted = if let Some(accepted) = log.data.0.get(31) {
+            match accepted {
+                1 => true,
+                0 => false,
+                _ => panic!("invalid accepted value: {:?}", accepted),
+            }
+        } else {
+            panic!("invalid accepted value: {:?}", log.data.0);
         };
+
         let assigned_to =
             ProvingNetwork::from_u256(h256_to_u256(*log.topics.get(3).context("missing topic 3")?));
 

@@ -281,3 +281,7 @@ consensus:
 
 gateway_migrator:
   eth_node_poll_interval: 300 ms
+
+eth_proof_manager:
+  event_poll_interval: 10000 ms
+  event_expiration_blocks: 1000

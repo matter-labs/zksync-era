@@ -7,11 +7,9 @@ use zksync_types::{api::Log, H256};
 
 pub mod proof_request_acknowledged;
 pub mod proof_request_proven;
-pub mod reward_claimed;
 
 pub use proof_request_acknowledged::ProofRequestAcknowledgedHandler;
 pub use proof_request_proven::ProofRequestProvenHandler;
-pub use reward_claimed::RewardClaimedHandler;
 
 #[async_trait]
 pub trait EventHandler: std::fmt::Debug + Send + Sync {

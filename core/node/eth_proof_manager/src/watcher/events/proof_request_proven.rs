@@ -6,7 +6,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_types::{api::Log, ethabi, h256_to_u256, H256, U256};
 
-use crate::{types::ProvingNetwork, watcher::events::EventHandler};
+use crate::watcher::events::EventHandler;
 
 // event ProofRequestProven(
 //    uint256 indexed chainId, uint256 indexed blockNumber, bytes proof, ProvingNetwork assignedTo
@@ -17,7 +17,6 @@ pub struct ProofRequestProven {
     pub chain_id: U256,
     pub block_number: U256,
     pub proof: Vec<u8>,
-    pub assigned_to: ProvingNetwork,
 }
 
 #[derive(Debug)]
@@ -44,17 +43,10 @@ impl EventHandler for ProofRequestProvenHandler {
         _connection_pool: ConnectionPool<Core>,
         _blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()> {
-        if log.topics.len() != 4 {
+        if log.topics.len() != 3 {
             return Err(anyhow::anyhow!(
-                "invalid number of topics: {:?}, expected 4",
+                "invalid number of topics: {:?}, expected 3",
                 log.topics
-            ));
-        }
-
-        if log.data.0.len() != 32 {
-            return Err(anyhow::anyhow!(
-                "invalid data length: {:?}, expected 32",
-                log.data.0
             ));
         }
 
@@ -69,14 +61,11 @@ impl EventHandler for ProofRequestProvenHandler {
         let chain_id = h256_to_u256(*log.topics.get(1).context("missing topic 1")?);
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
         let proof = log.data.0.to_vec();
-        let assigned_to =
-            ProvingNetwork::from_u256(h256_to_u256(*log.topics.get(3).context("missing topic 3")?));
 
         let event = ProofRequestProven {
             chain_id,
             block_number,
             proof,
-            assigned_to,
         };
 
         tracing::info!("Received ProofRequestProvenEvent: {:?}", event);

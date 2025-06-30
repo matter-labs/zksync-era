@@ -29,7 +29,7 @@ impl EthProofManager {
                 client,
                 connection_pool,
                 blob_store,
-                config.event_poll_interval,
+                config,
             ),
         }
     }
