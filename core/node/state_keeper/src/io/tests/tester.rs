@@ -233,7 +233,8 @@ impl Tester {
         number: u32,
         tx_hashes: &[H256],
     ) {
-        let batch_header = create_l1_batch(number);
+        let mut batch_header = create_l1_batch(number);
+        batch_header.timestamp = self.current_timestamp;
         let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
