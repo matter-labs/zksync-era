@@ -596,10 +596,10 @@ jobs:
 
       - name: Run external nodes
         run: |
-          ci_run zkstack external-node run --ignore-prerequisites --chain era --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain validium --enable-consensus --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain custom_token --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain da_migration --enable-consensus --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain da_migration --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/da_migration.log &
 
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
