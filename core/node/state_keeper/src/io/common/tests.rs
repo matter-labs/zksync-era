@@ -319,6 +319,7 @@ async fn loading_pending_batch_with_genesis() {
         &mut storage,
         1..=2,
         genesis_params.base_system_contracts().hashes(),
+        L1BatchNumber(1),
     )
     .await;
 
@@ -353,10 +354,18 @@ async fn loading_pending_batch_with_genesis() {
 
 async fn store_pending_l2_blocks(
     storage: &mut Connection<'_, Core>,
-    numbers: ops::RangeInclusive<u32>,
+    l2_block_numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
+    l1_batch_number: L1BatchNumber,
 ) {
-    for l2_block_number in numbers {
+    let mut l1_batch_header = create_l1_batch(l1_batch_number.0);
+    l1_batch_header.timestamp = *l2_block_numbers.start() as u64; // Set timestamp to match the first L2 block.
+    storage
+        .blocks_dal()
+        .insert_l1_batch(l1_batch_header.to_unsealed_header())
+        .await
+        .unwrap();
+    for l2_block_number in l2_block_numbers {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
@@ -401,6 +410,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         &mut storage,
         starting_l2_block_number..=starting_l2_block_number + 1,
         GenesisParams::mock().base_system_contracts().hashes(),
+        snapshot_recovery.l1_batch_number + 1,
     )
     .await;
 

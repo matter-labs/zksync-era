@@ -263,7 +263,8 @@ impl StateKeeper {
                     }),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
-                    pubdata_limit: Some(100_000),
+                    pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
+                        .then_some(100_000),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,

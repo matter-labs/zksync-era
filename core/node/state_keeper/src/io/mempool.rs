@@ -653,13 +653,11 @@ impl MempoolIO {
                 continue;
             }
 
-            // TODO: decide on the protocol version
             let pubdata_limit = if protocol_version < ProtocolVersionId::Version29 {
                 None
             } else {
                 Some(self.pubdata_limit)
             };
-
             self.pool
                 .connection_tagged("state_keeper")
                 .await?

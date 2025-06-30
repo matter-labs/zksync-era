@@ -182,7 +182,7 @@ impl L1BatchHeader {
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
-            pubdata_limit: Some(100_000),
+            pubdata_limit: (protocol_version >= ProtocolVersionId::Version29).then_some(0),
         }
     }
 

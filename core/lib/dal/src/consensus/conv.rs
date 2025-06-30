@@ -199,16 +199,15 @@ impl ProtoFmt for Payload {
                 "default pubdata_params should be encoded as None"
             );
         }
-        // TODO: decide on the protocol version
         if this.protocol_version < ProtocolVersionId::Version29 {
             anyhow::ensure!(
                 this.pubdata_limit.is_none(),
-                "pubdata_limit should be None before protocol_version < X" // TODO
+                "pubdata_limit should be None for protocol_version < 29"
             );
         } else {
             anyhow::ensure!(
                 this.pubdata_limit.is_some(),
-                "pubdata_limit should be Some for protocol_version >= X" // TODO
+                "pubdata_limit should be Some for protocol_version >= 29"
             );
         }
         Ok(this)
@@ -221,19 +220,17 @@ impl ProtoFmt for Payload {
                 "BUG DETECTED: pubdata_params should have the default value in pre-gateway protocol_version"
             );
         }
-        // TODO: decide on the protocol version
         if self.protocol_version < ProtocolVersionId::Version29 {
             assert!(
                 self.pubdata_limit.is_none(),
-                "BUG DETECTED: pubdata_limit should be None before protocol_version < X" // TODO
+                "pubdata_limit should be None for protocol_version < 29"
             );
         } else {
             assert!(
                 self.pubdata_limit.is_some(),
-                "BUG DETECTED: pubdata_limit should be Some for protocol_version >= X" // TODO
+                "pubdata_limit should be Some for protocol_version >= 29"
             );
         }
-
         let mut x = Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),

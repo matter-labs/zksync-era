@@ -39,10 +39,10 @@ pub struct PendingBatchData {
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
     pub l1_batch_env: L1BatchEnv,
     pub system_env: SystemEnv,
-    pub(crate) pubdata_params: PubdataParams,
+    pub pubdata_params: PubdataParams,
     pub pubdata_limit: Option<u64>,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
-    pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
+    pub pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq)]
@@ -110,7 +110,7 @@ pub struct L1BatchParams {
     pub first_l2_block: L2BlockParams,
     /// Params related to how the pubdata should be processed by the bootloader in the batch.
     pub pubdata_params: PubdataParams,
-    ///
+    /// Pubdata limit for the batch. It's set only if protocol version >= v29.
     pub pubdata_limit: Option<u64>,
 }
 

@@ -511,33 +511,11 @@ impl ConsensusDal<'_, '_> {
             .get_raw_l2_blocks_transactions(numbers)
             .await?;
 
-        let l1_batch_numbers = blocks
-            .iter()
-            .map(|b| b.l1_batch_number)
-            .unique()
-            .collect::<Vec<_>>();
-        let mut pubdata_limits = HashMap::new();
-        for l1_batch_number in l1_batch_numbers {
-            let pubdata_limit = self
-                .storage
-                .blocks_dal()
-                .get_common_l1_batch_header(l1_batch_number)
-                .await?
-                .ok_or_else(|| {
-                    Instrumented::new("block_payloads").constraint_error(anyhow::anyhow!(
-                        "Missing common L1 batch header for block"
-                    ))
-                })?
-                .pubdata_limit;
-            pubdata_limits.insert(l1_batch_number, pubdata_limit);
-        }
-
         Ok(blocks
             .into_iter()
             .map(|b| {
                 let txs = transactions.remove(&b.number).unwrap_or_default();
-                let pubdata_limit = *pubdata_limits.get(&b.l1_batch_number).unwrap();
-                b.into_payload(txs, pubdata_limit)
+                b.into_payload(txs)
             })
             .collect())
     }
