@@ -195,17 +195,15 @@ jobs:
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
           echo "USE_GATEWAY_CHAIN=${{ matrix.use_gateway_chain }}" >> .env
+          SERVER_LOGS_DIR=logs/server
+          mkdir -p $SERVER_LOGS_DIR
+          echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
+          sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
-
-      - name: Install yq
-        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
-
-      - name: Install psql
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
 
       - name: Build test dependencies
         run: |
@@ -215,7 +213,7 @@ jobs:
         run: |
           ci_run build_and_init_ecosystem
 
-      - name: Create and register chain with transactions signed "offline"
+      - name: Test registration of chains with transactions signed "offline"
         run: |
           ci_run zkstack chain create \
           --chain-name offline_chain \
