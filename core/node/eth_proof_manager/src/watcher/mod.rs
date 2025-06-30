@@ -52,9 +52,9 @@ impl EthProofWatcher {
 
             let to_block = self.client.get_finalized_block().await?;
 
-            // // todo: this should be changed
+            // todo: this should be changed
             let from_block = to_block.saturating_sub(self.config.event_expiration_blocks);
-            
+
             tracing::info!(
                 "Getting events from block {} to block {}",
                 from_block,
