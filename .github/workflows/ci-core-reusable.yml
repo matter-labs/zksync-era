@@ -125,7 +125,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 27000 || 14500 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 36000 || 22500 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
