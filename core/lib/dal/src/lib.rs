@@ -26,7 +26,7 @@ use crate::{
     storage_web3_dal::StorageWeb3Dal, sync_dal::SyncDal, system_dal::SystemDal,
     tee_proof_generation_dal::TeeProofGenerationDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, eth_proof_manager_dal::EthProofManagerDal,
 };
 
 pub mod base_token_dal;
@@ -67,6 +67,7 @@ pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
 pub mod vm_runner_dal;
+pub mod eth_proof_manager_dal;
 
 #[cfg(test)]
 mod tests;
@@ -145,6 +146,8 @@ where
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a>;
 
     fn server_notifications_dal(&mut self) -> ServerNotificationsDal<'_, 'a>;
+
+    fn eth_proof_manager_dal(&mut self) -> EthProofManagerDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -282,5 +285,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a> {
         CustomGenesisExportDal { storage: self }
+    }
+
+    fn eth_proof_manager_dal(&mut self) -> EthProofManagerDal<'_, 'a> {
+        EthProofManagerDal { storage: self }
     }
 }
