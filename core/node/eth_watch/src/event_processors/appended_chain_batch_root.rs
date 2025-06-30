@@ -70,39 +70,39 @@ impl EventProcessor for BatchRootProcessor {
         let grouped_events: Vec<_> = events
             .into_iter()
             .map(|log| {
-                let sl_block_number = L2BlockNumber(
-                    log.block_number
-                        .expect("Missing block number for finalized event")
-                        .as_u32(),
-                );
                 let sl_l1_batch_number = L1BatchNumber(
                     log.l1_batch_number
                         .expect("Missing L1 batch number for finalized event")
+                        .as_u32(),
+                );
+                let sl_block_number = L2BlockNumber(
+                    log.block_number
+                        .expect("Missing block number for finalized event")
                         .as_u32(),
                 );
                 let chain_l1_batch_number = L1BatchNumber(h256_to_u256(log.topics[2]).as_u32());
                 let logs_root_hash = H256::from_slice(&log.data.0);
 
                 (
-                    sl_block_number,
                     sl_l1_batch_number,
+                    sl_block_number,
                     chain_l1_batch_number,
                     logs_root_hash,
                 )
             })
-            .chunk_by(|(sl_block_number, _, _, _)| *sl_block_number)
+            .chunk_by(|(sl_l1_batch_number, _, _, _)| *sl_l1_batch_number)
             .into_iter()
-            .map(|(sl_block_number, group)| {
+            .map(|(sl_l1_batch_number, group)| {
                 let group: Vec<_> = group
                     .into_iter()
                     .map(
-                        |(_, sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)| {
-                            (sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)
+                        |(_, sl_block_number, chain_l1_batch_number, logs_root_hash)| {
+                            (sl_block_number, chain_l1_batch_number, logs_root_hash)
                         },
                     )
                     .collect();
 
-                (sl_block_number, group)
+                (sl_l1_batch_number, group)
             })
             .collect();
 
@@ -114,8 +114,8 @@ impl EventProcessor for BatchRootProcessor {
                 let last_event = events.last().unwrap();
 
                 match (
-                    first_event.0 < next_batch_number_lower_bound,
-                    last_event.0 < next_batch_number_lower_bound,
+                    first_event.1 < next_batch_number_lower_bound,
+                    last_event.1 < next_batch_number_lower_bound,
                 ) {
                     (true, true) => true,    // skip
                     (false, false) => false, // do not skip
@@ -126,58 +126,102 @@ impl EventProcessor for BatchRootProcessor {
             });
 
         let sl_chain_id = self.sl_l2_client.chain_id().await?;
-        let mut last_processed_sl_l1_batch_number = L1BatchNumber(u32::MAX);
-        let mut sl_l1_chain_proof_vector: Vec<H256> = vec![];
-        for (sl_block_number, chain_batches) in new_events {
-            let sl_l1_batch_number = chain_batches.first().unwrap().0;
-            if sl_l1_batch_number != last_processed_sl_l1_batch_number {
-                // Update the SL L1 chain agg proof if we are in a new L1 batch
-                sl_l1_chain_proof_vector = self
-                    .sl_l1_chain_proof_vector(sl_l1_batch_number, self.l2_chain_id, sl_chain_id)
-                    .await?;
-                last_processed_sl_l1_batch_number = sl_l1_batch_number;
-
-                let chain_root_local = self.merkle_tree.merkle_root();
-                let chain_root_remote = self
-                    .sl_l2_client
-                    .get_chain_root_l2(sl_l1_batch_number, self.l2_chain_id)
-                    .await?;
-                assert_eq!(
-                    chain_root_local,
-                    chain_root_remote.unwrap(),
-                    "Chain root mismatch, l1 batch number #{sl_l1_batch_number}"
-                );
-            }
-
-            // Update the tree with the new batches first
-            // Else we may store an incorrect batch proof if the chain happens to execute again in the same SL block
-            for (_, batch_number, logs_root_hash) in &chain_batches {
-                let root_from_db = transaction
-                    .blocks_dal()
-                    .get_l1_batch_l2_l1_merkle_root(*batch_number)
-                    .await
-                    .map_err(DalError::generalize)?
-                    .context("Missing l2_l1_merkle_root for finalized batch")?;
-                assert_eq!(root_from_db, *logs_root_hash);
-
-                self.merkle_tree
-                    .push(Self::batch_leaf_preimage(*logs_root_hash, *batch_number));
-                self.next_batch_number_lower_bound = *batch_number + 1;
-            }
-
-            // Define the chain agg proof until msg root, shared by all batches in the block
-            let chain_agg_proof_until_msg_root = self
+        for (sl_l1_batch_number, chain_batches) in new_events {
+            let chain_agg_proof = self
                 .sl_l2_client
-                .get_chain_log_proof_until_msg_root(sl_block_number, self.l2_chain_id)
+                .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
                 .await?
-                .context("Missing chain log proof until msg root for finalized batch")?;
-            let chain_proof_vector_until_msg_root = BatchRootProcessor::chain_proof_vector(
-                sl_block_number.0,
-                chain_agg_proof_until_msg_root,
-                sl_chain_id,
+                .context("Missing chain log proof for finalized batch")?;
+            let chain_proof_vector =
+                Self::chain_proof_vector(sl_l1_batch_number.0, chain_agg_proof, sl_chain_id);
+
+            let chain_batches_by_sl_block_number: Vec<_> = chain_batches
+                .clone()
+                .into_iter()
+                .chunk_by(|(sl_block_number, _, _)| *sl_block_number)
+                .into_iter()
+                .map(|(sl_block_number, group)| {
+                    let group: Vec<_> = group
+                        .into_iter()
+                        .map(|(_, chain_l1_batch_number, logs_root_hash)| {
+                            (chain_l1_batch_number, logs_root_hash)
+                        })
+                        .collect();
+
+                    (sl_block_number, group)
+                })
+                .collect();
+
+            for (sl_block_number, chain_batches) in chain_batches_by_sl_block_number {
+                // Update the tree with the new batches first
+                // Else we may store an incorrect batch proof if the chain happens to execute again in the same block
+                for (batch_number, batch_root) in &chain_batches {
+                    let root_from_db = transaction
+                        .blocks_dal()
+                        .get_l1_batch_l2_l1_merkle_root(*batch_number)
+                        .await
+                        .map_err(DalError::generalize)?
+                        .context("Missing l2_l1_merkle_root for finalized batch")?;
+                    assert_eq!(root_from_db, *batch_root);
+
+                    self.merkle_tree
+                        .push(Self::batch_leaf_preimage(*batch_root, *batch_number));
+                    self.next_batch_number_lower_bound = *batch_number + 1;
+                }
+
+                // Define the chain agg proof until msg root, shared by all batches in the block
+                let chain_agg_proof_until_msg_root = self
+                    .sl_l2_client
+                    .get_chain_log_proof_until_msg_root(sl_block_number, self.l2_chain_id)
+                    .await?
+                    .context("Missing chain log proof until msg root for finalized batch")?;
+                let chain_proof_vector_until_msg_root = BatchRootProcessor::chain_proof_vector(
+                    sl_block_number.0,
+                    chain_agg_proof_until_msg_root,
+                    sl_chain_id,
+                );
+
+                // Get the batch chain proof until msg root for each batch in the block
+                let number_of_leaves = self.merkle_tree.length();
+                let batch_proofs = (0..chain_batches.len()).map(|i| {
+                    let leaf_position = number_of_leaves - chain_batches.len() + i;
+                    let batch_proof = self
+                        .merkle_tree
+                        .merkle_root_and_path_by_absolute_index(leaf_position)
+                        .1;
+                    let batch_proof_len = batch_proof.len() as u32;
+                    let mut proof = vec![H256::from_low_u64_be(leaf_position as u64)];
+                    proof.extend(batch_proof);
+                    proof.extend(chain_proof_vector_until_msg_root.clone());
+
+                    BatchAndChainMerklePath {
+                        batch_proof_len,
+                        proof,
+                    }
+                });
+
+                // Set the batch chain proof until msg root for each batch in the block
+                for ((batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
+                    tracing::info!(%batch_number, "Saving batch-chain merkle path until msg root");
+                    transaction
+                        .blocks_dal()
+                        .set_batch_chain_merkle_path_until_msg_root(*batch_number, proof)
+                        .await
+                        .map_err(DalError::generalize)?;
+                }
+            }
+
+            let chain_root_local = self.merkle_tree.merkle_root();
+            let chain_root_remote = self
+                .sl_l2_client
+                .get_chain_root_l2(sl_l1_batch_number, self.l2_chain_id)
+                .await?;
+            assert_eq!(
+                chain_root_local,
+                chain_root_remote.unwrap(),
+                "Chain root mismatch, l1 batch number #{sl_l1_batch_number}"
             );
 
-            // Get the batch chain proof and batch chain proof until msg root for each batch in the block
             let number_of_leaves = self.merkle_tree.length();
             let batch_proofs = (0..chain_batches.len()).map(|i| {
                 let leaf_position = number_of_leaves - chain_batches.len() + i;
@@ -188,36 +232,19 @@ impl EventProcessor for BatchRootProcessor {
                 let batch_proof_len = batch_proof.len() as u32;
                 let mut proof = vec![H256::from_low_u64_be(leaf_position as u64)];
                 proof.extend(batch_proof);
-                let mut proof_until_msg_root = proof.clone();
-                proof.extend(sl_l1_chain_proof_vector.clone());
-                proof_until_msg_root.extend(chain_proof_vector_until_msg_root.clone());
+                proof.extend(chain_proof_vector.clone());
 
-                (
-                    BatchAndChainMerklePath {
-                        batch_proof_len,
-                        proof,
-                    },
-                    BatchAndChainMerklePath {
-                        batch_proof_len,
-                        proof: proof_until_msg_root,
-                    },
-                )
+                BatchAndChainMerklePath {
+                    batch_proof_len,
+                    proof,
+                }
             });
 
-            // Set the batch chain proof and batch chain proof until msg root for each batch in the block
-            for ((batch_number, _, _), (proof, proof_until_msg_root)) in
-                chain_batches.iter().zip(batch_proofs)
-            {
+            for ((_, batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
                 tracing::info!(%batch_number, "Saving batch-chain merkle path");
                 transaction
                     .blocks_dal()
                     .set_batch_chain_merkle_path(*batch_number, proof)
-                    .await
-                    .map_err(DalError::generalize)?;
-                tracing::info!(%batch_number, "Saving batch-chain merkle path until msg root");
-                transaction
-                    .blocks_dal()
-                    .set_batch_chain_merkle_path_until_msg_root(*batch_number, proof_until_msg_root)
                     .await
                     .map_err(DalError::generalize)?;
             }
@@ -259,25 +286,6 @@ impl BatchRootProcessor {
             .copy_from_slice(H256::from_low_u64_be(batch_number.0 as u64).as_bytes());
 
         full_preimage
-    }
-
-    async fn sl_l1_chain_proof_vector(
-        &self,
-        sl_l1_batch_number: L1BatchNumber,
-        l2_chain_id: L2ChainId,
-        sl_chain_id: SLChainId,
-    ) -> anyhow::Result<Vec<H256>> {
-        let sl_l1_chain_agg_proof = self
-            .sl_l2_client
-            .get_chain_log_proof(sl_l1_batch_number, l2_chain_id)
-            .await?
-            .context("Missing chain log proof for finalized batch")?;
-
-        Ok(Self::chain_proof_vector(
-            sl_l1_batch_number.0,
-            sl_l1_chain_agg_proof,
-            sl_chain_id,
-        ))
     }
 
     fn chain_proof_vector(
