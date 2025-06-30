@@ -133,11 +133,7 @@ impl EventProcessor for BatchRootProcessor {
             if sl_l1_batch_number != last_processed_sl_l1_batch_number {
                 // Update the SL L1 chain agg proof if we are in a new L1 batch
                 sl_l1_chain_proof_vector = self
-                    .sl_l1_chain_proof_vector(
-                        last_processed_sl_l1_batch_number,
-                        self.l2_chain_id,
-                        sl_chain_id,
-                    )
+                    .sl_l1_chain_proof_vector(sl_l1_batch_number, self.l2_chain_id, sl_chain_id)
                     .await?;
                 last_processed_sl_l1_batch_number = sl_l1_batch_number;
 
