@@ -67,6 +67,7 @@ impl EventProcessor for BatchRootProcessor {
             .await
             .map_err(DalError::generalize)?;
 
+        // Events are grouped by SL L1 batch number
         let grouped_events: Vec<_> = events
             .into_iter()
             .map(|log| {
@@ -127,6 +128,7 @@ impl EventProcessor for BatchRootProcessor {
 
         let sl_chain_id = self.sl_l2_client.chain_id().await?;
         for (sl_l1_batch_number, chain_batches) in new_events {
+            // Define the chain agg proof, shared by all batches in the SL L1 batch
             let chain_agg_proof = self
                 .sl_l2_client
                 .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
@@ -135,6 +137,7 @@ impl EventProcessor for BatchRootProcessor {
             let chain_proof_vector =
                 Self::chain_proof_vector(sl_l1_batch_number.0, chain_agg_proof, sl_chain_id);
 
+            // We further group the batches inside the same SL L1 batch by the block number at which they were executed
             let chain_batches_by_sl_block_number: Vec<_> = chain_batches
                 .clone()
                 .into_iter()
@@ -152,9 +155,11 @@ impl EventProcessor for BatchRootProcessor {
                 })
                 .collect();
 
+            // We first deal with storing the chain log proofs until msg root for each batch, needed for interop
             for (sl_block_number, chain_batches) in chain_batches_by_sl_block_number {
                 // Update the tree with the new batches first
-                // Else we may store an incorrect batch proof if the chain happens to execute again in the same block
+                // Else we may store an incorrect batch proof if the chain happens to execute again in the same block,
+                // as the proof would hash to a different root than the root of the block number where it was executed
                 for (batch_number, batch_root) in &chain_batches {
                     let root_from_db = transaction
                         .blocks_dal()
@@ -211,6 +216,8 @@ impl EventProcessor for BatchRootProcessor {
                 }
             }
 
+            // By now all `AppendedChainBatchRoot` events inside this SL L1 batch have been processed
+            // The resulting tree root must match the one from the chain
             let chain_root_local = self.merkle_tree.merkle_root();
             let chain_root_remote = self
                 .sl_l2_client
@@ -222,6 +229,7 @@ impl EventProcessor for BatchRootProcessor {
                 "Chain root mismatch, l1 batch number #{sl_l1_batch_number}"
             );
 
+            // Get the batch chain proof for each batch in the SL L1 batch
             let number_of_leaves = self.merkle_tree.length();
             let batch_proofs = (0..chain_batches.len()).map(|i| {
                 let leaf_position = number_of_leaves - chain_batches.len() + i;
@@ -240,6 +248,7 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
+            // Set the batch chain proof for each batch in the SL L1 batch
             for ((_, batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
                 tracing::info!(%batch_number, "Saving batch-chain merkle path");
                 transaction
