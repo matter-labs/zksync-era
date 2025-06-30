@@ -13,3 +13,4 @@ export { generateLoad } from './generate-load';
 export { getRpcUrl, queryJsonRpc, getL1BatchNumber, getL1BatchDetails } from './rpc-utils';
 export { waitForAllBatchesToBeExecuted, generateRealisticLoad } from './wait-for-batches';
 export { ALL_CHAIN_TYPES } from './chain-types';
+export { migrateToGatewayIfNeeded } from './gateway';

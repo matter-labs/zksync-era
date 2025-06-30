@@ -194,6 +194,7 @@ jobs:
         run: |
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
+          echo "USE_GATEWAY_CHAIN=${{ matrix.use_gateway_chain }}" >> $GITHUB_ENV
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -480,7 +481,6 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Run tests
-        if: matrix.use_gateway_chain == 'WITHOUT_GATEWAY'
         run: |
           ci_run yarn highlevel-test-tools test
 
