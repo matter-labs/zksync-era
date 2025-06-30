@@ -42,6 +42,8 @@ impl FirstL2BlockInBatch {
     }
 }
 
+/// L1 batch environment parameters restored from the storage.
+/// They are used to initialize state keeper with the pending batch data.
 #[derive(Debug)]
 pub struct RestoredL1BatchEnv {
     pub l1_batch_env: L1BatchEnv,
