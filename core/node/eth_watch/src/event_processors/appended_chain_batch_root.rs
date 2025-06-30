@@ -23,7 +23,7 @@ use crate::{
 /// and group them by SL's batch number they are executed in as this data is required to build `BatchAndChainMerklePath`.
 #[derive(Debug)]
 pub struct BatchRootProcessor {
-    last_processed_sl_l1_batch_number: L1BatchNumber,
+    next_batch_number_lower_bound: L1BatchNumber,
     appended_chain_batch_root_signature: H256,
     merkle_tree: MiniMerkleTree<[u8; 96]>,
     l2_chain_id: L2ChainId,
@@ -32,13 +32,13 @@ pub struct BatchRootProcessor {
 
 impl BatchRootProcessor {
     pub fn new(
-        last_processed_sl_l1_batch_number: L1BatchNumber,
+        next_batch_number_lower_bound: L1BatchNumber,
         merkle_tree: MiniMerkleTree<[u8; 96]>,
         l2_chain_id: L2ChainId,
         sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
     ) -> Self {
         Self {
-            last_processed_sl_l1_batch_number,
+            next_batch_number_lower_bound,
             appended_chain_batch_root_signature: ethabi::long_signature(
                 "AppendedChainBatchRoot",
                 &[
@@ -106,19 +106,31 @@ impl EventProcessor for BatchRootProcessor {
             })
             .collect();
 
-        let sl_chain_id = self.sl_l2_client.chain_id().await?;
-        let last_processed_sl_l1_batch_number = self.last_processed_sl_l1_batch_number;
-        let mut sl_l1_chain_proof_vector = self
-            .sl_l1_chain_proof_vector(
-                last_processed_sl_l1_batch_number,
-                self.l2_chain_id,
-                sl_chain_id,
-            )
-            .await?;
+        let next_batch_number_lower_bound = self.next_batch_number_lower_bound;
+        let new_events = grouped_events
+            .into_iter()
+            .skip_while(|(_sl_l1_batch_number, events)| {
+                let first_event = events.first().unwrap();
+                let last_event = events.last().unwrap();
 
-        for (sl_block_number, chain_batches) in grouped_events {
+                match (
+                    first_event.0 < next_batch_number_lower_bound,
+                    last_event.0 < next_batch_number_lower_bound,
+                ) {
+                    (true, true) => true,    // skip
+                    (false, false) => false, // do not skip
+                    _ => {
+                        panic!("batch range was partially processed");
+                    }
+                }
+            });
+
+        let sl_chain_id = self.sl_l2_client.chain_id().await?;
+        let mut last_processed_sl_l1_batch_number = L1BatchNumber(u32::MAX);
+        let mut sl_l1_chain_proof_vector: Vec<H256> = vec![];
+        for (sl_block_number, chain_batches) in new_events {
             let sl_l1_batch_number = chain_batches.first().unwrap().0;
-            if sl_l1_batch_number > last_processed_sl_l1_batch_number {
+            if sl_l1_batch_number != last_processed_sl_l1_batch_number {
                 // Update the SL L1 chain agg proof if we are in a new L1 batch
                 sl_l1_chain_proof_vector = self
                     .sl_l1_chain_proof_vector(
@@ -127,7 +139,7 @@ impl EventProcessor for BatchRootProcessor {
                         sl_chain_id,
                     )
                     .await?;
-                self.last_processed_sl_l1_batch_number = sl_l1_batch_number;
+                last_processed_sl_l1_batch_number = sl_l1_batch_number;
 
                 let chain_root_local = self.merkle_tree.merkle_root();
                 let chain_root_remote = self
@@ -142,7 +154,7 @@ impl EventProcessor for BatchRootProcessor {
             }
 
             // Update the tree with the new batches first
-            // Else we may store an incorrect batch proof if the chain happens to execute again in the same block
+            // Else we may store an incorrect batch proof if the chain happens to execute again in the same SL block
             for (_, batch_number, logs_root_hash) in &chain_batches {
                 let root_from_db = transaction
                     .blocks_dal()
@@ -153,10 +165,8 @@ impl EventProcessor for BatchRootProcessor {
                 assert_eq!(root_from_db, *logs_root_hash);
 
                 self.merkle_tree
-                    .push(BatchRootProcessor::batch_leaf_preimage(
-                        *logs_root_hash,
-                        *batch_number,
-                    ));
+                    .push(Self::batch_leaf_preimage(*logs_root_hash, *batch_number));
+                self.next_batch_number_lower_bound = *batch_number + 1;
             }
 
             // Define the chain agg proof until msg root, shared by all batches in the block

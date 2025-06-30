@@ -35,7 +35,7 @@ mod tests;
 struct EthWatchState {
     last_seen_protocol_version: ProtocolSemanticVersion,
     next_expected_priority_id: PriorityOpId,
-    last_processed_sl_l1_batch_number: L1BatchNumber,
+    chain_batch_root_number_lower_bound: L1BatchNumber,
     batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
 }
 
@@ -92,7 +92,7 @@ impl EthWatch {
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {
             let batch_root_processor = BatchRootProcessor::new(
-                state.last_processed_sl_l1_batch_number,
+                state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,
                 chain_id,
                 sl_client.clone(),
@@ -136,7 +136,7 @@ impl EthWatch {
             .get_executed_batch_roots_on_sl(sl_chain_id)
             .await?;
 
-        let last_processed_sl_l1_batch_number = batch_hashes
+        let chain_batch_root_number_lower_bound = batch_hashes
             .last()
             .map(|(n, _)| *n + 1)
             .unwrap_or(L1BatchNumber(0));
@@ -148,7 +148,7 @@ impl EthWatch {
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
-            last_processed_sl_l1_batch_number,
+            chain_batch_root_number_lower_bound,
             batch_merkle_tree,
         })
     }
