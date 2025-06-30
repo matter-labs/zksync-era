@@ -256,6 +256,7 @@ impl ZkosProverInputGenerator {
             gas_limit: 100_000_000,
             coinbase: Default::default(),
             block_hashes: Default::default(),
+            mix_hash: Default::default(),
         };
 
         let storage_commitment = StorageCommitment {
