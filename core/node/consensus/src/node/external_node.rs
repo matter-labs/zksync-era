@@ -19,8 +19,8 @@ use zksync_web3_decl::client::{DynClient, L2};
 #[derive(Debug)]
 pub struct ExternalNodeConsensusLayer {
     pub build_version: semver::Version,
-    pub config: Option<ConsensusConfig>,
-    pub secrets: Option<ConsensusSecrets>,
+    pub config: ConsensusConfig,
+    pub secrets: ConsensusSecrets,
 }
 
 #[derive(Debug, FromContext)]
@@ -57,23 +57,10 @@ impl WiringLayer for ExternalNodeConsensusLayer {
             )
         })?;
 
-        let config = match (self.config, self.secrets) {
-            (Some(cfg), Some(secrets)) => Some((cfg, secrets)),
-            (Some(_), None) => {
-                return Err(WiringError::Configuration(
-                    "Consensus config is specified, but secrets are missing".to_string(),
-                ));
-            }
-            (None, _) => {
-                // Secrets may be unconditionally embedded in some environments, but they are unused
-                // unless a consensus config is provided.
-                None
-            }
-        };
-
         let consensus_task = ExternalNodeTask {
             build_version: self.build_version,
-            config,
+            config: self.config,
+            secrets: self.secrets,
             pool,
             main_node_client,
             sync_state,
@@ -86,7 +73,8 @@ impl WiringLayer for ExternalNodeConsensusLayer {
 #[derive(Debug)]
 pub struct ExternalNodeTask {
     build_version: semver::Version,
-    config: Option<(ConsensusConfig, ConsensusSecrets)>,
+    config: ConsensusConfig,
+    secrets: ConsensusSecrets,
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
     sync_state: SyncState,
@@ -110,6 +98,7 @@ impl Task for ExternalNodeTask {
             s.spawn_bg(crate::run_external_node(
                 ctx,
                 self.config,
+                self.secrets,
                 self.pool,
                 self.sync_state,
                 self.main_node_client,

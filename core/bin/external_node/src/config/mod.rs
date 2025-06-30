@@ -360,15 +360,11 @@ impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the repo.
     ///
     /// **Important.** This method is blocking.
-    pub fn new(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    pub fn new(mut repo: ConfigRepository<'_>) -> anyhow::Result<Self> {
         repo.capture_parsed_params();
         Ok(Self {
             local: repo.parse()?,
-            consensus: if has_consensus {
-                repo.parse_opt()?
-            } else {
-                None
-            },
+            consensus: repo.parse_opt()?,
             config_params: repo.into_captured_params(),
             remote: (),
         })
