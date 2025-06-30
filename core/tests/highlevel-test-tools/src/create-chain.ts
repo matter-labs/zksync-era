@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { executeCommand } from './execute-command';
-import { FileMutex, cleanHistoricalLogs, cleanTestChains } from './file-mutex';
+import { FileMutex, cleanTestChains } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
 
 export type ChainType = 'consensus' | 'validium' | 'da_migration' | 'custom_token' | 'era';

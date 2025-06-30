@@ -194,7 +194,7 @@ jobs:
         run: |
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
-          echo "USE_GATEWAY_CHAIN=${{ matrix.use_gateway_chain }}" >> $GITHUB_ENV
+          echo "USE_GATEWAY_CHAIN=${{ matrix.use_gateway_chain }}" >> .env
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env

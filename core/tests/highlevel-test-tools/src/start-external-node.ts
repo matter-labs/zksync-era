@@ -137,7 +137,7 @@ export async function runExternalNode(chainName: string): Promise<ExternalNodeHa
     }
     
     // Run the external node in background
-    const process = await executeBackgroundCommand('zkstack', runArgs, chainName, "_external_node");
+    const process = await executeBackgroundCommand('zkstack', runArgs, chainName, "external_node");
     
     console.log(`✅ External node started successfully: ${chainName}`);
     

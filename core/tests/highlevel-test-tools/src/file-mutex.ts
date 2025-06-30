@@ -56,15 +56,6 @@ export class FileMutex {
 }
 
 /**
- * Removes all historical log files from the specified directory
- */
-export function cleanHistoricalLogs(logsDir: string = '../../../logs/highlevel'): void {
-  if (fs.existsSync(logsDir)) {
-    fs.rmSync(logsDir, {recursive: true, force: true});
-  }
-}
-
-/**
  * Removes all test chain configurations from the chains directory
  */
 export function cleanTestChains(chainsDir: string = './chains'): void {

@@ -1,7 +1,7 @@
 import {ChildProcess, spawn} from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import {log} from "utils";
+import {getLogsDirectory, markLogsDirectoryAsFailed} from "./logs";
 
 /**
  * Strips ANSI escape sequences from a string
@@ -24,12 +24,7 @@ function stripAnsiEscapeCodes(str: string): string {
  * @param failed - Whether the command failed
  */
 function logExecutedCommand(chainName: string, command: string, args: string[], startTime: number, endTime?: number, isDetached: boolean = false, failed: boolean = false): void {
-  const logsDir = `../../../logs/highlevel/${chainName}`;
-  
-  // Ensure logs directory exists
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
-  }
+  const logsDir = getLogsDirectory(chainName);
   
   // Create executed commands log file for this chain
   const executedCommandsLogFile = path.join(logsDir, 'executed_commands.log');
@@ -57,7 +52,7 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
  * Executes a command and returns a promise
  */
 export async function executeCommand(command: string, args: string[], chainName: string, logFileName: string, runInBackground: boolean = false): Promise<ChildProcess> {
-  const logsDir = `../../../logs/highlevel/${chainName}`;
+  const logsDir = getLogsDirectory(chainName);
   const startTime = Date.now();
   
   return new Promise((resolve, reject) => {
@@ -114,15 +109,7 @@ export async function executeCommand(command: string, args: string[], chainName:
         resolve(child);
       } else {
         // Rename the log directory to indicate failure
-        const failedLogsDir = `../../../logs/highlevel/[FAILED]${chainName}`;
-        try {
-          if (fs.existsSync(logsDir)) {
-            fs.renameSync(logsDir, failedLogsDir);
-            console.log(`📁 Renamed log directory to: ${failedLogsDir}`);
-          }
-        } catch (renameError) {
-          console.warn(`⚠️ Failed to rename log directory: ${renameError}`);
-        }
+        markLogsDirectoryAsFailed(chainName);
         
         const errorMessage = `Command ${command} ${args.join(' ')} failed with exit code ${code}. Check logs at: ${logFilePath}`;
         console.error(`❌ ${errorMessage}`);
@@ -141,15 +128,7 @@ export async function executeCommand(command: string, args: string[], chainName:
       logStream.end();
       
       // Rename the log directory to indicate failure
-      const failedLogsDir = `../../../logs/highlevel/[FAILED]${chainName}`;
-      try {
-        if (fs.existsSync(logsDir)) {
-          fs.renameSync(logsDir, failedLogsDir);
-          console.log(`📁 Renamed log directory to: ${failedLogsDir}`);
-        }
-      } catch (renameError) {
-        console.warn(`⚠️ Failed to rename log directory: ${renameError}`);
-      }
+      markLogsDirectoryAsFailed(chainName);
       
       reject(error);
     });

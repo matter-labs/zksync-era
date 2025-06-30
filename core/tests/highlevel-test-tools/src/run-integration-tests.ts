@@ -2,6 +2,7 @@ import { executeCommand } from './execute-command';
 import * as path from 'path';
 import * as fs from 'fs';
 import { FileMutex } from './file-mutex';
+import {getLogsDirectory} from "./logs";
 
 const fileMutex = new FileMutex();
 
@@ -11,8 +12,9 @@ const fileMutex = new FileMutex();
  * @param testName - The test name for log file suffix
  */
 function appendServerLogs(chainName: string, testName: string): void {
-  const serverLogPath = `../../../logs/server/${chainName}/server.log`;
-  const mainLogPath = `../../../logs/highlevel/${chainName}/${testName}_tests.log`;
+  const logsDir = getLogsDirectory(chainName)
+  const serverLogPath = `${logsDir}/server.log`;
+  const mainLogPath = `${logsDir}/${testName}_tests.log`;
   
   if (fs.existsSync(serverLogPath) && fs.existsSync(mainLogPath)) {
     try {
