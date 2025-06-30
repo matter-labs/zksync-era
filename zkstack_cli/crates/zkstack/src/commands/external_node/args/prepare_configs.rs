@@ -25,6 +25,8 @@ pub struct PrepareConfigArgs {
     pub gateway_rpc_url: Option<String>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
     pub use_default: bool,
+    #[clap(long, help = "Use tight ports allocation (no offset between chains)")]
+    pub tight_ports: bool,
 }
 
 impl PrepareConfigArgs {
@@ -36,6 +38,7 @@ impl PrepareConfigArgs {
                 db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), db_name),
                 l1_rpc_url: LOCAL_RPC_URL.to_string(),
                 gateway_rpc_url: None,
+                tight_ports: self.tight_ports,
             }
         } else {
             let db_url = self.db_url.unwrap_or_else(|| {
@@ -61,6 +64,7 @@ impl PrepareConfigArgs {
                 db: DatabaseConfig::new(db_url, db_name),
                 l1_rpc_url,
                 gateway_rpc_url: self.gateway_rpc_url,
+                tight_ports: self.tight_ports,
             }
         }
     }
@@ -71,4 +75,5 @@ pub struct PrepareConfigFinal {
     pub db: DatabaseConfig,
     pub l1_rpc_url: String,
     pub gateway_rpc_url: Option<String>,
+    pub tight_ports: bool,
 }

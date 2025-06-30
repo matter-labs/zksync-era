@@ -31,6 +31,11 @@ pub struct InitArgs {
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
     pub server_db_name: Option<String>,
+    #[clap(
+        long,
+        help = "Database URL to use as template for creating the new database"
+    )]
+    pub db_template: Option<Url>,
     #[clap(long, short, action)]
     pub dont_drop: bool,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
@@ -49,6 +54,12 @@ pub struct InitArgs {
     pub validium_args: da_configs::ValidiumTypeArgs,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
+    /// Run only phase 1: Initialize configs, distribute ETH, mint base token, and register chain
+    #[clap(long, action)]
+    pub phase1: bool,
+    /// Run only phase 2: Accept admin, deploy L2 contracts, set DA validator pair, and complete initialization
+    #[clap(long, action)]
+    pub phase2: bool,
 }
 
 impl InitArgs {
@@ -56,6 +67,7 @@ impl InitArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
+            db_template: self.db_template.clone(),
             dev: self.dev,
             dont_drop: self.dont_drop,
             server_command: self.server_command.clone(),
@@ -113,6 +125,8 @@ impl InitArgs {
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
             make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
+            phase1: self.phase1,
+            phase2: self.phase2,
         }
     }
 }
@@ -126,4 +140,6 @@ pub struct InitArgsFinal {
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
+    pub phase1: bool,
+    pub phase2: bool,
 }
