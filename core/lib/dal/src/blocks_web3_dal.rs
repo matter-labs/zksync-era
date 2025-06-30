@@ -45,6 +45,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.base_fee_per_gas,
                 miniblocks.gas_limit AS "block_gas_limit?",
                 miniblocks.logs_bloom,
+                l1_batches.is_sealed AS "l1_batch_is_sealed?",
                 prev_miniblock.hash AS "parent_hash?",
                 l1_batches.timestamp AS "l1_batch_timestamp?",
                 transactions.gas_limit AS "transaction_gas_limit?",
@@ -71,6 +72,15 @@ impl BlocksWeb3Dal<'_, '_> {
 
         let block = rows.into_iter().fold(None, |prev_block, row| {
             let mut block = prev_block.unwrap_or_else(|| {
+                let (l1_batch_number, l1_batch_timestamp) =
+                    if row.l1_batch_is_sealed.unwrap_or(false) {
+                        (
+                            row.l1_batch_number.map(|number| (number as u64).into()),
+                            row.l1_batch_timestamp.map(U256::from),
+                        )
+                    } else {
+                        (None, None)
+                    };
                 // This code will be only executed for the first row in the DB response.
                 // All other rows will only be used to extract relevant transactions.
                 api::Block {
@@ -81,10 +91,10 @@ impl BlocksWeb3Dal<'_, '_> {
                         .map_or_else(H256::zero, H256::from_slice),
                     uncles_hash: EMPTY_UNCLES_HASH,
                     number: (row.number as u64).into(),
-                    l1_batch_number: row.l1_batch_number.map(|number| (number as u64).into()),
+                    l1_batch_number,
                     base_fee_per_gas: bigdecimal_to_u256(row.base_fee_per_gas),
                     timestamp: (row.timestamp as u64).into(),
-                    l1_batch_timestamp: row.l1_batch_timestamp.map(U256::from),
+                    l1_batch_timestamp,
                     gas_limit: (row
                         .block_gas_limit
                         .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
