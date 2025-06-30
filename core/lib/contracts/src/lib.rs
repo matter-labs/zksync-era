@@ -36,7 +36,7 @@ pub enum ContractLanguage {
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
 const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 
-const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/artifacts/contracts";
+const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
@@ -85,10 +85,7 @@ const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "DualVerifier.sol/DualVerifier.json",
 );
 
-const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = (
-    "proof-manager-contracts",
-    "artifacts/contracts/ProofManagerV1.sol/ProofManagerV1.json",
-);
+const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
