@@ -5,12 +5,17 @@ use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::EcosystemConfig;
 
-use crate::commands::dev::commands::test::utils::{TestWallets, TEST_WALLETS_PATH};
-use crate::commands::dev::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_INIT_TEST_WALLET_RUN_INFO, MSG_INIT_TEST_WALLET_RUN_SUCCESS};
+use crate::commands::dev::{
+    commands::test::utils::{TestWallets, TEST_WALLETS_PATH},
+    messages::{
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_INIT_TEST_WALLET_RUN_INFO,
+        MSG_INIT_TEST_WALLET_RUN_SUCCESS,
+    },
+};
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    
+
     logger::info(MSG_INIT_TEST_WALLET_RUN_INFO);
 
     let chain_config = ecosystem_config
@@ -30,4 +35,4 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::outro(MSG_INIT_TEST_WALLET_RUN_SUCCESS);
 
     Ok(())
-} 
+}

@@ -12,14 +12,15 @@ use xshell::Shell;
 
 use self::commands::{
     clean::CleanCommands, config_writer::ConfigWriterArgs, contracts::ContractsArgs,
-    database::DatabaseCommands, fmt::FmtArgs, init_test_wallet::run as init_test_wallet_run, lint::LintArgs, prover::ProverCommands,
-    send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
+    database::DatabaseCommands, fmt::FmtArgs, init_test_wallet::run as init_test_wallet_run,
+    lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
+    snapshot::SnapshotCommands, test::TestCommands,
 };
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
-    MSG_INIT_TEST_WALLET_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
-    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_INIT_TEST_WALLET_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
 pub(crate) mod commands;
