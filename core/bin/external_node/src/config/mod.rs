@@ -318,7 +318,10 @@ impl LocalConfig {
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
             secrets: Secrets {
-                consensus: ConsensusSecrets::default(),
+                consensus: ConsensusSecrets {
+                    validator_key: None,
+                    node_key: Some("node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c".into())
+                },
                 postgres: PostgresSecrets {
                     server_url: Some(test_pool.database_url().clone()),
                     ..PostgresSecrets::default()
@@ -404,10 +407,17 @@ impl ExternalNodeConfig<()> {
 
 impl ExternalNodeConfig {
     #[cfg(test)]
-    pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
+    pub(crate) fn mock(
+        temp_dir: &tempfile::TempDir,
+        test_pool: &ConnectionPool<Core>,
+        consensus_port_offset: u16,
+    ) -> Self {
+        let mut consensus = ConsensusConfig::for_tests();
+        let port = 4000u16 + consensus_port_offset;
+        consensus.server_addr = format!("127.0.0.1:{port}").parse().unwrap();
         Self {
             local: LocalConfig::mock(temp_dir, test_pool),
-            consensus: None,
+            consensus: Some(consensus),
             config_params: CapturedParams::default(),
             remote: RemoteENConfig::mock(),
         }

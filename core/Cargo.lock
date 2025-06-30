@@ -12604,6 +12604,7 @@ dependencies = [
  "zksync_node_storage_init",
  "zksync_node_sync",
  "zksync_object_store",
+ "zksync_protobuf",
  "zksync_reorg_detector",
  "zksync_snapshots_applier",
  "zksync_state",
