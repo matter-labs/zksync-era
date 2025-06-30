@@ -12,8 +12,6 @@ import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
 import { exec } from 'utils';
 
-const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-
 async function logsPath(chain: string, name: string): Promise<string> {
     return await logsTestPath(chain, 'logs/server/', name);
 }
@@ -109,7 +107,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             }
         }
         let mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
-            enableConsensus,
+            enableConsensus: true,
             ethClientWeb3Url: l1NodeUrl,
             apiWeb3JsonRpcHttpUrl: l2NodeUrl,
             baseTokenAddress: contracts.l1.base_token_addr
