@@ -25,12 +25,7 @@ impl EthProofManager {
         config: EthProofManagerConfig,
     ) -> Self {
         Self {
-            watcher: watcher::EthProofWatcher::new(
-                client,
-                connection_pool,
-                blob_store,
-                config,
-            ),
+            watcher: watcher::EthProofWatcher::new(client, connection_pool, blob_store, config),
         }
     }
 

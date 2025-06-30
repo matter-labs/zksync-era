@@ -8,9 +8,7 @@ use zksync_types::web3::BlockNumber;
 
 use crate::{
     client::{EthProofManagerClient, RETRY_LIMIT},
-    watcher::events::{
-        EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler,
-    },
+    watcher::events::{EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler},
 };
 
 mod events;
@@ -60,7 +58,11 @@ impl EthProofWatcher {
             let from_block: u64 = 396773;
             let to_block: u64 = 397089;
 
-            tracing::info!("Getting events from block {} to block {}", from_block, to_block);
+            tracing::info!(
+                "Getting events from block {} to block {}",
+                from_block,
+                to_block
+            );
 
             //tracing::info!("topic: {:?}", self.event_handlers[0].signature());
 
