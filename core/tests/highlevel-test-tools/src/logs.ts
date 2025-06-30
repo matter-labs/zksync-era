@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 export function getLogsDirectory(chainName: string) {
 
     // vitest returns it in format `{filePath} > ${describeTitle} > ${testTitle}`
-    const suiteName = expect.getState().currentTestName?.split('>')[1] ?? '';
+    const suiteName = expect.getState().currentTestName?.split('>')[1].trim() ?? '';
 
     const logsDir = `../../../logs/highlevel/[${suiteName}] ${chainName}`;
     if (!fs.existsSync(logsDir)) {
@@ -18,7 +18,7 @@ export function markLogsDirectoryAsFailed(chainName: string) {
     const suiteName = expect.getState().currentTestName?.split('>')[1] ?? '';
 
     // Rename the log directory to indicate failure
-    const failedLogsDir = `../../../logs/highlevel/[FAILED][${suiteName}] ${chainName}`;
+    const failedLogsDir = `../../../logs/highlevel/[❌FAIL] [${suiteName}] ${chainName}`;
     try {
         if (fs.existsSync(getLogsDirectory(chainName))) {
             fs.renameSync(getLogsDirectory(chainName), failedLogsDir);

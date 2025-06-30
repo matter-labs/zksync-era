@@ -2,6 +2,7 @@ import {ChildProcess, spawn} from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import {getLogsDirectory, markLogsDirectoryAsFailed} from "./logs";
+import * as console from "node:console";
 
 /**
  * Strips ANSI escape sequences from a string
@@ -11,6 +12,30 @@ import {getLogsDirectory, markLogsDirectoryAsFailed} from "./logs";
 function stripAnsiEscapeCodes(str: string): string {
   // Remove ANSI escape sequences (colors, cursor movements, etc.)
   return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
+/**
+ * Reads the last N lines from a file
+ * @param filePath - The path to the file
+ * @param numLines - The number of lines to read from the end
+ * @returns The last N lines as a string, or empty string if file doesn't exist
+ */
+function readLastNLines(filePath: string, numLines: number): string {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return '';
+    }
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split('\n');
+    
+    // Get the last N lines, but don't include empty lines at the end
+    const lastLines = lines.slice(-numLines).filter(line => line.trim() !== '');
+    
+    return lastLines.join('\n');
+  } catch (error) {
+    return `Error reading log file: ${error}`;
+  }
 }
 
 /**
@@ -37,7 +62,7 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
     timeInfo = '(detached)';
   } else if (endTime) {
     const duration = endTime - startTime;
-    const failedPrefix = failed ? '[❌FAILED] ' : '';
+    const failedPrefix = failed ? '[❌FAIL] ' : '';
     timeInfo = `(${duration.toString().padStart(6)}ms)${failedPrefix}`;
   } else {
     timeInfo = '(running)';
@@ -46,6 +71,20 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
   // Log command with timestamp and time info, padded so commands align
   const logEntry = `[${timestamp}] ${timeInfo} ${fullCommand}\n`;
   fs.appendFileSync(executedCommandsLogFile, logEntry);
+}
+
+function findAndPrintErrorFromLogs(logFilePath: string) {
+  // Print last 30 lines of logs on error
+  const lastLogs = readLastNLines(logFilePath, 30);
+  if (lastLogs) {
+    console.error('\n📋 Last 30 lines of logs:');
+    console.error('')
+    console.error('─'.repeat(120));
+    console.error(lastLogs);
+    console.error('─'.repeat(120));
+    console.error('')
+  }
+
 }
 
 /**
@@ -95,7 +134,8 @@ export async function executeCommand(command: string, args: string[], chainName:
       const endTime = Date.now();
       
       // Log the command completion to executed commands log
-      logExecutedCommand(chainName, command, args, startTime, endTime, false, code !== 0);
+      const failed = code !== 0 && code !== 137;
+      logExecutedCommand(chainName, command, args, startTime, endTime, false, failed);
       
       const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code}\n`;
       logStream.write(closeMessage);
@@ -108,11 +148,15 @@ export async function executeCommand(command: string, args: string[], chainName:
         console.log(`✅ Command completed by being killed using .kill(). Logs saved to: ${logFilePath}`);
         resolve(child);
       } else {
-        // Rename the log directory to indicate failure
-        markLogsDirectoryAsFailed(chainName);
         
         const errorMessage = `Command ${command} ${args.join(' ')} failed with exit code ${code}. Check logs at: ${logFilePath}`;
         console.error(`❌ ${errorMessage}`);
+        
+        findAndPrintErrorFromLogs(logFilePath);
+
+        // Rename the log directory to indicate failure
+        markLogsDirectoryAsFailed(chainName);
+        
         reject(new Error(errorMessage));
       }
     });
@@ -126,10 +170,12 @@ export async function executeCommand(command: string, args: string[], chainName:
       const errorMessage = `[${new Date().toISOString()}] Command error: ${error.message}\n`;
       logStream.write(errorMessage);
       logStream.end();
-      
+
+      findAndPrintErrorFromLogs(logFilePath);
+
       // Rename the log directory to indicate failure
       markLogsDirectoryAsFailed(chainName);
-      
+
       reject(error);
     });
 
