@@ -36,6 +36,9 @@ pub enum ContractLanguage {
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
 const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 
+const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/artifacts/contracts";
+const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
+
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
@@ -82,6 +85,11 @@ const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "DualVerifier.sol/DualVerifier.json",
 );
 
+const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = (
+    "proof-manager-contracts",
+    "artifacts/contracts/ProofManagerV1.sol/ProofManagerV1.json",
+);
+
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
@@ -126,6 +134,20 @@ fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
     };
 
     load_contract_for_hardhat(path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
+}
+
+fn load_proof_manager_contract(path: (&str, &str)) -> Contract {
+    let forge_path = Path::new(FORGE_PROOF_MANAGER_PATH_PREFIX).join(path.1);
+    if let Some(contract) = load_contract_if_present(forge_path) {
+        return contract;
+    };
+
+    let hardhat_path = Path::new(HARDHAT_PROOF_MANAGER_PATH_PREFIX)
+        .join(path.0)
+        .join(path.1);
+    load_contract_if_present(hardhat_path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
     })
 }
@@ -205,6 +227,10 @@ pub fn l1_asset_router_contract() -> Contract {
 
 pub fn wrapped_base_token_store_contract() -> Contract {
     load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
+}
+
+pub fn proof_manager_contract() -> Contract {
+    load_proof_manager_contract(PROOF_MANAGER_CONTRACT_FILE)
 }
 
 pub fn verifier_contract() -> Contract {

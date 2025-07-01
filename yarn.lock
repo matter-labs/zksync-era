@@ -11999,7 +11999,6 @@ zksync-ethers@^5.0.0, zksync-ethers@^5.9.0:
   dependencies:
     ethers "~5.7.0"
 
-zksync-ethers@^6.18.0:
+"zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#di/avoid-zks-estimate-fee-build":
   version "6.18.0"
-  resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-6.18.0.tgz#f2fee53afadb048903da778baecf6f1874e19441"
-  integrity sha512-ScBZNlgYGppmq775mK36d44G5zS+PM4inzwlcKD1vFM2AleV9VvZmCOr7CSZGWTLofNraE4l7bhpwj8WAM/Osw==
+  resolved "https://github.com/zksync-sdk/zksync-ethers#b64fd27144356938c8876185add4cfdd537c15ef"

@@ -6,7 +6,6 @@ on:
         description: "Tag of an image"
         type: string
         required: true
-  pull_request:
 
 env:
   IMAGE_TAG: ${{ github.event.inputs.image_tag || 'v0.1.0' }}
@@ -21,25 +20,11 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
-
-      - name: start-services
-        run: |
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: init
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-
           ci_run zk
           ci_run cp etc/tokens/{test,localhost}.json
 

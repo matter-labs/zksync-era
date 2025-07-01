@@ -173,4 +173,10 @@ impl ZksNamespaceServer for ZksNamespace {
         self.get_l2_multicall3_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.gas_per_pubdata_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
 }
