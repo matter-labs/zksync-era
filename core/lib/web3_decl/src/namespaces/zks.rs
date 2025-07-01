@@ -123,4 +123,7 @@ pub trait ZksNamespace {
 
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
+
+    #[method(name = "gasPerPubdata")]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }

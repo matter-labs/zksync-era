@@ -22,7 +22,7 @@ pub struct MempoolStats {
 
 #[derive(Debug)]
 pub struct MempoolStore {
-    /// Pending L1 transactions
+    /// Pending L1 transactions. They are stored in a `BTreeMap` to allow fast `split_off` in `advance_after_block`.
     l1_transactions: BTreeMap<PriorityOpId, L1Tx>,
     /// Pending L2 transactions grouped by initiator address
     l2_transactions_per_account: HashMap<Address, AccountTransactions>,

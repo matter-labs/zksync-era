@@ -902,7 +902,10 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
     }
 
     async fn load_base_system_contracts(

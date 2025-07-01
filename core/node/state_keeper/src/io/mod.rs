@@ -215,8 +215,8 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         first_block_in_batch: bool,
     ) -> anyhow::Result<()>;
 
-    /// Updates mempool state (mostly nonces) after block is processed.
-    async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
+    /// Updates mempool state (nonces for L2 txs and next priority op id) after block is processed.
+    async fn advance_mempool(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
 
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;

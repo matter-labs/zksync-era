@@ -350,7 +350,10 @@ impl StateKeeperIO for ExternalIO {
         Ok(())
     }
 
-    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
         // Do nothing
     }
 

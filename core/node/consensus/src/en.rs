@@ -1,42 +1,23 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_engine::{EngineInterface as _, EngineManager};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
+use zksync_consensus_engine::EngineManager;
 use zksync_consensus_executor::{self as executor};
-use zksync_consensus_roles::validator;
 use zksync_dal::consensus_dal;
-use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
+use zksync_node_sync::sync_action::ActionQueueSender;
 use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
-    error::is_retryable,
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::{
-    metrics::METRICS,
     registry::{Registry, RegistryAddress},
-    storage::{self, ConnectionPool},
+    storage::ConnectionPool,
 };
-
-/// Waits until the main node block is greater or equal to the given block number.
-/// Returns the current main node block number.
-async fn wait_for_main_node_block(
-    ctx: &ctx::Ctx,
-    sync_state: &SyncState,
-    pred: impl Fn(validator::BlockNumber) -> bool,
-) -> ctx::OrCanceled<validator::BlockNumber> {
-    sync::wait_for_some(ctx, &mut sync_state.subscribe(), |inner| {
-        inner
-            .main_node_block()
-            .map(|n| validator::BlockNumber(n.0.into()))
-            .filter(|n| pred(*n))
-    })
-    .await
-}
 
 /// External node.
 pub(super) struct EN {
@@ -149,36 +130,6 @@ impl EN {
         }
     }
 
-    /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
-    pub async fn run_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        actions: ActionQueueSender,
-    ) -> anyhow::Result<()> {
-        tracing::warn!("\
-            WARNING: this node is using ZKsync API synchronization, which will be deprecated soon. \
-            Please follow this instruction to switch to p2p synchronization: \
-            https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/10_decentralization.md");
-        let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
-            // Update sync state in the background.
-            s.spawn_bg(self.fetch_state_loop(ctx));
-            let mut payload_queue = self
-                .pool
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .new_payload_queue(actions)
-                .await
-                .wrap("new_fetcher_cursor()")?;
-            self.fetch_blocks(ctx, &mut payload_queue).await
-        })
-        .await;
-        match res {
-            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
-            Err(ctx::Error::Internal(err)) => Err(err),
-        }
-    }
-
     /// Periodically fetches the head of the main node
     /// and updates `SyncState` accordingly.
     async fn fetch_state_loop(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
@@ -215,54 +166,5 @@ impl EN {
         }
         .proto_fmt(&cfg.0)
         .context("deserialize()")?)
-    }
-
-    /// Fetches (with retries) the given block from the main node.
-    async fn fetch_block(
-        &self,
-        ctx: &ctx::Ctx,
-        n: validator::BlockNumber,
-    ) -> ctx::Result<FetchedBlock> {
-        const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
-        let n = L2BlockNumber(n.0.try_into().context("overflow")?);
-        METRICS.fetch_block.inc();
-        loop {
-            match ctx.wait(self.client.sync_l2_block(n, true)).await? {
-                Ok(Some(block)) => return Ok(block.try_into()?),
-                Ok(None) => {}
-                Err(err) if is_retryable(&err) => {}
-                Err(err) => Err(err).with_context(|| format!("client.sync_l2_block({n})"))?,
-            }
-            ctx.sleep(RETRY_INTERVAL).await?;
-        }
-    }
-
-    /// Fetches blocks starting with `queue.next()`.
-    async fn fetch_blocks(
-        &self,
-        ctx: &ctx::Ctx,
-        queue: &mut storage::PayloadQueue,
-    ) -> ctx::Result<()> {
-        const MAX_CONCURRENT_REQUESTS: usize = 30;
-        // let mut next = queue.next();
-        // TODO: ask state keeper for next block.
-        let mut next = validator::BlockNumber(1);
-        scope::run!(ctx, |ctx, s| async {
-            let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
-            s.spawn::<()>(async {
-                let send = send;
-                loop {
-                    wait_for_main_node_block(ctx, &self.sync_state, |main| main >= next).await?;
-                    send.send(ctx, s.spawn(self.fetch_block(ctx, next))).await?;
-                    next = next.next();
-                }
-            });
-            loop {
-                let block = recv.recv(ctx).await?.join(ctx).await?;
-                // queue.send(block).await.context("queue.send()")?;
-                // TODO: ask state keeper for cursor.
-            }
-        })
-        .await
     }
 }

@@ -1,7 +1,6 @@
 //! Storage implementation based on DAL.
 
 use zksync_concurrency::ctx;
-use zksync_consensus_roles::validator;
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
 use zksync_state_keeper::io::common::FetcherCursor;
@@ -38,7 +37,7 @@ pub(crate) struct PayloadQueue {
 }
 
 impl PayloadQueue {
-    /// converts the block into actions and pushes them to the actions queue.
+    /// Converts the block into actions and pushes them to the actions queue.
     /// Does nothing and returns `Ok(false)` if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
     pub(crate) async fn send(
