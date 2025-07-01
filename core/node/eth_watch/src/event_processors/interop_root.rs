@@ -63,9 +63,6 @@ impl EventProcessor for InteropRootProcessor {
             .map_err(DalError::generalize)?;
 
         for event in events {
-            println!("source {:?}", self.event_source);
-            println!("event in global {:?}", event);
-            // let root = event.topics[3];
             let mut tokens = ethabi::decode(
                 &[ethabi::ParamType::Array(Box::new(
                     ethabi::ParamType::FixedBytes(32),
@@ -73,15 +70,7 @@ impl EventProcessor for InteropRootProcessor {
                 event.data.0.as_slice(),
             )
             .expect("Failed to decode BytecodeL1PublicationRequested message");
-            println!("tokens in global {:?}", tokens);
             let token = tokens.remove(0);
-            // println!("formatted 1 {:?}", token);
-            // println!("formatted 1.5 {:?}", token.type_check(&ethabi::ParamType::Array(Box::new(ethabi::ParamType::FixedBytes(32)))));
-            // println!("formatted 2 {:?}", token.clone().into_array());
-            // println!("formatted 3 {:?}", (token.clone().into_array().unwrap())[0].clone().into_fixed_bytes());
-            // println!("formatted 4 {:?}", H256::from_slice(&token.clone().into_array().unwrap()[0].clone().into_fixed_bytes().unwrap()));
-
-            // .iter().map(|t| format!("{:02x}", t)).collect::<String>());
 
             let mut root: Vec<H256> = vec![];
             if event.address == L1_MESSENGER_ADDRESS {
@@ -97,11 +86,8 @@ impl EventProcessor for InteropRootProcessor {
                     .collect::<Vec<_>>(),
             ]
             .concat();
-            println!("root in global {:?}", root);
             assert_eq!(event.topics[0], self.appended_interop_root_signature); // guaranteed by the watcher
-                                                                               // tracing::info!(%root, "Saving global message root");
-                                                                               // let block_number = event.block_number; // kl todo
-                                                                               // let block_number = block_number.unwrap().0[0] as u64;
+
             let block_bytes: [u8; 8] = event.topics[2].as_bytes()[24..32].try_into().unwrap();
             let chain_id_bytes: [u8; 8] = event.topics[1].as_bytes()[24..32].try_into().unwrap();
             let block_number: u64 = u64::from_be_bytes(block_bytes);
@@ -130,8 +116,6 @@ impl EventProcessor for InteropRootProcessor {
                 continue;
             }
 
-            println!("block_number in global {:?}", block_number);
-            println!("chain_id in global {:?}", chain_id);
             let timestamp = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .context("incorrect system time")?
@@ -154,17 +138,11 @@ impl EventProcessor for InteropRootProcessor {
     }
 
     fn topic1(&self) -> Option<H256> {
-        // println!("appended_interop_root_signature: {:?}", self.appended_interop_root_signature);
-
         Some(self.appended_interop_root_signature)
     }
 
-    // fn topic2(&self) -> Option<H256> {
-    //     Some(H256::from_low_u64_be(self.l2_chain_id.0))
-    // }
-
     fn event_source(&self) -> EventsSource {
-        self.event_source.clone()
+        self.event_source
     }
 
     fn event_type(&self) -> EventType {
@@ -175,5 +153,3 @@ impl EventProcessor for InteropRootProcessor {
         true
     }
 }
-
-impl InteropRootProcessor {}

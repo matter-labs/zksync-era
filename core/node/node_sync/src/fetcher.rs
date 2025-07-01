@@ -4,7 +4,8 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    helpers::unix_timestamp_ms, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, H256,
 };
 
 use super::{
@@ -54,6 +55,8 @@ pub struct FetchedBlock {
     pub operator_address: Address,
     pub transactions: Vec<FetchedTransaction>,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl FetchedBlock {
@@ -105,6 +108,8 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .map(FetchedTransaction::new)
                 .collect(),
             pubdata_params,
+            pubdata_limit: block.pubdata_limit,
+            interop_roots: block.interop_roots.clone(),
         })
     }
 }
@@ -173,12 +178,14 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    first_l2_block: L2BlockParams {
-                        timestamp: block.timestamp,
-                        virtual_blocks: block.virtual_blocks,
-                        interop_roots: vec![],
-                    },
+                    // It's ok that we lose info about millis since it's only used for sealing criteria.
+                    first_l2_block: L2BlockParams::new_raw(
+                        block.timestamp * 1000,
+                        block.virtual_blocks,
+                        vec![],
+                    ),
                     pubdata_params: block.pubdata_params,
+                    pubdata_limit: block.pubdata_limit,
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,
@@ -189,11 +196,12 @@ impl IoCursorExt for IoCursor {
             // New batch implicitly means a new L2 block, so we only need to push the L2 block action
             // if it's not a new batch.
             new_actions.push(SyncAction::L2Block {
-                params: L2BlockParams {
-                    timestamp: block.timestamp,
-                    virtual_blocks: block.virtual_blocks,
-                    interop_roots: vec![],
-                },
+                params: L2BlockParams::new_raw(
+                    block.timestamp * 1000,
+                    block.virtual_blocks,
+                    block.interop_roots,
+                ),
+
                 number: block.number,
             });
             FETCHER_METRICS.miniblock.set(block.number.0.into());

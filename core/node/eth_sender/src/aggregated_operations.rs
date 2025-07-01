@@ -65,6 +65,17 @@ impl L1BatchAggregatedOperation {
         first_batch.header.number..=last_batch.header.number
     }
 
+    pub fn dependency_roots_per_batch(&self) -> Vec<u64> {
+        match self {
+            Self::Execute(op) => op
+                .dependency_roots
+                .iter()
+                .map(|roots| roots.len() as u64)
+                .collect(),
+            _ => vec![],
+        }
+    }
+
     pub fn get_action_caption(&self) -> &'static str {
         match self {
             Self::Commit(..) => "commit",

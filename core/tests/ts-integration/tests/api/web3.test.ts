@@ -2,15 +2,15 @@
  * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
 import { TestMaster } from '../../src';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { types } from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
+import { anyTransaction, deployContract, getTestContract } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
 import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
 import { NodeMode } from '../../src/types';
+import { waitForNewL1Batch } from 'utils';
 
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
@@ -126,14 +126,6 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test some zks web3 methods', async () => {
-        // zks_getAllAccountBalances
-        // NOTE: `getAllBalances` will not work on external node,
-        // since TokenListFetcher is not running
-        if (testMaster.environment().nodeMode === NodeMode.Main) {
-            const balances = await alice.getAllBalances();
-            const tokenBalance = await alice.getBalance(l2Token);
-            expect(balances[l2Token.toLowerCase()] == tokenBalance);
-        }
         // zks_L1ChainId
         const l1ChainId = (await alice.providerL1!.getNetwork()).chainId;
         const l1ChainIdFromL2Provider = BigInt(await alice.provider.l1ChainId());

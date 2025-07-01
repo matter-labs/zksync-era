@@ -5,10 +5,9 @@
 import { TestMaster } from '../../src';
 import { Token } from '../../src/types';
 
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
-import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/utils';
+import { BOOTLOADER_FORMAL_ADDRESS, parseEip712 } from 'zksync-ethers/build/utils';
 import fs from 'fs';
 
 describe('Debug methods', () => {
@@ -110,6 +109,34 @@ describe('Debug methods', () => {
             .provider.send('debug_traceTransaction', [tx.hash, { tracer: 'callTracer' }]);
         expect(txCallTrace).toEqual(expected);
         expect(txCallTrace).toEqual(txCallTraceWithTracer);
+    });
+
+    test('Return EIP712 transaction as raw bytes', async () => {
+        const value = 200n;
+        await aliceErc20.transfer(bob.address, value).then((tx: any) => tx.wait());
+        const tx = await aliceErc20.transfer(bob.address, value);
+        await tx.wait();
+        const rawTxBytes = await testMaster.mainAccount().provider.send('debug_getRawTransaction', [tx.hash]);
+        const parsedTx = parseEip712(rawTxBytes);
+
+        // Base fields should match original transaction
+        expect(parsedTx.type).toEqual(0x71);
+        expect(parsedTx.to).toEqual(tx.to);
+        expect(parsedTx.from).toEqual(tx.from);
+        expect(parsedTx.nonce).toEqual(tx.nonce);
+        expect(parsedTx.gasLimit).toEqual(tx.gasLimit);
+        expect(parsedTx.gasPrice).toEqual(tx.gasPrice);
+        expect(parsedTx.maxPriorityFeePerGas).toEqual(tx.maxPriorityFeePerGas);
+        expect(parsedTx.maxFeePerGas).toEqual(tx.maxFeePerGas);
+        expect(parsedTx.data).toEqual(tx.data);
+        expect(parsedTx.value).toEqual(tx.value);
+        expect(parsedTx.chainId).toEqual(tx.chainId);
+        expect(parsedTx.hash).toEqual(tx.hash);
+
+        // EIP712 metadata should be present
+        expect(parsedTx.customData?.gasPerPubdata).toBeTruthy();
+        expect(parsedTx.customData?.factoryDeps).toEqual([]);
+        expect(parsedTx.customData?.customSignature).toBeTruthy();
     });
 
     afterAll(async () => {

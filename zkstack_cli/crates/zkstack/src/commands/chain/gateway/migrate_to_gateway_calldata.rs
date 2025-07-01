@@ -342,15 +342,23 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
                 );
                 // It is the expected case, it will be handled later in the file
             }
-            GatewayMigrationProgressState::PendingManualFinalization => {
+            GatewayMigrationProgressState::PendingManualFinalization
+            | GatewayMigrationProgressState::AwaitingFinalization => {
                 unreachable!("`GatewayMigrationProgressState::PendingManualFinalization` should not be returned for migration to Gateway")
             }
-            _ => {
-                let msg = message_for_gateway_migration_progress_state(
+            GatewayMigrationProgressState::NotStarted
+            | GatewayMigrationProgressState::NotificationSent
+            | GatewayMigrationProgressState::NotificationReceived(_) => {
+                anyhow::bail!(message_for_gateway_migration_progress_state(
                     state,
                     MigrationDirection::ToGateway,
-                );
-                logger::info(&msg);
+                ));
+            }
+            GatewayMigrationProgressState::Finished => {
+                logger::info(message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                ));
             }
         }
     }

@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -13,7 +11,6 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::ZksNamespaceServer,
-    types::Token,
 };
 
 use crate::web3::ZksNamespace;
@@ -66,28 +63,13 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.l1_chain_id_impl())
     }
 
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        self.get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_all_account_balances(
-        &self,
-        address: Address,
-    ) -> RpcResult<HashMap<Address, U256>> {
-        self.get_all_account_balances_impl(address)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        log_proof_target: Option<LogProofTarget>,
+        interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, log_proof_target)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, interop_mode)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -189,6 +171,12 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
         self.get_l2_multicall3_impl()
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.gas_per_pubdata_impl()
+            .await
             .map_err(|err| self.current_method().map_err(err))
     }
 }

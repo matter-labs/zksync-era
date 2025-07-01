@@ -6,12 +6,14 @@ use zksync_types::{api::Log, H256};
 
 pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
+    appended_chain_batch_root_interop::BatchRootProcessorInterop,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     gateway_migration::GatewayMigrationProcessor, interop_root::InteropRootProcessor,
     priority_ops::PriorityOpsEventProcessor,
 };
 
 mod appended_chain_batch_root;
+mod appended_chain_batch_root_interop;
 mod decentralized_upgrades;
 mod gateway_migration;
 mod interop_root;
@@ -35,7 +37,7 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum EventsSource {
     L1,
     SL,
@@ -72,7 +74,7 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
 
     fn event_source(&self) -> EventsSource;
 
-    // This has  to be unique for each processor
+    // This has to be unique for each processor
     fn event_type(&self) -> EventType;
 
     /// Whether processor expect events only from finalized blocks.

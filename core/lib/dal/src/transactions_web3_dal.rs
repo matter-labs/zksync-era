@@ -484,6 +484,57 @@ impl TransactionsWeb3Dal<'_, '_> {
             .remove(&block)
             .unwrap_or_default())
     }
+
+    /// Returns EIP-2718 binary-encoded representation of a transaction. As L1 priority transactions
+    /// or upgrade transaction do not have a valid EIP-2718 representation, returns an empty byte
+    /// array for them to signify that transaction exists but cannot be encoded.
+    pub async fn get_raw_transaction_bytes(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                coalesce(input, '\x'::bytea) AS "input!"
+            FROM
+                transactions
+            WHERE
+                transactions.hash = $1
+            "#,
+            hash.as_bytes()
+        )
+        .map(|x| x.input)
+        .instrument("get_raw_transaction_bytes")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await
+    }
+
+    /// Returns EIP-2718 binary-encoded representation of all transactions from the given L2 block.
+    /// As L1 priority transactions or upgrade transaction do not have a valid EIP-2718
+    /// representation, returns an empty byte array for them to signify that transaction exists but
+    /// cannot be encoded.
+    pub async fn get_l2_block_raw_transactions_bytes(
+        &mut self,
+        block: L2BlockNumber,
+    ) -> DalResult<Vec<Vec<u8>>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                coalesce(input, '\x'::bytea) AS "input!"
+            FROM
+                transactions
+            INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            WHERE
+                miniblocks.number = $1
+            ORDER BY
+                index_in_block
+            "#,
+            i64::from(block.0),
+        )
+        .map(|x| x.input)
+        .instrument("get_l2_block_raw_transactions_bytes")
+        .with_arg("block", &block)
+        .fetch_all(self.storage)
+        .await
+    }
 }
 
 #[cfg(test)]

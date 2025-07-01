@@ -85,11 +85,6 @@
       },
       {
         "ordinal": 16,
-        "name": "confirmed_at_block",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 17,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -116,7 +111,6 @@
       true,
       false,
       false,
-      true,
       true
     ]
   },

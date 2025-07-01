@@ -5,6 +5,8 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct PruningConfig {
+    /// Whether pruning is enabled. Note that if `data_retention` is high enough, pruning can effectively
+    /// never happen even if this param is set to `true`.
     #[config(default)]
     pub enabled: bool,
     /// Number of L1 batches pruned at a time.
@@ -14,11 +16,11 @@ pub struct PruningConfig {
     /// The default value is 60 seconds.
     #[config(default_t = 1 * TimeUnit::Minutes)]
     pub removal_delay: Duration,
-    /// If set, L1 batches will be pruned after the batch timestamp is this old (in seconds). Note that an L1 batch
+    /// If set, L1 batches will be pruned after the batch timestamp is this old. Note that an L1 batch
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
-    /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
+    /// which happens roughly 24 hours after its generation on the Era mainnet. Thus, in practice this value can specify
     /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
-    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 1 hour.
+    /// If set to 0, L1 batches will not be retained based on their timestamp.
     #[config(default_t = 1 * TimeUnit::Hours)]
     pub data_retention: Duration,
 }

@@ -11,15 +11,17 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{
+    interface::Halt,
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
-    H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -63,6 +65,8 @@ pub struct MempoolIO {
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
     pubdata_type: PubdataType,
+    pubdata_limit: u64,
+    last_batch_protocol_version: Option<ProtocolVersionId>,
 }
 
 #[async_trait]
@@ -124,7 +128,7 @@ impl StateKeeperIO for MempoolIO {
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
-        let Some((system_env, l1_batch_env, pubdata_params)) = self
+        let Some(restored_l1_batch_env) = self
             .l1_batch_params_provider
             .load_l1_batch_env(
                 &mut storage,
@@ -136,15 +140,14 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
-        let pending_batch_data =
-            load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed loading data for re-execution for pending L1 batch #{}",
-                        cursor.l1_batch
-                    )
-                })?;
+        let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading data for re-execution for pending L1 batch #{}",
+                    cursor.l1_batch
+                )
+            })?;
 
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
@@ -164,9 +167,13 @@ impl StateKeeperIO for MempoolIO {
                 pending_batch_data
                     .l1_batch_env
                     .clone()
-                    .into_unsealed_header(Some(pending_batch_data.system_env.version)),
+                    .into_unsealed_header(
+                        Some(pending_batch_data.system_env.version),
+                        pending_batch_data.pubdata_limit,
+                    ),
             )
             .await?;
+        self.last_batch_protocol_version = Some(pending_batch_data.system_env.version);
 
         Ok((cursor, Some(pending_batch_data)))
     }
@@ -176,120 +183,13 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
-        // Check if there is an existing unsealed batch
-        if let Some(unsealed_storage_batch) = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await?
-            .blocks_dal()
-            .get_unsealed_l1_batch()
-            .await?
-        {
-            let protocol_version = unsealed_storage_batch
-                .protocol_version
-                .context("unsealed batch is missing protocol version")?;
-            return Ok(Some(L1BatchParams {
-                protocol_version,
-                validation_computational_gas_limit: self.validation_computational_gas_limit,
-                operator_address: unsealed_storage_batch.fee_address,
-                fee_input: unsealed_storage_batch.fee_input,
-                first_l2_block: L2BlockParams {
-                    timestamp: unsealed_storage_batch.timestamp,
-                    // This value is effectively ignored by the protocol.
-                    virtual_blocks: 1,
-                    interop_roots: vec![],
-                },
-                pubdata_params: self.pubdata_params(protocol_version)?,
-            }));
+        let params = self
+            .wait_for_new_batch_params_inner(cursor, max_wait)
+            .await?;
+        if let Some(v) = params.as_ref().map(|p| p.protocol_version) {
+            self.last_batch_protocol_version = Some(v);
         }
-
-        let deadline = Instant::now() + max_wait;
-
-        // Block until at least one transaction in the mempool can match the filter (or timeout happens).
-        // This is needed to ensure that block timestamp is not too old.
-        for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We cannot create two L1 batches or L2 blocks with the same timestamp (forbidden by the bootloader).
-            // Hence, we wait until the current timestamp is larger than the timestamp of the previous L2 block.
-            // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
-            let timestamp = tokio::time::timeout_at(
-                deadline.into(),
-                sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-            );
-            let Some(timestamp) = timestamp.await.ok() else {
-                return Ok(None);
-            };
-
-            tracing::trace!(
-                "Fee input for L1 batch #{} is {:#?}",
-                cursor.l1_batch,
-                self.filter.fee_input
-            );
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
-            let protocol_version = storage
-                .protocol_versions_dal()
-                .protocol_version_id_by_timestamp(timestamp)
-                .await
-                .context("Failed loading protocol version")?;
-            let previous_protocol_version = storage
-                .blocks_dal()
-                .pending_protocol_version()
-                .await
-                .context("Failed loading previous protocol version")?;
-            let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
-                storage
-                    .protocol_versions_dal()
-                    .get_protocol_upgrade_tx(protocol_version)
-                    .await
-                    .context("Failed loading protocol upgrade tx")?
-                    .is_some()
-            } else {
-                false
-            };
-            drop(storage);
-
-            // We create a new filter each time, since parameters may change and a previously
-            // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(
-                self.batch_fee_input_provider.as_ref(),
-                protocol_version.into(),
-            )
-            .await
-            .context("failed creating L2 transaction filter")?;
-
-            // We do not populate mempool with upgrade tx so it should be checked separately.
-            if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
-                tokio::time::sleep(self.delay_interval).await;
-                continue;
-            }
-
-            self.pool
-                .connection_tagged("state_keeper")
-                .await?
-                .blocks_dal()
-                .insert_l1_batch(UnsealedL1BatchHeader {
-                    number: cursor.l1_batch,
-                    timestamp,
-                    protocol_version: Some(protocol_version),
-                    fee_address: self.fee_account,
-                    fee_input: self.filter.fee_input,
-                })
-                .await?;
-
-            return Ok(Some(L1BatchParams {
-                protocol_version,
-                validation_computational_gas_limit: self.validation_computational_gas_limit,
-                operator_address: self.fee_account,
-                fee_input: self.filter.fee_input,
-                first_l2_block: L2BlockParams {
-                    timestamp,
-                    // This value is effectively ignored by the protocol.
-                    virtual_blocks: 1,
-                    interop_roots: vec![],
-                },
-                pubdata_params: self.pubdata_params(protocol_version)?,
-            }));
-        }
-        Ok(None)
+        Ok(params)
     }
 
     async fn wait_for_new_l2_block_params(
@@ -297,35 +197,51 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        // We must provide different timestamps for each L2 block.
-        // If L2 block sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
+        let protocol_version = self
+            .last_batch_protocol_version
+            .context("`last_batch_protocol_version` is missing")?;
+        // For versions <= v28 timestamps should be increasing for each L2 block.
+        // For versions >  v28 timestamps should be non-decreasing for each L2 block.
+        // - We sleep past `prev_l2_block_timestamp` for <= v28.
+        // - Otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
+        //   if clock returns consistent time then it shouldn't actually sleep.
+        let timestamp_to_sleep_past = if protocol_version.is_pre_interop_fast_blocks() {
+            cursor.prev_l2_block_timestamp
+        } else {
+            cursor.prev_l2_block_timestamp.saturating_sub(1)
+        };
         let timeout_result = tokio::time::timeout(
             max_wait,
-            sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
+            sleep_past(timestamp_to_sleep_past, cursor.next_l2_block),
         )
         .await;
-        let Ok(timestamp) = timeout_result else {
+        let Ok(timestamp_ms) = timeout_result else {
             return Ok(None);
         };
 
-        Ok(Some(L2BlockParams {
-            timestamp,
+        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        let interop_roots = storage
+            .interop_root_dal()
+            .get_new_interop_roots(limit)
+            .await?;
+        Ok(Some(L2BlockParams::new_raw(
+            timestamp_ms,
             // This value is effectively ignored by the protocol.
-            virtual_blocks: 1,
-            interop_roots: vec![],
-        }))
+            1,
+            interop_roots,
+        )))
     }
 
-    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
-        let current_timestamp_millis = millis_since_epoch();
-        let current_timestamp = (current_timestamp_millis / 1_000) as u64;
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u64) {
+        let current_timestamp_ms = millis_since_epoch();
 
-        if current_timestamp < *block_timestamp {
+        if current_timestamp_ms < *block_timestamp_ms {
             tracing::warn!(
-                "Trying to update block timestamp {block_timestamp} with lower value timestamp {current_timestamp}",
+                "Trying to update block timestamp {block_timestamp_ms} with lower value timestamp {current_timestamp_ms}",
             );
         } else {
-            *block_timestamp = current_timestamp;
+            *block_timestamp_ms = current_timestamp_ms;
         }
     }
 
@@ -456,22 +372,6 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage.interop_root_dal().get_new_interop_roots().await?)
-    }
-
-    async fn load_l2_block_interop_root(
-        &self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
-            .interop_root_dal()
-            .get_interop_roots(l2block_number)
-            .await?)
-    }
-
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
@@ -491,14 +391,15 @@ impl StateKeeperIO for MempoolIO {
     }
 }
 
-/// Sleeps until the current timestamp is larger than the provided `timestamp`.
+/// Sleeps until the current timestamp in seconds is larger than the provided `timestamp`.
 ///
-/// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
+/// Returns the current timestamp in millis after the sleep.
+/// If converted to seconds it is guaranteed to be larger than `timestamp`.
 async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
     let mut current_timestamp_millis = millis_since_epoch();
-    let mut current_timestamp = (current_timestamp_millis / 1_000) as u64;
+    let mut current_timestamp = current_timestamp_millis / 1_000;
     match timestamp.cmp(&current_timestamp) {
-        cmp::Ordering::Less => return current_timestamp,
+        cmp::Ordering::Less => return current_timestamp_millis,
         cmp::Ordering::Equal => {
             tracing::info!(
                 "Current timestamp {} for L2 block #{l2_block} is equal to previous L2 block timestamp; waiting until \
@@ -525,15 +426,15 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
         // since we've ensured that `timestamp >= current_timestamp`.
         let wait_seconds = timestamp - current_timestamp;
         // Time to wait until the current timestamp increases.
-        let wait_millis = 1_001 - (current_timestamp_millis % 1_000) as u64;
+        let wait_millis = 1_001 - (current_timestamp_millis % 1_000);
         let wait = Duration::from_millis(wait_millis + wait_seconds * 1_000);
 
         tokio::time::sleep(wait).await;
         current_timestamp_millis = millis_since_epoch();
-        current_timestamp = (current_timestamp_millis / 1_000) as u64;
+        current_timestamp = current_timestamp_millis / 1_000;
 
         if current_timestamp > timestamp {
-            return current_timestamp;
+            return current_timestamp_millis;
         }
     }
 }
@@ -568,6 +469,8 @@ impl MempoolIO {
             chain_id,
             l2_da_validator_address,
             pubdata_type,
+            pubdata_limit: config.max_pubdata_per_batch.0,
+            last_batch_protocol_version: None,
         })
     }
 
@@ -585,6 +488,152 @@ impl MempoolIO {
         };
 
         Ok(pubdata_params)
+    }
+
+    async fn wait_for_new_batch_params_inner(
+        &mut self,
+        cursor: &IoCursor,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<L1BatchParams>> {
+        // Check if there is an existing unsealed batch
+        if let Some(unsealed_storage_batch) = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await?
+        {
+            let protocol_version = unsealed_storage_batch
+                .protocol_version
+                .context("unsealed batch is missing protocol version")?;
+            return Ok(Some(L1BatchParams {
+                protocol_version,
+                validation_computational_gas_limit: self.validation_computational_gas_limit,
+                operator_address: unsealed_storage_batch.fee_address,
+                fee_input: unsealed_storage_batch.fee_input,
+                // We only persist timestamp in seconds.
+                // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
+                first_l2_block: L2BlockParams::new(unsealed_storage_batch.timestamp * 1000),
+                pubdata_params: self.pubdata_params(protocol_version)?,
+                pubdata_limit: unsealed_storage_batch.pubdata_limit,
+            }));
+        }
+
+        let deadline = Instant::now() + max_wait;
+
+        let previous_protocol_version = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .blocks_dal()
+            .pending_protocol_version()
+            .await
+            .context("Failed loading previous protocol version")?;
+        // Block until at least one transaction in the mempool can match the filter (or timeout happens).
+        // This is needed to ensure that block timestamp is not too old.
+        for _ in 0..poll_iters(self.delay_interval, max_wait) {
+            let curr_timestamp = millis_since_epoch() / 1000;
+            let mut conn = self.pool.connection_tagged("state_keeper").await?;
+            let protocol_version = conn
+                .protocol_versions_dal()
+                .protocol_version_id_by_timestamp(curr_timestamp)
+                .await
+                .context("Failed loading protocol version")?;
+            drop(conn);
+            // We cannot create two L1 batches with the same timestamp regardless of the protocol version.
+            // For versions <= v28 timestamps should be increasing for each L2 block.
+            // For versions >  v28 timestamps should be non-decreasing for each L2 block.
+            // Also, we want to keep the timestamp of the batch to be the same as the timestamp of its first L2 block.
+            // - We sleep past `prev_l2_block_timestamp` for <= v28.
+            // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
+            //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
+            // Note, that when the first v29 batch is starting it should still follow v28 rules since upgrade tx wasn't executed yet.
+            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_interop_fast_blocks()
+            {
+                cursor.prev_l2_block_timestamp
+            } else {
+                cursor
+                    .prev_l1_batch_timestamp
+                    .max(cursor.prev_l2_block_timestamp.saturating_sub(1))
+            };
+            let timestamp_ms = tokio::time::timeout_at(
+                deadline.into(),
+                sleep_past(timestamp_to_sleep_past, cursor.next_l2_block),
+            );
+            let Some(timestamp_ms) = timestamp_ms.await.ok() else {
+                return Ok(None);
+            };
+            let timestamp = timestamp_ms / 1000;
+
+            tracing::trace!(
+                "Fee input for L1 batch #{} is {:#?}",
+                cursor.l1_batch,
+                self.filter.fee_input
+            );
+            let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
+                self.pool
+                    .connection_tagged("state_keeper")
+                    .await?
+                    .protocol_versions_dal()
+                    .get_protocol_upgrade_tx(protocol_version)
+                    .await
+                    .context("Failed loading protocol upgrade tx")?
+                    .is_some()
+            } else {
+                false
+            };
+
+            // We create a new filter each time, since parameters may change and a previously
+            // ignored transaction in the mempool may be scheduled for the execution.
+            self.filter = l2_tx_filter(
+                self.batch_fee_input_provider.as_ref(),
+                protocol_version.into(),
+            )
+            .await
+            .context("failed creating L2 transaction filter")?;
+
+            // We do not populate mempool with upgrade tx so it should be checked separately.
+            if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
+                tokio::time::sleep(self.delay_interval).await;
+                continue;
+            }
+
+            let pubdata_limit = if protocol_version < ProtocolVersionId::Version29 {
+                None
+            } else {
+                Some(self.pubdata_limit)
+            };
+            self.pool
+                .connection_tagged("state_keeper")
+                .await?
+                .blocks_dal()
+                .insert_l1_batch(UnsealedL1BatchHeader {
+                    number: cursor.l1_batch,
+                    timestamp,
+                    protocol_version: Some(protocol_version),
+                    fee_address: self.fee_account,
+                    fee_input: self.filter.fee_input,
+                    pubdata_limit,
+                })
+                .await?;
+
+            return Ok(Some(L1BatchParams {
+                protocol_version,
+                validation_computational_gas_limit: self.validation_computational_gas_limit,
+                operator_address: self.fee_account,
+                fee_input: self.filter.fee_input,
+                first_l2_block: L2BlockParams::new(timestamp_ms),
+                pubdata_params: self.pubdata_params(protocol_version)?,
+                pubdata_limit,
+            }));
+        }
+        Ok(None)
+    }
+
+    #[cfg(test)]
+    pub fn set_last_batch_protocol_version(&mut self, protocol_version: ProtocolVersionId) {
+        self.last_batch_protocol_version = Some(protocol_version);
     }
 }
 
@@ -622,7 +671,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(ts > current_timestamp);
+        assert!(ts / 1000 > current_timestamp);
 
         let future_timestamp = seconds_since_epoch() + 1;
         let deadline = Instant::now() + Duration::from_secs(3);
@@ -632,7 +681,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(ts > future_timestamp);
+        assert!(ts / 1000 > future_timestamp);
 
         let future_timestamp = seconds_since_epoch() + 1;
         let deadline = Instant::now() + Duration::from_millis(100);

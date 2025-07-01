@@ -1,9 +1,6 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
-    interface::{
-        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
-        VmExecutionMetrics, VmExecutionResultAndLogs,
-    },
+    interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
@@ -13,7 +10,7 @@ use zksync_types::{
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
-    io::{IoCursor, L2BlockParams},
+    io::{BatchInitParams, IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
 use crate::updates::l2_block_updates::RollingTxHashUpdates;
@@ -36,46 +33,60 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
-    storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub rolling_tx_hash_updates: RollingTxHashUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
     pubdata_params: PubdataParams,
+    pubdata_limit: Option<u64>,
     next_l2_block_params: Option<L2BlockParams>,
     previous_batch_protocol_version: ProtocolVersionId,
 }
 
 impl UpdatesManager {
-    pub fn new(
-        l1_batch_env: &L1BatchEnv,
-        system_env: &SystemEnv,
-        pubdata_params: PubdataParams,
+    pub(crate) fn new(
+        batch_init_params: &BatchInitParams,
         previous_batch_protocol_version: ProtocolVersionId,
     ) -> Self {
-        let protocol_version = system_env.version;
+        let protocol_version = batch_init_params.system_env.version;
         Self {
-            batch_timestamp: l1_batch_env.timestamp,
-            fee_account_address: l1_batch_env.fee_account,
-            batch_fee_input: l1_batch_env.fee_input,
-            base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
+            batch_timestamp: batch_init_params.l1_batch_env.timestamp,
+            fee_account_address: batch_init_params.l1_batch_env.fee_account,
+            batch_fee_input: batch_init_params.l1_batch_env.fee_input,
+            base_fee_per_gas: get_batch_base_fee(
+                &batch_init_params.l1_batch_env,
+                protocol_version.into(),
+            ),
             protocol_version,
-            base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
-            l1_batch: L1BatchUpdates::new(l1_batch_env.number),
+            base_system_contract_hashes: batch_init_params
+                .system_env
+                .base_system_smart_contracts
+                .hashes(),
+            l1_batch: L1BatchUpdates::new(batch_init_params.l1_batch_env.number),
             l2_block: L2BlockUpdates::new(
-                l1_batch_env.first_l2_block.timestamp,
-                L2BlockNumber(l1_batch_env.first_l2_block.number),
-                l1_batch_env.first_l2_block.prev_block_hash,
-                l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
+                batch_init_params.timestamp_ms,
+                L2BlockNumber(batch_init_params.l1_batch_env.first_l2_block.number),
+                batch_init_params
+                    .l1_batch_env
+                    .first_l2_block
+                    .prev_block_hash,
+                batch_init_params
+                    .l1_batch_env
+                    .first_l2_block
+                    .max_virtual_blocks_to_create,
                 protocol_version,
-                l1_batch_env.first_l2_block.interop_roots.clone(),
+                batch_init_params
+                    .l1_batch_env
+                    .first_l2_block
+                    .interop_roots
+                    .clone(),
             ),
             rolling_tx_hash_updates: RollingTxHashUpdates {
                 rolling_hash: H256::zero(),
             },
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
-            storage_view_cache: None,
-            pubdata_params,
+            pubdata_params: batch_init_params.pubdata_params,
+            pubdata_limit: batch_init_params.pubdata_limit,
             next_l2_block_params: None,
             previous_batch_protocol_version,
         }
@@ -89,21 +100,17 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
-    pub(crate) fn next_l2_block_timestamp_mut(&mut self) -> Option<&mut u64> {
+    pub(crate) fn next_l2_block_timestamp_ms_mut(&mut self) -> Option<&mut u64> {
         self.next_l2_block_params
             .as_mut()
-            .map(|params| &mut params.timestamp)
+            .map(|params| params.timestamp_ms_mut())
     }
 
-    pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
-        if let Some(next_l2_block_params) = self.next_l2_block_params.clone() {
-            return next_l2_block_params;
+    pub(crate) fn get_next_l2_block_or_batch_timestamp(&mut self) -> u64 {
+        if let Some(next_l2_block_params) = &self.next_l2_block_params {
+            return next_l2_block_params.timestamp();
         }
-        L2BlockParams {
-            timestamp: self.l2_block.timestamp,
-            virtual_blocks: self.l2_block.virtual_blocks,
-            interop_roots: vec![],
-        }
+        self.l2_block.timestamp()
     }
 
     pub(crate) fn has_next_block_params(&self) -> bool {
@@ -114,27 +121,28 @@ impl UpdatesManager {
         IoCursor {
             next_l2_block: self.l2_block.number + 1,
             prev_l2_block_hash: self.l2_block.get_l2_block_hash(),
-            prev_l2_block_timestamp: self.l2_block.timestamp,
+            prev_l2_block_timestamp: self.l2_block.timestamp(),
             l1_batch: self.l1_batch.number,
+            prev_l1_batch_timestamp: self.batch_timestamp,
         }
     }
 
     pub(crate) fn seal_l2_block_command(
         &self,
         l2_legacy_shared_bridge_addr: Option<Address>,
-        pre_insert_txs: bool,
+        pre_insert_data: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
             l1_batch_number: self.l1_batch.number,
             l2_block: self.l2_block.clone(),
-            first_tx_index: self.l1_batch.executed_transactions.len(),
+            first_tx_index: self.l1_batch.executed_transaction_hashes.len(),
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
             l2_legacy_shared_bridge_addr,
-            pre_insert_txs,
+            pre_insert_data,
             pubdata_params: self.pubdata_params,
             rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
         }
@@ -148,7 +156,6 @@ impl UpdatesManager {
         self.previous_batch_protocol_version
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
@@ -196,14 +203,6 @@ impl UpdatesManager {
         latency.observe();
     }
 
-    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
-        self.storage_view_cache = Some(storage_view_cache);
-    }
-
-    pub fn storage_view_cache(&self) -> Option<StorageViewCache> {
-        self.storage_view_cache.clone()
-    }
-
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
     /// held L2 block is considered sealed and is used to extend the L1 batch data.
     pub fn push_l2_block(&mut self) {
@@ -212,12 +211,12 @@ impl UpdatesManager {
             .take()
             .expect("next l2 block params cannot be empty");
         let new_l2_block_updates = L2BlockUpdates::new(
-            next_l2_block_params.timestamp,
+            next_l2_block_params.timestamp_ms(),
             self.l2_block.number + 1,
             self.l2_block.get_l2_block_hash(),
-            next_l2_block_params.virtual_blocks,
+            next_l2_block_params.virtual_blocks(),
             self.protocol_version,
-            next_l2_block_params.interop_roots,
+            next_l2_block_params.interop_roots().to_vec(),
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
@@ -229,14 +228,16 @@ impl UpdatesManager {
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
+        // We need to filter already applied interop roots. Because we seal L2 blocks in async manner,
+        // it's possible that database returns already applied interop roots
         let mut interop_roots = vec![];
-        for interop_root in l2_block_params.interop_roots {
-            if !self.l1_batch.interop_roots.contains(&interop_root) {
+        for interop_root in l2_block_params.interop_roots() {
+            if !self.l1_batch.interop_roots.contains(interop_root) {
                 interop_roots.push(interop_root.clone());
-                self.l1_batch.interop_roots.push(interop_root);
+                self.l1_batch.interop_roots.push(interop_root.clone());
             }
         }
-        l2_block_params.interop_roots = interop_roots;
+        l2_block_params.set_interop_roots(interop_roots);
         self.next_l2_block_params = Some(l2_block_params);
     }
 
@@ -245,7 +246,7 @@ impl UpdatesManager {
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
-        self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
+        self.l1_batch.executed_transaction_hashes.len() + self.l2_block.executed_transactions.len()
     }
 
     pub(crate) fn pending_l1_transactions_len(&self) -> usize {
@@ -258,6 +259,10 @@ impl UpdatesManager {
 
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
         self.l1_batch.txs_encoding_size + self.l2_block.txs_encoding_size
+    }
+
+    pub fn pubdata_limit(&self) -> Option<u64> {
+        self.pubdata_limit
     }
 }
 
@@ -273,10 +278,10 @@ pub struct L2BlockSealCommand {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_legacy_shared_bridge_addr: Option<Address>,
-    /// Whether transactions should be pre-inserted to DB.
-    /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
+    /// Whether transactions or interop roots should be pre-inserted to DB.
+    /// Should be set to `true` for EN's IO as EN doesn't store transactions and interop roots in DB
     /// before they are included into L2 blocks.
-    pub pre_insert_txs: bool,
+    pub pre_insert_data: bool,
     pub pubdata_params: PubdataParams,
     pub rolling_txs_hash: H256,
 }
@@ -304,20 +309,22 @@ mod tests {
         // Check that only pending state is updated.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
         assert_eq!(updates_manager.l2_block.executed_transactions.len(), 1);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
+        assert_eq!(
+            updates_manager.l1_batch.executed_transaction_hashes.len(),
+            0
+        );
 
         // Seal an L2 block.
-        updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp: 2,
-            virtual_blocks: 1,
-            interop_roots: vec![],
-        });
+        updates_manager.set_next_l2_block_params(L2BlockParams::new(2000));
         updates_manager.push_l2_block();
 
         // Check that L1 batch updates are the same with the pending state
         // and L2 block updates are empty.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
         assert_eq!(updates_manager.l2_block.executed_transactions.len(), 0);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 1);
+        assert_eq!(
+            updates_manager.l1_batch.executed_transaction_hashes.len(),
+            1
+        );
     }
 }

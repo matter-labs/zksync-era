@@ -40,6 +40,7 @@ impl TreeUpdater {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(l1_batch.number = l1_batch.stats.number))]
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
@@ -83,6 +84,7 @@ impl TreeUpdater {
     /// the first L1 batch data beforehand.) This allows saving some time if we actually process
     /// multiple L1 batches at once (e.g., during the initial tree syncing), and if loading data from Postgres
     /// is slow for whatever reason.
+    #[tracing::instrument(skip(self, pool), err)]
     async fn process_multiple_batches(
         &mut self,
         pool: &ConnectionPool<Core>,

@@ -12,8 +12,8 @@ use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
-        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
+        get_encoding_version, CommitBatchInfo, EncodingVersion, StoredBatchInfo,
+        PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA, PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
     },
     Tokenizable,
 };
@@ -239,11 +239,18 @@ impl LocalL1BatchCommitData {
             .is_none_or(|version| version.is_pre_gateway())
     }
 
+    fn get_encoding_version(&self) -> u8 {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(EncodingVersion::PreInterop.value(), get_encoding_version)
+    }
+
     fn is_pre_v29_interop(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
-            .is_none_or(|version| version.is_pre_v29_interop())
+            .is_none_or(|version| version.is_pre_interop_fast_blocks())
     }
 
     /// All returned errors are validation errors.
@@ -526,6 +533,7 @@ impl ConsistencyChecker {
             commit_function,
             batch_number,
             local.is_pre_v26_gateway(),
+            local.get_encoding_version(),
         )
         .with_context(|| {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
@@ -544,6 +552,7 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
         pre_gateway: bool,
+        encoding_version: u8,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -574,7 +583,7 @@ impl ConsistencyChecker {
             };
             let (version, encoded_data) = commitment_bytes.split_at(1);
             anyhow::ensure!(
-                version[0] == SUPPORTED_ENCODING_VERSION,
+                version[0] == encoding_version,
                 "Unexpected encoding version: {}",
                 version[0]
             );
@@ -634,7 +643,7 @@ impl ConsistencyChecker {
             .connection()
             .await?
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
             .await?)
     }
 

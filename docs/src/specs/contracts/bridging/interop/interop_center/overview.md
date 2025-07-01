@@ -161,6 +161,6 @@ When analyzing interop, it can be broken into four levels, allowing you to choos
 
 - **InteropTransaction:** The highest level, designed for use in UX and frontends.
 
-![levelsofinterop.png](../img/levels.png)
+![levelsofinterop.png](../img/levelsofinterop.png)
 
 We will be covering the details of each layer in the next section.

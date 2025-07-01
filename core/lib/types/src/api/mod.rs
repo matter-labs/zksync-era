@@ -199,51 +199,43 @@ impl From<H256> for TransactionId {
     }
 }
 
-/// Merkle root target for interop log proofs
+/// Interop modes are used to specify the target Merkle root for interop log proofs
 #[derive(Copy, Clone, Debug, PartialEq, Display)]
-pub enum LogProofTarget {
-    // L2's ChainBatchRoot
-    Chain,
-    // Gateway's MessageRoot
-    GatewayMessageRoot,
-    // Gateway's ChainBatchRoot, used for withdrawals
-    GatewayChainBatchRoot,
+pub enum InteropMode {
+    // Proof-based interop on Gateway, meaning the Merkle proof hashes to Gateway's MessageRoot
+    ProofBasedGateway,
+    // Proof-based interop on L1, meaning the Merkle proof hashes to L1's MessageRoot
+    // ProofBasedL1, // todo: v30
 }
 
-impl Serialize for LogProofTarget {
+impl Serialize for InteropMode {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         match *self {
-            LogProofTarget::Chain => serializer.serialize_str("chain"),
-            LogProofTarget::GatewayMessageRoot => serializer.serialize_str("gw_message_root"),
-            LogProofTarget::GatewayChainBatchRoot => {
-                serializer.serialize_str("gw_chain_batch_root")
-            }
+            InteropMode::ProofBasedGateway => serializer.serialize_str("proof_based_gw"),
         }
     }
 }
 
-impl<'de> Deserialize<'de> for LogProofTarget {
+impl<'de> Deserialize<'de> for InteropMode {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         struct V;
         impl<'de> serde::de::Visitor<'de> for V {
-            type Value = LogProofTarget;
+            type Value = InteropMode;
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("One of the supported aliases")
             }
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
                 let result = match value {
-                    "chain" => LogProofTarget::Chain,
-                    "gw_message_root" => LogProofTarget::GatewayMessageRoot,
-                    "gw_chain_batch_root" => LogProofTarget::GatewayChainBatchRoot,
+                    "proof_based_gw" => InteropMode::ProofBasedGateway,
                     _ => {
                         return Err(E::custom(format!(
-                            "Unsupported LogProofTarget variant: {}",
+                            "Unsupported InteropMode variant: {}",
                             value
                         )));
                     }
@@ -920,8 +912,8 @@ impl Default for TracerConfig {
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
-    FastFinalized,
     Verified,
+    FastFinalized,
 }
 
 /// Result tracers need to have a nested result field for compatibility. So we have two different
