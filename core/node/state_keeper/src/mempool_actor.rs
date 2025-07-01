@@ -11,9 +11,9 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce};
 
-use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
+use super::{mempool_guard::MempoolGuard, metrics::KEEPER_METRICS};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -133,24 +133,36 @@ impl MempoolFetcher {
                 )
                 .await
                 .context("failed syncing mempool")?;
-
-            let transactions: Vec<_> = transactions_with_constraints
-                .iter()
-                .map(|(t, _c)| t)
-                .collect();
-
-            let nonces = get_transaction_nonces(&mut storage_transaction, &transactions).await?;
-
             storage_transaction.commit().await?;
+
+            #[cfg(test)]
+            let transaction_hashes: Vec<_> = transactions_with_constraints
+                .iter()
+                .map(|(t, _c)| t.hash())
+                .collect();
+            let all_transactions_loaded =
+                transactions_with_constraints.len() < self.sync_batch_size;
+
+            // We should be careful about what nonces we provide for mempool.
+            // There are 2 actions that must be done sequentially so that the nonces in mempool are always correct:
+            // a) "load nonces from postgres and insert to mempool", it's done in the loop below
+            // b) "update nonces in mempool after processed block", it's done in state keeper right after block is fully sealed.
+            // This is why `self.mempool.enter_critical()` is called.
+            // We also insert txs in small chunks, so that it doesn't block state keeper code for too long.
+            const CHUNK_SIZE: usize = 100;
+            for chunk in transactions_with_constraints.chunks(CHUNK_SIZE) {
+                let chunk = chunk.to_vec();
+                let addresses: Vec<_> =
+                    chunk.iter().map(|(tx, _)| tx.initiator_account()).collect();
+
+                let _guard = self.mempool.enter_critical();
+                let nonces = get_nonces(&mut connection, &addresses).await?;
+                self.mempool.insert(chunk, nonces);
+            }
             drop(connection);
 
             #[cfg(test)]
-            {
-                let transaction_hashes = transactions.iter().map(|x| x.hash()).collect();
-                self.transaction_hashes_sender.send(transaction_hashes).ok();
-            }
-            let all_transactions_loaded = transactions.len() < self.sync_batch_size;
-            self.mempool.insert(transactions_with_constraints, nonces);
+            self.transaction_hashes_sender.send(transaction_hashes).ok();
             latency.observe();
 
             if all_transactions_loaded {
@@ -161,17 +173,16 @@ impl MempoolFetcher {
     }
 }
 
-/// Loads nonces for all distinct `transactions` initiators from the storage.
-async fn get_transaction_nonces(
+/// Loads nonces for all addresses from the storage.
+async fn get_nonces(
     storage: &mut Connection<'_, Core>,
-    transactions: &[&Transaction],
+    addresses: &[Address],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = addresses
         .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
+        .map(|address| {
+            let nonce_key = get_nonce_key(address).hashed_key();
+            (nonce_key, (nonce_key, *address))
         })
         .unzip();
 
@@ -236,9 +247,9 @@ mod tests {
         let other_transaction_initiator = other_transaction.initiator_account();
         assert_ne!(other_transaction_initiator, transaction_initiator);
 
-        let nonces = get_transaction_nonces(
+        let nonces = get_nonces(
             &mut storage,
-            &[&transaction.into(), &other_transaction.into()],
+            &[transaction_initiator, other_transaction_initiator],
         )
         .await
         .unwrap();

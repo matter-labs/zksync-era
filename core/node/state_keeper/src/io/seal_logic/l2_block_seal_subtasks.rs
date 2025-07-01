@@ -593,6 +593,7 @@ mod tests {
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_data: false,
             pubdata_params: PubdataParams::default(),
+            insert_header: false, // Doesn't matter for this test.
         };
 
         // Run.

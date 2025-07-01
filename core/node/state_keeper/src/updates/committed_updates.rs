@@ -1,14 +1,12 @@
 use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
 use zksync_types::{
-    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot,
-    L1BatchNumber, H256,
+    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot, H256,
 };
 
 use crate::updates::l2_block_updates::L2BlockUpdates;
 
 #[derive(Debug)]
-pub struct L1BatchUpdates {
-    pub number: L1BatchNumber,
+pub struct CommittedUpdates {
     pub executed_transaction_hashes: Vec<H256>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: VmExecutionMetrics,
@@ -18,10 +16,9 @@ pub struct L1BatchUpdates {
     pub interop_roots: Vec<InteropRoot>,
 }
 
-impl L1BatchUpdates {
-    pub(crate) fn new(number: L1BatchNumber) -> Self {
+impl CommittedUpdates {
+    pub(crate) fn new() -> Self {
         Self {
-            number,
             executed_transaction_hashes: vec![],
             priority_ops_onchain_data: vec![],
             block_execution_metrics: VmExecutionMetrics::default(),
@@ -85,7 +82,7 @@ mod tests {
             vec![],
         );
 
-        let mut l1_batch_accumulator = L1BatchUpdates::new(L1BatchNumber(1));
+        let mut l1_batch_accumulator = CommittedUpdates::new();
         l1_batch_accumulator.extend_from_sealed_l2_block(l2_block_accumulator);
 
         assert_eq!(l1_batch_accumulator.executed_transaction_hashes.len(), 1);

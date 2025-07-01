@@ -239,6 +239,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.pop_snapshot_no_rollback());
     }
 
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_batch_vm!(self.pop_front_snapshot_no_rollback());
+    }
+
     fn inspect_transaction(
         &mut self,
         tx: Transaction,
@@ -356,13 +360,18 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             }
         }
 
+        let mut has_snapshot_before_tx = false;
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
+                    if has_snapshot_before_tx {
+                        vm.pop_snapshot_no_rollback();
+                    }
                     let tx_hash = tx.hash();
                     let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
+                    has_snapshot_before_tx = true;
 
                     if self.observe_storage_metrics {
                         let storage_stats = storage_view.borrow().stats();
@@ -381,11 +390,22 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::RollbackLastTx(resp) => {
                     self.rollback_last_tx(&mut vm);
+                    // Snapshot was popped.
+                    has_snapshot_before_tx = false;
                     if resp.send(()).is_err() {
                         break;
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        if has_snapshot_before_tx {
+                            // Pop snapshot that was made before the previous tx.
+                            vm.pop_snapshot_no_rollback();
+                            has_snapshot_before_tx = false;
+                        }
+                        vm.make_snapshot();
+                    }
+
                     vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
                         break;
@@ -398,6 +418,33 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                     batch_finished = true;
                     break;
+                }
+                Command::RollbackL2Block(resp) => {
+                    if self.fast_vm_mode != FastVmMode::Old {
+                        panic!(
+                            "RollbackL2Block is only supported for `FastVmMode::Old`, used: {:?}",
+                            self.fast_vm_mode
+                        );
+                    }
+
+                    if has_snapshot_before_tx {
+                        vm.pop_snapshot_no_rollback();
+                        has_snapshot_before_tx = false;
+                    }
+                    vm.rollback_to_the_latest_snapshot();
+
+                    if resp.send(()).is_err() {
+                        break;
+                    }
+                }
+                Command::CommitL2Block(resp) => {
+                    // Only `FastVmMode::Old` keeps snapshots for block rollback.
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        vm.pop_front_snapshot_no_rollback();
+                    }
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
             }
         }
@@ -426,9 +473,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
         let _guard = AllocationGuard::for_operation("batch_vm#execute_tx");
-        // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
-        // was already removed), or that we build on top of it (in which case, it can be removed now).
-        vm.pop_snapshot_no_rollback();
         // Save pre-execution VM snapshot.
         vm.make_snapshot();
 
