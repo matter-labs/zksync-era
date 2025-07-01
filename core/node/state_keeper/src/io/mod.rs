@@ -40,6 +40,7 @@ pub struct PendingBatchData {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     pub(crate) pubdata_params: PubdataParams,
+    pub(crate) pubdata_limit: Option<u64>,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
@@ -124,6 +125,8 @@ pub struct L1BatchParams {
     pub first_l2_block: L2BlockParams,
     /// Params related to how the pubdata should be processed by the bootloader in the batch.
     pub pubdata_params: PubdataParams,
+    /// Pubdata limit for the batch. It's set only if protocol version >= v29.
+    pub pubdata_limit: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -131,6 +134,7 @@ pub(crate) struct BatchInitParams {
     pub system_env: SystemEnv,
     pub l1_batch_env: L1BatchEnv,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
     pub timestamp_ms: u64,
 }
 
@@ -161,6 +165,7 @@ impl L1BatchParams {
             system_env,
             l1_batch_env,
             pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
             timestamp_ms: self.first_l2_block.timestamp_ms(),
         }
     }

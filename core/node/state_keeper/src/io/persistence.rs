@@ -478,11 +478,13 @@ mod tests {
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
         let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
+        let pubdata_limit = Some(100_000);
         let mut updates = UpdatesManager::new(
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
                 pubdata_params: Default::default(),
+                pubdata_limit,
                 timestamp_ms,
             },
             Default::default(),
@@ -491,7 +493,7 @@ mod tests {
             .await
             .unwrap()
             .blocks_dal()
-            .insert_l1_batch(l1_batch_env.into_unsealed_header(None))
+            .insert_l1_batch(l1_batch_env.into_unsealed_header(None, pubdata_limit))
             .await
             .unwrap();
 
