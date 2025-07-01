@@ -1,4 +1,3 @@
-use std::fmt::format;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::logger;
 use zkstack_cli_config::EcosystemConfig;
@@ -22,7 +21,7 @@ pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
         .join("data");
     let command = cmd!(
         shell,
-        "cargo run --manifest-path ./zksync_os_snark_prover/Cargo.toml --release"
+        "cargo run --manifest-path ./zksync_os_snark_prover/Cargo.toml --release generate-keys --"
     )
     .args([
         "--binary-path",
