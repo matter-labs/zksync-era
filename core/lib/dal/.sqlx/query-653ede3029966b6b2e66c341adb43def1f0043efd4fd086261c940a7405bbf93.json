@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -92,6 +92,11 @@
         "ordinal": 17,
         "name": "fair_pubdata_price",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "pubdata_limit",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -117,8 +122,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "54f41fccbe8c100015ccf4d87e0e33d22c94aa47b7a8863da2afa5ab1a8502bf"
+  "hash": "653ede3029966b6b2e66c341adb43def1f0043efd4fd086261c940a7405bbf93"
 }

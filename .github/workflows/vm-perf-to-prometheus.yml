@@ -22,22 +22,9 @@ jobs:
       - name: setup-env
         run: |
           echo BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL=${{ secrets.BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL }} >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
 
-      - name: init
-        run: |
-          run_retried docker compose pull zk
-          docker compose up -d zk
-
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: build contracts
         run: |

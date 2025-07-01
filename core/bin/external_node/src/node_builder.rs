@@ -220,14 +220,20 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        let config = self.config.consensus.clone();
+        let config = self.config.consensus.clone().ok_or_else(||
+            anyhow::anyhow!(
+            "ZKsync API synchronization is not supported anymore so consensus config is required. \
+            Please follow this instruction to enable p2p synchronization: \
+            https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/10_decentralization.md"
+            )
+        );
         let secrets = self.config.local.secrets.consensus.clone();
         let layer = ExternalNodeConsensusLayer {
             build_version: crate::metadata::SERVER_VERSION
                 .parse()
                 .context("CRATE_VERSION.parse()")?,
-            config,
-            secrets: Some(secrets),
+            config: config.context("Consensus config is missing")?,
+            secrets,
         };
         self.node.add_layer(layer);
         Ok(self)
