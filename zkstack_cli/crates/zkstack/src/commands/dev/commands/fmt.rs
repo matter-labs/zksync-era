@@ -10,20 +10,22 @@ use crate::commands::dev::{commands::lint_utils::Target, messages::msg_running_f
 
 async fn prettier(shell: Shell, check: bool) -> anyhow::Result<()> {
     let mode = if check { "fmt:check" } else { "fmt" };
-    Ok(Cmd::new(
-        cmd!(shell, "yarn {mode}")
-            .args(["--cache-location", ".prettier_cache.json"])
-            .args(["--log-level", "silent"]),
-    )
-    .run()?)
+    let mut command = cmd!(shell, "yarn {mode}").args(["--cache-location", ".prettier_cache.json"]);
+    if !check {
+        command = command.args(["--log-level", "silent"]);
+    }
+    Ok(Cmd::new(command).run()?)
 }
 
 async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
-    let prettier_command = cmd!(shell, "yarn --cwd contracts")
+    let mut prettier_command = cmd!(shell, "yarn --cwd contracts")
         .arg(format!("prettier:{}", if check { "check" } else { "fix" }))
         .arg("--cache")
-        .args(["--cache-location", "../.prettier_cache_contracts.json"])
-        .args(["--log-level", "silent"]);
+        .args(["--cache-location", "../.prettier_cache_contracts.json"]);
+
+    if !check {
+        prettier_command = prettier_command.args(["--log-level", "silent"]);
+    }
     Ok(Cmd::new(prettier_command).run()?)
 }
 
