@@ -29,7 +29,7 @@ impl TestWallets {
     fn get(&self, id: u32) -> anyhow::Result<Wallet> {
         let mnemonic = self.wallets.get("test_mnemonic").unwrap().as_str();
 
-        Wallet::from_mnemonic(mnemonic, &self.base_path, 100 + id)
+        Wallet::from_mnemonic(mnemonic, &self.base_path, id)
     }
 
     pub fn get_main_wallet(&self) -> anyhow::Result<Wallet> {
@@ -37,7 +37,7 @@ impl TestWallets {
     }
 
     pub fn get_test_wallet(&self, chain_config: &ChainConfig) -> anyhow::Result<Wallet> {
-        self.get(chain_config.id)
+        self.get(chain_config.id + 100)
     }
 
     pub fn get_test_pk(&self, chain_config: &ChainConfig) -> anyhow::Result<String> {
