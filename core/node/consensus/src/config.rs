@@ -110,7 +110,6 @@ pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node
 
 pub(super) fn executor(
     cfg: &ConsensusConfig,
-    secrets: &ConsensusSecrets,
     global_config: &consensus_dal::GlobalConfig,
     build_version: Option<semver::Version>,
 ) -> anyhow::Result<executor::Config> {
@@ -149,10 +148,10 @@ pub(super) fn executor(
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size.0 as usize,
         view_timeout: cfg.view_timeout.try_into().context("view_timeout")?,
-        node_key: node_key(secrets)
+        node_key: node_key(&cfg.secrets)
             .context("node_key")?
             .context("missing node_key")?,
-        validator_key: validator_key(secrets).context("validator_key")?,
+        validator_key: validator_key(&cfg.secrets).context("validator_key")?,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound

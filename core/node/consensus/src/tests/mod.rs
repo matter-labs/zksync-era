@@ -225,7 +225,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
             scope::run!(ctx, |ctx, s| async {
                 tracing::info!("Start consensus actor");
                 // In the first iteration it will initialize genesis.
-                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone()));
+                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), pool.clone()));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, account, 3).await;
@@ -279,7 +279,6 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         s.spawn_bg(run_main_node(
             ctx,
             validator_cfg.config.clone(),
-            validator_cfg.secrets.clone(),
             validator_pool.clone(),
         ));
 
@@ -382,7 +381,6 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
             s.spawn_bg(run_main_node(
                 ctx,
                 validator_cfg.config.clone(),
-                validator_cfg.secrets.clone(),
                 validator_pool.clone(),
             ));
 
@@ -461,7 +459,6 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
         s.spawn_bg(run_main_node(
             ctx,
             validator_cfg.config.clone(),
-            validator_cfg.secrets.clone(),
             validator_pool.clone(),
         ));
 
@@ -547,7 +544,6 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
         s.spawn_bg(run_main_node(
             ctx,
             cfgs[0].config.clone(),
-            cfgs[0].secrets.clone(),
             main_node_pool.clone(),
         ));
 
@@ -609,7 +605,6 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
         s.spawn_bg(run_main_node(
             ctx,
             validator_cfg.config.clone(),
-            validator_cfg.secrets.clone(),
             validator_pool.clone(),
         ));
         // API server needs at least 1 L1 batch to start.
@@ -692,7 +687,6 @@ async fn test_fallback_fetcher(from_snapshot: bool, version: ProtocolVersionId) 
         s.spawn_bg(run_main_node(
             ctx,
             validator_cfg.config.clone(),
-            validator_cfg.secrets.clone(),
             validator_pool.clone(),
         ));
         // API server needs at least 1 L1 batch to start.
@@ -767,14 +761,9 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         s.spawn_bg({
             let validator_pool = validator_pool.clone();
             async {
-                run_main_node(
-                    ctx,
-                    validator_cfg.config.clone(),
-                    validator_cfg.secrets.clone(),
-                    validator_pool,
-                )
-                .await
-                .context("run_main_node()")
+                run_main_node(ctx, validator_cfg.config.clone(), validator_pool)
+                    .await
+                    .context("run_main_node()")
             }
         });
         // TODO: ensure at least 1 L1 batch in `testonly::StateKeeper::new()` to make it fool proof.

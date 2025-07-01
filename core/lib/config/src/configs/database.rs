@@ -8,6 +8,7 @@ use smart_config::{
     metadata::SizeUnit,
     ByteSize, DescribeConfig, DeserializeConfig,
 };
+use zksync_basic_types::url::SensitiveUrl;
 
 use crate::configs::ExperimentalDBConfig;
 
@@ -107,12 +108,23 @@ pub struct DBConfig {
     pub experimental: ExperimentalDBConfig,
 }
 
+const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432/zksync";
+
 /// Collection of different database URLs and general PostgreSQL options.
 /// All the entries are optional, since some components may only require a subset of them,
 /// and any component may have overrides.
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct PostgresConfig {
+    /// Postgres connection string for the server database.
+    #[config(alias = "url", secret, with = Serde![str])]
+    #[config(fallback = &fallback::Env("DATABASE_URL"))]
+    #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
+    pub server_url: Option<SensitiveUrl>,
+    /// Postgres connection string for the server replica (readonly).
+    #[config(alias = "replica_url", secret, with = Serde![str])]
+    #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
+    pub server_replica_url: Option<SensitiveUrl>,
     /// Maximum size of the connection pool.
     #[config(alias = "pool_size", fallback = &fallback::Env("DATABASE_POOL_SIZE"))]
     pub max_connections: Option<u32>,
@@ -142,6 +154,20 @@ impl PostgresConfig {
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.
     pub fn max_connections(&self) -> anyhow::Result<u32> {
         self.max_connections.context("Max connections is absent")
+    }
+
+    /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
+    pub fn master_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.server_url.clone().context("Master DB URL is absent")
+    }
+
+    /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
+    pub fn replica_url(&self) -> anyhow::Result<SensitiveUrl> {
+        if let Some(replica_url) = &self.server_replica_url {
+            Ok(replica_url.clone())
+        } else {
+            self.master_url()
+        }
     }
 }
 
@@ -266,6 +292,15 @@ mod tests {
     }
 
     fn assert_postgres_config(config: &PostgresConfig) {
+        assert_eq!(
+            config.server_url.as_ref().unwrap().expose_str(),
+            "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+        );
+        assert_eq!(
+            config.server_replica_url.as_ref().unwrap().expose_str(),
+            "postgres://postgres:notsecurepassword@localhost/zksync_replica_local"
+        );
+
         assert_eq!(config.max_connections().unwrap(), 50);
         assert_eq!(config.max_connections_master, Some(20));
         assert_eq!(config.statement_timeout, Duration::from_secs(300));
@@ -278,6 +313,9 @@ mod tests {
     #[test]
     fn postgres_from_env() {
         let env = r#"
+            DATABASE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era
+            DATABASE_REPLICA_URL=postgres://postgres:notsecurepassword@localhost/zksync_replica_local
+            DATABASE_PROVER_URL=postgres://postgres:notsecurepassword@localhost/prover_local
             DATABASE_POOL_SIZE=50
             DATABASE_POOL_SIZE_MASTER=20
             DATABASE_ACQUIRE_TIMEOUT_SEC=15
@@ -297,6 +335,8 @@ mod tests {
     #[test]
     fn postgres_from_yaml() {
         let yaml = r#"
+          server_url: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era
+          server_replica_url: postgres://postgres:notsecurepassword@localhost/zksync_replica_local
           max_connections: 50
           max_connections_master: 20
           acquire_timeout_sec: 15

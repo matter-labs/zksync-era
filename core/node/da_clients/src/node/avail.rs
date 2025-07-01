@@ -1,4 +1,4 @@
-use zksync_config::{configs::da_client::avail::AvailSecrets, AvailConfig};
+use zksync_config::AvailConfig;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::wiring_layer::{WiringError, WiringLayer};
 
@@ -7,12 +7,11 @@ use crate::avail::AvailClient;
 #[derive(Debug)]
 pub struct AvailWiringLayer {
     config: AvailConfig,
-    secrets: AvailSecrets,
 }
 
 impl AvailWiringLayer {
-    pub fn new(config: AvailConfig, secrets: AvailSecrets) -> Self {
-        Self { config, secrets }
+    pub fn new(config: AvailConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -26,7 +25,7 @@ impl WiringLayer for AvailWiringLayer {
     }
 
     async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
-        let client = AvailClient::new(self.config, self.secrets).await?;
+        let client = AvailClient::new(self.config).await?;
         Ok(Box::new(client))
     }
 }

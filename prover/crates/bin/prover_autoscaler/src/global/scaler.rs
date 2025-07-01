@@ -1497,6 +1497,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::identity_op, clippy::erasing_op)] // intentional
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_hysteresis() {
@@ -1659,6 +1660,7 @@ mod tests {
             .into(),
             "Override priority: H100 in foo, then L4 in bar"
         );
+
         assert_eq!(
             scaler2.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
             [

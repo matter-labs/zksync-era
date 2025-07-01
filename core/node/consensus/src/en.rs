@@ -15,7 +15,7 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
-use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
+use super::{config, storage::Store, ConsensusConfig};
 use crate::{
     metrics::METRICS,
     registry::{Registry, RegistryAddress},
@@ -57,7 +57,6 @@ impl EN {
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
         cfg: ConsensusConfig,
-        secrets: ConsensusSecrets,
         build_version: Option<semver::Version>,
     ) -> anyhow::Result<()> {
         tracing::info!("running the external node");
@@ -148,7 +147,7 @@ impl EN {
             s.spawn_bg(async { Ok(engine_runner.run(ctx).await.context("BlockStore::run()")?) });
 
             let executor = executor::Executor {
-                config: config::executor(&cfg, &secrets, &global_config, build_version)?,
+                config: config::executor(&cfg, &global_config, build_version)?,
                 engine_manager,
             };
             tracing::info!("running the external node executor");

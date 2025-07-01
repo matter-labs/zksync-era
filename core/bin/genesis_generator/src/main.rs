@@ -5,9 +5,7 @@
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::{
-    configs::PostgresSecrets, full_config_schema, sources::ConfigFilePaths, GenesisConfig,
-};
+use zksync_config::{full_config_schema, sources::ConfigFilePaths, GenesisConfig, PostgresConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
@@ -39,12 +37,12 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let postgres_config: PostgresConfig = repo.parse()?;
 
     let original_genesis: GenesisConfig =
         tokio::task::spawn_blocking(|| GenesisConfig::read(DEFAULT_GENESIS_FILE_PATH.as_ref()))
             .await??;
-    let db_url = database_secrets.master_url()?;
+    let db_url = postgres_config.master_url()?;
     let new_genesis = generate_new_config(db_url, original_genesis.clone()).await?;
     if opt.check {
         assert_eq!(original_genesis, new_genesis);

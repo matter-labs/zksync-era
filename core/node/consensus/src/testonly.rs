@@ -71,7 +71,6 @@ pub(super) struct StateKeeper {
 pub(super) struct ConfigSet {
     net: network::Config,
     pub(super) config: config::ConsensusConfig,
-    pub(super) secrets: config::ConsensusSecrets,
 }
 
 impl ConfigSet {
@@ -79,7 +78,6 @@ impl ConfigSet {
         let net = network::testonly::new_fullnode(rng, &self.net);
         ConfigSet {
             config: make_config(&net, None),
-            secrets: make_secrets(&net),
             net,
         }
     }
@@ -113,7 +111,6 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
         .into_iter()
         .map(|net| ConfigSet {
             config: make_config(&net, Some(genesis_spec.clone())),
-            secrets: make_secrets(&net),
             net,
         })
         .collect()
@@ -131,6 +128,7 @@ fn make_config(
     genesis_spec: Option<config::GenesisSpec>,
 ) -> config::ConsensusConfig {
     config::ConsensusConfig {
+        secrets: make_secrets(cfg),
         port: Some(cfg.server_addr.port()),
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
@@ -402,7 +400,6 @@ impl StateKeeper {
             ctx,
             self.actions_sender,
             cfgs.config,
-            cfgs.secrets,
             cfgs.net.build_version,
         )
         .await

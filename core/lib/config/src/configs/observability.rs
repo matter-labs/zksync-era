@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
-    fallback::{self, FallbackSource},
+    fallback,
     value::{ValueOrigin, WithOrigin},
     DescribeConfig, DeserializeConfig,
 };
@@ -40,12 +40,6 @@ pub struct ObservabilityConfig {
     pub log_directives: String,
 }
 
-const SENTRY_URL_SOURCE: fallback::Manual =
-    fallback::Manual::new("'MISC_SENTRY_URL' env var, unless `unset`", || {
-        fallback::Env("MISC_SENTRY_URL")
-            .provide_value()
-            .filter(|val| val.inner.as_plain_str() != Some("unset"))
-    });
 const SENTRY_ENV_SOURCE: fallback::Manual =
     fallback::Manual::new("$CHAIN_ETH_NETWORK - $CHAIN_ETH_ZKSYNC_NETWORK", || {
         let l1_network = fallback::Env("CHAIN_ETH_NETWORK").get_raw()?;
@@ -64,11 +58,15 @@ const SENTRY_ENV_SOURCE: fallback::Manual =
 #[config(derive(Default))]
 pub struct SentryConfig {
     /// URL of the Sentry instance to send events to.
-    #[config(fallback = &SENTRY_URL_SOURCE)]
+    #[config(deserialize_if(not_unset, "not empty or 'unset'"), fallback = &fallback::Env("MISC_SENTRY_URL"))]
     pub url: Option<String>,
     /// Name of the environment to use in Sentry.
     #[config(fallback = &SENTRY_ENV_SOURCE)]
     pub environment: Option<String>,
+}
+
+fn not_unset(s: &String) -> bool {
+    !s.is_empty() && s != "unset"
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]

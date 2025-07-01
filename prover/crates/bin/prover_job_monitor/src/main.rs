@@ -6,13 +6,9 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_config::{
-    configs::{
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, GeneralConfig,
-        PostgresSecrets, ProverJobMonitorConfig,
-    },
-    full_config_schema,
-    sources::ConfigFilePaths,
+use zksync_prover_config::{
+    CompleteProverConfig, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
+    ProverJobMonitorConfig,
 };
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
@@ -40,20 +36,15 @@ pub(crate) struct CliOpts {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = CliOpts::parse();
-    let schema = full_config_schema();
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path,
-        secrets: opt.secrets_path,
-        ..ConfigFilePaths::default()
-    };
-    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+    let schema = CompleteProverConfig::schema()?;
+    let config_sources = CompleteProverConfig::config_sources(opt.config_path, opt.secrets_path)?;
 
     let _observability_guard = config_sources.observability()?.install()?;
 
     let mut repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let general_config: CompleteProverConfig = repo.parse()?;
 
+    let postgres_config = general_config.postgres_config;
     let prover_job_monitor_config = general_config
         .prover_job_monitor_config
         .context("prover_job_monitor_config")?;
@@ -84,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Starting ProverJobMonitoring");
 
     let connection_pool = ConnectionPool::<Prover>::builder(
-        database_secrets.prover_url()?,
+        postgres_config.prover_url()?,
         prover_job_monitor_config.max_db_connections,
     )
     .build()

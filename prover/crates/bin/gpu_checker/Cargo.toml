@@ -22,7 +22,7 @@ chrono.workspace = true
 
 shivini = { workspace = true, features = ["circuit_definitions", "zksync"] }
 zksync_circuit_prover_service.workspace = true
-zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_prover_config.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_job_processor.workspace = true

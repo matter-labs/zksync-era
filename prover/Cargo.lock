@@ -212,6 +212,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_matches"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
 name = "async-broadcast"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5167,7 +5173,6 @@ dependencies = [
  "zkevm_test_harness",
  "zksync_basic_types",
  "zksync_circuit_prover_service",
- "zksync_config",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_eth_client",
@@ -6486,9 +6491,9 @@ dependencies = [
 
 [[package]]
 name = "smart-config"
-version = "0.2.0-pre"
+version = "0.3.0-pre"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "720d0d1a5fad745fb5e8ac665631528556c9b9cea35433b4949d50cd0cfc8bbb"
+checksum = "a6a368144b1c691f7021f49eb036f2d2e91d47f9adddf4b7955eb1a58d5f7fbb"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -6503,9 +6508,9 @@ dependencies = [
 
 [[package]]
 name = "smart-config-derive"
-version = "0.2.0-pre"
+version = "0.3.0-pre"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5fede39e20d50047e6eb1aee008bd44db17e6a851b1e1b00bce117bdf74d50"
+checksum = "ac89cdcacc9bb31f9df46938305f7a4180108d7c98dc399aee03ddc78c205f92"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8866,8 +8871,8 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_circuit_prover_service",
- "zksync_config",
  "zksync_object_store",
+ "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_keystore",
@@ -9164,8 +9169,8 @@ dependencies = [
  "tokio",
  "tracing",
  "zksync_circuit_prover_service",
- "zksync_config",
  "zksync_object_store",
+ "zksync_prover_config",
  "zksync_prover_fri_types",
  "zksync_prover_job_processor",
  "zksync_prover_keystore",
@@ -9294,9 +9299,9 @@ dependencies = [
  "tokio-util",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_object_store",
  "zksync_proof_fri_compressor_service",
+ "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_keystore",
@@ -9398,6 +9403,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_config"
+version = "21.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "serde",
+ "serde_yaml",
+ "smart-config",
+ "zksync_basic_types",
+ "zksync_config",
+]
+
+[[package]]
 name = "zksync_prover_dal"
 version = "21.1.0"
 dependencies = [
@@ -9423,8 +9441,8 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_object_store",
+ "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_interface",
  "zksync_task_management",
@@ -9480,8 +9498,8 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_db_connection",
+ "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_task",
  "zksync_task_management",
@@ -9751,9 +9769,9 @@ dependencies = [
  "vise",
  "zkevm_test_harness",
  "zksync_circuit_prover_service",
- "zksync_config",
  "zksync_multivm",
  "zksync_object_store",
+ "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",

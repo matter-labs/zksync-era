@@ -9,12 +9,8 @@ use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{GeneralConfig, PostgresSecrets},
-    full_config_schema,
-    sources::ConfigFilePaths,
-};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_config::CompleteProverConfig;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
@@ -96,19 +92,13 @@ async fn ensure_protocol_alignment(
 async fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let opt = Opt::from_args();
-    let schema = full_config_schema();
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path,
-        secrets: opt.secrets_path,
-        ..ConfigFilePaths::default()
-    };
-    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+    let schema = CompleteProverConfig::schema()?;
+    let config_sources = CompleteProverConfig::config_sources(opt.config_path, opt.secrets_path)?;
 
     let _observability_guard = config_sources.observability()?.install()?;
 
     let mut repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: PostgresSecrets = repo.parse()?;
+    let general_config: CompleteProverConfig = repo.parse()?;
 
     let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = prover_config.prover_object_store;
@@ -125,7 +115,8 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed to build Prometheus exporter configuration")?;
     tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
-    let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
+    let database_url = general_config.postgres_config.prover_url()?;
+    let connection_pool = ConnectionPool::<Prover>::singleton(database_url)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

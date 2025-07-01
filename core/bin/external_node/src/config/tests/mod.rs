@@ -67,7 +67,7 @@ fn assert_common_prepared_env(config: &LocalConfig, observability: &Observabilit
         config.db.merkle_tree.path.as_os_str(),
         "./db/ext-node/lightweight"
     );
-    let postgres_url = config.secrets.postgres.server_url.as_ref().unwrap();
+    let postgres_url = config.postgres.server_url.as_ref().unwrap();
     assert!(
         postgres_url.expose_str().starts_with("postgres://"),
         "{postgres_url:?}"
@@ -184,127 +184,7 @@ fn parsing_testnet_docker_compose_env() {
 
 #[test]
 fn parsing_from_full_env() {
-    let env = r#"
-        # Observability config
-        EN_PROMETHEUS_PORT=3322
-        EN_PROMETHEUS_PUSHGATEWAY_URL=http://prometheus/
-        EN_PROMETHEUS_PUSH_INTERVAL_MS=150
-        EN_LOG_FORMAT=json
-        EN_SENTRY_ENVIRONMENT="mainnet - mainnet2"
-        EN_SENTRY_URL=https://example.com/new
-        EN_LOG_DIRECTIVES=warn,zksync=info
-
-        # Optional config, in the order its params were defined.
-        EN_FILTERS_LIMIT=5000
-        EN_SUBSCRIPTIONS_LIMIT=5000
-        EN_REQ_ENTITIES_LIMIT=1000
-        EN_MAX_TX_SIZE_BYTES=1000000
-        EN_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
-        EN_FEE_HISTORY_LIMIT=100
-        EN_MAX_BATCH_REQUEST_SIZE=50
-        EN_MAX_RESPONSE_BODY_SIZE_MB=5
-        EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="zks_getProof=100,eth_call=2"
-        EN_PUBSUB_POLLING_INTERVAL_MS=200
-        EN_MAX_NONCE_AHEAD=33
-        EN_VM_CONCURRENCY_LIMIT=100
-        EN_FACTORY_DEPS_CACHE_SIZE_MB=100
-        EN_INITIAL_WRITES_CACHE_SIZE_MB=50
-        EN_LATEST_VALUES_CACHE_SIZE_MB=200
-        EN_API_NAMESPACES="zks,eth"
-        EN_FILTERS_DISABLED=true
-        EN_MEMPOOL_CACHE_UPDATE_INTERVAL_MS=75
-        EN_MEMPOOL_CACHE_SIZE=1000
-        EN_EXTENDED_RPC_TRACING=true
-
-        EN_HEALTHCHECK_SLOW_TIME_LIMIT_MS=75
-        EN_HEALTHCHECK_HARD_TIME_LIMIT_MS=2500
-        EN_ESTIMATE_GAS_SCALE_FACTOR=1.2
-        EN_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=2000
-        EN_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
-        EN_GAS_PRICE_SCALE_FACTOR=1.4
-
-        # NEW PARAMS: From Web3RpcConfig
-        EN_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=1000
-        EN_LATEST_VALUES_MAX_BLOCK_LAG=30
-        EN_WHITELISTED_TOKENS_FOR_AA=0x0000000000000000000000000000000000000001
-        EN_REQUEST_TIMEOUT_SEC=20
-        EN_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.35
-        # NEW PARAMS: From HealthcheckConfig
-        EN_HEALTHCHECK_EXPOSE_CONFIG=true
-
-        EN_MERKLE_TREE_PROCESSING_DELAY_MS=100
-        EN_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=5
-        EN_MERKLE_TREE_MAX_OPEN_FILES=1024
-        EN_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=1000
-        EN_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=4096
-        EN_MERKLE_TREE_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=true
-        EN_MERKLE_TREE_MEMTABLE_CAPACITY_MB=256
-        EN_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=15
-        # MIGRATION NEEDED: was `EN_MERKLE_TREE_REPAIR_STALE_KEYS` (w/o `experimental` infix)
-        EN_EXPERIMENTAL_MERKLE_TREE_REPAIR_STALE_KEYS=true
-        # NEW PARAMS: In MerkleTreeConfig; not used
-        EN_MERKLE_TREE_MODE=Lightweight
-
-        EN_DATABASE_LONG_CONNECTION_THRESHOLD_MS=2500
-        EN_DATABASE_SLOW_QUERY_THRESHOLD_MS=1500
-        # NEW PARAMS: From PostgresConfig
-        EN_DATABASE_ACQUIRE_TIMEOUT_SEC=15
-        EN_DATABASE_ACQUIRE_RETRIES=2
-        EN_DATABASE_STATEMENT_TIMEOUT_SEC=20
-        # NEW PARAMS: From PostgresConfig; not used
-        EN_DATABASE_MAX_CONNECTIONS_MASTER=10
-
-        EN_L2_BLOCK_SEAL_QUEUE_CAPACITY=20
-        EN_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
-        # NEW PARAMS: From SharedStateKeeperConfig
-        EN_SAVE_CALL_TRACES=false
-
-        EN_CONTRACTS_DIAMOND_PROXY_ADDR=0x0000000000000000000000000000000000010001
-        EN_MAIN_NODE_RATE_LIMIT_RPS=150
-
-        EN_SNAPSHOTS_RECOVERY_ENABLED=true
-        EN_SNAPSHOTS_RECOVERY_POSTGRES_MAX_CONCURRENCY=5
-        EN_SNAPSHOTS_OBJECT_STORE_MODE=GCSAnonymousReadOnly
-        EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL=zksync-era-mainnet-external-node-snapshots
-        EN_SNAPSHOTS_OBJECT_STORE_MAX_RETRIES=5
-        EN_SNAPSHOTS_OBJECT_STORE_LOCAL_MIRROR_PATH=/tmp/object-store
-
-        EN_PRUNING_ENABLED=true
-        EN_PRUNING_CHUNK_SIZE=5
-        EN_PRUNING_REMOVAL_DELAY_SEC=120
-        EN_PRUNING_DATA_RETENTION_SEC=86400
-
-        EN_GATEWAY_URL=https://127.0.0.1:3150/
-        EN_BRIDGE_ADDRESSES_REFRESH_INTERVAL_SEC=300
-        EN_TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC=90
-        EN_CONSISTENCY_CHECKER_MAX_BATCHES_TO_RECHECK=5
-
-        # Required config, in the order its params were defined.
-        EN_L1_CHAIN_ID=8
-        EN_GATEWAY_CHAIN_ID=277
-        EN_L2_CHAIN_ID=270
-        EN_HTTP_PORT=2950
-        EN_WS_PORT=2951
-        EN_HEALTHCHECK_PORT=2952
-        EN_ETH_CLIENT_URL=https://127.0.0.1:8545/
-        EN_MAIN_NODE_URL=https://127.0.0.1:3050/
-        EN_STATE_CACHE_PATH=/db/state-keeper
-        EN_MERKLE_TREE_PATH=/db/merkle-tree
-
-        # Experimental config
-        EN_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB=256
-        EN_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES=512
-        EN_SNAPSHOTS_RECOVERY_L1_BATCH=123
-        EN_SNAPSHOTS_RECOVERY_DROP_STORAGE_KEY_PREIMAGES=true
-        EN_SNAPSHOTS_RECOVERY_TREE_CHUNK_SIZE=50000
-        EN_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER=5
-        EN_COMMITMENT_GENERATOR_MAX_PARALLELISM=4
-
-        # API component config
-        EN_API_TREE_API_REMOTE_URL=http://tree/
-        # Tree component config
-        EN_TREE_API_PORT=2955
-    "#;
+    let env = include_str!("full.env");
     let env = smart_config::Environment::from_dotenv("test.env", env)
         .unwrap()
         .strip_prefix("EN_");
@@ -332,6 +212,10 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let sentry = config.sentry;
     assert_eq!(sentry.url.unwrap(), "https://example.com/new");
     assert_eq!(sentry.environment.unwrap(), "mainnet - mainnet2");
+    let opentelemetry = config.opentelemetry.unwrap();
+    assert_eq!(opentelemetry.level, "debug");
+    assert_eq!(opentelemetry.endpoint, "http://otel/v1/traces");
+    assert_eq!(opentelemetry.logs_endpoint.unwrap(), "http://otel/v1/logs");
 
     let config: Web3JsonRpcConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.filters_limit, 5_000);
@@ -411,8 +295,11 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         Some(NonZeroU32::new(512).unwrap())
     );
 
-    let config: zksync_config::PostgresConfig =
-        tester.for_config().test_complete(source.clone()).unwrap();
+    let config: PostgresConfig = tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(
+        config.server_url.unwrap().expose_str(),
+        "postgres://postgres:notsecurepassword@localhost:5432/en"
+    );
     assert_eq!(config.max_connections, Some(50));
     assert_eq!(
         config.long_connection_threshold,
@@ -499,10 +386,6 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
 
     let secrets: Secrets = tester.for_config().test(source.clone()).unwrap();
     assert_eq!(
-        secrets.postgres.server_url.unwrap().expose_str(),
-        "postgres://postgres:notsecurepassword@localhost:5432/en"
-    );
-    assert_eq!(
         secrets.l1.l1_rpc_url.unwrap().expose_str(),
         "https://127.0.0.1:8545/"
     );
@@ -537,10 +420,10 @@ fn parsing_with_consensus_from_yaml() {
     let mut repo = config_sources.build_repository(&schema);
 
     let config: ConsensusConfig = repo.parse().unwrap();
-    assert_consensus_config(config);
+    assert_consensus_config(config, false);
 }
 
-fn assert_consensus_config(config: ConsensusConfig) {
+fn assert_consensus_config(config: ConsensusConfig, expect_secrets: bool) {
     assert_eq!(config.port, Some(3_055));
     assert_eq!(config.max_payload_size, ByteSize(2_500_000));
     assert_eq!(config.gossip_dynamic_inbound_limit, 100);
@@ -549,6 +432,19 @@ fn assert_consensus_config(config: ConsensusConfig) {
     assert_eq!(host.0, "127.0.0.1:3154");
     let genesis_spec = config.genesis_spec.unwrap();
     assert_eq!(genesis_spec.chain_id, L2ChainId::from(272));
+
+    if expect_secrets {
+        let node_key = config.secrets.node_key.unwrap();
+        assert_eq!(
+            node_key.expose_secret(),
+            "node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c"
+        );
+        let validator_key = config.secrets.validator_key.unwrap();
+        assert_eq!(validator_key.expose_secret(), "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4");
+    } else {
+        assert!(config.secrets.node_key.is_none());
+        assert!(config.secrets.validator_key.is_none());
+    }
 }
 
 #[test]
@@ -582,25 +478,16 @@ fn avail_da_client_from_env() {
     };
     assert_eq!(config.timeout, Duration::from_secs(2));
     assert_eq!(config.bridge_api_url, "localhost:54321");
-    let AvailClientConfig::FullClient(config) = &config.config else {
+    let AvailClientConfig::FullClient(config) = &config.client else {
         panic!("unexpected config: {config:?}");
     };
     assert_eq!(config.app_id, 1);
     assert_eq!(config.api_node_url, "localhost:12345");
     assert_eq!(config.dispatch_timeout, Duration::from_secs(30));
     assert_eq!(config.max_blocks_to_look_back, 10);
-
-    let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
-    let DataAvailabilitySecrets::Avail(secrets) = secrets else {
-        panic!("unexpected DA secrets");
-    };
     assert_eq!(
-        secrets.seed_phrase.unwrap().expose_secret(),
+        config.seed_phrase.expose_secret(),
         "correct horse battery staple"
-    );
-    assert_eq!(
-        secrets.gas_relay_api_key.unwrap().expose_secret(),
-        "key_123456"
     );
 }
 
@@ -631,13 +518,8 @@ fn celestia_da_client_from_env() {
     assert_eq!(config.namespace, "0x1234567890abcdef");
     assert_eq!(config.chain_id, "mocha-4");
     assert_eq!(config.timeout, Duration::from_secs(7));
-
-    let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
-    let DataAvailabilitySecrets::Celestia(secrets) = secrets else {
-        panic!("unexpected DA secrets");
-    };
     assert_eq!(
-        secrets.private_key.expose_secret(),
+        config.private_key.expose_secret(),
         "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
     );
 }
@@ -689,13 +571,8 @@ fn eigen_da_client_from_env() {
     };
     assert_eq!(path, "resources");
     assert_eq!(config.custom_quorum_numbers, [2]);
-
-    let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
-    let DataAvailabilitySecrets::Eigen(secrets) = secrets else {
-        panic!("unexpected DA secrets");
-    };
     assert_eq!(
-        secrets.private_key.expose_secret(),
+        config.private_key.expose_secret(),
         "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
     );
 }
@@ -723,12 +600,5 @@ fn parsing_consensus_from_env_vars() {
     let repo = config_sources.build_repository(&schema);
     let config = ExternalNodeConfig::new(repo, true).unwrap();
 
-    assert_consensus_config(config.consensus.unwrap());
-    let node_key = config.local.secrets.consensus.node_key.unwrap();
-    assert_eq!(
-        node_key.expose_secret(),
-        "node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c"
-    );
-    let validator_key = config.local.secrets.consensus.validator_key.unwrap();
-    assert_eq!(validator_key.expose_secret(), "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4");
+    assert_consensus_config(config.consensus.unwrap(), true);
 }

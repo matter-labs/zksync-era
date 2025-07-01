@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use http::StatusCode;
@@ -8,7 +8,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 use reqwest::Url;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
+use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
@@ -123,13 +123,11 @@ impl Tokenize for MerkleProofInput {
 }
 
 impl AvailClient {
-    pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
+    pub async fn new(config: AvailConfig) -> anyhow::Result<Self> {
         let api_client = Arc::new(reqwest::Client::new());
-        match config.config.clone() {
+        match config.client.clone() {
             AvailClientConfig::GasRelay(conf) => {
-                let gas_relay_api_key = secrets
-                    .gas_relay_api_key
-                    .context("Gas relay API key is missing")?;
+                let gas_relay_api_key = conf.gas_relay_api_key;
                 let gas_relay_client = GasRelayClient::new(
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
@@ -144,8 +142,7 @@ impl AvailClient {
                 })
             }
             AvailClientConfig::FullClient(conf) => {
-                let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
-
+                let seed_phrase = conf.seed_phrase;
                 let sdk_client = RawAvailClient::new(
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
@@ -172,7 +169,7 @@ impl DataAvailabilityClient for AvailClient {
     ) -> anyhow::Result<DispatchResponse, DAError> {
         match self.sdk_client.as_ref() {
             AvailClientMode::Default(client) => {
-                let default_config = match &self.config.config {
+                let default_config = match &self.config.client {
                     AvailClientConfig::FullClient(conf) => conf,
                     _ => unreachable!(), // validated in protobuf config
                 };
@@ -218,7 +215,7 @@ impl DataAvailabilityClient for AvailClient {
     ) -> Result<Option<FinalityResponse>, DAError> {
         Ok(match self.sdk_client.as_ref() {
             AvailClientMode::Default(client) => {
-                let default_config = match &self.config.config {
+                let default_config = match &self.config.client {
                     AvailClientConfig::FullClient(conf) => conf,
                     _ => unreachable!(), // validated in protobuf config
                 };
@@ -340,7 +337,7 @@ impl DataAvailabilityClient for AvailClient {
     async fn balance(&self) -> Result<u64, DAError> {
         match self.sdk_client.as_ref() {
             AvailClientMode::Default(client) => {
-                let AvailClientConfig::FullClient(default_config) = &self.config.config else {
+                let AvailClientConfig::FullClient(default_config) = &self.config.client else {
                     unreachable!(); // validated in protobuf config
                 };
 

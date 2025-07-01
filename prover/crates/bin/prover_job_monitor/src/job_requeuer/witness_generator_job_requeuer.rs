@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
+use zksync_prover_config::WitnessGenerationTimeouts;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_prover_task::Task;
 use zksync_types::prover_dal::StuckJobs;

@@ -1,35 +1,18 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-use smart_config::{
-    de::{Serde, WellKnown},
-    DescribeConfig, DeserializeConfig,
-};
+use smart_config::{de::Serde, DescribeConfig, DeserializeConfig};
+use zksync_basic_types::basic_fri_types::ApiMode;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct FriProverGatewayConfig {
     pub api_url: String,
     #[config(default_t = Duration::from_secs(1000))]
     pub api_poll_duration: Duration,
-    #[config(default)]
+    #[config(default, with = Serde![str])]
     pub api_mode: ApiMode,
     pub port: Option<u16>,
     // Configurations for prometheus
     pub prometheus_listener_port: Option<u16>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub enum ApiMode {
-    /// The legacy API mode, which is compatible with the old prover API.
-    #[default]
-    Legacy,
-    /// The new API mode, which is compatible with the prover cluster API.
-    ProverCluster,
-}
-
-impl WellKnown for ApiMode {
-    type Deserializer = Serde![str];
-    const DE: Self::Deserializer = Serde![str];
 }
 
 #[cfg(test)]
