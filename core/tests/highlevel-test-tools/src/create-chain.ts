@@ -16,7 +16,7 @@ export interface ChainConfig {
 }
 
 /**
- * Global mutex for phase1 chain initialization
+ * Global mutex for chain initialization
  */
 const fileMutex = new FileMutex();
 
@@ -119,7 +119,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
   
   try {
     // Acquire mutex for the entire chain creation and initialization process
-    console.log(`🔒 Acquiring mutex for chain creation and phase1 initialization of ${chainConfig.chainName}...`);
+    console.log(`🔒 Acquiring mutex for chain creation and initialization of ${chainConfig.chainName}...`);
     await fileMutex.acquire();
     console.log(`✅ Mutex acquired for ${chainConfig.chainName}`);
     
@@ -148,7 +148,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
       // Step 2: Initialize the chain - Phase 1 (under mutex protection)
       console.log(`⏳ Phase 1 initialization for ${chainConfig.chainName}`);
       await executeCommand('zkstack', [
-        'chain', 'init', '--phase1',
+        'chain', 'init',
         '--deploy-paymaster',
         '--l1-rpc-url', finalConfig.l1RpcUrl!,
         '--server-db-url', finalConfig.serverDbUrl!,
@@ -158,25 +158,7 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
         '--update-submodules', 'false',
         '--verbose'
       ], chainConfig.chainName, "main_node");
-      console.log(`✅ Phase 1 initialization completed for ${chainConfig.chainName}`);
-      
-      console.log(`✅ Chain creation and Phase 1 initialization completed for ${chainConfig.chainName}`);
-
-      // Step 3: Initialize the chain - Phase 2
-      console.log(`⏳ Phase 2 initialization for ${chainConfig.chainName}`);
-      await executeCommand('zkstack', [
-        'chain', 'init', '--phase2',
-        '--deploy-paymaster',
-        '--l1-rpc-url', finalConfig.l1RpcUrl!,
-        '--server-db-url', finalConfig.serverDbUrl!,
-        '--server-db-name', `zksync_server_localhost_${chainConfig.chainName}`,
-        '--chain', chainConfig.chainName,
-        '--validium-type', 'no-da',
-        '--update-submodules', 'false',
-        '--verbose'
-      ], chainConfig.chainName, 'main_node');
-      console.log(`✅ Phase 2 initialization completed for ${chainConfig.chainName}`);
-
+      console.log(`✅ Initialization completed for ${chainConfig.chainName}`);
     } finally {
       fileMutex.release();
     }

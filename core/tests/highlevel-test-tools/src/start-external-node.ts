@@ -7,7 +7,7 @@ import { exec } from "node:child_process";
 import {getRpcUrl} from "./rpc-utils";
 
 /**
- * Global mutex for phase1 chain initialization (same as in create-chain.ts)
+ * Global mutex for chain initialization (same as in create-chain.ts)
  */
 const fileMutex = new FileMutex();
 
