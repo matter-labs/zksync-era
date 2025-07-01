@@ -1,10 +1,7 @@
-import { spawn } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs';
-import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { executeCommand } from './execute-command';
-import { FileMutex, cleanTestChains } from './file-mutex';
+import { FileMutex } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
 import {migrateToGatewayIfNeeded} from "./gateway";
 
@@ -145,8 +142,8 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
       ], chainConfig.chainName, "main_node");
       console.log(`✅ Chain creation completed for ${chainConfig.chainName}`);
       
-      // Step 2: Initialize the chain - Phase 1 (under mutex protection)
-      console.log(`⏳ Phase 1 initialization for ${chainConfig.chainName}`);
+      // Step 2: Initialize the chain (under mutex protection)
+      console.log(`⏳ Initialization for ${chainConfig.chainName}`);
       await executeCommand('zkstack', [
         'chain', 'init',
         '--deploy-paymaster',
@@ -163,10 +160,10 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
       fileMutex.release();
     }
 
-    // Step 4: Migrate to gateway if needed
+    // Step 3: Migrate to gateway if needed
     await migrateToGatewayIfNeeded(chainConfig.chainName)
     
-    // Step 5: Start the server
+    // Step 4: Start the server
     console.log(`🚀 Starting server for ${chainConfig.chainName}...`);
     const serverHandle = await startServer(chainConfig.chainName);
     console.log(`✅ Server started successfully for ${chainConfig.chainName}`);
