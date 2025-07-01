@@ -14,11 +14,9 @@ pub struct L1TransactionVerifier {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionValidationError {
-    #[error("Batch transaction {tx_hash} failed on SL")]
-    TransactionFailed { tx_hash: H256 },
-    #[error("Batch transaction invalid: {reason}")]
-    BatchTransactionInvalid { reason: String },
-    #[error("Other validation error")]
+    #[error("Batch transaction {tx_hash} invalid: {reason}")]
+    BatchTransactionInvalid { tx_hash: H256, reason: String },
+    #[error(transparent)]
     OtherValidationError(#[from] anyhow::Error),
 }
 
@@ -44,8 +42,9 @@ impl L1TransactionVerifier {
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed {
+            return Err(TransactionValidationError::BatchTransactionInvalid {
                 tx_hash: receipt.transaction_hash,
+                reason: "transaction reverted".to_string(),
             });
         }
 
@@ -93,35 +92,32 @@ impl L1TransactionVerifier {
 
         let (batch_hash, commitment) = committed_batch_info.ok_or_else(|| {
             TransactionValidationError::BatchTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
                 reason: format!(
-                    "Commit transaction {} for batch {} does not have `BlockCommit` event log",
-                    receipt.transaction_hash, batch_number
+                    "does not have `BlockCommit` event log for batch {}",
+                    batch_number
                 ),
             }
         })?;
 
         if db_batch.commitment != commitment {
             return Err(TransactionValidationError::BatchTransactionInvalid {
-                    reason: format!(
-                        "Commit transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
-                        receipt.transaction_hash,
-                        batch_number,
-                        db_batch.commitment,
-                        commitment
-                    )
-                });
+                tx_hash: receipt.transaction_hash,
+                reason: format!(
+                    "batch {} has different commitment: batch: {:?}, transaction log: {:?}",
+                    batch_number, db_batch.commitment, commitment
+                ),
+            });
         }
 
         if db_batch.root_hash != batch_hash {
             return Err(TransactionValidationError::BatchTransactionInvalid {
-                    reason: format!(
-                        "Commit transaction {} for batch {} has different root hash: expected {:?}, got {:?}",
-                        receipt.transaction_hash,
-                        batch_number,
-                        db_batch.root_hash,
-                        batch_hash
-                    )
-                });
+                tx_hash: receipt.transaction_hash,
+                reason: format!(
+                    "batch {} has different root hash: batch: {:?}, transaction log: {:?}",
+                    batch_number, db_batch.root_hash, batch_hash
+                ),
+            });
         }
 
         // OK verified successfully the commit transaction.
@@ -135,8 +131,9 @@ impl L1TransactionVerifier {
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed {
+            return Err(TransactionValidationError::BatchTransactionInvalid {
                 tx_hash: receipt.transaction_hash,
+                reason: "transaction reverted".to_string(),
             });
         }
 
@@ -177,29 +174,22 @@ impl L1TransactionVerifier {
                 ))
             });
 
-        let (from, to) = proved_from_to.ok_or_else(||
-            TransactionValidationError::BatchTransactionInvalid {
-                reason: format!(
-                    "Prove transaction {} for batch {} does not have `BlocksVerification` event log",
-                    receipt.transaction_hash,
-                    batch_number
-                )
+        let (from, to) =
+            proved_from_to.ok_or_else(|| TransactionValidationError::BatchTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
+                reason: "does not have `BlocksVerification` event log".to_string(),
             })?;
 
         if from >= batch_number.0 {
             return Err(TransactionValidationError::BatchTransactionInvalid {
-                reason: format!(
-                    "Prove transaction {} for batch {} has invalid `from` value",
-                    receipt.transaction_hash, batch_number,
-                ),
+                tx_hash: receipt.transaction_hash,
+                reason: format!("has invalid `from` value for batch {}", batch_number),
             });
         }
         if to < batch_number.0 {
             return Err(TransactionValidationError::BatchTransactionInvalid {
-                reason: format!(
-                    "Prove transaction {} for batch {} has invalid `to` value",
-                    receipt.transaction_hash, batch_number,
-                ),
+                tx_hash: receipt.transaction_hash,
+                reason: format!("has invalid `to` value for batch {}", batch_number),
             });
         }
         // OK verified successfully the prove transaction.
@@ -214,8 +204,9 @@ impl L1TransactionVerifier {
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed {
+            return Err(TransactionValidationError::BatchTransactionInvalid {
                 tx_hash: receipt.transaction_hash,
+                reason: "transaction reverted".to_string(),
             });
         }
 
@@ -268,33 +259,32 @@ impl L1TransactionVerifier {
                 Some((batch_hash, commitment))
             });
 
-        let (batch_hash, commitment) = executed_batch_info.ok_or_else(||
+        let (batch_hash, commitment) = executed_batch_info.ok_or_else(|| {
             TransactionValidationError::BatchTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
                 reason: format!(
-                    "Execute transaction {} for batch {} does not have the corresponding `BlockExecution` event log",receipt.transaction_hash,
-                    batch_number
-                )
-            })?;
+                    "does not have `BlockExecution` event log for batch {}",
+                    batch_number,
+                ),
+            }
+        })?;
         if db_batch.commitment != commitment {
             return Err(TransactionValidationError::BatchTransactionInvalid {
-                    reason: format!(
-                        "Execute transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
-                        receipt.transaction_hash,
-                        batch_number,
-                        db_batch.commitment,
-                        commitment
-                    )
-                });
+                tx_hash: receipt.transaction_hash,
+                reason: format!(
+                    "has different commitment: batch {:?}, transaction log {:?}",
+                    db_batch.commitment, commitment,
+                ),
+            });
         }
         if db_batch.root_hash != batch_hash {
             return Err(TransactionValidationError::BatchTransactionInvalid {
-                    reason: format!(
-                        "Execute transaction {} for batch {} has different root hash: expected {:?}, got {:?}",
-                        receipt.transaction_hash,batch_number,
-                        db_batch.root_hash,
-                        batch_hash
-                    )
-                });
+                tx_hash: receipt.transaction_hash,
+                reason: format!(
+                    "has different root hash: batch {:?}, transaction log {:?}",
+                    db_batch.root_hash, batch_hash,
+                ),
+            });
         }
         // OK verified successfully the execute transaction.
         Ok(())

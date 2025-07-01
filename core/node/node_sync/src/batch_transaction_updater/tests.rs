@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{Connection, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
@@ -600,7 +601,8 @@ async fn test_invalid_transaction_handling(
     // Update with blocks that would finalize all transactions
     let block_execute = mock_block_number_for_batch_transaction(batch_number, 3);
 
-    updater
+    // Should fail as the transaction is invalid
+    let err = updater
         .loop_iteration(
             SL_CHAIN_ID,
             L1BlockNumbers {
@@ -610,9 +612,14 @@ async fn test_invalid_transaction_handling(
             },
         )
         .await
-        .unwrap_err()
-        .downcast_ref::<TransactionValidationError>()
-        .expect("Unexpected error type");
+        .unwrap_err();
+
+    // Failure should be due to invalid transaction
+    assert_matches!(
+        err.downcast_ref::<TransactionValidationError>()
+            .expect("Unexpected error type"),
+        TransactionValidationError::BatchTransactionInvalid { .. }
+    );
 
     Ok(())
 }
