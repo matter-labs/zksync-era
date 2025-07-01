@@ -299,6 +299,8 @@ jobs:
       - name: Run upgrade test
         run: |
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
             ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
           fi
           ci_run ./bin/stop_nodes.sh
