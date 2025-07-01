@@ -13,8 +13,6 @@ describe('Revert Test', () => {
   it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
     const { chainName, serverHandle} = await createChainAndStartServer(chainType);
 
-    await migrateToGatewayIfNeeded(chainName);
-
     await generateRealisticLoad(chainName);
 
     await waitForAllBatchesToBeExecuted(chainName);

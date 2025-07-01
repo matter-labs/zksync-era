@@ -298,7 +298,9 @@ jobs:
       # because as soon as they finish the bootloader will be different
       - name: Run upgrade test
         run: |
-          ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
+          fi
           ci_run ./bin/stop_nodes.sh
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY

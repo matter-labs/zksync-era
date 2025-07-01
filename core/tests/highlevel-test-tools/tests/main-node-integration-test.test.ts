@@ -5,8 +5,6 @@ describe('Integration Test', () => {
     it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
         const { chainName } = await createChainAndStartServer(chainType);
 
-        await migrateToGatewayIfNeeded(chainName);
-
         await runIntegrationTests(chainName);
     });
 });

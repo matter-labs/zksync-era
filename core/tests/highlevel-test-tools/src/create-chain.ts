@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { executeCommand } from './execute-command';
 import { FileMutex, cleanTestChains } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
+import {migrateToGatewayIfNeeded} from "./gateway";
 
 export type ChainType = 'validium' | 'da_migration' | 'custom_token' | 'era';
 
@@ -178,8 +179,11 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
       '--verbose'
     ], chainConfig.chainName, 'main_node');
     console.log(`✅ Phase 2 initialization completed for ${chainConfig.chainName}`);
+
+    // Step 4: Migrate to gateway if needed
+    await migrateToGatewayIfNeeded(chainConfig.chainName)
     
-    // Step 4: Start the server
+    // Step 5: Start the server
     console.log(`🚀 Starting server for ${chainConfig.chainName}...`);
     const serverHandle = await startServer(chainConfig.chainName);
     console.log(`✅ Server started successfully for ${chainConfig.chainName}`);
