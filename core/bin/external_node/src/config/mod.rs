@@ -299,7 +299,7 @@ impl LocalConfig {
         api.web3_json_rpc.http_port = 0;
         api.web3_json_rpc.ws_port = 0;
         api.merkle_tree.port = 0;
-        api.healthcheck.port = 0;
+        api.healthcheck.port = 0.into();
 
         Self {
             api,

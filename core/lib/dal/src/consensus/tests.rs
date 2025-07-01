@@ -69,6 +69,11 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                 l2_da_validator_address: rng.gen(),
             }
         },
+        pubdata_limit: if protocol_version < ProtocolVersionId::Version29 {
+            None
+        } else {
+            Some(rng.gen())
+        },
         interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
     }
 }
@@ -78,7 +83,6 @@ fn interop_root(rng: &mut impl Rng) -> InteropRoot {
         chain_id: rng.gen(),
         block_number: rng.gen(),
         sides: (0..10).map(|_| h256_to_u256(rng.gen())).collect(),
-        received_timestamp: rng.gen(),
     }
 }
 

@@ -55,6 +55,7 @@ pub struct FetchedBlock {
     pub operator_address: Address,
     pub transactions: Vec<FetchedTransaction>,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
 }
 
@@ -107,6 +108,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .map(FetchedTransaction::new)
                 .collect(),
             pubdata_params,
+            pubdata_limit: block.pubdata_limit,
             interop_roots: block.interop_roots.clone(),
         })
     }
@@ -183,6 +185,7 @@ impl IoCursorExt for IoCursor {
                         vec![],
                     ),
                     pubdata_params: block.pubdata_params,
+                    pubdata_limit: block.pubdata_limit,
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,

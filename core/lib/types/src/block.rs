@@ -75,6 +75,7 @@ pub struct L1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
     pub batch_fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl L1BatchHeader {
@@ -85,6 +86,7 @@ impl L1BatchHeader {
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
             fee_input: self.batch_fee_input,
+            pubdata_limit: self.pubdata_limit,
         }
     }
 }
@@ -97,6 +99,7 @@ pub struct UnsealedL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 /// Holder for the metadata that is relevant for both sealed and unsealed batches.
@@ -107,6 +110,7 @@ pub struct CommonL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -178,6 +182,7 @@ impl L1BatchHeader {
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            pubdata_limit: (protocol_version >= ProtocolVersionId::Version29).then_some(0),
         }
     }
 
@@ -303,12 +308,6 @@ pub fn build_bloom<'a, I: IntoIterator<Item = BloomInput<'a>>>(items: I) -> Bloo
     }
 
     bloom
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BatchOrBlockNumber {
-    BatchNumber(L1BatchNumber),
-    BlockNumber(L2BlockNumber),
 }
 
 #[cfg(test)]

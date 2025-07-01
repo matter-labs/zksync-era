@@ -43,8 +43,10 @@ pub struct SyncBlock {
     pub hash: Option<H256>,
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
-    /// Pubdata params used for this batch
+    /// Pubdata params used for this batch.
     pub pubdata_params: Option<PubdataParams>,
+    /// Pubdata limit for the batch.
+    pub pubdata_limit: Option<u64>,
     /// Interop roots for this block
     pub interop_roots: Vec<InteropRoot>,
 }

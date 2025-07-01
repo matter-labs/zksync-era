@@ -196,6 +196,7 @@ mod tests {
                 fee_input: BatchFeeInput::default(),
                 first_l2_block: L2BlockParams::new(1000),
                 pubdata_params: Default::default(),
+                pubdata_limit: Some(100_000),
             },
             number: L1BatchNumber(1),
             first_l2_block_number: L2BlockNumber(1),

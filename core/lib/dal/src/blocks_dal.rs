@@ -162,7 +162,8 @@ impl BlocksDal<'_, '_> {
                 fee_address,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             ORDER BY
@@ -172,6 +173,41 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .instrument("get_latest_l1_batch_header")
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(header.into()))
+    }
+
+    /// Returns common L1 batch's header (could be unsealed) by L1 batch number. The header contains fields that are
+    /// common for both unsealed and sealed batches. Returns `None` if there is no L1 batch with the provided number.
+    pub async fn get_common_l1_batch_header(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<CommonL1BatchHeader>> {
+        let Some(header) = sqlx::query_as!(
+            CommonStorageL1BatchHeader,
+            r#"
+            SELECT
+                number,
+                is_sealed,
+                timestamp,
+                protocol_version,
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                pubdata_limit
+            FROM
+                l1_batches
+            WHERE number = $1
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_common_l1_batch_header")
         .fetch_optional(self.storage)
         .await?
         else {
@@ -446,7 +482,8 @@ impl BlocksDal<'_, '_> {
                 data_availability.inclusion_data,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -490,7 +527,8 @@ impl BlocksDal<'_, '_> {
                 fee_address,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             WHERE
@@ -706,6 +744,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                pubdata_limit,
                 l1_tx_count,
                 l2_tx_count,
                 bloom,
@@ -725,6 +764,7 @@ impl BlocksDal<'_, '_> {
                 $5,
                 $6,
                 $7,
+                $8,
                 0,
                 0,
                 ''::bytea,
@@ -743,6 +783,7 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
+            unsealed_batch_header.pubdata_limit.map(|l| l as i64),
         )
         .instrument("insert_l1_batch")
         .with_arg("number", &unsealed_batch_header.number)
@@ -895,7 +936,8 @@ impl BlocksDal<'_, '_> {
                 fee_address,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM (
                 SELECT
                     number,
@@ -905,6 +947,7 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
+                    pubdata_limit,
                     is_sealed
                 FROM l1_batches
                 ORDER BY number DESC
@@ -1328,7 +1371,8 @@ impl BlocksDal<'_, '_> {
                 data_availability.inclusion_data,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1526,7 +1570,8 @@ impl BlocksDal<'_, '_> {
                 data_availability.inclusion_data,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1618,7 +1663,8 @@ impl BlocksDal<'_, '_> {
                 data_availability.inclusion_data,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 (
                     SELECT
@@ -1701,7 +1747,8 @@ impl BlocksDal<'_, '_> {
                         data_availability.inclusion_data,
                         l1_gas_price,
                         l2_fair_gas_price,
-                        fair_pubdata_price
+                        fair_pubdata_price,
+                        pubdata_limit
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1873,7 +1920,8 @@ impl BlocksDal<'_, '_> {
                     data_availability.inclusion_data,
                     l1_gas_price,
                     l2_fair_gas_price,
-                    fair_pubdata_price
+                    fair_pubdata_price,
+                    pubdata_limit
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1949,7 +1997,8 @@ impl BlocksDal<'_, '_> {
                 data_availability.inclusion_data,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2039,7 +2088,8 @@ impl BlocksDal<'_, '_> {
                 data_availability.inclusion_data,
                 l1_gas_price,
                 l2_fair_gas_price,
-                fair_pubdata_price
+                fair_pubdata_price,
+                pubdata_limit
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

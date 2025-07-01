@@ -78,6 +78,7 @@ pub struct Payload {
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
 }
 
