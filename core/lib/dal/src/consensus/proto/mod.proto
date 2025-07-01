@@ -41,7 +41,7 @@ message Payload {
   optional bool last_in_batch = 10; // required
   optional PubdataParams pubdata_params = 13; // optional
   optional uint64 pubdata_limit = 14; // required since v29
-  repeated InteropRoot interop_roots = 14; // optional; set for protocol_version >= 29
+  repeated InteropRoot interop_roots = 15; // optional; set for protocol_version >= 29
 }
 
 message PubdataParams {
