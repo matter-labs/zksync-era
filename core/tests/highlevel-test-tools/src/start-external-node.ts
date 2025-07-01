@@ -4,6 +4,7 @@ import * as console from "node:console";
 import { ChildProcess } from 'child_process';
 import { promisify } from "node:util";
 import { exec } from "node:child_process";
+import {getRpcUrl} from "./rpc-utils";
 
 /**
  * Global mutex for phase1 chain initialization (same as in create-chain.ts)
@@ -43,15 +44,15 @@ async function killPidWithAllChilds(pid: number, signalNumber: number) {
  * @param chainName - The name of the chain (defaults to 'era')
  * @returns Promise that resolves when the external node is initialized
  */
-export async function initExternalNode(chainName: string = 'era', gatewayRpcUrl?: string): Promise<void> {
+export async function initExternalNode(chainName: string = 'era'): Promise<void> {
   console.log(`🚀 Initializing external node for chain: ${chainName}`);
-  
+
   try {
     // Acquire mutex for external node initialization
     console.log(`🔒 Acquiring mutex for external node initialization of ${chainName}...`);
     await fileMutex.acquire();
     console.log(`✅ Mutex acquired for external node initialization of ${chainName}`);
-    
+
     try {
       // Build the configs command arguments
       const configsArgs = [
@@ -62,10 +63,10 @@ export async function initExternalNode(chainName: string = 'era', gatewayRpcUrl?
         '--chain', chainName,
         '--tight-ports'
       ];
-      
-      // Add gateway RPC URL if provided
-      if (gatewayRpcUrl) {
-        configsArgs.push(`--gateway-rpc-url=${gatewayRpcUrl}`);
+
+      const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
+      if (useGatewayChain === 'WITH_GATEWAY') {
+        configsArgs.push(`--gateway-rpc-url=${getRpcUrl("gateway")}`);
       }
       
       console.log(`⏳ Configuring external node: ${chainName}`);

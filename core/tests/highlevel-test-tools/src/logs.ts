@@ -9,6 +9,10 @@ export function getLogsDirectory(chainName: string) {
     if (!fs.existsSync(logsDir)) {
         fs.mkdirSync(logsDir, {recursive: true});
     }
+    const failedLogsDir = `../../../logs/highlevel/[❌FAIL] [${suiteName}] ${chainName}`;
+    if (fs.existsSync(failedLogsDir)) {
+        return failedLogsDir;
+    }
 
     return logsDir;
 }

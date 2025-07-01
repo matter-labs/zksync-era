@@ -74,10 +74,10 @@ function logExecutedCommand(chainName: string, command: string, args: string[], 
 }
 
 function findAndPrintErrorFromLogs(logFilePath: string) {
-  // Print last 30 lines of logs on error
-  const lastLogs = readLastNLines(logFilePath, 30);
+  // Print last 60 lines of logs on error
+  const lastLogs = readLastNLines(logFilePath, 60);
   if (lastLogs) {
-    console.error('\n📋 Last 30 lines of logs:');
+    console.error('\n📋 Last 60 lines of logs:');
     console.error('')
     console.error('─'.repeat(120));
     console.error(lastLogs);
