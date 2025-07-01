@@ -299,7 +299,9 @@ async fn store_l1_batches(
 
         new_l2_block.base_system_contracts_hashes = genesis_params.base_system_contracts().hashes();
         new_l2_block.l2_tx_count = 1;
-        conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
+        conn.blocks_dal()
+            .insert_l2_block(&new_l2_block, l1_batch_number)
+            .await?;
         last_l2_block_hash = new_l2_block.hash;
         l2_block_number += 1;
 
@@ -322,7 +324,9 @@ async fn store_l1_batches(
             last_l2_block_hash,
         );
         fictive_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
-        conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
+        conn.blocks_dal()
+            .insert_l2_block(&fictive_l2_block, l1_batch_number)
+            .await?;
         last_l2_block_hash = fictive_l2_block.hash;
         l2_block_number += 1;
 
@@ -337,11 +341,9 @@ async fn store_l1_batches(
             .map(h256_to_u256)
             .collect();
 
+        conn.blocks_dal().insert_mock_l1_batch(&header).await?;
         conn.blocks_dal()
             .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default())
-            .await?;
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
             .await?;
         conn.transactions_dal()
             .mark_txs_as_executed_in_l1_batch(l1_batch_number, &[tx_result.hash])

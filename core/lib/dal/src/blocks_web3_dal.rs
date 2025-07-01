@@ -16,10 +16,7 @@ use zksync_vm_interface::Call;
 use crate::{
     models::{
         bigdecimal_to_u256, parse_protocol_version,
-        storage_block::{
-            ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
-            LEGACY_BLOCK_GAS_LIMIT,
-        },
+        storage_block::{StorageBlockDetails, StorageL1BatchDetails, LEGACY_BLOCK_GAS_LIMIT},
         storage_transaction::CallTrace,
     },
     Core, CoreDal,
@@ -55,7 +52,11 @@ impl BlocksWeb3Dal<'_, '_> {
             LEFT JOIN
                 miniblocks prev_miniblock
                 ON prev_miniblock.number = miniblocks.number - 1
-            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN
+                l1_batches
+                ON
+                    l1_batches.number = miniblocks.l1_batch_number
+                    AND l1_batches.is_sealed = TRUE
             LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number = $1
@@ -362,74 +363,28 @@ impl BlocksWeb3Dal<'_, '_> {
     /// being equal to the timestamp of the first L2 block in the batch.
     pub async fn get_expected_l1_batch_timestamp(
         &mut self,
-        l1_batch_number: &ResolvedL1BatchForL2Block,
+        l1_batch_number: &L1BatchNumber,
     ) -> DalResult<Option<u64>> {
-        if let Some(l1_batch) = l1_batch_number.block_l1_batch {
-            Ok(sqlx::query!(
-                r#"
-                SELECT
-                    timestamp
-                FROM
-                    miniblocks
-                WHERE
-                    l1_batch_number = $1
-                ORDER BY
-                    number
-                LIMIT
-                    1
-                "#,
-                i64::from(l1_batch.0)
-            )
-            .instrument("get_expected_l1_batch_timestamp#sealed_l2_block")
-            .with_arg("l1_batch_number", &l1_batch_number)
-            .fetch_optional(self.storage)
-            .await?
-            .map(|row| row.timestamp as u64))
-        } else {
-            // Got a pending L2 block. Searching the timestamp of the first pending L2 block using
-            // `WHERE l1_batch_number IS NULL` is slow since it potentially locks the `miniblocks` table.
-            // Instead, we determine its number using the previous L1 batch, taking into the account that
-            // it may be stored in the `snapshot_recovery` table.
-            let prev_l1_batch_number = if l1_batch_number.pending_l1_batch == L1BatchNumber(0) {
-                return Ok(None); // We haven't created the genesis L2 block yet
-            } else {
-                l1_batch_number.pending_l1_batch - 1
-            };
-
-            Ok(sqlx::query!(
-                r#"
-                SELECT
-                    timestamp
-                FROM
-                    miniblocks
-                WHERE
-                    number = COALESCE(
-                        (
-                            SELECT
-                                MAX(number) + 1
-                            FROM
-                                miniblocks
-                            WHERE
-                                l1_batch_number = $1
-                        ),
-                        (
-                            SELECT
-                                MAX(miniblock_number) + 1
-                            FROM
-                                snapshot_recovery
-                            WHERE
-                                l1_batch_number = $1
-                        )
-                    )
-                "#,
-                i64::from(prev_l1_batch_number.0)
-            )
-            .instrument("get_expected_l1_batch_timestamp#pending_l2_block")
-            .with_arg("l1_batch_number", &l1_batch_number)
-            .fetch_optional(self.storage)
-            .await?
-            .map(|row| row.timestamp as u64))
-        }
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                timestamp
+            FROM
+                miniblocks
+            WHERE
+                l1_batch_number = $1
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_expected_l1_batch_timestamp#sealed_l2_block")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.timestamp as u64))
     }
 
     pub async fn get_l2_block_hash(
@@ -896,7 +851,10 @@ mod tests {
             l2_tx_count: 5,
             ..create_l2_block_header(0)
         };
-        conn.blocks_dal().insert_l2_block(&header).await.unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&header, L1BatchNumber(0))
+            .await
+            .unwrap();
 
         let block_hash = L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
@@ -938,7 +896,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -972,7 +930,7 @@ mod tests {
         assert_eq!(l2_block_number, Some(L2BlockNumber(0)));
 
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -994,7 +952,7 @@ mod tests {
         assert_eq!(l2_block_number.unwrap(), None);
 
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
         let l2_block_number = conn
@@ -1045,7 +1003,7 @@ mod tests {
 
         let l2_block_header = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -1053,10 +1011,6 @@ mod tests {
 
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
             .await
             .unwrap();
 
@@ -1127,7 +1081,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -1157,7 +1111,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(1))
+            .insert_l2_block(&create_l2_block_header(1), L1BatchNumber(0))
             .await
             .unwrap();
 

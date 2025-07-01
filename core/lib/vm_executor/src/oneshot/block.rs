@@ -52,7 +52,7 @@ impl BlockInfo {
             .with_context(|| format!("failed resolving L1 batch number of L2 block #{number}"))?;
         let l1_batch_timestamp = connection
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(&l1_batch)
+            .get_expected_l1_batch_timestamp(&l1_batch.block_l1_batch)
             .await
             .map_err(DalError::generalize)?
             .context("missing timestamp for non-pending block")?;
@@ -97,18 +97,19 @@ impl BlockInfo {
         let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 
         let l2_block_header = if let Some(l1_batch_timestamp_s) = self.l1_batch_timestamp_s {
+            let number = self.resolved_block_number;
             vm_l1_batch_number = connection
                 .storage_web3_dal()
-                .resolve_l1_batch_number_of_l2_block(self.resolved_block_number)
+                .resolve_l1_batch_number_of_l2_block(number)
                 .await
                 .context("failed resolving L1 batch for L2 block")?
-                .expected_l1_batch();
+                .block_l1_batch;
             l1_batch_timestamp = l1_batch_timestamp_s;
-            state_l2_block_number = self.resolved_block_number;
+            state_l2_block_number = number;
 
             connection
                 .blocks_dal()
-                .get_l2_block_header(self.resolved_block_number)
+                .get_l2_block_header(number)
                 .await?
                 .context("resolved L2 block disappeared from storage")?
         } else {

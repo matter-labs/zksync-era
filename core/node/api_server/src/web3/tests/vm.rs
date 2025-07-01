@@ -275,7 +275,7 @@ impl HttpTest for CallTestWithEvmEmulator {
             base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
             ..create_l2_block(1)
         };
-        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        store_custom_l2_block(&mut connection, &block_header, &[], L1BatchNumber(1)).await?;
 
         let call_result = client.call(CallTest::call_request(&[]), None, None).await?;
         assert_eq!(call_result.0, b"output");
@@ -948,7 +948,7 @@ impl HttpTest for TraceCallTestWithEvmEmulator {
             base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
             ..create_l2_block(1)
         };
-        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        store_custom_l2_block(&mut connection, &block_header, &[], L1BatchNumber(1)).await?;
         seal_l1_batch(&mut connection, L1BatchNumber(1)).await?;
 
         client

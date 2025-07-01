@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                miniblocks.hash AS block_hash,\n                miniblocks.number,\n                miniblocks.l1_batch_number,\n                miniblocks.timestamp,\n                miniblocks.base_fee_per_gas,\n                miniblocks.gas_limit AS \"block_gas_limit?\",\n                miniblocks.logs_bloom,\n                prev_miniblock.hash AS \"parent_hash?\",\n                l1_batches.timestamp AS \"l1_batch_timestamp?\",\n                transactions.gas_limit AS \"transaction_gas_limit?\",\n                transactions.refunded_gas AS \"refunded_gas?\",\n                transactions.hash AS \"tx_hash?\"\n            FROM\n                miniblocks\n            LEFT JOIN\n                miniblocks prev_miniblock\n                ON prev_miniblock.number = miniblocks.number - 1\n            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number\n            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number\n            WHERE\n                miniblocks.number = $1\n            ORDER BY\n                transactions.index_in_block ASC\n            ",
+  "query": "\n            SELECT\n                miniblocks.hash AS block_hash,\n                miniblocks.number,\n                miniblocks.l1_batch_number,\n                miniblocks.timestamp,\n                miniblocks.base_fee_per_gas,\n                miniblocks.gas_limit AS \"block_gas_limit?\",\n                miniblocks.logs_bloom,\n                prev_miniblock.hash AS \"parent_hash?\",\n                l1_batches.timestamp AS \"l1_batch_timestamp?\",\n                transactions.gas_limit AS \"transaction_gas_limit?\",\n                transactions.refunded_gas AS \"refunded_gas?\",\n                transactions.hash AS \"tx_hash?\"\n            FROM\n                miniblocks\n            LEFT JOIN\n                miniblocks prev_miniblock\n                ON prev_miniblock.number = miniblocks.number - 1\n            LEFT JOIN\n                l1_batches\n                ON\n                    l1_batches.number = miniblocks.l1_batch_number\n                    AND l1_batches.is_sealed = TRUE\n            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number\n            WHERE\n                miniblocks.number = $1\n            ORDER BY\n                transactions.index_in_block ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -84,5 +84,5 @@
       false
     ]
   },
-  "hash": "0bae50601f2dc3ea7ba9ab6b9f508275cef018c7060c49b9f7a387a14f6a5be8"
+  "hash": "a045633e8668a2b00d4e7a1321b7be87f210ef8978c8c20c9fa74ff202b8caad"
 }

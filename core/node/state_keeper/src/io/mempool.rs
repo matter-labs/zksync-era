@@ -137,6 +137,7 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
+
         let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
             .await
             .with_context(|| {

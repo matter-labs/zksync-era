@@ -316,7 +316,7 @@ impl SaveAction<'_> {
                     .unwrap();
                 storage
                     .blocks_dal()
-                    .insert_l2_block(l2_block)
+                    .insert_l2_block(l2_block, l1_batch.header.number)
                     .await
                     .unwrap();
 
@@ -336,12 +336,6 @@ impl SaveAction<'_> {
                         .await
                         .unwrap();
                 }
-
-                storage
-                    .blocks_dal()
-                    .mark_l2_blocks_as_executed_in_l1_batch(l1_batch.header.number)
-                    .await
-                    .unwrap();
             }
             Self::SaveMetadata(l1_batch) => {
                 storage

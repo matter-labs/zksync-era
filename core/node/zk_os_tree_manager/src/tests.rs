@@ -64,15 +64,11 @@ async fn insert_l1_batch(conn: &mut Connection<'_, Core>, storage_logs: &[Storag
         .await
         .unwrap();
     conn.blocks_dal()
-        .insert_l2_block(&block_header)
+        .insert_l2_block(&block_header, l1_batch_header.number)
         .await
         .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(block_header.number, storage_logs)
-        .await
-        .unwrap();
-    conn.blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
         .await
         .unwrap();
     insert_initial_writes_for_batch(&mut conn, l1_batch_header.number).await;

@@ -23,10 +23,8 @@ async fn insert_l2_block(
     l1_batch_number: L1BatchNumber,
 ) {
     let l2_block1 = create_l2_block_header(l2_block_number.0);
-    conn.blocks_dal().insert_l2_block(&l2_block1).await.unwrap();
-
     conn.blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
+        .insert_l2_block(&l2_block1, l1_batch_number)
         .await
         .unwrap();
 
@@ -454,7 +452,7 @@ async fn transactions_are_handled_correctly_after_pruning() {
         .await
         .unwrap();
     conn.blocks_dal()
-        .insert_l2_block(&l2_block_header)
+        .insert_l2_block(&l2_block_header, L1BatchNumber(1))
         .await
         .unwrap();
     conn.transactions_dal()

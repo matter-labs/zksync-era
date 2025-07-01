@@ -521,11 +521,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l2_block(&genesis_l2_block_header)
-        .await?;
-    transaction
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        .insert_l2_block(&genesis_l2_block_header, genesis_l1_batch_header.number)
         .await?;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;

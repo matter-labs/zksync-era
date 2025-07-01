@@ -152,13 +152,6 @@ impl UpdatesManager {
             .await?;
         progress.observe(None);
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
-        transaction
-            .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch.number)
-            .await?;
-        progress.observe(None);
-
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::MarkTxsAsExecutedInL1Batch);
         transaction
             .transactions_dal()
@@ -396,7 +389,7 @@ impl L2BlockSealCommand {
         let mut connection = strategy.connection().await?;
         connection
             .blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, self.l1_batch_number)
             .await?;
         progress.observe(None);
 

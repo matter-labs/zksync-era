@@ -161,6 +161,7 @@ async fn create_l2_block(
     conn: &mut Connection<'_, Core>,
     l2_block_number: L2BlockNumber,
     block_logs: Vec<StorageLog>,
+    l1_batch_number: L1BatchNumber,
 ) {
     let l2_block_header = L2BlockHeader {
         number: l2_block_number,
@@ -181,7 +182,7 @@ async fn create_l2_block(
     };
 
     conn.blocks_dal()
-        .insert_l2_block(&l2_block_header)
+        .insert_l2_block(&l2_block_header, l1_batch_number)
         .await
         .unwrap();
     conn.storage_logs_dal()
@@ -198,10 +199,6 @@ async fn create_l1_batch(
     let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
-        .await
-        .unwrap();
-    conn.blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
 
@@ -237,7 +234,13 @@ async fn prepare_postgres(
     let mut outputs = ExpectedOutputs::default();
     for block_number in 0..block_count {
         let logs = gen_storage_logs(rng, 100);
-        create_l2_block(conn, L2BlockNumber(block_number), logs.clone()).await;
+        create_l2_block(
+            conn,
+            L2BlockNumber(block_number),
+            logs.clone(),
+            L1BatchNumber(block_number),
+        )
+        .await;
 
         let factory_deps = gen_factory_deps(rng, 10);
         conn.factory_deps_dal()

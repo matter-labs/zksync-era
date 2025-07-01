@@ -1,5 +1,6 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
+use anyhow::Context;
 use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
@@ -142,6 +143,26 @@ impl NodeStorageInitializer {
             }
         }
 
+        self.attach_pending_l2_blocks_to_pending_batch()
+            .await
+            .context("Failed to attach pending L2 blocks to pending batch")?;
+
+        Ok(())
+    }
+
+    async fn attach_pending_l2_blocks_to_pending_batch(&self) -> anyhow::Result<()> {
+        let mut storage = self.pool.connection_tagged("node_init").await?;
+        let mut transaction = storage.start_transaction().await?;
+        let number = transaction.blocks_dal().pending_batch_number().await?;
+
+        // During the transition period we have to ensure that all pending miniblocks have l1 batch number
+        if let Some(number) = number {
+            transaction
+                .blocks_dal()
+                .set_l1_batch_number_for_pending_miniblocks(number)
+                .await?;
+        }
+        transaction.commit().await?;
         Ok(())
     }
 

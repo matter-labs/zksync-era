@@ -40,6 +40,10 @@ impl FirstL2BlockInBatch {
         );
         self.header.protocol_version = Some(version);
     }
+
+    pub fn l1_batch_number(&self) -> L1BatchNumber {
+        self.l1_batch_number
+    }
 }
 
 /// L1 batch environment parameters restored from the storage.

@@ -26,7 +26,13 @@ pub(crate) async fn prepare_postgres_with_log_count(
     // The created genesis block is likely to be invalid, but since it's not committed,
     // we don't really care.
     let genesis_storage_logs = gen_storage_logs(0..log_count);
-    create_l2_block(conn, L2BlockNumber(0), &genesis_storage_logs).await;
+    create_l2_block(
+        conn,
+        L2BlockNumber(0),
+        &genesis_storage_logs,
+        L1BatchNumber(0),
+    )
+    .await;
     create_l1_batch(conn, L1BatchNumber(0), &genesis_storage_logs).await;
     genesis_storage_logs
 }
@@ -62,6 +68,7 @@ pub(crate) async fn create_l2_block(
     conn: &mut Connection<'_, Core>,
     l2_block_number: L2BlockNumber,
     block_logs: &[StorageLog],
+    l1batch_number: L1BatchNumber,
 ) {
     let l2_block_header = L2BlockHeader {
         number: l2_block_number,
@@ -82,7 +89,7 @@ pub(crate) async fn create_l2_block(
     };
 
     conn.blocks_dal()
-        .insert_l2_block(&l2_block_header)
+        .insert_l2_block(&l2_block_header, l1batch_number)
         .await
         .unwrap();
     conn.storage_logs_dal()
@@ -101,10 +108,6 @@ pub(crate) async fn create_l1_batch(
     let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
-        .await
-        .unwrap();
-    conn.blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
 

@@ -31,12 +31,21 @@ async fn test_binary_search() {
     }
 }
 
-async fn store_l2_block(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
+async fn store_l2_block(
+    storage: &mut Connection<'_, Core>,
+    number: u32,
+    hash: H256,
+    l1batch_number: u32,
+) {
     let header = L2BlockHeader {
         hash,
         ..create_l2_block(number)
     };
-    storage.blocks_dal().insert_l2_block(&header).await.unwrap();
+    storage
+        .blocks_dal()
+        .insert_l2_block(&header, L1BatchNumber(l1batch_number))
+        .await
+        .unwrap();
 }
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
@@ -44,11 +53,6 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32, hash: H2
     storage
         .blocks_dal()
         .insert_mock_l1_batch(&header)
-        .await
-        .unwrap();
-    storage
-        .blocks_dal()
-        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
         .await
         .unwrap();
     storage
@@ -239,7 +243,7 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
     let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     for (number, l2_block_hash, l1_batch_hash) in l2_block_and_l1_batch_hashes {
-        store_l2_block(&mut storage, number, l2_block_hash).await;
+        store_l2_block(&mut storage, number, l2_block_hash, number).await;
         tokio::time::sleep(Duration::from_millis(10)).await;
         seal_l1_batch(&mut storage, number, l1_batch_hash).await;
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -307,9 +311,9 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
 
     let mut detector = create_mock_detector(client, pool.clone());
 
-    store_l2_block(&mut storage, 1, l2_block_hash).await;
+    store_l2_block(&mut storage, 1, l2_block_hash, 1).await;
     seal_l1_batch(&mut storage, 1, H256::repeat_byte(1)).await;
-    store_l2_block(&mut storage, 2, l2_block_hash).await;
+    store_l2_block(&mut storage, 2, l2_block_hash, 2).await;
     detector.check_consistency().await.unwrap();
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -359,12 +363,12 @@ async fn reorg_is_detected_on_l2_block_hash_mismatch() {
 
     let mut detector = create_mock_detector(client, pool.clone());
 
-    store_l2_block(&mut storage, 1, l2_block_hash).await;
+    store_l2_block(&mut storage, 1, l2_block_hash, 1).await;
     seal_l1_batch(&mut storage, 1, H256::repeat_byte(1)).await;
-    store_l2_block(&mut storage, 2, l2_block_hash).await;
+    store_l2_block(&mut storage, 2, l2_block_hash, 2).await;
     detector.check_consistency().await.unwrap();
 
-    store_l2_block(&mut storage, 3, H256::repeat_byte(42)).await;
+    store_l2_block(&mut storage, 3, H256::repeat_byte(42), 2).await;
     // ^ Hash of the L2 block #3 differs from that on the main node.
     assert_matches!(
         detector.check_consistency().await,
@@ -408,7 +412,13 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
             .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
-        store_l2_block(&mut storage, earliest_l1_batch_number, H256::zero()).await;
+        store_l2_block(
+            &mut storage,
+            earliest_l1_batch_number,
+            H256::zero(),
+            earliest_l1_batch_number,
+        )
+        .await;
         seal_l1_batch(&mut storage, earliest_l1_batch_number, H256::zero()).await;
     }
     let mut client = MockMainNodeClient::default();
@@ -440,7 +450,7 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     if matches!(storage_update_strategy, StorageUpdateStrategy::Prefill) {
         let mut storage = pool.connection().await.unwrap();
         for &(number, l2_block_hash, l1_batch_hash) in &l2_block_and_l1_batch_hashes {
-            store_l2_block(&mut storage, number, l2_block_hash).await;
+            store_l2_block(&mut storage, number, l2_block_hash, number).await;
             seal_l1_batch(&mut storage, number, l1_batch_hash).await;
         }
     }
@@ -462,7 +472,7 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
                     let (number, l2_block_hash, l1_batch_hash) =
                         l2_block_and_l1_batch_hashes.remove(0);
                     assert_eq!(number, last_number + 1);
-                    store_l2_block(&mut storage, number, l2_block_hash).await;
+                    store_l2_block(&mut storage, number, l2_block_hash, number).await;
                     seal_l1_batch(&mut storage, number, l1_batch_hash).await;
                     last_number = number;
                 }
@@ -535,7 +545,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
             .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
-        store_l2_block(&mut storage, 3, H256::from_low_u64_be(3)).await;
+        store_l2_block(&mut storage, 3, H256::from_low_u64_be(3), 3).await;
         seal_l1_batch(&mut storage, 3, H256::from_low_u64_be(3)).await;
     });
 
@@ -556,7 +566,7 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
         .unwrap();
     // Fill in local storage with some data, so that it's ahead of the main node.
     for number in 1..5 {
-        store_l2_block(&mut storage, number, H256::zero()).await;
+        store_l2_block(&mut storage, number, H256::zero(), number).await;
         seal_l1_batch(&mut storage, number, H256::zero()).await;
     }
     drop(storage);
@@ -607,7 +617,7 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
         .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
     for number in 1..L1_BATCH_COUNT {
         let l2_block_hash = H256::from_low_u64_le(number.into());
-        store_l2_block(&mut storage, number, l2_block_hash).await;
+        store_l2_block(&mut storage, number, l2_block_hash, number).await;
         let remote_l2_block_hash = if number <= last_correct_l1_batch {
             l2_block_hash
         } else {

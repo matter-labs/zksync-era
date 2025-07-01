@@ -72,7 +72,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
         };
         storage
             .blocks_dal()
-            .insert_l2_block(&l2_block_header)
+            .insert_l2_block(&l2_block_header, L1BatchNumber(number))
             .await
             .unwrap();
         let l1_batch_header = L1BatchHeader {
@@ -96,11 +96,6 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
         storage
             .blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
-            .await
-            .unwrap();
-        storage
-            .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
             .await
             .unwrap();
 

@@ -146,7 +146,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(0))
+            .insert_l2_block(&create_l2_block_header(0), L1BatchNumber(0))
             .await
             .unwrap();
         let mut l1_batch_header = L1BatchHeader::new(
@@ -157,10 +157,6 @@ mod tests {
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -193,7 +189,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&miniblock_header)
+            .insert_l2_block(&miniblock_header, l1_batch_header.number)
             .await
             .unwrap();
         conn.transactions_dal()
@@ -251,15 +247,11 @@ mod tests {
             ..create_l2_block_header(2)
         };
         conn.blocks_dal()
-            .insert_l2_block(&miniblock_header)
+            .insert_l2_block(&miniblock_header, l1_batch_header.number)
             .await
             .unwrap();
         conn.blocks_dal()
             .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default())
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -309,7 +301,7 @@ mod tests {
             .unwrap();
         let miniblock_header = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
-            .insert_l2_block(&miniblock_header)
+            .insert_l2_block(&miniblock_header, snapshot_recovery.l1_batch_number + 1)
             .await
             .unwrap();
 

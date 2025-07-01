@@ -844,16 +844,12 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l2_block(&create_l2_block_header(number))
+            .insert_l2_block(&create_l2_block_header(number), L1BatchNumber(number))
             .await
             .unwrap();
 
         conn.storage_logs_dal()
             .insert_storage_logs(L2BlockNumber(number), &logs)
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
             .await
             .unwrap();
     }
