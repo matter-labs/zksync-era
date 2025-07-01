@@ -195,9 +195,10 @@ impl StateKeeper {
             .await?
             .context("IoCursor::new()")?;
         let pending_batch = ctx
-            .wait(conn.0.blocks_dal().pending_batch_exists())
+            .wait(conn.0.blocks_dal().pending_batch_number())
             .await?
-            .context("pending_batch_exists()")?;
+            .context("pending_batch_exists()")?
+            .is_some();
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();

@@ -2627,13 +2627,13 @@ impl BlocksDal<'_, '_> {
 
     /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored L2 block that isn't assigned
     /// to any batch yet).
-    pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
-        let count = sqlx::query_scalar!("SELECT number FROM l1_batches WHERE is_sealed = FALSE")
-            .instrument("pending_batch_exists")
+    pub async fn pending_batch_number(&mut self) -> DalResult<Option<L1BatchNumber>> {
+        let number = sqlx::query_scalar!("SELECT number FROM l1_batches WHERE is_sealed = FALSE")
+            .instrument("pending_batch_number")
             .fetch_optional(self.storage)
             .await?;
 
-        Ok(count.is_some())
+        Ok(number.map(|a| L1BatchNumber(a as u32)))
     }
 
     // methods used for measuring Eth tx stage transition latencies
