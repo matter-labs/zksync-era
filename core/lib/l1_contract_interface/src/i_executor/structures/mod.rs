@@ -8,12 +8,12 @@ mod stored_batch_info;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodingVersion {
     PreInterop = 0,
-    Supported = 1,
+    InteropSupported = 1,
 }
 
 impl EncodingVersion {
     pub const fn latest() -> Self {
-        Self::Supported
+        Self::InteropSupported
     }
 
     pub fn value(self) -> u8 {
@@ -25,7 +25,7 @@ pub fn get_encoding_version(protocol_version: ProtocolVersionId) -> u8 {
     if protocol_version.is_pre_interop_fast_blocks() {
         EncodingVersion::PreInterop.value()
     } else {
-        EncodingVersion::Supported.value()
+        EncodingVersion::InteropSupported.value()
     }
 }
 

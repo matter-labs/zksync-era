@@ -20,7 +20,7 @@ use zksync_tee_prover_interface::{
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
-use zksync_vm_executor::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
 use crate::{errors::TeeProcessorError, metrics::METRICS};
 
@@ -160,7 +160,12 @@ impl TeeRequestProcessor {
         // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
         let validation_computational_gas_limit = u32::MAX;
 
-        let (system_env, l1_batch_env, pubdata_params) = l1_batch_params_provider
+        let RestoredL1BatchEnv {
+            system_env,
+            l1_batch_env,
+            pubdata_params,
+            ..
+        } = l1_batch_params_provider
             .load_l1_batch_env(
                 &mut connection,
                 l1_batch_number,

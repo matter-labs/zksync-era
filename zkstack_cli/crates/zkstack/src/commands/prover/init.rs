@@ -21,6 +21,7 @@ use super::{
     setup_keys,
 };
 use crate::{
+    commands::prover::deploy_proving_networks::deploy_proving_networks,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
@@ -41,14 +42,21 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     if chain_config.get_general_config().await.is_err()
         || chain_config.get_secrets_config().await.is_err()
+        || chain_config.get_wallets_config().is_err()
+        || chain_config.get_contracts_config().is_err()
     {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 
     let mut general_config = chain_config.get_general_config().await?.patched();
+    let secrets = chain_config.get_secrets_config().await?;
 
     let proof_object_store_config =
         get_object_store_config(shell, Some(args.proof_store))?.unwrap();
+
+    if args.deploy_proving_networks {
+        deploy_proving_networks(shell, &ecosystem_config, secrets.l1_rpc_url()?).await?;
+    }
 
     if let Some(args) = args.compressor_key_args {
         let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;

@@ -52,6 +52,8 @@ fn to_fetched_block(
             .into_iter()
             .map(FetchedTransaction::new)
             .collect(),
+        pubdata_limit: payload.pubdata_limit,
+        interop_roots: payload.interop_roots.clone(),
     })
 }
 

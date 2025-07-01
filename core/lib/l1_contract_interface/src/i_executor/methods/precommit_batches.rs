@@ -26,7 +26,7 @@ impl Tokenize for &PrecommitBatches<'_> {
             Token::Bytes(packed_txs),
             Token::Uint(self.last_l2_block.0.into()),
         ])]);
-        encoded_data.insert(0, EncodingVersion::Supported.value());
+        encoded_data.insert(0, EncodingVersion::InteropSupported.value());
         vec![
             Token::Uint(self.l1_batch_number.0.into()),
             Token::Bytes(encoded_data),
