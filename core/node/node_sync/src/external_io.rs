@@ -394,6 +394,18 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        self.actions.validate_ready_for_next_block();
+        Ok(())
+    }
+
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
+        // Do nothing
+    }
+
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         anyhow::bail!(
