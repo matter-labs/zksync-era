@@ -52,9 +52,9 @@ pub struct ObservabilityBuilder {
 /// Releases configured integrations upon being dropped.
 pub struct ObservabilityGuard {
     /// Opentelemetry traces provider
-    otlp_tracing_provider: Option<opentelemetry_sdk::trace::TracerProvider>,
+    otlp_tracing_provider: Option<opentelemetry_sdk::trace::SdkTracerProvider>,
     /// Opentelemetry logs provider
-    otlp_logging_provider: Option<opentelemetry_sdk::logs::LoggerProvider>,
+    otlp_logging_provider: Option<opentelemetry_sdk::logs::SdkLoggerProvider>,
     /// Sentry client guard
     sentry_guard: Option<ClientInitGuard>,
 }
@@ -74,13 +74,13 @@ impl ObservabilityGuard {
             FLUSH_TIMEOUT,
             "flushing tracing spans",
             &mut self.otlp_tracing_provider,
-            opentelemetry_sdk::trace::TracerProvider::force_flush,
+            opentelemetry_sdk::trace::SdkTracerProvider::force_flush,
         );
         Self::with_timeout(
             FLUSH_TIMEOUT,
             "flushing tracing logs",
             &mut self.otlp_logging_provider,
-            opentelemetry_sdk::logs::LoggerProvider::force_flush,
+            opentelemetry_sdk::logs::SdkLoggerProvider::force_flush,
         );
     }
 
@@ -138,13 +138,13 @@ impl ObservabilityGuard {
             SHUTDOWN_TIMEOUT,
             "shutting down OTLP tracing provider",
             &mut self.otlp_tracing_provider,
-            opentelemetry_sdk::trace::TracerProvider::shutdown,
+            opentelemetry_sdk::trace::SdkTracerProvider::shutdown,
         );
         Self::with_timeout(
             SHUTDOWN_TIMEOUT,
             "shutting down OTLP logging provider",
             &mut self.otlp_logging_provider,
-            opentelemetry_sdk::logs::LoggerProvider::shutdown,
+            opentelemetry_sdk::logs::SdkLoggerProvider::shutdown,
         );
     }
 }

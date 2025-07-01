@@ -132,6 +132,7 @@ impl UpdatesManager {
             pubdata_input: finished_batch.pubdata_input.clone(),
             fee_address: self.fee_account_address,
             batch_fee_input: self.batch_fee_input,
+            pubdata_limit: self.pubdata_limit(),
         };
 
         let final_bootloader_memory = finished_batch
@@ -508,7 +509,7 @@ impl L2BlockSealCommand {
     fn report_transaction_metrics(&self) {
         const SLOW_INCLUSION_DELAY: Duration = Duration::from_secs(600);
 
-        if self.pre_insert_txs {
+        if self.pre_insert_data {
             // This I/O logic is running on the EN. The reported metrics / logs would be meaningless:
             //
             // - If `received_timestamp_ms` are copied from the main node, they can be far in the past (especially during the initial EN sync).

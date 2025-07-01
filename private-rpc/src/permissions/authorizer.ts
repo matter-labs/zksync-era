@@ -8,10 +8,12 @@ import { env } from '@/env';
 export class Authorizer {
     permissions: Map<string, AccessRule>;
     postReadFilters: Map<string, ResponseFilter>;
+    whitelistedWallets: Set<Address> | 'all';
 
     constructor() {
         this.permissions = new Map();
         this.postReadFilters = new Map();
+        this.whitelistedWallets = new Set();
     }
 
     addReadRule(address: Address, method: Hex, rule: AccessRule): void {
@@ -45,12 +47,27 @@ export class Authorizer {
         return this.postReadFilters.get(`${address}:${method}`) || null;
     }
 
+    isAddressWhitelisted(address: Address): boolean {
+        if (this.whitelistedWallets === 'all') {
+            return true;
+        }
+        return this.whitelistedWallets.has(address);
+    }
+
     reloadFromEnv(): Authorizer {
         const filePath = env.PERMISSIONS_YAML_PATH;
         console.log(`loading permissions from ${filePath}`);
         this.permissions = new Map();
         this.postReadFilters = new Map();
-        new YamlParser(filePath).load_rules(this);
+        const parser = new YamlParser(filePath);
+        parser.load_rules(this);
+
+        const wallets = parser.getWhitelistedWallets();
+        if (wallets === 'all') {
+            this.whitelistedWallets = 'all';
+        } else {
+            this.whitelistedWallets = new Set(wallets);
+        }
         return this;
     }
 }

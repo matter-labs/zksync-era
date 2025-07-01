@@ -23,13 +23,16 @@ use crate::{
     },
 };
 
+pub struct InteropRootApplicationConfig {
+    pub number_of_applied_interop_roots: usize,
+    pub preexisting_blocks_number: usize,
+}
+
 pub(super) struct L2BlockApplicationConfig {
-    pub txs_index: usize,
+    pub tx_index: usize,
     pub start_new_l2_block: bool,
     pub subversion: MultiVmSubversion,
-    pub apply_interop_roots: bool,
-    pub preexisting_interop_roots_number: usize,
-    pub preexisting_blocks_number: usize,
+    pub interop_root_application_config: Option<InteropRootApplicationConfig>,
 }
 
 pub(super) fn get_memory_for_compressed_bytecodes(
@@ -47,19 +50,14 @@ pub(super) fn apply_tx_to_memory(
     memory: &mut BootloaderMemory,
     bootloader_tx: &BootloaderTx,
     bootloader_l2_block: &BootloaderL2Block,
-    tx_index: usize,
     tx_offset: usize,
     compressed_bytecodes_size: usize,
     execution_mode: TxExecutionMode,
-    start_new_l2_block: bool,
-    subversion: MultiVmSubversion,
-    apply_interop_roots: bool,
-    preexisting_interop_roots_number: usize,
-    preexisting_blocks_number: usize,
-) -> usize {
-    let bootloader_description_offset = get_bootloader_tx_description_offset(subversion)
-        + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
-    let tx_description_offset = get_tx_description_offset(subversion) + tx_offset;
+    config: L2BlockApplicationConfig,
+) -> (usize, usize) {
+    let bootloader_description_offset = get_bootloader_tx_description_offset(config.subversion)
+        + BOOTLOADER_TX_DESCRIPTION_SIZE * config.tx_index;
+    let tx_description_offset = get_tx_description_offset(config.subversion) + tx_offset;
 
     memory.push((
         bootloader_description_offset,
@@ -71,13 +69,14 @@ pub(super) fn apply_tx_to_memory(
         U256::from_big_endian(&(32 * tx_description_offset).to_be_bytes()),
     ));
 
-    let refund_offset = get_operator_refunds_offset(subversion) + tx_index;
+    let refund_offset = get_operator_refunds_offset(config.subversion) + config.tx_index;
     memory.push((refund_offset, bootloader_tx.refund.into()));
 
-    let overhead_offset = get_tx_overhead_offset(subversion) + tx_index;
+    let overhead_offset = get_tx_overhead_offset(config.subversion) + config.tx_index;
     memory.push((overhead_offset, bootloader_tx.gas_overhead.into()));
 
-    let trusted_gas_limit_offset = get_tx_trusted_gas_limit_offset(subversion) + tx_index;
+    let trusted_gas_limit_offset =
+        get_tx_trusted_gas_limit_offset(config.subversion) + config.tx_index;
     memory.push((trusted_gas_limit_offset, bootloader_tx.trusted_gas_limit));
 
     memory.extend(
@@ -85,22 +84,11 @@ pub(super) fn apply_tx_to_memory(
             .zip(bootloader_tx.encoded.clone()),
     );
 
-    apply_l2_block_inner(
-        memory,
-        bootloader_l2_block,
-        L2BlockApplicationConfig {
-            txs_index: tx_index,
-            start_new_l2_block,
-            subversion,
-            apply_interop_roots,
-            preexisting_interop_roots_number,
-            preexisting_blocks_number,
-        },
-    );
-
     // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
-        get_compressed_bytecodes_offset(subversion) + 1 + compressed_bytecodes_size;
+        get_compressed_bytecodes_offset(config.subversion) + 1 + compressed_bytecodes_size;
+
+    let applied_interop_roots = apply_l2_block_inner(memory, bootloader_l2_block, config);
 
     let encoded_compressed_bytecodes =
         get_memory_for_compressed_bytecodes(&bootloader_tx.compressed_bytecodes);
@@ -111,28 +99,26 @@ pub(super) fn apply_tx_to_memory(
             ..compressed_bytecodes_offset + encoded_compressed_bytecodes.len())
             .zip(encoded_compressed_bytecodes),
     );
-    compressed_bytecodes_encoding
+
+    (compressed_bytecodes_encoding, applied_interop_roots)
 }
 
+// Returns the number of applied interop roots
 pub(crate) fn apply_l2_block(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
-    txs_index: usize,
+    tx_index: usize,
     subversion: MultiVmSubversion,
-    apply_interop_roots: bool,
-    preexisting_interop_roots_number: usize,
-    preexisting_blocks_number: usize,
-) {
+    interop_root_application_config: Option<InteropRootApplicationConfig>,
+) -> usize {
     apply_l2_block_inner(
         memory,
         bootloader_l2_block,
         L2BlockApplicationConfig {
-            txs_index,
+            tx_index,
             start_new_l2_block: true,
             subversion,
-            apply_interop_roots,
-            preexisting_interop_roots_number,
-            preexisting_blocks_number,
+            interop_root_application_config,
         },
     )
 }
@@ -141,13 +127,13 @@ fn apply_l2_block_inner(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
     config: L2BlockApplicationConfig,
-) {
+) -> usize {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
 
     let block_position = get_tx_operator_l2_block_info_offset(config.subversion)
-        + config.txs_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
+        + config.tx_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
     memory.extend(vec![
         (block_position, bootloader_l2_block.number.into()),
@@ -166,37 +152,38 @@ fn apply_l2_block_inner(
         ),
     ]);
 
-    if config.subversion != MultiVmSubversion::Interop || !config.apply_interop_roots {
-        return;
+    if config.subversion != MultiVmSubversion::Interop
+        || config.interop_root_application_config.is_none()
+    {
+        return 0;
     }
 
-    bootloader_l2_block
-        .interop_roots
-        .iter()
-        .enumerate()
-        .for_each(|(offset, interop_root)| {
-            apply_interop_root(
-                memory,
-                offset + config.preexisting_interop_roots_number,
-                interop_root.clone(),
-                config.subversion,
-                bootloader_l2_block.number,
-            )
-        });
+    let interop_root_application_config = config.interop_root_application_config.unwrap();
+    for (offset, interop_root) in bootloader_l2_block.interop_roots.iter().enumerate() {
+        apply_interop_root(
+            memory,
+            interop_root_application_config.number_of_applied_interop_roots + offset,
+            interop_root.clone(),
+            config.subversion,
+            bootloader_l2_block.number,
+        );
+    }
 
     if !config.start_new_l2_block {
-        return;
+        return bootloader_l2_block.interop_roots.len();
     }
 
     apply_interop_root_number_in_block_number(
         memory,
         config.subversion,
         bootloader_l2_block.interop_roots.len(),
-        config.preexisting_blocks_number,
+        interop_root_application_config.preexisting_blocks_number,
     );
+
+    bootloader_l2_block.interop_roots.len()
 }
 
-pub(crate) fn apply_interop_root(
+fn apply_interop_root(
     memory: &mut BootloaderMemory,
     interop_root_offset: usize,
     interop_root: InteropRoot,
@@ -220,28 +207,13 @@ pub(crate) fn apply_interop_root(
     )
 }
 
-pub(crate) fn apply_interop_root_number_in_block_number(
+fn apply_interop_root_number_in_block_number(
     memory: &mut BootloaderMemory,
     subversion: MultiVmSubversion,
     number_of_interop_roots: usize,
     preexisting_blocks_number: usize,
 ) {
-    let mut number_of_written_blocks = 0;
-    if memory.iter().any(|(slot, _)| {
-        if *slot < get_interop_blocks_begin_offset(subversion)
-            || *slot >= get_interop_root_offset(subversion)
-        {
-            return false;
-        }
-        true
-    }) {
-        number_of_written_blocks += 1;
-    }
-    let mut first_empty_slot =
-        get_interop_blocks_begin_offset(subversion) + number_of_written_blocks;
-    if number_of_written_blocks == 0 {
-        first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
-    }
+    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
     memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
     memory.extend(vec![(
