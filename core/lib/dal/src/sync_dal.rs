@@ -28,23 +28,7 @@ impl SyncDal<'_, '_> {
             r#"
             SELECT
                 miniblocks.number,
-                COALESCE(
-                    miniblocks.l1_batch_number,
-                    (
-                        SELECT
-                            (MAX(number) + 1)
-                        FROM
-                            l1_batches
-                        WHERE
-                            is_sealed
-                    ),
-                    (
-                        SELECT
-                            MAX(l1_batch_number) + 1
-                        FROM
-                            snapshot_recovery
-                    )
-                ) AS "l1_batch_number!",
+                miniblocks.l1_batch_number AS "l1_batch_number!",
                 (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
