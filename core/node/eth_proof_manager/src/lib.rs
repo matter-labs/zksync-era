@@ -11,6 +11,7 @@ mod client;
 pub mod node;
 mod types;
 mod watcher;
+mod sender;
 
 #[derive(Debug)]
 pub struct EthProofManager {

@@ -1,23 +1,23 @@
+use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_contracts::proof_manager_contract;
 use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, EnrichedClientError, EthInterface,
+    EthInterface, BoundEthInterface, EnrichedClientError, EthInterface
 };
 use zksync_eth_watch::GetLogsClient;
 use zksync_types::{
     api::Log,
-    ethabi::{Address, Contract},
+    ethabi::{self, Address, Contract},
     web3::{BlockId, BlockNumber, FilterBuilder},
     H256,
 };
 
-use crate::types::ClientError;
+use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub struct ProofManagerClient<Net: Network> {
-    client: Box<DynClient<Net>>,
+pub struct ProofManagerClient{
+    client: Box<dyn BoundEthInterface>,
     proof_manager_abi: Contract,
     proof_manager_address: Address,
     proof_manager_config: EthProofManagerConfig,
@@ -43,14 +43,21 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
     ) -> Result<Vec<Log>, EnrichedClientError>;
 
     async fn get_finalized_block(&self) -> Result<u64, ClientError>;
+
+    // function submitProofRequest(
+    //     ProofRequestIdentifier calldata id,
+    //     ProofRequestParams calldata params
+    // )
+    async fn submit_proof_request(&self, proof_request: ProofRequestIdentifier, proof_request_params: ProofRequestParams) -> Result<(), ClientError>;
+
+    // function submitProofValidationResult(ProofRequestIdentifier calldata id, bool isProofValid)
+    async fn submit_proof_validation_result(&self, proof_request_identifier: ProofRequestIdentifier, is_proof_valid: bool) -> Result<(), ClientError>;
 }
 
-impl<Net: Network> ProofManagerClient<Net>
-where
-    Box<DynClient<Net>>: GetLogsClient,
+impl ProofManagerClient
 {
     pub fn new(
-        client: Box<DynClient<Net>>,
+        client: Box<dyn BoundEthInterface>,
         proof_manager_address: Address,
         proof_manager_config: EthProofManagerConfig,
     ) -> Self {
@@ -64,10 +71,9 @@ where
 }
 
 #[async_trait]
-impl<Net: Network> EthProofManagerClient for ProofManagerClient<Net>
-where
-    Box<DynClient<Net>>: GetLogsClient,
+impl EthProofManagerClient for ProofManagerClient
 {
+    /// Get the events with retries
     async fn get_events_with_retry(
         &self,
         from: BlockNumber,
@@ -84,7 +90,7 @@ where
             .build();
 
         let mut result: Result<Vec<Log>, EnrichedClientError> =
-            self.client.get_logs(filter).await.map_err(Into::into);
+            self.client.deref().as_ref().logs(&filter).await.map_err(Into::into);
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -171,6 +177,7 @@ where
         result
     }
 
+    /// Get the finalized block number from the L1 network.
     async fn get_finalized_block(&self) -> Result<u64, ClientError> {
         let block = self
             .client
@@ -191,5 +198,37 @@ where
         })?;
 
         Ok(block_number.as_u64())
+    }
+
+    async fn submit_proof_request(&self, proof_request: ProofRequestIdentifier, proof_request_params: ProofRequestParams) -> Result<H256, ClientError> {
+        let fn_submit_proof_request = self
+            .proof_manager_abi
+            .function("submitProofRequest")
+            .context("`submitProofRequest` function must be present in the ProofManager contract")?;
+
+        let input = fn_submit_proof_request.encode_input(&[
+            proof_request.into_tokens(),
+            proof_request_params.into_tokens(),
+        ]);
+
+        let tx = self.client.send_raw_transaction(input).await?;
+
+        Ok(tx)
+    }
+
+    async fn submit_proof_validation_result(&self, proof_request_identifier: ProofRequestIdentifier, is_proof_valid: bool) -> Result<H256, ClientError> {
+        let fn_submit_proof_validation_result = self
+            .proof_manager_abi
+            .function("submitProofValidationResult")
+            .context("`submitProofValidationResult` function must be present in the ProofManager contract")?;
+
+        let input = fn_submit_proof_validation_result.encode_input(&[
+            proof_request_identifier.into_tokens(),
+            ethabi::Token::Bool(is_proof_valid),
+        ]);
+
+        let tx = self.client.send_raw_transaction(input).await?;
+
+        Ok(tx)
     }
 }

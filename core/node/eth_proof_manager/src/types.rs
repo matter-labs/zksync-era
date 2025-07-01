@@ -1,5 +1,5 @@
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
-use zksync_types::U256;
+use zksync_types::{ethabi, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProvingNetwork {
@@ -16,6 +16,44 @@ impl ProvingNetwork {
             2 => Self::Lagrange,
             _ => panic!("Invalid proving network: {}", u),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProofRequestIdentifier {
+    pub chain_id: u64, // uint256
+    pub block_number: u64, // uint256
+}
+
+impl ProofRequestIdentifier {
+    pub fn into_tokens(self) -> ethabi::Token {
+        ethabi::Token::Tuple(vec![
+            ethabi::Token::Uint(U256::from(self.chain_id)),
+            ethabi::Token::Uint(U256::from(self.block_number)),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProofRequestParams {
+    pub protocol_major: u32, // uint32
+    pub protocol_minor: u32, // uint32
+    pub protocol_patch: u32, // uint32
+    pub proof_inputs_url: String, // string
+    pub timeout_after: u64, // uint256
+    pub max_reward: u64, // uint256
+}
+
+impl ProofRequestParams {
+    pub fn into_tokens(self) -> ethabi::Token {
+        ethabi::Token::Tuple(vec![
+            ethabi::Token::Uint(U256::from(self.protocol_major)),
+            ethabi::Token::Uint(U256::from(self.protocol_minor)),
+            ethabi::Token::Uint(U256::from(self.protocol_patch)),
+            ethabi::Token::String(self.proof_inputs_url),
+            ethabi::Token::Uint(U256::from(self.timeout_after)),
+            ethabi::Token::Uint(U256::from(self.max_reward)),
+        ])
     }
 }
 
