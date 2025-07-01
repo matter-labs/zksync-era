@@ -117,9 +117,6 @@ export async function runExternalNode(chainName: string): Promise<ExternalNodeHa
     
     // Add chain-specific arguments
     switch (chainType) {
-      case 'consensus':
-        runArgs.push('--enable-consensus');
-        break;
       case 'validium':
         runArgs.push('--components', 'all,da_fetcher');
         break;

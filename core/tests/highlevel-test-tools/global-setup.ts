@@ -45,14 +45,17 @@ export default async function globalSetup(): Promise<void> {
     console.log('🧹 Running final cleanup...');
     await cleanup();
   });
-  
-  try {
-    // Kill any existing zksync_server processes
-    console.log('🛑 Killing existing zksync_server processes...');
-    await execAsync('pkill zksync_server');
-  } catch (error) {
-    // Ignore errors if no processes were found
-    console.log('ℹ️ No existing zksync_server processes found');
+
+  const inCi = process.env.CI;
+  if (inCi !== '1') {
+    try {
+      // Kill any existing zksync_server processes
+      console.log('🛑 Killing existing zksync_server processes...');
+      await execAsync('pkill zksync_server');
+    } catch (error) {
+      // Ignore errors if no processes were found
+      console.log('ℹ️ No existing zksync_server processes found');
+    }
   }
 
   // Clean historical logs

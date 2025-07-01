@@ -7,7 +7,7 @@ import { executeCommand } from './execute-command';
 import { FileMutex, cleanTestChains } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
 
-export type ChainType = 'consensus' | 'validium' | 'da_migration' | 'custom_token' | 'era';
+export type ChainType = 'validium' | 'da_migration' | 'custom_token' | 'era';
 
 export interface ChainConfig {
   l1RpcUrl?: string;
@@ -71,15 +71,6 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
   
   // Chain-specific configurations
   const chainConfigs = {
-    consensus: {
-      chainName: `consensus_${uuid}`,
-      chainId: randomChainId,
-      l1BatchCommitDataGeneratorMode: 'validium',
-      baseTokenAddress: customTokenAddress,
-      baseTokenPriceNominator: 314,
-      baseTokenPriceDenominator: 1000,
-      evmEmulator: false
-    },
     validium: {
       chainName: `validium_${uuid}`,
       chainId: randomChainId,

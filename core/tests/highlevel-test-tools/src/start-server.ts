@@ -67,9 +67,7 @@ export async function startServer(chainName: string): Promise<ServerHandle> {
   let extraArgs = [];
   // Extract chain type by removing last 9 characters (UUID suffix)
   const chainType = chainName.slice(0, -9);
-  if (chainType === 'consensus') {
-    extraArgs.push('--components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher,consensus')
-  }
+  extraArgs.push('--components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus')
 
   // Start the server in background using executeBackgroundCommand
   serverHandle.process = await executeBackgroundCommand('zkstack', [
