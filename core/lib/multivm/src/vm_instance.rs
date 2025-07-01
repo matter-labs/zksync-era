@@ -118,6 +118,10 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for LegacyVmInstance<S, HistoryEn
     fn pop_snapshot_no_rollback(&mut self) {
         dispatch_legacy_vm!(self.pop_snapshot_no_rollback());
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_legacy_vm!(self.pop_front_snapshot_no_rollback());
+    }
 }
 
 impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
@@ -339,6 +343,10 @@ where
 
     fn pop_snapshot_no_rollback(&mut self) {
         dispatch_fast_vm!(self.pop_snapshot_no_rollback());
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_fast_vm!(self.pop_front_snapshot_no_rollback());
     }
 }
 

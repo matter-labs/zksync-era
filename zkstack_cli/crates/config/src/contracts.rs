@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::H160;
 use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
@@ -21,6 +24,7 @@ pub struct ContractsConfig {
     pub create2_factory_salt: H256,
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
+    pub proving_network: ProvingNetworkContracts,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
     #[serde(flatten)]
@@ -130,6 +134,19 @@ impl ContractsConfig {
             Some(register_chain_output.access_control_restriction_addr);
         self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
         self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
+    }
+
+    pub fn set_proving_network_addresses(
+        &mut self,
+        impl_addr: String,
+        proxy_addr: String,
+        proxy_admin_addr: String,
+    ) -> anyhow::Result<()> {
+        self.proving_network.proof_manager_addr = H160::from_str(&impl_addr)?;
+        self.proving_network.proxy_addr = H160::from_str(&proxy_addr)?;
+        self.proving_network.proxy_admin_addr = H160::from_str(&proxy_admin_addr)?;
+
+        Ok(())
     }
 
     pub fn set_l2_shared_bridge(
@@ -270,6 +287,13 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct ProvingNetworkContracts {
+    pub proof_manager_addr: Address,
+    pub proxy_addr: Address,
+    pub proxy_admin_addr: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

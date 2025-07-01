@@ -6,7 +6,7 @@ import { RetryableWallet } from '../src/retry-provider';
 import * as zksync from 'zksync-ethers';
 import { sleep } from 'utils';
 import { shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { injectPermissionsToFile } from '../src/private-rpc-permissions-editor';
+import { injectPermissionsToFile, setWhitelistedWallets } from '../src/private-rpc-permissions-editor';
 import path from 'path';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import { Token } from '../src/types';
@@ -76,6 +76,12 @@ describe('Tests for the private rpc', () => {
         const runCommand = `zkstack private-rpc run --verbose --chain ${chainName}`;
 
         await executeCommandWithLogs(initCommand, await logsPath('private-rpc-init.log'));
+
+        // Set whitelisted wallets to "all" for integration tests
+        const pathToHome = path.join(__dirname, '../../../..');
+        const permissionsPath = path.join(pathToHome, `chains/${chainName}/configs/private-rpc-permissions.yaml`);
+        await setWhitelistedWallets(permissionsPath, 'all');
+
         executeCommandWithLogs(runCommand, await logsPath('private-rpc-run.log'));
 
         await waitForHealth(rpcUrl());
@@ -162,10 +168,12 @@ describe('Tests for the private rpc', () => {
         const absurdly_high_value = ethers.parseEther('1000000.0');
         const gasPrice = await scaledGasPrice(alice);
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
-        await expect(aliceErc20.transfer(bob.address, absurdly_high_value, { gasLimit, gasPrice })).toBeReverted([
-            noBalanceChange,
-            feeTaken
-        ]);
+        await expect(
+            aliceErc20.transfer(bob.address, absurdly_high_value, {
+                gasLimit,
+                gasPrice
+            })
+        ).toBeReverted([noBalanceChange, feeTaken]);
     });
 
     test('Eth base token can be transferred', async () => {
