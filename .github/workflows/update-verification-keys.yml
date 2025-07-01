@@ -1,0 +1,62 @@
+name: Update verification keys
+on:
+  push:
+    branches:
+      - deniallugo-ci-generate-keys
+  workflow_call:
+
+
+jobs:
+  generate-verification-keys:
+    name: Generate verification keys and create PR
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
+          echo "GITHUB_TOKEN=${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}" >> .env
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+
+      - name: git config for cloning private repos
+        run: |
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
+
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local
+
+      - name: Generate verification keys
+        run: |
+          ci_run zkstack prover generate-snark-keys -v
+
+      - name: Create PR to contracts
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
+          commit-message: 'chore: update verification keys'
+          title: 'chore: update verification keys'
+          body: |
+            This PR updates the verification keys for the ZKSync OS Prover.
+            The keys were generated automatically by the CI workflow.
+          branch: bump-verification-keys
+          repository: matter-labs/era-contracts
+          # TODO: use the proper base branch when it is created
+          base: 'mmzk_0624_updated_vk_for_020'
+          add-paths: l1-contracts
