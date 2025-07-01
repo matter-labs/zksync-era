@@ -125,28 +125,6 @@ impl Store {
     async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection> {
         self.pool.connection(ctx).await.wrap("connection")
     }
-
-    /// Number of the next block to queue.
-    pub(crate) async fn next_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
-        Ok(sync::lock(ctx, &self.block_payloads)
-            .await?
-            .as_ref()
-            .context("payload_queue not set")?
-            .next())
-    }
-
-    /// Queues the next block.
-    pub(crate) async fn queue_next_fetched_block(
-        &self,
-        ctx: &ctx::Ctx,
-        block: FetchedBlock,
-    ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        if let Some(payloads) = &mut *payloads {
-            payloads.send(block).await.context("payloads.send()")?;
-        }
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
