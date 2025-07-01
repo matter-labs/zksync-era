@@ -56,7 +56,7 @@ jobs:
           ci_run zkstack dev contracts
 
       - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 18.20.8
 
@@ -93,7 +93,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
         with:
           toolchain: nightly-2024-09-01
           rustflags: ""

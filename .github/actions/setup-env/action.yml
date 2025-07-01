@@ -66,7 +66,7 @@ runs:
 
     - name: restore zkstack binary from cache
       id: zkstack_cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4
       with:
         path: zkstack
         key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}
@@ -87,7 +87,7 @@ runs:
 
     - name: Save zkstack binary to cache (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4
       with:
         path: zkstack
         key: ${{ steps.zkstack_cache.outputs.cache-primary-key }}
