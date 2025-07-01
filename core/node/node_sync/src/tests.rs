@@ -43,6 +43,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(timestamp * 1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
@@ -67,6 +68,7 @@ impl MockMainNodeClient {
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
 
         Self {

@@ -60,6 +60,7 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
             chain_id: L2ChainId::from(270),
         },
         pubdata_params: Default::default(),
+        pubdata_limit: Some(100_000),
         pending_l2_blocks,
     }
 }
@@ -73,6 +74,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
             l1_batch_env,
             system_env: default_system_env(),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
             timestamp_ms,
         },
         ProtocolVersionId::latest(),

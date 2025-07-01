@@ -218,6 +218,7 @@ impl StateKeeperBuilder {
                         system_env: params.system_env,
                         l1_batch_env: params.l1_batch_env,
                         pubdata_params: params.pubdata_params,
+                        pubdata_limit: params.pubdata_limit,
                         timestamp_ms,
                     },
                     params.pending_l2_blocks,

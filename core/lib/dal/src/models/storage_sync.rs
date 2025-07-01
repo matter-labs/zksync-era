@@ -31,6 +31,7 @@ pub(crate) struct StorageSyncBlock {
     pub hash: Vec<u8>,
     pub l2_da_validator_address: Vec<u8>,
     pub pubdata_type: String,
+    pub pubdata_limit: Option<i64>,
 }
 
 pub(crate) struct SyncBlock {
@@ -47,6 +48,7 @@ pub(crate) struct SyncBlock {
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl TryFrom<StorageSyncBlock> for SyncBlock {
@@ -102,6 +104,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
                     .decode_column("l2_da_validator_address")?,
             },
+            pubdata_limit: block.pubdata_limit.map(|l| l as u64),
         })
     }
 }
@@ -123,6 +126,7 @@ impl SyncBlock {
             hash: Some(self.hash),
             protocol_version: self.protocol_version,
             pubdata_params: Some(self.pubdata_params),
+            pubdata_limit: self.pubdata_limit,
         }
     }
 
@@ -140,6 +144,7 @@ impl SyncBlock {
             transactions,
             last_in_batch: self.last_in_batch,
             pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
         }
     }
 }
