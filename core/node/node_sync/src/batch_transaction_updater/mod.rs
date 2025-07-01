@@ -167,6 +167,12 @@ impl BatchTransactionUpdater {
                     batch_number,
                 )?,
             };
+            tracing::debug!(
+                "Verified transaction {} ({}) for batch {}",
+                receipt.transaction_hash,
+                eth_history_tx.tx_type,
+                batch_number
+            );
         }
 
         connection
