@@ -305,7 +305,7 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+    async fn advance_mempool(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
         let mut next_account_nonces = HashMap::new();
         let mut next_priority_id = None;
         for tx in txs.into_iter() {

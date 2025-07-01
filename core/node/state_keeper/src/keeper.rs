@@ -1137,7 +1137,7 @@ impl StateKeeper {
                     .executed_transactions
                     .iter()
                     .map(|tx| &tx.transaction);
-                self.inner.io.advance_nonces(Box::new(&mut iter)).await;
+                self.inner.io.advance_mempool(Box::new(&mut iter)).await;
             }
             batch_state.updates_manager.commit_pending_block();
             batch_state.batch_executor.commit_l2_block().await?;
