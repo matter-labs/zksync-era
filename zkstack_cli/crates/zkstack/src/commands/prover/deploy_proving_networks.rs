@@ -80,7 +80,7 @@ pub(crate) async fn deploy_proving_networks(
 
     let mut contracts_config = config.get_contracts_config()?;
 
-    contracts_config.set_proving_network_addresses(impl_addr, proxy_addr, proxy_admin_addr)?;
+    contracts_config.set_eth_proof_manager_addresses(impl_addr, proxy_addr, proxy_admin_addr)?;
 
     contracts_config.save_with_base_path(shell, &config.config)?;
 
