@@ -12,7 +12,7 @@ use zksync_types::{
     TransactionTimeRangeConstraint, H256, U256,
 };
 
-use crate::{mempool_store::MempoolStore, types::L2TxFilter};
+use crate::{mempool_store::MempoolStore, types::L2TxFilter, AdvanceInput};
 
 #[test]
 fn basic_flow() {
@@ -406,6 +406,53 @@ fn mempool_does_not_purge_all_accounts() {
         );
     }
     assert!(!mempool.has_next(&L2TxFilter::default()));
+}
+
+#[test]
+fn advance_after_block_removes_processed_txs_and_updates_nonce() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let account = Address::random();
+
+    // Insert txs with nonces 0, 1, 2
+    mempool.insert_without_constraints(
+        vec![
+            gen_l2_tx(account, Nonce(0)),
+            gen_l2_tx(account, Nonce(1)),
+            gen_l2_tx(account, Nonce(2)),
+        ],
+        HashMap::new(),
+    );
+
+    // Insert L1 transactions for priority_id = 0,1
+    mempool.insert_without_constraints(
+        vec![gen_l1_tx(PriorityOpId(0)), gen_l1_tx(PriorityOpId(1))],
+        HashMap::new(),
+    );
+
+    // Advance to priority id 1 and account nonce 2.
+    mempool.advance_after_block(AdvanceInput {
+        next_priority_id: Some(PriorityOpId(1)),
+        next_account_nonces: vec![(account, Nonce(2))],
+    });
+
+    // Check next_priority_id and l1_transactions are updated
+    assert_eq!(mempool.next_priority_id(), PriorityOpId(1));
+    assert!(!mempool.l1_transactions().contains_key(&PriorityOpId(0)));
+    assert!(mempool.l1_transactions().contains_key(&PriorityOpId(1)));
+
+    let tx = mempool.next_transaction(&L2TxFilter::default()).unwrap().0;
+    let serial_id = match tx.common_data {
+        ExecuteTransactionCommon::L1(tx) => tx.serial_id,
+        _ => panic!("Expected L1 transaction"),
+    };
+    assert_eq!(serial_id, PriorityOpId(1));
+
+    let tx = mempool.next_transaction(&L2TxFilter::default()).unwrap().0;
+    assert_eq!(tx.nonce().unwrap(), Nonce(2));
+    assert!(mempool.next_transaction(&L2TxFilter::default()).is_none());
+
+    // l2_priority_queue should be empty after consuming the last tx
+    assert!(mempool.l2_priority_queue().is_empty());
 }
 
 fn gen_l2_tx(address: Address, nonce: Nonce) -> Transaction {

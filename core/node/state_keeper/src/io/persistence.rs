@@ -1,17 +1,20 @@
 //! State keeper persistence logic.
 
-use std::{sync::Arc, time::Instant};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
-use zksync_types::{u256_to_h256, writes::TreeWrite, Address, ProtocolVersionId};
+use zksync_types::{
+    block::L2BlockHeader, u256_to_h256, writes::TreeWrite, Address, L2BlockNumber,
+    ProtocolVersionId,
+};
 
 use crate::{
-    io::StateKeeperOutputHandler,
-    metrics::{L2BlockQueueStage, L2_BLOCK_METRICS},
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperOutputHandler},
+    metrics::{L2BlockQueueStage, L2BlockSealStage, L2_BLOCK_METRICS},
     updates::{L2BlockSealCommand, UpdatesManager},
 };
 
@@ -30,7 +33,8 @@ pub struct StateKeeperPersistence {
     pre_insert_txs: bool,
     insert_protective_reads: bool,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
-    latest_completion_receiver: Option<oneshot::Receiver<()>>,
+    l2_block_completion: BTreeMap<L2BlockNumber, oneshot::Receiver<()>>,
+    latest_l2_block_submitted: Option<L2BlockNumber>,
     // If true, `submit_l2_block()` will wait for the operation to complete.
     is_sync: bool,
 }
@@ -93,7 +97,8 @@ impl StateKeeperPersistence {
             pre_insert_txs: false,
             insert_protective_reads: true,
             commands_sender,
-            latest_completion_receiver: None,
+            l2_block_completion: BTreeMap::new(),
+            latest_l2_block_submitted: None,
             is_sync,
         };
         Ok((this, sealer))
@@ -125,7 +130,9 @@ impl StateKeeperPersistence {
 
         let start = Instant::now();
         let (completion_sender, completion_receiver) = oneshot::channel();
-        self.latest_completion_receiver = Some(completion_receiver);
+        self.l2_block_completion
+            .insert(l2_block_number, completion_receiver);
+        self.latest_l2_block_submitted = Some(l2_block_number);
         let command = Completable {
             command,
             completion_sender,
@@ -158,9 +165,8 @@ impl StateKeeperPersistence {
         );
 
         let start = Instant::now();
-        let completion_receiver = self.latest_completion_receiver.take();
-        if let Some(completion_receiver) = completion_receiver {
-            completion_receiver.await.expect(Self::SHUTDOWN_MSG);
+        if let Some(latest_l2_block_submitted) = self.latest_l2_block_submitted {
+            self.wait_for_block_command(latest_l2_block_submitted).await;
         }
 
         let elapsed = start.elapsed();
@@ -176,14 +182,62 @@ impl StateKeeperPersistence {
                 .observe(elapsed);
         }
     }
+
+    /// Waits until submitted command for the provided block is fully processed by the sealer.
+    async fn wait_for_block_command(&mut self, number: L2BlockNumber) {
+        tracing::debug!("Requested waiting for L2 block #{number} command");
+
+        assert!(
+            self.latest_l2_block_submitted.is_some_and(|latest| number <= latest),
+            "Requested waiting for L2 block #{number} command while latest submitted command is for block {:?}",
+            self.latest_l2_block_submitted
+        );
+
+        let start = Instant::now();
+        if let Some(completion_receiver) = self.l2_block_completion.remove(&number) {
+            completion_receiver.await.expect(Self::SHUTDOWN_MSG);
+        }
+
+        let elapsed = start.elapsed();
+        tracing::debug!("L2 block #{number} command is awaited (took {elapsed:?})");
+
+        // Drop old completion receivers to avoid memory leaks.
+        self.l2_block_completion = self.l2_block_completion.split_off(&(number + 1));
+    }
 }
 
 #[async_trait]
 impl StateKeeperOutputHandler for StateKeeperPersistence {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
         let command = updates_manager
             .seal_l2_block_command(self.l2_legacy_shared_bridge_addr, self.pre_insert_txs);
         self.submit_l2_block(command).await;
+        Ok(())
+    }
+
+    async fn handle_l2_block_header(&mut self, header: &L2BlockHeader) -> anyhow::Result<()> {
+        // Wait for block data to be saved first.
+        self.wait_for_block_command(header.number).await;
+
+        let mut conn = self.pool.connection_tagged("state_keeper").await?;
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, false);
+        conn.blocks_dal().insert_l2_block(header).await?;
+        progress.observe(None);
+        Ok(())
+    }
+
+    async fn rollback_pending_l2_block_data(
+        &mut self,
+        l2_block_to_rollback: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        // We cannot start rollback before block data is sealed fully.
+        self.wait_for_block_command(l2_block_to_rollback).await;
+
+        let mut conn = self.pool.connection_tagged("state_keeper").await?;
+        L2BlockSealProcess::clear_pending_l2_block(&mut conn, l2_block_to_rollback - 1).await?;
         Ok(())
     }
 
@@ -194,7 +248,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         // We cannot start sealing an L1 batch until we've sealed all L2 blocks included in it.
         self.wait_for_all_commands().await;
 
-        let batch_number = updates_manager.l1_batch.number;
+        let batch_number = updates_manager.l1_batch_number();
         updates_manager
             .seal_l1_batch(
                 self.pool.clone(),
@@ -287,7 +341,10 @@ impl TreeWritesPersistence {
 
 #[async_trait]
 impl StateKeeperOutputHandler for TreeWritesPersistence {
-    async fn handle_l2_block(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l2_block_data(
+        &mut self,
+        _updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -297,14 +354,14 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
     ) -> anyhow::Result<()> {
         let mut connection = self.pool.connection_tagged("state_keeper").await?;
         let finished_batch = updates_manager
-            .l1_batch
+            .committed_updates()
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
 
         let mut next_index = connection
             .storage_logs_dedup_dal()
-            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch.number - 1)
+            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number() - 1)
             .await?
             .unwrap_or(0)
             + 1;
@@ -362,7 +419,7 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
 
         connection
             .blocks_dal()
-            .set_tree_writes(updates_manager.l1_batch.number, tree_input)
+            .set_tree_writes(updates_manager.l1_batch_number(), tree_input)
             .await?;
 
         Ok(())
@@ -375,6 +432,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use futures::FutureExt;
+    use test_casing::{test_casing, Product};
     use zksync_dal::CoreDal;
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
@@ -394,6 +452,7 @@ mod tests {
     async fn test_l2_block_and_l1_batch_processing(
         pool: ConnectionPool<Core>,
         l2_block_sealer_capacity: usize,
+        sync_block_data_and_header_persistence: bool,
     ) {
         let mut storage = pool.connection().await.unwrap();
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -423,7 +482,12 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
-        execute_mock_batch(&mut output_handler, &pool).await;
+        execute_mock_batch(
+            &mut output_handler,
+            &pool,
+            sync_block_data_and_header_persistence,
+        )
+        .await;
 
         // Check that L2 block #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -475,8 +539,10 @@ mod tests {
     async fn execute_mock_batch(
         output_handler: &mut OutputHandler,
         pool: &ConnectionPool<Core>,
+        sync_block_data_and_header_persistence: bool,
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
         let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
         let pubdata_limit = Some(100_000);
         let mut updates = UpdatesManager::new(
@@ -487,7 +553,10 @@ mod tests {
                 pubdata_limit,
                 timestamp_ms,
             },
-            Default::default(),
+            ProtocolVersionId::latest(),
+            previous_batch_timestamp,
+            None,
+            sync_block_data_and_header_persistence,
         );
         pool.connection()
             .await
@@ -511,7 +580,15 @@ mod tests {
             VmExecutionMetrics::default(),
             vec![],
         );
-        output_handler.handle_l2_block(&updates).await.unwrap();
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+        if !sync_block_data_and_header_persistence {
+            // If we are not in sync mode, we need to handle the header separately.
+            output_handler
+                .handle_l2_block_header(&updates.header_for_first_pending_block())
+                .await
+                .unwrap();
+        }
+        updates.commit_pending_block();
         updates.set_next_l2_block_params(L2BlockParams::new(1000));
         updates.push_l2_block();
 
@@ -542,16 +619,19 @@ mod tests {
         tx_hash
     }
 
+    #[test_casing(4, Product(([0, 1], [false, true])))]
     #[tokio::test]
-    async fn l2_block_and_l1_batch_processing() {
+    async fn l2_block_and_l1_batch_processing(
+        l2_block_sealer_capacity: usize,
+        sync_block_data_and_header_persistence: bool,
+    ) {
         let pool = ConnectionPool::constrained_test_pool(1).await;
-        test_l2_block_and_l1_batch_processing(pool, 1).await;
-    }
-
-    #[tokio::test]
-    async fn l2_block_and_l1_batch_processing_with_sync_sealer() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
-        test_l2_block_and_l1_batch_processing(pool, 0).await;
+        test_l2_block_and_l1_batch_processing(
+            pool,
+            l2_block_sealer_capacity,
+            sync_block_data_and_header_persistence,
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -577,7 +657,7 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
 
-        let tx_hash = execute_mock_batch(&mut output_handler, &pool).await;
+        let tx_hash = execute_mock_batch(&mut output_handler, &pool, true).await;
 
         // Check that the transaction is persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -631,7 +711,7 @@ mod tests {
             assert!((&mut submit_future).now_or_never().is_none());
             // ...until L2 block #1 is processed
             let command = sealer.commands_receiver.recv().await.unwrap();
-            command.completion_sender.send(()).unwrap_err(); // completion receiver should be dropped
+            command.completion_sender.send(()).unwrap(); // completion receiver shouldn't be dropped
             submit_future.await;
         }
 
@@ -681,5 +761,132 @@ mod tests {
         }
 
         persistence.wait_for_all_commands().await;
+    }
+
+    #[tokio::test]
+    async fn l2_block_sealer_rollback() {
+        // Preparation
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        storage
+            .blocks_dal()
+            .set_l1_batch_hash(L1BatchNumber(0), H256::zero())
+            .await
+            .unwrap();
+        drop(storage);
+        let (persistence, l2_block_sealer) =
+            StateKeeperPersistence::new(pool.clone(), Some(Address::default()), 10)
+                .await
+                .unwrap();
+        let mut output_handler = OutputHandler::new(Box::new(persistence));
+        tokio::spawn(l2_block_sealer.run());
+        let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
+        let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
+        let pubdata_limit = Some(100_000);
+        let mut updates = UpdatesManager::new(
+            &BatchInitParams {
+                l1_batch_env: l1_batch_env.clone(),
+                system_env: default_system_env(),
+                pubdata_params: Default::default(),
+                timestamp_ms,
+                pubdata_limit,
+            },
+            ProtocolVersionId::latest(),
+            previous_batch_timestamp,
+            None,
+            false,
+        );
+        pool.connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .insert_l1_batch(l1_batch_env.into_unsealed_header(None, pubdata_limit))
+            .await
+            .unwrap();
+
+        // Actual test starts here
+        let mut batch_storage_logs = Vec::new();
+        let tx1 = create_transaction(10, 100);
+        let storage_logs = [(U256::from(2), Query::InitialWrite(U256::from(1)))];
+        let tx_result = create_execution_result(storage_logs);
+        batch_storage_logs.extend_from_slice(&tx_result.logs.storage_logs);
+        updates.extend_from_executed_transaction(
+            tx1,
+            tx_result,
+            VmExecutionMetrics::default(),
+            vec![],
+        );
+
+        // Seal first block data
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+
+        // Start second block
+        updates.set_next_l2_block_params(L2BlockParams::new(2000));
+        updates.push_l2_block();
+
+        let tx2 = create_transaction(10, 100);
+        let storage_logs = [(U256::from(3), Query::InitialWrite(U256::from(1)))];
+        let tx_result = create_execution_result(storage_logs);
+        batch_storage_logs.extend_from_slice(&tx_result.logs.storage_logs);
+        updates.extend_from_executed_transaction(
+            tx2,
+            tx_result,
+            VmExecutionMetrics::default(),
+            vec![],
+        );
+
+        // Seal second block data
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+
+        // Rollback the second block data
+        output_handler
+            .rollback_pending_l2_block_data(L2BlockNumber(2))
+            .await
+            .unwrap();
+
+        // Commit the first block
+        output_handler
+            .handle_l2_block_header(&updates.header_for_first_pending_block())
+            .await
+            .unwrap();
+        updates.commit_pending_block();
+
+        // Seal second block data one more time and commit
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+        output_handler
+            .handle_l2_block_header(&updates.header_for_first_pending_block())
+            .await
+            .unwrap();
+        updates.commit_pending_block();
+
+        // Finish batch
+        updates.set_next_l2_block_params(L2BlockParams::new(3000));
+        updates.push_l2_block();
+        let mut batch_result = FinishedL1Batch::mock();
+        batch_result.final_execution_state.deduplicated_storage_logs =
+            batch_storage_logs.iter().map(|log| log.log).collect();
+        batch_result.state_diffs = Some(
+            batch_storage_logs
+                .into_iter()
+                .filter(|&log| log.log.kind == StorageLogKind::InitialWrite)
+                .map(|log| StateDiffRecord {
+                    address: *log.log.key.address(),
+                    key: h256_to_u256(*log.log.key.key()),
+                    derived_key: log.log.key.hashed_key().0,
+                    enumeration_index: 0,
+                    initial_value: h256_to_u256(log.previous_value),
+                    final_value: h256_to_u256(log.log.value),
+                })
+                .collect(),
+        );
+        updates.finish_batch(batch_result);
+        output_handler
+            .handle_l1_batch(Arc::new(updates))
+            .await
+            .unwrap();
     }
 }
