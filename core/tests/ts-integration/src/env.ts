@@ -55,13 +55,7 @@ function getMainWalletPk(pathToHome: string): string {
     if (process.env.MASTER_WALLET_PK) {
         return process.env.MASTER_WALLET_PK;
     } else {
-        const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
-        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-
-        let pk = ethers.Wallet.fromPhrase(ethTestConfig['test_mnemonic']).privateKey;
-        process.env.MASTER_WALLET_PK = pk;
-
-        return pk;
+        throw new Error("MASTER_WALLET_PK must be set to run integration tests")
     }
 }
 
