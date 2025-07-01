@@ -370,9 +370,13 @@ impl BlocksWeb3Dal<'_, '_> {
             SELECT
                 timestamp
             FROM
-                l1_batches
+                miniblocks
             WHERE
-                number = $1
+                l1_batch_number = $1
+            ORDER BY
+                number
+            LIMIT
+                1
             "#,
             i64::from(l1_batch_number.0)
         )
