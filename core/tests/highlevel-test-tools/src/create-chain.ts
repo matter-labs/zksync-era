@@ -8,7 +8,7 @@ import { FileMutex, cleanTestChains } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
 import {migrateToGatewayIfNeeded} from "./gateway";
 
-export type ChainType = 'validium' | 'da_migration' | 'custom_token' | 'era';
+export type ChainType = 'validium' | 'custom_token' | 'era';
 
 export interface ChainConfig {
   l1RpcUrl?: string;

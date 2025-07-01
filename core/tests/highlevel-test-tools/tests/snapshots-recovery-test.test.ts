@@ -5,12 +5,12 @@ import {
   generateRealisticLoad,
   waitForAllBatchesToBeExecuted,
   snapshotsRecoveryTest,
-  ALL_CHAIN_TYPES, initExternalNode
+  TESTED_CHAIN_TYPE, initExternalNode
 } from '../src';
 
 describe('Snapshot Recovery Test', () => {
-  it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
-    const { chainName} = await createChainAndStartServer(chainType);
+  it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
+    const { chainName} = await createChainAndStartServer(TESTED_CHAIN_TYPE);
 
     await generateRealisticLoad(chainName);
 

@@ -182,6 +182,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
+        tested_chain_type: [ "era", "validium", "custom_token"]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
@@ -195,6 +196,7 @@ jobs:
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
           echo "USE_GATEWAY_CHAIN=${{ matrix.use_gateway_chain }}" >> .env
+          echo "TESTED_CHAIN_TYPE=${{ matrix.tested_chain_type }}" >> .env
           SERVER_LOGS_DIR=logs/server
           mkdir -p $SERVER_LOGS_DIR
           echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV

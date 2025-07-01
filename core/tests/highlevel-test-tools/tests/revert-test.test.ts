@@ -5,13 +5,13 @@ import {
   generateRealisticLoad,
   waitForAllBatchesToBeExecuted,
   revertTest,
-  ALL_CHAIN_TYPES, initExternalNode,
+  TESTED_CHAIN_TYPE, initExternalNode,
   runExternalNode, migrateToGatewayIfNeeded
 } from '../src';
 
 describe('Revert Test', () => {
-  it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
-    const { chainName, serverHandle} = await createChainAndStartServer(chainType);
+  it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
+    const { chainName, serverHandle} = await createChainAndStartServer(TESTED_CHAIN_TYPE);
 
     await generateRealisticLoad(chainName);
 

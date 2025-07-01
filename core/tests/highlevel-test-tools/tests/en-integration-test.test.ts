@@ -5,13 +5,13 @@ import {
     generateRealisticLoad,
     waitForAllBatchesToBeExecuted,
     initExternalNode,
-    ALL_CHAIN_TYPES, runExternalNode
+    runExternalNode, TESTED_CHAIN_TYPE
 } from '../src';
 import {enIntegrationTests, genesisRecoveryTest} from "../src/run-integration-tests";
 
 describe('External Node Integration tests Test', () => {
-    it.concurrent.each<ChainType>(ALL_CHAIN_TYPES)('for %s chain', async (chainType) => {
-        const { chainName} = await createChainAndStartServer(chainType);
+    it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
+        const { chainName} = await createChainAndStartServer(TESTED_CHAIN_TYPE);
 
         await generateRealisticLoad(chainName);
 
