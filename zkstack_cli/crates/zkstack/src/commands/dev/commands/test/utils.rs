@@ -15,7 +15,7 @@ use crate::commands::dev::messages::{
 };
 
 pub const TEST_WALLETS_PATH: &str = "etc/test_config/constant/eth.json";
-const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 10_000 * 1_000_000_000_000_000_000; // 10k ETH
+const AMOUNT_FOR_DISTRIBUTION_TO_TEST_WALLETS: u128 = 10_000_u128 * 1_000_000_000_000_000_000u128; // 10k ETH
 pub const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
 
 #[derive(Deserialize)]
@@ -66,7 +66,7 @@ impl TestWallets {
                 vec![wallet.address],
                 l1_rpc,
                 ecosystem_config.l1_network.chain_id(),
-                AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+                AMOUNT_FOR_DISTRIBUTION_TO_TEST_WALLETS,
             )
             .await?
         }
