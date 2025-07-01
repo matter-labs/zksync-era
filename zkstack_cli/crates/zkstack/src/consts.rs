@@ -1,4 +1,4 @@
-pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 10_000u128 * 1_000_000_000_000_000_000u128;
+pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 2_000u128 * 1_000_000_000_000_000_000u128;
 
 pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5u128 * 1_000_000_000_000_000_000u128;
 /// The default block range within which we search for events within one query.
