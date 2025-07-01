@@ -494,6 +494,27 @@ impl<'a> PostgresStorage<'a> {
         })
     }
 
+    /// Creates a new storage from a snapshot of the database. L1 batch doesn't exist in a storage before the snapshot is fully applied,
+    /// so we can't resolve it
+    pub fn new_from_snapshot(
+        rt_handle: Handle,
+        connection: Connection<'a, Core>,
+        block_number: L2BlockNumber,
+        l1_batch_number_for_l2_block: L1BatchNumber,
+        pending_l1_batch_number: L1BatchNumber,
+        consider_new_l1_batch: bool,
+    ) -> Self {
+        Self {
+            rt_handle,
+            connection,
+            l2_block_number: block_number,
+            l1_batch_number_for_l2_block,
+            pending_l1_batch_number,
+            consider_new_l1_batch,
+            caches: None,
+        }
+    }
+
     /// Sets the caches to use with the storage.
     #[must_use]
     pub fn with_caches(self, caches: PostgresStorageCaches) -> Self {

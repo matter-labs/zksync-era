@@ -58,12 +58,13 @@ impl CommonStorage<'static> {
         mut connection: Connection<'static, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<PostgresStorage<'static>> {
-        let l2_block_number = if let Some((_, l2_block_number)) = connection
+        if let Some((_, l2_block_number)) = connection
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?
         {
-            l2_block_number
+            tracing::debug!(%l1_batch_number, %l2_block_number, "Using Postgres-based storage");
+            PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true).await
         } else {
             tracing::info!("Could not find latest sealed L2 block, loading from snapshot");
             let snapshot_recovery = connection
@@ -77,10 +78,16 @@ impl CommonStorage<'static> {
                     snapshot_recovery.l1_batch_number
                 );
             }
-            snapshot_recovery.l2_block_number
-        };
-        tracing::debug!(%l1_batch_number, %l2_block_number, "Using Postgres-based storage");
-        PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true).await
+            tracing::debug!(%l1_batch_number, %snapshot_recovery.l2_block_number, "Using Postgres-based storage from snapshot");
+            Ok(PostgresStorage::new_from_snapshot(
+                Handle::current(),
+                connection,
+                snapshot_recovery.l2_block_number,
+                snapshot_recovery.l1_batch_number,
+                snapshot_recovery.l1_batch_number,
+                true,
+            ))
+        }
     }
 
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
