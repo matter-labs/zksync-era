@@ -36,3 +36,4 @@ contracts/l1-contracts/lib
 **/node_modules
 configs/portal.config.js
 .github
+chains/**

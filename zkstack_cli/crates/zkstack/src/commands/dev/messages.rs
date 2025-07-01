@@ -181,8 +181,9 @@ pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
 pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
     format!("Running linter for files with extension: .{}", target)
 }
-pub(super) fn msg_running_fmt_spinner() -> String {
-    "Running all formatters".to_string()
+pub(super) fn msg_running_fmt_spinner(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!("{}", e)).collect();
+    format!("Running formatters for: {:?}", targets)
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";

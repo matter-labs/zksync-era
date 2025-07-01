@@ -6,7 +6,7 @@ use zkstack_cli_common::{cmd::Cmd, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
 use super::sql_fmt::format_sql;
-use crate::commands::dev::messages::msg_running_fmt_spinner;
+use crate::commands::dev::{commands::lint_utils::Target, messages::msg_running_fmt_spinner};
 
 async fn prettier(shell: Shell, check: bool) -> anyhow::Result<()> {
     let mode = if check { "fmt:check" } else { "fmt" };
@@ -63,9 +63,9 @@ pub struct FmtArgs {
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(&shell)?;
     shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
-    let spinner = Spinner::new(&msg_running_fmt_spinner());
     let mut tasks = vec![];
 
+    let mut targets = vec![];
     if matches!(args.mode, Some(Mode::Rust) | None) {
         // Run Rust formatting
         for dir in ["core", "prover", "zkstack_cli"] {
@@ -76,18 +76,23 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
                 dir,
             )));
         }
+        tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
+        targets.push(Target::Rs);
     }
 
     if matches!(args.mode, Some(Mode::Prettier) | None) {
         // Run prettier (not contracts)
         tasks.push(tokio::spawn(prettier(shell.clone(), args.check)));
-        tasks.push(tokio::spawn(format_sql(shell.clone(), args.check)));
+        targets.append(&mut vec![Target::Js, Target::Ts, Target::Sol, Target::Md])
     }
 
     if matches!(args.mode, Some(Mode::PrettierContracts) | None) {
         // Run prettier for contracts
         tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
+        targets.push(Target::Contracts)
     }
+
+    let spinner = Spinner::new(&msg_running_fmt_spinner(&targets));
 
     for result in futures::future::join_all(tasks).await {
         result??;
