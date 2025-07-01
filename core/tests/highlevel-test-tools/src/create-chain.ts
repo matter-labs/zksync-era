@@ -161,24 +161,25 @@ export async function createChainAndStartServer(chainType: ChainType): Promise<{
       console.log(`✅ Phase 1 initialization completed for ${chainConfig.chainName}`);
       
       console.log(`✅ Chain creation and Phase 1 initialization completed for ${chainConfig.chainName}`);
+
+      // Step 3: Initialize the chain - Phase 2
+      console.log(`⏳ Phase 2 initialization for ${chainConfig.chainName}`);
+      await executeCommand('zkstack', [
+        'chain', 'init', '--phase2',
+        '--deploy-paymaster',
+        '--l1-rpc-url', finalConfig.l1RpcUrl!,
+        '--server-db-url', finalConfig.serverDbUrl!,
+        '--server-db-name', `zksync_server_localhost_${chainConfig.chainName}`,
+        '--chain', chainConfig.chainName,
+        '--validium-type', 'no-da',
+        '--update-submodules', 'false',
+        '--verbose'
+      ], chainConfig.chainName, 'main_node');
+      console.log(`✅ Phase 2 initialization completed for ${chainConfig.chainName}`);
+
     } finally {
       fileMutex.release();
     }
-    
-    // Step 3: Initialize the chain - Phase 2 (without mutex protection)
-    console.log(`⏳ Phase 2 initialization for ${chainConfig.chainName}`);
-    await executeCommand('zkstack', [
-      'chain', 'init', '--phase2',
-      '--deploy-paymaster',
-      '--l1-rpc-url', finalConfig.l1RpcUrl!,
-      '--server-db-url', finalConfig.serverDbUrl!,
-      '--server-db-name', `zksync_server_localhost_${chainConfig.chainName}`,
-      '--chain', chainConfig.chainName,
-      '--validium-type', 'no-da',
-      '--update-submodules', 'false',
-      '--verbose'
-    ], chainConfig.chainName, 'main_node');
-    console.log(`✅ Phase 2 initialization completed for ${chainConfig.chainName}`);
 
     // Step 4: Migrate to gateway if needed
     await migrateToGatewayIfNeeded(chainConfig.chainName)
