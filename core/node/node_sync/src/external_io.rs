@@ -239,7 +239,7 @@ impl StateKeeperIO for ExternalIO {
             storage = self.pool.connection_tagged("sync_layer").await?;
             storage
                 .blocks_dal()
-                .set_protocol_version_for_pending_l2_blocks(
+                .set_protocol_version_for_l2_blocks(
                     protocol_version,
                     pending_l2_block_header.l1_batch_number(),
                 )

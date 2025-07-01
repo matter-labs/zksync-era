@@ -2578,15 +2578,12 @@ impl BlocksDal<'_, '_> {
     /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored L2 block that isn't assigned
     /// to any batch yet).
     pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(miniblocks.number) FROM miniblocks JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number WHERE l1_batches.is_sealed = FALSE"
-        )
-        .instrument("pending_batch_exists")
-        .fetch_one(self.storage)
-        .await?
-        .unwrap_or(0);
+        let count = sqlx::query_scalar!("SELECT number FROM l1_batches WHERE is_sealed = FALSE")
+            .instrument("pending_batch_exists")
+            .fetch_optional(self.storage)
+            .await?;
 
-        Ok(count != 0)
+        Ok(count.is_some())
     }
 
     // methods used for measuring Eth tx stage transition latencies
@@ -2727,10 +2724,10 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn set_protocol_version_for_pending_l2_blocks(
+    pub async fn set_protocol_version_for_l2_blocks(
         &mut self,
         id: ProtocolVersionId,
-        l1batch_number: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -2741,11 +2738,11 @@ impl BlocksDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             id as i32,
-            i64::from(l1batch_number.0)
+            i64::from(l1_batch_number.0)
         )
         .instrument("set_protocol_version_for_pending_l2_blocks")
         .with_arg("id", &id)
-        .with_arg("l1_batch_number", &l1batch_number)
+        .with_arg("l1_batch_number", &l1_batch_number)
         .execute(self.storage)
         .await?;
         Ok(())

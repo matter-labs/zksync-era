@@ -53,7 +53,7 @@ impl BlocksWeb3Dal<'_, '_> {
             LEFT JOIN
                 miniblocks prev_miniblock
                 ON prev_miniblock.number = miniblocks.number - 1
-            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number AND l1_batches.is_sealed = TRUE
             LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number = $1
@@ -376,13 +376,9 @@ impl BlocksWeb3Dal<'_, '_> {
             SELECT
                 timestamp
             FROM
-                miniblocks
+                l1_batches
             WHERE
-                l1_batch_number = $1
-            ORDER BY
-                number
-            LIMIT
-                1
+                number = $1
             "#,
             i64::from(l1_batch_number.0)
         )

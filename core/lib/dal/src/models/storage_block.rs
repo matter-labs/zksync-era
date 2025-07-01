@@ -640,7 +640,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
 /// Information about L1 batch which a certain L2 block belongs to.
 #[derive(Debug)]
 pub struct ResolvedL1BatchForL2Block {
-    /// L1 batch which the L2 block belongs to. `None` if the L2 block doesn't exist yet
+    /// L1 batch which the L2 block belongs to.
     pub block_l1_batch: L1BatchNumber,
     /// Pending (i.e., unsealed) L1 batch.
     pub pending_l1_batch: L1BatchNumber,

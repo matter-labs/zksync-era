@@ -136,7 +136,7 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
-        // During the transition period we have to ensure that all pending miniblocks has l1 batch number
+        // During the transition period we have to ensure that all pending miniblocks have l1 batch number
         storage
             .blocks_dal()
             .set_l1_batch_number_for_pending_miniblocks(cursor.l1_batch)
