@@ -313,7 +313,7 @@ async fn loading_pending_batch_with_genesis() {
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let (system_env, l1_batch_env, pubdata_params) = provider
+    let restored_l1_batch_env = provider
         .load_l1_batch_env(
             &mut storage,
             L1BatchNumber(1),
@@ -324,9 +324,9 @@ async fn loading_pending_batch_with_genesis() {
         .unwrap()
         .expect("no L1 batch");
 
-    assert_eq!(l1_batch_env.first_l2_block.number, 1);
+    assert_eq!(restored_l1_batch_env.l1_batch_env.first_l2_block.number, 1);
 
-    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
+    let pending_batch = load_pending_batch(&mut storage, restored_l1_batch_env)
         .await
         .unwrap();
 
@@ -343,11 +343,18 @@ async fn loading_pending_batch_with_genesis() {
 
 async fn store_pending_l2_blocks(
     storage: &mut Connection<'_, Core>,
-    numbers: ops::RangeInclusive<u32>,
+    l2_block_numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
     l1_batch_number: L1BatchNumber,
 ) {
-    for l2_block_number in numbers {
+    let mut l1_batch_header = create_l1_batch(l1_batch_number.0);
+    l1_batch_header.timestamp = *l2_block_numbers.start() as u64; // Set timestamp to match the first L2 block.
+    storage
+        .blocks_dal()
+        .insert_l1_batch(l1_batch_header.to_unsealed_header())
+        .await
+        .unwrap();
+    for l2_block_number in l2_block_numbers {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
@@ -392,12 +399,12 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         &mut storage,
         starting_l2_block_number..=starting_l2_block_number + 1,
         GenesisParams::mock().base_system_contracts().hashes(),
-        snapshot_recovery.l1_batch_number,
+        snapshot_recovery.l1_batch_number + 1,
     )
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let (system_env, l1_batch_env, pubdata_params) = provider
+    let restored_l1_batch_env = provider
         .load_l1_batch_env(
             &mut storage,
             snapshot_recovery.l1_batch_number + 1,
@@ -407,7 +414,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         .await
         .unwrap()
         .expect("no L1 batch");
-    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
+    let pending_batch = load_pending_batch(&mut storage, restored_l1_batch_env)
         .await
         .unwrap();
 

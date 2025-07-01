@@ -26,9 +26,33 @@ impl SyncDal<'_, '_> {
         let blocks = sqlx::query_as!(
             StorageSyncBlock,
             r#"
+            WITH l1_batch AS (
+                SELECT COALESCE(
+                    (
+                        SELECT miniblocks.l1_batch_number
+                        FROM miniblocks
+                        WHERE number = $1
+                    ),
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                        WHERE
+                            is_sealed
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
+                    )
+                ) AS number
+            )
+            
             SELECT
                 miniblocks.number,
-                miniblocks.l1_batch_number AS "l1_batch_number!",
+                l1_batch.number AS "l1_batch_number!",
                 (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
@@ -42,9 +66,12 @@ impl SyncDal<'_, '_> {
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
                 miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
-                miniblocks.pubdata_type AS "pubdata_type!"
+                miniblocks.pubdata_type AS "pubdata_type!",
+                l1_batches.pubdata_limit
             FROM
                 miniblocks
+            INNER JOIN l1_batch ON true
+            INNER JOIN l1_batches ON l1_batches.number = l1_batch.number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             "#,
@@ -155,8 +182,14 @@ mod tests {
             )
             .await
             .unwrap();
+        l1_batch_header.number = L1BatchNumber(1);
+        l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_l2_block(&miniblock_header, L1BatchNumber(1))
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&miniblock_header, l1_batch_header.number)
             .await
             .unwrap();
         conn.transactions_dal()
@@ -214,14 +247,11 @@ mod tests {
             ..create_l2_block_header(2)
         };
         conn.blocks_dal()
-            .insert_l2_block(&miniblock_header, L1BatchNumber(1))
+            .insert_l2_block(&miniblock_header, l1_batch_header.number)
             .await
             .unwrap();
-
-        l1_batch_header.number = L1BatchNumber(1);
-        l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_mock_l1_batch(&l1_batch_header)
+            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -259,6 +289,16 @@ mod tests {
             .unwrap()
             .is_none());
 
+        let l1_batch_header = L1BatchHeader::new(
+            L1BatchNumber(snapshot_recovery.l1_batch_number.0 + 1),
+            100,
+            Default::default(),
+            ProtocolVersionId::latest(),
+        );
+        conn.blocks_dal()
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
+            .await
+            .unwrap();
         let miniblock_header = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
             .insert_l2_block(&miniblock_header, snapshot_recovery.l1_batch_number + 1)

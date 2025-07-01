@@ -242,6 +242,17 @@ async fn store_l1_batches(
     };
     for l1_batch_number in numbers {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
+
+        let mut header = L1BatchHeader::new(
+            l1_batch_number,
+            l2_block_number.0 as u64, // Matches the first L2 block in the batch
+            genesis_params.base_system_contracts().hashes(),
+            ProtocolVersionId::default(),
+        );
+        conn.blocks_dal()
+            .insert_l1_batch(header.to_unsealed_header())
+            .await?;
+
         let account = accounts.choose_mut(&mut rng).unwrap();
         let tx = create_l2_transaction(account, 1000000, 100);
         conn.transactions_dal()
@@ -319,13 +330,6 @@ async fn store_l1_batches(
         last_l2_block_hash = fictive_l2_block.hash;
         l2_block_number += 1;
 
-        let mut header = L1BatchHeader::new(
-            l1_batch_number,
-            l2_block_number.0 as u64 - 2, // Matches the first L2 block in the batch
-            genesis_params.base_system_contracts().hashes(),
-            ProtocolVersionId::default(),
-        );
-
         // Conservatively assume that the bootloader / transactions touch *all* system contracts + default AA.
         // By convention, bootloader hash isn't included into `used_contract_hashes`.
         header.used_contract_hashes = genesis_params
@@ -338,6 +342,9 @@ async fn store_l1_batches(
             .collect();
 
         conn.blocks_dal().insert_mock_l1_batch(&header).await?;
+        conn.blocks_dal()
+            .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default())
+            .await?;
         conn.transactions_dal()
             .mark_txs_as_executed_in_l1_batch(l1_batch_number, &[tx_result.hash])
             .await?;
