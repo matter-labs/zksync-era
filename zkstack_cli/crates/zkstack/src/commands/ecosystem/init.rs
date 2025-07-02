@@ -127,6 +127,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
+        init_args.deploy_bh_related_contracts,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -187,6 +188,7 @@ async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
+    deploy_bh_related_contracts: bool,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -196,6 +198,7 @@ async fn deploy_ecosystem(
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
             support_l2_legacy_shared_bridge_test,
+            deploy_bh_related_contracts,
         )
         .await;
     }
@@ -258,6 +261,7 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
     support_l2_legacy_shared_bridge_test: bool,
+    deploy_bh_related_contracts: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
@@ -273,81 +277,83 @@ async fn deploy_ecosystem_inner(
     .await?;
     spinner.finish();
 
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+    if deploy_bh_related_contracts {
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+        accept_admin(
+            shell,
+            config,
+            contracts_config.l1.chain_admin_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.bridges.shared.l1_address,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
+        // Note, that there is no admin in L1 asset router, so we do
+        // need to accept it
 
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+        accept_admin(
+            shell,
+            config,
+            contracts_config.l1.chain_admin_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr
-            .context("stm_deployment_tracker_proxy_addr")?,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr
+                .context("stm_deployment_tracker_proxy_addr")?,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     Ok(contracts_config)
 }

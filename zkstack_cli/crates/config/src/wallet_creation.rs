@@ -63,5 +63,10 @@ pub fn create_localhost_wallets(
             &base_path,
             5,
         )?),
+        bh_owner: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            6,
+        )?),
     })
 }

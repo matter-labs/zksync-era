@@ -6,7 +6,7 @@ use zkstack_cli_config::{
             input::{DeployL1Config, GenesisInput, InitialDeploymentConfig},
             output::DeployL1Output,
         },
-        script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
+        script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, REGISTER_CTM_SCRIPT_PARAMS},
     },
     traits::{ReadConfig, SaveConfig},
     ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
@@ -79,4 +79,46 @@ pub async fn deploy_l1(
     contracts_config.update_from_l1_output(&script_output);
 
     Ok(contracts_config)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn register_ctm_on_existing_bh(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    config: &EcosystemConfig,
+    initial_deployment_config: &InitialDeploymentConfig,
+    l1_rpc_url: &str,
+    sender: Option<String>,
+    broadcast: bool,
+) -> anyhow::Result<()> {
+    let wallets_config = config.get_wallets()?;
+
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
+        .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url.to_string());
+
+    if config.l1_network == L1Network::Localhost {
+        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
+        forge = forge.with_slow();
+    }
+
+    if let Some(address) = sender {
+        forge = forge.with_sender(address);
+    } else {
+        forge = fill_forge_private_key(
+            forge,
+            wallets_config.deployer.as_ref(),
+            WalletOwner::Governor,
+        )?;
+    }
+
+    if broadcast {
+        forge = forge.with_broadcast();
+        check_the_balance(&forge).await?;
+    }
+
+    forge.run(shell)?;
+
+    Ok(())
 }

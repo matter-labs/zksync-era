@@ -15,6 +15,7 @@ pub struct WalletsConfig {
     pub fee_account: Wallet,
     pub governor: Wallet,
     pub token_multiplier_setter: Option<Wallet>,
+    pub bh_owner: Option<Wallet>,
 }
 
 impl WalletsConfig {
@@ -27,6 +28,7 @@ impl WalletsConfig {
             fee_account: Wallet::random(rng),
             governor: Wallet::random(rng),
             token_multiplier_setter: Some(Wallet::random(rng)),
+            bh_owner: Some(Wallet::random(rng)),
         }
     }
 
@@ -39,6 +41,7 @@ impl WalletsConfig {
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
             token_multiplier_setter: Some(Wallet::empty()),
+            bh_owner: Some(Wallet::empty()),
         }
     }
 }

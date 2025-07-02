@@ -13,6 +13,7 @@ mod common;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
+pub(crate) mod register_ctm;
 pub(crate) mod setup_observability;
 mod utils;
 
@@ -34,6 +35,8 @@ pub enum EcosystemCommands {
     /// downloading Grafana dashboards from the era-observability repo
     #[command(alias = "obs")]
     SetupObservability,
+    /// Register CTM on Existing Bridgehub
+    RegisterCTM(EcosystemInitArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -43,5 +46,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
+        EcosystemCommands::RegisterCTM(args) => register_ctm::run(args, shell).await,
     }
 }

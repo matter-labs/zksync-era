@@ -113,6 +113,8 @@ pub struct EcosystemInitArgs {
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
+    #[clap(long, default_value_t = false)]
+    pub deploy_bh_related_contracts: bool,
 }
 
 impl EcosystemInitArgs {
@@ -160,6 +162,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test: self
                 .support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
+            deploy_bh_related_contracts: self.deploy_bh_related_contracts,
         }
     }
 }
@@ -176,4 +179,5 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
+    pub deploy_bh_related_contracts: bool,
 }

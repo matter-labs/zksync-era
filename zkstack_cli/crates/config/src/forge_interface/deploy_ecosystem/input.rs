@@ -59,6 +59,12 @@ pub struct InitialDeploymentConfig {
     pub validator_timelock_execution_delay: u64,
     pub token_weth_address: Address,
     pub bridgehub_create_new_chain_salt: u64,
+    pub bridgehub_proxy: Address,
+    pub l1_asset_router_proxy: Address,
+    pub l1_nullifier_proxy: Address,
+    pub stm_deployment_tracker_proxy: Address,
+    pub native_token_vault_proxy: Address,
+    pub erc20_bridge: Address,
 }
 
 impl Default for InitialDeploymentConfig {
@@ -81,6 +87,12 @@ impl Default for InitialDeploymentConfig {
             // toml crate u64 support is backed by i64 implementation
             // https://github.com/toml-rs/toml/issues/705
             bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
+            bridgehub_proxy: Address::default(),
+            l1_asset_router_proxy: Address::default(),
+            l1_nullifier_proxy: Address::default(),
+            stm_deployment_tracker_proxy: Address::default(),
+            native_token_vault_proxy: Address::default(),
+            erc20_bridge: Address::default(),
         }
     }
 }
@@ -195,6 +207,13 @@ impl DeployL1Config {
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
                 avail_l1_da_validator_addr: l1_network.avail_l1_da_validator_addr(),
+                bridgehub_proxy: initial_deployment_config.bridgehub_proxy,
+                l1_asset_router_proxy: initial_deployment_config.l1_asset_router_proxy,
+                l1_nullifier_proxy: initial_deployment_config.l1_nullifier_proxy,
+                stm_deployment_tracker_proxy: initial_deployment_config
+                    .stm_deployment_tracker_proxy,
+                native_token_vault_proxy: initial_deployment_config.native_token_vault_proxy,
+                erc20_bridge: initial_deployment_config.erc20_bridge,
             },
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -231,6 +250,12 @@ pub struct ContractsDeployL1Config {
     pub evm_emulator_hash: Option<H256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avail_l1_da_validator_addr: Option<Address>,
+    pub bridgehub_proxy: Address,
+    pub l1_asset_router_proxy: Address,
+    pub l1_nullifier_proxy: Address,
+    pub stm_deployment_tracker_proxy: Address,
+    pub native_token_vault_proxy: Address,
+    pub erc20_bridge: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
