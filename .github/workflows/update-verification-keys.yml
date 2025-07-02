@@ -34,6 +34,7 @@ jobs:
       - name: Make changes in submodule
         run: |
           cd contracts
+          git fetch origin
           git checkout deniallugo-tests-for-ci
           echo "Updated at $(date)" >> auto-update.txt
           git add .
