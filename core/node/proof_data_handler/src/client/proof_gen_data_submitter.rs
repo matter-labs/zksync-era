@@ -25,7 +25,7 @@ impl ProofGenDataSubmitter {
         let processor = Processor::new(
             blob_store.clone(),
             pool.clone(),
-            config.clone(),
+            config.proof_generation_timeout,
             l2_chain_id,
         );
 

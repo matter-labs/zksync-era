@@ -2,7 +2,6 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
-use processor::Locking;
 use tokio::sync::watch;
 use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core};
@@ -16,7 +15,7 @@ use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 pub use crate::{
     client::ProofDataHandlerClient,
     errors::ProcessorError,
-    processor::{Processor, Readonly},
+    processor::{Locking, Processor, Readonly},
 };
 
 mod client;
@@ -67,7 +66,7 @@ fn create_proof_processing_router(
         let get_proof_gen_processor = Processor::<Locking>::new(
             blob_store.clone(),
             connection_pool.clone(),
-            config.clone(),
+            config.proof_generation_timeout,
             l2_chain_id,
         );
         let submit_proof_processor = get_proof_gen_processor.clone();

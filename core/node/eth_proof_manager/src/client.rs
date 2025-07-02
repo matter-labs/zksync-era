@@ -2,11 +2,10 @@ use std::ops::Deref;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_contracts::proof_manager_contract;
 use zksync_eth_client::{BoundEthInterface, EnrichedClientError, Options};
 use zksync_types::{
     api::Log,
-    ethabi::{self, Address, Contract},
+    ethabi::{self},
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
     H256,
 };
@@ -14,11 +13,7 @@ use zksync_types::{
 use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
 
 #[derive(Clone, Debug)]
-pub struct ProofManagerClient {
-    client: Box<dyn BoundEthInterface>,
-    proof_manager_abi: Contract,
-    proof_manager_address: Address,
-}
+pub struct ProofManagerClient(pub(crate) Box<dyn BoundEthInterface>);
 
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
@@ -30,6 +25,8 @@ const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
 #[async_trait]
 pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn EthProofManagerClient>;
+
     async fn get_events_with_retry(
         &self,
         from: BlockNumber,
@@ -62,17 +59,17 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
 }
 
 impl ProofManagerClient {
-    pub fn new(client: Box<dyn BoundEthInterface>, proof_manager_address: Address) -> Self {
-        Self {
-            client,
-            proof_manager_abi: proof_manager_contract(),
-            proof_manager_address,
-        }
+    pub fn new(client: Box<dyn BoundEthInterface>) -> Self {
+        Self(client)
     }
 }
 
 #[async_trait]
 impl EthProofManagerClient for ProofManagerClient {
+    fn clone_boxed(&self) -> Box<dyn EthProofManagerClient> {
+        Box::new(self.clone())
+    }
+
     /// Get the events with retries
     async fn get_events_with_retry(
         &self,
@@ -86,7 +83,7 @@ impl EthProofManagerClient for ProofManagerClient {
             .from_block(from)
             .to_block(to)
             .topics(topics1.clone(), topics2.clone(), None, None)
-            .address(vec![self.proof_manager_address])
+            .address(vec![self.0.contract_addr()])
             .build();
 
         let mut result: Result<Vec<Log>, EnrichedClientError> = self.get_logs(filter).await;
@@ -127,7 +124,7 @@ impl EthProofManagerClient for ProofManagerClient {
                 };
                 let to_number = match to {
                     BlockNumber::Number(num) => num,
-                    BlockNumber::Latest => self.client.deref().as_ref().block_number().await?,
+                    BlockNumber::Latest => self.0.deref().as_ref().block_number().await?,
                     _ => {
                         // invalid variant
                         return result.map_err(Into::into);
@@ -178,7 +175,7 @@ impl EthProofManagerClient for ProofManagerClient {
 
     async fn get_logs(&self, filter: Filter) -> Result<Vec<Log>, EnrichedClientError> {
         Ok(self
-            .client
+            .0
             .deref()
             .as_ref()
             .logs(&filter)
@@ -191,7 +188,7 @@ impl EthProofManagerClient for ProofManagerClient {
     /// Get the finalized block number from the L1 network.
     async fn get_finalized_block(&self) -> Result<u64, ClientError> {
         let block = self
-            .client
+            .0
             .deref()
             .as_ref()
             .block(BlockId::Number(BlockNumber::Finalized))
@@ -219,7 +216,8 @@ impl EthProofManagerClient for ProofManagerClient {
         proof_request_params: ProofRequestParams,
     ) -> Result<H256, ClientError> {
         let fn_submit_proof_request = self
-            .proof_manager_abi
+            .0
+            .contract()
             .function("submitProofRequest")
             .context(
                 "`submitProofRequest` function must be present in the ProofManager contract",
@@ -231,8 +229,8 @@ impl EthProofManagerClient for ProofManagerClient {
         ])?;
 
         let tx = self
-            .client
-            .sign_prepared_tx_for_addr(input, self.proof_manager_address, Options::default())
+            .0
+            .sign_prepared_tx_for_addr(input, self.0.contract_addr(), Options::default())
             .await?;
 
         Ok(tx.hash)
@@ -243,8 +241,7 @@ impl EthProofManagerClient for ProofManagerClient {
         proof_request_identifier: ProofRequestIdentifier,
         is_proof_valid: bool,
     ) -> Result<H256, ClientError> {
-        let fn_submit_proof_validation_result = self
-            .proof_manager_abi
+        let fn_submit_proof_validation_result = self.0.contract()
             .function("submitProofValidationResult")
             .context("`submitProofValidationResult` function must be present in the ProofManager contract")?;
 
@@ -254,8 +251,8 @@ impl EthProofManagerClient for ProofManagerClient {
         ])?;
 
         let tx = self
-            .client
-            .sign_prepared_tx_for_addr(input, self.proof_manager_address, Options::default())
+            .0
+            .sign_prepared_tx_for_addr(input, self.0.contract_addr(), Options::default())
             .await?;
 
         Ok(tx.hash)

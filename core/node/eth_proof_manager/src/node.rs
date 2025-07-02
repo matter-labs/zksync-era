@@ -83,7 +83,7 @@ impl EthProofManagerLayer {
             self.l1_chain_id.into(),
         );
 
-        ProofManagerClient::new(Box::new(eth_client), contracts.proxy_addr)
+        ProofManagerClient::new(Box::new(eth_client))
     }
 }
 

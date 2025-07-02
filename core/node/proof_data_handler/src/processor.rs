@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::{
@@ -40,7 +39,7 @@ impl ProcessorMode for Locking {}
 pub struct Processor<PM: ProcessorMode> {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    config: ProofDataHandlerConfig,
+    proof_generation_timeout: Duration,
     chain_id: L2ChainId,
     _marker: std::marker::PhantomData<PM>,
 }
@@ -49,13 +48,13 @@ impl<PM: ProcessorMode> Processor<PM> {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
-        config: ProofDataHandlerConfig,
+        proof_generation_timeout: Duration,
         chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
-            config,
+            proof_generation_timeout,
             chain_id,
             _marker: std::marker::PhantomData,
         }
@@ -194,7 +193,7 @@ impl Processor<Locking> {
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
         let l1_batch_number = match self
-            .lock_batch_for_proving(self.config.proof_generation_timeout)
+            .lock_batch_for_proving(self.proof_generation_timeout)
             .await?
         {
             Some(number) => number,

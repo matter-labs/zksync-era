@@ -16,6 +16,7 @@ mod watcher;
 #[derive(Debug)]
 pub struct EthProofManager {
     watcher: watcher::EthProofWatcher,
+    sender: sender::EthProofSender,
 }
 
 impl EthProofManager {
@@ -26,11 +27,20 @@ impl EthProofManager {
         config: EthProofManagerConfig,
     ) -> Self {
         Self {
-            watcher: watcher::EthProofWatcher::new(client, connection_pool, blob_store, config),
+            watcher: watcher::EthProofWatcher::new(client.clone_boxed(), connection_pool.clone(), blob_store.clone(), config.clone()),
+            sender: sender::EthProofSender::new(client, connection_pool.clone(), blob_store.clone(), config.clone(), config.proof_generation_timeout, config.l2_chain_id),
         }
     }
 
     pub async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        self.watcher.run(stop_receiver).await
+        tokio::select! {
+            _ = self.watcher.run(stop_receiver.clone()) => {
+                tracing::info!("Watcher stopped");
+            },
+            _ = self.sender.run(stop_receiver) => {
+                tracing::info!("Sender stopped");
+            },
+        }
+        Ok(())
     }
 }
