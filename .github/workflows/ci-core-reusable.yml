@@ -412,11 +412,13 @@ jobs:
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain da_migration --gateway-chain-name gateway
+          ci_run pkill -9 -f "zksync_server.*chains/era/configs"
 
       - name: Migrate back era
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
+          ci_run pkill -9 -f "zksync_server.*chains/era/configs"
 
       - name: Migrate to gateway again
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
