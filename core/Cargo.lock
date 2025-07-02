@@ -12516,6 +12516,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_eth_signer",
  "zksync_eth_watch",
  "zksync_health_check",
  "zksync_l1_contract_interface",

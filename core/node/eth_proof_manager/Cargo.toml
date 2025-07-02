@@ -28,6 +28,7 @@ zksync_shared_metrics.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_eth_watch.workspace = true
+zksync_eth_signer.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

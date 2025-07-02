@@ -37,12 +37,14 @@ impl EthProofSender {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop request received, eth proof sender is shutting down");
                 break;
-            } 
+            }
 
             // todo: implement
 
-            
-            tracing::info!("Sleeping for {} seconds", self.config.request_sending_interval.as_secs());
+            tracing::info!(
+                "Sleeping for {} seconds",
+                self.config.request_sending_interval.as_secs()
+            );
             tokio::time::sleep(self.config.request_sending_interval).await;
         }
 

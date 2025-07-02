@@ -1,4 +1,4 @@
-use zksync_eth_client::{ContractCallError, EnrichedClientError};
+use zksync_eth_client::{ContractCallError, EnrichedClientError, SigningError};
 use zksync_types::{ethabi, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -21,7 +21,7 @@ impl ProvingNetwork {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProofRequestIdentifier {
-    pub chain_id: u64, // uint256
+    pub chain_id: u64,     // uint256
     pub block_number: u64, // uint256
 }
 
@@ -36,12 +36,12 @@ impl ProofRequestIdentifier {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProofRequestParams {
-    pub protocol_major: u32, // uint32
-    pub protocol_minor: u32, // uint32
-    pub protocol_patch: u32, // uint32
+    pub protocol_major: u32,      // uint32
+    pub protocol_minor: u32,      // uint32
+    pub protocol_patch: u32,      // uint32
     pub proof_inputs_url: String, // string
-    pub timeout_after: u64, // uint256
-    pub max_reward: u64, // uint256
+    pub timeout_after: u64,       // uint256
+    pub max_reward: u64,          // uint256
 }
 
 impl ProofRequestParams {
@@ -60,6 +60,8 @@ impl ProofRequestParams {
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     ContractCallError(#[from] ContractCallError),
+    EthabiError(#[from] ethabi::Error),
+    SigningError(#[from] SigningError),
     ProviderError(#[from] EnrichedClientError),
     GenericError(#[from] anyhow::Error),
 }

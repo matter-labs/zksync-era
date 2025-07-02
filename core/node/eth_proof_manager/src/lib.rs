@@ -9,9 +9,9 @@ use crate::client::EthProofManagerClient;
 
 mod client;
 pub mod node;
+mod sender;
 mod types;
 mod watcher;
-mod sender;
 
 #[derive(Debug)]
 pub struct EthProofManager {

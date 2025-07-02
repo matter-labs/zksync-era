@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{
-    contracts::chain::ProofManagerContracts, eth_proof_manager::EthProofManagerConfig,
+    contracts::chain::ProofManagerContracts,
+    eth_proof_manager::EthProofManagerConfig,
+    wallets::{Wallet, Wallets},
 };
+use zksync_contracts::proof_manager_contract;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    web3_decl::client::Network,
-};
-use zksync_eth_watch::GetLogsClient;
+use zksync_eth_client::clients::{DynClient, SigningClient, L1};
+use zksync_eth_signer::PrivateKeySigner;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -16,6 +16,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::ObjectStore;
+use zksync_types::L1ChainId;
 
 use crate::{client::ProofManagerClient, EthProofManager};
 
@@ -27,6 +28,8 @@ use crate::{client::ProofManagerClient, EthProofManager};
 pub struct EthProofManagerLayer {
     eth_proof_manager_config: EthProofManagerConfig,
     eth_proof_manager_contracts: ProofManagerContracts,
+    wallets_config: Wallets,
+    l1_chain_id: L1ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -46,26 +49,41 @@ impl EthProofManagerLayer {
     pub fn new(
         eth_proof_manager_config: EthProofManagerConfig,
         eth_proof_manager_contracts: ProofManagerContracts,
+        wallets_config: Wallets,
+        l1_chain_id: L1ChainId,
     ) -> Self {
         Self {
             eth_proof_manager_config,
             eth_proof_manager_contracts,
+            wallets_config,
+            l1_chain_id,
         }
     }
 
-    fn create_client<Net: Network>(
+    fn create_client(
         &self,
-        client: Box<DynClient<Net>>,
+        client: Box<DynClient<L1>>,
         contracts: &ProofManagerContracts,
-    ) -> ProofManagerClient<Net>
-    where
-        Box<DynClient<Net>>: GetLogsClient,
-    {
-        ProofManagerClient::new(
+        owner_wallet: Wallet,
+    ) -> ProofManagerClient {
+        let operator_private_key = owner_wallet.private_key().clone();
+        let operator_address = operator_private_key.address();
+        let signer = PrivateKeySigner::new(operator_private_key);
+        tracing::info!("Operator address: {operator_address:?}");
+
+        let eth_client = SigningClient::new(
             client,
+            proof_manager_contract(),
+            operator_address,
+            signer,
             contracts.proxy_addr,
-            self.eth_proof_manager_config.clone(),
-        )
+            self.eth_proof_manager_config
+                .default_priority_fee_per_gas
+                .into(),
+            self.l1_chain_id.into(),
+        );
+
+        ProofManagerClient::new(Box::new(eth_client), contracts.proxy_addr)
     }
 }
 
@@ -87,7 +105,14 @@ impl WiringLayer for EthProofManagerLayer {
             self.eth_proof_manager_contracts.proxy_addr
         );
 
-        let client = self.create_client(input.eth_client, &self.eth_proof_manager_contracts);
+        let client = self.create_client(
+            input.eth_client,
+            &self.eth_proof_manager_contracts,
+            self.wallets_config
+                .eth_proof_manager
+                .clone()
+                .expect("Eth proof manager wallet is required"),
+        );
 
         let eth_proof_manager = EthProofManager::new(
             Box::new(client),
