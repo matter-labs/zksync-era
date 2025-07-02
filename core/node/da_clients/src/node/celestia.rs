@@ -1,4 +1,5 @@
 use zksync_config::{configs::da_client::celestia::CelestiaSecrets, CelestiaConfig};
+use zksync_basic_types::L2ChainId;
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
@@ -12,11 +13,12 @@ use crate::celestia::CelestiaClient;
 pub struct CelestiaWiringLayer {
     config: CelestiaConfig,
     secrets: CelestiaSecrets,
+    l2_chain_id: L2ChainId
 }
 
 impl CelestiaWiringLayer {
-    pub fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> Self {
-        Self { config, secrets }
+    pub fn new(config: CelestiaConfig, secrets: CelestiaSecrets, l2_chain_id: L2ChainId) -> Self {
+        Self { config, secrets, l2_chain_id }
     }
 }
 
@@ -35,7 +37,7 @@ impl WiringLayer for CelestiaWiringLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client = CelestiaClient::new(self.config, self.secrets, input.eth_client).await?;
+        let client = CelestiaClient::new(self.config, self.secrets, input.eth_client, self.l2_chain_id).await?;
         Ok(Box::new(client))
     }
 }

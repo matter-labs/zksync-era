@@ -11,11 +11,11 @@ use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
 
 use chrono::{DateTime, Utc};
 use eq_sdk::{
-    get_keccak_inclusion_response::{
+    get_zk_stack_response::{
         ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
     },
     types::BlobId,
-    EqClient, KeccakInclusionToDataRootProofOutput,
+    EqClient, ZKStackEqProofOutput,
 };
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -35,6 +35,7 @@ use zksync_types::{
     web3::{contract::Tokenize, BlockNumber},
     H160, U256, U64,
 };
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     celestia::{
@@ -55,6 +56,7 @@ pub struct CelestiaClient {
     eq_client: Arc<EqClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
+    l2_chain_id: L2ChainId
 }
 
 impl CelestiaClient {
@@ -62,6 +64,7 @@ impl CelestiaClient {
         config: CelestiaConfig,
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
+        l2_chain_id: L2ChainId
     ) -> anyhow::Result<Self> {
 
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
@@ -85,10 +88,11 @@ impl CelestiaClient {
             celestia_client: Arc::new(client),
             eq_client: Arc::new(eq_client),
             eth_client,
+            l2_chain_id
         })
     }
 
-    async fn get_proof_data(&self, blob_id: &str) -> Result<Option<(Vec<u8>, Vec<u8>)>, DAError> {
+    async fn get_eq_proof(&self, blob_id: &str) -> Result<Option<(Vec<u8>, Vec<u8>)>, DAError> {
         tracing::debug!("Parsing blob id: {}", blob_id);
         let blob_id_struct = blob_id
             .parse::<BlobId>()
@@ -96,7 +100,7 @@ impl CelestiaClient {
 
         let response = self
             .eq_client
-            .get_keccak_inclusion(&blob_id_struct)
+            .get_zk_stack(&blob_id_struct)
             .await
             .map_err(to_retriable_da_error)?;
 
@@ -298,7 +302,7 @@ impl CelestiaClient {
 impl DataAvailabilityClient for CelestiaClient {
     async fn dispatch_blob(
         &self,
-        _: u32, // batch number
+        batch_number: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
         let namespace_bytes =
@@ -328,6 +332,8 @@ impl DataAvailabilityClient for CelestiaClient {
             commitment,
             namespace,
             height,
+            batch_number,
+            l2_chain_id: self.l2_chain_id.as_u64(),
         };
 
         Ok(DispatchResponse {
@@ -366,7 +372,7 @@ impl DataAvailabilityClient for CelestiaClient {
             .await?;
 
         // Step 4: Get proof data for the blob
-        let proof_data = match self.get_proof_data(blob_id).await? {
+        let proof_data = match self.get_eq_proof(blob_id).await? {
             Some(p) => p,
             None => return Ok(None),
         };
@@ -385,7 +391,7 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(to_non_retriable_da_error)?;
 
         tracing::debug!("Calling eq-service...");
-        if let Err(tonic_status) = self.eq_client.get_keccak_inclusion(&blob_id).await {
+        if let Err(tonic_status) = self.eq_client.get_zk_stack(&blob_id).await {
             // gRPC error, should be retriable, could be something on the eq-service side
             return Err(DAError {
                 error: tonic_status.into(),
