@@ -63,7 +63,7 @@ fn main() {
                 },
         } => {
             if let Err(e) =
-                zkos_wrapper::generate_vk(binary_path, output_dir, trusted_setup_file, false, false)
+                zkos_wrapper::generate_vk(binary_path, output_dir, trusted_setup_file, true, false)
             {
                 println!("Error generating keys: {e}");
             }

@@ -5480,11 +5480,7 @@ dependencies = [
 [[package]]
 name = "zkos-wrapper"
 version = "0.1.0"
-<<<<<<< HEAD
-source = "git+https://github.com/matter-labs/zkos-wrapper.git?rev=52e5975308d0e1acf72e0de36f0fb8e37a425875#52e5975308d0e1acf72e0de36f0fb8e37a425875"
-=======
 source = "git+https://github.com/matter-labs/zkos-wrapper.git?tag=v0.3.3#2966da7e90d9372e11e97fe013dd267b46cea56d"
->>>>>>> origin/zksync-os-integration
 dependencies = [
  "boojum",
  "circuit_mersenne_field",
