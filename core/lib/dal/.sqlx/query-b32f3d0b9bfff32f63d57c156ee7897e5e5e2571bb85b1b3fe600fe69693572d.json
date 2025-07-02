@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_tx_id = $1\n            ORDER BY\n                eth_txs_history.created_at DESC\n            ",
+  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar,\n                eth_txs.tx_type,\n                eth_txs.chain_id\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_txs_history.finality_status != 'finalized'\n            \n            ORDER BY\n                eth_txs_history.id ASC\n            LIMIT\n                $1\n            ",
   "describe": {
     "columns": [
       {
@@ -87,11 +87,21 @@
         "ordinal": 16,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 17,
+        "name": "tx_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "chain_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Int8"
       ]
     },
     "nullable": [
@@ -111,8 +121,10 @@
       true,
       false,
       false,
+      true,
+      false,
       true
     ]
   },
-  "hash": "87e968b1ef6b95203b5d1e41ddf73be52d97128642d8528535975f8dea798e6c"
+  "hash": "b32f3d0b9bfff32f63d57c156ee7897e5e5e2571bb85b1b3fe600fe69693572d"
 }
