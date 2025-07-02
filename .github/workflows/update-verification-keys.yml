@@ -27,19 +27,12 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "CONTRACTS_STABLE_BRANCH=zksync-os-stable" 
 
       - name: Git config
         run: |
           git config --global user.email "dev-robot@matterlabs.dev"
           git config --global user.name "zksync-admin-bot2"
-
-      #      - name: Update submodule pointer in Repo A
-      #        run: |
-      #          git add contracts
-      #          git commit -m "Update submodule reference" || echo "No changes"
-      #          git push origin HEAD
-      #
-
 
       - name: Start services
         run: |
@@ -64,7 +57,7 @@ jobs:
       - name: Make changes in submodule
         run: |
           cd contracts
-          git checkout deniallugo-ci-generate-keys
+          git checkout ${{ env.CONTRACTS_STABLE_BRANCH }}
           git add .
           git commit -m "Update Verification keys" || echo "No changes"
-          git push origin HEAD
+          git push origin ${{ env.CONTRACTS_STABLE_BRANCH }}
