@@ -34,10 +34,7 @@ mod tests {
     };
 
     use super::{avail::AvailClientConfig, *};
-    use crate::configs::{
-        da_client::eigen::PolynomialForm, object_store::ObjectStoreMode, DataAvailabilitySecrets,
-        Secrets,
-    };
+    use crate::configs::{object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
 
     #[test]
     fn no_da_config_from_yaml() {
@@ -299,12 +296,10 @@ mod tests {
           DA_CLIENT="Eigen"
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
-          DA_AUTHENTICATED=false
           DA_CERT_VERIFIER_ROUTER_ADDR="0x0000000000000000000000000000000000000123"
           DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
           DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
           DA_BLOB_VERSION="0"
-          DA_POLYNOMIAL_FORM="coeff"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -320,7 +315,6 @@ mod tests {
             config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
             "http://localhost:8545/"
         );
-        assert!(!config.authenticated);
 
         assert_eq!(config.blob_version, 0);
         assert_eq!(
@@ -335,7 +329,6 @@ mod tests {
             config.registry_coordinator_addr,
             "0x0000000000000000000000000000000000000125"
         );
-        assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
     }
 
     #[test]
@@ -344,12 +337,10 @@ mod tests {
             client: Eigen
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
-            authenticated: true
             cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
             operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
             registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
             blob_version: 0
-            polynomial_form: coeff
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -369,7 +360,6 @@ mod tests {
             config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
             "https://holesky.infura.io/"
         );
-        assert!(config.authenticated);
 
         assert_eq!(config.blob_version, 0);
         assert_eq!(
@@ -384,7 +374,6 @@ mod tests {
             config.registry_coordinator_addr,
             "0x0000000000000000000000000000000000000125"
         );
-        assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
     }
 
     #[test]
@@ -393,9 +382,7 @@ mod tests {
           eigen:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
-            authenticated: true
             blob_version: 0
-            polynomial_form: coeff
             cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
             operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
             registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
