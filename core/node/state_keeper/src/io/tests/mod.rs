@@ -8,14 +8,12 @@ use zksync_multivm::{
     interface::{
         tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent, VmExecutionMetrics,
     },
-    utils::{
-        derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
-    },
+    utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
-    block::{L2BlockHasher, L2BlockHeader},
+    block::L2BlockHasher,
     bytecode::BytecodeHash,
     commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},

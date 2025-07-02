@@ -1,10 +1,6 @@
 use anyhow::Context;
-use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_state_keeper::io::{
-    common::{FetcherCursor, IoCursor},
-    L1BatchParams, L2BlockParams,
-};
+use zksync_state_keeper::io::{common::FetcherCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,

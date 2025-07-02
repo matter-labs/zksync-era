@@ -1,8 +1,5 @@
 use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-    instrument::{InstrumentExt, Instrumented},
-    metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
 use zksync_types::{api::en, L2BlockNumber};
 

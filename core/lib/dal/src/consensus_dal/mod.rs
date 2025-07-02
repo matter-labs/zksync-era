@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use anyhow::Context as _;
-use itertools::Itertools;
 use zksync_consensus_engine::{BlockStoreState, Last};
 use zksync_consensus_roles::validator;
 use zksync_db_connection::{

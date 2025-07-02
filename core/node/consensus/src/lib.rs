@@ -13,10 +13,9 @@ use zksync_consensus_executor::{self as executor};
 use zksync_dal::{consensus_dal, Core};
 use zksync_node_sync::sync_action::ActionQueueSender;
 use zksync_state_keeper::StateKeeper;
-use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
-    namespaces::{EnNamespaceClient, EthNamespaceClient},
+    namespaces::EnNamespaceClient,
 };
 
 use crate::{
@@ -44,6 +43,7 @@ pub enum RunMode {
     },
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_node(
     ctx: &ctx::Ctx,
     cfg: ConsensusConfig,

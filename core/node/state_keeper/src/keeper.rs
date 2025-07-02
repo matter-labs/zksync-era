@@ -947,7 +947,7 @@ impl StateKeeper {
                             s.updates_manager.number_of_pending_blocks(),
                             s.updates_manager
                                 .last_pending_l2_block_checked()
-                                .map_or(false, |b| b.executed_transactions.is_empty()),
+                                .is_some_and(|b| b.executed_transactions.is_empty()),
                             s.updates_manager
                                 .last_pending_l2_block_checked()
                                 .map(|b| b.number),

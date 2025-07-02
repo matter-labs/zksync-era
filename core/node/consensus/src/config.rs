@@ -55,7 +55,7 @@ impl GenesisSpec {
         let schedule = if x.validators.is_empty() || x.leader.is_none() {
             None
         } else {
-            let leader = x.leader.as_ref().unwrap(); // safe to unwrap because of the check above
+            let _leader = x.leader.as_ref().unwrap(); // safe to unwrap because of the check above
 
             let validators: Vec<_> = x
                 .validators

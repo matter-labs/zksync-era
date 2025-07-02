@@ -35,7 +35,7 @@ use zksync_metadata_calculator::{
 use zksync_node_api_server::{
     node::{
         HealthCheckLayer, MasterPoolSinkLayer, MempoolCacheLayer, PostgresStorageCachesConfig,
-        ProxySinkLayer, TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
+        TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
     web3::state::InternalApiConfigBase,
 };
@@ -53,10 +53,7 @@ use zksync_node_sync::node::{
 };
 use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::{
-    node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer},
-    RunMode,
-};
+use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
 use zksync_types::{commitment::PubdataType, L1BatchNumber};
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
@@ -245,7 +242,7 @@ impl<R> ExternalNodeBuilder<R> {
         let secrets = self.config.local.secrets.consensus.clone();
         let layer = NodeConsensusLayer {
             config: config.context("Consensus config is missing")?,
-            secrets: secrets,
+            secrets,
             build_version: crate::metadata::SERVER_VERSION
                 .parse()
                 .context("CRATE_VERSION.parse()")?,

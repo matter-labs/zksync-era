@@ -73,7 +73,7 @@ pub(crate) struct Store {
     client: Option<Box<DynClient<L2>>>,
     /// Registry contract. Is None if this chain is not configured to fetch the validator schedule from the registry.
     registry: Arc<Option<Registry>>,
-    ///
+    /// TODO: add comment
     sk: Arc<sync::Mutex<StateKeeper>>,
 }
 

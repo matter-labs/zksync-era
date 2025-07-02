@@ -11,8 +11,8 @@ mod store;
 pub(crate) use connection::*;
 pub(crate) use store::*;
 
-#[cfg(test)]
-pub(crate) mod testonly;
+// #[cfg(test)]
+// pub(crate) mod testonly;
 
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {
