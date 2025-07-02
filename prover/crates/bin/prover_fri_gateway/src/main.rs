@@ -5,6 +5,7 @@ use clap::Parser;
 use client::{proof_gen_data_fetcher::ProofGenDataFetcher, proof_submitter::ProofSubmitter};
 use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
+use tracing_subscriber::EnvFilter;
 use traits::PeriodicApi as _;
 use zksync_config::{
     configs::{fri_prover_gateway::ApiMode, GeneralConfig, PostgresSecrets},
@@ -24,6 +25,10 @@ mod traits;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap())
+        .init();
+
     let opt = Cli::parse();
     let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
