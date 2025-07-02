@@ -72,9 +72,16 @@ jobs:
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
 
+      - name: Build code
+        run: |
+          ci_run cargo nextest run --release --no-run --manifest-path core/Cargo.toml
+
       - name: Rust unit tests
         run: |
           ci_run zkstack dev test rust
+
+      - name: Rust benchmarks
+        run: |
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
