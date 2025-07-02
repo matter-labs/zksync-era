@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::consensus::Payload;
 use zksync_multivm::{
     interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
@@ -326,6 +327,28 @@ impl UpdatesManager {
             logs_bloom,
             pubdata_params: self.pubdata_params,
         }
+    }
+
+    pub(crate) fn build_payload(&self) -> Option<Payload> {
+        self.pending_l2_blocks.back().map(|last_block| Payload {
+            protocol_version: self.protocol_version(),
+            hash: last_block.get_l2_block_hash(),
+            l1_batch_number: self.l1_batch_number(),
+            timestamp: last_block.timestamp(),
+            l1_gas_price: self.batch_fee_input.l1_gas_price(),
+            l2_fair_gas_price: self.batch_fee_input.fair_l2_gas_price(),
+            fair_pubdata_price: Some(self.batch_fee_input.fair_pubdata_price()),
+            virtual_blocks: last_block.virtual_blocks,
+            operator_address: self.fee_account_address,
+            transactions: last_block
+                .executed_transactions
+                .iter()
+                .map(|tx| tx.transaction.clone())
+                .collect(),
+            last_in_batch: last_block.executed_transactions.is_empty(),
+            pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
+        })
     }
 
     pub fn last_pending_l2_block(&self) -> &L2BlockUpdates {

@@ -13181,6 +13181,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",
+ "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_node_genesis",
  "zksync_node_test_utils",

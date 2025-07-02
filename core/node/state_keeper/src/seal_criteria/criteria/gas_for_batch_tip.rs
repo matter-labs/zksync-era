@@ -2,7 +2,7 @@ use zksync_multivm::utils::gas_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    L1BatchSealConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 /// Checks whether we should exclude the transaction because we don't have enough gas for batch tip.
@@ -12,12 +12,13 @@ pub struct GasForBatchTipCriterion;
 impl SealCriterion for GasForBatchTipCriterion {
     fn should_seal(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &L1BatchSealConfig,
         tx_count: usize,
         _l1_tx_count: usize,
         _block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let batch_tip_overhead = gas_bootloader_batch_tip_overhead(protocol_version.into());
         let is_tx_first = tx_count == 1;
@@ -47,7 +48,7 @@ mod tests {
     #[test]
     fn test_gas_for_batch_tip_seal_criterion() {
         // Create an empty config.
-        let config = StateKeeperConfig::for_tests();
+        let config = L1BatchSealConfig::for_tests();
 
         let criterion = GasForBatchTipCriterion;
         let protocol_version = ProtocolVersionId::latest();
@@ -57,7 +58,7 @@ mod tests {
             ..Default::default()
         };
         let almost_full_block_resolution =
-            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version);
+            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version, 0);
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
         let seal_data = SealData {
@@ -65,14 +66,14 @@ mod tests {
             ..Default::default()
         };
         let full_block_first_tx_resolution =
-            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version);
+            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version, 0);
         assert_matches!(
             full_block_first_tx_resolution,
             SealResolution::Unexecutable(_)
         );
 
         let full_block_second_tx_resolution =
-            criterion.should_seal(&config, 2, 0, &seal_data, &seal_data, protocol_version);
+            criterion.should_seal(&config, 2, 0, &seal_data, &seal_data, protocol_version, 0);
         assert_eq!(
             full_block_second_tx_resolution,
             SealResolution::ExcludeAndSeal

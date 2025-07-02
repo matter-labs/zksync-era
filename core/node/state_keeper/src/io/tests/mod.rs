@@ -664,7 +664,7 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
     let current_timestamp = seconds_since_epoch();
     io_cursor.prev_l2_block_timestamp = current_timestamp;
 
-    mempool.set_last_batch_protocol_version(ProtocolVersionId::Version28);
+    mempool.set_open_batch_protocol_version(ProtocolVersionId::Version28);
     let l2_block_params = mempool
         .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
         .await

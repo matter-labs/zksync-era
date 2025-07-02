@@ -1,11 +1,8 @@
-use zksync_node_framework::{
-    resource,
-    resource::{Resource, Unique},
-};
+use zksync_node_framework::resource::{Resource, Unique};
 use zksync_state::OwnedStorage;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 
-use crate::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
+use crate::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperBuilder, StateKeeperIO};
 
 /// A resource that provides [`StateKeeperIO`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.
@@ -61,8 +58,32 @@ impl From<OutputHandler> for OutputHandlerResource {
     }
 }
 
-impl Resource<resource::Shared> for dyn ConditionalSealer {
+#[derive(Debug, Clone)]
+pub struct ConditionalSealerResource(pub Unique<Box<dyn ConditionalSealer>>);
+
+impl Resource for ConditionalSealerResource {
     fn name() -> String {
         "state_keeper/conditional_sealer".into()
+    }
+}
+
+impl From<Box<dyn ConditionalSealer>> for ConditionalSealerResource {
+    fn from(r: Box<dyn ConditionalSealer>) -> Self {
+        Self(Unique::new(r))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StateKeeperResource(pub Unique<StateKeeperBuilder>);
+
+impl From<StateKeeperBuilder> for StateKeeperResource {
+    fn from(sk: StateKeeperBuilder) -> Self {
+        Self(Unique::new(sk))
+    }
+}
+
+impl Resource for StateKeeperResource {
+    fn name() -> String {
+        "state_keeper/state_keeper".into()
     }
 }

@@ -274,7 +274,7 @@ impl MainNodeBuilder {
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
         let state_keeper_layer =
-            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options, false);
         self.node
             .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)

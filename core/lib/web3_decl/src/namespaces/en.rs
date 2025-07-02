@@ -59,4 +59,7 @@ pub trait EnNamespace {
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersionInfo>>;
+
+    #[method(name = "getL2DAValidator")]
+    async fn get_l2_da_validator(&self) -> RpcResult<Option<Address>>;
 }

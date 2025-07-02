@@ -3,6 +3,7 @@ use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration}
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
+use zksync_dal::consensus::Payload;
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
@@ -21,6 +22,7 @@ use zksync_types::{
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
 use crate::{
+    error::ProcessBlockError,
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
     io::{BatchInitParams, IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
@@ -122,7 +124,7 @@ pub struct StateKeeperBuilder {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
@@ -135,11 +137,12 @@ pub(super) struct StateKeeperInner {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    is_active_leader: bool,
 }
 
 impl From<StateKeeperBuilder> for StateKeeperInner {
@@ -153,6 +156,7 @@ impl From<StateKeeperBuilder> for StateKeeperInner {
             health_updater: b.health_updater,
             deployment_tx_filter: b.deployment_tx_filter,
             leader_rotation: b.leader_rotation,
+            is_active_leader: true,
         }
     }
 }
@@ -162,7 +166,7 @@ impl StateKeeperBuilder {
         sequencer: Box<dyn StateKeeperIO>,
         batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
         output_handler: OutputHandler,
-        sealer: Arc<dyn ConditionalSealer>,
+        sealer: Box<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
         deployment_tx_filter: Option<DeploymentTxFilter>,
     ) -> Self {
@@ -178,8 +182,8 @@ impl StateKeeperBuilder {
         }
     }
 
-    pub fn with_leader_rotation(mut self, sync: bool) -> Self {
-        self.leader_rotation = sync;
+    pub fn with_leader_rotation(mut self, leader_rotation: bool) -> Self {
+        self.leader_rotation = leader_rotation;
         self
     }
 
@@ -324,6 +328,7 @@ impl StateKeeperInner {
         } else {
             None
         };
+        self.sealer.set_config(batch_init_params.system_env.version);
 
         Ok(InitializedBatchState {
             updates_manager,
@@ -848,6 +853,7 @@ impl StateKeeperInner {
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),
+                    updates_manager.pubdata_limit().map(|l| l as usize),
                 )
             }
         };
@@ -870,6 +876,7 @@ impl StateKeeperInner {
             manager.pending_l1_transactions_len(),
             &block_data,
             manager.protocol_version(),
+            manager.pubdata_limit().map(|l| l as usize),
         );
         for (criterion, capacity) in capacities {
             AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
@@ -893,11 +900,15 @@ impl StateKeeper {
     async fn run_inner(
         mut self,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<Infallible, OrStopped> {
+    ) -> Result<Infallible, OrStopped<ProcessBlockError>> {
         while !is_canceled(&stop_receiver) {
             self.process_block(&mut stop_receiver).await?;
-            self.seal_last_pending_block_data().await?;
-            self.commit_pending_block().await?;
+            self.seal_last_pending_block_data()
+                .await
+                .map_err(Into::<ProcessBlockError>::into)?;
+            self.commit_pending_block()
+                .await
+                .map_err(Into::<ProcessBlockError>::into)?;
         }
 
         Err(OrStopped::Stopped)
@@ -906,12 +917,13 @@ impl StateKeeper {
     async fn process_block(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(), OrStopped> {
+    ) -> Result<(), OrStopped<ProcessBlockError>> {
         // If there is no open batch then start one.
         let state = self
             .batch_state
             .ensure_initialized(&mut self.inner, stop_receiver)
-            .await?;
+            .await
+            .map_err(|err| err.map_internal(Into::<ProcessBlockError>::into))?;
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
 
@@ -919,7 +931,8 @@ impl StateKeeper {
             // Protocol upgrade tx if the first tx in the block so we shouldn't do `set_l2_block_params`.
             self.inner
                 .process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
-                .await?;
+                .await
+                .map_err(Into::<ProcessBlockError>::into)?;
         } else {
             // Params for the first L2 block in the batch are pushed with batch params.
             // For non-first L2 block they must be set manually.
@@ -928,18 +941,21 @@ impl StateKeeper {
                     .inner
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .stop_context("failed getting L2 block params")?;
+                    .stop_context("failed getting L2 block params")
+                    .map_err(|err| err.map_internal(Into::<ProcessBlockError>::into))?;
                 StateKeeperInner::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
-            if state.next_block_should_be_fictive {
+            if self.inner.is_active_leader && state.next_block_should_be_fictive {
                 // Create a fictive L2 block.
                 let next_l2_block_timestamp =
                     updates_manager.next_l2_block_timestamp_ms_mut().unwrap();
                 self.inner
                     .io
                     .update_next_l2_block_timestamp(next_l2_block_timestamp);
-                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor)
+                    .await
+                    .map_err(Into::<ProcessBlockError>::into)?;
 
                 return Ok(());
             }
@@ -966,14 +982,15 @@ impl StateKeeper {
     async fn process_block_iteration(
         state: &mut InitializedBatchState,
         inner: &mut StateKeeperInner,
-    ) -> Result<Option<ProcessBlockIterationOutcome>, OrStopped> {
+    ) -> Result<Option<ProcessBlockIterationOutcome>, OrStopped<ProcessBlockError>> {
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
 
         if inner
             .io
             .should_seal_l1_batch_unconditionally(updates_manager)
-            .await?
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?
         {
             // Push the current block if it has not been done yet and this will effectively create a fictive l2 block.
             if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_ms_mut()
@@ -981,7 +998,9 @@ impl StateKeeper {
                 inner
                     .io
                     .update_next_l2_block_timestamp(next_l2_block_timestamp);
-                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+                StateKeeperInner::start_next_l2_block(updates_manager, batch_executor)
+                    .await
+                    .map_err(Into::<ProcessBlockError>::into)?;
             }
 
             tracing::debug!(
@@ -1017,7 +1036,8 @@ impl StateKeeper {
             )
             .instrument(info_span!("wait_for_next_tx"))
             .await
-            .context("error waiting for next transaction")?
+            .context("error waiting for next transaction")
+            .map_err(Into::<ProcessBlockError>::into)?
         else {
             waiting_latency.observe();
             tracing::trace!("No new transactions. Waiting!");
@@ -1029,16 +1049,19 @@ impl StateKeeper {
 
         // We need to start a new block
         if updates_manager.has_next_block_params() {
-            StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
+            StateKeeperInner::start_next_l2_block(updates_manager, batch_executor)
+                .await
+                .map_err(Into::<ProcessBlockError>::into)?;
         }
 
         let (seal_resolution, exec_result) = inner
             .process_one_tx(batch_executor, updates_manager, tx.clone())
-            .await?;
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?;
 
         let latency = KEEPER_METRICS.match_seal_resolution.start();
-        match &seal_resolution {
-            SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
+        match (inner.is_active_leader, &seal_resolution) {
+            (_, SealResolution::NoSeal | SealResolution::IncludeAndSeal) => {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
@@ -1057,26 +1080,44 @@ impl StateKeeper {
                     call_tracer_result,
                 );
             }
-            SealResolution::ExcludeAndSeal => {
-                batch_executor.rollback_last_tx().await.with_context(|| {
-                    format!("failed rolling back transaction {tx_hash:?} in batch executor")
-                })?;
-                inner.io.rollback(tx).await.with_context(|| {
-                    format!("failed rolling back transaction {tx_hash:?} in I/O")
-                })?;
+            (true, SealResolution::ExcludeAndSeal) => {
+                batch_executor
+                    .rollback_last_tx()
+                    .await
+                    .with_context(|| {
+                        format!("failed rolling back transaction {tx_hash:?} in batch executor")
+                    })
+                    .map_err(Into::<ProcessBlockError>::into)?;
+                inner
+                    .io
+                    .rollback(tx)
+                    .await
+                    .with_context(|| format!("failed rolling back transaction {tx_hash:?} in I/O"))
+                    .map_err(Into::<ProcessBlockError>::into)?;
             }
-            SealResolution::Unexecutable(reason) => {
-                batch_executor.rollback_last_tx().await.with_context(|| {
-                    format!("failed rolling back transaction {tx_hash:?} in batch executor")
-                })?;
+            (true, SealResolution::Unexecutable(reason)) => {
+                batch_executor
+                    .rollback_last_tx()
+                    .await
+                    .with_context(|| {
+                        format!("failed rolling back transaction {tx_hash:?} in batch executor")
+                    })
+                    .map_err(Into::<ProcessBlockError>::into)?;
                 inner
                     .io
                     .reject(&tx, reason.clone())
                     .await
-                    .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
+                    .with_context(|| format!("cannot reject transaction {tx_hash:?}"))
+                    .map_err(Into::<ProcessBlockError>::into)?;
+            }
+            (false, SealResolution::ExcludeAndSeal | SealResolution::Unexecutable(_)) => {
+                tracing::warn!(
+                    "Transaction {tx_hash:?} resulted in resolution {seal_resolution:?} while verifying block.",
+                );
+                return Err(ProcessBlockError::BlockVerificationFailed.into());
             }
         };
-        let result = if seal_resolution.should_seal() {
+        let result = if inner.is_active_leader && seal_resolution.should_seal() {
             tracing::debug!(
                 "L2 block #{} should be sealed with conditional sealer resolution {seal_resolution:?} after executing transaction {tx_hash}",
                 updates_manager.last_pending_l2_block().number
@@ -1147,6 +1188,46 @@ impl StateKeeper {
         Ok(())
     }
 
+    pub async fn propose(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<Payload, OrStopped<ProcessBlockError>> {
+        self.inner.is_active_leader = true;
+        self.inner.io.handle_is_active_leader_change(true);
+        self.inner.sealer.handle_is_active_leader_change(true);
+
+        self.process_block(stop_receiver).await?;
+        self.seal_last_pending_block_data()
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?;
+
+        let batch_state = self.batch_state.unwrap_init_ref();
+        let payload = batch_state.updates_manager.build_payload().unwrap();
+
+        Ok(payload)
+    }
+
+    pub async fn verify(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<(), OrStopped<ProcessBlockError>> {
+        self.inner.is_active_leader = false;
+        self.inner.io.handle_is_active_leader_change(false);
+        self.inner.sealer.handle_is_active_leader_change(false);
+        if let BatchState::Init(state) = &mut self.batch_state {
+            self.inner
+                .sealer
+                .set_config(state.updates_manager.protocol_version());
+        }
+
+        self.process_block(stop_receiver).await?;
+        self.seal_last_pending_block_data()
+            .await
+            .map_err(Into::<ProcessBlockError>::into)?;
+
+        Ok(())
+    }
+
     pub async fn rollback(&mut self) -> anyhow::Result<()> {
         let state = self.batch_state.unwrap_init_mut();
         let pending_block = state.updates_manager.last_pending_l2_block();
@@ -1161,15 +1242,20 @@ impl StateKeeper {
                 .await?;
         }
 
-        // Rollback mempool.
+        // Rollback io.
         let txs = pending_block
             .executed_transactions
             .iter()
             .map(|tx| tx.transaction.clone())
             .collect();
-        self.inner.io.rollback_l2_block(txs).await?;
+        let is_in_first_pending_block_state =
+            state.updates_manager.is_in_first_pending_block_state();
+        self.inner
+            .io
+            .rollback_l2_block(txs, is_in_first_pending_block_state)
+            .await?;
 
-        if state.updates_manager.is_in_first_pending_block_state() {
+        if is_in_first_pending_block_state {
             // Rollback state to `Uninit`.
             state.updates_manager.pop_last_pending_block();
             self.batch_state = BatchState::Uninit(state.updates_manager.io_cursor());

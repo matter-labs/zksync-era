@@ -6,41 +6,28 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::node::{MasterPool, PoolResource};
+use zksync_health_check::AppHealthCheck;
 use zksync_node_fee_model::node::SequencerFeeInputResource;
 use zksync_node_framework::{
-    service::StopReceiver,
-    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 use zksync_shared_resources::contracts::L2ContractsResource;
+use zksync_state_keeper::{
+    node::{ConditionalSealerResource, StateKeeperIOResource},
+    seal_criteria::ConditionalSealer,
+    MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
+};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 use zksync_vm_executor::node::ApiTransactionFilter;
 
-use super::resources::StateKeeperIOResource;
-use crate::{
-    node::ConditionalSealerResource, seal_criteria::ConditionalSealer, MempoolFetcher,
-    MempoolGuard, MempoolIO, SequencerSealer,
-};
+use super::resources::ActionQueueSenderResource;
+use crate::{leader_io::LeaderIO, ActionQueue, ExternalIO};
 
-/// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
-///
-/// ## Requests resources
-///
-/// - `FeeInputResource`
-/// - `PoolResource<MasterPool>`
-///
-/// ## Adds resources
-///
-/// - `StateKeeperIOResource`
-/// - `ConditionalSealerResource`
-///
-/// ## Adds tasks
-///
-/// - `MempoolFetcherTask`
+/// Wiring layer for `LeaderIO`, an IO part of state keeper used by the leader node.
 #[derive(Debug)]
-pub struct MempoolIOLayer {
-    zksync_network_id: L2ChainId,
+pub struct LeaderIOLayer {
+    chain_id: L2ChainId,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
     fee_account: wallets::AddressWallet,
@@ -49,30 +36,32 @@ pub struct MempoolIOLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    fee_input: SequencerFeeInputResource,
-    master_pool: PoolResource<MasterPool>,
-    l2_contracts: L2ContractsResource,
+    pub app_health: Arc<AppHealthCheck>,
+    pub fee_input: SequencerFeeInputResource,
+    pub master_pool: PoolResource<MasterPool>,
+    pub l2_contracts: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    state_keeper_io: StateKeeperIOResource,
-    conditional_sealer: ConditionalSealerResource,
+    action_queue_sender: ActionQueueSenderResource,
+    io: StateKeeperIOResource,
+    sealer: ConditionalSealerResource,
     api_transaction_filter: ApiTransactionFilter,
     #[context(task)]
     mempool_fetcher: MempoolFetcher,
 }
 
-impl MempoolIOLayer {
+impl LeaderIOLayer {
     pub fn new(
-        zksync_network_id: L2ChainId,
+        chain_id: L2ChainId,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
         fee_account: wallets::AddressWallet,
         pubdata_type: PubdataType,
     ) -> Self {
         Self {
-            zksync_network_id,
+            chain_id,
             state_keeper_config,
             mempool_config,
             fee_account,
@@ -99,12 +88,12 @@ impl MempoolIOLayer {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for MempoolIOLayer {
+impl WiringLayer for LeaderIOLayer {
     type Input = Input;
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "mempool_io_layer"
+        "leader_io_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -129,39 +118,39 @@ impl WiringLayer for MempoolIOLayer {
             .get_singleton()
             .await
             .context("Get master pool")?;
-        let io = MempoolIO::new(
+        let mempool_io = MempoolIO::new(
             mempool_guard,
             batch_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
             self.fee_account.address(),
             self.mempool_config.delay_interval,
-            self.zksync_network_id,
+            self.chain_id,
             input.l2_contracts.0.da_validator_addr,
             self.pubdata_type,
         )?;
 
-        // Create sealers.
+        // Create sealer.
         let sealer: Box<dyn ConditionalSealer> =
             Box::new(SequencerSealer::new(self.state_keeper_config.clone()));
         let api_sealer = Arc::new(SequencerSealer::new(self.state_keeper_config));
 
+        // Create `ActionQueueSender` resource.
+        let (action_queue_sender, action_queue) = ActionQueue::new();
+
+        // Create external IO resource.
+        let io_pool = master_pool.get().await.context("Get pool")?;
+        let external_io = ExternalIO::new(io_pool, action_queue, None, self.chain_id)
+            .context("Failed initializing I/O for external node state keeper")?;
+
+        let io = LeaderIO::new(mempool_io, external_io);
+
         Ok(Output {
-            state_keeper_io: io.into(),
-            conditional_sealer: sealer.into(),
+            action_queue_sender: action_queue_sender.into(),
+            io: io.into(),
+            sealer: sealer.into(),
             api_transaction_filter: ApiTransactionFilter(api_sealer),
             mempool_fetcher,
         })
-    }
-}
-
-#[async_trait::async_trait]
-impl Task for MempoolFetcher {
-    fn id(&self) -> TaskId {
-        "state_keeper/mempool_fetcher".into()
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
     }
 }

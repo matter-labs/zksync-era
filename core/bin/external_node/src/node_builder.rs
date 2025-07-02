@@ -209,8 +209,11 @@ impl<R> ExternalNodeBuilder<R> {
             block_cache_capacity: db_config.state_keeper_db_block_cache_capacity.0 as usize,
             max_open_files: db_config.state_keeper_db_max_open_files,
         };
-        let state_keeper_layer =
-            StateKeeperLayer::new(config.db.state_keeper_db_path.clone(), rocksdb_options);
+        let state_keeper_layer = StateKeeperLayer::new(
+            config.db.state_keeper_db_path.clone(),
+            rocksdb_options,
+            false,
+        );
         self.node
             .add_layer(io_layer)
             .add_layer(persistence_layer)

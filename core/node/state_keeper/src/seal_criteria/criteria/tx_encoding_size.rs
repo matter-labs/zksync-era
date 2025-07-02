@@ -2,7 +2,7 @@ use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    L1BatchSealConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -11,12 +11,13 @@ pub struct TxEncodingSizeCriterion;
 impl SealCriterion for TxEncodingSizeCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> SealResolution {
         let bootloader_tx_encoding_space =
             get_bootloader_encoding_space(protocol_version_id.into());
@@ -40,11 +41,12 @@ impl SealCriterion for TxEncodingSizeCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _max_pubdata_per_batch: usize,
     ) -> Option<f64> {
         let used_size = block_data.cumulative_size as f64;
         let full_size = get_bootloader_encoding_space(protocol_version.into()) as f64;
@@ -66,10 +68,10 @@ mod tests {
             get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
+        let config = L1BatchSealConfig {
             reject_tx_at_geometry_percentage: 0.95,
             close_block_at_geometry_percentage: 0.95,
-            ..StateKeeperConfig::for_tests()
+            ..L1BatchSealConfig::for_tests()
         };
 
         let criterion = TxEncodingSizeCriterion;
@@ -81,6 +83,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -94,6 +97,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(
             unexecutable_resolution,
@@ -113,6 +117,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(exclude_and_seal_resolution, SealResolution::ExcludeAndSeal);
 
@@ -129,6 +134,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            0,
         );
         assert_eq!(include_and_seal_resolution, SealResolution::IncludeAndSeal);
     }

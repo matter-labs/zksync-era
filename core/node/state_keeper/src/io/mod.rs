@@ -37,12 +37,12 @@ mod tests;
 pub struct PendingBatchData {
     /// Data used to initialize the pending batch. We have to make sure that all the parameters
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
-    pub(crate) l1_batch_env: L1BatchEnv,
-    pub(crate) system_env: SystemEnv,
-    pub(crate) pubdata_params: PubdataParams,
-    pub(crate) pubdata_limit: Option<u64>,
+    pub l1_batch_env: L1BatchEnv,
+    pub system_env: SystemEnv,
+    pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
-    pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
+    pub pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq)]
@@ -156,6 +156,12 @@ impl L1BatchParams {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct IOOpenBatch {
+    pub number: L1BatchNumber,
+    pub protocol_version: ProtocolVersionId,
+}
+
 /// Provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
 /// providing L2 block and L1 batch boundaries for them.
@@ -202,8 +208,11 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
 
-    /// Marks block transactions as "not executed", so they can be retrieved from the IO again.
-    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()>;
+    async fn rollback_l2_block(
+        &mut self,
+        txs: Vec<Transaction>,
+        first_block_in_batch: bool,
+    ) -> anyhow::Result<()>;
 
     /// Updates mempool state (nonces for L2 txs and next priority op id) after block is processed.
     async fn advance_mempool(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
@@ -230,4 +239,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;
+
+    /// Handles the change of the active leader status.
+    fn handle_is_active_leader_change(&mut self, _is_leader: bool) {}
 }

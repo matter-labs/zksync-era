@@ -1,6 +1,6 @@
 //! High-level sync layer tests.
 
-use std::{iter, sync::Arc, time::Duration};
+use std::{collections::HashMap, iter, sync::Arc, time::Duration};
 
 use backon::{ConstantBuilder, Retryable};
 use test_casing::test_casing;
@@ -120,7 +120,7 @@ impl StateKeeperHandles {
         let io = ExternalIO::new(
             pool.clone(),
             actions,
-            Box::new(main_node_client),
+            Some(Box::new(main_node_client)),
             L2ChainId::default(),
         )
         .unwrap();
@@ -135,7 +135,7 @@ impl StateKeeperHandles {
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(NoopSealer),
+            Box::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
         );
@@ -316,6 +316,15 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         l2_system_upgrade_tx_hash: None,
     };
     client.insert_protocol_version(next_protocol_version.clone());
+
+    storage
+        .factory_deps_dal()
+        .insert_factory_deps(
+            L2BlockNumber(0),
+            &HashMap::from([(H256::repeat_byte(1), vec![])]),
+        )
+        .await
+        .unwrap();
 
     let state_keeper = StateKeeperHandles::new(
         pool.clone(),

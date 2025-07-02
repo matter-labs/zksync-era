@@ -60,6 +60,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_erc20_bridge_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
+    pub l2_da_validator_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
     pub base_token_addr: Address,
@@ -96,6 +97,14 @@ impl RemoteENConfig {
             "Failed to fetch timestamp asserter address".to_string(),
         )
         .await?;
+
+        let l2_da_validator_addr = handle_rpc_response_with_fallback(
+            client.get_l2_da_validator(),
+            None,
+            "Failed to fetch l2 da validator".to_string(),
+        )
+        .await?;
+
         let l2_multicall3 = handle_rpc_response_with_fallback(
             client.get_l2_multicall3(),
             None,
@@ -156,6 +165,7 @@ impl RemoteENConfig {
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
             l2_timestamp_asserter_addr: timestamp_asserter_address,
+            l2_da_validator_addr,
         })
     }
 
@@ -177,6 +187,7 @@ impl RemoteENConfig {
             l1_wrapped_base_token_store: None,
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
+            l2_da_validator_addr: None,
             l1_server_notifier_addr: None,
             l2_multicall3: None,
         }
@@ -522,7 +533,7 @@ impl ExternalNodeConfig {
             shared_bridge_addr: self.remote.l2_shared_bridge_addr,
             legacy_shared_bridge_addr: self.remote.l2_legacy_shared_bridge_addr,
             timestamp_asserter_addr: self.remote.l2_timestamp_asserter_addr,
-            da_validator_addr: None,
+            da_validator_addr: self.remote.l2_da_validator_addr,
             testnet_paymaster_addr: self.remote.l2_testnet_paymaster_addr,
             multicall3: self.remote.l2_multicall3,
         }

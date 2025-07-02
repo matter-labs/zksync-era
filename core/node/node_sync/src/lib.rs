@@ -4,6 +4,7 @@ pub mod data_availability_fetcher;
 pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
+pub mod leader_io;
 mod metrics;
 pub mod node;
 pub mod sync_action;

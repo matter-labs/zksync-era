@@ -542,6 +542,7 @@ mod tests {
         sync_block_data_and_header_persistence: bool,
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let previous_batch_version = ProtocolVersionId::latest();
         let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
         let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
         let pubdata_limit = Some(100_000);
@@ -553,7 +554,7 @@ mod tests {
                 pubdata_limit,
                 timestamp_ms,
             },
-            ProtocolVersionId::latest(),
+            previous_batch_version,
             previous_batch_timestamp,
             None,
             sync_block_data_and_header_persistence,
@@ -562,7 +563,9 @@ mod tests {
             .await
             .unwrap()
             .blocks_dal()
-            .insert_l1_batch(l1_batch_env.into_unsealed_header(None, pubdata_limit))
+            .insert_l1_batch(
+                l1_batch_env.into_unsealed_header(Some(previous_batch_version), pubdata_limit),
+            )
             .await
             .unwrap();
 
@@ -784,6 +787,7 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let previous_batch_version = ProtocolVersionId::latest();
         let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
         let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
         let pubdata_limit = Some(100_000);
@@ -792,10 +796,10 @@ mod tests {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
                 pubdata_params: Default::default(),
-                timestamp_ms,
                 pubdata_limit,
+                timestamp_ms,
             },
-            ProtocolVersionId::latest(),
+            previous_batch_version,
             previous_batch_timestamp,
             None,
             false,
@@ -804,7 +808,9 @@ mod tests {
             .await
             .unwrap()
             .blocks_dal()
-            .insert_l1_batch(l1_batch_env.into_unsealed_header(None, pubdata_limit))
+            .insert_l1_batch(
+                l1_batch_env.into_unsealed_header(Some(previous_batch_version), pubdata_limit),
+            )
             .await
             .unwrap();
 

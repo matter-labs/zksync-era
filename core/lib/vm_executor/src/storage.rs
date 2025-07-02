@@ -271,7 +271,7 @@ impl L1BatchParamsProvider {
     }
 
     /// Loads VM-related L1 batch parameters for the specified batch.
-    pub async fn load_l1_batch_params(
+    async fn load_l1_batch_params(
         &self,
         conn: &mut Connection<'_, Core>,
         first_l2_block_in_batch: &FirstL2BlockInBatch,
@@ -365,8 +365,6 @@ impl L1BatchParamsProvider {
 
     /// Combines [`Self::load_first_l2_block_in_batch()`] and [Self::load_l1_batch_params()`]. Returns `Ok(None)`
     /// iff the requested batch doesn't have any persisted blocks.
-    ///
-    /// Prefer using this method unless you need to manipulate / inspect the first block in the batch.
     pub async fn load_l1_batch_env(
         &self,
         storage: &mut Connection<'_, Core>,
