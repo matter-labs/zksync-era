@@ -34,7 +34,7 @@ jobs:
       - name: Make changes in submodule
         run: |
           cd contracts
-          git checkout $(git rev-parse --abbrev-ref HEAD)
+          git checkout deniallugo-tests-for-ci
           echo "Updated at $(date)" >> auto-update.txt
           git add .
           git commit -m "Automated update" || echo "No changes"
