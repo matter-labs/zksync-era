@@ -1,8 +1,8 @@
-import {ChildProcess, spawn} from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import {getLogsDirectory, markLogsDirectoryAsFailed} from "./logs";
-import * as console from "node:console";
+import { getLogsDirectory, markLogsDirectoryAsFailed } from './logs';
+import * as console from 'node:console';
 
 /**
  * Strips ANSI escape sequences from a string
@@ -10,8 +10,8 @@ import * as console from "node:console";
  * @returns The string with ANSI escape sequences removed
  */
 function stripAnsiEscapeCodes(str: string): string {
-  // Remove ANSI escape sequences (colors, cursor movements, etc.)
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+    // Remove ANSI escape sequences (colors, cursor movements, etc.)
+    return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
 }
 
 /**
@@ -21,21 +21,21 @@ function stripAnsiEscapeCodes(str: string): string {
  * @returns The last N lines as a string, or empty string if file doesn't exist
  */
 function readLastNLines(filePath: string, numLines: number): string {
-  try {
-    if (!fs.existsSync(filePath)) {
-      return '';
+    try {
+        if (!fs.existsSync(filePath)) {
+            return '';
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines = content.split('\n');
+
+        // Get the last N lines, but don't include empty lines at the end
+        const lastLines = lines.slice(-numLines).filter((line) => line.trim() !== '');
+
+        return lastLines.join('\n');
+    } catch (error) {
+        return `Error reading log file: ${error}`;
     }
-    
-    const content = fs.readFileSync(filePath, 'utf8');
-    const lines = content.split('\n');
-    
-    // Get the last N lines, but don't include empty lines at the end
-    const lastLines = lines.slice(-numLines).filter(line => line.trim() !== '');
-    
-    return lastLines.join('\n');
-  } catch (error) {
-    return `Error reading log file: ${error}`;
-  }
 }
 
 /**
@@ -48,143 +48,160 @@ function readLastNLines(filePath: string, numLines: number): string {
  * @param isDetached - Whether this is a detached/background command
  * @param failed - Whether the command failed
  */
-function logExecutedCommand(chainName: string, command: string, args: string[], startTime: number, endTime?: number, isDetached: boolean = false, failed: boolean = false): void {
-  const logsDir = getLogsDirectory(chainName);
-  
-  // Create executed commands log file for this chain
-  const executedCommandsLogFile = path.join(logsDir, 'executed_commands.log');
-  
-  const timestamp = new Date(startTime).toISOString();
-  const fullCommand = `${command} ${args.join(' ')}`;
-  
-  let timeInfo: string;
-  if (isDetached) {
-    timeInfo = '(detached)';
-  } else if (endTime) {
-    const duration = endTime - startTime;
-    const failedPrefix = failed ? '[❌FAIL] ' : '';
-    timeInfo = `(${duration.toString().padStart(6)}ms)${failedPrefix}`;
-  } else {
-    timeInfo = '(running)';
-  }
-  
-  // Log command with timestamp and time info, padded so commands align
-  const logEntry = `[${timestamp}] ${timeInfo} ${fullCommand}\n`;
-  fs.appendFileSync(executedCommandsLogFile, logEntry);
+function logExecutedCommand(
+    chainName: string,
+    command: string,
+    args: string[],
+    startTime: number,
+    endTime?: number,
+    isDetached: boolean = false,
+    failed: boolean = false
+): void {
+    const logsDir = getLogsDirectory(chainName);
+
+    // Create executed commands log file for this chain
+    const executedCommandsLogFile = path.join(logsDir, 'executed_commands.log');
+
+    const timestamp = new Date(startTime).toISOString();
+    const fullCommand = `${command} ${args.join(' ')}`;
+
+    let timeInfo: string;
+    if (isDetached) {
+        timeInfo = '(detached)';
+    } else if (endTime) {
+        const duration = endTime - startTime;
+        const failedPrefix = failed ? '[❌FAIL] ' : '';
+        timeInfo = `(${duration.toString().padStart(6)}ms)${failedPrefix}`;
+    } else {
+        timeInfo = '(running)';
+    }
+
+    // Log command with timestamp and time info, padded so commands align
+    const logEntry = `[${timestamp}] ${timeInfo} ${fullCommand}\n`;
+    fs.appendFileSync(executedCommandsLogFile, logEntry);
 }
 
 function findAndPrintErrorFromLogs(logFilePath: string) {
-  // Print last 60 lines of logs on error
-  const lastLogs = readLastNLines(logFilePath, 60);
-  if (lastLogs) {
-    console.error('\n📋 Last 60 lines of logs:');
-    console.error('')
-    console.error('─'.repeat(120));
-    console.error(lastLogs);
-    console.error('─'.repeat(120));
-    console.error('')
-  }
-
+    // Print last 60 lines of logs on error
+    const lastLogs = readLastNLines(logFilePath, 60);
+    if (lastLogs) {
+        console.error('\n📋 Last 60 lines of logs:');
+        console.error('');
+        console.error('─'.repeat(120));
+        console.error(lastLogs);
+        console.error('─'.repeat(120));
+        console.error('');
+    }
 }
 
 /**
  * Executes a command and returns a promise
  */
-export async function executeCommand(command: string, args: string[], chainName: string, logFileName: string, runInBackground: boolean = false): Promise<ChildProcess> {
-  const logsDir = getLogsDirectory(chainName);
-  const startTime = Date.now();
-  
-  return new Promise((resolve, reject) => {
-    console.log(`Executing: ${command} ${args.join(' ')}`);
-    
-    // Ensure logs directory exists
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
-    
-    // Create log file for this chain (one file per chain, no timestamp)
-    const logFileNameWithExtension = `${logFileName}.log`;
-    const logFilePath = path.join(logsDir, logFileNameWithExtension);
-    
-    // Create write stream for the log file (append mode)
-    const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-    
-    // Write command to log
-    const logEntry = `[${new Date().toISOString()}] Executing: ${command} ${args.join(' ')}\n`;
-    logStream.write(logEntry);
-    
-    const child = spawn(command, args, {
-      stdio: ['inherit', 'pipe', 'pipe'],
-      shell: true,
-      detached: runInBackground
-    });
-    
-    // Pipe stdout and stderr only to log file (not to console) with ANSI escape codes stripped
-    child.stdout?.on('data', (data) => {
-      const output = stripAnsiEscapeCodes(data.toString());
-      logStream.write(output);
-    });
-    
-    child.stderr?.on('data', (data) => {
-      const output = stripAnsiEscapeCodes(data.toString());
-      logStream.write(output);
-    });
-    
-    child.on('close', (code) => {
-      const endTime = Date.now();
-      
-      // Log the command completion to executed commands log
-      const failed = code !== 0 && code !== 137;
-      logExecutedCommand(chainName, command, args, startTime, endTime, false, failed);
-      
-      const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code}\n`;
-      logStream.write(closeMessage);
-      logStream.end();
-      
-      if (code === 0) {
-        console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
-        resolve(child);
-      } else if (code === 137) {
-        console.log(`✅ Command completed by being killed using .kill(). Logs saved to: ${logFilePath}`);
-        resolve(child);
-      } else {
-        
-        const errorMessage = `Command ${command} ${args.join(' ')} failed with exit code ${code}. Check logs at: ${logFilePath}`;
-        console.error(`❌ ${errorMessage}`);
-        
-        findAndPrintErrorFromLogs(logFilePath);
+export async function executeCommand(
+    command: string,
+    args: string[],
+    chainName: string,
+    logFileName: string,
+    runInBackground: boolean = false
+): Promise<ChildProcess> {
+    const logsDir = getLogsDirectory(chainName);
+    const startTime = Date.now();
 
-        // Rename the log directory to indicate failure
-        markLogsDirectoryAsFailed(chainName);
-        
-        reject(new Error(errorMessage));
-      }
+    return new Promise((resolve, reject) => {
+        console.log(`Executing: ${command} ${args.join(' ')}`);
+
+        // Ensure logs directory exists
+        if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir, { recursive: true });
+        }
+
+        // Create log file for this chain (one file per chain, no timestamp)
+        const logFileNameWithExtension = `${logFileName}.log`;
+        const logFilePath = path.join(logsDir, logFileNameWithExtension);
+
+        // Create write stream for the log file (append mode)
+        const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+
+        // Write command to log
+        const logEntry = `[${new Date().toISOString()}] Executing: ${command} ${args.join(' ')}\n`;
+        logStream.write(logEntry);
+
+        const child = spawn(command, args, {
+            stdio: ['inherit', 'pipe', 'pipe'],
+            shell: true,
+            detached: runInBackground
+        });
+
+        // Pipe stdout and stderr only to log file (not to console) with ANSI escape codes stripped
+        child.stdout?.on('data', (data) => {
+            const output = stripAnsiEscapeCodes(data.toString());
+            logStream.write(output);
+        });
+
+        child.stderr?.on('data', (data) => {
+            const output = stripAnsiEscapeCodes(data.toString());
+            logStream.write(output);
+        });
+
+        child.on('close', (code) => {
+            const endTime = Date.now();
+
+            // Log the command completion to executed commands log
+            const failed = code !== 0 && code !== 137;
+            logExecutedCommand(chainName, command, args, startTime, endTime, false, failed);
+
+            const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code}\n`;
+            logStream.write(closeMessage);
+            logStream.end();
+
+            if (code === 0) {
+                console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
+                resolve(child);
+            } else if (code === 137) {
+                console.log(`✅ Command completed by being killed using .kill(). Logs saved to: ${logFilePath}`);
+                resolve(child);
+            } else {
+                const errorMessage = `Command ${command} ${args.join(' ')} failed with exit code ${code}. Check logs at: ${logFilePath}`;
+                console.error(`❌ ${errorMessage}`);
+
+                findAndPrintErrorFromLogs(logFilePath);
+
+                // Rename the log directory to indicate failure
+                markLogsDirectoryAsFailed(chainName);
+
+                reject(new Error(errorMessage));
+            }
+        });
+
+        child.on('error', (error) => {
+            const endTime = Date.now();
+
+            // Log the command error to executed commands log
+            logExecutedCommand(chainName, command, args, startTime, endTime, false, true);
+
+            const errorMessage = `[${new Date().toISOString()}] Command error: ${error.message}\n`;
+            logStream.write(errorMessage);
+            logStream.end();
+
+            findAndPrintErrorFromLogs(logFilePath);
+
+            // Rename the log directory to indicate failure
+            markLogsDirectoryAsFailed(chainName);
+
+            reject(error);
+        });
+
+        if (runInBackground) {
+            resolve(child);
+        }
     });
-    
-    child.on('error', (error) => {
-      const endTime = Date.now();
-      
-      // Log the command error to executed commands log
-      logExecutedCommand(chainName, command, args, startTime, endTime, false, true);
-      
-      const errorMessage = `[${new Date().toISOString()}] Command error: ${error.message}\n`;
-      logStream.write(errorMessage);
-      logStream.end();
-
-      findAndPrintErrorFromLogs(logFilePath);
-
-      // Rename the log directory to indicate failure
-      markLogsDirectoryAsFailed(chainName);
-
-      reject(error);
-    });
-
-    if (runInBackground) {
-      resolve(child);
-    }
-  });
 }
 
-export async function executeBackgroundCommand(command: string, args: string[], chainName: string, logFileName: string): Promise<ChildProcess> {
-  return executeCommand(command, args, chainName, logFileName, true)
-} 
+export async function executeBackgroundCommand(
+    command: string,
+    args: string[],
+    chainName: string,
+    logFileName: string
+): Promise<ChildProcess> {
+    return executeCommand(command, args, chainName, logFileName, true);
+}

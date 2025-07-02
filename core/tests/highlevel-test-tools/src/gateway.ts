@@ -13,35 +13,36 @@ const gatewayMutex = new FileMutex();
  * @returns Promise that resolves when migration is complete
  */
 export async function migrateToGatewayIfNeeded(chainName: string): Promise<void> {
-  const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
-  
-  if (useGatewayChain !== 'WITH_GATEWAY') {
-    console.log(`⏭️ Skipping gateway migration for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
-    return;
-  }
-  
-  console.log(`🔄 Migrating chain ${chainName} to gateway...`);
-  
-  try {
-    // Acquire mutex for gateway migration
-    console.log(`🔒 Acquiring mutex for gateway migration of ${chainName}...`);
-    await gatewayMutex.acquire();
-    console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
-    
-    try {
-      await executeCommand('zkstack', [
-        'chain', 'gateway', 'migrate-to-gateway',
-        '--chain', chainName,
-        '--gateway-chain-name', 'gateway'
-      ], chainName, 'gateway_migration');
-      
-      console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
-    } finally {
-      // Always release the mutex
-      gatewayMutex.release();
+    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
+
+    if (useGatewayChain !== 'WITH_GATEWAY') {
+        console.log(`⏭️ Skipping gateway migration for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+        return;
     }
-  } catch (error) {
-    console.error(`❌ Failed to migrate chain ${chainName} to gateway:`, error);
-    throw error;
-  }
-} 
+
+    console.log(`🔄 Migrating chain ${chainName} to gateway...`);
+
+    try {
+        // Acquire mutex for gateway migration
+        console.log(`🔒 Acquiring mutex for gateway migration of ${chainName}...`);
+        await gatewayMutex.acquire();
+        console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
+
+        try {
+            await executeCommand(
+                'zkstack',
+                ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
+                chainName,
+                'gateway_migration'
+            );
+
+            console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
+        } finally {
+            // Always release the mutex
+            gatewayMutex.release();
+        }
+    } catch (error) {
+        console.error(`❌ Failed to migrate chain ${chainName} to gateway:`, error);
+        throw error;
+    }
+}

@@ -86,7 +86,7 @@ export class Node<TYPE extends NodeType> {
         let iter = 0;
         while (iter < 30) {
             try {
-                console.log(this.l2NodeUrl)
+                console.log(this.l2NodeUrl);
                 let provider = new zksync.Provider(this.l2NodeUrl);
                 await provider.getBlockNumber();
                 await sleep(2);

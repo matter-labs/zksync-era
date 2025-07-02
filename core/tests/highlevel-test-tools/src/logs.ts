@@ -1,13 +1,12 @@
-import * as fs from "node:fs";
+import * as fs from 'node:fs';
 
 export function getLogsDirectory(chainName: string) {
-
     // vitest returns it in format `{filePath} > ${describeTitle} > ${testTitle}`
     const suiteName = expect.getState().currentTestName?.split('>')[1].trim() ?? '';
 
     const logsDir = `../../../logs/highlevel/[${suiteName}] ${chainName}`;
     if (!fs.existsSync(logsDir)) {
-        fs.mkdirSync(logsDir, {recursive: true});
+        fs.mkdirSync(logsDir, { recursive: true });
     }
     const failedLogsDir = `../../../logs/highlevel/[❌FAIL] [${suiteName}] ${chainName}`;
     if (fs.existsSync(failedLogsDir)) {
@@ -28,8 +27,7 @@ export function markLogsDirectoryAsFailed(chainName: string) {
             fs.renameSync(getLogsDirectory(chainName), failedLogsDir);
             console.log(`📁 Renamed log directory to: ${failedLogsDir}`);
         }
-    }
-    catch (renameError) {
+    } catch (renameError) {
         console.warn(`⚠️ Failed to rename log directory: ${renameError}`);
     }
 }
@@ -38,8 +36,8 @@ export function markLogsDirectoryAsFailed(chainName: string) {
  * Removes all historical log files from the specified directory
  */
 export function cleanHistoricalLogs(): void {
-    const logsDir = '../../../logs/highlevel'
+    const logsDir = '../../../logs/highlevel';
     if (fs.existsSync(logsDir)) {
-        fs.rmSync(logsDir, {recursive: true, force: true});
+        fs.rmSync(logsDir, { recursive: true, force: true });
     }
 }
