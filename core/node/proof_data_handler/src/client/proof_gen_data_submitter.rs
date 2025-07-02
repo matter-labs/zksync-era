@@ -27,6 +27,7 @@ impl ProofGenDataSubmitter {
             pool.clone(),
             config.proof_generation_timeout,
             l2_chain_id,
+            config.proving_mode,
         );
 
         let Some(api_url) = config.gateway_api_url.clone() else {

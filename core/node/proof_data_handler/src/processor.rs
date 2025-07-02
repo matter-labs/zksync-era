@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::{
@@ -41,6 +42,7 @@ pub struct Processor<PM: ProcessorMode> {
     pool: ConnectionPool<Core>,
     proof_generation_timeout: Duration,
     chain_id: L2ChainId,
+    proving_mode: ProvingMode,
     _marker: std::marker::PhantomData<PM>,
 }
 
@@ -50,12 +52,14 @@ impl<PM: ProcessorMode> Processor<PM> {
         pool: ConnectionPool<Core>,
         proof_generation_timeout: Duration,
         chain_id: L2ChainId,
+        proving_mode: ProvingMode,
     ) -> Self {
         Self {
             blob_store,
             pool,
             proof_generation_timeout,
             chain_id,
+            proving_mode,
             _marker: std::marker::PhantomData,
         }
     }
@@ -223,7 +227,20 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving(proof_generation_timeout)
+            .lock_batch_for_proving(proof_generation_timeout, self.proving_mode)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Will choose a batch that has all the required data and isn't picked up by proving network yet.
+    async fn lock_batch_for_proving_network(
+        &self,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
+        self.pool
+            .connection()
+            .await?
+            .proof_generation_dal()
+            .lock_batch_for_proving_network()
             .await
             .map_err(Into::into)
     }

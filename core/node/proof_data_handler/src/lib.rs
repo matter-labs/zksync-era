@@ -68,6 +68,7 @@ fn create_proof_processing_router(
             connection_pool.clone(),
             config.proof_generation_timeout,
             l2_chain_id,
+            config.proving_mode,
         );
         let submit_proof_processor = get_proof_gen_processor.clone();
 

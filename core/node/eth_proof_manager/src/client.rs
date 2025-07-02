@@ -215,13 +215,9 @@ impl EthProofManagerClient for ProofManagerClient {
         proof_request: ProofRequestIdentifier,
         proof_request_params: ProofRequestParams,
     ) -> Result<H256, ClientError> {
-        let fn_submit_proof_request = self
-            .0
-            .contract()
-            .function("submitProofRequest")
-            .context(
-                "`submitProofRequest` function must be present in the ProofManager contract",
-            )?;
+        let fn_submit_proof_request = self.0.contract().function("submitProofRequest").context(
+            "`submitProofRequest` function must be present in the ProofManager contract",
+        )?;
 
         let input = fn_submit_proof_request.encode_input(&[
             proof_request.into_tokens(),

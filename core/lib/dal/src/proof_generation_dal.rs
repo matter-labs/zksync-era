@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
+use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
@@ -40,8 +41,16 @@ impl ProofGenerationDal<'_, '_> {
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
+        proving_mode: ProvingMode,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
+
+        let status = if proving_mode == ProvingMode::ProverCluster {
+            "unpicked"
+        } else {
+            "fallbacked"
+        };
+
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
@@ -63,7 +72,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.hash IS NOT NULL
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = 'unpicked'
+                            AND status = $2
                         )
                         OR (
                             status = 'picked_by_prover'
@@ -78,6 +87,7 @@ impl ProofGenerationDal<'_, '_> {
             proof_generation_details.l1_batch_number
             "#,
             &processing_timeout,
+            status,
         )
         .instrument("lock_batch_for_proving")
         .with_arg("processing_timeout", &processing_timeout)
@@ -88,9 +98,7 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn lock_batch_for_proving_network(
-        &mut self,
-    ) -> DalResult<Option<L1BatchNumber>> {
+    pub async fn lock_batch_for_proving_network(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details

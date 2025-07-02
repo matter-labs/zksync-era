@@ -5,7 +5,13 @@ use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 
-use crate::{client::EthProofManagerClient, sender::{submit_proof_request::ProofRequestSubmitter, submit_proof_validation::SubmitProofValidationSubmitter}};
+use crate::{
+    client::EthProofManagerClient,
+    sender::{
+        submit_proof_request::ProofRequestSubmitter,
+        submit_proof_validation::SubmitProofValidationSubmitter,
+    },
+};
 
 mod submit_proof_request;
 mod submit_proof_validation;
@@ -20,7 +26,7 @@ pub struct EthProofSender {
     l2_chain_id: L2ChainId,
 }
 
-impl EthProofSender { 
+impl EthProofSender {
     pub fn new(
         client: Box<dyn EthProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
@@ -42,8 +48,20 @@ impl EthProofSender {
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("Starting eth proof sender");
 
-        let proof_request_submitter = ProofRequestSubmitter::new(self.client.clone_boxed(), self.blob_store.clone(), self.connection_pool.clone(), self.config.clone(), self.proof_generation_timeout, self.l2_chain_id);
-        let proof_validation_submitter = SubmitProofValidationSubmitter::new(self.client, self.blob_store.clone(), self.connection_pool.clone(), self.config.clone());
+        let proof_request_submitter = ProofRequestSubmitter::new(
+            self.client.clone_boxed(),
+            self.blob_store.clone(),
+            self.connection_pool.clone(),
+            self.config.clone(),
+            self.proof_generation_timeout,
+            self.l2_chain_id,
+        );
+        let proof_validation_submitter = SubmitProofValidationSubmitter::new(
+            self.client,
+            self.blob_store.clone(),
+            self.connection_pool.clone(),
+            self.config.clone(),
+        );
 
         loop {
             if *stop_receiver.borrow() {

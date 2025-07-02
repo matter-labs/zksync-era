@@ -14,8 +14,18 @@ pub struct SubmitProofValidationSubmitter {
 }
 
 impl SubmitProofValidationSubmitter {
-    pub fn new(client: Box<dyn EthProofManagerClient>, blob_store: Arc<dyn ObjectStore>, connection_pool: ConnectionPool<Core>, config: EthProofManagerConfig) -> Self {
-        Self { client, blob_store, connection_pool, config }
+    pub fn new(
+        client: Box<dyn EthProofManagerClient>,
+        blob_store: Arc<dyn ObjectStore>,
+        connection_pool: ConnectionPool<Core>,
+        config: EthProofManagerConfig,
+    ) -> Self {
+        Self {
+            client,
+            blob_store,
+            connection_pool,
+            config,
+        }
     }
 
     pub async fn loop_iteration(&self) -> anyhow::Result<()> {

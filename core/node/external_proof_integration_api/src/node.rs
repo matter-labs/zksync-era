@@ -68,6 +68,7 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
             replica_pool,
             self.proof_data_handler_config.proof_generation_timeout,
             self.l2_chain_id,
+            self.proof_data_handler_config.proving_mode,
         );
         let task = Api::new(
             processor,
