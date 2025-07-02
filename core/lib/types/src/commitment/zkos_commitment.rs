@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
-pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
+//pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
 #[derive(Debug)]
 // Only has a base set of values - others are computed - see `Impl`
 // Names are taken from IExecutor.sol - where possible

@@ -11,8 +11,11 @@ categories = ["cryptography"]
 
 
 [dependencies]
-air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
-execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.3" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.3" }
+
+#air-compiler-cli = { package = "cli",  path = "../../zksync-airbender/tools/cli"}
+#execution_utils = { package = "execution_utils", path = "../../zksync-airbender/execution_utils" }
 
 anyhow = "1.0.98"
 base64 = "0.22.1"

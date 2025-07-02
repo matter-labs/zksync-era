@@ -7,9 +7,9 @@ edition = "2024"
 zksync_prover_job_processor = { version = "=20.3.1", path = "../prover/crates/lib/prover_job_processor" }
 zksync_types = { path = "../core/lib/types" }
 
-zksync_airbender_cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.1" }
-zksync_airbender_execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.1" }
-zkos_wrapper = { package = "zkos-wrapper", git = "https://github.com/matter-labs/zkos-wrapper.git", rev = "52e5975308d0e1acf72e0de36f0fb8e37a425875" }
+zksync_airbender_cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.3" }
+zksync_airbender_execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.3" }
+zkos_wrapper = { package = "zkos-wrapper", git = "https://github.com/matter-labs/zkos-wrapper.git", tag = "v0.3.3" }
 zksync_task_management = { path = "../core/lib/task_management" }
 
 
