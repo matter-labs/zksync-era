@@ -14,6 +14,7 @@ mod init;
 mod init_bellman_cuda;
 mod run;
 mod setup_keys;
+mod snark_keys;
 
 #[derive(Subcommand, Debug)]
 pub enum ProverCommands {
@@ -30,6 +31,7 @@ pub enum ProverCommands {
     /// Download compressor keys
     #[command(alias = "ck")]
     CompressorKeys(CompressorKeysArgs),
+    GenerateSnarkKeys,
 }
 
 pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
@@ -39,5 +41,6 @@ pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<(
         ProverCommands::Run(args) => run::run(args, shell).await,
         ProverCommands::InitBellmanCuda(args) => init_bellman_cuda::run(shell, *args).await,
         ProverCommands::CompressorKeys(args) => compressor_keys::run(shell, args).await,
+        ProverCommands::GenerateSnarkKeys => snark_keys::run(shell),
     }
 }

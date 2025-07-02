@@ -1,0 +1,65 @@
+name: Update verification keys
+on:
+  workflow_call:
+
+
+jobs:
+  generate-verification-keys:
+    name: Generate verification keys and create PR
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    steps:
+      - name: Checkout Repo A (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GH_PUBLIC_TOKEN }}
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "CONTRACTS_STABLE_BRANCH=zksync-os-stable"  >> $GITHUB_ENV
+
+      - name: Git config
+        run: |
+          git config --global user.email "dev-robot@matterlabs.dev"
+          git config --global user.name "zksync-admin-bot2"
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+
+      - name: git config for cloning private repos
+        run: |
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
+          ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
+
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local
+
+      - name: Generate verification keys
+        run: |
+          ci_run zkstack prover generate-snark-keys -v
+
+
+      - name: Make changes in submodule
+        run: |
+          cd contracts
+          git checkout ${{ env.CONTRACTS_STABLE_BRANCH }}
+          git add .
+          git commit -m "Update Verification keys" || echo "No changes"
+          git push origin ${{ env.CONTRACTS_STABLE_BRANCH }}
+
+      - name: Update submodule
+        run: |
+          git add contracts
+          git commit -m "Update verification keys" || echo "No changes"
+          git push origin HEAD

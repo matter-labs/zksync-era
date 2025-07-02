@@ -38,6 +38,8 @@ jobs:
             all:
               - '!core/**'
               - '!prover/**'
+            execution_environment:
+              - execution_environment/**
   setup:
     name: Setup
     runs-on: [ matterlabs-deployer-stage ]
@@ -85,3 +87,9 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+
+  regenerate-keys:
+    name: Regenerate keys
+    needs: [ setup, changed_files ]
+    if: needs.changed_files.outputs.execution_environment == 'true'
+    uses: ./.github/workflows/update-verification-keys.yml
