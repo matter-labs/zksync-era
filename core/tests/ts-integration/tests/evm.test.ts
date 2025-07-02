@@ -1,10 +1,6 @@
 import { TestMaster } from '../src';
 import * as fs from 'fs';
 import { ethers } from 'ethers';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
 
 interface ContractData {
     readonly abi: ethers.InterfaceAbi;

@@ -1,5 +1,4 @@
 import { executeCommand } from './execute-command';
-import * as path from 'path';
 import * as fs from 'fs';
 import { FileMutex } from './file-mutex';
 import { getLogsDirectory } from './logs';

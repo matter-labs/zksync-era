@@ -1,11 +1,5 @@
 import { describe, it } from 'vitest';
-import {
-    TESTED_CHAIN_TYPE,
-    ChainType,
-    createChainAndStartServer,
-    runIntegrationTests,
-    migrateToGatewayIfNeeded
-} from '../src';
+import { TESTED_CHAIN_TYPE, createChainAndStartServer, runIntegrationTests } from '../src';
 
 describe('Integration Test', () => {
     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {

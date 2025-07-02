@@ -1,7 +1,5 @@
 import { generateRealisticLoad } from './wait-for-batches';
-import { executeCommand } from './execute-command';
-import * as path from 'path';
-import { getRpcUrl, queryJsonRpc, getL1BatchNumber } from './rpc-utils';
+import { getL1BatchNumber } from './rpc-utils';
 
 async function waitForL1Batch(chainName: string, timeoutMs: number = 300000): Promise<void> {
     console.log(`⏳ Waiting for L1 batch to be executed for chain: ${chainName}`);

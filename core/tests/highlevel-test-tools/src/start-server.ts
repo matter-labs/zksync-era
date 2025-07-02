@@ -1,20 +1,8 @@
-import { spawn, ChildProcess } from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
+import { ChildProcess } from 'child_process';
 import { executeCommand, executeBackgroundCommand } from './execute-command';
 import * as console from 'node:console';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
-
-/**
- * Strips ANSI escape sequences from a string
- * @param str - The string to clean
- * @returns The string with ANSI escape sequences removed
- */
-function stripAnsiEscapeCodes(str: string): string {
-    // Remove ANSI escape sequences (colors, cursor movements, etc.)
-    return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-}
 
 /**
  * Server handle interface
@@ -64,8 +52,6 @@ export async function startServer(chainName: string): Promise<ServerHandle> {
     };
 
     let extraArgs = [];
-    // Extract chain type by removing last 9 characters (UUID suffix)
-    const chainType = chainName.slice(0, -9);
     extraArgs.push(
         '--components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads,consensus'
     );

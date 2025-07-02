@@ -1,14 +1,12 @@
 import { describe, it } from 'vitest';
 import {
-    type ChainType,
     createChainAndStartServer,
     generateRealisticLoad,
     waitForAllBatchesToBeExecuted,
     revertTest,
     TESTED_CHAIN_TYPE,
     initExternalNode,
-    runExternalNode,
-    migrateToGatewayIfNeeded
+    runExternalNode
 } from '../src';
 
 describe('Revert Test', () => {

@@ -1,6 +1,5 @@
 import { describe, it } from 'vitest';
 import {
-    type ChainType,
     createChainAndStartServer,
     generateRealisticLoad,
     waitForAllBatchesToBeExecuted,
@@ -8,7 +7,7 @@ import {
     runExternalNode,
     TESTED_CHAIN_TYPE
 } from '../src';
-import { enIntegrationTests, genesisRecoveryTest } from '../src/run-integration-tests';
+import { enIntegrationTests } from '../src/run-integration-tests';
 
 describe('External Node Integration tests Test', () => {
     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {

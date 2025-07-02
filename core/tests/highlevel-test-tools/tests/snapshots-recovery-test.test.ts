@@ -1,6 +1,5 @@
 import { describe, it } from 'vitest';
 import {
-    type ChainType,
     createChainAndStartServer,
     generateRealisticLoad,
     waitForAllBatchesToBeExecuted,

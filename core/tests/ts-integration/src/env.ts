@@ -51,7 +51,7 @@ export async function waitForServer(l2NodeUrl: string) {
     throw new Error('Failed to wait for the server to start');
 }
 
-function getMainWalletPk(pathToHome: string): string {
+function getMainWalletPk(): string {
     if (process.env.MASTER_WALLET_PK) {
         return process.env.MASTER_WALLET_PK;
     } else {
@@ -82,7 +82,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml' });
 
     const network = ecosystem.l1_network.toLowerCase();
-    let mainWalletPK = getMainWalletPk(pathToHome);
+    let mainWalletPK = getMainWalletPk();
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
 
@@ -209,9 +209,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
  */
 export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
-    const pathToHome = path.join(__dirname, '../../../../');
 
-    let mainWalletPK = getMainWalletPk(pathToHome);
+    let mainWalletPK = getMainWalletPk();
 
     const l2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
