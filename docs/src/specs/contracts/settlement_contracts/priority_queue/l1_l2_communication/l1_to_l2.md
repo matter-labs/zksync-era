@@ -8,10 +8,9 @@ be initiated on L1:
 
 ### Prerequisites
 
-Please read the full
-[article](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/System%20contracts%20bootloader%20description.md)
+Please read [articles](../../../zkevm/overview.md)
 on the general system contracts / bootloader structure as well as the pubdata structure with Boojum system to understand
-[the difference](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md)
+[the difference](../../data_availability/pubdata.md)
 between system and user logs.
 
 ## Priority operations

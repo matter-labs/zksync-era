@@ -84,6 +84,7 @@ export const allHandlers = [
     forbiddenMethod('zks_getProof'),
     unrestricted('zks_getBatchFeeInput'),
     zks_sendRawTransactionWithDetailedOutput,
+    unrestricted('zks_gasPerPubdata'),
 
     whoAmI
 ];

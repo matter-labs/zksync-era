@@ -20,6 +20,7 @@ import path from 'path';
 import { CONTRACT_DEPLOYER, CONTRACT_DEPLOYER_ADDRESS, hashBytecode, ZKSYNC_MAIN_ABI } from 'zksync-ethers/build/utils';
 import { utils as zksync_utils } from 'zksync-ethers';
 import { logsTestPath } from 'utils/build/logs';
+import { waitForNewL1Batch } from 'utils';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
@@ -127,7 +128,7 @@ describe('Upgrade test', function () {
         gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain);
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
-            enableConsensus: false,
+            enableConsensus: true,
             ethClientWeb3Url: ethProviderAddress!,
             apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
             baseTokenAddress: contractsConfig.l1.base_token_addr
@@ -647,20 +648,6 @@ interface ForceDeployment {
     value: bigint;
     // The constructor calldata
     input: BytesLike;
-}
-
-async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.TransactionReceipt> {
-    // Send a dummy transaction and wait until the new L1 batch is created.
-    const oldReceipt = await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
-    // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
-    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.hash))!.l1BatchNumber) {
-        await zksync.utils.sleep(wallet.provider.pollingInterval);
-    }
-    const receipt = await wallet.provider.getTransactionReceipt(oldReceipt.hash);
-    if (!receipt) {
-        throw new Error('Failed to get the receipt of the transaction');
-    }
-    return receipt;
 }
 
 async function prepareUpgradeCalldata(

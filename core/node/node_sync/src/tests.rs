@@ -16,7 +16,7 @@ use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
-    OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
+    OutputHandler, StateKeeperBuilder, StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::{
     api,
@@ -43,6 +43,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(timestamp * 1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
@@ -67,6 +68,7 @@ impl MockMainNodeClient {
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
 
         Self {
@@ -129,7 +131,7 @@ impl StateKeeperHandles {
             batch_executor.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
-        let state_keeper = ZkSyncStateKeeper::new(
+        let builder = StateKeeperBuilder::new(
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -137,6 +139,7 @@ impl StateKeeperHandles {
             Arc::new(MockReadStorageFactory),
             None,
         );
+        let state_keeper = builder.build(&stop_receiver).await.unwrap();
 
         Self {
             stop_sender,

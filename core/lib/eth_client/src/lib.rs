@@ -2,13 +2,12 @@ use std::{cmp::max, fmt};
 
 use async_trait::async_trait;
 use zksync_types::{
-    eth_sender::EthTxBlobSidecar,
+    eth_sender::{EthTxBlobSidecar, L1BlockNumbers},
     ethabi,
     transaction_request::PaymasterParams,
-    web3,
     web3::{
-        AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
-        TransactionReceipt,
+        self, AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction,
+        TransactionCondition, TransactionReceipt,
     },
     Address, SLChainId, H160, H256, U256, U64,
 };
@@ -166,6 +165,46 @@ pub trait EthInterface: Sync + Send + fmt::Debug {
 
     /// Returns the block header for the specified block number or hash.
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
+
+    /// returns L1BlockNumbers for client, wait_confirmations overrides client reported "finalized" blocks to be instead N blocks from latest
+    async fn get_block_numbers(
+        &self,
+        wait_confirmations: Option<u64>,
+    ) -> Result<L1BlockNumbers, EnrichedClientError> {
+        let (finalized, fast_finality) = if let Some(confirmations) = wait_confirmations {
+            let latest_block_number: u64 = self.block_number().await?.as_u64();
+
+            let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
+            (finalized, finalized)
+        } else {
+            let finalized = self
+                .block(BlockId::Number(BlockNumber::Finalized))
+                .await?
+                .expect("Finalized block must be present on L1")
+                .number
+                .expect("Finalized block must contain number")
+                .as_u32()
+                .into();
+
+            let fast_finality = self
+                .block(BlockId::Number(BlockNumber::Safe))
+                .await?
+                .expect("Safe block must be present on L1")
+                .number
+                .expect("Safe block must contain number")
+                .as_u32()
+                .into();
+            (finalized, fast_finality)
+        };
+
+        let latest = self.block_number().await?.as_u32().into();
+
+        Ok(L1BlockNumbers {
+            finalized,
+            latest,
+            fast_finality,
+        })
+    }
 }
 
 #[async_trait::async_trait]
