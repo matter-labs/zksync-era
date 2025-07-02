@@ -56,7 +56,7 @@ use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
     web3::state::InternalApiConfigBase,
 };
-use zksync_node_consensus::node::MainNodeConsensusLayer;
+use zksync_node_consensus::node::NodeConsensusLayer;
 use zksync_node_fee_model::node::{GasAdjusterLayer, L1GasLayer};
 use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
 use zksync_node_storage_init::node::{
@@ -259,7 +259,6 @@ impl MainNodeBuilder {
             self.configs.mempool_config.clone(),
             try_load_config!(self.wallets.fee_account),
             self.get_pubdata_type()?,
-            true,
         );
         let db_config = self.configs.db_config.clone();
         let experimental_vm_config = self.configs.experimental_vm_config.clone();
@@ -537,12 +536,15 @@ impl MainNodeBuilder {
     }
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(MainNodeConsensusLayer {
+        self.node.add_layer(NodeConsensusLayer {
             config: self
                 .consensus
                 .clone()
                 .context("Consensus config has to be provided")?,
             secrets: self.secrets.consensus.clone(),
+            build_version: crate::metadata::SERVER_VERSION
+                .parse()
+                .context("CRATE_VERSION.parse()")?,
         });
 
         Ok(self)

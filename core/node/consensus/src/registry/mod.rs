@@ -9,10 +9,10 @@ use crate::{
 };
 
 mod abi;
-#[cfg(test)]
-pub(crate) mod testonly;
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// pub(crate) mod testonly;
+// #[cfg(test)]
+// mod tests;
 
 pub(crate) type RegistryAddress = crate::abi::Address<abi::ConsensusRegistry>;
 

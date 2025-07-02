@@ -31,7 +31,6 @@ pub struct LeaderIOLayer {
     mempool_config: MempoolConfig,
     fee_account: wallets::AddressWallet,
     pubdata_type: PubdataType,
-    create_sync_state: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -44,7 +43,6 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    sync_state: Option<SyncState>,
     action_queue_sender: ActionQueueSenderResource,
     io: StateKeeperIOResource,
     sealer: ConditionalSealerResource,
@@ -59,7 +57,6 @@ impl LeaderIOLayer {
         mempool_config: MempoolConfig,
         fee_account: wallets::AddressWallet,
         pubdata_type: PubdataType,
-        create_sync_state: bool,
     ) -> Self {
         Self {
             chain_id,
@@ -67,7 +64,6 @@ impl LeaderIOLayer {
             mempool_config,
             fee_account,
             pubdata_type,
-            create_sync_state,
         }
     }
 
@@ -136,18 +132,6 @@ impl WiringLayer for LeaderIOLayer {
         let sealer: Box<dyn ConditionalSealer> =
             Box::new(SequencerSealer::new(self.state_keeper_config));
 
-        // Create `SyncState` resource.
-        let sync_state = if self.create_sync_state {
-            let sync_state = SyncState::default();
-            input
-                .app_health
-                .insert_custom_component(Arc::new(sync_state.clone()))
-                .map_err(WiringError::internal)?;
-            Some(sync_state)
-        } else {
-            None
-        };
-
         // Create `ActionQueueSender` resource.
         let (action_queue_sender, action_queue) = ActionQueue::new();
 
@@ -159,7 +143,6 @@ impl WiringLayer for LeaderIOLayer {
         let io = LeaderIO::new(mempool_io, external_io);
 
         Ok(Output {
-            sync_state,
             action_queue_sender: action_queue_sender.into(),
             io: io.into(),
             sealer: sealer.into(),

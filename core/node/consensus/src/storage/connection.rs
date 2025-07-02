@@ -8,7 +8,6 @@ use zksync_dal::{
     Core, CoreDal, DalError,
 };
 use zksync_node_sync::ActionQueueSender;
-use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{fee_model::BatchFeeInput, L2BlockNumber};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};

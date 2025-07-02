@@ -10,7 +10,6 @@ use zksync_dal::{
     consensus_dal::{self, Payload},
 };
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
-use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::StateKeeper;
 use zksync_types::{L2BlockNumber, OrStopped};
 use zksync_web3_decl::{
@@ -57,18 +56,6 @@ fn to_fetched_block(
     })
 }
 
-async fn wait_for_local_block(
-    ctx: &ctx::Ctx,
-    sync_state: &SyncState,
-    want: L2BlockNumber,
-) -> ctx::OrCanceled<()> {
-    sync::wait_for(ctx, &mut sync_state.subscribe(), |inner| {
-        inner.local_block() >= Some(want)
-    })
-    .await?;
-    Ok(())
-}
-
 /// Wrapper of `ConnectionPool` implementing `EngineInterface`.
 ///
 /// Contains queues to save Quorum Certificates received over gossip to the store
@@ -77,7 +64,7 @@ async fn wait_for_local_block(
 pub(crate) struct Store {
     pub(super) pool: ConnectionPool,
     /// Action queue to fetch/store L2 block payloads
-    block_payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
+    block_payloads: Arc<sync::Mutex<PayloadQueue>>,
     /// L2 block QCs received from consensus
     block_certificates: ctx::channel::UnboundedSender<BlockCertificate>,
     /// Range of L2 blocks for which we have a QC persisted.
@@ -87,17 +74,17 @@ pub(crate) struct Store {
     /// Registry contract. Is None if this chain is not configured to fetch the validator schedule from the registry.
     registry: Arc<Option<Registry>>,
     ///
-    sk: Arc<sync::Mutex<Option<StateKeeper>>>,
+    sk: Arc<sync::Mutex<StateKeeper>>,
 }
 
 impl Store {
     pub(crate) async fn new(
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
-        payload_queue: Option<PayloadQueue>,
+        payload_queue: PayloadQueue,
         client: Option<Box<DynClient<L2>>>,
         registry: Arc<Option<Registry>>,
-        sk: Option<StateKeeper>,
+        sk: StateKeeper,
     ) -> ctx::Result<(Store, StoreRunner)> {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
 
@@ -211,29 +198,26 @@ impl EngineInterface for Store {
             validator::Block::PreGenesis(block) => (&block.payload, None),
         };
 
-        let mut lock = sync::lock(ctx, &self.sk).await?.into_async();
-        let sk = lock.as_mut().unwrap();
-        if let Some(payloads) = &mut *payloads {
-            if sk.pending_block_number() == Some(block.number().0 as u32) {
-                if let Some(p_) = sk.pending_payload() {
-                    let encoded_payload = p_.encode();
-                    if &encoded_payload != p {
-                        sk.rollback().await?;
-                    }
+        let mut sk = sync::lock(ctx, &self.sk).await?.into_async();
+        if sk.pending_block_number() == Some(block.number().0 as u32) {
+            if let Some(p_) = sk.pending_payload() {
+                let encoded_payload = p_.encode();
+                if &encoded_payload != p {
+                    sk.rollback().await?;
                 }
             }
+        }
 
-            let queued = payloads
-                .send(
-                    to_fetched_block(block.number(), p).context("to_fetched_block")?,
-                    sk.fetcher_cursor(),
-                )
-                .await
-                .context("payloads.send()")?;
-            if queued {
-                let (_sender, mut receiver) = sync::watch::channel(false);
-                sk.verify(&mut receiver).await.unwrap(); // TODO: handle error
-            }
+        let queued = payloads
+            .send(
+                to_fetched_block(block.number(), p).context("to_fetched_block")?,
+                sk.fetcher_cursor(),
+            )
+            .await
+            .context("payloads.send()")?;
+        if queued {
+            let (_sender, mut receiver) = sync::watch::channel(false);
+            sk.verify(&mut receiver).await.unwrap(); // TODO: handle error
         }
         sk.commit_pending_block().await?;
 
@@ -293,45 +277,34 @@ impl EngineInterface for Store {
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        if let Some(payloads) = &mut *payloads {
-            let mut lock = sync::lock(ctx, &self.sk).await?.into_async();
-            let sk = lock.as_mut().unwrap();
+        let mut sk = sync::lock(ctx, &self.sk).await?.into_async();
 
-            if sk.pending_block_number() == Some(block_number.0 as u32) {
-                if let Some(p) = sk.pending_payload() {
-                    let encoded_payload = p.encode();
-                    if &encoded_payload != payload {
-                        sk.rollback().await?;
-                    }
+        if sk.pending_block_number() == Some(block_number.0 as u32) {
+            if let Some(p) = sk.pending_payload() {
+                let encoded_payload = p.encode();
+                if &encoded_payload != payload {
+                    sk.rollback().await?;
                 }
             }
-
-            let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
-            let queued = payloads
-                .send(block, sk.fetcher_cursor())
-                .await
-                .context("payload_queue.send()")?;
-
-            if queued {
-                let (_sender, mut receiver) = sync::watch::channel(false);
-                sk.verify(&mut receiver).await.unwrap(); // TODO: handle error
-            }
-
-            // Wait for the block to be processed, without waiting for it to be stored.
-            // TODO(BFT-459): this is not ideal, because we don't check here whether the
-            // processed block is the same as `payload`. It will work correctly
-            // with the current implementation of EN, but we should make it more
-            // precise when block reverting support is implemented.
-            // wait_for_local_block(ctx, &payloads.sync_state, n).await?;
-        } else {
-            // let want = self.pool.wait_for_payload(ctx, block_number).await?;
-            // let got = Payload::decode(payload).context("Payload::decode(got)")?;
-            // if got != want {
-            //     return Err(
-            //         anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into(),
-            //     );
-            // }
         }
+
+        let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
+        let queued = payloads
+            .send(block, sk.fetcher_cursor())
+            .await
+            .context("payload_queue.send()")?;
+
+        if queued {
+            let (_sender, mut receiver) = sync::watch::channel(false);
+            sk.verify(&mut receiver).await.unwrap(); // TODO: handle error
+        }
+
+        // Wait for the block to be processed, without waiting for it to be stored.
+        // TODO(BFT-459): this is not ideal, because we don't check here whether the
+        // processed block is the same as `payload`. It will work correctly
+        // with the current implementation of EN, but we should make it more
+        // precise when block reverting support is implemented.
+        // wait_for_local_block(ctx, &payloads.sync_state, n).await?;
         Ok(())
     }
 
@@ -343,8 +316,7 @@ impl EngineInterface for Store {
     ) -> ctx::Result<validator::Payload> {
         const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
 
-        let mut lock = sync::lock(ctx, &self.sk).await?.into_async();
-        let sk = lock.as_mut().unwrap();
+        let mut sk = sync::lock(ctx, &self.sk).await?.into_async();
 
         dbg!(format!("propose_payload {block_number}"));
 

@@ -39,7 +39,7 @@ use zksync_node_api_server::{
     },
     web3::state::InternalApiConfigBase,
 };
-use zksync_node_consensus::node::{ExternalNodeConsensusLayer, MainNodeConsensusLayer};
+use zksync_node_consensus::node::NodeConsensusLayer;
 use zksync_node_db_pruner::node::PruningLayer;
 use zksync_node_fee_model::node::MainNodeFeeParamsFetcherLayer;
 use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
@@ -203,7 +203,6 @@ impl<R> ExternalNodeBuilder<R> {
             MempoolConfig::default(),
             AddressWallet::from_address(Default::default()),
             PubdataType::Rollup,
-            true,
         );
         // let io_layer = ExternalIOLayer::new(config.networks.l2_chain_id);
 
@@ -244,12 +243,12 @@ impl<R> ExternalNodeBuilder<R> {
             )
         );
         let secrets = self.config.local.secrets.consensus.clone();
-        let layer = MainNodeConsensusLayer {
-            // build_version: crate::metadata::SERVER_VERSION
-            //     .parse()
-            //     .context("CRATE_VERSION.parse()")?,
+        let layer = NodeConsensusLayer {
             config: config.context("Consensus config is missing")?,
             secrets: secrets,
+            build_version: crate::metadata::SERVER_VERSION
+                .parse()
+                .context("CRATE_VERSION.parse()")?,
         };
         self.node.add_layer(layer);
         Ok(self)
