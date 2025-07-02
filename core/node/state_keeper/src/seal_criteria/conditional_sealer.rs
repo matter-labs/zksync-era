@@ -216,7 +216,7 @@ impl ConditionalSealer for SequencerSealer {
 
     fn handle_is_active_leader_change(&mut self, is_leader: bool) {
         self.is_active_leader = is_leader;
-        // Config will be set in `set_protocol_version` later.
+        // Config will be set in `set_config` later.
         self.current_config = None;
     }
 
