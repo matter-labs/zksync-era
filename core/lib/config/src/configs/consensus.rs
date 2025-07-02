@@ -232,7 +232,7 @@ impl ConsensusConfig {
                 get_block_rps: NonZeroUsize::new(5).unwrap(),
             },
             debug_page_addr: Some("127.0.0.1:0".parse().unwrap()),
-            consensus_registry_read_rate: Duration::from_secs(3),
+            consensus_registry_read_rate: Duration::from_secs(30),
         }
     }
 }
@@ -289,7 +289,7 @@ mod tests {
                 get_block_rps: NonZeroUsize::new(5).unwrap(),
             },
             debug_page_addr: Some("127.0.0.1:3000".parse().unwrap()),
-            consensus_registry_read_rate: Duration::from_secs(3),
+            consensus_registry_read_rate: Duration::from_secs(30),
         }
     }
 
