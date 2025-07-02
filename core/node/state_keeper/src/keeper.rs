@@ -1304,6 +1304,11 @@ impl StateKeeper {
         self.inner.is_active_leader = true;
         self.inner.io.handle_is_active_leader_change(true);
         self.inner.sealer.handle_is_active_leader_change(true);
+        if let BatchState::Init(state) = &mut self.batch_state {
+            self.inner
+                .sealer
+                .set_config(state.updates_manager.protocol_version());
+        }
 
         self.process_block(stop_receiver, ctx).await?;
         self.seal_last_pending_block_data()
