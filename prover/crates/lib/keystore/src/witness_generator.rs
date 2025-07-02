@@ -37,6 +37,6 @@ impl VerificationKeyManager for Keystore {
     fn get_leaf_vk_params(
         &self,
     ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
-        get_leaf_vk_params(&self).context("Failed to get leaf verification key parameters")
+        get_leaf_vk_params(self).context("Failed to get leaf verification key parameters")
     }
 }

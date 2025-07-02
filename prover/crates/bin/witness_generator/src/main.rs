@@ -211,7 +211,7 @@ async fn run_inner(
         let witness_generator_tasks = match round {
             AggregationRound::BasicCircuits => {
                 let runner = witness_generator_runner::<BasicCircuits>(
-                    config.max_circuits_in_flight.clone(),
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     1,
@@ -223,7 +223,7 @@ async fn run_inner(
             }
             AggregationRound::LeafAggregation => {
                 let runner = witness_generator_runner::<LeafAggregation>(
-                    config.max_circuits_in_flight.clone(),
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     1,
@@ -235,7 +235,7 @@ async fn run_inner(
             }
             AggregationRound::NodeAggregation => {
                 let runner = witness_generator_runner::<NodeAggregation>(
-                    config.max_circuits_in_flight.clone(),
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     1,
@@ -247,7 +247,7 @@ async fn run_inner(
             }
             AggregationRound::RecursionTip => {
                 let runner = witness_generator_runner::<RecursionTip>(
-                    config.max_circuits_in_flight.clone(),
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     1,
@@ -259,7 +259,7 @@ async fn run_inner(
             }
             AggregationRound::Scheduler => {
                 let runner = witness_generator_runner::<Scheduler>(
-                    config.max_circuits_in_flight.clone(),
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     1,
