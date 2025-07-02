@@ -85,6 +85,12 @@ jobs:
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
   
   install-zkstack-with-upgrades:
     runs-on: [ ubuntu-24.04-github-hosted-16core ]
