@@ -317,7 +317,6 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     };
     client.insert_protocol_version(next_protocol_version.clone());
 
-    // Insert bytecode.
     storage
         .factory_deps_dal()
         .insert_factory_deps(

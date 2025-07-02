@@ -52,9 +52,6 @@ pub trait ZksNamespace {
     #[method(name = "getTimestampAsserter")]
     async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>>;
 
-    #[method(name = "getL2DAValidator")]
-    async fn get_l2_da_validator(&self) -> RpcResult<Option<Address>>;
-
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 

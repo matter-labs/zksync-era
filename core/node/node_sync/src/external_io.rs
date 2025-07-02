@@ -1,8 +1,7 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::time::Instant;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{
@@ -68,7 +67,7 @@ impl ExternalIO {
     async fn is_protocol_version_saved(
         &self,
         protocol_version: ProtocolVersionId,
-        max_wait: Duration,
+        deadline: Instant,
     ) -> anyhow::Result<bool> {
         let base_system_contract_hashes = self
             .pool
@@ -113,8 +112,7 @@ impl ExternalIO {
                 .await?;
             return Ok(true);
         } else {
-            let started_at = Instant::now();
-            while started_at.elapsed() <= max_wait {
+            while Instant::now() < deadline {
                 let base_system_contract_hashes = self
                     .pool
                     .connection_tagged("sync_layer")
@@ -124,11 +122,17 @@ impl ExternalIO {
                     .await?;
                 if base_system_contract_hashes.is_some() {
                     return Ok(true);
+                } else {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                 }
             }
         }
 
         Ok(false)
+    }
+
+    pub fn set_open_batch(&mut self, open_batch: IOOpenBatch) {
+        self.open_batch = Some(open_batch);
     }
 }
 
@@ -221,6 +225,7 @@ impl StateKeeperIO for ExternalIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
         tracing::debug!("Waiting for the new batch params");
+        let deadline = Instant::now() + max_wait;
         let Some(action) = self.actions.recv_action(max_wait).await else {
             return Ok(None);
         };
@@ -242,7 +247,7 @@ impl StateKeeperIO for ExternalIO {
                 );
 
                 if !self
-                    .is_protocol_version_saved(params.protocol_version, max_wait)
+                    .is_protocol_version_saved(params.protocol_version, deadline)
                     .await?
                 {
                     return Ok(None);
@@ -413,10 +418,6 @@ impl StateKeeperIO for ExternalIO {
             .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
         wait_latency.observe();
         Ok(hash)
-    }
-
-    fn set_open_batch(&mut self, open_batch: Option<IOOpenBatch>) {
-        self.open_batch = open_batch;
     }
 }
 

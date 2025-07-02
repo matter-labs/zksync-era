@@ -334,9 +334,7 @@ impl StateKeeperInner {
         } else {
             None
         };
-
-        self.sealer
-            .set_protocol_version(batch_init_params.system_env.version);
+        self.sealer.set_config(batch_init_params.system_env.version);
 
         Ok(InitializedBatchState {
             updates_manager,
@@ -1304,8 +1302,8 @@ impl StateKeeper {
         ctx: Option<&ctx::Ctx>,
     ) -> Result<Payload, OrStopped<ProcessBlockError>> {
         self.inner.is_active_leader = true;
-        self.inner.io.set_is_active_leader(true);
-        self.inner.sealer.use_propose_mode();
+        self.inner.io.handle_is_active_leader_change(true);
+        self.inner.sealer.handle_is_active_leader_change(true);
 
         self.process_block(stop_receiver, ctx).await?;
         self.seal_last_pending_block_data()
@@ -1323,12 +1321,12 @@ impl StateKeeper {
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(), OrStopped<ProcessBlockError>> {
         self.inner.is_active_leader = false;
-        self.inner.io.set_is_active_leader(false);
-        self.inner.sealer.use_verify_mode();
+        self.inner.io.handle_is_active_leader_change(false);
+        self.inner.sealer.handle_is_active_leader_change(false);
         if let BatchState::Init(state) = &mut self.batch_state {
             self.inner
                 .sealer
-                .set_protocol_version(state.updates_manager.protocol_version());
+                .set_config(state.updates_manager.protocol_version());
         }
 
         self.process_block(stop_receiver, None).await?;

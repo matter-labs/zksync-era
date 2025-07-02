@@ -218,4 +218,8 @@ impl EnNamespace {
             .map_err(DalError::generalize)?;
         Ok(protocol_version_info)
     }
+
+    pub fn get_l2_da_validator_impl(&self) -> Option<Address> {
+        self.state.api_config.l2_da_validator_address
+    }
 }

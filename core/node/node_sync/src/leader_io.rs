@@ -96,12 +96,16 @@ impl StateKeeperIO for LeaderIO {
             .wait_for_new_batch_params(cursor, max_wait)
             .await?;
         if let Some(p) = &params {
-            let open_batch = Some(IOOpenBatch {
+            let open_batch = IOOpenBatch {
                 number: cursor.l1_batch,
                 protocol_version: p.protocol_version,
-            });
-            self.mempool_io.set_open_batch(open_batch);
-            self.external_io.set_open_batch(open_batch);
+            };
+            // Set open batch for the inactive IO.
+            if self.is_active_leader {
+                self.external_io.set_open_batch(open_batch);
+            } else {
+                self.mempool_io.set_open_batch(open_batch);
+            }
         }
         Ok(params)
     }
@@ -162,13 +166,11 @@ impl StateKeeperIO for LeaderIO {
         self.mempool_io.load_batch_state_hash(number).await
     }
 
-    // TODO: what non-leader should do? signal to consensus that block is invalid?
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         let io = self.active_io_ref_mut();
         io.reject(tx, reason).await
     }
 
-    // TODO: what non-leader should do? signal to consensus that block is invalid?
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         let io = self.active_io_ref_mut();
         io.rollback(tx).await
@@ -187,7 +189,7 @@ impl StateKeeperIO for LeaderIO {
         self.mempool_io.advance_mempool(txs).await;
     }
 
-    fn set_is_active_leader(&mut self, value: bool) {
-        self.is_active_leader = value;
+    fn handle_is_active_leader_change(&mut self, is_leader: bool) {
+        self.is_active_leader = is_leader;
     }
 }

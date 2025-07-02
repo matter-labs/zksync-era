@@ -440,10 +440,6 @@ impl StateKeeperIO for MempoolIO {
         );
         Ok(batch_state_hash)
     }
-
-    fn set_open_batch(&mut self, open_batch: Option<IOOpenBatch>) {
-        self.open_batch = open_batch;
-    }
 }
 
 /// Sleeps until the current timestamp in seconds is larger than the provided `timestamp`.
@@ -685,9 +681,8 @@ impl MempoolIO {
         Ok(None)
     }
 
-    #[cfg(test)]
-    pub fn set_open_batch_protocol_version(&mut self, protocol_version: ProtocolVersionId) {
-        self.open_batch.as_mut().unwrap().protocol_version = protocol_version;
+    pub fn set_open_batch(&mut self, open_batch: IOOpenBatch) {
+        self.open_batch = Some(open_batch);
     }
 }
 

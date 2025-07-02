@@ -70,4 +70,8 @@ impl EnNamespaceServer for EnNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn get_l2_da_validator(&self) -> RpcResult<Option<Address>> {
+        Ok(self.get_l2_da_validator_impl())
+    }
 }

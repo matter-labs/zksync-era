@@ -42,11 +42,9 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         max_pubdata_per_batch: Option<usize>,
     ) -> Vec<(&'static str, f64)>;
 
-    fn use_propose_mode(&mut self) {}
+    fn handle_is_active_leader_change(&mut self, _is_leader: bool) {}
 
-    fn use_verify_mode(&mut self) {}
-
-    fn set_protocol_version(&mut self, _protocol_version: ProtocolVersionId) {}
+    fn set_config(&mut self, _protocol_version: ProtocolVersionId) {}
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -99,7 +97,7 @@ pub struct SequencerSealer {
     local_config: L1BatchSealConfig,
     local_max_pubdata_per_batch: usize,
     current_config: Option<L1BatchSealConfig>,
-    in_verify_mode: bool,
+    is_active_leader: bool,
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
@@ -110,7 +108,7 @@ impl SequencerSealer {
             local_config: L1BatchSealConfig::for_tests(),
             local_max_pubdata_per_batch: 100_000,
             current_config: Some(L1BatchSealConfig::for_tests()),
-            in_verify_mode: false,
+            is_active_leader: true,
             sealers: vec![],
         }
     }
@@ -216,19 +214,16 @@ impl ConditionalSealer for SequencerSealer {
             .collect()
     }
 
-    fn use_propose_mode(&mut self) {
-        self.in_verify_mode = false;
-        self.current_config = Some(self.local_config);
-    }
-
-    fn use_verify_mode(&mut self) {
-        self.in_verify_mode = true;
-        // Config will be set in `set_protocol_version` later.
+    fn handle_is_active_leader_change(&mut self, is_leader: bool) {
+        self.is_active_leader = is_leader;
+        // Config will be set in `set_config` later.
         self.current_config = None;
     }
 
-    fn set_protocol_version(&mut self, protocol_version: ProtocolVersionId) {
-        if self.in_verify_mode {
+    fn set_config(&mut self, protocol_version: ProtocolVersionId) {
+        if self.is_active_leader {
+            self.current_config = Some(self.local_config);
+        } else {
             self.current_config = Some(L1BatchSealConfig::max(protocol_version));
         }
     }
@@ -243,7 +238,7 @@ impl SequencerSealer {
             local_config: config,
             local_max_pubdata_per_batch,
             current_config: Some(config),
-            in_verify_mode: false,
+            is_active_leader: true,
             sealers,
         }
     }
@@ -259,7 +254,7 @@ impl SequencerSealer {
             local_config: config,
             local_max_pubdata_per_batch,
             current_config: Some(config),
-            in_verify_mode: false,
+            is_active_leader: true,
             sealers,
         }
     }

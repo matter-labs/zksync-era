@@ -241,8 +241,6 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;
 
-    /// TODO
-    fn set_is_active_leader(&mut self, _value: bool) {}
-
-    fn set_open_batch(&mut self, _open_batch: Option<IOOpenBatch>) {}
+    /// Handles the change of the active leader status.
+    fn handle_is_active_leader_change(&mut self, _is_leader: bool) {}
 }

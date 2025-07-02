@@ -16,8 +16,7 @@ use super::resources::{
     BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource, StateKeeperResource,
 };
 use crate::{
-    keeper::RunMode, node::ConditionalSealerResource, seal_criteria::ConditionalSealer,
-    AsyncRocksdbCache, StateKeeperBuilder,
+    keeper::RunMode, node::ConditionalSealerResource, AsyncRocksdbCache, StateKeeperBuilder,
 };
 
 /// Wiring layer for the state keeper.
@@ -150,13 +149,6 @@ impl WiringLayer for StateKeeperLayer {
 pub struct StateKeeperTask {
     state_keeper_builder: StateKeeperBuilder,
     run_mode: RunMode,
-}
-
-impl StateKeeperTask {
-    /// Returns the health check for state keeper.
-    pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.state_keeper_builder.health_check()
-    }
 }
 
 #[async_trait::async_trait]

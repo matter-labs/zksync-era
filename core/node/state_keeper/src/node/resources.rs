@@ -1,13 +1,8 @@
-use zksync_node_framework::{
-    resource,
-    resource::{Resource, Unique},
-};
+use zksync_node_framework::resource::{Resource, Unique};
 use zksync_state::OwnedStorage;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 
-use crate::{
-    seal_criteria::ConditionalSealer, OutputHandler, StateKeeper, StateKeeperBuilder, StateKeeperIO,
-};
+use crate::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperBuilder, StateKeeperIO};
 
 /// A resource that provides [`StateKeeperIO`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.

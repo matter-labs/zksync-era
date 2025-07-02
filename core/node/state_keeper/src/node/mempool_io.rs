@@ -141,7 +141,7 @@ impl WiringLayer for MempoolIOLayer {
             self.pubdata_type,
         )?;
 
-        // Create sealer.
+        // Create sealers.
         let sealer: Box<dyn ConditionalSealer> =
             Box::new(SequencerSealer::new(self.state_keeper_config.clone()));
         let api_sealer = Arc::new(SequencerSealer::new(self.state_keeper_config));
