@@ -1,5 +1,8 @@
 use std::time::Duration;
-use zksync_db_connection::{connection::Connection, error::DalResult, utils::pg_interval_from_duration};
+
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, utils::pg_interval_from_duration,
+};
 use zksync_types::{L1BatchNumber, H256};
 
 use crate::{Core, CoreDal};
@@ -25,10 +28,16 @@ pub enum ProvingNetwork {
 }
 
 impl EthProofManagerDal<'_, '_> {
-    pub async fn insert_batch(&mut self, batch_number: L1BatchNumber, witness_inputs_url: &str) -> DalResult<()> {
+    pub async fn insert_batch(
+        &mut self,
+        batch_number: L1BatchNumber,
+        witness_inputs_url: &str,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            INSERT INTO eth_proof_manager (l1_batch_number, status, created_at, witness_inputs_url, updated_at)
+            INSERT INTO eth_proof_manager (
+                l1_batch_number, status, created_at, witness_inputs_url, updated_at
+            )
             VALUES ($1, $2, NOW(), $3, NOW())
             "#,
             batch_number,
@@ -44,10 +53,15 @@ impl EthProofManagerDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn acknowledge_batch(&mut self, batch_number: L1BatchNumber, assigned_to: ProvingNetwork) -> DalResult<()> {
+    pub async fn acknowledge_batch(
+        &mut self,
+        batch_number: L1BatchNumber,
+        assigned_to: ProvingNetwork,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET status = $2, updated_at = NOW() WHERE l1_batch_number = $1
+            UPDATE eth_proof_manager SET status = $2, updated_at = NOW()
+            WHERE l1_batch_number = $1
             "#,
             batch_number,
             EthProofManagerStatus::Acknowledged
@@ -61,10 +75,16 @@ impl EthProofManagerDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_batch_as_sent(&mut self, batch_number: L1BatchNumber, tx_hash: H256) -> DalResult<()> {
+    pub async fn mark_batch_as_sent(
+        &mut self,
+        batch_number: L1BatchNumber,
+        tx_hash: H256,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET submit_proof_request_tx_hash = $2, updated_at = NOW(), status = $3 WHERE l1_batch_number = $1
+            UPDATE eth_proof_manager SET
+                submit_proof_request_tx_hash = $2, updated_at = NOW(), status = $3
+            WHERE l1_batch_number = $1
             "#,
             batch_number,
             tx_hash.as_bytes(),
@@ -79,10 +99,16 @@ impl EthProofManagerDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_batch_as_validated(&mut self, batch_number: L1BatchNumber, tx_hash: H256) -> DalResult<()> {
+    pub async fn mark_batch_as_validated(
+        &mut self,
+        batch_number: L1BatchNumber,
+        tx_hash: H256,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET validated_proof_request_tx_hash = $2, updated_at = NOW(), status = $3 WHERE l1_batch_number = $1
+            UPDATE eth_proof_manager SET
+                validated_proof_request_tx_hash = $2, updated_at = NOW(), status = $3
+            WHERE l1_batch_number = $1
             "#,
             batch_number,
             tx_hash.as_bytes(),
@@ -95,10 +121,16 @@ impl EthProofManagerDal<'_, '_> {
         .await?;
     }
 
-    pub async fn mark_batch_as_proven(&mut self, batch_number: L1BatchNumber, proof_blob_url: &str) -> DalResult<()> {
+    pub async fn mark_batch_as_proven(
+        &mut self,
+        batch_number: L1BatchNumber,
+        proof_blob_url: &str,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET proof_blob_url = $2, updated_at = NOW(), status = $3 WHERE l1_batch_number = $1
+            UPDATE eth_proof_manager SET
+                proof_blob_url = $2, updated_at = NOW(), status = $3
+            WHERE l1_batch_number = $1
             "#,
             batch_number,
             proof_blob_url,
@@ -112,10 +144,15 @@ impl EthProofManagerDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn update_status(&mut self, batch_number: L1BatchNumber, status: EthProofManagerStatus) -> DalResult<()> {
+    pub async fn update_status(
+        &mut self,
+        batch_number: L1BatchNumber,
+        status: EthProofManagerStatus,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET status = $2, updated_at = NOW() WHERE l1_batch_number = $1
+            UPDATE eth_proof_manager SET status = $2, updated_at = NOW()
+            WHERE l1_batch_number = $1
             "#,
             batch_number,
             status
@@ -132,7 +169,11 @@ impl EthProofManagerDal<'_, '_> {
         let batch: Option<L1BatchNumber> = sqlx::query_as!(
             L1BatchNumber,
             r#"
-            SELECT l1_batch_number, submit_proof_request_tx_hash FROM eth_proof_manager WHERE status = $1 ORDER BY created_at ASC LIMIT 1
+            SELECT l1_batch_number, submit_proof_request_tx_hash
+            FROM eth_proof_manager
+            WHERE status = $1
+            ORDER BY created_at ASC
+            LIMIT 1
             "#,
             EthProofManagerStatus::Unpicked
         )
@@ -146,7 +187,11 @@ impl EthProofManagerDal<'_, '_> {
         let row: Option<(L1BatchNumber, String)> = sqlx::query_as!(
             (L1BatchNumber, String),
             r#"
-            SELECT l1_batch_number, proof_blob_url FROM eth_proof_manager WHERE status = $1 ORDER BY l1_batch_number ASC LIMIT 1
+            SELECT l1_batch_number, proof_blob_url
+            FROM eth_proof_manager
+            WHERE status = $1
+            ORDER BY l1_batch_number ASC
+            LIMIT 1
             "#,
             EthProofManagerStatus::Sent
         )
@@ -156,7 +201,12 @@ impl EthProofManagerDal<'_, '_> {
         Ok(row.map(|(batch_number, proof_blob_url)| (batch_number, proof_blob_url)))
     }
 
-    pub async fn batches_to_fallback(&mut self, acknowledgment_timeout: Duration, proving_timeout: Duration, max_sending_attempts: u32) -> DalResult<usize> {
+    pub async fn batches_to_fallback(
+        &mut self,
+        acknowledgment_timeout: Duration,
+        proving_timeout: Duration,
+        max_sending_attempts: u32,
+    ) -> DalResult<usize> {
         let acknowledgment_timeout = pg_interval_from_duration(acknowledgment_timeout);
         let proving_timeout = pg_interval_from_duration(proving_timeout);
 
@@ -165,12 +215,13 @@ impl EthProofManagerDal<'_, '_> {
         let batches: Vec<L1BatchNumber> = sqlx::query_as!(
             L1BatchNumber,
             r#"
-                UPDATE eth_proof_manager
-                SET status = $1, updated_at = NOW()
-                WHERE (status = $2 AND submit_proof_request_tx_sent_at < NOW() - $5)
+            UPDATE eth_proof_manager
+            SET status = $1, updated_at = NOW()
+            WHERE
+                (status = $2 AND submit_proof_request_tx_sent_at < NOW() - $5)
                 OR (status = $3 AND validated_proof_request_tx_sent_at < NOW() - $6)
                 OR (status = $4 AND submit_proof_request_attempts >= $7)
-                RETURNING l1_batch_number
+            RETURNING l1_batch_number
             "#,
             EthProofManagerStatus::Fallbacked,
             EthProofManagerStatus::Sent,
@@ -184,8 +235,7 @@ impl EthProofManagerDal<'_, '_> {
         .execute(transaction)
         .await?;
 
-        for batch in batches {
-        }        
+        for batch in batches {}
 
         transaction.commit().await?;
 

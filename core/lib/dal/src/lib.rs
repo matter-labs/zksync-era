@@ -15,9 +15,9 @@ use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
-    eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
-    etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
-    events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
+    eth_proof_manager_dal::EthProofManagerDal, eth_sender_dal::EthSenderDal,
+    eth_watcher_dal::EthWatcherDal, etherscan_verification_dal::EtherscanVerificationDal,
+    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
@@ -26,7 +26,7 @@ use crate::{
     storage_web3_dal::StorageWeb3Dal, sync_dal::SyncDal, system_dal::SystemDal,
     tee_proof_generation_dal::TeeProofGenerationDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, eth_proof_manager_dal::EthProofManagerDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod base_token_dal;
@@ -37,6 +37,7 @@ pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod custom_genesis_export_dal;
 mod data_availability_dal;
+pub mod eth_proof_manager_dal;
 pub mod eth_sender_dal;
 pub mod eth_watcher_dal;
 pub mod etherscan_verification_dal;
@@ -67,7 +68,6 @@ pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
 pub mod vm_runner_dal;
-pub mod eth_proof_manager_dal;
 
 #[cfg(test)]
 mod tests;
