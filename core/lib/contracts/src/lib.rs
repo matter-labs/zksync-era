@@ -254,7 +254,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_l1_zk_contract("MessageRoot")
+    load_l1_zk_contract("L2MessageRoot")
 }
 
 pub fn l2_asset_router() -> Contract {

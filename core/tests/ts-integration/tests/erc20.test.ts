@@ -18,7 +18,7 @@ import {
     L2_INTEROP_ROOT_STORAGE_ADDRESS,
     ArtifactL2MessageVerification,
     ArtifactL2InteropRootStorage,
-    ArtifactBridgeHub
+    ArtifactL1BridgeHub
 } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
@@ -210,7 +210,7 @@ describe('L1 ERC20 contract checks', () => {
     test('Can check withdrawal hash in L2-A', async () => {
         bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
-            ArtifactBridgeHub.abi,
+            ArtifactL1BridgeHub.abi,
             alice.providerL1
         );
 

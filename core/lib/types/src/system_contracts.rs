@@ -9,7 +9,7 @@ use zksync_system_constants::{
     L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
     L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
-    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
 };
 
 use crate::{
@@ -29,7 +29,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 41] = [
     (
         "",
         "AccountCodeStorage",
@@ -158,8 +158,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
     ),
     ("", "Compressor", COMPRESSOR_ADDRESS, ContractLanguage::Sol),
     (
-        "",
-        "ComplexUpgrader",
+        "../../l1-contracts/zkout/",
+        "L2ComplexUpgrader",
         COMPLEX_UPGRADER_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -203,20 +203,20 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
+        "../../l1-contracts/zkout/",
         "L2GenesisUpgrade",
         L2_GENESIS_UPGRADE_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
         "../../l1-contracts/zkout/",
-        "Bridgehub",
+        "L2Bridgehub",
         L2_BRIDGEHUB_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
         "../../l1-contracts/zkout/",
-        "MessageRoot",
+        "L2MessageRoot",
         L2_MESSAGE_ROOT_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -258,8 +258,14 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
     ),
     (
         "../../l1-contracts/zkout/",
-        "ChainAssetHandler",
+        "L2ChainAssetHandler",
         L2_CHAIN_ASSET_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "UpgradeableBeaconDeployer",
+        UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
         ContractLanguage::Sol,
     ),
 ];
