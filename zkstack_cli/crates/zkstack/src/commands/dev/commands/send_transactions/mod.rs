@@ -98,7 +98,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
                 .send_transaction(tx.clone(), None)
                 .await?
                 .confirmations(args.confirmations)
-                .interval(Duration::from_millis(300))
+                .interval(Duration::from_millis(30))
                 .await
             {
                 Ok(receipt) => break receipt,
