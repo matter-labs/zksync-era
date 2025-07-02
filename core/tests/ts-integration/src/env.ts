@@ -209,6 +209,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
  */
 export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
+    const pathToHome = path.join(__dirname, '../../../../');
 
     let mainWalletPK = getMainWalletPk();
 
