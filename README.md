@@ -99,7 +99,7 @@ Here are the steps:
 
 ```shell
 # from zkos-wrapper dir
-cargo run --bin wrapper --release -- generate-snark-vk --input-binary ../zksync-era/execution_environment/app.bin  --output-dir /tmp
+cargo run --bin wrapper --release -- generate-snark-vk --input-binary ../zksync-era/execution_environment/app.bin  --output-dir /tmp --universal-verifier
 ```
 
   * make sure to pass the same app.bin that you're using, and the same trusted setup, that your snark wrapper will use
