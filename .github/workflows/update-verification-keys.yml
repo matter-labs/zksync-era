@@ -35,19 +35,18 @@ jobs:
       - name: Make changes in submodule
         run: |
           cd contracts
-          git fetch origin
-          git checkout deniallugo-tests-for-ci
+          git checkout $(git rev-parse --abbrev-ref HEAD)
           echo "Updated at $(date)" >> auto-update.txt
           git add .
           git commit -m "Automated update" || echo "No changes"
           git push origin HEAD
 
-      - name: Update submodule pointer in Repo A
-        run: |
-          git add contracts
-          git commit -m "Update submodule reference" || echo "No changes"
-          git push origin HEAD
-
+      #      - name: Update submodule pointer in Repo A
+      #        run: |
+      #          git add contracts
+      #          git commit -m "Update submodule reference" || echo "No changes"
+      #          git push origin HEAD
+      #
 
 
       #      - name: Start services
