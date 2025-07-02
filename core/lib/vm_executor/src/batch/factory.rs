@@ -169,8 +169,8 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             executor.run(
                 storage,
                 l1_batch_params,
-                system_env,
-                pubdata_params_to_builder(pubdata_params),
+                system_env.clone(),
+                pubdata_params_to_builder(pubdata_params, system_env.version),
             )
         });
         Box::new(MainBatchExecutor::new(handle, commands_sender))
