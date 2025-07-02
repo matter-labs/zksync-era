@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -14,10 +12,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-use crate::{
-    client::{ForWeb3Network, L2},
-    types::Token,
-};
+use crate::client::{ForWeb3Network, L2};
 
 #[cfg_attr(
     feature = "server",
@@ -65,13 +60,6 @@ pub trait ZksNamespace {
 
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
-
-    #[method(name = "getConfirmedTokens")]
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
-
-    #[method(name = "getAllAccountBalances")]
-    async fn get_all_account_balances(&self, address: Address)
-        -> RpcResult<HashMap<Address, U256>>;
 
     #[method(name = "getL2ToL1LogProof")]
     async fn get_l2_to_l1_log_proof(
@@ -132,4 +120,7 @@ pub trait ZksNamespace {
 
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
+
+    #[method(name = "gasPerPubdata")]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }

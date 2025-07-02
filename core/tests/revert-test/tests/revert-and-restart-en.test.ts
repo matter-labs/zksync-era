@@ -95,19 +95,17 @@ describe('Block reverting test', function () {
         const extLogs = await fs.open(pathToEnLogs, 'a');
         utils.log(`Writing EN logs to ${pathToEnLogs}`);
 
-        const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        utils.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
 
         const mainNodeSpawnOptions = {
-            enableConsensus,
+            enableConsensus: true,
             ethClientWeb3Url,
             apiWeb3JsonRpcHttpUrl,
             baseTokenAddress
         };
         mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, chainName, mainNodeSpawnOptions);
         const extNodeSpawnOptions = {
-            enableConsensus,
+            enableConsensus: true,
             ethClientWeb3Url,
             apiWeb3JsonRpcHttpUrl: enEthClientUrl,
             baseTokenAddress

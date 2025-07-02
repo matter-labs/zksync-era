@@ -54,6 +54,7 @@ pub struct FetchedBlock {
     pub operator_address: Address,
     pub transactions: Vec<FetchedTransaction>,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl FetchedBlock {
@@ -105,6 +106,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .map(FetchedTransaction::new)
                 .collect(),
             pubdata_params,
+            pubdata_limit: block.pubdata_limit,
         })
     }
 }
@@ -173,11 +175,13 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    first_l2_block: L2BlockParams {
-                        timestamp: block.timestamp,
-                        virtual_blocks: block.virtual_blocks,
-                    },
+                    // It's ok that we lose info about millis since it's only used for sealing criteria.
+                    first_l2_block: L2BlockParams::with_custom_virtual_block_count(
+                        block.timestamp * 1000,
+                        block.virtual_blocks,
+                    ),
                     pubdata_params: block.pubdata_params,
+                    pubdata_limit: block.pubdata_limit,
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,
@@ -188,10 +192,11 @@ impl IoCursorExt for IoCursor {
             // New batch implicitly means a new L2 block, so we only need to push the L2 block action
             // if it's not a new batch.
             new_actions.push(SyncAction::L2Block {
-                params: L2BlockParams {
-                    timestamp: block.timestamp,
-                    virtual_blocks: block.virtual_blocks,
-                },
+                // It's ok that we lose info about millis since it's only used for sealing criteria.
+                params: L2BlockParams::with_custom_virtual_block_count(
+                    block.timestamp * 1000,
+                    block.virtual_blocks,
+                ),
                 number: block.number,
             });
             FETCHER_METRICS.miniblock.set(block.number.0.into());

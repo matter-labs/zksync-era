@@ -1,5 +1,5 @@
 use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_job_monitor")]
@@ -128,17 +128,18 @@ impl From<&str> for WitnessType {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server")]
 pub(crate) struct ServerMetrics {
-    pub prover_fri_requeued_jobs: Counter<u64>,
-    pub requeued_jobs: Family<WitnessType, Counter<u64>>,
+    #[metrics(labels = ["chain_id"])]
+    pub prover_fri_requeued_jobs: LabeledFamily<L2ChainId, Counter<u64>>,
+    #[metrics(labels = ["witness_type", "chain_id"])]
+    pub requeued_jobs: LabeledFamily<(WitnessType, L2ChainId), Counter<u64>, 2>,
     #[metrics(labels = ["type", "round", "protocol_version"])]
     pub witness_generator_jobs_by_round:
         LabeledFamily<(&'static str, String, String), Gauge<u64>, 3>,
-    #[metrics(labels = ["type", "protocol_version"])]
-    pub witness_generator_jobs: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
-    pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub node_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub scheduler_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
+    #[metrics(labels = ["type", "protocol_version", "chain_id"])]
+    pub witness_generator_jobs: LabeledFamily<(&'static str, String, L2ChainId), Gauge<u64>, 3>,
+    #[metrics(labels = ["witness_type", "chain_id"])]
+    pub witness_generator_waiting_to_queued_jobs_transitions:
+        LabeledFamily<(WitnessType, L2ChainId), Counter<u64>, 2>,
 }
 
 #[vise::register]

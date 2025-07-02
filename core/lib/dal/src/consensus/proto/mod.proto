@@ -34,6 +34,7 @@ message Payload {
   repeated TransactionV25 transactions_v25 = 12;
   optional bool last_in_batch = 10; // required
   optional PubdataParams pubdata_params = 13; // optional
+  optional uint64 pubdata_limit = 14; // required since v29
 }
 
 message PubdataParams {
@@ -135,10 +136,6 @@ message InputData {
 message PaymasterParams {
   optional bytes paymaster_address = 1; // required; H160
   optional bytes paymaster_input = 2; // required
-}
-
-message ValidatorCommittee {
-  repeated roles.validator.WeightedValidator members = 1; // required
 }
 
 message NodeAddr {

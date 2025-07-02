@@ -1,14 +1,15 @@
 //! Tests for metadata calculator snapshot recovery.
 
-use std::{path::Path, sync::Mutex, time::Duration};
+use std::{path::Path, sync::Mutex};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::configs::{
-    chain::{OperationsManagerConfig, StateKeeperConfig},
+    chain::SharedStateKeeperConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
+    snapshot_recovery::TreeRecoveryConfig,
 };
 use zksync_dal::{
     custom_genesis_export_dal::{GenesisState, StorageLogRow},
@@ -363,15 +364,13 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig::for_tests(temp_dir.path().to_owned());
-    let calculator_config = MetadataCalculatorConfig::for_main_node(
+    let calculator_config = MetadataCalculatorConfig::from_configs(
         &merkle_tree_config,
-        &OperationsManagerConfig {
-            delay_interval: Duration::from_millis(50),
-        },
-        &StateKeeperConfig {
+        &SharedStateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..StateKeeperConfig::for_tests()
+            ..SharedStateKeeperConfig::default()
         },
+        &TreeRecoveryConfig::default(),
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
         .await

@@ -3,7 +3,7 @@
 use zksync_multivm::interface::{Call, TransactionExecutionResult};
 use zksync_types::{
     api::{CallTracerConfig, SupportedTracers, TracerConfig},
-    BOOTLOADER_ADDRESS,
+    ExecuteTransactionCommon, BOOTLOADER_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -277,4 +277,98 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
 #[tokio::test]
 async fn tracing_block_after_snapshot_recovery() {
     test_http_server(TraceBlockTestWithSnapshotRecovery).await;
+}
+
+#[derive(Debug)]
+struct GetRawTransactionTest;
+
+#[async_trait]
+impl HttpTest for GetRawTransactionTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let tx_results = [execute_l2_transaction_with_traces(0)];
+        let mut storage = pool.connection().await?;
+        store_l2_block(&mut storage, L2BlockNumber(1), &tx_results).await?;
+        drop(storage);
+
+        let result = client
+            .get_raw_transaction(tx_results[0].hash)
+            .await?
+            .context("no raw transaction")?;
+        let ExecuteTransactionCommon::L2(common_data) = &tx_results[0].transaction.common_data
+        else {
+            panic!("non-L2 tx")
+        };
+        assert_eq!(result.0, common_data.input.as_ref().unwrap().data);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn get_raw_transaction() {
+    test_http_server(GetRawTransactionTest).await;
+}
+
+#[derive(Debug)]
+struct GetRawTransactionsTest(L2BlockNumber);
+
+#[async_trait]
+impl HttpTest for GetRawTransactionsTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
+        let mut storage = pool.connection().await?;
+        let new_l2_block = store_l2_block(&mut storage, self.0, &tx_results).await?;
+        drop(storage);
+
+        let block_ids = [
+            api::BlockId::Number((*self.0).into()),
+            api::BlockId::Number(BlockNumber::Latest),
+            api::BlockId::Hash(new_l2_block.hash),
+        ];
+        for block_id in block_ids {
+            let raw_transactions = client
+                .get_raw_transactions(block_id)
+                .await
+                .context("no raw transactions")?;
+            assert_eq!(raw_transactions.len(), tx_results.len()); // equals to the number of transactions in the block
+            for (raw_transaction, tx_result) in raw_transactions.iter().zip(&tx_results) {
+                let ExecuteTransactionCommon::L2(common_data) = &tx_result.transaction.common_data
+                else {
+                    panic!("non-L2 tx")
+                };
+                assert_eq!(raw_transaction.0, common_data.input.as_ref().unwrap().data);
+            }
+        }
+
+        let missing_block_number = api::BlockNumber::from(*self.0 + 100);
+        let error = client
+            .get_raw_transactions(api::BlockId::Number(missing_block_number))
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            assert!(
+                error.message().contains("Block") && error.message().contains("doesn't exist"),
+                "{error:?}"
+            );
+            assert!(error.data().is_none(), "{error:?}");
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn get_raw_transactions() {
+    test_http_server(GetRawTransactionsTest(L2BlockNumber(1))).await;
 }

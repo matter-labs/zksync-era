@@ -23,4 +23,4 @@ tracing.workspace = true
 
 [features]
 default = []
-node_framework = ["dep:zksync_node_framework", "dep:zksync_config"]
+node_framework = ["dep:zksync_node_framework", "dep:zksync_config", "zksync_dal/node_framework"]
