@@ -468,7 +468,8 @@ async fn complex_rollback_test() {
     block_hasher.push_tx_hash(txs2[1].hash());
     let block_hash2 = block_hasher.finalize(ProtocolVersionId::latest());
 
-    let blocks = [(
+    let blocks = [
+        (
             L2BlockEnv {
                 number: 2,
                 timestamp: 102,
@@ -485,7 +486,8 @@ async fn complex_rollback_test() {
                 max_virtual_blocks_to_create: 1,
             },
             txs3,
-        )];
+        ),
+    ];
     for scenario in scenarios {
         let mut executor = tester
             .create_batch_executor_with_init_transactions(
