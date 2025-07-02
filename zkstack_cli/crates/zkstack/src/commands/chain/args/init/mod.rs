@@ -49,12 +49,6 @@ pub struct InitArgs {
     pub validium_args: da_configs::ValidiumTypeArgs,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
-    /// Run only phase 1: Initialize configs, distribute ETH, mint base token, and register chain
-    #[clap(long, action)]
-    pub phase1: bool,
-    /// Run only phase 2: Accept admin, deploy L2 contracts, set DA validator pair, and complete initialization
-    #[clap(long, action)]
-    pub phase2: bool,
 }
 
 impl InitArgs {
@@ -119,8 +113,6 @@ impl InitArgs {
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
             make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
-            phase1: self.phase1,
-            phase2: self.phase2,
         }
     }
 }
@@ -134,6 +126,4 @@ pub struct InitArgsFinal {
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
-    pub phase1: bool,
-    pub phase2: bool,
 }
