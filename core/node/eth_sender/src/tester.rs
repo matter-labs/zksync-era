@@ -273,7 +273,6 @@ impl EthSenderTester {
             aggregator,
             gateway.clone(),
             use_blob_operator.then(|| gateway_blobs.clone() as Box<dyn BoundEthInterface>),
-            Default::default(),
             // ZKsync contract address
             Address::random(),
             STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,

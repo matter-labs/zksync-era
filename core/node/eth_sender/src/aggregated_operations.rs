@@ -8,6 +8,24 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId,
 };
 
+#[derive(Debug, Copy, Clone)]
+pub enum AggregatedOperationType {
+    Commit,
+    PublishProofOnChain,
+    Execute,
+}
+impl AggregatedOperationType {
+    pub fn action_type(self) -> AggregatedActionType {
+        match self {
+            AggregatedOperationType::Commit => AggregatedActionType::Commit,
+            AggregatedOperationType::PublishProofOnChain => {
+                AggregatedActionType::PublishProofOnchain
+            }
+            AggregatedOperationType::Execute => AggregatedActionType::Execute,
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum AggregatedOperation {
@@ -22,11 +40,13 @@ pub enum AggregatedOperation {
 }
 
 impl AggregatedOperation {
-    pub fn get_action_type(&self) -> AggregatedActionType {
+    pub fn get_operation_type(&self) -> AggregatedOperationType {
         match self {
-            Self::Commit(..) => AggregatedActionType::Commit,
-            Self::PublishProofOnchain(_) => AggregatedActionType::PublishProofOnchain,
-            Self::Execute(_) => AggregatedActionType::Execute,
+            AggregatedOperation::Commit(..) => AggregatedOperationType::Commit,
+            AggregatedOperation::PublishProofOnchain(..) => {
+                AggregatedOperationType::PublishProofOnChain
+            }
+            AggregatedOperation::Execute(..) => AggregatedOperationType::Execute,
         }
     }
 

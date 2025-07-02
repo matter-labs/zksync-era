@@ -7,6 +7,7 @@ mod health;
 mod metrics;
 pub mod node;
 mod publish_criterion;
+mod tee_tx_aggregator;
 mod zksync_functions;
 
 mod abstract_l1_interface;

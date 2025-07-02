@@ -70,7 +70,7 @@ impl OperationSkippingRestrictions {
         if let Some(reason) = reason {
             tracing::info!(
                 "Skipping sending operation of type {} for batches {}-{} since {}",
-                agg_op.get_action_type(),
+                agg_op.get_operation_type().action_type(),
                 agg_op.l1_batch_range().start(),
                 agg_op.l1_batch_range().end(),
                 reason

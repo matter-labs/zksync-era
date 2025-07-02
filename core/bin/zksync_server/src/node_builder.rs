@@ -37,7 +37,7 @@ use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
     web3_decl::node::{QueryEthClientLayer, SettlementLayerClientLayer},
 };
-use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
+use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer, TeeTxAggregatorLayer};
 use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
 use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
@@ -536,6 +536,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_tee_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TeeTxAggregatorLayer);
+
+        Ok(self)
+    }
+
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = self.configs.house_keeper_config.clone();
         self.node
@@ -836,6 +842,9 @@ impl MainNodeBuilder {
                 }
                 Component::EthTxAggregator => {
                     self = self.add_eth_tx_aggregator_layer()?;
+                }
+                Component::TeeTxAggregator => {
+                    self = self.add_tee_tx_aggregator_layer()?;
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;

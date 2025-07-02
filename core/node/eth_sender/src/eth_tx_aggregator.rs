@@ -3,12 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{
-    tee_dcap_collateral_dal::{
-        PendingCollateral, PendingFieldCollateral, PendingTcbInfoCollateral,
-    },
-    Connection, ConnectionPool, Core, CoreDal,
-};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
@@ -21,7 +16,6 @@ use zksync_l1_contract_interface::{
 };
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
     commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
@@ -36,6 +30,7 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
+    aggregated_operations::AggregatedOperationType,
     aggregator::OperationSkippingRestrictions,
     health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
@@ -85,7 +80,6 @@ pub struct EthTxAggregator {
     /// addresses at play: the main one and the custom address for sending commit
     /// transactions. The `Some` then contains client for this custom operator address.
     eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
-    eth_client_tee_dcap: Option<Box<dyn BoundEthInterface>>,
     pool: ConnectionPool<Core>,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
@@ -109,7 +103,6 @@ impl EthTxAggregator {
         aggregator: Aggregator,
         eth_client: Box<dyn BoundEthInterface>,
         eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
-        eth_client_tee_dcap: Option<Box<dyn BoundEthInterface>>,
         config_timelock_contract_address: Address,
         state_transition_manager_address: Address,
         l1_multicall3_address: Address,
@@ -119,16 +112,11 @@ impl EthTxAggregator {
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let eth_client_blobs = eth_client_blobs.map(|c| c.for_component("eth_tx_aggregator"));
-        let eth_client_tee_dcap = eth_client_tee_dcap.map(|c| c.for_component("eth_tx_aggregator"));
 
         let functions = ZkSyncFunctions::default();
 
         let mut initial_pending_nonces = HashMap::new();
-        for client in eth_client_blobs
-            .iter()
-            .chain(std::iter::once(&eth_client))
-            .chain(eth_client_tee_dcap.iter())
-        {
+        for client in eth_client_blobs.iter().chain(std::iter::once(&eth_client)) {
             let address = client.sender_account();
             let nonce = client.pending_nonce().await.unwrap().as_u64();
 
@@ -148,7 +136,6 @@ impl EthTxAggregator {
             functions,
             rollup_chain_id,
             eth_client_blobs,
-            eth_client_tee_dcap,
             pool,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
@@ -710,232 +697,6 @@ impl EthTxAggregator {
                 .into(),
             );
         }
-
-        // FIXME: TEE - might want a TeeAggregator?
-        self.aggregate_tee_dcap_transactions(storage).await?;
-        self.aggregate_tee_attestations(storage).await?;
-        self.aggregate_tee_proofs(storage).await?;
-        Ok(())
-    }
-
-    // FIXME: TEE
-    async fn aggregate_tee_proofs(
-        &self,
-        storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
-        let pending = storage
-            .tee_proof_generation_dal()
-            .get_tee_proofs_for_eth_sender()
-            .await
-            .map_err(|_e| {
-                // FIXME: TEE
-                EthSenderError::ExceedMaxBaseFee
-            })?;
-        for (sig, calldata) in pending.into_iter() {
-            // Start a database transaction
-            let mut transaction = storage.start_transaction().await.unwrap();
-
-            // Choose the appropriate client for TEE operations
-            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
-
-            // Get the next nonce for the TEE transactions
-            let nonce = self
-                .get_next_nonce(&mut transaction, sender_addr, true)
-                .await?;
-
-            // Save the TEE transaction to the database
-            let mut eth_tx = transaction
-                .eth_sender_dal()
-                .save_eth_tx(
-                    nonce,
-                    calldata,
-                    AggregatedActionType::Tee,
-                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
-                    // FIXME: TEE
-                    Some(L1GasCriterion::total_tee_gas_amount()),
-                    Some(sender_addr),
-                    None, // No sidecar for TEE operations
-                    false,
-                )
-                .await
-                .unwrap();
-
-            transaction
-                .eth_sender_dal()
-                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                .await
-                .unwrap();
-            eth_tx.chain_id = Some(self.sl_chain_id);
-
-            transaction
-                .tee_proof_generation_dal()
-                .set_eth_tx_id_for_proof(&sig, eth_tx.id)
-                .await
-                .map_err(|_e| {
-                    // FIXME: TEE
-                    EthSenderError::ExceedMaxBaseFee
-                })?;
-
-            // Commit the transaction
-            transaction.commit().await.unwrap();
-
-            tracing::info!("eth_tx with ID {} for block proof", eth_tx.id);
-        }
-        Ok(())
-    }
-
-    // FIXME: TEE
-    async fn aggregate_tee_dcap_transactions(
-        &self,
-        storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
-        let pending = storage
-            .tee_dcap_collateral_dal()
-            .get_pending_collateral_for_eth_tx()
-            .await
-            .map_err(|_e| {
-                // FIXME: TEE
-                EthSenderError::ExceedMaxBaseFee
-            })?;
-
-        // Generate TEE data
-        for pending_collateral in pending.into_iter() {
-            // Start a database transaction
-            let mut transaction = storage.start_transaction().await.unwrap();
-
-            // Choose the appropriate client for TEE operations
-            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
-
-            // Get the next nonce for the TEE transactions
-            let nonce = self
-                .get_next_nonce(&mut transaction, sender_addr, true)
-                .await?;
-
-            // Save the TEE transaction to the database
-            let mut eth_tx = transaction
-                .eth_sender_dal()
-                .save_eth_tx(
-                    nonce,
-                    pending_collateral.calldata().to_vec(),
-                    AggregatedActionType::Tee,
-                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
-                    // FIXME: TEE
-                    Some(L1GasCriterion::total_tee_gas_amount()),
-                    Some(sender_addr),
-                    None, // No sidecar for TEE operations
-                    false,
-                )
-                .await
-                .unwrap();
-
-            transaction
-                .eth_sender_dal()
-                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                .await
-                .unwrap();
-            eth_tx.chain_id = Some(self.sl_chain_id);
-
-            match pending_collateral {
-                PendingCollateral::Field(PendingFieldCollateral { kind, .. }) => {
-                    transaction
-                        .tee_dcap_collateral_dal()
-                        .set_field_eth_tx_id(kind, eth_tx.id as i32)
-                        .await
-                        .map_err(|_e| {
-                            // FIXME: TEE
-                            EthSenderError::ExceedMaxBaseFee
-                        })?;
-                }
-                PendingCollateral::TcbInfo(PendingTcbInfoCollateral { kind, fmspc, .. }) => {
-                    transaction
-                        .tee_dcap_collateral_dal()
-                        .set_tcb_info_eth_tx_id(kind, &fmspc, eth_tx.id as i32)
-                        .await
-                        .map_err(|_e| {
-                            // FIXME: TEE
-                            EthSenderError::ExceedMaxBaseFee
-                        })?;
-                }
-            }
-
-            // Commit the transaction
-            transaction.commit().await.unwrap();
-
-            tracing::info!("eth_tx with ID {} for op TEE", eth_tx.id);
-        }
-
-        Ok(())
-    }
-
-    // FIXME: TEE
-    async fn aggregate_tee_attestations(
-        &self,
-        storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
-        let pending = storage
-            .tee_proof_generation_dal()
-            .get_pending_attestations_for_eth_tx()
-            .await
-            .map_err(|_e| {
-                // FIXME: TEE
-                EthSenderError::ExceedMaxBaseFee
-            })?;
-        // Generate TEE data
-        for (pubkey, calldata) in pending.into_iter() {
-            // Start a database transaction
-            let mut transaction = storage.start_transaction().await.unwrap();
-
-            // Choose the appropriate client for TEE operations
-            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
-
-            // Get the next nonce for the TEE transactions
-            let nonce = self
-                .get_next_nonce(&mut transaction, sender_addr, true)
-                .await?;
-
-            // Save the TEE transaction to the database
-            let mut eth_tx = transaction
-                .eth_sender_dal()
-                .save_eth_tx(
-                    nonce,
-                    calldata,
-                    AggregatedActionType::Tee,
-                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
-                    // FIXME: TEE
-                    Some(L1GasCriterion::total_tee_gas_amount()),
-                    Some(sender_addr),
-                    None, // No sidecar for TEE operations
-                    false,
-                )
-                .await
-                .unwrap();
-
-            transaction
-                .eth_sender_dal()
-                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                .await
-                .unwrap();
-            eth_tx.chain_id = Some(self.sl_chain_id);
-
-            transaction
-                .tee_proof_generation_dal()
-                .set_eth_tx_id_for_attestation(&pubkey, eth_tx.id)
-                .await
-                .map_err(|_e| {
-                    // FIXME: TEE
-                    EthSenderError::ExceedMaxBaseFee
-                })?;
-
-            // Commit the transaction
-            transaction.commit().await.unwrap();
-
-            tracing::info!(
-                "eth_tx with ID {} for attestation for TEE pubkey {}",
-                eth_tx.id,
-                hex::encode(pubkey)
-            );
-        }
-
         Ok(())
     }
 
@@ -965,7 +726,7 @@ impl EthTxAggregator {
         }
 
         let range_size = l1_batch_number_range.end().0 - l1_batch_number_range.start().0 + 1;
-        METRICS.block_range_size[&aggregated_op.get_action_type().into()]
+        METRICS.block_range_size[&aggregated_op.get_operation_type().action_type().into()]
             .observe(range_size.into());
         METRICS
             .track_eth_tx_metrics(storage, BlockL1Stage::Saved, tx)
@@ -1086,12 +847,12 @@ impl EthTxAggregator {
         is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
-        let op_type = aggregated_op.get_action_type();
+        let op_type = aggregated_op.get_operation_type();
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
         let (sender_addr, is_non_blob_sender) = match (op_type, is_gateway) {
-            (AggregatedActionType::Commit, false) => self
+            (AggregatedOperationType::Commit, false) => self
                 .eth_client_blobs
                 .as_ref()
                 .map(|c| (c.sender_account(), false))
@@ -1106,7 +867,7 @@ impl EthTxAggregator {
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
         let eth_tx_predicted_gas = match op_type {
-            AggregatedActionType::Execute => {
+            AggregatedOperationType::Execute => {
                 L1GasCriterion::total_execute_gas_amount(
                     &mut transaction,
                     l1_batch_number_range.clone(),
@@ -1114,17 +875,13 @@ impl EthTxAggregator {
                 )
                 .await
             }
-            AggregatedActionType::PublishProofOnchain => {
+            AggregatedOperationType::PublishProofOnChain => {
                 L1GasCriterion::total_proof_gas_amount(is_gateway)
             }
-            AggregatedActionType::Commit => L1GasCriterion::total_commit_validium_gas_amount(
+            AggregatedOperationType::Commit => L1GasCriterion::total_commit_validium_gas_amount(
                 l1_batch_number_range.clone(),
                 is_gateway,
             ),
-            AggregatedActionType::Tee => {
-                // FIXME: TEE
-                L1GasCriterion::total_tee_gas_amount()
-            }
         };
 
         let mut eth_tx = transaction
@@ -1132,7 +889,7 @@ impl EthTxAggregator {
             .save_eth_tx(
                 nonce,
                 encoded_aggregated_op.calldata,
-                op_type,
+                op_type.action_type(),
                 timelock_contract_address,
                 Some(eth_tx_predicted_gas),
                 Some(sender_addr),
@@ -1150,7 +907,7 @@ impl EthTxAggregator {
         eth_tx.chain_id = Some(self.sl_chain_id);
         transaction
             .blocks_dal()
-            .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
+            .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type.action_type())
             .await
             .unwrap();
         transaction.commit().await.unwrap();

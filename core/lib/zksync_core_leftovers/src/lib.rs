@@ -37,6 +37,8 @@ pub enum Component {
     EthWatcher,
     /// Eth tx generator.
     EthTxAggregator,
+    /// Tee tx generator.
+    TeeTxAggregator,
     /// Manager for eth tx.
     EthTxManager,
     /// State keeper.

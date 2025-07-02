@@ -19,7 +19,7 @@ use zksync_node_framework::{
 use zksync_object_store::node::ObjectStoreResource;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
-use crate::{Aggregator, EthTxAggregator};
+use crate::{tee_tx_aggregator::TeeTxAggregator, Aggregator, EthTxAggregator};
 
 /// Wiring layer for aggregating l1 batches into `eth_txs`
 ///
@@ -127,7 +127,6 @@ impl WiringLayer for EthTxAggregatorLayer {
         let replica_pool = input.replica_pool.get().await?;
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
-        let eth_client_tee_dcap = input.eth_client_tee_dcap.map(|c| c.0);
 
         let object_store = input.object_store.0;
 
@@ -136,7 +135,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         let config = input.sender_config.0;
         let aggregator = Aggregator::new(
             config.clone(),
-            object_store,
+            object_store.clone(),
             eth_client_blobs.is_some(),
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
@@ -146,11 +145,10 @@ impl WiringLayer for EthTxAggregatorLayer {
 
         let eth_tx_aggregator = EthTxAggregator::new(
             master_pool.clone(),
-            config,
+            config.clone(),
             aggregator,
-            eth_client,
-            eth_client_blobs,
-            eth_client_tee_dcap,
+            eth_client.clone(),
+            eth_client_blobs.clone(),
             validator_timelock_addr,
             state_transition_manager_address,
             multicall3_addr,
@@ -185,5 +183,102 @@ impl Task for EthTxAggregator {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         (*self).run(stop_receiver.0).await
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for TeeTxAggregator {
+    fn id(&self) -> TaskId {
+        "tee_tx_aggregator".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
+    }
+}
+
+#[derive(Debug)]
+pub struct TeeTxAggregatorLayer;
+
+#[derive(Debug, FromContext)]
+pub struct TeeInput {
+    pub master_pool: PoolResource<MasterPool>,
+    pub replica_pool: PoolResource<ReplicaPool>,
+    pub eth_client: Option<BoundEthInterfaceResource>,
+    pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
+    pub eth_client_tee_dcap: Option<BoundEthInterfaceForTeeDcapResource>,
+    pub settlement_mode: SettlementModeResource,
+    pub sender_config: SenderConfigResource,
+    #[context(default)]
+    pub circuit_breakers: CircuitBreakersResource,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+pub struct TeeOutput {
+    #[context(task)]
+    pub tee_tx_aggregator: TeeTxAggregator,
+}
+
+#[async_trait::async_trait]
+impl WiringLayer for TeeTxAggregatorLayer {
+    type Input = TeeInput;
+    type Output = TeeOutput;
+
+    fn layer_name(&self) -> &'static str {
+        "tee_tx_aggregator_layer"
+    }
+
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        tracing::info!(
+            "Wiring tee_tx_aggregator in {:?} mode",
+            input.settlement_mode.settlement_layer_for_sending_txs(),
+        );
+
+        let eth_client = if input.settlement_mode.settlement_layer().is_gateway() {
+            input
+                .eth_client_gateway
+                .context("eth_client_gateway missing")?
+                .0
+        } else {
+            input.eth_client.context("eth_client missing")?.0
+        };
+
+        let master_pool = input.master_pool.get().await?;
+        let replica_pool = input.replica_pool.get().await?;
+
+        let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
+        let eth_client_tee_dcap = input.eth_client_tee_dcap.map(|c| c.0);
+
+        // Create and add tasks.
+
+        let config = input.sender_config.0;
+
+        let tee_tx_aggregator = TeeTxAggregator::new(
+            master_pool.clone(),
+            config,
+            eth_client,
+            eth_client_blobs,
+            eth_client_tee_dcap,
+            input.settlement_mode.settlement_layer_for_sending_txs(),
+        )
+        .await;
+
+        input
+            .app_health
+            .0
+            .insert_component(tee_tx_aggregator.health_check())
+            .map_err(WiringError::internal)?;
+
+        // Insert circuit breaker.
+        input
+            .circuit_breakers
+            .breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
+            .await;
+
+        Ok(TeeOutput { tee_tx_aggregator })
     }
 }
