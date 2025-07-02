@@ -118,14 +118,14 @@ impl WiringLayer for StateKeeperLayer {
             .insert_component(state_keeper_builder.health_check())
             .map_err(WiringError::internal)?;
         let (state_keeper_task, state_keeper_resource) = if self.leader_rotation {
+            (None, Some(state_keeper_builder.into()))
+        } else {
             (
                 Some(StateKeeperTask {
                     state_keeper_builder,
                 }),
                 None,
             )
-        } else {
-            (None, Some(state_keeper_builder.into()))
         };
 
         let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {

@@ -131,8 +131,8 @@ impl ExternalIO {
         Ok(false)
     }
 
-    pub fn set_open_batch(&mut self, open_batch: Option<IOOpenBatch>) {
-        self.open_batch = open_batch;
+    pub fn set_open_batch(&mut self, open_batch: IOOpenBatch) {
+        self.open_batch = Some(open_batch);
     }
 }
 

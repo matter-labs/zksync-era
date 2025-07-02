@@ -26,7 +26,7 @@ use zksync_types::{
 
 use self::tester::Tester;
 use crate::{
-    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IOOpenBatch, StateKeeperIO},
     mempool_actor::l2_tx_filter,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{create_execution_result, create_transaction, seconds_since_epoch, Query},
@@ -664,7 +664,10 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
     let current_timestamp = seconds_since_epoch();
     io_cursor.prev_l2_block_timestamp = current_timestamp;
 
-    mempool.set_open_batch_protocol_version(ProtocolVersionId::Version28);
+    mempool.set_open_batch(IOOpenBatch {
+        number: io_cursor.l1_batch,
+        protocol_version: ProtocolVersionId::Version28,
+    });
     let l2_block_params = mempool
         .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
         .await
@@ -675,7 +678,7 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
 
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMode) {
+async fn reinit_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let tester = Tester::new(commitment_mode);
     tester.genesis(&connection_pool).await;
@@ -708,23 +711,36 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
 
     // Restart
     drop((mempool, mempool_guard, cursor));
-    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    // Sleep to init with greater `first_l2_block.timestamp_ms`.
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let (mut mempool, mut mempool_guard) =
+        tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, _) = mempool.initialize().await.unwrap();
 
-    let mut new_l1_batch_params = mempool
+    // Insert a transaction into the mempool in order to open a new batch.
+    let tx_filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
+    )
+    .await
+    .unwrap();
+    tester.insert_tx(
+        &mut mempool_guard,
+        tx_filter.fee_per_gas,
+        tx_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
+    );
+
+    let new_l1_batch_params = mempool
         .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no batch params generated");
 
-    // Timestamp in millis can be different. So we check only the seconds part.
-    assert_eq!(
-        old_l1_batch_params.first_l2_block.timestamp(),
-        new_l1_batch_params.first_l2_block.timestamp()
+    assert!(
+        old_l1_batch_params.first_l2_block.timestamp_ms()
+            < new_l1_batch_params.first_l2_block.timestamp_ms()
     );
-    *new_l1_batch_params.first_l2_block.timestamp_ms_mut() =
-        old_l1_batch_params.first_l2_block.timestamp_ms();
-    assert_eq!(new_l1_batch_params, old_l1_batch_params);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]

@@ -96,10 +96,10 @@ impl StateKeeperIO for LeaderIO {
             .wait_for_new_batch_params(cursor, max_wait)
             .await?;
         if let Some(p) = &params {
-            let open_batch = Some(IOOpenBatch {
+            let open_batch = IOOpenBatch {
                 number: cursor.l1_batch,
                 protocol_version: p.protocol_version,
-            });
+            };
             // Set open batch for the inactive IO.
             if self.is_active_leader {
                 self.external_io.set_open_batch(open_batch);
