@@ -1,8 +1,5 @@
 name: Update verification keys
 on:
-  push:
-    branches:
-      - deniallugo-ci-generate-keys
   workflow_call:
 
 
@@ -53,7 +50,6 @@ jobs:
           ci_run zkstack prover generate-snark-keys -v
 
 
-
       - name: Make changes in submodule
         run: |
           cd contracts
@@ -61,3 +57,9 @@ jobs:
           git add .
           git commit -m "Update Verification keys" || echo "No changes"
           git push origin ${{ env.CONTRACTS_STABLE_BRANCH }}
+
+      - name: Update submodule
+        run: |
+          git add contracts
+          git commit -m "Update verification keys" || echo "No changes"
+          git push origin HEAD
