@@ -15,9 +15,9 @@ use zksync_node_framework::{
 use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_state_keeper::{
     node::{ConditionalSealerResource, StateKeeperIOResource},
+    seal_criteria::ConditionalSealer,
     MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
 };
-use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_types::{commitment::PubdataType, L2ChainId};
 use zksync_vm_executor::node::ApiTransactionFilter;
 
@@ -131,7 +131,8 @@ impl WiringLayer for LeaderIOLayer {
         )?;
 
         // Create sealer.
-        let sealer: Box<dyn ConditionalSealer> = Box::new(SequencerSealer::new(self.state_keeper_config.clone()));
+        let sealer: Box<dyn ConditionalSealer> =
+            Box::new(SequencerSealer::new(self.state_keeper_config.clone()));
         let api_sealer = Arc::new(SequencerSealer::new(self.state_keeper_config));
 
         // Create `ActionQueueSender` resource.
