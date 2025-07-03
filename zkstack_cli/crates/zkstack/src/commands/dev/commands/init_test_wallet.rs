@@ -35,7 +35,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let mut chain_wallets = chain_config.get_wallets_config()?;
     let test_wallet = wallets.get_test_wallet(&chain_config)?;
     chain_wallets.test_wallet = Some(test_wallet.clone());
-    chain_wallets.save(shell, &chain_config.configs.join("wallets.yaml"))?;
+    chain_wallets.save(shell, chain_config.configs.join("wallets.yaml"))?;
 
     logger::outro(MSG_INIT_TEST_WALLET_RUN_SUCCESS);
 

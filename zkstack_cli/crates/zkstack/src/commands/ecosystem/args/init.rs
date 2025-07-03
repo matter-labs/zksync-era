@@ -22,7 +22,7 @@ use crate::{
 
 /// Check if L1 RPC is healthy by calling eth_chainId
 async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
-    let l1_provider = get_ethers_provider(&l1_rpc_url)?;
+    let l1_provider = get_ethers_provider(l1_rpc_url)?;
     let l1_chain_id = l1_provider.get_chainid().await?.as_u64();
 
     println!("✅ L1 RPC health check passed - chain ID: {}", l1_chain_id);
