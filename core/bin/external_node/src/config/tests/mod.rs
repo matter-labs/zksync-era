@@ -14,7 +14,7 @@ use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource,
 use zksync_config::{
     configs::{
         api::{MaxResponseSizeOverrides, Namespace},
-        da_client::{avail::AvailClientConfig, eigen::PolynomialForm},
+        da_client::avail::AvailClientConfig,
         database::MerkleTreeMode,
         object_store::ObjectStoreMode,
         observability::LogFormat,
@@ -648,12 +648,10 @@ fn eigen_da_client_from_env() {
         EN_DA_CLIENT="Eigen"
         EN_DA_DISPERSER_RPC="http://localhost:8080"
         EN_DA_EIGENDA_ETH_RPC="http://localhost:8545"
-        EN_DA_AUTHENTICATED=false
         EN_DA_CERT_VERIFIER_ROUTER_ADDR="0x0000000000000000000000000000000000000123"
         EN_DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
         EN_DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
         EN_DA_BLOB_VERSION="0"
-        EN_DA_POLYNOMIAL_FORM="coeff"
 
         # Secrets
         EN_DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
@@ -674,7 +672,6 @@ fn eigen_da_client_from_env() {
         config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
         "http://localhost:8545/"
     );
-    assert!(!config.authenticated);
     assert_eq!(config.blob_version, 0);
     assert_eq!(
         config.cert_verifier_router_addr,
@@ -688,7 +685,6 @@ fn eigen_da_client_from_env() {
         config.registry_coordinator_addr,
         "0x0000000000000000000000000000000000000125"
     );
-    assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
 
     let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
     let DataAvailabilitySecrets::Eigen(secrets) = secrets else {
@@ -721,7 +717,7 @@ fn parsing_consensus_from_env_vars() {
     let config_sources = cli.config_sources(None).unwrap();
     let schema = LocalConfig::schema().unwrap();
     let repo = config_sources.build_repository(&schema);
-    let config = ExternalNodeConfig::new(repo, true).unwrap();
+    let config = ExternalNodeConfig::new(repo).unwrap();
 
     assert_consensus_config(config.consensus.unwrap());
     let node_key = config.local.secrets.consensus.node_key.unwrap();
