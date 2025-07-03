@@ -107,6 +107,8 @@ impl GenesisParams {
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
             evm_emulator: config.evm_emulator_hash,
         };
+        println!("base_system_contracts_hashes: {:?}", base_system_contracts_hashes);
+        println!("base_system_contracts.hashes(): {:?}", base_system_contracts.hashes());
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
@@ -442,7 +444,12 @@ pub async fn ensure_genesis_state(
             .ok_or(GenesisError::MalformedConfig(
                 "expected_rollup_last_leaf_index",
             ))?;
-
+    println!("expected_root_hash: {:?}", expected_root_hash);
+    println!("root_hash: {:?}", root_hash);
+    println!("expected_commitment: {:?}", expected_commitment);
+    println!("commitment: {:?}", commitment);
+    println!("expected_rollup_last_leaf_index: {:?}", expected_rollup_last_leaf_index);
+    println!("rollup_last_leaf_index: {:?}", rollup_last_leaf_index);
     if expected_root_hash != root_hash {
         return Err(GenesisError::RootHash(expected_root_hash, root_hash));
     }
