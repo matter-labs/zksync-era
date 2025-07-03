@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, time::Instant};
+use std::{fmt::Debug, num::NonZeroU64, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
@@ -13,10 +13,80 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+pub enum BaseToken {
+    ERC20(Address),
+    ETH,
+}
+
+impl BaseToken {
+    /// Interprets 0x00 and 0x01 addresses as ETH
+    pub fn from_config_address(address: Address) -> Self {
+        if address == Address::zero() || address == Address::from_low_u64_be(1) {
+            Self::ETH
+        } else {
+            Self::ERC20(address)
+        }
+    }
+}
+
+/// When multiplying naivly to ratios based on u64 we can overflow. This function
+/// scales down the ratios to prevent overflow (effectively loosing some precision).
+/// In rare cases it may not be possible to sensible scale down (if ratio would be
+/// more then 2^64 or less then 2^-64). In such cases we return an error.
+fn safe_u64_fraction_mul(
+    a: BaseTokenApiRatio,
+    b: BaseTokenApiRatio,
+) -> anyhow::Result<BaseTokenApiRatio> {
+    let numerator = a.numerator.get() as u128 * b.numerator.get() as u128;
+    let denominator = a.denominator.get() as u128 * b.denominator.get() as u128;
+
+    // Check if either numerator or denominator exceeds u64::MAX
+    if numerator > u64::MAX as u128 || denominator > u64::MAX as u128 {
+        //
+        let scaling_power = numerator
+            .max(denominator)
+            .leading_zeros()
+            .saturating_sub(64);
+
+        // Scale down both values
+        let scaled_numerator = numerator >> scaling_power;
+        let scaled_denominator = denominator >> scaling_power;
+
+        // Ensure we don't have zeros after division
+        let safe_numerator = NonZeroU64::new(
+            scaled_numerator
+                .try_into()
+                .context(anyhow::anyhow!("Bad numerator after scaling down"))?,
+        )
+        .ok_or(anyhow::anyhow!("Scaled down numerator is zero"))?;
+        let safe_denominator = NonZeroU64::new(
+            scaled_denominator
+                .try_into()
+                .context(anyhow::anyhow!("Bad denominator after scaling down"))?,
+        )
+        .ok_or(anyhow::anyhow!("Scaled down denominator is zero"))?;
+
+        Ok(BaseTokenApiRatio {
+            numerator: safe_numerator,
+            denominator: safe_denominator,
+            ratio_timestamp: a.ratio_timestamp.max(b.ratio_timestamp),
+        })
+    } else {
+        // No scaling needed, values are within u64 range
+        Ok(BaseTokenApiRatio {
+            numerator: NonZeroU64::new(numerator.try_into().unwrap()).unwrap(),
+            denominator: NonZeroU64::new(denominator.try_into().unwrap()).unwrap(),
+            ratio_timestamp: a.ratio_timestamp.max(b.ratio_timestamp),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
-    base_token_address: Address,
+    base_token: BaseToken,
+    sl_token: BaseToken,
     price_api_client: Arc<dyn PriceApiClient>,
     l1_behaviour: BaseTokenL1Behaviour,
 }
@@ -26,14 +96,16 @@ impl BaseTokenRatioPersister {
     pub fn new(
         pool: ConnectionPool<Core>,
         config: BaseTokenAdjusterConfig,
-        base_token_address: Address,
+        base_token: BaseToken,
+        sl_token: BaseToken,
         price_api_client: Arc<dyn PriceApiClient>,
         l1_behaviour: BaseTokenL1Behaviour,
     ) -> Self {
         Self {
             pool,
             config,
-            base_token_address,
+            base_token,
+            sl_token,
             price_api_client,
             l1_behaviour,
         }
@@ -68,31 +140,38 @@ impl BaseTokenRatioPersister {
 
     async fn loop_iteration(&mut self) -> anyhow::Result<()> {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
-        let new_ratio = self.retry_fetch_ratio().await?;
+        let base_to_eth = match self.base_token {
+            BaseToken::ETH => BaseTokenApiRatio::identity(),
+            BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
+        };
+
+        let sl_to_eth = match self.sl_token {
+            BaseToken::ETH => BaseTokenApiRatio::identity(),
+            BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
+        };
+
+        let new_ratio = safe_u64_fraction_mul(base_to_eth, sl_to_eth.reciprocal())?;
+        METRICS
+            .ratio
+            .set((new_ratio.numerator.get() as f64) / (new_ratio.denominator.get() as f64));
+
         self.persist_ratio(new_ratio).await?;
         self.l1_behaviour.update_l1(new_ratio).await
     }
 
-    async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenApiRatio> {
+    async fn retry_fetch_ratio(&self, address: Address) -> anyhow::Result<BaseTokenApiRatio> {
         let sleep_duration = self.config.price_fetching_sleep;
         let max_retries = self.config.price_fetching_max_attempts;
         let mut last_error = None;
 
         for attempt in 0..max_retries {
             let start_time = Instant::now();
-            match self
-                .price_api_client
-                .fetch_ratio(self.base_token_address)
-                .await
-            {
+            match self.price_api_client.fetch_ratio(address).await {
                 Ok(ratio) => {
                     METRICS.external_price_api_latency[&OperationResultLabels {
                         result: OperationResult::Success,
                     }]
                         .observe(start_time.elapsed());
-                    METRICS
-                        .ratio
-                        .set((ratio.numerator.get() as f64) / (ratio.denominator.get() as f64));
                     return Ok(ratio);
                 }
                 Err(err) => {

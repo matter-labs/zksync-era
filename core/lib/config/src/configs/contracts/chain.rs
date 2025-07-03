@@ -40,6 +40,8 @@ pub struct L1ContractsConfig {
     /// Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Address,
     pub base_token_asset_id: Option<H256>,
+    /// Used by the base token ratio persister to calculate ZK<->BaseToken ratio on gateway using chains.
+    pub sl_token_addr: Option<Address>,
     pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
@@ -55,6 +57,7 @@ impl L1ContractsConfig {
             base_token_addr: Address::repeat_byte(0x14),
             base_token_asset_id: Some(H256::repeat_byte(0x15)),
             chain_admin_addr: Address::repeat_byte(0x18),
+            sl_token_addr: Some(Address::repeat_byte(0x19)),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
         }
     }
@@ -203,6 +206,7 @@ impl ContractsConfig {
             shared_bridge: self.bridges.shared.l1_address,
             erc_20_bridge: self.bridges.erc20.l1_address,
             base_token_address: self.l1.base_token_addr,
+            sl_token_address: self.l1.sl_token_addr,
             chain_admin: Some(self.l1.chain_admin_addr),
             server_notifier_addr: self.ecosystem_contracts.server_notifier_addr,
         }
@@ -290,6 +294,7 @@ mod tests {
                 chain_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"),
                 base_token_addr: addr("0x0000000000000000000000000000000000000001"),
                 base_token_asset_id: Some(H256::from_low_u64_be(123_456_789)),
+                sl_token_addr: Some(addr("0x0000000000000000000000000000000000000002")),
                 no_da_validium_l1_validator_addr: Some(addr(
                     "0x34782eE00206EAB6478F2692caa800e4A581687b",
                 )),
@@ -349,6 +354,7 @@ mod tests {
             CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
             CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
             CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
+            CONTRACTS_SL_TOKEN_ADDR="0x0000000000000000000000000000000000000002"
             CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
             CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
             CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
@@ -411,6 +417,7 @@ mod tests {
               validator_timelock_addr: 0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
               base_token_addr: '0x0000000000000000000000000000000000000001'
               base_token_asset_id: '0x00000000000000000000000000000000000000000000000000000000075bcd15'
+              sl_token_addr: '0x0000000000000000000000000000000000000002'
               no_da_validium_l1_validator_addr: 0x34782eE00206EAB6478F2692caa800e4A581687b
             l2:
               testnet_paymaster_addr: FC073319977e314F251EAE6ae6bE76B0B3BAeeCF
