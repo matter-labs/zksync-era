@@ -157,7 +157,11 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
     let src_permissions_path = "example-permissions.yaml";
-    let dst_permissions_dir = &chain_config.configs;
+    let dst_permissions_dir = if chain_config.configs.is_absolute() {
+        chain_config.configs.clone()
+    } else {
+        shell.current_dir().join(chain_config.configs.clone())
+    };
     let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
 
     if !dst_permissions_dir.exists() {
@@ -184,7 +188,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
             ports.port,
             DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
             l2_rpc_url,
-            &chain_config.configs,
+            &dst_permissions_dir,
             &chain_name,
             args.docker_network_host,
         )
@@ -197,7 +201,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         other: serde_json::Value::Null,
     };
 
-    let docker_compose_path = get_private_rpc_docker_compose_path(&chain_config.configs);
+    let docker_compose_path = get_private_rpc_docker_compose_path(&dst_permissions_dir);
     logger::info(msg_private_rpc_docker_compose_file_generated(
         docker_compose_path.display(),
     ));
