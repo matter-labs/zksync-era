@@ -3,6 +3,7 @@ use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration}
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
+use zksync_concurrency::ctx;
 use zksync_dal::consensus::Payload;
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
@@ -25,7 +26,10 @@ use crate::{
     error::ProcessBlockError,
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
-    io::{BatchInitParams, IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
+    io::{
+        common::FetcherCursor, BatchInitParams, IoCursor, L1BatchParams, L2BlockParams,
+        OutputHandler, StateKeeperIO,
+    },
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
@@ -57,15 +61,16 @@ impl BatchState {
         &mut self,
         inner: &mut StateKeeperInner,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<&mut InitializedBatchState, OrStopped> {
         let state = match self {
-            Self::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver).await?,
-            Self::Init(init) => return Ok(init.as_mut()),
+            BatchState::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver, ctx).await?,
+            BatchState::Init(init) => return Ok(init.as_mut()),
         };
         *self = Self::Init(Box::new(state));
         match self {
-            Self::Init(init) => Ok(init.as_mut()),
-            Self::Uninit(_) => unreachable!(),
+            BatchState::Init(init) => Ok(init.as_mut()),
+            BatchState::Uninit(_) => unreachable!(),
         }
     }
 
@@ -293,9 +298,10 @@ impl StateKeeperInner {
         &mut self,
         cursor: IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<InitializedBatchState, OrStopped> {
         let batch_init_params = self
-            .wait_for_new_batch_init_params(&cursor, stop_receiver)
+            .wait_for_new_batch_init_params(&cursor, stop_receiver, ctx)
             .await?;
         let first_batch_in_shared_bridge = batch_init_params.l1_batch_env.number
             == L1BatchNumber(1)
@@ -427,8 +433,15 @@ impl StateKeeperInner {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<L1BatchParams, OrStopped> {
         while !is_canceled(stop_receiver) {
+            if let Some(ctx) = ctx {
+                if !ctx.is_active() {
+                    return Err(OrStopped::Stopped);
+                }
+            }
+
             if let Some(params) = self
                 .io
                 .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
@@ -450,11 +463,12 @@ impl StateKeeperInner {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<BatchInitParams, OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
-            .wait_for_new_batch_params(cursor, stop_receiver)
+            .wait_for_new_batch_params(cursor, stop_receiver, ctx)
             .await?;
         let contracts = self
             .io
@@ -884,6 +898,13 @@ impl StateKeeperInner {
     }
 }
 
+#[derive(Debug, Default)]
+pub enum RunMode {
+    Propose,
+    #[default]
+    WithoutRollback,
+}
+
 #[derive(Debug)]
 enum ProcessBlockIterationOutcome {
     SealBlock,
@@ -891,24 +912,90 @@ enum ProcessBlockIterationOutcome {
 }
 
 impl StateKeeper {
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        try_stoppable!(self.run_inner(stop_receiver).await);
+    pub async fn run(
+        self,
+        mode: RunMode,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        try_stoppable!(self.run_inner(mode, stop_receiver).await);
         Ok(())
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(
         mut self,
+        mode: RunMode,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> Result<Infallible, OrStopped<ProcessBlockError>> {
         while !is_canceled(&stop_receiver) {
-            self.process_block(&mut stop_receiver).await?;
-            self.seal_last_pending_block_data()
-                .await
-                .map_err(Into::<ProcessBlockError>::into)?;
-            self.commit_pending_block()
-                .await
-                .map_err(Into::<ProcessBlockError>::into)?;
+            match mode {
+                RunMode::Propose => {
+                    #[derive(Debug, Copy, Clone)]
+                    enum Action {
+                        Propose,
+                        Rollback,
+                        Commit,
+                    }
+
+                    let (
+                        number_of_pending_blocks,
+                        is_last_block_fictive,
+                        last_pending_block_number,
+                    ) = match &self.batch_state {
+                        BatchState::Uninit(_) => (0, false, None),
+                        BatchState::Init(s) => (
+                            s.updates_manager.number_of_pending_blocks(),
+                            s.updates_manager
+                                .last_pending_l2_block_checked()
+                                .is_some_and(|b| b.executed_transactions.is_empty()),
+                            s.updates_manager
+                                .last_pending_l2_block_checked()
+                                .map(|b| b.number),
+                        ),
+                    };
+                    let possible_actions = if last_pending_block_number == Some(L2BlockNumber(1)) {
+                        vec![Action::Commit]
+                    } else {
+                        match (number_of_pending_blocks, is_last_block_fictive) {
+                            (0, _) => vec![Action::Propose],
+                            (1, false) => vec![Action::Propose, Action::Commit, Action::Rollback],
+                            (1, true) => vec![Action::Commit, Action::Rollback],
+                            (2, false) => vec![Action::Commit, Action::Rollback],
+                            (2, true) => vec![Action::Commit, Action::Rollback],
+                            _ => unreachable!(),
+                        }
+                    };
+                    let idx = rand::random::<usize>() % possible_actions.len();
+                    let action = possible_actions[idx];
+                    match action {
+                        Action::Propose => {
+                            tracing::error!("Proposing a new block");
+                            self.propose(&mut stop_receiver, None).await?;
+                        }
+                        Action::Rollback => {
+                            tracing::error!("Rolling back the last block");
+                            self.rollback()
+                                .await
+                                .map_err(Into::<ProcessBlockError>::into)?;
+                        }
+                        Action::Commit => {
+                            tracing::error!("Committing the last block");
+                            self.commit_pending_block()
+                                .await
+                                .map_err(Into::<ProcessBlockError>::into)?;
+                        }
+                    }
+                }
+                RunMode::WithoutRollback => {
+                    self.process_block(&mut stop_receiver, None).await?;
+                    self.seal_last_pending_block_data()
+                        .await
+                        .map_err(Into::<ProcessBlockError>::into)?;
+                    self.commit_pending_block()
+                        .await
+                        .map_err(Into::<ProcessBlockError>::into)?;
+                }
+            };
         }
 
         Err(OrStopped::Stopped)
@@ -917,11 +1004,12 @@ impl StateKeeper {
     async fn process_block(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<(), OrStopped<ProcessBlockError>> {
         // If there is no open batch then start one.
         let state = self
             .batch_state
-            .ensure_initialized(&mut self.inner, stop_receiver)
+            .ensure_initialized(&mut self.inner, stop_receiver, ctx)
             .await
             .map_err(|err| err.map_internal(Into::<ProcessBlockError>::into))?;
         let updates_manager = &mut state.updates_manager;
@@ -963,6 +1051,26 @@ impl StateKeeper {
 
         while !is_canceled(stop_receiver) {
             let full_latency = KEEPER_METRICS.process_block_loop_iteration.start();
+
+            if let Some(ctx) = ctx {
+                if !ctx.is_active() {
+                    let some_tx_was_processed = state
+                        .updates_manager
+                        .last_pending_l2_block_checked()
+                        .is_some_and(|b| !b.executed_transactions.is_empty());
+                    if !some_tx_was_processed {
+                        if state.updates_manager.is_in_first_pending_block_state() {
+                            state.updates_manager.pop_last_pending_block();
+                            self.batch_state =
+                                BatchState::Uninit(state.updates_manager.io_cursor());
+                        } else if state.updates_manager.has_next_block_params() {
+                            state.updates_manager.reset_next_l2_block_params();
+                        }
+                        return Err(OrStopped::Stopped);
+                    }
+                }
+            }
+
             let outcome = Self::process_block_iteration(state, &mut self.inner).await?;
             full_latency.observe();
 
@@ -1191,6 +1299,7 @@ impl StateKeeper {
     pub async fn propose(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<Payload, OrStopped<ProcessBlockError>> {
         self.inner.is_active_leader = true;
         self.inner.io.handle_is_active_leader_change(true);
@@ -1201,7 +1310,7 @@ impl StateKeeper {
                 .set_config(state.updates_manager.protocol_version());
         }
 
-        self.process_block(stop_receiver).await?;
+        self.process_block(stop_receiver, ctx).await?;
         self.seal_last_pending_block_data()
             .await
             .map_err(Into::<ProcessBlockError>::into)?;
@@ -1225,12 +1334,51 @@ impl StateKeeper {
                 .set_config(state.updates_manager.protocol_version());
         }
 
-        self.process_block(stop_receiver).await?;
+        self.process_block(stop_receiver, None).await?;
         self.seal_last_pending_block_data()
             .await
             .map_err(Into::<ProcessBlockError>::into)?;
 
         Ok(())
+    }
+
+    pub fn pending_block_number(&self) -> Option<u32> {
+        if let BatchState::Init(state) = &self.batch_state {
+            state
+                .updates_manager
+                .last_pending_l2_block_checked()
+                .map(|b| b.number.0)
+        } else {
+            None
+        }
+    }
+
+    pub fn pending_payload(&self) -> Option<Payload> {
+        if let BatchState::Init(state) = &self.batch_state {
+            state.updates_manager.build_payload()
+        } else {
+            None
+        }
+    }
+
+    pub fn fetcher_cursor(&self) -> FetcherCursor {
+        match &self.batch_state {
+            BatchState::Uninit(cursor) => FetcherCursor {
+                next_l2_block: cursor.next_l2_block,
+                prev_l2_block_hash: cursor.prev_l2_block_hash,
+                current_l1_batch: cursor.l1_batch,
+                is_current_batch_init: false,
+            },
+            BatchState::Init(d) => {
+                let io_cursor = d.updates_manager.io_cursor();
+                FetcherCursor {
+                    next_l2_block: io_cursor.next_l2_block,
+                    prev_l2_block_hash: io_cursor.prev_l2_block_hash,
+                    current_l1_batch: io_cursor.l1_batch,
+                    is_current_batch_init: true,
+                }
+            }
+        }
     }
 
     pub async fn rollback(&mut self) -> anyhow::Result<()> {
@@ -1294,7 +1442,7 @@ impl StateKeeper {
         assert!(self.inner.leader_rotation);
 
         while !is_canceled(&stop_receiver) {
-            try_stoppable!(self.process_block(&mut stop_receiver).await);
+            try_stoppable!(self.process_block(&mut stop_receiver, None).await);
             self.seal_last_pending_block_data().await?;
 
             let block_number = self

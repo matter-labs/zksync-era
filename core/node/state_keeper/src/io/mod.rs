@@ -208,6 +208,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
 
+    /// Marks block transactions as "not executed", so they can be retrieved from the IO again.
     async fn rollback_l2_block(
         &mut self,
         txs: Vec<Transaction>,

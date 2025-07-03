@@ -15,14 +15,16 @@ use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 use super::resources::{
     BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource, StateKeeperResource,
 };
-use crate::{node::ConditionalSealerResource, AsyncRocksdbCache, StateKeeperBuilder};
+use crate::{
+    keeper::RunMode, node::ConditionalSealerResource, AsyncRocksdbCache, StateKeeperBuilder,
+};
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
 pub struct StateKeeperLayer {
     state_keeper_db_path: PathBuf,
     rocksdb_options: RocksdbStorageOptions,
-    leader_rotation: bool,
+    run_mode: Option<RunMode>,
 }
 
 #[derive(Debug, FromContext)]
@@ -52,12 +54,12 @@ impl StateKeeperLayer {
     pub fn new(
         state_keeper_db_path: PathBuf,
         rocksdb_options: RocksdbStorageOptions,
-        leader_rotation: bool,
+        run_mode: Option<RunMode>,
     ) -> Self {
         Self {
             state_keeper_db_path,
             rocksdb_options,
-            leader_rotation,
+            run_mode,
         }
     }
 }
@@ -111,21 +113,21 @@ impl WiringLayer for StateKeeperLayer {
             Arc::new(storage_factory),
             input.shared_allow_list.map(DeploymentTxFilter::new),
         )
-        .with_leader_rotation(self.leader_rotation);
+        .with_leader_rotation(true);
 
         input
             .app_health
             .insert_component(state_keeper_builder.health_check())
             .map_err(WiringError::internal)?;
-        let (state_keeper_task, state_keeper_resource) = if self.leader_rotation {
-            (None, Some(state_keeper_builder.into()))
-        } else {
-            (
+        let (state_keeper_task, state_keeper_resource) = match self.run_mode {
+            Some(run_mode) => (
                 Some(StateKeeperTask {
                     state_keeper_builder,
+                    run_mode,
                 }),
                 None,
-            )
+            ),
+            None => (None, Some(state_keeper_builder.into())),
         };
 
         let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
@@ -146,6 +148,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     state_keeper_builder: StateKeeperBuilder,
+    run_mode: RunMode,
 }
 
 #[async_trait::async_trait]
@@ -156,7 +159,7 @@ impl Task for StateKeeperTask {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let state_keeper = try_stoppable!(self.state_keeper_builder.build(&stop_receiver.0).await);
-        state_keeper.run(stop_receiver.0).await
+        state_keeper.run(self.run_mode, stop_receiver.0).await
     }
 }
 

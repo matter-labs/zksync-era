@@ -83,6 +83,7 @@ async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
             None,
             Some(sk.connect(ctx).await.unwrap()),
             Arc::new(None),
+            None,
         )
         .await
         .unwrap();
@@ -166,7 +167,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         scope::run!(ctx, |ctx, s| async {
-            let (store, runner) = Store::new(ctx, pool.clone(), None, None, Arc::new(None))
+            let (store, runner) = Store::new(ctx, pool.clone(), None, None, Arc::new(None), None)
                 .await
                 .unwrap();
             s.spawn_bg(runner.run(ctx));
@@ -223,7 +224,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
             scope::run!(ctx, |ctx, s| async {
                 tracing::info!("Start consensus actor");
                 // In the first iteration it will initialize genesis.
-                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone()));
+                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone(), None, None));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, account, 3).await;
@@ -279,6 +280,8 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
+            None,
+            None,
         ));
 
         tracing::info!("produce some batches");
@@ -382,6 +385,8 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
                 validator_cfg.config.clone(),
                 validator_cfg.secrets.clone(),
                 validator_pool.clone(),
+                None,
+                None,
             ));
 
             // Wait for the main node to start and to update the global config.
@@ -461,6 +466,8 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
+            None,
+            None,
         ));
 
         tracing::info!("Run nodes.");
@@ -547,6 +554,8 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
             cfgs[0].config.clone(),
             cfgs[0].secrets.clone(),
             main_node_pool.clone(),
+            None,
+            None,
         ));
 
         tracing::info!("Run external nodes.");
@@ -617,6 +626,8 @@ async fn test_with_pruning(version: ProtocolVersionId) {
                     validator_cfg.config.clone(),
                     validator_cfg.secrets.clone(),
                     validator_pool,
+                    None,
+                    None,
                 )
                 .await
                 .context("run_main_node()")

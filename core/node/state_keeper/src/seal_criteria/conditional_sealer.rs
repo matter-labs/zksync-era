@@ -108,7 +108,7 @@ impl SequencerSealer {
             local_config: L1BatchSealConfig::for_tests(),
             local_max_pubdata_per_batch: 100_000,
             current_config: Some(L1BatchSealConfig::for_tests()),
-            is_active_leader: false,
+            is_active_leader: true,
             sealers: vec![],
         }
     }

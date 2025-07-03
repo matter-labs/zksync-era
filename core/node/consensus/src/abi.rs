@@ -108,6 +108,7 @@ pub(crate) fn into_bool(t: Token) -> anyhow::Result<bool> {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 fn example(t: &ethabi::ParamType) -> Token {
     use ethabi::ParamType as T;
     match t {
@@ -125,6 +126,7 @@ fn example(t: &ethabi::ParamType) -> Token {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 impl<F: Function> Call<F> {
     pub(crate) fn test(&self) -> anyhow::Result<()> {
         self.calldata().context("calldata()")?;

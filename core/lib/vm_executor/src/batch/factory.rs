@@ -361,6 +361,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         }
 
         let mut has_snapshot_before_tx = false;
+        let mut is_first_block_committed = false;
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
@@ -439,9 +440,11 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::CommitL2Block(resp) => {
                     // Only `FastVmMode::Old` keeps snapshots for block rollback.
-                    if self.fast_vm_mode == FastVmMode::Old {
+                    // Checks `is_first_block_committed` because first block has no snapshot before it.
+                    if self.fast_vm_mode == FastVmMode::Old && is_first_block_committed {
                         vm.pop_front_snapshot_no_rollback();
                     }
+                    is_first_block_committed = true;
                     if resp.send(()).is_err() {
                         break;
                     }

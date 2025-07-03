@@ -31,6 +31,7 @@ zksync_system_constants.workspace = true
 zksync_base_token_adjuster.workspace = true
 zksync_node_framework.workspace = true
 zksync_shared_resources.workspace = true
+zksync_concurrency.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -42,6 +43,7 @@ once_cell.workspace = true
 itertools.workspace = true
 serde.workspace = true
 hex.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

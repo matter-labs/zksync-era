@@ -17,6 +17,7 @@ use crate::{
 };
 
 mod components;
+mod metadata;
 mod node_builder;
 
 #[cfg(not(target_env = "msvc"))]

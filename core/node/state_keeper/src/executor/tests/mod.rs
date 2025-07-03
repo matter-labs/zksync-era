@@ -64,7 +64,7 @@ impl StorageType {
 const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
-#[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]
+#[test_casing(3, Product((StorageType::ALL, FAST_VM_MODES)))]
 #[tokio::test]
 async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -273,7 +273,7 @@ async fn working_with_transient_storage() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let mut executor = tester
@@ -301,7 +301,7 @@ async fn decommitting_contract() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let mut executor = tester

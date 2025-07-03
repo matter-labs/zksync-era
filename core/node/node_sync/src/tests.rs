@@ -16,7 +16,7 @@ use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
-    OutputHandler, StateKeeperBuilder, StateKeeperPersistence, TreeWritesPersistence,
+    OutputHandler, RunMode, StateKeeperBuilder, StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::{
     api,
@@ -144,7 +144,7 @@ impl StateKeeperHandles {
         Self {
             stop_sender,
             sync_state,
-            task: tokio::spawn(state_keeper.run(stop_receiver)),
+            task: tokio::spawn(state_keeper.run(RunMode::WithoutRollback, stop_receiver)),
         }
     }
 

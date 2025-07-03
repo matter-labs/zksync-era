@@ -3,7 +3,7 @@ pub use self::{
         mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     },
-    keeper::{StateKeeper, StateKeeperBuilder},
+    keeper::{RunMode, StateKeeper, StateKeeperBuilder},
     mempool_actor::MempoolFetcher,
     mempool_guard::MempoolGuard,
     seal_criteria::SequencerSealer,
