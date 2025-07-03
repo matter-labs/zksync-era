@@ -58,8 +58,10 @@ jobs:
           git commit -m "Update Verification keys" || echo "No changes"
           git push origin ${{ env.CONTRACTS_STABLE_BRANCH }}
 
-      - name: Update submodule
+      - name: Update keys and submodule
         run: |
           git add contracts
+          git add prover/data/*
+          git add etc/env/file_based/*
           git commit -m "Update verification keys" || echo "No changes"
           git push origin HEAD
