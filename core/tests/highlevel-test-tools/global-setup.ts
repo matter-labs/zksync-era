@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { cleanMutexLockFiles, cleanTestChains } from './src';
 import { cleanHistoricalLogs } from './src/logs';
+import {chainsPath} from "./src/zksync-home";
 
 const execAsync = promisify(exec);
 
@@ -61,7 +62,7 @@ export default async function globalSetup(): Promise<void> {
 
     // Clean test chains
     console.log('🧹 Cleaning test chains...');
-    cleanTestChains('../../.././chains');
+    cleanTestChains(chainsPath());
 
     // Clean mutex lock files
     console.log('🧹 Cleaning mutex lock files...');

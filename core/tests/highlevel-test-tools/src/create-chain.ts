@@ -1,9 +1,11 @@
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { join } from 'path';
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
 import { startServer, ServerHandle } from './start-server';
 import { migrateToGatewayIfNeeded } from './gateway';
+import { configsPath } from './zksync-home';
 
 export type ChainType = 'validium' | 'custom_token' | 'era';
 
@@ -20,7 +22,7 @@ const fileMutex = new FileMutex();
 /**
  * Reads the custom token address from the erc20.yaml configuration file
  */
-export function getCustomTokenAddress(configPath: string = '../../../configs/erc20.yaml'): string {
+export function getCustomTokenAddress(configPath: string = join(configsPath(), 'erc20.yaml')): string {
     try {
         if (!fs.existsSync(configPath)) {
             throw new Error(`Config file ${configPath} not found`);

@@ -1,14 +1,16 @@
 import * as fs from 'node:fs';
+import { join } from 'path';
+import { logsPath } from './zksync-home';
 
 export function getLogsDirectory(chainName: string) {
     // vitest returns it in format `{filePath} > ${describeTitle} > ${testTitle}`
-    const suiteName = expect.getState().currentTestName?.split('>')[1].trim() ?? '';
+    const suiteName = expect.getState().currentTestName?.split('>')[0].trim() ?? '';
 
-    const logsDir = `../../../logs/highlevel/[${suiteName}] ${chainName}`;
+    const logsDir = join(logsPath(), 'highlevel', `[${suiteName}] ${chainName}`);
     if (!fs.existsSync(logsDir)) {
         fs.mkdirSync(logsDir, { recursive: true });
     }
-    const failedLogsDir = `../../../logs/highlevel/[❌FAIL] [${suiteName}] ${chainName}`;
+    const failedLogsDir = join(logsPath(), 'highlevel', `[❌FAIL] [${suiteName}] ${chainName}`);
     if (fs.existsSync(failedLogsDir)) {
         return failedLogsDir;
     }
@@ -18,10 +20,10 @@ export function getLogsDirectory(chainName: string) {
 
 export function markLogsDirectoryAsFailed(chainName: string) {
     // vitest returns it in format `{filePath} > ${describeTitle} > ${testTitle}`
-    const suiteName = expect.getState().currentTestName?.split('>')[1] ?? '';
+    const suiteName = expect.getState().currentTestName?.split('>')[0] ?? '';
 
     // Rename the log directory to indicate failure
-    const failedLogsDir = `../../../logs/highlevel/[❌FAIL] [${suiteName}] ${chainName}`;
+    const failedLogsDir = join(logsPath(), 'highlevel', `[❌FAIL] [${suiteName}] ${chainName}`);
     try {
         if (fs.existsSync(getLogsDirectory(chainName))) {
             fs.renameSync(getLogsDirectory(chainName), failedLogsDir);
@@ -36,7 +38,7 @@ export function markLogsDirectoryAsFailed(chainName: string) {
  * Removes all historical log files from the specified directory
  */
 export function cleanHistoricalLogs(): void {
-    const logsDir = '../../../logs/highlevel';
+    const logsDir = join(logsPath(), 'highlevel');
     if (fs.existsSync(logsDir)) {
         fs.rmSync(logsDir, { recursive: true, force: true });
     }
