@@ -216,3 +216,187 @@ impl BaseTokenRatioPersister {
         Ok(id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use std::collections::HashMap;
+    use std::num::NonZeroU64;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use test_casing::test_casing;
+    use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
+    use zksync_dal::{ConnectionPool, Core, CoreDal};
+    use zksync_external_price_api::PriceApiClient;
+    use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
+
+    use crate::base_token_ratio_persister::BaseToken;
+    use crate::*;
+
+    // Mock for the PriceApiClient trait
+    #[derive(Debug, Clone, Default)]
+    struct MockPriceApiClient {
+        // Map from token address to the ratio it should return
+        ratios: Arc<Mutex<HashMap<Address, BaseTokenApiRatio>>>,
+        // To simulate failures
+        should_fail_count: Arc<Mutex<u64>>,
+    }
+
+    impl MockPriceApiClient {
+        fn new() -> Self {
+            Self::default()
+        }
+
+        fn set_ratio(&self, token_address: Address, ratio: BaseTokenApiRatio) {
+            self.ratios.lock().unwrap().insert(token_address, ratio);
+        }
+
+        fn set_should_fail_count(&self, should_fail_count: u64) {
+            *self.should_fail_count.lock().unwrap() = should_fail_count;
+        }
+    }
+
+    #[async_trait]
+    impl PriceApiClient for MockPriceApiClient {
+        async fn fetch_ratio(&self, token_address: Address) -> Result<BaseTokenApiRatio> {
+            if *self.should_fail_count.lock().unwrap() > 0 {
+                *self.should_fail_count.lock().unwrap() -= 1;
+                return Err(anyhow::anyhow!("Simulated API failure"));
+            }
+
+            self.ratios
+                .lock()
+                .unwrap()
+                .get(&token_address)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("Token ratio not found"))
+        }
+    }
+
+    fn create_test_config() -> BaseTokenAdjusterConfig {
+        BaseTokenAdjusterConfig {
+            price_polling_interval: Duration::from_millis(100),
+            price_fetching_max_attempts: 3,
+            price_fetching_sleep: Duration::ZERO,
+            halt_on_error: true,
+            ..Default::default()
+        }
+    }
+
+    fn create_test_ratio(numerator: u64, denominator: u64) -> BaseTokenApiRatio {
+        BaseTokenApiRatio {
+            numerator: NonZeroU64::new(numerator).unwrap(),
+            denominator: NonZeroU64::new(denominator).unwrap(),
+            ratio_timestamp: Utc::now(),
+        }
+    }
+
+    /// Check the database for inserted token ratios
+    async fn verify_db_ratios(
+        pool: &ConnectionPool<Core>,
+        expected_num_ratio: u64,
+        expected_denom_ratio: u64,
+    ) {
+        let mut conn = pool.connection().await.unwrap();
+        let ratio = conn.base_token_dal().get_latest_ratio().await.unwrap();
+
+        assert!(ratio.is_some(), "No token ratios found in database");
+
+        // Check the latest ratio matches expected values
+        let ratio = ratio.unwrap();
+        assert_eq!(ratio.numerator.get(), expected_num_ratio);
+        assert_eq!(ratio.denominator.get(), expected_denom_ratio);
+    }
+
+    const TOKEN_1_ADDRESS: Address = Address::repeat_byte(0x01);
+    const TOKEN_1: BaseToken = BaseToken::ERC20(TOKEN_1_ADDRESS);
+    const TOKEN_1_PRICE: (u64, u64) = (500, 1);
+    const TOKEN_2_ADDRESS: Address = Address::repeat_byte(0x02);
+    const TOKEN_2: BaseToken = BaseToken::ERC20(TOKEN_2_ADDRESS);
+    const TOKEN_2_PRICE: (u64, u64) = (1000, 1);
+    const ETH: BaseToken = BaseToken::ETH;
+
+    // Test initialization function
+    async fn init_test(
+        base_token: BaseToken,
+        sl_token: BaseToken,
+    ) -> (
+        ConnectionPool<Core>,
+        Arc<MockPriceApiClient>,
+        BaseTokenRatioPersister,
+    ) {
+        // Setup a real database pool
+        let pool = ConnectionPool::<Core>::test_pool().await;
+
+        // Setup mock for the price API client
+        let mock_client = Arc::new(MockPriceApiClient::new());
+
+        // Set up expected ratios in the mock client
+        let base_to_eth_ratio = create_test_ratio(TOKEN_1_PRICE.0, TOKEN_1_PRICE.1);
+        let sl_to_eth_ratio = create_test_ratio(TOKEN_2_PRICE.0, TOKEN_2_PRICE.1);
+
+        mock_client.set_ratio(TOKEN_1_ADDRESS, base_to_eth_ratio);
+        mock_client.set_ratio(TOKEN_2_ADDRESS, sl_to_eth_ratio);
+
+        // Create the persister with real database pool
+        let persister = BaseTokenRatioPersister::new(
+            pool.clone(),
+            create_test_config(),
+            base_token,
+            sl_token,
+            mock_client.clone() as Arc<dyn PriceApiClient>,
+            BaseTokenL1Behaviour::NoOp,
+        );
+        (pool, mock_client, persister)
+    }
+
+    #[test_casing(3, vec![(TOKEN_1, TOKEN_2, (500,1000)), (ETH, TOKEN_2, (1,1000)), (TOKEN_1, ETH, (500,1))])]
+    #[tokio::test]
+    async fn test_fetch_and_persist(
+        base_token: BaseToken,
+        sl_token: BaseToken,
+        expected_db_ratio: (u64, u64),
+    ) {
+        // Setup test environment
+        let (pool, _mock_client, mut persister) = init_test(base_token, sl_token).await;
+
+        persister.loop_iteration().await.unwrap();
+
+        // Verify that the correct ratio was stored in DB
+        verify_db_ratios(&pool, expected_db_ratio.0, expected_db_ratio.1).await;
+    }
+
+    #[test_casing(3, vec![(TOKEN_1, TOKEN_2, (500,1000)), (ETH, TOKEN_2, (1,1000)), (TOKEN_1, ETH, (500,1))])]
+    #[tokio::test]
+    async fn test_retry_mechanism(
+        base_token: BaseToken,
+        sl_token: BaseToken,
+        expected_db_ratio: (u64, u64),
+    ) {
+        // Setup test environment
+        let (pool, mock_client, mut persister) = init_test(base_token, sl_token).await;
+
+        mock_client.set_should_fail_count(1); // Fail once
+
+        persister.loop_iteration().await.unwrap();
+
+        // Verify that the correct ratio was eventually stored in DB
+        verify_db_ratios(&pool, expected_db_ratio.0, expected_db_ratio.1).await;
+    }
+
+    #[tokio::test]
+    async fn test_base_token_from_config() {
+        let eth_address1 = Address::zero();
+        let eth_address2 = Address::from_low_u64_be(1);
+        let custom_address = Address::from_low_u64_be(0x1234);
+
+        // Test ETH address recognition
+        assert_matches!(BaseToken::from_config_address(eth_address1), BaseToken::ETH);
+        assert_matches!(BaseToken::from_config_address(eth_address2), BaseToken::ETH);
+        assert_matches!(BaseToken::from_config_address(custom_address), BaseToken::ERC20(addr) if addr == custom_address);
+    }
+}

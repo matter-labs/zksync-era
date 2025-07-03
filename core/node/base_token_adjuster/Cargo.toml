@@ -29,3 +29,7 @@ chrono.workspace = true
 rand.workspace = true
 async-trait.workspace = true
 hex.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+test-casing.workspace = true

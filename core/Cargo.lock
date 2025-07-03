@@ -11866,11 +11866,13 @@ name = "zksync_base_token_adjuster"
 version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bigdecimal",
  "chrono",
  "hex",
  "rand 0.8.5",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",
