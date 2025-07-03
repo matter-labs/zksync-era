@@ -26,19 +26,30 @@ impl DeployedContract {
     }
 }
 
-/// Holder for l1 batches data.
+/// Holder for l1 batches or l2 blocks data.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct L1BatchStatistics {
-    pub number: L1BatchNumber,
+pub struct CommonBlockStatistics {
+    pub number: u32,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
 }
 
-impl From<L1BatchHeader> for L1BatchStatistics {
+impl From<L1BatchHeader> for CommonBlockStatistics {
     fn from(header: L1BatchHeader) -> Self {
         Self {
-            number: header.number,
+            number: header.number.0,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
+}
+
+impl From<L2BlockHeader> for CommonBlockStatistics {
+    fn from(header: L2BlockHeader) -> Self {
+        Self {
+            number: header.number.0,
             timestamp: header.timestamp,
             l1_tx_count: header.l1_tx_count.into(),
             l2_tx_count: header.l2_tx_count.into(),
@@ -75,6 +86,7 @@ pub struct L1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
     pub batch_fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl L1BatchHeader {
@@ -85,6 +97,7 @@ impl L1BatchHeader {
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
             fee_input: self.batch_fee_input,
+            pubdata_limit: self.pubdata_limit,
         }
     }
 }
@@ -97,6 +110,7 @@ pub struct UnsealedL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 /// Holder for the metadata that is relevant for both sealed and unsealed batches.
@@ -107,6 +121,7 @@ pub struct CommonL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -134,6 +149,7 @@ pub struct L2BlockHeader {
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
     pub pubdata_params: PubdataParams,
+    pub rolling_txs_hash: Option<H256>,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -178,6 +194,7 @@ impl L1BatchHeader {
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            pubdata_limit: (protocol_version >= ProtocolVersionId::Version29).then_some(0),
         }
     }
 
@@ -303,12 +320,6 @@ pub fn build_bloom<'a, I: IntoIterator<Item = BloomInput<'a>>>(items: I) -> Bloo
     }
 
     bloom
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BatchOrBlockNumber {
-    BatchNumber(L1BatchNumber),
-    BlockNumber(L2BlockNumber),
 }
 
 #[cfg(test)]

@@ -116,22 +116,18 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         bootloader_state: &mut BootloaderState,
     ) {
         let current_timestamp = Timestamp(state.local_state.timestamp);
-        let preexisting_interop_roots_number =
-            bootloader_state.get_preexisting_interop_roots_number();
-        let preexisting_blocks_number = bootloader_state.get_preexisting_blocks_number();
+        let interop_root_application_config =
+            bootloader_state.get_interop_root_application_config();
         let subversion = bootloader_state.get_vm_subversion();
         let txs_index = bootloader_state.free_tx_index();
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
-        println!("set fictive l2 block number {:?}", l2_block.number);
         apply_l2_block(
             &mut memory,
             l2_block,
             txs_index,
             subversion,
-            true,
-            preexisting_interop_roots_number,
-            preexisting_blocks_number,
+            Some(interop_root_application_config),
         );
         state.memory.populate_page(
             BOOTLOADER_HEAP_PAGE as usize,

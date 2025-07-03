@@ -10,9 +10,9 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, InteropRoot,
-    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
+    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
+    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -524,10 +524,10 @@ impl TransactionsDal<'_, '_> {
     pub async fn mark_txs_as_executed_in_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        transactions: &[TransactionExecutionResult],
+        tx_hashes: &[H256],
     ) -> DalResult<()> {
-        let hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
-        let l1_batch_tx_indexes: Vec<_> = (0..transactions.len() as i32).collect();
+        let hashes: Vec<_> = tx_hashes.iter().map(H256::as_bytes).collect();
+        let l1_batch_tx_indexes: Vec<_> = (0..tx_hashes.len() as i32).collect();
         sqlx::query!(
             r#"
             UPDATE transactions
@@ -550,7 +550,7 @@ impl TransactionsDal<'_, '_> {
         )
         .instrument("mark_txs_as_executed_in_l1_batch")
         .with_arg("l1_batch_number", &l1_batch_number)
-        .with_arg("transactions.len", &transactions.len())
+        .with_arg("transactions.len", &tx_hashes.len())
         .execute(self.storage)
         .await?;
         Ok(())
@@ -2111,41 +2111,6 @@ impl TransactionsDal<'_, '_> {
             .await
     }
 
-    pub async fn get_interop_roots(
-        &mut self,
-        l2block_number: L2BlockNumber,
-    ) -> DalResult<Vec<InteropRoot>> {
-        let records = sqlx::query!(
-            r#"
-            SELECT *
-            FROM interop_roots
-            WHERE processed_block_number = $1
-            ORDER BY received_timestamp, dependency_block_number;
-            "#,
-            l2block_number.0 as i32
-        )
-        .instrument("get_interop_roots")
-        .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(|rec| {
-            let sides = rec
-                .interop_root_sides
-                .iter()
-                .map(|side| h256_to_u256(H256::from_slice(side)))
-                .collect::<Vec<_>>();
-
-            InteropRoot {
-                chain_id: rec.chain_id as u32,
-                block_number: rec.dependency_block_number as u32,
-                sides,
-                received_timestamp: rec.received_timestamp as u64,
-            }
-        })
-        .collect();
-        Ok(records)
-    }
-
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
@@ -2260,7 +2225,11 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
-            let interop_roots = self.get_interop_roots(number).await?;
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(number)
+                .await?;
 
             data.push(L2BlockExecutionData {
                 number,

@@ -6,6 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
+use chrono::{DateTime, Utc};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
@@ -88,6 +89,7 @@ impl DataAvailabilityClient for CelestiaClient {
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
+        _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
         // TODO: return a quick confirmation in `dispatch_blob` and await here
         Ok(Some(FinalityResponse {

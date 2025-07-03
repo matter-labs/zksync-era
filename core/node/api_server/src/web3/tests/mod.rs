@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     net::Ipv4Addr,
-    slice,
 };
 
 use assert_matches::assert_matches;
@@ -26,7 +25,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{BlockNumber, BlockStatus, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
@@ -40,10 +39,9 @@ use zksync_types::{
     settlement::SettlementLayer,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
-    tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     u256_to_h256,
-    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
+    utils::storage_key_for_eth_balance,
     AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
@@ -383,7 +381,7 @@ async fn seal_l1_batch(
 async fn save_eth_tx(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
-    tx_type: AggregatedActionType,
+    tx_type: L1BatchAggregatedActionType,
 ) -> H256 {
     let tx_hash = H256::random();
     storage
@@ -935,77 +933,6 @@ async fn transaction_receipts() {
     test_http_server(TransactionReceiptsTest).await;
 }
 
-#[derive(Debug)]
-struct AllAccountBalancesTest;
-
-impl AllAccountBalancesTest {
-    const ADDRESS: Address = Address::repeat_byte(0x11);
-}
-
-#[async_trait]
-impl HttpTest for AllAccountBalancesTest {
-    async fn test(
-        &self,
-        client: &DynClient<L2>,
-        pool: &ConnectionPool<Core>,
-    ) -> anyhow::Result<()> {
-        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
-        assert_eq!(balances, HashMap::new());
-
-        let mut storage = pool.connection().await?;
-        store_l2_block(&mut storage, L2BlockNumber(1), &[]).await?;
-
-        let eth_balance_key = storage_key_for_eth_balance(&Self::ADDRESS);
-        let eth_balance = U256::one() << 64;
-        let eth_balance_log = StorageLog::new_write_log(eth_balance_key, u256_to_h256(eth_balance));
-        storage
-            .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[eth_balance_log])
-            .await?;
-        // Create a custom token, but don't set balance for it yet.
-        let custom_token = TokenInfo {
-            l1_address: Address::repeat_byte(0xfe),
-            l2_address: Address::repeat_byte(0xfe),
-            metadata: TokenMetadata::default(Address::repeat_byte(0xfe)),
-        };
-        storage
-            .tokens_dal()
-            .add_tokens(slice::from_ref(&custom_token))
-            .await?;
-
-        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
-        assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));
-
-        store_l2_block(&mut storage, L2BlockNumber(2), &[]).await?;
-        let token_balance_key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(custom_token.l2_address),
-            &Self::ADDRESS,
-        );
-        let token_balance = 123.into();
-        let token_balance_log =
-            StorageLog::new_write_log(token_balance_key, u256_to_h256(token_balance));
-        storage
-            .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[token_balance_log])
-            .await?;
-
-        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
-        assert_eq!(
-            balances,
-            HashMap::from([
-                (Address::zero(), eth_balance),
-                (custom_token.l2_address, token_balance),
-            ])
-        );
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn getting_all_account_balances() {
-    test_http_server(AllAccountBalancesTest).await;
-}
-
 #[derive(Debug, Default)]
 struct RpcCallsTracingTest {
     tracer: Arc<MethodTracer>,
@@ -1397,8 +1324,12 @@ impl HttpTest for HttpServerBatchStatusTest {
         let tx_results = vec![mock_execute_transaction(tx1.clone().into())];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
         seal_l1_batch(&mut storage, l1_batch_number).await?;
-        let commit_eth_tx_hash =
-            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Commit).await;
+        let commit_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            L1BatchAggregatedActionType::Commit,
+        )
+        .await;
 
         // Block is not committed yet.
         let block = client
@@ -1419,7 +1350,6 @@ impl HttpTest for HttpServerBatchStatusTest {
                 commit_eth_tx_hash,
                 EthTxFinalityStatus::FastFinalized,
                 U256::zero(),
-                0,
             )
             .await?;
         let block = client
@@ -1440,26 +1370,29 @@ impl HttpTest for HttpServerBatchStatusTest {
                 commit_eth_tx_hash,
                 EthTxFinalityStatus::Finalized,
                 U256::zero(),
-                0,
             )
             .await?;
         let prove_eth_tx_hash = save_eth_tx(
             &mut storage,
             l1_batch_number,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await;
+
         storage
             .eth_sender_dal()
             .confirm_tx(
                 prove_eth_tx_hash,
                 EthTxFinalityStatus::Finalized,
                 U256::zero(),
-                0,
             )
             .await?;
-        let execute_eth_tx_hash =
-            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Execute).await;
+        let execute_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            L1BatchAggregatedActionType::Execute,
+        )
+        .await;
         let block = client
             .get_block_details(l2_block_number.0.into())
             .await?
@@ -1484,14 +1417,12 @@ impl HttpTest for HttpServerBatchStatusTest {
                 execute_eth_tx_hash,
                 EthTxFinalityStatus::FastFinalized,
                 U256::zero(),
-                0,
             )
             .await?;
         let block = client
             .get_block_details(l2_block_number.0.into())
             .await?
             .unwrap();
-        assert_eq!(block.base.status, BlockStatus::FastFinalized);
         assert_eq!(
             block.base.execute_tx_finality,
             Some(EthTxFinalityStatus::FastFinalized)
@@ -1506,7 +1437,6 @@ impl HttpTest for HttpServerBatchStatusTest {
                 execute_eth_tx_hash,
                 EthTxFinalityStatus::Finalized,
                 U256::zero(),
-                0,
             )
             .await?;
         let block = client
@@ -1569,15 +1499,18 @@ async fn promote_l1_batch_to_the_state(
             if let Some(tx_hash) = details.base.commit_tx_hash {
                 return Ok(tx_hash);
             }
-            let commit_eth_tx_hash =
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Commit).await;
+            let commit_eth_tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                L1BatchAggregatedActionType::Commit,
+            )
+            .await;
             storage
                 .eth_sender_dal()
                 .confirm_tx(
                     commit_eth_tx_hash,
                     EthTxFinalityStatus::Finalized,
                     U256::zero(),
-                    0,
                 )
                 .await?;
             commit_eth_tx_hash
@@ -1589,12 +1522,12 @@ async fn promote_l1_batch_to_the_state(
             let tx_hash = save_eth_tx(
                 storage,
                 l1_batch_number,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await;
             storage
                 .eth_sender_dal()
-                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
                 .await?;
             tx_hash
         }
@@ -1602,11 +1535,15 @@ async fn promote_l1_batch_to_the_state(
             if let Some(tx_hash) = details.base.execute_tx_hash {
                 return Ok(tx_hash);
             }
-            let tx_hash =
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await;
+            let tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                L1BatchAggregatedActionType::Execute,
+            )
+            .await;
             storage
                 .eth_sender_dal()
-                .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero(), 0)
+                .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero())
                 .await?;
             tx_hash
         }
@@ -1614,11 +1551,16 @@ async fn promote_l1_batch_to_the_state(
             let tx_hash = if let Some(tx_hash) = tx_hash {
                 tx_hash
             } else {
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await
+                save_eth_tx(
+                    storage,
+                    l1_batch_number,
+                    L1BatchAggregatedActionType::Execute,
+                )
+                .await
             };
             storage
                 .eth_sender_dal()
-                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
                 .await?;
             tx_hash
         }

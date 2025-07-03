@@ -35,7 +35,7 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum EventsSource {
     L1,
     SL,
@@ -73,7 +73,7 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
 
     fn event_source(&self) -> EventsSource;
 
-    // This has  to be unique for each processor
+    // This has to be unique for each processor
     fn event_type(&self) -> EventType;
 
     /// Whether processor expect events only from finalized blocks.

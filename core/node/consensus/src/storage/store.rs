@@ -3,9 +3,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_bft::PayloadManager;
+use zksync_consensus_engine::{self as engine, BlockStoreState, EngineInterface};
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{self as storage};
 use zksync_dal::{
     consensus::BlockCertificate,
     consensus_dal::{self, Payload},
@@ -19,7 +18,10 @@ use zksync_web3_decl::{
 };
 
 use super::{Connection, PayloadQueue};
-use crate::storage::{ConnectionPool, InsertCertificateError};
+use crate::{
+    registry::Registry,
+    storage::{ConnectionPool, InsertCertificateError},
+};
 
 fn to_fetched_block(
     number: validator::BlockNumber,
@@ -50,6 +52,8 @@ fn to_fetched_block(
             .into_iter()
             .map(FetchedTransaction::new)
             .collect(),
+        pubdata_limit: payload.pubdata_limit,
+        interop_roots: payload.interop_roots.clone(),
     })
 }
 
@@ -65,8 +69,7 @@ async fn wait_for_local_block(
     Ok(())
 }
 
-/// Wrapper of `ConnectionPool` implementing `ReplicaStore`, `PayloadManager`,
-/// `PersistentBlockStore`.
+/// Wrapper of `ConnectionPool` implementing `EngineInterface`.
 ///
 /// Contains queues to save Quorum Certificates received over gossip to the store
 /// as and when the payload they are over becomes available.
@@ -78,18 +81,11 @@ pub(crate) struct Store {
     /// L2 block QCs received from consensus
     block_certificates: ctx::channel::UnboundedSender<BlockCertificate>,
     /// Range of L2 blocks for which we have a QC persisted.
-    blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
+    blocks_persisted: sync::watch::Receiver<BlockStoreState>,
     /// Main node client. None if this node is the main node.
     client: Option<Box<DynClient<L2>>>,
-}
-
-struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
-
-/// Background task of the `Store`.
-pub struct StoreRunner {
-    pool: ConnectionPool,
-    blocks_persisted: PersistedBlockState,
-    block_certificates: ctx::channel::UnboundedReceiver<BlockCertificate>,
+    /// Registry contract. Is None if this chain is not configured to fetch the validator schedule from the registry.
+    registry: Arc<Option<Registry>>,
 }
 
 impl Store {
@@ -98,6 +94,7 @@ impl Store {
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
         client: Option<Box<DynClient<L2>>>,
+        registry: Arc<Option<Registry>>,
     ) -> ctx::Result<(Store, StoreRunner)> {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
 
@@ -115,6 +112,7 @@ impl Store {
                 block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
                 blocks_persisted: blocks_persisted.subscribe(),
                 client,
+                registry,
             },
             StoreRunner {
                 pool,
@@ -128,71 +126,215 @@ impl Store {
     async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection> {
         self.pool.connection(ctx).await.wrap("connection")
     }
+}
 
-    /// Number of the next block to queue.
-    pub(crate) async fn next_block(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
-        Ok(sync::lock(ctx, &self.block_payloads)
+#[async_trait::async_trait]
+impl EngineInterface for Store {
+    async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
+        Ok(self
+            .conn(ctx)
             .await?
-            .as_ref()
-            .context("payload_queue not set")?
-            .next())
+            .global_config(ctx)
+            .await?
+            .context("not found")?
+            .genesis)
     }
 
-    /// Queues the next block.
-    pub(crate) async fn queue_next_fetched_block(
+    fn persisted(&self) -> sync::watch::Receiver<BlockStoreState> {
+        self.blocks_persisted.clone()
+    }
+
+    async fn get_validator_schedule(
         &self,
         ctx: &ctx::Ctx,
-        block: FetchedBlock,
-    ) -> ctx::Result<()> {
+        number: validator::BlockNumber,
+    ) -> ctx::Result<(validator::Schedule, validator::BlockNumber)> {
+        self.registry
+            .as_ref()
+            .as_ref()
+            .context("registry not set")?
+            .get_current_validator_schedule(ctx, number)
+            .await
+            .wrap("get_current_validator_schedule()")
+    }
+
+    async fn get_pending_validator_schedule(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<(validator::Schedule, validator::BlockNumber)>> {
+        self.registry
+            .as_ref()
+            .as_ref()
+            .context("registry not set")?
+            .get_pending_validator_schedule(ctx, number)
+            .await
+            .wrap("get_pending_validator_schedule()")
+    }
+
+    async fn get_block(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<validator::Block> {
+        Ok(self
+            .conn(ctx)
+            .await?
+            .block(ctx, number)
+            .await?
+            .context("not found")?)
+    }
+
+    /// If actions queue is set (and the block has not been stored yet),
+    /// the block will be translated into a sequence of actions.
+    /// The received actions should be fed
+    /// to `ExternalIO`, so that `StateKeeper` will store the corresponding L2 block in the db.
+    ///
+    /// `store_next_block()` call will wait synchronously for the L2 block.
+    /// Once the L2 block is observed in storage, `store_next_block()` will store a cert for this
+    /// L2 block.
+    async fn queue_next_block(&self, ctx: &ctx::Ctx, block: validator::Block) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
+        let (p, j) = match &block {
+            validator::Block::FinalV1(block) => (
+                &block.payload,
+                Some(BlockCertificate::V1(block.justification.clone())),
+            ),
+            validator::Block::FinalV2(block) => (
+                &block.payload,
+                Some(BlockCertificate::V2(block.justification.clone())),
+            ),
+            validator::Block::PreGenesis(block) => (&block.payload, None),
+        };
         if let Some(payloads) = &mut *payloads {
-            payloads.send(block).await.context("payloads.send()")?;
+            payloads
+                .send(to_fetched_block(block.number(), p).context("to_fetched_block")?)
+                .await
+                .context("payloads.send()")?;
+        }
+        if let Some(certificate) = j {
+            self.block_certificates.send(certificate);
         }
         Ok(())
     }
+
+    async fn verify_pregenesis_block(
+        &self,
+        ctx: &ctx::Ctx,
+        block: &validator::PreGenesisBlock,
+    ) -> ctx::Result<()> {
+        // We simply ask the main node for the payload hash and compare it against the received
+        // payload.
+        let meta = match &self.client {
+            None => self
+                .conn(ctx)
+                .await?
+                .block_metadata(ctx, block.number)
+                .await?
+                .context("metadata not in storage")?,
+            Some(client) => {
+                let meta = ctx
+                    .wait(client.block_metadata(L2BlockNumber(
+                        block.number.0.try_into().context("overflow")?,
+                    )))
+                    .await?
+                    .context("block_metadata()")?
+                    .context("metadata not available")?;
+                zksync_protobuf::serde::Deserialize {
+                    deny_unknown_fields: false,
+                }
+                .proto_fmt(&meta.0)
+                .context("deserialize()")?
+            }
+        };
+        if meta.payload_hash != block.payload.hash() {
+            return Err(anyhow::format_err!("payload hash mismatch").into());
+        }
+        Ok(())
+    }
+
+    /// Verify that `payload` is a correct proposal for the block `block_number`.
+    /// * for the main node it checks whether the same block is already present in storage.
+    /// * for the EN validator
+    ///   * if the block with this number was already applied, it checks that it was the
+    ///     same block. It should always be true, because main node is the only proposer and
+    ///     to propose a different block a hard fork is needed.
+    ///   * otherwise, EN attempts to apply the received block. If the block was incorrect
+    ///     the statekeeper is expected to crash the whole EN. Otherwise OK is returned.
+    async fn verify_payload(
+        &self,
+        ctx: &ctx::Ctx,
+        block_number: validator::BlockNumber,
+        payload: &validator::Payload,
+    ) -> ctx::Result<()> {
+        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
+        if let Some(payloads) = &mut *payloads {
+            let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
+            let n = block.number;
+            payloads.send(block).await.context("payload_queue.send()")?;
+            // Wait for the block to be processed, without waiting for it to be stored.
+            // TODO(BFT-459): this is not ideal, because we don't check here whether the
+            // processed block is the same as `payload`. It will work correctly
+            // with the current implementation of EN, but we should make it more
+            // precise when block reverting support is implemented.
+            wait_for_local_block(ctx, &payloads.sync_state, n).await?;
+        } else {
+            let want = self.pool.wait_for_payload(ctx, block_number).await?;
+            let got = Payload::decode(payload).context("Payload::decode(got)")?;
+            if got != want {
+                return Err(
+                    anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into(),
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Currently (for the main node) proposing is implemented as just converting an L2 block from db (without a cert) into a payload.
+    async fn propose_payload(
+        &self,
+        ctx: &ctx::Ctx,
+        block_number: validator::BlockNumber,
+    ) -> ctx::Result<validator::Payload> {
+        const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
+        let payload = self
+            .pool
+            .wait_for_payload(ctx, block_number)
+            .await
+            .wrap("wait_for_payload")?;
+        let encoded_payload = payload.encode();
+        if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
+            tracing::warn!(
+                "large payload ({}B) with {} transactions",
+                encoded_payload.0.len(),
+                payload.transactions.len()
+            );
+        }
+        Ok(encoded_payload)
+    }
+
+    async fn get_state(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::ReplicaState> {
+        self.conn(ctx)
+            .await?
+            .replica_state(ctx)
+            .await
+            .wrap("replica_state()")
+    }
+
+    async fn set_state(&self, ctx: &ctx::Ctx, state: &validator::ReplicaState) -> ctx::Result<()> {
+        self.conn(ctx)
+            .await?
+            .set_replica_state(ctx, state)
+            .await
+            .wrap("set_replica_state()")
+    }
 }
 
-impl PersistedBlockState {
-    /// Updates `persisted` to new.
-    /// Ends of the range can only be moved forward.
-    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
-    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
-    /// persisted.
-    #[tracing::instrument(skip_all, fields(first = %new.first, next = ?new.next()))]
-    fn update(&self, new: storage::BlockStoreState) {
-        self.0.send_if_modified(|p| {
-            if &new == p {
-                return false;
-            }
-            p.first = p.first.max(new.first);
-            if p.next() < new.next() {
-                p.last = new.last;
-            }
-            true
-        });
-    }
-
-    /// Checks if the given certificate should be eventually persisted.
-    /// Only certificates block store state is a range of blocks for which we already have
-    /// certificates and we need certs only for the later ones.
-    fn should_be_persisted(&self, cert: &BlockCertificate) -> bool {
-        self.0.borrow().next() <= cert.number()
-    }
-
-    /// Appends the `cert` to `persisted` range.
-    #[tracing::instrument(skip_all, fields(batch_number = %cert.number()))]
-    fn advance(&self, cert: BlockCertificate) {
-        self.0.send_if_modified(|p| {
-            if p.next() != cert.number() {
-                return false;
-            }
-            p.last = Some(match cert {
-                BlockCertificate::V1(qc) => storage::Last::FinalV1(qc),
-                BlockCertificate::V2(qc) => storage::Last::FinalV2(qc),
-            });
-            true
-        });
-    }
+/// Background task of the `Store`.
+pub struct StoreRunner {
+    pool: ConnectionPool,
+    blocks_persisted: PersistedBlockState,
+    block_certificates: ctx::channel::UnboundedReceiver<BlockCertificate>,
 }
 
 impl StoreRunner {
@@ -299,182 +441,47 @@ impl StoreRunner {
     }
 }
 
-#[async_trait::async_trait]
-impl storage::PersistentBlockStore for Store {
-    async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
-        Ok(self
-            .conn(ctx)
-            .await?
-            .global_config(ctx)
-            .await?
-            .context("not found")?
-            .genesis)
-    }
+struct PersistedBlockState(sync::watch::Sender<BlockStoreState>);
 
-    fn persisted(&self) -> sync::watch::Receiver<storage::BlockStoreState> {
-        self.blocks_persisted.clone()
-    }
-
-    async fn block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<validator::Block> {
-        Ok(self
-            .conn(ctx)
-            .await?
-            .block(ctx, number)
-            .await?
-            .context("not found")?)
-    }
-
-    async fn verify_pregenesis_block(
-        &self,
-        ctx: &ctx::Ctx,
-        block: &validator::PreGenesisBlock,
-    ) -> ctx::Result<()> {
-        // We simply ask the main node for the payload hash and compare it against the received
-        // payload.
-        let meta = match &self.client {
-            None => self
-                .conn(ctx)
-                .await?
-                .block_metadata(ctx, block.number)
-                .await?
-                .context("metadata not in storage")?,
-            Some(client) => {
-                let meta = ctx
-                    .wait(client.block_metadata(L2BlockNumber(
-                        block.number.0.try_into().context("overflow")?,
-                    )))
-                    .await?
-                    .context("block_metadata()")?
-                    .context("metadata not available")?;
-                zksync_protobuf::serde::Deserialize {
-                    deny_unknown_fields: false,
-                }
-                .proto_fmt(&meta.0)
-                .context("deserialize()")?
+impl PersistedBlockState {
+    /// Updates `persisted` to new.
+    /// Ends of the range can only be moved forward.
+    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
+    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
+    /// persisted.
+    #[tracing::instrument(skip_all, fields(first = %new.first, next = ?new.next()))]
+    fn update(&self, new: BlockStoreState) {
+        self.0.send_if_modified(|p| {
+            if &new == p {
+                return false;
             }
-        };
-        if meta.payload_hash != block.payload.hash() {
-            return Err(anyhow::format_err!("payload hash mismatch").into());
-        }
-        Ok(())
-    }
-
-    /// If actions queue is set (and the block has not been stored yet),
-    /// the block will be translated into a sequence of actions.
-    /// The received actions should be fed
-    /// to `ExternalIO`, so that `StateKeeper` will store the corresponding L2 block in the db.
-    ///
-    /// `store_next_block()` call will wait synchronously for the L2 block.
-    /// Once the L2 block is observed in storage, `store_next_block()` will store a cert for this
-    /// L2 block.
-    async fn queue_next_block(&self, ctx: &ctx::Ctx, block: validator::Block) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        let (p, j) = match &block {
-            validator::Block::FinalV1(block) => (
-                &block.payload,
-                Some(BlockCertificate::V1(block.justification.clone())),
-            ),
-            validator::Block::FinalV2(block) => (
-                &block.payload,
-                Some(BlockCertificate::V2(block.justification.clone())),
-            ),
-            validator::Block::PreGenesis(block) => (&block.payload, None),
-        };
-        if let Some(payloads) = &mut *payloads {
-            payloads
-                .send(to_fetched_block(block.number(), p).context("to_fetched_block")?)
-                .await
-                .context("payloads.send()")?;
-        }
-        if let Some(certificate) = j {
-            self.block_certificates.send(certificate);
-        }
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl storage::ReplicaStore for Store {
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
-        self.conn(ctx)
-            .await?
-            .replica_state(ctx)
-            .await
-            .wrap("replica_state()")
-    }
-
-    async fn set_state(&self, ctx: &ctx::Ctx, state: &storage::ReplicaState) -> ctx::Result<()> {
-        self.conn(ctx)
-            .await?
-            .set_replica_state(ctx, state)
-            .await
-            .wrap("set_replica_state()")
-    }
-}
-
-#[async_trait::async_trait]
-impl PayloadManager for Store {
-    /// Currently (for the main node) proposing is implemented as just converting an L2 block from db (without a cert) into a payload.
-    async fn propose(
-        &self,
-        ctx: &ctx::Ctx,
-        block_number: validator::BlockNumber,
-    ) -> ctx::Result<validator::Payload> {
-        const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
-        let payload = self
-            .pool
-            .wait_for_payload(ctx, block_number)
-            .await
-            .wrap("wait_for_payload")?;
-        let encoded_payload = payload.encode();
-        if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
-            tracing::warn!(
-                "large payload ({}B) with {} transactions",
-                encoded_payload.0.len(),
-                payload.transactions.len()
-            );
-        }
-        Ok(encoded_payload)
-    }
-
-    /// Verify that `payload` is a correct proposal for the block `block_number`.
-    /// * for the main node it checks whether the same block is already present in storage.
-    /// * for the EN validator
-    ///   * if the block with this number was already applied, it checks that it was the
-    ///     same block. It should always be true, because main node is the only proposer and
-    ///     to propose a different block a hard fork is needed.
-    ///   * otherwise, EN attempts to apply the received block. If the block was incorrect
-    ///     the statekeeper is expected to crash the whole EN. Otherwise OK is returned.
-    async fn verify(
-        &self,
-        ctx: &ctx::Ctx,
-        block_number: validator::BlockNumber,
-        payload: &validator::Payload,
-    ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        if let Some(payloads) = &mut *payloads {
-            let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
-            let n = block.number;
-            payloads.send(block).await.context("payload_queue.send()")?;
-            // Wait for the block to be processed, without waiting for it to be stored.
-            // TODO(BFT-459): this is not ideal, because we don't check here whether the
-            // processed block is the same as `payload`. It will work correctly
-            // with the current implementation of EN, but we should make it more
-            // precise when block reverting support is implemented.
-            wait_for_local_block(ctx, &payloads.sync_state, n).await?;
-        } else {
-            let want = self.pool.wait_for_payload(ctx, block_number).await?;
-            let got = Payload::decode(payload).context("Payload::decode(got)")?;
-            if got != want {
-                return Err(
-                    anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into(),
-                );
+            p.first = p.first.max(new.first);
+            if p.next() < new.next() {
+                p.last = new.last;
             }
-        }
-        Ok(())
+            true
+        });
+    }
+
+    /// Checks if the given certificate should be eventually persisted.
+    /// Only certificates block store state is a range of blocks for which we already have
+    /// certificates and we need certs only for the later ones.
+    fn should_be_persisted(&self, cert: &BlockCertificate) -> bool {
+        self.0.borrow().next() <= cert.number()
+    }
+
+    /// Appends the `cert` to `persisted` range.
+    #[tracing::instrument(skip_all, fields(batch_number = %cert.number()))]
+    fn advance(&self, cert: BlockCertificate) {
+        self.0.send_if_modified(|p| {
+            if p.next() != cert.number() {
+                return false;
+            }
+            p.last = Some(match cert {
+                BlockCertificate::V1(qc) => engine::Last::FinalV1(qc),
+                BlockCertificate::V2(qc) => engine::Last::FinalV2(qc),
+            });
+            true
+        });
     }
 }

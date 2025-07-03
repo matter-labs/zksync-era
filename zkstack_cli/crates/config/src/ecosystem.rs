@@ -23,6 +23,7 @@ use crate::{
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
+    PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -215,6 +216,16 @@ impl EcosystemConfig {
 
     pub fn path_to_l1_foundry(&self) -> PathBuf {
         self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
+    }
+
+    pub fn path_to_proving_networks(&self) -> PathBuf {
+        self.link_to_code.join(PROVING_NETWORKS_PATH)
+    }
+
+    pub fn path_to_proving_networks_deploy_script(&self) -> PathBuf {
+        self.link_to_code
+            .join(PROVING_NETWORKS_PATH)
+            .join(PROVING_NETWORKS_DEPLOY_SCRIPT_PATH)
     }
 
     pub fn list_of_chains(&self) -> Vec<String> {

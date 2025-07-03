@@ -7,7 +7,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::{blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob};
+use crate::{blocks_state_reporter::BlockMetricsReporter, periodic_job::PeriodicJob};
 
 /// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
 /// and auxiliary server activities.
@@ -24,7 +24,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    l1_batch_metrics_reporter: L1BatchMetricsReporter,
+    pub l1_batch_metrics_reporter: BlockMetricsReporter,
 }
 
 impl HouseKeeperLayer {
@@ -49,7 +49,7 @@ impl WiringLayer for HouseKeeperLayer {
         let replica_pool = input.replica_pool.get().await?;
 
         // Initialize and add tasks
-        let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
+        let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config.l1_batch_metrics_reporting_interval,
             replica_pool,
         );
@@ -61,7 +61,7 @@ impl WiringLayer for HouseKeeperLayer {
 }
 
 #[async_trait::async_trait]
-impl Task for L1BatchMetricsReporter {
+impl Task for BlockMetricsReporter {
     fn id(&self) -> TaskId {
         "l1_batch_metrics_reporter".into()
     }

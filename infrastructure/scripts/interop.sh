@@ -24,7 +24,7 @@ zkstack chain create \
         --chain-id 260 \
         --prover-mode no-proofs \
         --wallet-creation localhost \
-        --l1-batch-commit-data-generator-mode rollup \
+        --l1-batch-commit-data-generator-mode validium \
         --base-token-address 0x0000000000000000000000000000000000000001 \
         --base-token-price-nominator 1 \
         --base-token-price-denominator 1 \
@@ -36,8 +36,9 @@ zkstack chain init \
             --deploy-paymaster \
             --l1-rpc-url=http://localhost:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_second \
-            --chain validium --update-submodules false
+            --server-db-name=zksync_server_localhost_validium \
+            --chain validium --update-submodules false \
+            --validium-type no-da
 
 zkstack chain create \
         --chain-name gateway \
@@ -61,7 +62,9 @@ zkstack chain init \
 
 
 zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
-zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log & 
+zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
+zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &
+
 
 zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
@@ -73,6 +76,8 @@ zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name g
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log & 
 zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium.log & 
 
+zkstack server wait --ignore-prerequisites --verbose --chain era
+zkstack server wait --ignore-prerequisites --verbose --chain validium
 
 # Runs interop integration test between era-validium in parallel
 mkdir -p zlogs

@@ -298,7 +298,7 @@ async fn load_l2_block_info(
             // For simplicity, we assume each L2 block create one virtual block.
             // This may be wrong only during transition period.
             max_virtual_blocks_to_create: 1,
-            interop_roots: next_block.interop_roots,
+            interop_roots: vec![],
         }
     } else if next_block.number == 0 {
         // Special case:
@@ -345,7 +345,7 @@ async fn load_l2_block_info(
                 format!("missing hash for previous L2 block #{prev_block_number}")
             })?,
             max_virtual_blocks_to_create: 1,
-            interop_roots: next_block.interop_roots,
+            interop_roots: vec![],
         }
     };
 
@@ -375,13 +375,9 @@ async fn read_stored_l2_block(
         .get_historical_value_unchecked(l2_block_txs_rolling_hash_key.hashed_key(), l2_block_number)
         .await?;
 
-    // We don't load interopRoots for gas estimation.
-    let interop_roots = vec![];
-
     Ok(StoredL2BlockEnv {
         number: l2_block_number_from_state as u32,
         timestamp,
         txs_rolling_hash,
-        interop_roots,
     })
 }

@@ -18,7 +18,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     ethabi::Token,
     settlement::SettlementLayer,
     snapshots::{
@@ -26,7 +26,7 @@ use zksync_types::{
         SnapshotStorageLogsStorageKey,
     },
     web3::BlockNumber,
-    Address, L1BatchNumber, L2ChainId, H160, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
 pub mod node;
@@ -45,7 +45,6 @@ pub struct BlockReverterEthConfig {
     sl_diamond_proxy_addr: H160,
     sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
-    hyperchain_id: L2ChainId,
     settlement_layer: SettlementLayer,
 }
 
@@ -54,14 +53,12 @@ impl BlockReverterEthConfig {
         eth_config: &EthConfig,
         sl_diamond_proxy_addr: Address,
         sl_validator_timelock_addr: Address,
-        hyperchain_id: L2ChainId,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             sl_diamond_proxy_addr,
             sl_validator_timelock_addr,
             default_priority_fee_per_gas: eth_config.gas_adjuster.default_priority_fee_per_gas,
-            hyperchain_id,
             settlement_layer,
         })
     }
@@ -411,6 +408,14 @@ impl BlockReverter {
             .delete_l2_blocks(last_l2_block_to_keep)
             .await?;
 
+        if self.node_role == NodeRole::External {
+            tracing::info!("Rolling back consistency checker index");
+            transaction
+                .blocks_dal()
+                .set_consistency_checker_last_processed_l1_batch(last_l1_batch_to_keep)
+                .await?;
+        }
+
         if self.node_role == NodeRole::Main {
             tracing::info!("Performing consensus hard fork");
             transaction.consensus_dal().fork().await?;
@@ -531,7 +536,7 @@ impl BlockReverter {
             .context("`revertBatchesSharedBridge` function must be present in contract")?;
         let data = revert_function
             .encode_input(&[
-                Token::Uint(eth_config.hyperchain_id.as_u64().into()),
+                Token::Address(eth_config.sl_diamond_proxy_addr),
                 Token::Uint(last_l1_batch_to_keep.0.into()),
             ])
             .context("failed encoding `revertBatchesSharedBridge` input")?;
@@ -584,12 +589,12 @@ impl BlockReverter {
     async fn get_l1_batch_number_from_contract(
         eth_client: &dyn EthInterface,
         contract_address: Address,
-        op: AggregatedActionType,
+        op: L1BatchAggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
         let function_name = match op {
-            AggregatedActionType::Commit => "getTotalBatchesCommitted",
-            AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
-            AggregatedActionType::Execute => "getTotalBatchesExecuted",
+            L1BatchAggregatedActionType::Commit => "getTotalBatchesCommitted",
+            L1BatchAggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
+            L1BatchAggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
             .for_contract(contract_address, &hyperchain_contract())
@@ -615,19 +620,19 @@ impl BlockReverter {
         let last_committed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await?;
         let last_verified_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await?;
         let last_executed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::Execute,
+            L1BatchAggregatedActionType::Execute,
         )
         .await?;
 

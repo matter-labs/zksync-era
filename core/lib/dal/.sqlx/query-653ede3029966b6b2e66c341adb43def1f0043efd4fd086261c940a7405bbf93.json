@@ -1,0 +1,130 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_tx_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "l2_tx_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "l2_to_l1_messages",
+        "type_info": "ByteaArray"
+      },
+      {
+        "ordinal": 5,
+        "name": "bloom",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "priority_ops_onchain_data",
+        "type_info": "ByteaArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "used_contract_hashes",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "bootloader_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "default_aa_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "evm_emulator_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 11,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "system_logs",
+        "type_info": "ByteaArray"
+      },
+      {
+        "ordinal": 13,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "fee_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 15,
+        "name": "l1_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "l2_fair_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "fair_pubdata_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "pubdata_limit",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "653ede3029966b6b2e66c341adb43def1f0043efd4fd086261c940a7405bbf93"
+}

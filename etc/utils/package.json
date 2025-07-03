@@ -9,7 +9,10 @@
         "watch": "tsc -w"
     },
     "dependencies": {
-        "chalk": "^4.0.0",
         "yaml": "^2.4.2"
+    },
+    "devDependencies": {
+        "ethers": "^6.13.5",
+        "zksync-ethers": "https://github.com/zksync-sdk/zksync-ethers#di/avoid-zks-estimate-fee-build"
     }
 }

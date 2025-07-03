@@ -30,7 +30,7 @@ pub struct FakeEthClientData {
     chain_id: SLChainId,
     processed_priority_transactions_count: u64,
     chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
-    inner_chain_log_proofs: HashMap<L2BlockNumber, ChainAggProof>,
+    chain_log_proofs_until_msg_root: HashMap<L2BlockNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
     bytecode_preimages: HashMap<H256, Vec<u8>>,
@@ -46,7 +46,7 @@ impl FakeEthClientData {
             chain_id,
             processed_priority_transactions_count: 0,
             chain_log_proofs: Default::default(),
-            inner_chain_log_proofs: Default::default(),
+            chain_log_proofs_until_msg_root: Default::default(),
             batch_roots: Default::default(),
             chain_roots: Default::default(),
             bytecode_preimages: Default::default(),
@@ -107,12 +107,12 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_inner_chain_log_proofs(
+    fn add_chain_log_proofs_until_msg_root(
         &mut self,
-        inner_chain_log_proofs: Vec<(L2BlockNumber, ChainAggProof)>,
+        chain_log_proofs_until_msg_root: Vec<(L2BlockNumber, ChainAggProof)>,
     ) {
-        for (block, proof) in inner_chain_log_proofs {
-            self.inner_chain_log_proofs.insert(block, proof);
+        for (block, proof) in chain_log_proofs_until_msg_root {
+            self.chain_log_proofs_until_msg_root.insert(block, proof);
         }
     }
 
@@ -196,14 +196,14 @@ impl MockEthClient {
             .add_chain_log_proofs(chain_log_proofs);
     }
 
-    pub async fn add_inner_chain_log_proofs(
+    pub async fn add_chain_log_proofs_until_msg_root(
         &mut self,
-        inner_chain_log_proofs: Vec<(L2BlockNumber, ChainAggProof)>,
+        chain_log_proofs_until_msg_root: Vec<(L2BlockNumber, ChainAggProof)>,
     ) {
         self.inner
             .write()
             .await
-            .add_inner_chain_log_proofs(inner_chain_log_proofs);
+            .add_chain_log_proofs_until_msg_root(chain_log_proofs_until_msg_root);
     }
 }
 
@@ -374,7 +374,7 @@ impl ZkSyncExtentionEthClient for MockEthClient {
             .cloned())
     }
 
-    async fn get_inner_chain_log_proof(
+    async fn get_chain_log_proof_until_msg_root(
         &self,
         block_number: L2BlockNumber,
         _chain_id: L2ChainId,
@@ -383,7 +383,7 @@ impl ZkSyncExtentionEthClient for MockEthClient {
             .inner
             .read()
             .await
-            .inner_chain_log_proofs
+            .chain_log_proofs_until_msg_root
             .get(&block_number)
             .cloned())
     }
@@ -573,7 +573,7 @@ fn batch_root_to_log(sl_block_number: u64, l2_batch_number: u64, batch_root: H25
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(sl_block_number.into()),
-        l1_batch_number: Some(sl_block_number.into()),
+        l1_batch_number: Some(l2_batch_number.into()),
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),

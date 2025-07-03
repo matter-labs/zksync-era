@@ -17,13 +17,11 @@ pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExten
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        EventProcessor, EventProcessorError, InteropRootProcessor, PriorityOpsEventProcessor,
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
     },
     metrics::METRICS,
-};
-use crate::event_processors::{
-    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
-    GatewayMigrationProcessor,
 };
 
 mod client;
@@ -100,21 +98,13 @@ impl EthWatch {
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let l1_interop_root_processor =
-            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None)
-                .await;
-        // let batch_root_processor = L1BatchRootProcessor::new(
-        //     state.chain_batch_root_number_lower_bound,
-        //     state.batch_merkle_tree,
-        //     chain_id,
-        //     l1_client,
-        // );
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None).await;
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
             Box::new(gateway_migration_processor),
             Box::new(l1_interop_root_processor),
-            // Box::new(batch_root_processor), // kl todo,
         ];
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {
