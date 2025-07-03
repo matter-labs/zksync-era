@@ -150,7 +150,7 @@ fn apply_l2_block_inner(
         },
     ));
 
-    if config.subversion != MultiVmSubversion::Interop
+    if config.subversion < MultiVmSubversion::Interop
         || config.interop_root_application_config.is_none()
     {
         return 0;
@@ -167,16 +167,14 @@ fn apply_l2_block_inner(
         );
     }
 
-    if !config.start_new_l2_block {
-        return bootloader_l2_block.interop_roots.len();
+    if config.start_new_l2_block {
+        apply_interop_root_number_in_block_number(
+            memory,
+            config.subversion,
+            bootloader_l2_block.interop_roots.len(),
+            interop_root_application_config.preexisting_blocks_number,
+        );
     }
-
-    apply_interop_root_number_in_block_number(
-        memory,
-        config.subversion,
-        bootloader_l2_block.interop_roots.len(),
-        interop_root_application_config.preexisting_blocks_number,
-    );
 
     bootloader_l2_block.interop_roots.len()
 }

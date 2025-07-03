@@ -24,7 +24,7 @@ impl L2BlockEnv {
 
 /// Current block information stored in the system context contract. Can be used to set up
 /// oneshot transaction / call execution.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct StoredL2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
