@@ -1,4 +1,4 @@
-use std::cmp::{max, Ordering};
+use std::cmp::{Ordering};
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -121,9 +121,8 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        max(self.l2_blocks.len(), 1) - 1
+        self.l2_blocks.len() - 1
     }
-
     pub(crate) fn get_interop_root_application_config(&self) -> InteropRootApplicationConfig {
         InteropRootApplicationConfig {
             number_of_applied_interop_roots: self.number_of_applied_interop_roots,
