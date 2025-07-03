@@ -27,17 +27,12 @@ ZK IP should :
 
 - enable interop
     - Bulkheads do not work with interop, since interop changes the balance of a chain without touching L1.
-- be compatible with any assetId.
 
-To differentiate chains that can mint the asset, we will have minter roles. For these the balance of the chain will not be enforced. 
-
-```solidity
-mapping(chainId => assetId => bool) isMinterChain;
-```
+For now the AssetTracker will only support tokens in the native token vault. These are assumed to have a single origin chain id, i.e. single chain where the supply of the token can change.
 
 To enable interop, besides updating based on L1<>L2 txs, we will have to [parse all interop txs](https://github.com/matter-labs/era-contracts/blob/b5fda9c4dd8171ffb53337711fe8da43b4266026/l1-contracts/contracts/bridge/asset-tracker/AssetTrackerBase.sol#L35). This means we have to parse all L2toL1 logs, if the sender is the interopCenter parse the message, and update the balance on the SL. 
 
-We can have non balance changing operations. This is useful to set the `isMinterChain` role
+We can have non balance changing operations.
 
 When settling each batch, each chain would call the following function: 
 
@@ -45,68 +40,57 @@ When settling each batch, each chain would call the following function:
 // Called only when the batch is executed
 
 contract AssetTracker {
-	function parseLogsAndMessages(
-			L2Log[] calldata _logs, 
-			bytes[] calldata _messages, 
-			bytes32 messageRoot) 
-		external returns (Ops[] memory operations) {
-			operations = // parse logs and messages to get ZK IP ops
-			// make sure that AggregateRoot = keccak(localRoot, messageRoot) is the same as in DiamondProxy
-			processOps(operations)
-		}
-	
-	function processOps(Ops[] memory operations) external {
-	   uint256 chain = chainidFromAddress[msg.sender];
-	   
-	   for (op : operations) {
-	      if (op.type == AddBalance) {
-	         if (!minter[chain][op.assetId] && !adt_preimage(op.assetId, chain, op.additionalInfo)) {
-	            // checks for overflow and reduces balance
-	            balance[chain][op.assetId] -= op.amount;
-	         }
-	         balance[op.chainTo][op.assetId] += op.amount;
-	      } else if(op.type == AddMinter) {
-	         // check that the ADT belongs to the chain
-	         if (adt_preimage(op.assetId, chain, op.additionalInfo) {
-			        isMinterChain[chain][op.assetId] = true;
-	         }
-	      }
-	   }
-	}
-	
-	// function that checks whether this chainId is part of the assetid preimage.
-	function adt_preimage(uint256 chainId, ...) {
-	
+	function processLogsAndMessages(ProcessLogsInput calldata _processLogsInputs) external;
+
+	struct ProcessLogsInput {
+		L2Log[] logs;
+		bytes[] messages;
+		uint256 chainId;
+		uint256 batchNumber;
+		bytes32 chainBatchRoot;
+		bytes32 messageRoot;
 	}
 }
 ```
 
 ### Migrating and settling on Gateway
 
-When a chain migrates from L1 to GW or from GW to L1, the `chainBalance` mapping does not get transferred automatically:
+When a chain migrates from L1 to GW or from GW to L1, the `chainBalance` mapping for each token does not get transferred automatically. They can be trustlessly moved by anyone from GW to L1 and vice versa. But our standard tooling will migrate all token balances for best UX.
 
-- They can be trustlessly moved by anyone from GW to L1 and vice versa:
+The AssetTracker contracts will be deployed on the GW and the L1, but interop and `processLogsAndMessages` is only enabled on GW, since using them on L1 is expensive. On L1 balances will be checked when the depsosit and withdrawals are processed.
 
-```bash
-function moveBalanceToSL(uint256 chainId, bytes32 assetId) {
-	address sl = GettersFacet(chainToAddress(chainId)).getSettlementLayer();
-	
-	// cant move anywhere from settlement layer
-	require(sl != block.chainid);
-	
-	uint256 currentBalance = balance[chainId][assetId];
-	balance[chainId][assetId] = 0;
-	balance[settlmentLayer][assetId] += currentBalance;
-	
-	sendTxToSL(chinId, assetId, currentBalance);
-}
-```
+On GW we process all incoming and outgoing messages to chains. L1->L2 messages are processed as they are sent through the Gateway, and L2->L1 messages are processed together with L2->L2 messages in the processLogsAndMessages function.
 
- - The same goes for the minter role.
+When a chain is settling on Gateway it has calls the `processLogsAndMessages` when settling. This means that if the token is not yet migrated, and a withdrawal is processed, the settlement will fail, since the chain's balance will be zero. In order to prevent this, withdrawals and interop will be paused on the chain until the token's balance is migrated.
 
-The AssetTracker contracts will be deployed on the GW and the L1, but we might only allow interop and asset trackers on GW, since using them on L1 is expensive. 
+Withdrawals on the chain do not need to be paused when migrating to L1, since the chain can settle without processing logs. However if the token balance is not yet migrated, the withdrawal will fail on L1.
 
-On GW we will also track the balances of the chains. To do this we will parse the L1->L2 messages as they are processed, and L2->L1 messages are processed same as L2->L1 messages on L1. 
+#### Migrating to Gateway
+
+When migrating each tokens balance to Gateway from L1, we increase the chainBalance of the GW, and decrease the balance of the chain.There are outstanding withdrawals on L1 from the L2, so we cannot migrate the whole balance of the chain. We can only migrate the amount that is not withdrawn, i.e. the amount that the token contract on the chain has as its `totalSupply`.
+
+In order for information to flow smoothly, migrating to the Gateway has the following steps:
+
+- Chain's AssetTracker reads the totalSupply of the token and sends a message to the Gateway.
+- The L1 AssetTracker will receive the message and update the chainBalance mapping of the Chain and the Gateway, and forwards the message to GW as well as the L2.
+- The Gateway's AssetTracker will receive the message and update the chainBalance mapping.
+- The L2 AssetTracker will receive the message and update the chainMigration number.
+
+#### Migration from Gateway
+
+On Gateway all withdrawals are processed in the `processLogsAndMessages` function. This means there are no outstanding withdrawals, the chainBalance mapping will match the totalSupply of the token on the chain. This means that the whole balance of the chain can be migrated to L1. The steps are accordingly:
+
+- The migration is initiated on the Gateway, the balance is decreased to zero and sent to L1.
+- The L1 AssetTracker will receive the message and increase the chainBalance of the Chain and decrease the balance of the Gateway.
+- A message is sent to the Gateway to update the chainBalance mapping.
+- A message is sent to the L2 to increase the migration number of the token.
+
+#### Missed token balance migrations
+
+What happens if a token is not migrated to Gateway, the chain migrates back to L1, and then back to Gateway? This is not an issue, since the source of truth for this direction is the totalSupply of the token on the chain.
+
+It might happen that a legacy (i.e. for a previous migration) L2->L1 message or GW->L1 message is used for withdrawals. In order to avoid this, we include the migration number in each token migration.
+
 
 ## How full ZK IP could look like with the same user interface (+ migration) could look like
 
@@ -116,7 +100,6 @@ For each chain we would still have the mappings, ( without the chainId, since it
 
 ```solidity
 mapping(assetId => balance) chainBalance;
-mapping(assetId => bool) isMinterChain;
 ```
 
 The main difference is that we cannot update the destination chain’s balance when sending the messages in `parseLogsAndMessages` since now the chainBalance mappings for different chains are on different chains. This means we will have to import the receiving/incoming messages. We do this the same way we do interop: via the MessageRoot, merkle proofs, and L2Nullifier to not double mint. 
