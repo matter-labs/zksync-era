@@ -157,7 +157,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
     let src_permissions_path = "example-permissions.yaml";
-    let dst_permissions_dir = &chain_config.abosulte_path_to_configs();
+    let dst_permissions_dir = &chain_config.configs;
     let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
 
     if !dst_permissions_dir.exists() {
