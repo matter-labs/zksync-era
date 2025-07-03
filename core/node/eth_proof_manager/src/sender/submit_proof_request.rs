@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use zksync_config::configs::{
     eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
@@ -27,13 +27,12 @@ impl ProofRequestSubmitter {
         blob_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool<Core>,
         config: EthProofManagerConfig,
-        proof_generation_timeout: Duration,
         l2_chain_id: L2ChainId,
     ) -> Self {
         let processor = Processor::<Locking>::new(
             blob_store.clone(),
             connection_pool.clone(),
-            proof_generation_timeout,
+            config.proof_generation_timeout,
             l2_chain_id,
             ProvingMode::ProvingNetwork,
         );

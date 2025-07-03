@@ -38,3 +38,4 @@ chrono.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 jsonrpsee.workspace = true
+hex.workspace = true

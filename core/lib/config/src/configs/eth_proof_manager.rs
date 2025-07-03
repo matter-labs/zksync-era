@@ -29,6 +29,8 @@ pub struct EthProofManagerConfig {
     pub tx_receipt_checking_max_attempts: u64,
     #[config(default_t = Duration::from_secs(1))]
     pub tx_receipt_checking_sleep: Duration,
+    #[config(default_t = 100_000_000)]
+    pub max_tx_gas: u64,
 }
 
 impl Default for EthProofManagerConfig {
@@ -46,6 +48,7 @@ impl Default for EthProofManagerConfig {
             tx_sending_sleep: Duration::from_secs(1),
             tx_receipt_checking_max_attempts: 10,
             tx_receipt_checking_sleep: Duration::from_secs(1),
+            max_tx_gas: 100_000_000,
         }
     }
 }

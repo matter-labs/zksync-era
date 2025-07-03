@@ -9,6 +9,7 @@ use zksync_contracts::proof_manager_contract;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::clients::{DynClient, SigningClient, L1};
 use zksync_eth_signer::PrivateKeySigner;
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -16,7 +17,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::ObjectStore;
-use zksync_types::L1ChainId;
+use zksync_types::{L1ChainId, L2ChainId};
 
 use crate::{client::ProofManagerClient, EthProofManager};
 
@@ -91,8 +92,7 @@ impl EthProofManagerLayer {
         ProofManagerClient::new(
             Box::new(eth_client),
             gas_adjuster,
-            self.eth_proof_manager_config
-                .max_acceptable_priority_fee_in_gwei,
+            self.eth_proof_manager_config.clone(),
         )
     }
 }
@@ -127,11 +127,9 @@ impl WiringLayer for EthProofManagerLayer {
 
         let eth_proof_manager = EthProofManager::new(
             Box::new(client),
-            input.gas_adjuster,
             main_pool,
             input.blob_store,
-            self.eth_proof_manager_config,
-            self.eth_proof_manager_config.proof_generation_timeout,
+            self.eth_proof_manager_config.clone(),
             self.l2_chain_id,
         );
 

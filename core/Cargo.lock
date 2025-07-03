@@ -12505,6 +12505,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "hex",
  "jsonrpsee",
  "serde",
  "thiserror 2.0.12",

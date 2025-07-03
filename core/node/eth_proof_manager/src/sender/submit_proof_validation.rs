@@ -1,35 +1,23 @@
-use std::sync::Arc;
-
-use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
-use zksync_object_store::{Bucket, ObjectStore, StoredObject};
-use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::L2ChainId;
 
 use crate::{client::EthProofManagerClient, types::ProofRequestIdentifier};
 
 pub struct SubmitProofValidationSubmitter {
     client: Box<dyn EthProofManagerClient>,
-    blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
-    config: EthProofManagerConfig,
     l2_chain_id: L2ChainId,
 }
 
 impl SubmitProofValidationSubmitter {
     pub fn new(
         client: Box<dyn EthProofManagerClient>,
-        blob_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool<Core>,
-        config: EthProofManagerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             client,
-            blob_store,
             connection_pool,
-            config,
             l2_chain_id,
         }
     }

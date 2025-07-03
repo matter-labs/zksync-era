@@ -1,9 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
@@ -24,18 +23,15 @@ pub struct EthProofSender {
     connection_pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
     config: EthProofManagerConfig,
-    proof_generation_timeout: Duration,
     l2_chain_id: L2ChainId,
 }
 
 impl EthProofSender {
     pub fn new(
         client: Box<dyn EthProofManagerClient>,
-        gas_adjuster: Arc<dyn TxParamsProvider>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         config: EthProofManagerConfig,
-        proof_generation_timeout: Duration,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
@@ -43,7 +39,6 @@ impl EthProofSender {
             connection_pool,
             blob_store,
             config,
-            proof_generation_timeout,
             l2_chain_id,
         }
     }
@@ -56,14 +51,11 @@ impl EthProofSender {
             self.blob_store.clone(),
             self.connection_pool.clone(),
             self.config.clone(),
-            self.proof_generation_timeout,
             self.l2_chain_id,
         );
         let proof_validation_submitter = SubmitProofValidationSubmitter::new(
             self.client.clone_boxed(),
-            self.blob_store.clone(),
             self.connection_pool.clone(),
-            self.config.clone(),
             self.l2_chain_id,
         );
 
