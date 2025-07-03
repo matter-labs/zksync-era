@@ -3,12 +3,7 @@ import * as ethers from 'ethers';
 
 import { TestMaster } from '../src';
 import { Token } from '../src/types';
-import {
-    scaledGasPrice,
-    deployContract,
-    waitUntilBlockFinalized,
-    getL2bUrl
-} from '../src/helpers';
+import { scaledGasPrice, deployContract, waitUntilBlockFinalized, getL2bUrl } from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
@@ -23,13 +18,12 @@ import {
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
-    ArtifactL2InteropRootStorage,
+    ArtifactL2InteropRootStorage
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 import { getInteropTriggerData, getInteropBundleData } from '../src/temp-sdk';
 import { ETH_ADDRESS, sleep } from 'zksync-ethers/build/utils';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
-
 
 const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110'; // Must have L1 ETH
 const ethFundAmount = ethers.parseEther('1');
@@ -165,7 +159,7 @@ describe('Interop checks', () => {
             tokenA.decimals
         ]);
         tokenA.l2Address = await tokenADeploy.getAddress();
-        console.log("tokenA.l2Address", tokenA.l2Address);
+        console.log('tokenA.l2Address', tokenA.l2Address);
         // Register Token A
         await (await interop1NativeTokenVault.registerToken(tokenA.l2Address)).wait();
         tokenA.assetId = await interop1NativeTokenVault.assetId(tokenA.l2Address);
@@ -320,7 +314,7 @@ describe('Interop checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while ((currentRoot === ethers.ZeroHash) && (count < 20)) {
+        while (currentRoot === ethers.ZeroHash && count < 20) {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
@@ -404,7 +398,7 @@ describe('Interop checks', () => {
         const broadcastTx = await receiverProvider.broadcastTransaction(hexTx);
         await broadcastTx.wait();
 
-        console.log(broadcastTx.realInteropHash)
+        console.log(broadcastTx.realInteropHash);
         // Recursive broadcast
         // await readAndBroadcastInteropTx(broadcastTx.realInteropHash!, receiverProvider, senderProvider);
     }

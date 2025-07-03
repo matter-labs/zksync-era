@@ -1,4 +1,4 @@
-use std::cmp::{min, Ordering};
+use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -123,7 +123,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        min(self.l2_blocks.len(), 1) - 1
+        self.l2_blocks.len() - 1
     }
 
     pub(crate) fn push_tx(
@@ -200,7 +200,7 @@ impl BootloaderState {
         let mut offset = 0;
         let mut compressed_bytecodes_offset = 0;
         let mut tx_index = 0;
-        for l2_block in &self.l2_blocks {
+        for (i, l2_block) in self.l2_blocks.iter().enumerate() {
             for (num, tx) in l2_block.txs.iter().enumerate() {
                 let compressed_bytecodes_size = apply_tx_to_memory(
                     &mut initial_memory,
@@ -214,7 +214,7 @@ impl BootloaderState {
                     self.subversion,
                     num == 0,
                     self.get_preexisting_interop_roots_number(),
-                    self.get_preexisting_blocks_number(),
+                    i,
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
