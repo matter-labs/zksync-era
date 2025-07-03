@@ -353,7 +353,7 @@ async function getChainBalance(
 ): Promise<bigint> {
     const provider = l1 ? wallet.providerL1! : wallet.provider;
     // kl todo get from env or something.
-    const gwProvider = new RetryProvider({ url: await getL2bUrl("gateway"), timeout: 1200 * 1000 }, undefined);
+    const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
     const bridgehub = new ethers.Contract(
         await (await wallet.getBridgehubContract()).getAddress(),
         ArtifactBridgeHub.abi,
