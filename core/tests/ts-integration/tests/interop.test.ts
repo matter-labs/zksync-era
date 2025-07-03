@@ -77,7 +77,7 @@ describe('Interop checks', () => {
 
         // Setup Interop2 Provider and Wallet
         interop2Provider = new RetryProvider(
-            { url: await getL2bUrl("validium"), timeout: 1200 * 1000 },
+            { url: await getL2bUrl('validium'), timeout: 1200 * 1000 },
             undefined,
             testMaster.reporter
         );
@@ -206,7 +206,7 @@ describe('Interop checks', () => {
                 }
             ]
         );
-        console.log("Interop tx hash: ", tx.hash);
+        console.log('Interop tx hash: ', tx.hash);
 
         // Broadcast interop transaction from Interop1 to Interop2
         // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
@@ -217,9 +217,9 @@ describe('Interop checks', () => {
         await waitUntilInteropTxProcessed(
             tx.hash,
             (await interop1Provider.getNetwork()).chainId.toString(),
-            interop1Provider.pollingInterval,
+            interop1Provider.pollingInterval
         );
-        console.log("Interop tx completed");
+        console.log('Interop tx completed');
 
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
         // console.log('Token A info:', tokenA);
@@ -432,13 +432,15 @@ describe('Interop checks', () => {
         pollingInterval: number = 250
     ) {
         while (true) {
-            const interopStatus = await fetch(`http://localhost:3030/api/interop-transaction-status/?transactionHash=${transactionHash}&senderChainId=${senderChainId}`)
+            const interopStatus = await fetch(
+                `http://localhost:3030/api/interop-transaction-status/?transactionHash=${transactionHash}&senderChainId=${senderChainId}`
+            )
                 .then((res) => res.json())
                 .then((data) => data.status);
-            if (interopStatus === "not_found") {
+            if (interopStatus === 'not_found') {
                 throw new Error(`Interop transaction not found: ${transactionHash}`);
             }
-            if (interopStatus === "completed") {
+            if (interopStatus === 'completed') {
                 break;
             }
             console.log(`Interop transaction status: ${interopStatus}`);
