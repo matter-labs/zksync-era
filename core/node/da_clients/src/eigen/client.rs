@@ -78,7 +78,7 @@ impl EigenDAClient {
             .post(
                 self.eigenda_prover_service_rpc
                     .clone()
-                    .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
+                    .ok_or(anyhow::anyhow!("Failed to get prover service rpc"))?,
             )
             .json(&body)
             .send()
@@ -109,7 +109,7 @@ impl EigenDAClient {
             .post(
                 self.eigenda_prover_service_rpc
                     .clone()
-                    .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
+                    .ok_or(anyhow::anyhow!("Failed to get prover service rpc"))?,
             )
             .json(&body)
             .send()
@@ -155,9 +155,9 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        // Sidecar RPC being set means we are using EigenDA V2 Secure
+        // Prover Service RPC being set means we are using EigenDA V2 Secure
         if self.eigenda_prover_service_rpc.is_some() {
-            // In V2Secure, we need to send the blob key to the sidecar for proof generation
+            // In V2Secure, we need to send the blob key to the prover service for proof generation
             self.send_blob_key(blob_key.to_hex())
                 .await
                 .map_err(to_retriable_da_error)?;
@@ -214,7 +214,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            // Sidecar RPC being set means we are using EigenDA V2 Secure
+            // Prover Service RPC being set means we are using EigenDA V2 Secure
             if self.eigenda_prover_service_rpc.is_some() {
                 if let Some(proof) = self
                     .get_proof(blob_id)

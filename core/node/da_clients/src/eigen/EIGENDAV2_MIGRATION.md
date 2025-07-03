@@ -60,7 +60,7 @@ da_client:
   blob_version: 0
 ```
 
-> Note: There is a missing field, `eigenda_sidecar_rpc`, this determines wheter the client will use secure mode or not.
+> Note: There is a missing field, `eigenda_prover_service_rpc`, this determines wheter the client will use secure mode or not.
 
 Check the [README.md](./README.md) for more details on the new fields.
 
