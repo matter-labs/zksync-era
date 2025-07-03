@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::Parser;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_common::{cmd::Cmd, spinner::Spinner};
 use zkstack_cli_config::ZkStackConfig;
 
 use super::sql_fmt::format_sql;
