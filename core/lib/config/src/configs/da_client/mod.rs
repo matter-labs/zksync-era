@@ -300,7 +300,7 @@ mod tests {
           DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
           DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
           DA_BLOB_VERSION="0"
-          DA_EIGENDA_SIDECAR_RPC="http://localhost:9999"
+          DA_EIGENDA_PROVER_SERVICE_RPC="http://localhost:9999"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -332,7 +332,7 @@ mod tests {
         );
 
         assert_eq!(
-            config.eigenda_sidecar_rpc,
+            config.eigenda_prover_service_rpc,
             Some("http://localhost:9999".to_string())
         );
     }
@@ -347,7 +347,7 @@ mod tests {
             operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
             registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
             blob_version: 0
-            eigenda_sidecar_rpc: http://localhost:9999
+            eigenda_prover_service_rpc: http://localhost:9999
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -383,7 +383,7 @@ mod tests {
         );
 
         assert_eq!(
-            config.eigenda_sidecar_rpc,
+            config.eigenda_prover_service_rpc,
             Some("http://localhost:9999".to_string())
         );
     }

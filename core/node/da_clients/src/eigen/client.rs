@@ -27,8 +27,8 @@ const PROOF_NOT_FOUND_ERROR_CODE: i64 = -32001;
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
     client: PayloadDisperser,
-    sidecar_client: Client,
-    sidecar_rpc: Option<String>,
+    prover_service_client: Client,
+    eigenda_prover_service_rpc: Option<String>,
 }
 
 impl EigenDAClient {
@@ -59,8 +59,8 @@ impl EigenDAClient {
 
         Ok(Self {
             client,
-            sidecar_client: Client::new(),
-            sidecar_rpc: config.eigenda_sidecar_rpc,
+            prover_service_client: Client::new(),
+            eigenda_prover_service_rpc: config.eigenda_prover_service_rpc,
         })
     }
 }
@@ -74,9 +74,9 @@ impl EigenDAClient {
             "id": 1
         });
         let response = self
-            .sidecar_client
+            .prover_service_client
             .post(
-                self.sidecar_rpc
+                self.eigenda_prover_service_rpc
                     .clone()
                     .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
             )
@@ -105,9 +105,9 @@ impl EigenDAClient {
             "id": 1
         });
         let response = self
-            .sidecar_client
+            .prover_service_client
             .post(
-                self.sidecar_rpc
+                self.eigenda_prover_service_rpc
                     .clone()
                     .ok_or(anyhow::anyhow!("Failed to get sidecar rpc"))?,
             )
@@ -156,7 +156,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .map_err(to_retriable_da_error)?;
 
         // Sidecar RPC being set means we are using EigenDA V2 Secure
-        if self.sidecar_rpc.is_some() {
+        if self.eigenda_prover_service_rpc.is_some() {
             // In V2Secure, we need to send the blob key to the sidecar for proof generation
             self.send_blob_key(blob_key.to_hex())
                 .await
@@ -215,7 +215,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
             // Sidecar RPC being set means we are using EigenDA V2 Secure
-            if self.sidecar_rpc.is_some() {
+            if self.eigenda_prover_service_rpc.is_some() {
                 if let Some(proof) = self
                     .get_proof(blob_id)
                     .await
