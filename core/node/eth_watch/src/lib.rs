@@ -17,9 +17,9 @@ pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExten
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        BatchRootProcessor, BatchRootProcessorInterop, DecentralizedUpgradesEventProcessor,
-        EventProcessor, EventProcessorError, EventsSource, GatewayMigrationProcessor,
-        InteropRootProcessor, PriorityOpsEventProcessor,
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
     },
     metrics::METRICS,
 };
@@ -37,7 +37,6 @@ struct EthWatchState {
     next_expected_priority_id: PriorityOpId,
     chain_batch_root_number_lower_bound: L1BatchNumber,
     batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
-    batch_merkle_tree_interop: MiniMerkleTree<[u8; 96]>,
 }
 
 /// Ethereum watcher component.
@@ -98,15 +97,9 @@ impl EthWatch {
                 chain_id,
                 sl_client.clone(),
             );
-            let batch_root_processor_interop = BatchRootProcessorInterop::new(
-                state.batch_merkle_tree_interop,
-                chain_id,
-                sl_client.clone(),
-            );
             let sl_interop_root_processor =
                 InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
-            event_processors.push(Box::new(batch_root_processor_interop));
             event_processors.push(Box::new(sl_interop_root_processor));
         }
 
@@ -150,15 +143,13 @@ impl EthWatch {
         let tree_leaves = batch_hashes.into_iter().map(|(batch_number, batch_root)| {
             BatchRootProcessor::batch_leaf_preimage(batch_root, batch_number)
         });
-        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves.clone(), None);
-        let batch_merkle_tree_interop = MiniMerkleTree::new(tree_leaves, None);
+        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves, None);
 
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
             chain_batch_root_number_lower_bound,
             batch_merkle_tree,
-            batch_merkle_tree_interop,
         })
     }
 
