@@ -1,7 +1,5 @@
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
-import * as fs from 'fs';
-import * as path from 'path';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 
 export class Tester {

@@ -1,7 +1,4 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'yaml';
-import { chainsPath, findHome } from './zksync-home';
+import { findHome } from './zksync-home';
 import { loadConfig } from 'utils/build/file-configs';
 
 export function getMainWalletPk(chainName: string): string {

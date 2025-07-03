@@ -8,7 +8,6 @@ import { promisify } from 'node:util';
 import { ChildProcess, exec, spawn } from 'node:child_process';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import path from 'node:path';
 import { expect } from 'chai';
 import { runExternalNodeInBackground } from './utils';
 import { killPidWithAllChilds } from 'utils/build/kill';

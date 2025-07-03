@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
-import * as fs from 'fs';
-import * as path from 'path';
 import { getMainWalletPk } from '../src';
 import * as utils from 'utils';
 
@@ -26,9 +24,6 @@ export class Tester {
     static async init(l1_rpc_addr: string, l2_rpc_addr: string, baseTokenAddress: string): Promise<Tester> {
         const ethProvider = new ethers.JsonRpcProvider(l1_rpc_addr);
         ethProvider.pollingInterval = 100;
-
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
-        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {encoding: 'utf-8'}));
 
         const chainName = process.env.CHAIN_NAME!!;
         const ethWallet = new ethers.Wallet(getMainWalletPk(chainName), ethProvider);

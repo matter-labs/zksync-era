@@ -1,7 +1,6 @@
 import * as fs from 'node:fs';
 import { join } from 'path';
 import { logsPath } from './zksync-home';
-import { json } from 'node:stream/consumers';
 
 export let chainNameToTestSuite: Map<string, string> = new Map();
 

@@ -198,16 +198,6 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     return await loadTestEnvironmentFromFile(fileConfig);
 }
 
-/**
- * Checks that variable is not `undefined`, throws an error otherwise.
- */
-function ensureVariable(value: string | undefined, variableName: string): string {
-    if (!value) {
-        throw new Error(`${variableName} is not defined in the env`);
-    }
-    return value;
-}
-
 interface TokensDict {
     [key: string]: L1Token;
 }
@@ -222,20 +212,6 @@ type L1Token = {
     decimals: bigint;
     address: string;
 };
-
-function getTokens(pathToHome: string, network: string): L1Token[] {
-    const configPath = `${pathToHome}/etc/tokens/${network}.json`;
-    if (!fs.existsSync(configPath)) {
-        return [];
-    }
-    const parsed = JSON.parse(
-        fs.readFileSync(configPath, {
-            encoding: 'utf-8'
-        }),
-        (key, value) => (key === 'decimals' ? BigInt(value) : value)
-    );
-    return parsed;
-}
 
 function getTokensNew(pathToHome: string): Tokens {
     const configPath = path.join(pathToHome, '/configs/erc20.yaml');

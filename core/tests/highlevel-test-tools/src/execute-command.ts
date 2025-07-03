@@ -4,7 +4,6 @@ import * as path from 'path';
 import { getLogsDirectory, markLogsDirectoryAsFailed } from './logs';
 import * as console from 'node:console';
 import type { ProcessEnvOptions } from 'node:child_process';
-import { sign } from 'node:crypto';
 
 /**
  * Strips ANSI escape sequences from a string

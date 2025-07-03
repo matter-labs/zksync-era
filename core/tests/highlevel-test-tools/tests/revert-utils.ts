@@ -1,9 +1,7 @@
-import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'node:child_process';
 import { assert, expect } from 'chai';
-import { getAllConfigsPath, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
+import { getAllConfigsPath } from 'utils/build/file-configs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { Tester } from './revert-tester';
-import { killPidWithAllChilds } from 'utils/build/kill';
 import * as utils from 'utils';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';

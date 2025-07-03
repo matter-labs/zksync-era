@@ -16,32 +16,14 @@ import {
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { assert } from 'chai';
-import {
-    loadConfig,
-    replaceL1BatchMinAgeBeforeExecuteSeconds,
-    shouldLoadConfigFromFile
-} from 'utils/build/file-configs';
-import { logsTestPath } from 'utils/build/logs';
+import { loadConfig, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
 import { IZkSyncHyperchain, IZkSyncHyperchain__factory } from 'zksync-ethers/build/typechain';
-import * as path from 'node:path';
 import step from '../src/step';
 import { Tester } from './revert-tester';
 import { findHome } from '../src/zksync-home';
-//
-// describe('Revert Test', () => {
-//     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
-//
-//
-//         await revertTest(chainName);
-//     });
-// });
 
-const pathToHome = path.join(__dirname, '../../../..');
+const pathToHome = findHome();
 let chainName = undefined;
-
-async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(chainName, 'logs/revert/en', name);
-}
 
 interface GatewayInfo {
     gatewayChainId: string;

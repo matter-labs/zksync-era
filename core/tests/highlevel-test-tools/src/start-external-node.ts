@@ -61,7 +61,7 @@ export class TestExternalNode {
                 }
             });
 
-            this.process!.on('error', (error: Error) => {
+            this.process!.on('error', (_) => {
                 resolve();
             });
         });
