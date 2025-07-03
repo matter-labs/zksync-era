@@ -78,7 +78,7 @@ pub async fn distribute_eth(
                 .send_transaction(tx, None)
                 .await?
                 // It's safe to set such low number of confirmations and low interval for localhost
-                .confirmations(3)
+                .confirmations(5)
                 .interval(Duration::from_millis(30)),
         );
     }
@@ -138,7 +138,7 @@ pub async fn mint_token(
         match call {
             // It's safe to set such low number of confirmations and low interval for localhost
             Ok(call) => {
-                pending_txs.push(call.confirmations(3).interval(Duration::from_millis(300)))
+                pending_txs.push(call.confirmations(5).interval(Duration::from_millis(300)))
             }
             Err(e) => logger::error(format!("Minting is not successful {e}")),
         }
