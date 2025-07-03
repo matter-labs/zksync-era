@@ -68,6 +68,7 @@ Check the [README.md](./README.md) for more details on the new fields.
 
 - Remember to run `zkstackup --local` before running the new server after this changes
 
-- Some form of [payment](https://docs.eigencloud.xyz/products/eigenda/core-concepts/payments) needs to have been performed onchain for your private key 
+- Some form of [payment](https://docs.eigencloud.xyz/products/eigenda/core-concepts/payments) needs to have been
+  performed onchain for your private key
 
 - You can find the addresses for mainnet [here](https://docs.eigencloud.xyz/products/eigenda/networks/mainnet)
