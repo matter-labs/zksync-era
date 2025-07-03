@@ -61,6 +61,7 @@ zkstack chain init \
             --server-db-name=zksync_server_localhost_gateway \
             --chain gateway --update-submodules false
 
+
 mkdir -p ./zruns
 zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 
