@@ -9,7 +9,7 @@ use zksync_prover_fri_types::{keys::FriCircuitKey, FriProofWrapper};
 use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     rounds::scheduler::{Scheduler, SchedulerArtifacts},
 };
 
