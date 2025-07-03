@@ -47,6 +47,7 @@ pub struct SyncBlock {
     pub pubdata_params: Option<PubdataParams>,
     /// Pubdata limit for the batch.
     pub pubdata_limit: Option<u64>,
+    /// Interop roots for this block
     pub interop_roots: Vec<InteropRoot>,
 }
 
