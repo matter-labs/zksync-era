@@ -158,6 +158,10 @@ fn apply_l2_block_inner(
         return 0;
     }
 
+    if !config.start_new_l2_block {
+        return 0;
+    }
+
     let interop_root_application_config = config.interop_root_application_config.unwrap();
     for (offset, interop_root) in bootloader_l2_block.interop_roots.iter().enumerate() {
         apply_interop_root(
@@ -167,10 +171,6 @@ fn apply_l2_block_inner(
             config.subversion,
             bootloader_l2_block.number,
         );
-    }
-
-    if !config.start_new_l2_block {
-        return bootloader_l2_block.interop_roots.len();
     }
 
     apply_interop_root_number_in_block_number(
