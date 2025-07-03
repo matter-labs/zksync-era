@@ -12,7 +12,8 @@ pub struct L1SpecificContracts {
     pub shared_bridge: Option<Address>,
     pub erc_20_bridge: Option<Address>,
     pub base_token_address: Address,
-    pub sl_token_address: Option<Address>,
+    // Override for gateway base token address for price fetching from API. None -- ZK default
+    pub gateway_base_token_address: Option<Address>,
     pub chain_admin: Option<Address>,
     pub server_notifier_addr: Option<Address>,
 }

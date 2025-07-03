@@ -19,7 +19,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::{settlement::SettlementLayer, Address, L1ChainId, SLChainId, H160};
+use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use crate::{
     base_token_ratio_persister::BaseToken, BaseTokenL1Behaviour, BaseTokenRatioPersister,
@@ -87,15 +87,19 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let base_token = BaseToken::from_config_address(base_token_addr);
 
         let sl_token = match input.settlement_mode.settlement_layer() {
-            SettlementLayer::L1 { .. } => BaseToken::ETH,
+            SettlementLayer::L1 { .. } => BaseToken::Eth,
             SettlementLayer::Gateway { .. } => BaseToken::ERC20(
-                input.l1_ecosystem_contracts.0.sl_token_address.unwrap_or(
-                    // ZK Token address. There is only one official Gateway with ZK as base token.
-                    // (for price fetching on testnet we should/need to use mainnet address)
-                    "0x5A7d6b2F92C77FAD6CCaBd7EE0624E64907Eaf3E"
-                        .parse()
-                        .unwrap(),
-                ),
+                input
+                    .l1_ecosystem_contracts
+                    .0
+                    .gateway_base_token_address
+                    .unwrap_or(
+                        // ZK Token address. There is only one official Gateway with ZK as base token.
+                        // (for price fetching on testnet we should/need to use mainnet address)
+                        "0x5A7d6b2F92C77FAD6CCaBd7EE0624E64907Eaf3E"
+                            .parse()
+                            .unwrap(),
+                    ),
             ),
         };
 

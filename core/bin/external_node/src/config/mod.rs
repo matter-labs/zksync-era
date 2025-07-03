@@ -499,6 +499,7 @@ impl ExternalNodeConfig {
             shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
             erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: self.remote.base_token_addr,
+            gateway_base_token_address: None, // SL token information is only needed from base token price fetcher
             server_notifier_addr: self.remote.l1_server_notifier_addr,
             // We don't need chain admin for external node
             chain_admin: None,

@@ -15,14 +15,14 @@ use crate::{
 #[derive(Debug, Clone)]
 pub enum BaseToken {
     ERC20(Address),
-    ETH,
+    Eth,
 }
 
 impl BaseToken {
     /// Interprets 0x00 and 0x01 addresses as ETH
     pub fn from_config_address(address: Address) -> Self {
         if address == Address::zero() || address == Address::from_low_u64_be(1) {
-            Self::ETH
+            Self::Eth
         } else {
             Self::ERC20(address)
         }
@@ -141,12 +141,12 @@ impl BaseTokenRatioPersister {
     async fn loop_iteration(&mut self) -> anyhow::Result<()> {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
         let base_to_eth = match self.base_token {
-            BaseToken::ETH => BaseTokenApiRatio::identity(),
+            BaseToken::Eth => BaseTokenApiRatio::identity(),
             BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
         };
 
         let sl_to_eth = match self.sl_token {
-            BaseToken::ETH => BaseTokenApiRatio::identity(),
+            BaseToken::Eth => BaseTokenApiRatio::identity(),
             BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
         };
 
@@ -219,13 +219,15 @@ impl BaseTokenRatioPersister {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
-    use std::collections::HashMap;
-    use std::num::NonZeroU64;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::{
+        collections::HashMap,
+        num::NonZeroU64,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
 
     use anyhow::Result;
+    use assert_matches::assert_matches;
     use async_trait::async_trait;
     use chrono::Utc;
     use test_casing::test_casing;
@@ -234,8 +236,7 @@ mod tests {
     use zksync_external_price_api::PriceApiClient;
     use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-    use crate::base_token_ratio_persister::BaseToken;
-    use crate::*;
+    use crate::{base_token_ratio_persister::BaseToken, *};
 
     // Mock for the PriceApiClient trait
     #[derive(Debug, Clone, Default)]
@@ -318,7 +319,7 @@ mod tests {
     const TOKEN_2_ADDRESS: Address = Address::repeat_byte(0x02);
     const TOKEN_2: BaseToken = BaseToken::ERC20(TOKEN_2_ADDRESS);
     const TOKEN_2_PRICE: (u64, u64) = (1000, 1);
-    const ETH: BaseToken = BaseToken::ETH;
+    const ETH: BaseToken = BaseToken::Eth;
 
     // Test initialization function
     async fn init_test(
@@ -395,8 +396,8 @@ mod tests {
         let custom_address = Address::from_low_u64_be(0x1234);
 
         // Test ETH address recognition
-        assert_matches!(BaseToken::from_config_address(eth_address1), BaseToken::ETH);
-        assert_matches!(BaseToken::from_config_address(eth_address2), BaseToken::ETH);
+        assert_matches!(BaseToken::from_config_address(eth_address1), BaseToken::Eth);
+        assert_matches!(BaseToken::from_config_address(eth_address2), BaseToken::Eth);
         assert_matches!(BaseToken::from_config_address(custom_address), BaseToken::ERC20(addr) if addr == custom_address);
     }
 }
