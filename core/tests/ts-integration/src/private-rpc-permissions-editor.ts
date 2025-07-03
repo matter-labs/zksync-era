@@ -10,7 +10,11 @@ type YamlMethod = {
 };
 
 type YamlContract = { address: string; methods: YamlMethod[] };
-type YamlRoot = { groups: any[]; contracts: YamlContract[] };
+type YamlRoot = {
+    whitelisted_wallets?: string | string[];
+    groups: any[];
+    contracts: YamlContract[];
+};
 const mutex = new Mutex();
 /**
  * Adds a method with public read/write permissions to the YAML file.
@@ -61,4 +65,30 @@ export async function injectPermissionsToFile(
     const dumped = yaml.dump(data, { lineWidth: 120, sortKeys: false, quotingType: '"' });
     await fs.writeFile(filePath, dumped, 'utf8');
     mutex.release();
+}
+
+/**
+ * Sets the whitelisted wallets in the YAML file.
+ *
+ * @param filePath - absolute or relative path to the YAML file
+ * @param wallets - either "all" to allow all wallets, or an array of wallet addresses
+ */
+export async function setWhitelistedWallets(filePath: string, wallets: string | string[]): Promise<void> {
+    await mutex.acquire();
+    try {
+        // --- load & parse ---------------------------------------------------------
+        const raw = await fs.readFile(filePath, 'utf8');
+        const data = yaml.load(raw) as YamlRoot;
+
+        if (!data) throw new Error('Invalid YAML structure');
+
+        // --- set whitelisted wallets ----------------------------------------------
+        data.whitelisted_wallets = wallets;
+
+        // --- dump & save ----------------------------------------------------------
+        const dumped = yaml.dump(data, { lineWidth: 120, sortKeys: false, quotingType: '"' });
+        await fs.writeFile(filePath, dumped, 'utf8');
+    } finally {
+        mutex.release();
+    }
 }

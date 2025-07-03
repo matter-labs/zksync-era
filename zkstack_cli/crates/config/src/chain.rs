@@ -13,7 +13,8 @@ use zksync_basic_types::L2ChainId;
 use crate::{
     consts::{
         CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
-        L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+        L1_CONTRACTS_FOUNDRY, PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
+        SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     gateway::GatewayConfig,
@@ -115,8 +116,14 @@ impl ChainConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
-    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
-        todo!()
+    pub fn path_to_proving_networks(&self) -> PathBuf {
+        self.link_to_code.join(PROVING_NETWORKS_PATH)
+    }
+
+    pub fn path_to_proving_networks_deploy_script(&self) -> PathBuf {
+        self.link_to_code
+            .join(PROVING_NETWORKS_PATH)
+            .join(PROVING_NETWORKS_DEPLOY_SCRIPT_PATH)
     }
 
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {

@@ -2,14 +2,8 @@ use std::str::FromStr;
 
 use opentelemetry::{trace::TracerProvider, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{
-    propagation::TraceContextPropagator,
-    trace::{RandomIdGenerator, Sampler},
-    Resource,
-};
-use opentelemetry_semantic_conventions::resource::{
-    DEPLOYMENT_ENVIRONMENT, K8S_CLUSTER_NAME, K8S_NAMESPACE_NAME, K8S_POD_NAME, SERVICE_NAME,
-};
+use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Sampler, Resource};
+use opentelemetry_semantic_conventions::attribute;
 use tracing_subscriber::{registry::LookupSpan, EnvFilter, Layer};
 use url::Url;
 
@@ -112,13 +106,19 @@ impl ServiceDescriptor {
 
     fn into_otlp_resource(self) -> Resource {
         let attributes = vec![
-            KeyValue::new(K8S_POD_NAME, self.k8s_pod_name),
-            KeyValue::new(K8S_NAMESPACE_NAME, self.k8s_namespace_name),
-            KeyValue::new(K8S_CLUSTER_NAME, self.k8s_cluster_name),
-            KeyValue::new(DEPLOYMENT_ENVIRONMENT, self.deployment_environment),
-            KeyValue::new(SERVICE_NAME, self.service_name),
+            KeyValue::new(attribute::K8S_POD_NAME, self.k8s_pod_name),
+            KeyValue::new(attribute::K8S_NAMESPACE_NAME, self.k8s_namespace_name),
+            KeyValue::new(attribute::K8S_CLUSTER_NAME, self.k8s_cluster_name),
+            #[allow(deprecated)]
+            KeyValue::new(
+                attribute::DEPLOYMENT_ENVIRONMENT,
+                self.deployment_environment,
+            ),
+            KeyValue::new(attribute::SERVICE_NAME, self.service_name),
         ];
-        Resource::new(attributes)
+        Resource::builder_empty()
+            .with_attributes(attributes)
+            .build()
     }
 }
 
@@ -183,21 +183,21 @@ impl OpenTelemetry {
     /// ```
     pub(super) fn logs_layer<S>(
         &self,
-    ) -> Option<(opentelemetry_sdk::logs::LoggerProvider, impl Layer<S>)>
+    ) -> Option<(opentelemetry_sdk::logs::SdkLoggerProvider, impl Layer<S>)>
     where
         S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     {
         let logging_endpoint = self.logging_endpoint.clone()?;
         let resource = self.service.clone().into_otlp_resource();
 
-        let exporter = opentelemetry_otlp::new_exporter()
-            .http()
+        let exporter = opentelemetry_otlp::LogExporter::builder()
+            .with_http()
             .with_endpoint(logging_endpoint)
-            .build_log_exporter()
+            .build()
             .expect("Failed to create OTLP exporter"); // URL is validated.
 
-        let provider = opentelemetry_sdk::logs::LoggerProvider::builder()
-            .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+        let provider = opentelemetry_sdk::logs::SdkLoggerProvider::builder()
+            .with_batch_exporter(exporter)
             .with_resource(resource)
             .build();
 
@@ -211,7 +211,7 @@ impl OpenTelemetry {
     /// Will return `None` if no tracing URL was provided.
     pub(super) fn tracing_layer<S>(
         &self,
-    ) -> Option<(opentelemetry_sdk::trace::TracerProvider, impl Layer<S>)>
+    ) -> Option<(opentelemetry_sdk::trace::SdkTracerProvider, impl Layer<S>)>
     where
         S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     {
@@ -226,24 +226,20 @@ impl OpenTelemetry {
         let service_name = self.service.service_name.clone();
         let resource = self.service.clone().into_otlp_resource();
 
-        let exporter = opentelemetry_otlp::new_exporter()
-            .http()
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
             .with_endpoint(tracing_endpoint)
-            .build_span_exporter()
+            .build()
             .expect("Failed to create OTLP exporter"); // URL is validated.
 
-        let config = opentelemetry_sdk::trace::Config::default()
-            .with_id_generator(RandomIdGenerator::default())
+        let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+            .with_batch_exporter(exporter)
             .with_sampler(Sampler::AlwaysOn)
-            .with_resource(resource);
-
-        let provider = opentelemetry_sdk::trace::TracerProvider::builder()
-            .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
-            .with_config(config)
+            .with_resource(resource)
             .build();
 
         // TODO: Version and other metadata
-        let tracer = provider.tracer_builder(service_name).build();
+        let tracer = provider.tracer(service_name);
 
         opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
         let layer = tracing_opentelemetry::layer()

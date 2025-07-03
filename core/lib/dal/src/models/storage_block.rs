@@ -59,6 +59,8 @@ pub(crate) struct StorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+
+    pub pubdata_limit: Option<i64>,
 }
 
 impl StorageL1BatchHeader {
@@ -106,6 +108,7 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
+            pubdata_limit: self.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -177,6 +180,8 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+
+    pub pubdata_limit: Option<i64>,
 }
 
 impl StorageL1Batch {
@@ -224,6 +229,7 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
+            pubdata_limit: self.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -312,6 +318,7 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub pubdata_limit: Option<i64>,
 }
 
 impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
@@ -330,6 +337,7 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -344,6 +352,7 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub pubdata_limit: Option<i64>,
 }
 
 impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
@@ -363,6 +372,7 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
         }
     }
 }

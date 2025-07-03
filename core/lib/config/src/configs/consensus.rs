@@ -189,6 +189,44 @@ impl ConsensusConfig {
     pub fn rpc(&self) -> RpcConfig {
         self.rpc.clone()
     }
+
+    pub fn for_tests() -> Self {
+        const VALIDATOR: &str = "validator:public:bls12_381:80ee14e3a66e1324b9af2531054a823a1224b433\
+            6c6e46fa9491220bb94c887a66b14549060046537e17f831453d358d0b0662322437876622a2490246c0fe0a\
+            6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a";
+
+        ConsensusConfig {
+            port: Some(0),
+            server_addr: "127.0.0.1:0".parse().unwrap(),
+            public_addr: Host("127.0.0.1:0".into()),
+            max_payload_size: ByteSize(2000000),
+            view_timeout: Duration::from_secs(3),
+            max_batch_size: ByteSize(125001024),
+            gossip_dynamic_inbound_limit: 10,
+            gossip_static_inbound: BTreeSet::from([
+                NodePublicKey("node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291".into())
+            ]),
+            gossip_static_outbound: BTreeMap::from([(
+                NodePublicKey("node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291".into()),
+                Host("127.0.0.1:3054".into())
+            )]),
+            genesis_spec: Some(GenesisSpec {
+                chain_id: L2ChainId::from(271),
+                protocol_version: ProtocolVersion(1),
+                validators: vec![(ValidatorPublicKey(VALIDATOR.into()), 1)],
+                leader: Some(ValidatorPublicKey(VALIDATOR.into())),
+                registry_address: Some("0x2469b58c37e02d53a65cdf248d4086beba17de85".parse().unwrap()),
+                seed_peers: BTreeMap::from([(
+                    NodePublicKey("node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a".into()),
+                    Host("example.com:3054".into())
+                )]),
+            }),
+            rpc: RpcConfig {
+                get_block_rps: NonZeroUsize::new(5).unwrap(),
+            },
+            debug_page_addr: Some("127.0.0.1:0".parse().unwrap()),
+        }
+    }
 }
 
 /// Secrets needed for consensus.

@@ -83,7 +83,7 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/tee/submit_proofs/:l1_batch_number",
+            "/tee/submit_proofs/{l1_batch_number}",
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitTeeProofRequest>| async move {
                     submit_tee_proof_processor

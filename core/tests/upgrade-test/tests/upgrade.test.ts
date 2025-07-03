@@ -128,7 +128,7 @@ describe('Upgrade test', function () {
         gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain);
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
-            enableConsensus: false,
+            enableConsensus: true,
             ethClientWeb3Url: ethProviderAddress!,
             apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
             baseTokenAddress: contractsConfig.l1.base_token_addr

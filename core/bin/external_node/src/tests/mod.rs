@@ -19,15 +19,15 @@ mod utils;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
-#[test_casing(4, ["all", "core", "api", "core,tree_api"])]
+#[test_casing(4, [("all", 0), ("core", 1), ("api", 2), ("core,tree_api", 3)])]
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
-async fn external_node_basics(components_str: &'static str) {
+async fn external_node_basics(input: (&'static str, u16)) {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let connection_pool = ConnectionPool::test_pool().await;
     let _guard = zksync_vlog::ObservabilityBuilder::new().try_build().ok(); // Enable logging to simplify debugging
     let (env, env_handles) =
-        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, components_str)
+        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, input.0, input.1)
             .await;
 
     let mut expected_health_components = utils::expected_health_components(&env.components);
@@ -91,7 +91,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let connection_pool = ConnectionPool::test_pool().await;
     let (env, env_handles) =
-        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "core").await;
+        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "core", 0).await;
 
     let l2_client = utils::mock_l2_client_hanging();
     let mut node_handle = env.spawn_node(l2_client);
@@ -111,7 +111,7 @@ async fn running_tree_without_core_is_not_allowed() {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let connection_pool = ConnectionPool::test_pool().await;
     let (env, _env_handles) =
-        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "tree").await;
+        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "tree", 0).await;
 
     let l2_client = utils::mock_l2_client(&env);
     let eth_client = utils::mock_eth_client(
@@ -154,7 +154,7 @@ async fn reverting_node_state_no_op() {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let connection_pool = ConnectionPool::test_pool().await;
     let (env, _env_handles) =
-        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "core").await;
+        utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "core", 0).await;
 
     utils::spawn_node(move || {
         let node = ExternalNodeBuilder::new(env.config)?;

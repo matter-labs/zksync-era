@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use zksync_types::{
     h256_to_u256, writes::compression::compress_with_best_strategy, StorageKey, StorageLog,
@@ -36,6 +36,7 @@ pub struct StorageWritesDeduplicator {
     // stores the mapping of storage-slot key to its values and the tx number in block
     modified_key_values: HashMap<StorageKey, ModifiedSlot>,
     metrics: DeduplicatedWritesMetrics,
+    snapshots: VecDeque<Vec<UpdateItem>>,
 }
 
 impl StorageWritesDeduplicator {
@@ -67,7 +68,10 @@ impl StorageWritesDeduplicator {
 
     /// Applies storage logs to the state.
     pub fn apply<'a, I: IntoIterator<Item = &'a StorageLogWithPreviousValue>>(&mut self, logs: I) {
-        self.process_storage_logs(logs);
+        let updates = self.process_storage_logs(logs);
+        if let Some(snapshot) = self.snapshots.back_mut() {
+            snapshot.extend(updates);
+        }
     }
 
     /// Returns metrics as if provided storage logs are applied to the state.
@@ -219,6 +223,19 @@ impl StorageWritesDeduplicator {
                 }
             }
         }
+    }
+
+    pub fn make_snapshot(&mut self) {
+        self.snapshots.push_back(Vec::new());
+    }
+
+    pub fn rollback_to_latest_snapshot_popping(&mut self) {
+        let snapshot = self.snapshots.pop_back().unwrap();
+        self.rollback(snapshot);
+    }
+
+    pub fn pop_front_snapshot_no_rollback(&mut self) {
+        self.snapshots.pop_front();
     }
 }
 

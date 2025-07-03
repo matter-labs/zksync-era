@@ -45,12 +45,12 @@ impl Api {
                     .layer(middleware_factory(Method::GetLatestProofGenerationData)),
             )
             .route(
-                "/proof_generation_data/:l1_batch_number",
+                "/proof_generation_data/{l1_batch_number}",
                 get(Api::generation_data_for_existing_batch)
                     .layer(middleware_factory(Method::GetSpecificProofGenerationData)),
             )
             .route(
-                "/verify_proof/:l1_batch_number",
+                "/verify_proof/{l1_batch_number}",
                 post(Api::verify_proof).layer(middleware_factory(Method::VerifyProof)),
             )
             .with_state(processor);

@@ -1,7 +1,6 @@
 //! Storage implementation based on DAL.
 
 use zksync_concurrency::ctx;
-use zksync_consensus_roles::validator;
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::{FetchedBlock, IoCursorExt as _},
@@ -44,10 +43,6 @@ pub(crate) struct PayloadQueue {
 }
 
 impl PayloadQueue {
-    pub(crate) fn next(&self) -> validator::BlockNumber {
-        validator::BlockNumber(self.inner.next_l2_block.0.into())
-    }
-
     /// Advances the cursor by converting the block into actions and pushing them
     /// to the actions queue.
     /// Does nothing and returns `Ok(())` if the block has been already processed.

@@ -9,6 +9,7 @@ use crate::commands::prover::args::setup_keys::SetupKeysArgs;
 
 mod args;
 mod compressor_keys;
+mod deploy_proving_networks;
 mod gcs;
 mod init;
 mod init_bellman_cuda;

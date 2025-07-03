@@ -81,6 +81,9 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fair_l2_gas_price: 1000,
         fair_pubdata_price: 500,
     });
+    tester
+        .insert_unsealed_batch(&connection_pool, 2, fee_input)
+        .await;
     tester.set_timestamp(2);
     tester
         .insert_l2_block(&connection_pool, 2, 10, fee_input)
@@ -249,6 +252,7 @@ fn create_block_seal_command(
         l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
         pubdata_params: PubdataParams::default(),
+        insert_header: true,
     }
 }
 
@@ -302,7 +306,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     );
 
     let l1_batch_number = L1BatchNumber(2);
-    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block.clone());
     connection_pool
         .connection()
         .await
@@ -374,7 +378,7 @@ async fn processing_events_when_sealing_l2_block() {
         );
     }
 
-    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block.clone());
     pool.connection()
         .await
         .unwrap()
@@ -559,7 +563,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         previous_batch_hash,
     );
     let version = batch_init_params.system_env.version;
-    let mut updates = UpdatesManager::new(&batch_init_params, version);
+    let mut updates = UpdatesManager::new(
+        &batch_init_params,
+        version,
+        cursor.prev_l1_batch_timestamp,
+        Some(cursor.prev_l2_block_timestamp),
+        true,
+    );
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
@@ -574,7 +584,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
             .await
             .unwrap();
     tokio::spawn(l2_block_sealer.run());
-    persistence.handle_l2_block(&updates).await.unwrap();
+    persistence.handle_l2_block_data(&updates).await.unwrap();
 
     // Check that the L2 block is persisted and has correct data.
     let persisted_l2_block = storage
@@ -731,6 +741,9 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
     // Pre-insert L2 block without its unsealed L1 batch counterpart
+    tester
+        .insert_unsealed_batch(&connection_pool, 2, fee_input)
+        .await;
     tester.set_timestamp(2);
     tester
         .insert_l2_block(&connection_pool, 2, 5, fee_input)
