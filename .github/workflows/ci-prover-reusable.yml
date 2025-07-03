@@ -29,7 +29,7 @@ jobs:
 
       - name: Formatting
         run: |
-          ci_run zkstack dev fmt --check rustfmt
+          ci_run zkstack dev fmt --check rust
 
       - name: Lints
         run: ci_run zkstack dev lint -t rs --check
