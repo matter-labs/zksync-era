@@ -1,9 +1,6 @@
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
-use zksync_node_framework::{
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext,
-};
+use zksync_node_framework::wiring_layer::{WiringError, WiringLayer};
 
 use crate::eigen::EigenDAClient;
 
@@ -19,12 +16,9 @@ impl EigenWiringLayer {
     }
 }
 
-#[derive(Debug, FromContext)]
-pub struct Input {}
-
 #[async_trait::async_trait]
 impl WiringLayer for EigenWiringLayer {
-    type Input = Input;
+    type Input = ();
     type Output = Box<dyn DataAvailabilityClient>;
 
     fn layer_name(&self) -> &'static str {
