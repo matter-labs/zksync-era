@@ -42,9 +42,7 @@ gossipnet to other nodes, so that they can establish connections to your node. I
 to the public internet, you can use IP in your local network.
 ```
 
-Currently the config contains the following fields (refer to config
-[schema](https://github.com/matter-labs/zksync-era/blob/990676c5f84afd2ff8cd337f495c82e8d1f305a4/core/lib/protobuf_config/src/proto/core/consensus.proto#L66)
-for more details):
+Currently, the config contains the following fields:
 
 - `server_addr` - local TCP socket address that the node should listen on for incoming connections. Note that this is an
   additional TCP port that will be opened by the node.
@@ -56,7 +54,7 @@ for more details):
 
 ### Setting environment variables
 
-Uncomment (or add) the following lines in your `.env` config:
+Uncomment or add the following lines in your `.env` config:
 
 ```
 EN_CONSENSUS_CONFIG_PATH=...

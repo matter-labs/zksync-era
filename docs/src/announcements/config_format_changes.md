@@ -33,11 +33,17 @@ The env-based format is *de facto* currently deprecated for the main node (the `
 Potential breaking changes in it are not exhaustively tested and will be fixed at best-effort basis.
 ```
 
-The initial stage will also not touch env-based config for non-validator / external nodes (`zksync_external_node`
-binary); it will be migrated separately.
-
 Migration is only necessary for _existing_ configurations; config files newly created via (updated) `zkstack` will have
 the necessary changes applied automatically.
+
+## Migrating EN env configuration
+
+Env-based config logic is migrated starting from the EN release v${FIXME_VERSION}. No breaking changes are expected.
+However, multiple previously used env variables are now considered deprecated, and the corresponding warnings will be
+logged on the `WARN` level with the `smart_config` target during node initialization. It is recommended to move
+deprecated env variables to canonical locations as suggested by these warnings.
+
+## Migrating file-based configuration
 
 ### Tagged enumerations
 
@@ -211,6 +217,4 @@ state_keeper:
 
 ## Debugging configuration
 
-To debug configuration parameters, launch the node with the `config` command, e.g. `zksync_server config` or
-`zkstack server -- config` if using `zkstack`. By default, the `config` command will output help on configuration
-params, optionally filtered by the param name. If the `--debug` flag is specified, param values will be output instead.
+See [_Node Configuration_](../guides/external-node/02_configuration.md#debugging-configuration).
