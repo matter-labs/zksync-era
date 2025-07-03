@@ -52,6 +52,7 @@ pub(super) fn apply_tx_to_memory(
         + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
     let tx_description_offset = get_tx_description_offset(subversion) + tx_offset;
 
+
     memory.push((
         bootloader_description_offset,
         assemble_tx_meta(execution_mode, true),
