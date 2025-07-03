@@ -216,11 +216,6 @@ fn apply_interop_root_number_in_block_number(
     let first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
     memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
-
-    // memory.extend(vec![(
-    //     get_current_number_of_roots_in_block_offset(subversion),
-    //     preexisting_blocks_number.into(),
-    // )]);
 }
 
 fn bootloader_memory_input(

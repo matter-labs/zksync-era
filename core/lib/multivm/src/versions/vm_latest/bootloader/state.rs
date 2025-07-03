@@ -211,12 +211,12 @@ impl BootloaderState {
         let mut compressed_bytecodes_offset = 0;
         let mut tx_index = 0;
         let mut applied_interop_roots_offset = 0;
-        for l2_block in &self.l2_blocks {
+        for (i, l2_block) in self.l2_blocks.iter().enumerate() {
             for (num, tx) in l2_block.txs.iter().enumerate() {
                 let interop_root_application_config = if num == 0 {
                     Some(InteropRootApplicationConfig {
                         number_of_applied_interop_roots: applied_interop_roots_offset,
-                        preexisting_blocks_number: self.get_preexisting_blocks_number(),
+                        preexisting_blocks_number: i,
                     })
                 } else {
                     None
