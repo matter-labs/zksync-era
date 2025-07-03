@@ -7,7 +7,6 @@ pub struct InteropRoot {
     pub chain_id: L2ChainId,
     pub block_number: u32,
     pub sides: Vec<H256>, // For proof based interop, the sides contain a single value: the messageRoot
-    pub received_timestamp: u64,
 }
 
 impl InteropRoot {
@@ -16,7 +15,6 @@ impl InteropRoot {
             chain_id,
             block_number,
             sides,
-            received_timestamp: 0,
         }
     }
 
