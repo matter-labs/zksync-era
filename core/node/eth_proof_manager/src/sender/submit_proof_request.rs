@@ -1,10 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
-use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
-use zksync_dal::{ConnectionPool, Core};
+use zksync_config::configs::{
+    eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
+};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{Locking, Processor};
-use zksync_types::L2ChainId;
+use zksync_types::{L1BatchId, L2ChainId};
 
 use crate::{
     client::EthProofManagerClient,
@@ -55,36 +57,66 @@ impl ProofRequestSubmitter {
 
             let url = self
                 .blob_store
-                .put(batch_id, &proof_generation_data)
+                .put(
+                    (
+                        L1BatchId::new(self.processor.chain_id(), batch_id),
+                        proof_generation_data.protocol_version,
+                    ),
+                    &proof_generation_data,
+                )
                 .await?;
 
             let proof_request_identifier = ProofRequestIdentifier {
-                chain_id: proof_generation_data.chain_id,
-                block_number: proof_generation_data.l1_batch_number,
+                chain_id: proof_generation_data.chain_id.as_u64(),
+                block_number: proof_generation_data.l1_batch_number.0 as u64,
             };
 
             let proof_request_parameters = ProofRequestParams {
-                protocol_major: proof_generation_data.protocol_version.major,
-                protocol_minor: proof_generation_data.protocol_version.minor,
-                protocol_patch: proof_generation_data.protocol_version.patch,
+                protocol_major: 0,
+                protocol_minor: proof_generation_data.protocol_version.minor as u32,
+                protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
                 proof_inputs_url: url,
-                timeout_after: self.config.proof_request_timeout,
+                timeout_after: self.config.proof_request_timeout.as_secs() as u64,
                 max_reward: self.config.max_reward,
             };
 
-            if let Err(e) = self
+            match self
                 .client
                 .submit_proof_request(proof_request_identifier, proof_request_parameters)
                 .await
             {
-                tracing::error!(
-                    "Failed to submit proof request for batch {}: {}",
-                    batch_id,
-                    e
-                );
-            } else {
-                // todo: add a check to see if the proof request was accepted
+                Ok(tx_hash) => {
+                    self.connection_pool
+                        .connection()
+                        .await?
+                        .eth_proof_manager_dal()
+                        .mark_batch_as_sent(batch_id, tx_hash)
+                        .await?;
+                    tracing::info!(
+                        "Submitted proof request for batch {} with tx hash {}",
+                        batch_id,
+                        tx_hash
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to submit proof request for batch {}, moving to prover cluster: {}",
+                        batch_id,
+                        e
+                    );
+                    self.connection_pool
+                        .connection()
+                        .await?
+                        .eth_proof_manager_dal()
+                        .fallback_certain_batch(batch_id)
+                        .await?;
+                }
             }
+        } else {
+            tracing::info!("No batches to submit proof request for");
         }
+
+        Ok(())
     }
 }

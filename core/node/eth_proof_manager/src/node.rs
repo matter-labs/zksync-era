@@ -30,6 +30,7 @@ pub struct EthProofManagerLayer {
     eth_proof_manager_contracts: ProofManagerContracts,
     wallets_config: Wallets,
     l1_chain_id: L1ChainId,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -37,6 +38,7 @@ pub struct Input {
     master_pool: PoolResource<MasterPool>,
     eth_client: Box<DynClient<L1>>,
     blob_store: Arc<dyn ObjectStore>,
+    gas_adjuster: Arc<dyn TxParamsProvider>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -51,18 +53,21 @@ impl EthProofManagerLayer {
         eth_proof_manager_contracts: ProofManagerContracts,
         wallets_config: Wallets,
         l1_chain_id: L1ChainId,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_proof_manager_config,
             eth_proof_manager_contracts,
             wallets_config,
             l1_chain_id,
+            l2_chain_id,
         }
     }
 
     fn create_client(
         &self,
         client: Box<DynClient<L1>>,
+        gas_adjuster: Arc<dyn TxParamsProvider>,
         contracts: &ProofManagerContracts,
         owner_wallet: Wallet,
     ) -> ProofManagerClient {
@@ -83,7 +88,12 @@ impl EthProofManagerLayer {
             self.l1_chain_id.into(),
         );
 
-        ProofManagerClient::new(Box::new(eth_client))
+        ProofManagerClient::new(
+            Box::new(eth_client),
+            gas_adjuster,
+            self.eth_proof_manager_config
+                .max_acceptable_priority_fee_in_gwei,
+        )
     }
 }
 
@@ -107,6 +117,7 @@ impl WiringLayer for EthProofManagerLayer {
 
         let client = self.create_client(
             input.eth_client,
+            input.gas_adjuster,
             &self.eth_proof_manager_contracts,
             self.wallets_config
                 .eth_proof_manager
@@ -116,9 +127,12 @@ impl WiringLayer for EthProofManagerLayer {
 
         let eth_proof_manager = EthProofManager::new(
             Box::new(client),
+            input.gas_adjuster,
             main_pool,
             input.blob_store,
             self.eth_proof_manager_config,
+            self.eth_proof_manager_config.proof_generation_timeout,
+            self.l2_chain_id,
         );
 
         Ok(Output { eth_proof_manager })

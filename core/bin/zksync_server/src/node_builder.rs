@@ -295,6 +295,7 @@ impl MainNodeBuilder {
                 .expect("Eth proof manager contracts are required to run eth proof manager"),
             self.wallets.clone(),
             self.genesis_config.l1_chain_id,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }

@@ -2,18 +2,25 @@ use std::ops::Deref;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_eth_client::{BoundEthInterface, EnrichedClientError, Options};
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
     api::Log,
     ethabi::{self},
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    H256,
+    writes::PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
+    H256, MAX_ENCODED_TX_SIZE,
 };
 
 use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
 
 #[derive(Clone, Debug)]
-pub struct ProofManagerClient(pub(crate) Box<dyn BoundEthInterface>);
+pub struct ProofManagerClient {
+    pub(crate) client: Box<dyn BoundEthInterface>,
+    pub(crate) gas_adjuster: Arc<dyn TxParamsProvider>,
+    pub(crate) config: EthProofManagerConfig,
+}
 
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
@@ -59,8 +66,170 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
 }
 
 impl ProofManagerClient {
-    pub fn new(client: Box<dyn BoundEthInterface>) -> Self {
-        Self(client)
+    pub fn new(
+        client: Box<dyn BoundEthInterface>,
+        gas_adjuster: Arc<dyn TxParamsProvider>,
+        config: EthProofManagerConfig,
+    ) -> Self {
+        Self {
+            client,
+            gas_adjuster,
+            config,
+        }
+    }
+
+    fn get_eth_fees(
+        &self,
+        prev_base_fee_per_gas: Option<u64>,
+        prev_priority_fee_per_gas: Option<u64>,
+    ) -> (u64, u64) {
+        // Multiply by 2 to optimise for fast inclusion.
+        let mut base_fee_per_gas = self.gas_adjuster.as_ref().get_base_fee(0) * 2;
+        let mut priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
+        if let Some(x) = prev_priority_fee_per_gas {
+            // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
+            priority_fee_per_gas = max(priority_fee_per_gas, (x * 6) / 5 + 1);
+        }
+
+        if let Some(x) = prev_base_fee_per_gas {
+            // same for base_fee_per_gas but 10%
+            base_fee_per_gas = max(base_fee_per_gas, x + (x / 10) + 1);
+        }
+
+        // Extra check to prevent sending transaction with extremely high priority fee.
+        if priority_fee_per_gas > self.config.max_acceptable_priority_fee_in_gwei {
+            panic!(
+                "Extremely high value of priority_fee_per_gas is suggested: {}, while max acceptable is {}",
+                priority_fee_per_gas,
+                self.config.max_acceptable_priority_fee_in_gwei
+            );
+        }
+
+        (base_fee_per_gas, priority_fee_per_gas)
+    }
+
+    async fn send_tx_with_retries(&self, calldata: Vec<u8>) -> Result<H256, ClientError> {
+        let max_attempts = self.config.max_tx_sending_attempts;
+        let sleep_duration = self.config.tx_sending_sleep;
+        let mut prev_base_fee_per_gas: Option<u64> = None;
+        let mut prev_priority_fee_per_gas: Option<u64> = None;
+        let mut last_error = None;
+
+        for attempt in 0..max_attempts {
+            let (base_fee_per_gas, priority_fee_per_gas) =
+                self.get_eth_fees(prev_base_fee_per_gas, prev_priority_fee_per_gas);
+
+            let result = self
+                .send_tx(calldata, base_fee_per_gas, priority_fee_per_gas)
+                .await;
+
+            if let Err(err) = result {
+                tracing::info!(
+                    "Failed to send transaction, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                    attempt,
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                    err);
+
+                tokio::time::sleep(sleep_duration).await;
+                prev_base_fee_per_gas = Some(base_fee_per_gas);
+                prev_priority_fee_per_gas = Some(priority_fee_per_gas);
+                last_error = Some(err)
+            } else {
+                return Ok(result.unwrap());
+            }
+        }
+
+        let error_message = "Failed to update base token multiplier on L1";
+        Err(last_error
+            .map(|x| x.context(error_message))
+            .unwrap_or_else(|| anyhow::anyhow!(error_message)))
+    }
+
+    async fn send_tx(
+        &self,
+        calldata: Vec<u8>,
+        base_fee_per_gas: u64,
+        priority_fee_per_gas: u64,
+    ) -> anyhow::Result<H256> {
+        let nonce = self
+            .client
+            .deref()
+            .as_ref()
+            .nonce_at_for_account(self.client.sender_account(), BlockNumber::Latest)
+            .await
+            .with_context(|| "failed getting transaction count")?
+            .as_u64();
+
+        let options = Options {
+            gas: Some(U256::from(self.max_tx_gas)),
+            nonce: Some(U256::from(nonce)),
+            max_fee_per_gas: Some(U256::from(base_fee_per_gas + priority_fee_per_gas)),
+            max_priority_fee_per_gas: Some(U256::from(priority_fee_per_gas)),
+            ..Default::default()
+        };
+
+        let signed_tx = self
+            .client
+            .sign_prepared_tx_for_addr(calldata, self.client.contract_addr(), options)
+            .await
+            .context("cannot sign a transaction")?;
+
+        let hash = self
+            .client
+            .deref()
+            .as_ref()
+            .send_raw_tx(signed_tx.raw_tx)
+            .await
+            .context("failed sending transaction")?;
+
+        let max_attempts = self.config.tx_receipt_checking_max_attempts;
+        let sleep_duration = self.config.tx_receipt_checking_sleep;
+        for _i in 0..max_attempts {
+            let maybe_receipt = self
+                .client
+                .deref()
+                .as_ref()
+                .tx_receipt(hash)
+                .await
+                .context(format!(
+                    "failed getting receipt for transaction {}",
+                    hex::encode(hash)
+                ))?;
+            if let Some(receipt) = maybe_receipt {
+                tracing::info!("Transaction sent: {:?}", hex::encode(hash));
+
+                if receipt.status == Some(1.into()) {
+                    tracing::info!("Transaction confirmed: {:?}", hex::encode(hash));
+                    return Ok(receipt.transaction_hash);
+                }
+
+                let reason = self
+                    .client
+                    .deref()
+                    .as_ref()
+                    .failure_reason(hash)
+                    .await
+                    .context(format!(
+                        "failed getting failure reason of transaction {}",
+                        hex::encode(hash)
+                    ))?;
+
+                return Err(anyhow::Error::msg(format!(
+                    "Failed to send transaction {:?} failed with status {:?}, reason: {:?}",
+                    hex::encode(hash),
+                    receipt.status,
+                    reason
+                )));
+            } else {
+                tokio::time::sleep(sleep_duration).await;
+            }
+        }
+
+        Err(anyhow::Error::msg(format!(
+            "Unable to retrieve transaction status in {} attempts",
+            max_attempts
+        )))
     }
 }
 
@@ -224,10 +393,7 @@ impl EthProofManagerClient for ProofManagerClient {
             proof_request_params.into_tokens(),
         ])?;
 
-        let tx = self
-            .0
-            .sign_prepared_tx_for_addr(input, self.0.contract_addr(), Options::default())
-            .await?;
+        let tx = self.send_tx_with_retries(input);
 
         Ok(tx.hash)
     }
@@ -246,10 +412,7 @@ impl EthProofManagerClient for ProofManagerClient {
             ethabi::Token::Bool(is_proof_valid),
         ])?;
 
-        let tx = self
-            .0
-            .sign_prepared_tx_for_addr(input, self.0.contract_addr(), Options::default())
-            .await?;
+        let tx = self.send_tx_with_retries(input);
 
         Ok(tx.hash)
     }
