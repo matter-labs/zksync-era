@@ -53,7 +53,10 @@ impl ProofRequestSubmitter {
                 .proof_generation_data_for_existing_batch(batch_id)
                 .await?;
 
-            let url = self.blob_store.put(proof_generation_data).await?;
+            let url = self
+                .blob_store
+                .put(batch_id, &proof_generation_data)
+                .await?;
 
             let proof_request_identifier = ProofRequestIdentifier {
                 chain_id: proof_generation_data.chain_id,

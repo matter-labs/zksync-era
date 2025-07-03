@@ -2,14 +2,13 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
-use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{prover_dal::ProvingMode, L1BatchNumber};
 
 use crate::Core;
 
@@ -493,7 +492,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX, ProvingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -511,7 +510,7 @@ mod tests {
             .unwrap();
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX, ProvingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -519,7 +518,7 @@ mod tests {
         // Check that with small enough processing timeout, the L1 batch can be picked again
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO)
+            .lock_batch_for_proving(Duration::ZERO, ProvingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -531,7 +530,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX, ProvingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, None);

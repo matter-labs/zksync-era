@@ -219,7 +219,7 @@ impl Processor<Locking> {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    async fn lock_batch_for_proving(
+    pub async fn lock_batch_for_proving(
         &self,
         proof_generation_timeout: Duration,
     ) -> Result<Option<L1BatchNumber>, ProcessorError> {
@@ -233,7 +233,7 @@ impl Processor<Locking> {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by proving network yet.
-    async fn lock_batch_for_proving_network(
+    pub async fn lock_batch_for_proving_network(
         &self,
     ) -> Result<Option<L1BatchNumber>, ProcessorError> {
         self.pool

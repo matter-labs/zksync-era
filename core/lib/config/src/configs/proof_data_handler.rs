@@ -30,6 +30,19 @@ impl WellKnown for ProvingMode {
     const DE: Self::Deserializer = Serde![str];
 }
 
+impl From<ProvingMode> for zksync_basic_types::prover_dal::ProvingMode {
+    fn from(mode: ProvingMode) -> Self {
+        match mode {
+            ProvingMode::ProvingNetwork => {
+                zksync_basic_types::prover_dal::ProvingMode::ProvingNetwork
+            }
+            ProvingMode::ProverCluster => {
+                zksync_basic_types::prover_dal::ProvingMode::ProverCluster
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use smart_config::{testing::test_complete, Environment, Yaml};

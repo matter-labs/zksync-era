@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_proof_manager\n            SET status = $1, updated_at = NOW()\n            WHERE\n                (status = $2 AND submit_proof_request_tx_sent_at < NOW() - $5::INTERVAL)\n                OR (\n                    status = $3\n                    AND validated_proof_request_tx_sent_at < NOW() - $6::INTERVAL\n                )\n                OR (status = $4 AND submit_proof_request_attempts >= $7)\n            RETURNING l1_batch_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Interval",
+        "Interval",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "20ad20706625e289a5922fd204128f8cf18d25d6b38393ab4146a5d4e58dac40"
+}
