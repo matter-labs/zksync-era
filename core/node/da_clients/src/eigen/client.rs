@@ -7,7 +7,7 @@ use rust_eigenda_v2_client::{
     payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
     utils::SecretUrl as SecretUrlV2,
 };
-use rust_eigenda_v2_common::Payload;
+use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
@@ -36,10 +36,12 @@ impl EigenDAClient {
         let private_key = secrets.private_key.0.expose_secret();
 
         let payload_disperser_config = PayloadDisperserConfig {
+            polynomial_form: PayloadForm::Coeff,
             blob_version: config.blob_version,
             cert_verifier_router_address: config.cert_verifier_router_addr,
             eth_rpc_url: SecretUrlV2::new(url),
             disperser_rpc: config.disperser_rpc,
+            use_secure_grpc_flag: true,
             operator_state_retriever_addr: config.operator_state_retriever_addr,
             registry_coordinator_addr: config.registry_coordinator_addr,
         };
