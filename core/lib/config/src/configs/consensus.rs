@@ -231,7 +231,7 @@ impl ConsensusConfig {
             rpc: RpcConfig {
                 get_block_rps: NonZeroUsize::new(5).unwrap(),
             },
-            debug_page_addr: Some("127.0.0.1:0".parse().unwrap()),
+            debug_page_addr: Some("127.0.0.1:5000".parse().unwrap()),
             consensus_registry_read_rate: Duration::from_secs(30),
         }
     }
