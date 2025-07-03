@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { cleanMutexLockFiles, cleanTestChains } from './src';
 import { cleanHistoricalLogs } from './src/logs';
-import {chainsPath} from "./src/zksync-home";
+import { chainsPath } from './src/zksync-home';
 
 const execAsync = promisify(exec);
 
@@ -50,6 +50,7 @@ export default async function globalSetup(): Promise<void> {
             // Kill any existing zksync_server processes
             console.log('🛑 Killing existing zksync_server processes...');
             await execAsync('pkill zksync_server');
+            await execAsync('pkill external_node');
         } catch (error) {
             // Ignore errors if no processes were found
             console.log('ℹ️ No existing zksync_server processes found');

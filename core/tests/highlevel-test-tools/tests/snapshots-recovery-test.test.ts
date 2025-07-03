@@ -1,23 +1,16 @@
 import { describe, it } from 'vitest';
-import {
-    createChainAndStartServer,
-    generateRealisticLoad,
-    waitForAllBatchesToBeExecuted,
-    snapshotsRecoveryTest,
-    TESTED_CHAIN_TYPE,
-    initExternalNode
-} from '../src';
+import { createChainAndStartServer, snapshotsRecoveryTest, TESTED_CHAIN_TYPE } from '../src';
 
 describe('Snapshot Recovery Test', () => {
     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
-        const { chainName } = await createChainAndStartServer(TESTED_CHAIN_TYPE);
+        const testChain = await createChainAndStartServer(TESTED_CHAIN_TYPE, 'Snapshot Recovery Test');
 
-        await generateRealisticLoad(chainName);
+        await testChain.generateRealisticLoad();
 
-        await waitForAllBatchesToBeExecuted(chainName);
+        await testChain.waitForAllBatchesToBeExecuted();
 
-        await initExternalNode(chainName);
+        await testChain.initExternalNode();
 
-        await snapshotsRecoveryTest(chainName);
+        await snapshotsRecoveryTest(testChain.chainName);
     });
 });

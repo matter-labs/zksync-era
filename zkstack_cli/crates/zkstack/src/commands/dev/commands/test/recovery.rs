@@ -59,8 +59,7 @@ async fn run_test(
 
     let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("NO_KILL", args.no_kill.to_string())
-        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
+        .env("NO_KILL", args.no_kill.to_string());
 
     cmd.with_force_run().run()?;
 

@@ -3,6 +3,8 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getMainWalletPk } from '../src';
+import * as utils from 'utils';
 
 const BASE_ERC20_TO_MINT = ethers.parseEther('100');
 
@@ -28,19 +30,8 @@ export class Tester {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {encoding: 'utf-8'}));
 
-        let ethWalletPK: string;
-        if (process.env.MASTER_WALLET_PK) {
-            ethWalletPK = process.env.MASTER_WALLET_PK;
-        } else {
-            const ethWalletHD = ethers.HDNodeWallet.fromMnemonic(
-                ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic),
-                "m/44'/60'/0'/0/0"
-            );
-
-            ethWalletPK = ethWalletHD.privateKey
-        }
-
-        const ethWallet = new ethers.Wallet(ethWalletPK, ethProvider);
+        const chainName = process.env.CHAIN_NAME!!;
+        const ethWallet = new ethers.Wallet(getMainWalletPk(chainName), ethProvider);
 
         const web3Provider = new zksync.Provider(l2_rpc_addr);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
@@ -86,6 +77,28 @@ export class Tester {
             const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, this.ethWallet);
             await (await l1Erc20Contract.mint(this.ethWallet.address, BASE_ERC20_TO_MINT)).wait();
         }
+    }
+
+    public async createBatchWithDeposit(to: string, amount: bigint) {
+        const initialL1BatchNumber = await this.web3Provider.getL1BatchNumber();
+        utils.log(`Initial L1 batch: ${initialL1BatchNumber}`);
+
+        const depositHandle = await this.syncWallet.deposit({
+            token: this.isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : this.baseTokenAddress,
+            amount,
+            to,
+            approveBaseERC20: true,
+            approveERC20: true
+        });
+
+        let depositBatchNumber;
+        while (!(depositBatchNumber = (await depositHandle.wait()).l1BatchNumber)) {
+            utils.log('Deposit is not included in L1 batch; sleeping');
+            await utils.sleep(1);
+        }
+        utils.log(`Deposit was included into L1 batch ${depositBatchNumber}`);
+        expect(depositBatchNumber).to.be.greaterThan(initialL1BatchNumber);
+        return depositBatchNumber;
     }
 
     async fundedWallet(ethAmount: bigint, l1Token: zksync.types.Address, tokenAmount: bigint) {

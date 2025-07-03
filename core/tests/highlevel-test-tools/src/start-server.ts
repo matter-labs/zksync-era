@@ -1,16 +1,29 @@
 import { ChildProcess } from 'child_process';
-import { executeCommand, executeBackgroundCommand } from './execute-command';
+import { executeCommand, executeBackgroundCommand, removeErrorListeners } from './execute-command';
 import * as console from 'node:console';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 
 /**
- * Server handle interface
+ * Server handle class
  */
-export interface ServerHandle {
-    chainName: string;
-    process?: ChildProcess;
-    kill(): Promise<void>;
+export class TestMainNode {
+    constructor(
+        public readonly chainName: string,
+        public process?: ChildProcess,
+        public killed: boolean = false
+    ) {}
+
+    async kill(): Promise<void> {
+        if (this.process?.pid) {
+            removeErrorListeners(this.process);
+            console.log(`🛑 Killing server process for chain: ${this.chainName} with pid ${this.process?.pid}`);
+            await killPidWithAllChilds(this.process.pid, 9);
+        } else {
+            throw new Error('Server is not running!');
+        }
+        this.killed = true;
+    }
 }
 
 async function killPidWithAllChilds(pid: number, signalNumber: number) {
@@ -36,20 +49,10 @@ async function killPidWithAllChilds(pid: number, signalNumber: number) {
  * @param chainName - The name of the chain to start the server for
  * @returns Promise that resolves with a server handle when the server is ready
  */
-export async function startServer(chainName: string): Promise<ServerHandle> {
+export async function startServer(chainName: string): Promise<TestMainNode> {
     console.log(`🚀 Starting server for chain: ${chainName}`);
 
-    const serverHandle: ServerHandle = {
-        chainName,
-        kill: async () => {
-            if (serverHandle.process?.pid) {
-                console.log(`🛑 Killing server process for chain: ${chainName} with pid ${serverHandle.process?.pid}`);
-                await killPidWithAllChilds(serverHandle.process.pid, 9);
-            } else {
-                throw new Error('Server is not running!');
-            }
-        }
-    };
+    const serverHandle = new TestMainNode(chainName);
 
     let extraArgs = [];
     extraArgs.push(

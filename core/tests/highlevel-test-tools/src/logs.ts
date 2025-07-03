@@ -1,10 +1,12 @@
 import * as fs from 'node:fs';
 import { join } from 'path';
 import { logsPath } from './zksync-home';
+import { json } from 'node:stream/consumers';
+
+export let chainNameToTestSuite: Map<string, string> = new Map();
 
 export function getLogsDirectory(chainName: string) {
-    // vitest returns it in format `{filePath} > ${describeTitle} > ${testTitle}`
-    const suiteName = expect.getState().currentTestName?.split('>')[0].trim() ?? '';
+    const suiteName = chainNameToTestSuite.get(chainName) ?? '';
 
     const logsDir = join(logsPath(), 'highlevel', `[${suiteName}] ${chainName}`);
     if (!fs.existsSync(logsDir)) {
@@ -19,8 +21,7 @@ export function getLogsDirectory(chainName: string) {
 }
 
 export function markLogsDirectoryAsFailed(chainName: string) {
-    // vitest returns it in format `{filePath} > ${describeTitle} > ${testTitle}`
-    const suiteName = expect.getState().currentTestName?.split('>')[0] ?? '';
+    const suiteName = chainNameToTestSuite.get(chainName) ?? '';
 
     // Rename the log directory to indicate failure
     const failedLogsDir = join(logsPath(), 'highlevel', `[❌FAIL] [${suiteName}] ${chainName}`);

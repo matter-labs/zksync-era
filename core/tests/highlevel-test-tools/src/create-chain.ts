@@ -3,15 +3,63 @@ import { v4 as uuidv4 } from 'uuid';
 import { join } from 'path';
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
-import { startServer, ServerHandle } from './start-server';
+import { startServer, TestMainNode } from './start-server';
+import { initExternalNode, runExternalNode, TestExternalNode } from './start-external-node';
+import { generateRealisticLoad, waitForAllBatchesToBeExecuted } from './wait-for-batches';
 import { migrateToGatewayIfNeeded } from './gateway';
 import { configsPath } from './zksync-home';
+import { chainNameToTestSuite } from './logs';
 
 export type ChainType = 'validium' | 'custom_token' | 'era';
 
 export interface ChainConfig {
     l1RpcUrl?: string;
     serverDbUrl?: string;
+}
+
+export class TestChain {
+    public externalNode?: TestExternalNode;
+
+    constructor(
+        public readonly chainName: string,
+        public readonly chainId: number,
+        public readonly chainType: ChainType,
+        public readonly l1BatchCommitDataGeneratorMode: string,
+        public readonly baseTokenAddress: string,
+        public readonly baseTokenPriceNominator: number,
+        public readonly baseTokenPriceDenominator: number,
+        public readonly evmEmulator: boolean,
+        public readonly isCustomToken: boolean,
+        public mainNode: TestMainNode
+    ) {}
+
+    async initExternalNode(): Promise<void> {
+        await initExternalNode(this.chainName);
+    }
+
+    async runExternalNode(): Promise<TestExternalNode> {
+        if (this.externalNode && !this.externalNode.killed) {
+            throw new Error('Other external node is still running!');
+        }
+        this.externalNode = await runExternalNode(this, this.chainName);
+        return this.externalNode;
+    }
+
+    async generateRealisticLoad(): Promise<void> {
+        await generateRealisticLoad(this.chainName);
+    }
+
+    async waitForAllBatchesToBeExecuted(timeoutMs?: number): Promise<any> {
+        return await waitForAllBatchesToBeExecuted(this.chainName, timeoutMs);
+    }
+
+    async runMainNode(): Promise<TestMainNode> {
+        if (this.mainNode && !this.mainNode.killed) {
+            throw new Error('Other main node is still running!');
+        }
+        this.mainNode = await startServer(this.chainName);
+        return this.mainNode;
+    }
 }
 
 /**
@@ -51,9 +99,7 @@ export function getCustomTokenAddress(configPath: string = join(configsPath(), '
  * Supports four predefined chain types: consensus, validium, da_migration, custom_token
  * Returns the chain ID, configuration, and server handle
  */
-export async function createChainAndStartServer(
-    chainType: ChainType
-): Promise<{ chainName: string; serverHandle: ServerHandle }> {
+export async function createChainAndStartServer(chainType: ChainType, testSuiteName: string): Promise<TestChain> {
     // Default configuration
     const finalConfig: ChainConfig = {
         l1RpcUrl: 'http://localhost:8545',
@@ -111,6 +157,8 @@ export async function createChainAndStartServer(
     };
 
     const chainConfig = chainConfigs[chainType];
+    chainNameToTestSuite.set(chainConfig.chainName, testSuiteName);
+
     if (!chainConfig) {
         throw new Error(`Unsupported chain type: ${chainType}`);
     }
@@ -202,7 +250,18 @@ export async function createChainAndStartServer(
 
         console.log(`✅ Chain creation and initialization completed for ${chainConfig.chainName}`);
 
-        return { chainName: chainConfig.chainName, serverHandle };
+        return new TestChain(
+            chainConfig.chainName,
+            chainConfig.chainId,
+            chainType,
+            chainConfig.l1BatchCommitDataGeneratorMode,
+            chainConfig.baseTokenAddress,
+            chainConfig.baseTokenPriceNominator,
+            chainConfig.baseTokenPriceDenominator,
+            chainConfig.evmEmulator,
+            chainConfig.baseTokenAddress !== ethTokenAddress,
+            serverHandle
+        );
     } catch (error) {
         console.error(`❌ Failed to create chain ${chainConfig.chainName}:`, error);
         throw error;

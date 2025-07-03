@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
-import {chainsPath} from "./zksync-home";
+import { chainsPath } from './zksync-home';
 
 export function getRpcUrl(chainName: string): string {
     const configPath = path.join(chainsPath(), chainName, 'configs', 'general.yaml');

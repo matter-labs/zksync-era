@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{traits::SaveConfig, EcosystemConfig};
 
 use crate::commands::dev::{
     commands::test::utils::{TestWallets, TEST_WALLETS_PATH},
@@ -31,6 +31,11 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     wallets
         .init_test_wallet(&ecosystem_config, &chain_config)
         .await?;
+
+    let mut chain_wallets = chain_config.get_wallets_config()?;
+    let test_wallet = wallets.get_test_wallet(&chain_config)?;
+    chain_wallets.test_wallet = Some(test_wallet.clone());
+    chain_wallets.save(shell, &chain_config.configs.join("wallets.yaml"))?;
 
     logger::outro(MSG_INIT_TEST_WALLET_RUN_SUCCESS);
 

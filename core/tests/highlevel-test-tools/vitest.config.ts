@@ -12,6 +12,7 @@ export default defineConfig({
             exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.test.ts', '**/*.spec.ts', 'tests/setup.ts']
         },
         testTimeout: 15 * 60 * 1000, // 15 minutes
+        hookTimeout: 15 * 60 * 1000,
         globalSetup: './global-setup.ts'
     },
     resolve: {

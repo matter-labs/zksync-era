@@ -3,8 +3,8 @@ import { TESTED_CHAIN_TYPE, createChainAndStartServer, runIntegrationTests } fro
 
 describe('Integration Test', () => {
     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
-        const { chainName } = await createChainAndStartServer(TESTED_CHAIN_TYPE);
+        const testChain = await createChainAndStartServer(TESTED_CHAIN_TYPE, 'Main Node Integration Test');
 
-        await runIntegrationTests(chainName);
+        await runIntegrationTests(testChain.chainName);
     });
 });

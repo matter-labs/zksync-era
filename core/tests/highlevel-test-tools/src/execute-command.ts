@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getLogsDirectory, markLogsDirectoryAsFailed } from './logs';
 import * as console from 'node:console';
+import type { ProcessEnvOptions } from 'node:child_process';
+import { sign } from 'node:crypto';
 
 /**
  * Strips ANSI escape sequences from a string
@@ -102,7 +104,8 @@ export async function executeCommand(
     args: string[],
     chainName: string,
     logFileName: string,
-    runInBackground: boolean = false
+    runInBackground: boolean = false,
+    extraOptions: ProcessEnvOptions = {}
 ): Promise<ChildProcess> {
     const logsDir = getLogsDirectory(chainName);
     const startTime = Date.now();
@@ -129,7 +132,8 @@ export async function executeCommand(
         const child = spawn(command, args, {
             stdio: ['inherit', 'pipe', 'pipe'],
             shell: true,
-            detached: runInBackground
+            detached: runInBackground,
+            ...extraOptions
         });
 
         // Pipe stdout and stderr only to log file (not to console) with ANSI escape codes stripped
@@ -143,22 +147,19 @@ export async function executeCommand(
             logStream.write(output);
         });
 
-        child.on('close', (code) => {
+        child.on('close', (code, signal) => {
             const endTime = Date.now();
 
             // Log the command completion to executed commands log
-            const failed = code !== 0 && code !== 137;
+            const failed = code !== 0 && code !== 137 && signal !== 'SIGKILL';
             logExecutedCommand(chainName, command, args, startTime, endTime, false, failed);
 
-            const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code}\n`;
+            const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code} and signal: ${signal}\n`;
             logStream.write(closeMessage);
             logStream.end();
 
             if (code === 0) {
                 console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
-                resolve(child);
-            } else if (code === 137) {
-                console.log(`✅ Command completed by being killed using .kill(). Logs saved to: ${logFilePath}`);
                 resolve(child);
             } else {
                 const errorMessage = `Command ${command} ${args.join(' ')} failed with exit code ${code}. Check logs at: ${logFilePath}`;
@@ -174,6 +175,7 @@ export async function executeCommand(
         });
 
         child.on('error', (error) => {
+            console.log(`Command error: ${JSON.stringify(error)}, ${error.message}, ${typeof error}`);
             const endTime = Date.now();
 
             // Log the command error to executed commands log
@@ -204,4 +206,9 @@ export async function executeBackgroundCommand(
     logFileName: string
 ): Promise<ChildProcess> {
     return executeCommand(command, args, chainName, logFileName, true);
+}
+
+export function removeErrorListeners(process: ChildProcess) {
+    process.removeAllListeners('close');
+    process.removeAllListeners('error');
 }

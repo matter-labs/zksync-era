@@ -265,7 +265,7 @@ export class TestContextOwner {
         if (requiredL1ETHAmount > actualL1ETHAmount) {
             const required = ethers.formatEther(requiredL1ETHAmount);
             const actual = ethers.formatEther(actualL1ETHAmount);
-            const errorMessage = `There must be at least ${required} ETH on main account, but only ${actual} is available`;
+            const errorMessage = `There must be at least ${required} ETH on main account (${this.mainSyncWallet.address}), but only ${actual} is available`;
             throw new Error(errorMessage);
         }
         this.reporter.finishAction();

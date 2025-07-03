@@ -1,22 +1,16 @@
 import { describe, it } from 'vitest';
-import {
-    createChainAndStartServer,
-    generateRealisticLoad,
-    waitForAllBatchesToBeExecuted,
-    feesTest,
-    TESTED_CHAIN_TYPE
-} from '../src';
+import { createChainAndStartServer, feesTest, TESTED_CHAIN_TYPE } from '../src';
 
 describe('Fees Test', () => {
     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
-        const { chainName, serverHandle } = await createChainAndStartServer(TESTED_CHAIN_TYPE);
+        const testChain = await createChainAndStartServer(TESTED_CHAIN_TYPE, 'Fees Test');
 
-        await generateRealisticLoad(chainName);
+        await testChain.generateRealisticLoad();
 
-        await waitForAllBatchesToBeExecuted(chainName);
+        await testChain.waitForAllBatchesToBeExecuted();
 
-        await serverHandle.kill();
+        await testChain.mainNode.kill();
 
-        await feesTest(chainName);
+        await feesTest(testChain.chainName);
     });
 });

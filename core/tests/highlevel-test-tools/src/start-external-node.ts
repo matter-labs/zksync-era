@@ -1,10 +1,11 @@
-import { executeCommand, executeBackgroundCommand } from './execute-command';
+import { executeCommand, executeBackgroundCommand, removeErrorListeners } from './execute-command';
 import { FileMutex } from './file-mutex';
 import * as console from 'node:console';
 import { ChildProcess } from 'child_process';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import { getRpcUrl } from './rpc-utils';
+import { TestChain } from './create-chain';
 
 /**
  * Global mutex for chain initialization (same as in create-chain.ts)
@@ -12,12 +13,77 @@ import { getRpcUrl } from './rpc-utils';
 const fileMutex = new FileMutex();
 
 /**
- * External node handle interface
+ * External node handle class
  */
-export interface ExternalNodeHandle {
-    chainName: string;
-    process?: ChildProcess;
-    kill(): Promise<void>;
+export class TestExternalNode {
+    private expectedErrorCode?: number;
+
+    constructor(
+        public readonly chainName: string,
+        public process?: ChildProcess,
+        public killed: boolean = false,
+        private waitForExitPromise: Promise<void> | undefined = undefined
+    ) {}
+
+    markAsExpectingErrorCode(errorCode: number): void {
+        this.expectedErrorCode = errorCode;
+        console.log(`📝 Marked external node ${this.chainName} as expecting error code: ${errorCode}`);
+        removeErrorListeners(this.process);
+        if (!this.process) {
+            throw new Error('External node process is not available!');
+        }
+
+        this.waitForExitPromise = new Promise((resolve, reject) => {
+            this.process!.on('exit', (code: number | null, signal: string | null) => {
+                this.killed = true;
+                if (code !== null) {
+                    console.log(`🔄 External node ${this.chainName} exited with code: ${code}, signal: ${signal}`);
+
+                    if (this.expectedErrorCode !== undefined) {
+                        if (code === this.expectedErrorCode) {
+                            console.log(`✅ External node ${this.chainName} exited with expected error code: ${code}`);
+                            resolve();
+                        } else {
+                            const error = new Error(
+                                `External node ${this.chainName} exited with unexpected code: ${code}, expected: ${this.expectedErrorCode}`
+                            );
+                            console.error(`❌ ${error.message}`);
+                            reject(error);
+                        }
+                    } else {
+                        resolve();
+                    }
+                } else if (signal) {
+                    console.log(`🔄 External node ${this.chainName} exited with signal: ${signal}`);
+                    resolve(); // Treat signal termination as success
+                } else {
+                    resolve();
+                }
+            });
+
+            this.process!.on('error', (error: Error) => {
+                resolve();
+            });
+        });
+    }
+
+    async waitForExitWithErrorCode(): Promise<void> {
+        if (this.waitForExitPromise === undefined) {
+            throw new Error('Please call markAsExpectingErrorCode() before using this method');
+        }
+        return this.waitForExitPromise;
+    }
+
+    async kill(): Promise<void> {
+        if (this.process?.pid) {
+            removeErrorListeners(this.process);
+            console.log(`🛑 Killing external node process for chain: ${this.chainName} with pid ${this.process?.pid}`);
+            await killPidWithAllChilds(this.process.pid, 9);
+        } else {
+            throw new Error('External node is not running!');
+        }
+        this.killed = true;
+    }
 }
 
 async function killPidWithAllChilds(pid: number, signalNumber: number) {
@@ -98,12 +164,7 @@ export async function initExternalNode(chainName: string = 'era'): Promise<void>
     }
 }
 
-/**
- * Runs an external node with the appropriate configuration based on chain type
- * @param chainName - The name of the chain (chain type will be extracted by removing last 9 characters)
- * @returns Promise that resolves when the external node is running
- */
-export async function runExternalNode(chainName: string): Promise<ExternalNodeHandle> {
+export async function runExternalNode(testChain: TestChain, chainName: string): Promise<TestExternalNode> {
     // Extract chain type by removing last 9 characters (UUID suffix)
     const chainType = chainName.slice(0, -9);
 
@@ -149,18 +210,9 @@ export async function runExternalNode(chainName: string): Promise<ExternalNodeHa
 
         console.log(`✅ External node is ready: ${chainName}`);
 
-        return {
-            chainName,
-            process,
-            async kill() {
-                if (process?.pid) {
-                    console.log(`🛑 Killing external node process for chain: ${chainName}`);
-                    await killPidWithAllChilds(process.pid, 9);
-                } else {
-                    throw new Error('External node is not running!');
-                }
-            }
-        };
+        //safeguard in case this method is called not from within TestChain
+        testChain.externalNode = new TestExternalNode(chainName, process);
+        return testChain.externalNode;
     } catch (error) {
         console.error(`❌ Error running external node: ${error}`);
         throw error;

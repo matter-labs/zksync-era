@@ -31,7 +31,7 @@ function appendServerLogs(chainName: string, testName: string): void {
     }
 }
 
-async function initTestWallet(chainName: string): Promise<void> {
+export async function initTestWallet(chainName: string): Promise<void> {
     console.log(`🔑 Initializing test wallet for chain: ${chainName}`);
     await fileMutex.acquire();
     try {

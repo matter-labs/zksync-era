@@ -97,8 +97,7 @@ impl<'a> IntegrationTestRunner<'a> {
             self.shell,
             "yarn jest --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
         )
-        .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
+        .env("CHAIN_NAME", ecosystem_config.current_chain());
 
         if global_config().verbose {
             command = command.env(

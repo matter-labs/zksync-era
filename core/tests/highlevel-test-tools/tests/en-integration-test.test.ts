@@ -1,26 +1,19 @@
 import { describe, it } from 'vitest';
-import {
-    createChainAndStartServer,
-    generateRealisticLoad,
-    waitForAllBatchesToBeExecuted,
-    initExternalNode,
-    runExternalNode,
-    TESTED_CHAIN_TYPE
-} from '../src';
+import { createChainAndStartServer, TESTED_CHAIN_TYPE } from '../src';
 import { enIntegrationTests } from '../src/run-integration-tests';
 
 describe('External Node Integration tests Test', () => {
     it(`for ${TESTED_CHAIN_TYPE} chain`, async () => {
-        const { chainName } = await createChainAndStartServer(TESTED_CHAIN_TYPE);
+        const testChain = await createChainAndStartServer(TESTED_CHAIN_TYPE, 'External Node Integration tests Test');
 
-        await generateRealisticLoad(chainName);
+        await testChain.generateRealisticLoad();
 
-        await waitForAllBatchesToBeExecuted(chainName);
+        await testChain.waitForAllBatchesToBeExecuted();
 
-        await initExternalNode(chainName);
+        await testChain.initExternalNode();
 
-        await runExternalNode(chainName);
+        await testChain.runExternalNode();
 
-        await enIntegrationTests(chainName);
+        await enIntegrationTests(testChain.chainName);
     });
 });

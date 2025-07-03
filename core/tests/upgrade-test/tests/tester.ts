@@ -2,6 +2,7 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 
 export class Tester {
     public runningFee: Map<zksync.types.Address, bigint>;
@@ -18,21 +19,8 @@ export class Tester {
     static async init(ethProviderAddress: string, web3JsonRpc: string) {
         const ethProvider = new ethers.JsonRpcProvider(ethProviderAddress);
 
-        let ethWallet;
-        if (process.env.MASTER_WALLET_PK) {
-            ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK);
-        }
-        else {
-            ethProvider.pollingInterval = 100;
-
-            const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
-            const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-            const ethWalletHD = ethers.HDNodeWallet.fromMnemonic(
-                ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic),
-                "m/44'/60'/0'/0/0"
-            );
-            ethWallet = new ethers.Wallet(ethWalletHD.privateKey, ethProvider);
-        }
+        const chainName = process.env.CHAIN_NAME!!;
+        let ethWallet = new ethers.Wallet(getMainWalletPk(chainName));
 
         ethWallet = ethWallet.connect(ethProvider);
         const web3Provider = new zksync.Provider(web3JsonRpc);

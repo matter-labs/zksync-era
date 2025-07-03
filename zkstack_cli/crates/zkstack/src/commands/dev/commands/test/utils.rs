@@ -1,10 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::Context;
-use ethers::{
-    providers::{Http, Middleware, Provider},
-    utils::hex::ToHex,
-};
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
@@ -40,14 +35,6 @@ impl TestWallets {
         self.get(chain_config.id + 100)
     }
 
-    pub fn get_test_pk(&self, chain_config: &ChainConfig) -> anyhow::Result<String> {
-        Ok(self
-            .get_test_wallet(chain_config)?
-            .private_key_h256()
-            .context("Private key not found")?
-            .encode_hex())
-    }
-
     pub async fn init_test_wallet(
         &self,
         ecosystem_config: &EcosystemConfig,
@@ -57,19 +44,14 @@ impl TestWallets {
 
         let l1_rpc = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
-        let provider = Provider::<Http>::try_from(l1_rpc.clone())?;
-        let balance = provider.get_balance(wallet.address, None).await?;
-
-        if balance.is_zero() {
-            zkstack_cli_common::ethereum::distribute_eth(
-                self.get_main_wallet()?,
-                vec![wallet.address],
-                l1_rpc,
-                ecosystem_config.l1_network.chain_id(),
-                AMOUNT_FOR_DISTRIBUTION_TO_TEST_WALLETS,
-            )
-            .await?
-        }
+        zkstack_cli_common::ethereum::distribute_eth(
+            self.get_main_wallet()?,
+            vec![wallet.address],
+            l1_rpc,
+            ecosystem_config.l1_network.chain_id(),
+            AMOUNT_FOR_DISTRIBUTION_TO_TEST_WALLETS,
+        )
+        .await?;
 
         Ok(())
     }
