@@ -9440,7 +9440,6 @@ dependencies = [
  "tokio",
  "tower-http 0.5.2",
  "tracing",
- "tracing-subscriber",
  "vise",
  "zksync_config",
  "zksync_object_store",
