@@ -27,8 +27,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 63_800_000,
-        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 63_800_000,
     }
 }
 
@@ -142,16 +142,17 @@ pub(crate) const fn get_interop_blocks_begin_offset(subversion: MultiVmSubversio
 
 /// The slot starting from which the interop roots are stored.
 pub(crate) const fn get_interop_root_offset(subversion: MultiVmSubversion) -> usize {
-    get_interop_blocks_begin_offset(subversion) + MAX_MSG_ROOTS_IN_BATCH
+    get_interop_blocks_begin_offset(subversion) + MAX_TXS_IN_BATCH
 }
 
-pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
+pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 5;
 
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     match subversion {
-        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
+        // The additional slot comes from INTEROP_ROOT_ROLLING_HASH_SLOT.
+        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1,
         _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
     }
 }
