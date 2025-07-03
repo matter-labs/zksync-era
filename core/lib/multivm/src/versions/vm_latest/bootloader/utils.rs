@@ -294,10 +294,6 @@ pub(crate) fn apply_interop_root_number_in_block_number(
     memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
     println!("memory: {:?}", memory[memory.len() - 2]);
     println!("memory: {:?}", memory[memory.len() - 1]);
-    memory.extend(vec![(
-        get_current_number_of_roots_in_block_offset(subversion),
-        preexisting_blocks_number.into(),
-    )]);
 }
 
 fn bootloader_memory_input(
