@@ -83,23 +83,22 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let price_api_client = input
             .price_api_client
             .unwrap_or_else(|| Arc::new(NoOpPriceApiClient));
-        let base_token_addr = input.l1_ecosystem_contracts.0.base_token_address;
+        let base_token_addr = self
+            .config
+            .base_token_addr_override
+            .unwrap_or(input.l1_ecosystem_contracts.0.base_token_address);
         let base_token = BaseToken::from_config_address(base_token_addr);
 
         let sl_token = match input.settlement_mode.settlement_layer() {
             SettlementLayer::L1 { .. } => BaseToken::Eth,
             SettlementLayer::Gateway { .. } => BaseToken::ERC20(
-                input
-                    .l1_ecosystem_contracts
-                    .0
-                    .gateway_base_token_address
-                    .unwrap_or(
-                        // ZK Token address. There is only one official Gateway with ZK as base token.
-                        // (for price fetching on testnet we should/need to use mainnet address)
-                        "0x5A7d6b2F92C77FAD6CCaBd7EE0624E64907Eaf3E"
-                            .parse()
-                            .unwrap(),
-                    ),
+                self.config.gateway_base_token_addr_override.unwrap_or(
+                    // ZK Token address. There is only one official Gateway with ZK as base token.
+                    // (for price fetching on testnet we should/need to use mainnet address)
+                    "0x5A7d6b2F92C77FAD6CCaBd7EE0624E64907Eaf3E"
+                        .parse()
+                        .unwrap(),
+                ),
             ),
         };
 
