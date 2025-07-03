@@ -121,6 +121,7 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
+          sudo chown -R $USER:$GROUP contracts/node_modules
           cp etc/tokens/{test,localhost}.json
           zkstack dev contracts
 

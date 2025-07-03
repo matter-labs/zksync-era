@@ -9,6 +9,7 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest},
 };
+use ethers::prelude::{BlockId, BlockNumber};
 use zkstack_cli_types::TokenInfo;
 use zksync_types::{url::SensitiveUrl, L2ChainId};
 use zksync_web3_decl::client::{Client, L2};
@@ -65,7 +66,8 @@ pub async fn distribute_eth(
 ) -> anyhow::Result<()> {
     let client = create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?;
     let mut pending_txs = vec![];
-    let mut nonce = client.get_transaction_count(client.address(), None).await?;
+    let block = Some(BlockId::Number(BlockNumber::Pending.into()));
+    let mut nonce = client.get_transaction_count(client.address(), block).await?;
     for address in addresses {
         let tx = TransactionRequest::new()
             .to(address)
