@@ -5,7 +5,6 @@ use zksync_os_snark_prover::snark_executor::SnarkExecutor;
 use zksync_os_snark_prover::snark_job_pickers::SnarkJobPicker;
 use zksync_os_snark_prover::snark_job_savers::SnarkJobSaver;
 use zksync_prover_job_processor::{Executor, JobPicker, JobSaver};
-use zksync_types::H256;
 
 #[derive(Default, Debug, Serialize, Deserialize, Parser, Clone)]
 pub struct SetupOptions {
