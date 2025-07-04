@@ -32,8 +32,15 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
+      - name: Prepare ENV
+        shell: bash
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
 
       - name: Download contracts
         shell: bash
@@ -117,12 +124,18 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
+      - name: Install zkstack
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup --local || true
+
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           cp etc/tokens/{test,localhost}.json
-          zkstack dev contracts --verbose
+          zkstack dev contracts
 
       - name: Upload contracts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -154,8 +167,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
+      - name: Setup env
+        shell: bash
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
 
       - name: Download setup key
         shell: bash
