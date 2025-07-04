@@ -77,10 +77,6 @@ impl<'a> IntegrationTestRunner<'a> {
         let wallets: TestWallets =
             serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
-        wallets
-            .init_test_wallet(&ecosystem_config, &chain_config)
-            .await?;
-
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
             &["-t", pattern]
         } else {
@@ -97,8 +93,7 @@ impl<'a> IntegrationTestRunner<'a> {
             self.shell,
             "yarn jest --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
         )
-        .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
+        .env("CHAIN_NAME", ecosystem_config.current_chain());
 
         if global_config().verbose {
             command = command.env(
