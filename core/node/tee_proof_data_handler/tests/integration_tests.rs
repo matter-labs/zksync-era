@@ -13,13 +13,12 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_multivm::zk_evm_latest::ethereum_types::H256;
 use zksync_object_store::MockObjectStore;
+use zksync_tee_proof_data_handler::create_proof_processing_router;
 use zksync_tee_prover_interface::api::{RegisterTeeAttestationRequest, SubmitTeeProofRequest};
 use zksync_types::{
     block::L1BatchHeader, tee_types::TeeType, L1BatchNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId,
 };
-
-use zksync_tee_proof_data_handler::create_proof_processing_router;
 
 fn test_config() -> TeeProofDataHandlerConfig {
     TeeProofDataHandlerConfig {
