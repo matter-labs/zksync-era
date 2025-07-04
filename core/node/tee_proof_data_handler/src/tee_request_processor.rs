@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Path, Json};
 use chrono::{Duration as ChronoDuration, Utc};
 use zksync_config::configs::TeeProofDataHandlerConfig;
-use zksync_crypto_primitives::Signature;
+use zksync_crypto_primitives::PackedEthSignature;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
     ConnectionPool, Core, CoreDal,
@@ -20,7 +20,8 @@ use zksync_tee_prover_interface::{
     },
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
-use zksync_types::{recover, tee_types::TeeType, L1BatchNumber, L2ChainId, H256};
+use zksync_types::aggregated_operations::AggregatedActionType::Tee;
+use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId, H256};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
@@ -242,23 +243,21 @@ impl TeeRequestProcessor {
 
         // Check for a valid signature
         let root_hash = H256::from_slice(proof.0.proof.as_slice());
-        let signature = Signature::from_electrum(&proof.0.signature);
-        let recovered_pubkey = recover(&signature, &root_hash).unwrap();
+        let signature = PackedEthSignature::deserialize_packed(&proof.0.signature)
+            .map_err(|_| TeeProcessorError::GeneralError("Invalid signature".into()))?;
+        let proof_address = signature
+            .signature_recover_signer(&root_hash)
+            .map_err(|_| TeeProcessorError::GeneralError("Invalid signature".into()))?;
 
-        /*
-                let proof_address = public_to_address(&recovered_pubkey);
+        if proof_address.as_bytes() != proof.0.pubkey {
+            tracing::warn!(
+                "submit_proof: Invalid signature proof_address {} != pubkey {}",
+                hex::encode(proof_address.as_bytes()),
+                hex::encode(&proof.0.pubkey)
+            );
 
-                // FIXME: TEE - pubkey must be converted somehow
-                if recovered_pubkey.as_bytes() != proof.0.pubkey {
-                    tracing::warn!(
-                        "Invalid signature proof_address {} != pubkey {}",
-                        hex::encode(recovered_pubkey.as_bytes()),
-                        hex::encode(proof.0.pubkey)
-                    );
-
-                    return Err(TeeProcessorError::GeneralError("invalid signature".into()));
-                }
-        */
+            return Err(TeeProcessorError::GeneralError("Invalid signature".into()));
+        }
 
         let calldata = self
             .functions
