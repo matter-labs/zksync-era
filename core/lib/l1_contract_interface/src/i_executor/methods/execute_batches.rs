@@ -171,9 +171,12 @@ impl ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let execute_data = [[get_encoding_version(internal_protocol_version)].to_vec(), encoded_data]
-                .concat()
-                .to_vec(); //
+            let execute_data = [
+                [get_encoding_version(internal_protocol_version)].to_vec(),
+                encoded_data,
+            ]
+            .concat()
+            .to_vec(); //
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),

@@ -98,7 +98,8 @@ impl EthWatch {
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let l1_interop_root_processor =
-            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None).await;
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None)
+                .await;
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
