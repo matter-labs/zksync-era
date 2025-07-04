@@ -1,4 +1,4 @@
-use std::cmp::{max, Ordering};
+use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -121,9 +121,8 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        max(self.l2_blocks.len(), 1) - 1
+        self.l2_blocks.len() - 1
     }
-
     pub(crate) fn get_interop_root_application_config(&self) -> InteropRootApplicationConfig {
         InteropRootApplicationConfig {
             number_of_applied_interop_roots: self.number_of_applied_interop_roots,
@@ -212,12 +211,12 @@ impl BootloaderState {
         let mut compressed_bytecodes_offset = 0;
         let mut tx_index = 0;
         let mut applied_interop_roots_offset = 0;
-        for l2_block in &self.l2_blocks {
+        for (i, l2_block) in self.l2_blocks.iter().enumerate() {
             for (num, tx) in l2_block.txs.iter().enumerate() {
                 let interop_root_application_config = if num == 0 {
                     Some(InteropRootApplicationConfig {
                         number_of_applied_interop_roots: applied_interop_roots_offset,
-                        preexisting_blocks_number: self.get_preexisting_blocks_number(),
+                        preexisting_blocks_number: i,
                     })
                 } else {
                     None
