@@ -189,8 +189,16 @@ async fn test_timestamps(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
+
+    if l1_batch_params
+        .protocol_version
+        .is_pre_interop_fast_blocks()
+    {
+        assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
+    } else {
+        assert!(l1_batch_params.first_l2_block.timestamp() >= prev_l2_block_timestamp);
+    }
     assert!(l1_batch_params.first_l2_block.timestamp() > prev_l1_batch_timestamp);
-    assert!(l1_batch_params.first_l2_block.timestamp() >= prev_l2_block_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -276,6 +284,7 @@ fn create_block_seal_command(
         pre_insert_data: false,
         pubdata_params: PubdataParams::default(),
         insert_header: true,
+        rolling_txs_hash: Default::default(),
     }
 }
 

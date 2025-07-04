@@ -594,6 +594,7 @@ mod tests {
             pre_insert_data: false,
             pubdata_params: PubdataParams::default(),
             insert_header: false, // Doesn't matter for this test.
+            rolling_txs_hash: Default::default(),
         };
 
         // Run.
@@ -655,6 +656,7 @@ mod tests {
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
             logs_bloom: Default::default(),
             pubdata_params: l2_block_seal_command.pubdata_params,
+            rolling_txs_hash: Some(l2_block_seal_command.rolling_txs_hash),
         };
         connection
             .protocol_versions_dal()
