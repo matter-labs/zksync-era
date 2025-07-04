@@ -106,3 +106,9 @@ pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
 };
+
+pub const UPGRADE_LOCAL_DEVNET: ForgeScriptParams = ForgeScriptParams {
+    input: "",
+    output: "script-out/upgrade-local-devnet.toml",
+    script_path: "deploy-scripts/upgrade/UpgradeLocalDevnet.s.sol",
+};

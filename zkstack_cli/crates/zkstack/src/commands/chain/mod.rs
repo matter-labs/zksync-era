@@ -29,6 +29,7 @@ mod set_da_validator_pair_calldata;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
+mod upgrade_verifier;
 pub mod utils;
 
 #[derive(Subcommand, Debug)]
@@ -80,6 +81,7 @@ pub enum ChainCommands {
     EnableEvmEmulator(ForgeScriptArgs),
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
+    UpgradeVerifier(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -117,5 +119,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
+        ChainCommands::UpgradeVerifier(args) => upgrade_verifier::run(args, shell).await,
     }
 }
