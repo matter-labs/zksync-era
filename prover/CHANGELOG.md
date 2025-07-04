@@ -1,5 +1,13 @@
 # Changelog
 
+## [21.2.1](https://github.com/matter-labs/zksync-era/compare/prover-v21.2.0...prover-v21.2.1) (2025-07-04)
+
+
+### Bug Fixes
+
+* **consensus:** Debug page server port reuse ([#4273](https://github.com/matter-labs/zksync-era/issues/4273)) ([77d043f](https://github.com/matter-labs/zksync-era/commit/77d043fa136fbbbdd6c059aba6c1d3d7dcdd2abd))
+* **prover-gateway:** Check for batch existence in DB & add tracing for axum ([#4270](https://github.com/matter-labs/zksync-era/issues/4270)) ([7433b51](https://github.com/matter-labs/zksync-era/commit/7433b51ef29e3314eb3e5690c2bec13250a4c5c6))
+
 ## [21.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.1.0...prover-v21.2.0) (2025-07-03)
 
 
