@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS tee_dcap_collateral (
     updated TIMESTAMPTZ NOT NULL,
     update_guard_set TIMESTAMPTZ,
     eth_tx_id INTEGER REFERENCES eth_txs (id) ON DELETE SET NULL,
-    calldata BYTEA NOT NULL
+    calldata BYTEA
 );
 
 CREATE TABLE IF NOT EXISTS tee_dcap_collateral_tcb_info_json (
@@ -31,6 +31,6 @@ CREATE TABLE IF NOT EXISTS tee_dcap_collateral_tcb_info_json (
     updated TIMESTAMPTZ NOT NULL,
     update_guard_set TIMESTAMPTZ,
     eth_tx_id INTEGER REFERENCES eth_txs (id) ON DELETE SET NULL,
-    calldata BYTEA NOT NULL,
+    calldata BYTEA,
     PRIMARY KEY (kind, fmspc)
 );

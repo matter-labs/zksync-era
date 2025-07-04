@@ -61,19 +61,19 @@ impl PendingCollateral {
     pub fn calldata(&self) -> &[u8] {
         let (PendingCollateral::Field(PendingFieldCollateral { calldata, .. })
         | PendingCollateral::TcbInfo(PendingTcbInfoCollateral { calldata, .. })) = self;
-        calldata
+        calldata.as_ref().unwrap()
     }
 }
 
 pub struct PendingFieldCollateral {
     pub kind: TeeDcapCollateralKind,
-    pub calldata: Vec<u8>,
+    pub calldata: Option<Vec<u8>>,
 }
 
 pub struct PendingTcbInfoCollateral {
     pub kind: TeeDcapCollateralTcbInfoJsonKind,
     pub fmspc: Vec<u8>,
-    pub calldata: Vec<u8>,
+    pub calldata: Option<Vec<u8>>,
 }
 
 pub enum ExpiringCollateral {
