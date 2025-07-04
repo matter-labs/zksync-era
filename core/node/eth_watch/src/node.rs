@@ -39,6 +39,7 @@ pub struct Input {
     eth_client: Box<DynClient<L1>>,
     client: SettlementLayerClient,
     settlement_mode: SettlementModeResource,
+    dependency_chain_clients: Option<SettlementLayerClient>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -76,6 +77,7 @@ impl EthWatchLayer {
             l1_ecosystem_contracts.server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
+            false,
         )
     }
 }
@@ -120,10 +122,42 @@ impl WiringLayer for EthWatchLayer {
             )),
         };
 
+        let dependency_l2_chain_clients: Option<Vec<Box<dyn ZkSyncExtentionEthClient>>> =
+            // if let Some(dependency_chain_client) = input.dependency_chain_clients.clone() {
+            //     let mut clients: Vec<Box<dyn L2EthClient>> = Vec::new();
+            //     // let contracts_config: GatewayChainConfig = self.gateway_chain_config.unwrap();
+            //     let dependency_chain_clients = vec![dependency_chain_client];
+            //     for dependency_chain_client in dependency_chain_clients {
+            //         let client = Box::new(EthHttpQueryClient::new(
+            //             dependency_chain_client.0,
+            //             L2_MESSAGE_ROOT_ADDRESS,
+            //             None,
+            //             None,
+            //             None,
+            //             Some(L2_MESSAGE_ROOT_ADDRESS),
+            //             Some(L2_MESSAGE_ROOT_ADDRESS),
+            //             Some(L2_MESSAGE_ROOT_ADDRESS),
+            //             L2_MESSAGE_ROOT_ADDRESS,
+            //             self.eth_watch_config.confirmations_for_eth_event,
+            //             self.chain_id,
+            //             true,
+            //         ));
+            //         clients.push(client);
+            //     }
+            //     Some(clients)
+            // } else {
+                None;
+        // };
+        println!(
+            "dependency_l2_chain_clients: {:?}",
+            input.dependency_chain_clients
+        );
+        println!("sl_l2_client : {:?}", sl_l2_client);
         let eth_watch = EthWatch::new(
             Box::new(l1_client),
             sl_l2_client,
             input.settlement_mode.settlement_layer_for_sending_txs(),
+            dependency_l2_chain_clients, //
             main_pool,
             self.eth_watch_config.eth_node_poll_interval,
             self.chain_id,

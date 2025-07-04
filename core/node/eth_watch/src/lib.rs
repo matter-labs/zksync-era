@@ -44,6 +44,7 @@ struct EthWatchState {
 pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
+    dependency_l2_chain_clients: Option<Vec<Arc<dyn EthClient>>>, //
     poll_interval: Duration,
     event_expiration_blocks: u64,
     event_processors: Vec<Box<dyn EventProcessor>>,
@@ -56,6 +57,7 @@ impl EthWatch {
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn ZkSyncExtentionEthClient>,
         sl_layer: Option<SettlementLayer>,
+        dependency_l2_chain_clients: Option<Vec<Box<dyn ZkSyncExtentionEthClient>>>, //
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
@@ -64,6 +66,21 @@ impl EthWatch {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
         let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
+        let dependency_l2_chain_clients: Option<Vec<Arc<dyn ZkSyncExtentionEthClient>>> =
+            dependency_l2_chain_clients
+                .map(|clients| clients.into_iter().map(|client| client.into()).collect());
+        let dependency_chain_clients: Option<Vec<Arc<dyn EthClient>>> =
+            if let Some(dependency_l2_chain_clients) = dependency_l2_chain_clients.clone() {
+                Some(
+                    dependency_l2_chain_clients
+                        .into_iter()
+                        .map(|client| client.clone().into_base())
+                        .collect(),
+                )
+            } else {
+                None
+            };
+
         let sl_eth_client = sl_client.clone().into_base();
 
         let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
@@ -81,7 +98,8 @@ impl EthWatch {
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let l1_interop_root_processor =
-            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None)
+                .await;
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
@@ -98,14 +116,20 @@ impl EthWatch {
                 sl_client.clone(),
             );
             let sl_interop_root_processor =
-                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
+                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client), None).await;
             event_processors.push(Box::new(batch_root_processor));
             event_processors.push(Box::new(sl_interop_root_processor));
         }
-
+        // println!("dependency_chain_clients chain_id {:?}", dependency_chain_clients.clone().as_ref().unwrap()[0].chain_id().await);
+        // if let Some(_) = dependency_l2_chain_clients.clone() {
+        //     let dependency_message_root_processor =
+        //         InteropRootProcessor::new(EventsSource::Dependency, Some(0), None, None).await;
+        //     event_processors.push(Box::new(dependency_message_root_processor)); //
+        // }
         Ok(Self {
             l1_client,
             sl_client: sl_eth_client,
+            dependency_l2_chain_clients: dependency_chain_clients, //
             poll_interval,
             event_expiration_blocks,
             event_processors,
@@ -192,6 +216,10 @@ impl EthWatch {
             let client = match processor.event_source() {
                 EventsSource::L1 => self.l1_client.as_ref(),
                 EventsSource::SL => self.sl_client.as_ref(),
+                // EventsSource::Dependency => self.sl_client.as_ref(),
+                EventsSource::Dependency => self.dependency_l2_chain_clients.as_ref().unwrap()
+                    [processor.dependency_chain_number().unwrap()]
+                .as_ref(), //
             };
             let chain_id = client
                 .chain_id()

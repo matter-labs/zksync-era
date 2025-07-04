@@ -42,6 +42,8 @@ pub struct L1Secrets {
     #[config(secret, with = Optional(Serde![str]))]
     #[config(alias = "gateway_web3_url", alias = "gateway_url")]
     pub gateway_rpc_url: Option<SensitiveUrl>,
+    // pub dependency_chain_rpc_url: Option<SensitiveUrl>,
+    // pub dependency_chain_id: Option<SLChainId>, //
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]

@@ -202,6 +202,9 @@ impl ZksNamespace {
         };
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
+        // let merkle_tree_leaves = all_l1_logs_in_batch[..precommit_log_index.unwrap_or(all_l1_logs_in_batch.len())]
+        // .iter()
+        // .map(L2ToL1Log::to_bytes); //
 
         let protocol_version = batch_with_metadata
             .header

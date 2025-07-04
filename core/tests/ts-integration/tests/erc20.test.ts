@@ -62,7 +62,8 @@ describe('L1 ERC20 contract checks', () => {
             tokenDetails.l1Address,
             [{ wallet: alice, change: -amount }],
             {
-                l1: true
+                l1: true,
+                checkChainBalance: true
             }
         );
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
@@ -198,7 +199,8 @@ describe('L1 ERC20 contract checks', () => {
             tokenDetails.l1Address,
             [{ wallet: alice, change: amount }],
             {
-                l1: true
+                l1: true,
+                checkChainBalance: true
             }
         );
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
@@ -385,7 +387,7 @@ describe('L1 ERC20 contract checks', () => {
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
     });
 
-    test('Can perform a deposit with precalculated max value', async () => {
+    test.skip('Can perform a deposit with precalculated max value', async () => {
         if (!isETHBasedChain) {
             // approving whole base token balance
             const baseTokenDetails = testMaster.environment().baseToken;

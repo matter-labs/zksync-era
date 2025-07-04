@@ -18,6 +18,7 @@ pub struct InteropRootProcessor {
     l2_chain_id: L2ChainId,
     pub sl_l2_client: Option<Arc<dyn ZkSyncExtentionEthClient>>,
     pub sl_chain_id: Option<SLChainId>,
+    pub dependency_chain_number: Option<usize>,
 }
 
 impl InteropRootProcessor {
@@ -25,6 +26,7 @@ impl InteropRootProcessor {
         event_source: EventsSource,
         l2_chain_id: L2ChainId,
         sl_l2_client: Option<Arc<dyn ZkSyncExtentionEthClient>>,
+        dependency_chain_number: Option<usize>,
     ) -> Self {
         let sl_chain_id = if let Some(sl_l2_client) = sl_l2_client.clone() {
             Some(sl_l2_client.chain_id().await.unwrap())
@@ -45,6 +47,7 @@ impl InteropRootProcessor {
             l2_chain_id,
             sl_l2_client,
             sl_chain_id,
+            dependency_chain_number,
         }
     }
 }
@@ -157,4 +160,8 @@ impl EventProcessor for InteropRootProcessor {
     fn only_finalized_block(&self) -> bool {
         true
     }
+
+    fn dependency_chain_number(&self) -> Option<usize> {
+        self.dependency_chain_number
+    } //
 }

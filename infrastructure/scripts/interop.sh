@@ -73,11 +73,10 @@ sleep 10
 zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
 zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
 
-zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log &
+zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log & 
+zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium.log & 
 
 zkstack server wait --ignore-prerequisites --verbose --chain era
-zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium.log &
-
 zkstack server wait --ignore-prerequisites --verbose --chain validium
 
 # Runs interop integration test between era-validium in parallel

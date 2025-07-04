@@ -10,7 +10,7 @@ use zksync_eth_client::{
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
     EthInterface,
 };
-use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
+use zksync_system_constants::{L1_MESSENGER_ADDRESS, L2_MESSAGE_ROOT_ADDRESS};
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
@@ -114,6 +114,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
     l2_chain_id: L2ChainId,
+    dependency_l2_chain: bool, //
 }
 
 impl<Net: Network> EthHttpQueryClient<Net>
@@ -133,6 +134,7 @@ where
         server_notifier_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
+        dependency_l2_chain: bool,
     ) -> Self {
         tracing::debug!(
             "New eth client, ZKsync addr: {:x}, chain_admin_address: {:?}",
@@ -166,6 +168,7 @@ where
             l1_shared_bridge_addr,
             l1_message_root_address,
             l2_chain_id,
+            dependency_l2_chain, //
         }
     }
 
@@ -178,7 +181,12 @@ where
             Some(L2_MESSAGE_ROOT_ADDRESS),
             self.l1_message_root_address,
         ];
-        addresses.into_iter().flatten().collect()
+        let mut addresses: Vec<Address> = addresses.into_iter().flatten().collect();
+        // we don't want to watch the L1 messenger on GW, only on the dependency chains
+        if self.dependency_l2_chain {
+            addresses.push(L1_MESSENGER_ADDRESS);
+        } //
+        addresses
     }
 
     #[async_recursion::async_recursion]

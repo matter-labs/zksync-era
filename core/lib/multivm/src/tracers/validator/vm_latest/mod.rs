@@ -2,7 +2,7 @@ use zk_evm_1_5_2::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode, RetOpcode},
 };
-use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
+use zksync_system_constants::{KECCAK256_PRECOMPILE_ADDRESS, L2_INTEROP_HANDLER_ADDRESS};
 use zksync_types::{
     get_code_key, h256_to_address, u256_to_address, u256_to_h256, AccountTreeId, StorageKey, H256,
     U256,
@@ -148,11 +148,18 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let this_address = state.vm_local_state.callstack.current.this_address;
                 let msg_sender = state.vm_local_state.callstack.current.msg_sender;
 
+                let call_destination_value = data.src1_value.value;
+                let called_address = u256_to_address(&call_destination_value);
+
                 if !self.is_allowed_storage_read(storage.clone(), this_address, key, msg_sender) {
-                    return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
-                        this_address,
-                        key,
-                    ));
+                    println!("called_address : {:?}", called_address);
+                    if called_address == L2_INTEROP_HANDLER_ADDRESS {
+                    } else {
+                        return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
+                            this_address,
+                            key,
+                        ));
+                    }
                 }
 
                 if self.trusted_address_slots.contains(&(this_address, key)) {
