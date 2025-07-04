@@ -46,12 +46,21 @@ export function usersRoutes(app: WebServer) {
         schema: {
             params: z.object({
                 address: addressSchema
+            }),
+            querystring: z.object({
+                secret: z.string()
             })
         }
     };
 
     app.get('/:address', getUserSchema, (req, reply) => {
-        const { authorizer } = app.context;
+        const { authorizer, createTokenSecret } = app.context;
+        const { secret } = req.query;
+
+        if (secret !== createTokenSecret) {
+            throw new HttpError('forbidden', 403);
+        }
+
         const authorized = authorizer.isAddressWhitelisted(req.params.address);
         return reply.send({ authorized });
     });

@@ -21,10 +21,10 @@
     "@types/node-fetch": "^2.5.7",
     "@types/tabtab": "^3.0.1",
     "hardhat": "=2.22.2",
-    "typescript": "^4.3.5",
     "l1-contracts": "link:../../contracts/l1-contracts",
     "l2-contracts": "link:../../contracts/l2-contracts",
     "system-contracts": "link:../../contracts/system-contracts",
+    "typescript": "^4.3.5",
     "zksync-ethers": "5.8.0-beta.5"
   },
   "scripts": {

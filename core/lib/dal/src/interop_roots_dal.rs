@@ -41,7 +41,6 @@ impl InteropRootDal<'_, '_> {
         chain_id: SLChainId,
         number: L1BatchNumber,
         interop_root: &[H256],
-        timestamp: u64,
     ) -> DalResult<()> {
         let sides = interop_root
             .iter()
@@ -64,7 +63,6 @@ impl InteropRootDal<'_, '_> {
         .with_arg("chain_id", &chain_id)
         .with_arg("number", &number)
         .with_arg("interop_root", &interop_root)
-        .with_arg("timestamp", &timestamp)
         .execute(self.storage)
         .await?;
 
