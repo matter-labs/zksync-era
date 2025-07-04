@@ -34,7 +34,12 @@ impl EventProcessor for GatewayMigrationProcessor {
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         for event in &events {
-            let main_topic = event.topics.first().copied().context("missing topic 0")?;
+            let main_topic = event
+                .topics
+                .first()
+                .copied()
+                .context("missing topic 0")
+                .map_err(EventProcessorError::internal)?;
             if !self.possible_main_topics.contains(&main_topic) {
                 continue;
             }
@@ -44,7 +49,8 @@ impl EventProcessor for GatewayMigrationProcessor {
                     .topics
                     .get(1)
                     .copied()
-                    .context("missing topic 1")?
+                    .context("missing topic 1")
+                    .map_err(EventProcessorError::internal)?
                     .as_bytes(),
             );
 
