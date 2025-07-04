@@ -178,10 +178,11 @@ impl LocalL1BatchCommitData {
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
-            .await?
-            .with_context(|| {
-                format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
-            })?;
+            .await?;
+
+        let Some(commit_tx_hash) = commit_tx_hash else {
+            return Ok(None);
+        };
 
         let Some(l1_batch) = storage
             .blocks_dal()

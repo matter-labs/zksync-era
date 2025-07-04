@@ -383,14 +383,17 @@ impl SaveAction<'_> {
                 let chain_id = chain_id_by_l1_batch.get(&l1_batch_number).copied();
                 storage
                     .eth_sender_dal()
-                    .insert_bogus_confirmed_eth_tx(
+                    .insert_pending_received_eth_tx(
                         l1_batch_number,
                         L1BatchAggregatedActionType::Commit,
                         commit_tx_hash,
-                        chrono::Utc::now(),
                         chain_id,
-                        EthTxFinalityStatus::Finalized,
                     )
+                    .await
+                    .unwrap();
+                storage
+                    .eth_sender_dal()
+                    .confirm_tx(commit_tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
                     .await
                     .unwrap();
             }

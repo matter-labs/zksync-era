@@ -1,7 +1,6 @@
-use std::{convert::TryFrom, str::FromStr};
+use std::{convert::TryFrom, num::NonZeroU64, str::FromStr};
 
 use anyhow::Context as _;
-use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
     match_query_as,
@@ -165,18 +164,26 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_chain_id_of_last_eth_tx(&mut self) -> DalResult<Option<u64>> {
+    pub async fn get_chain_id_of_oldest_unfinalized_eth_tx(&mut self) -> DalResult<Option<u64>> {
         let res = sqlx::query!(
             r#"
             SELECT
                 chain_id
             FROM
                 eth_txs
-            ORDER BY id DESC
+            INNER JOIN l1_batches
+                ON
+                    eth_txs.id = l1_batches.eth_commit_tx_id
+                    OR eth_txs.id = l1_batches.eth_prove_tx_id
+                    OR eth_txs.id = l1_batches.eth_execute_tx_id
+            LEFT JOIN eth_txs_history ON eth_txs.id = eth_txs_history.eth_tx_id
+            WHERE
+                eth_txs_history.finality_status != 'finalized'
+            ORDER BY l1_batches.number ASC
             LIMIT 1
             "#,
         )
-        .instrument("get_settlement_layer_of_last_eth_tx")
+        .instrument("get_chain_id_of_oldest_unfinalized_eth_tx")
         .fetch_optional(self.storage)
         .await?
         .and_then(|row| row.chain_id.map(|a| a as u64));
@@ -608,24 +615,16 @@ impl EthSenderDal<'_, '_> {
         Ok(Some(H256::from_str(tx_hash).context("invalid tx_hash")?))
     }
 
-    /// This method inserts a fake transaction into the database that would make the corresponding L1 batch
-    /// to be considered committed/proven/executed.
-    ///
-    /// The designed use case is the External Node usage, where we don't really care about the actual transactions apart
-    /// from the hash and the fact that tx was sent.
-    ///
-    /// ## Warning
-    ///
-    /// After this method is used anywhere in the codebase, it is considered a bug to try to directly query `eth_txs_history`
-    /// or `eth_txs` tables.
-    pub async fn insert_bogus_confirmed_eth_tx(
+    /// This method inserts a pending transaction into eth_txs_history table.
+    /// It should be used only in external node context as most properties are not set.
+    /// Inserted transaction does not need to be validated as its set as pending.
+    /// Validation needs to be done before marking with one of the executed statuses.
+    pub async fn insert_pending_received_eth_tx(
         &mut self,
         l1_batch: L1BatchNumber,
         tx_type: L1BatchAggregatedActionType,
         tx_hash: H256,
-        confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
-        finality_status: EthTxFinalityStatus,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -636,7 +635,7 @@ impl EthSenderDal<'_, '_> {
 
         let eth_tx_id = sqlx::query_scalar!(
             "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs \
-            ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id \
+            ON eth_txs.id = eth_txs_history.eth_tx_id \
             WHERE eth_txs_history.tx_hash = $1",
             tx_hash
         )
@@ -661,33 +660,17 @@ impl EthSenderDal<'_, '_> {
             .await?;
 
             // Insert a "sent transaction".
-            let eth_history_id = sqlx::query_scalar!(
+            sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
                 (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE, $4) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,
-                confirmed_at.naive_utc(),
-                finality_status.to_string()
+                EthTxFinalityStatus::Pending.to_string()
             )
             .fetch_one(transaction.conn())
             .await?;
-            // Mark general entry as confirmed.
-            sqlx::query!(
-                r#"
-                UPDATE eth_txs
-                SET
-                    confirmed_eth_tx_history_id = $1
-                WHERE
-                    id = $2
-                "#,
-                eth_history_id,
-                eth_tx_id
-            )
-            .execute(transaction.conn())
-            .await?;
-
             eth_tx_id
         };
 
@@ -706,6 +689,113 @@ impl EthSenderDal<'_, '_> {
         transaction.commit().await.context("commit()")
     }
 
+    pub async fn get_unfinalized_transactions(
+        &mut self,
+        limit: NonZeroU64,
+        chain_id: Option<SLChainId>,
+    ) -> DalResult<Vec<TxHistory>> {
+        let limit = i64::try_from(limit.get()).expect("limit overflow");
+        let tx_history = match_query_as!(
+            StorageTxHistory,
+            [r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type,
+                eth_txs.chain_id
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.finality_status != 'finalized'
+            "#, _,
+            r#"
+            ORDER BY
+                eth_txs_history.id ASC
+            LIMIT
+                $1
+            "#],
+            match (chain_id) {
+                Some(chain_id) => ("AND eth_txs.chain_id = $2"; limit, chain_id.0 as i64),
+                None => (""; limit),
+            }
+        )
+        .instrument("get_unfinalized_transactions")
+        .with_arg("chain_id", &chain_id)
+        .fetch_all(self.storage)
+        .await?;
+        Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
+    }
+
+    /// Sets `sent_at_block` for the eth_txs_history row.
+    /// Used for ExternalNode when syncing batch transaction state from SL.
+    pub async fn set_sent_at_block(
+        &mut self,
+        tx_history_id: u32,
+        block_number: u32,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET sent_at_block = $2
+            WHERE id = $1
+            "#,
+            tx_history_id as i32,
+            block_number as i32,
+        )
+        .instrument("set_sent_at_block")
+        .with_arg("tx_history_id", &tx_history_id)
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    /// Sets sent_at_block to null in eth_txs_history row.
+    /// Used for ExternalNode when a previously included transaction on SL is excluded due to fork
+    pub async fn unset_sent_at_block(&mut self, tx_history_id: u32) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET sent_at_block = NULL
+            WHERE id = $1
+            "#,
+            tx_history_id as i32,
+        )
+        .instrument("unset_sent_at_block")
+        .with_arg("tx_history_id", &tx_history_id)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_eth_tx_history_by_id(
+        &mut self,
+        eth_tx_history_id: u32,
+    ) -> DalResult<TxHistory> {
+        let tx_history = sqlx::query_as!(
+            StorageTxHistory,
+            r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type,
+                eth_txs.chain_id
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.id = $1
+            "#,
+            eth_tx_history_id as i32,
+        )
+        .instrument("get_eth_tx_history_by_id")
+        .with_arg("eth_tx_history_id", &eth_tx_history_id)
+        .fetch_one(self.storage)
+        .await?;
+        Ok(tx_history.into())
+    }
+
     pub async fn get_tx_history_to_check(
         &mut self,
         eth_tx_id: u32,
@@ -715,7 +805,9 @@ impl EthSenderDal<'_, '_> {
             r#"
             SELECT
                 eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type,
+                eth_txs.chain_id
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -766,7 +858,9 @@ impl EthSenderDal<'_, '_> {
             r#"
             SELECT
                 eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type,
+                eth_txs.chain_id
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
