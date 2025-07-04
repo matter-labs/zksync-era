@@ -107,6 +107,10 @@ pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";
 
 /// Path to l1 contracts foundry folder inside zksync-era
 pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts";
+/// Path to proving networks contracts
+pub(crate) const PROVING_NETWORKS_PATH: &str = "proof-manager-contracts";
+/// Path to proving networks contracts deploy script
+pub(crate) const PROVING_NETWORKS_DEPLOY_SCRIPT_PATH: &str = "scripts/deployment/deploy.sh";
 
 pub(crate) const ERA_CHAIN_ID: u32 = 270;
 

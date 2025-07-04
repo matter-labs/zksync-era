@@ -14,7 +14,8 @@ use zksync_config::{
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
         CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
-        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        NodeSyncConfig, ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets,
+        SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -239,6 +240,8 @@ pub(crate) struct LocalConfig {
     pub consistency_checker: ConsistencyCheckerConfig,
     #[config(flatten)]
     pub secrets: Secrets,
+    #[config(nest)]
+    pub node_sync: NodeSyncConfig,
 }
 
 impl LocalConfig {
@@ -294,7 +297,7 @@ impl LocalConfig {
         api.web3_json_rpc.http_port = 0;
         api.web3_json_rpc.ws_port = 0;
         api.merkle_tree.port = 0;
-        api.healthcheck.port = 0;
+        api.healthcheck.port = 0.into();
 
         Self {
             api,
@@ -318,7 +321,10 @@ impl LocalConfig {
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
             secrets: Secrets {
-                consensus: ConsensusSecrets::default(),
+                consensus: ConsensusSecrets {
+                    validator_key: None,
+                    node_key: Some("node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c".into())
+                },
                 postgres: PostgresSecrets {
                     server_url: Some(test_pool.database_url().clone()),
                     ..PostgresSecrets::default()
@@ -330,6 +336,7 @@ impl LocalConfig {
                 data_availability: None,
                 contract_verifier: ContractVerifierSecrets::default(),
             },
+            node_sync: NodeSyncConfig::default(),
         }
     }
 }
@@ -360,15 +367,11 @@ impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the repo.
     ///
     /// **Important.** This method is blocking.
-    pub fn new(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    pub fn new(mut repo: ConfigRepository<'_>) -> anyhow::Result<Self> {
         repo.capture_parsed_params();
         Ok(Self {
             local: repo.parse()?,
-            consensus: if has_consensus {
-                repo.parse_opt()?
-            } else {
-                None
-            },
+            consensus: repo.parse_opt()?,
             config_params: repo.into_captured_params(),
             remote: (),
         })
@@ -408,10 +411,17 @@ impl ExternalNodeConfig<()> {
 
 impl ExternalNodeConfig {
     #[cfg(test)]
-    pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
+    pub(crate) fn mock(
+        temp_dir: &tempfile::TempDir,
+        test_pool: &ConnectionPool<Core>,
+        consensus_port_offset: u16,
+    ) -> Self {
+        let mut consensus = ConsensusConfig::for_tests();
+        let port = 4000u16 + consensus_port_offset;
+        consensus.server_addr = format!("127.0.0.1:{port}").parse().unwrap();
         Self {
             local: LocalConfig::mock(temp_dir, test_pool),
-            consensus: None,
+            consensus: Some(consensus),
             config_params: CapturedParams::default(),
             remote: RemoteENConfig::mock(),
         }

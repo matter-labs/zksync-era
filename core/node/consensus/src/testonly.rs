@@ -135,6 +135,7 @@ fn make_config(
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: u64::MAX.into(),
+        max_transaction_size: u64::MAX.into(),
         max_batch_size: u64::MAX.into(),
         view_timeout: Duration::from_secs(2),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -158,6 +159,7 @@ fn make_config(
         genesis_spec,
         rpc: RpcConfig::default(),
         debug_page_addr: None,
+        consensus_registry_read_rate: Duration::from_secs(1),
     }
 }
 
@@ -260,6 +262,8 @@ impl StateKeeper {
                     }),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
+                    pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
+                        .then_some(100_000),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -367,21 +371,6 @@ impl StateKeeper {
                 }
             }
         }
-    }
-
-    /// Runs the centralized fetcher.
-    pub async fn run_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: Box<DynClient<L2>>,
-    ) -> anyhow::Result<()> {
-        en::EN {
-            pool: self.pool,
-            client,
-            sync_state: self.sync_state.clone(),
-        }
-        .run_fetcher(ctx, self.actions_sender)
-        .await
     }
 
     /// Runs consensus node for the external node.
