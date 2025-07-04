@@ -30,6 +30,9 @@ zksync_mini_merkle_tree.workspace = true
 zksync_eth_watch.workspace = true
 zksync_eth_signer.workspace = true
 zksync_proof_data_handler.workspace = true
+bellman.workspace = true
+circuit_definitions.workspace = true
+fflonk.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
@@ -39,3 +42,4 @@ thiserror.workspace = true
 tracing.workspace = true
 jsonrpsee.workspace = true
 hex.workspace = true
+serde_json.workspace = true

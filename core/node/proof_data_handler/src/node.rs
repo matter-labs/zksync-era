@@ -114,24 +114,28 @@ impl Task for ProofDataHandlerTask {
         } else {
             let client = ProofDataHandlerClient::new(
                 self.blob_store,
-                self.main_pool,
-                self.proof_data_handler_config,
+                self.main_pool.clone(),
+                self.proof_data_handler_config.clone(),
                 self.l2_chain_id,
             );
 
             if self.proof_data_handler_config.proving_mode == ProvingMode::ProvingNetwork {
                 let proof_router = ProofRouter::new(
-                    self.proof_data_handler_config.clone(),
                     self.main_pool.clone(),
                     self.eth_proof_manager_config.acknowledgment_timeout,
                     self.eth_proof_manager_config.proof_generation_timeout,
                 );
-            }
 
-            tokio::select! {
-                _ = client.run(stop_receiver.0) => {
-                    tracing::info!("Proof data handler client stopped");
+                tokio::select! {
+                    _ = client.run(stop_receiver.0.clone()) => {
+                        tracing::info!("Proof data handler client stopped");
+                    }
+                    _ = proof_router.run(stop_receiver.0) => {
+                        tracing::info!("Proof router stopped");
+                    }
                 }
+            } else {
+                client.run(stop_receiver.0).await?;
             }
 
             Ok(())

@@ -1,9 +1,6 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
 use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
 use crate::{types::ProvingNetwork, watcher::events::EventHandler};
@@ -15,6 +12,7 @@ use crate::{types::ProvingNetwork, watcher::events::EventHandler};
 //     ProvingNetwork indexed assignedTo
 // );
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ProofRequestAcknowledged {
     pub chain_id: U256,
     pub block_number: U256,
@@ -23,7 +21,15 @@ pub struct ProofRequestAcknowledged {
 }
 
 #[derive(Debug)]
-pub struct ProofRequestAcknowledgedHandler;
+pub struct ProofRequestAcknowledgedHandler {
+    connection_pool: ConnectionPool<Core>,
+}
+
+impl ProofRequestAcknowledgedHandler {
+    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
+        Self { connection_pool }
+    }
+}
 
 #[async_trait]
 impl EventHandler for ProofRequestAcknowledgedHandler {
@@ -40,12 +46,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         )
     }
 
-    async fn handle(
-        &self,
-        log: Log,
-        connection_pool: ConnectionPool<Core>,
-        _blob_store: Arc<dyn ObjectStore>,
-    ) -> anyhow::Result<()> {
+    async fn handle(&self, log: Log) -> anyhow::Result<()> {
         if log.topics.len() != 4 {
             return Err(anyhow::anyhow!(
                 "invalid number of topics: {:?}, expected 4",
@@ -87,7 +88,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
 
         if accepted {
-            connection_pool
+            self.connection_pool
                 .connection()
                 .await?
                 .eth_proof_manager_dal()

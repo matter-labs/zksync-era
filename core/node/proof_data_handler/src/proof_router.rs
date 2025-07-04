@@ -1,11 +1,9 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
-use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 pub struct ProofRouter {
-    config: ProofDataHandlerConfig,
     connection_pool: ConnectionPool<Core>,
     acknowledgment_timeout: Duration,
     proving_timeout: Duration,
@@ -13,13 +11,11 @@ pub struct ProofRouter {
 
 impl ProofRouter {
     pub fn new(
-        config: ProofDataHandlerConfig,
         connection_pool: ConnectionPool<Core>,
         acknowledgment_timeout: Duration,
         proving_timeout: Duration,
     ) -> Self {
         Self {
-            config,
             connection_pool,
             acknowledgment_timeout,
             proving_timeout,

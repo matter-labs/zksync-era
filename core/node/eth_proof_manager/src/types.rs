@@ -1,3 +1,8 @@
+use bellman::{bn256::Bn256, plonk::better_better_cs::cs::VerificationKey};
+use circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncSnarkWrapperCircuit, ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+};
+use fflonk::FflonkVerificationKey;
 use zksync_eth_client::{ContractCallError, EnrichedClientError, SigningError};
 use zksync_types::{ethabi, U256};
 
@@ -66,6 +71,10 @@ impl ProofRequestParams {
         ])
     }
 }
+
+pub(crate) type PlonkFinalVerificationKey = VerificationKey<Bn256, ZkSyncSnarkWrapperCircuit>;
+pub(crate) type FflonkFinalVerificationKey =
+    FflonkVerificationKey<Bn256, ZkSyncSnarkWrapperCircuitNoLookupCustomGate>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {

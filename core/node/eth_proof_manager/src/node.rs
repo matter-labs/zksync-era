@@ -42,7 +42,7 @@ pub struct Input {
     gas_adjuster: Arc<dyn TxParamsProvider>,
 }
 
-#[derive(Debug, IntoContext)]
+#[derive(IntoContext)]
 pub struct Output {
     #[context(task)]
     eth_proof_manager: EthProofManager,

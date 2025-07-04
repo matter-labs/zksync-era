@@ -14,7 +14,6 @@ mod sender;
 mod types;
 mod watcher;
 
-#[derive(Debug)]
 pub struct EthProofManager {
     watcher: watcher::EthProofWatcher,
     sender: sender::EthProofSender,

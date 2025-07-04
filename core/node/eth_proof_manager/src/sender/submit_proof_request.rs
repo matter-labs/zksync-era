@@ -75,7 +75,7 @@ impl ProofRequestSubmitter {
                 protocol_minor: proof_generation_data.protocol_version.minor as u32,
                 protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
                 proof_inputs_url: url,
-                timeout_after: self.config.proof_request_timeout.as_secs() as u64,
+                timeout_after: self.config.acknowledgment_timeout.as_secs() as u64,
                 max_reward: self.config.max_reward,
             };
 

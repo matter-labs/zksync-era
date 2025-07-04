@@ -31,6 +31,10 @@ pub struct EthProofManagerConfig {
     pub tx_receipt_checking_sleep: Duration,
     #[config(default_t = 100_000_000)]
     pub max_tx_gas: u64,
+    #[config(default)]
+    pub path_to_fflonk_verification_key: String,
+    #[config(default)]
+    pub path_to_plonk_verification_key: String,
 }
 
 impl Default for EthProofManagerConfig {
@@ -49,6 +53,8 @@ impl Default for EthProofManagerConfig {
             tx_receipt_checking_max_attempts: 10,
             tx_receipt_checking_sleep: Duration::from_secs(1),
             max_tx_gas: 100_000_000,
+            path_to_fflonk_verification_key: "".to_string(),
+            path_to_plonk_verification_key: "".to_string(),
         }
     }
 }
