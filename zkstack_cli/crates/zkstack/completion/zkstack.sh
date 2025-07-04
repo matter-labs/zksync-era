@@ -427,6 +427,9 @@ _zkstack() {
             zkstack__dev,prover)
                 cmd="zkstack__dev__prover"
                 ;;
+            zkstack__dev,rich-account)
+                cmd="zkstack__dev__rich__account"
+                ;;
             zkstack__dev,send-transactions)
                 cmd="zkstack__dev__send__transactions"
                 ;;
@@ -540,6 +543,9 @@ _zkstack() {
                 ;;
             zkstack__dev__help,prover)
                 cmd="zkstack__dev__help__prover"
+                ;;
+            zkstack__dev__help,rich-account)
+                cmd="zkstack__dev__help__rich__account"
                 ;;
             zkstack__dev__help,send-transactions)
                 cmd="zkstack__dev__help__send__transactions"
@@ -1059,6 +1065,9 @@ _zkstack() {
                 ;;
             zkstack__help__dev,prover)
                 cmd="zkstack__help__dev__prover"
+                ;;
+            zkstack__help__dev,rich-account)
+                cmd="zkstack__help__dev__rich__account"
                 ;;
             zkstack__help__dev,send-transactions)
                 cmd="zkstack__help__dev__send__transactions"
@@ -4030,7 +4039,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis track-priority-ops help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4672,7 +4681,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__fmt)
-            opts="-c -v -h --check --verbose --chain --ignore-prerequisites --help rust prettier prettier-contracts"
+            opts="-c -v -h --check --verbose --chain --ignore-prerequisites --help rustfmt prettier prettier-contracts"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4708,7 +4717,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__help)
-            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis track-priority-ops help"
+            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5018,6 +5027,20 @@ _zkstack() {
         zkstack__dev__help__prover__insert__version)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__help__rich__account)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -5469,6 +5492,36 @@ _zkstack() {
                     return 0
                     ;;
                 --fflonk-snark-wrapper)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__rich__account)
+            opts="-v -h --l1-account-private-key --amount --l1-rpc-url --verbose --chain --ignore-prerequisites --help [L2_ACCOUNT]"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --l1-account-private-key)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --amount)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --l1-rpc-url)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -6056,7 +6109,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__revert)
-            opts="-n -v -h --enable-consensus --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
+            opts="-n -v -h --no-deps --no-kill --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6922,7 +6975,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__external__node__run)
-            opts="-v -h --reinit --components --enable-consensus --verbose --chain --ignore-prerequisites --help [ADDITIONAL_ARGS]..."
+            opts="-v -h --reinit --components --verbose --chain --ignore-prerequisites --help [ADDITIONAL_ARGS]..."
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6930,10 +6983,6 @@ _zkstack() {
             case "${prev}" in
                 --components)
                     COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --enable-consensus)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -7664,7 +7713,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__dev)
-            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis track-priority-ops"
+            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7960,6 +8009,20 @@ _zkstack() {
         zkstack__help__dev__prover__insert__version)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__dev__rich__account)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -9030,7 +9093,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init)
-            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --deploy-proving-networks --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -9058,6 +9121,10 @@ _zkstack() {
                     ;;
                 --project-id)
                     COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --deploy-proving-networks)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
                 --bellman-cuda-dir)

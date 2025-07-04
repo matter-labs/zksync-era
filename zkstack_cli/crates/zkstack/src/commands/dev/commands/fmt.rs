@@ -49,7 +49,7 @@ async fn rustfmt(
 
 #[derive(Debug, Clone, clap::ValueEnum)]
 pub enum Mode {
-    Rust,
+    Rustfmt,
     Prettier,
     PrettierContracts,
 }
@@ -68,7 +68,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let mut tasks = vec![];
 
     let mut targets = vec![];
-    if matches!(args.mode, Some(Mode::Rust) | None) {
+    if matches!(args.mode, Some(Mode::Rustfmt) | None) {
         // Run Rust formatting
         for dir in ["core", "prover", "zkstack_cli"] {
             tasks.push(tokio::spawn(rustfmt(
