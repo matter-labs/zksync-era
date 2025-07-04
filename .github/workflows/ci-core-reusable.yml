@@ -245,6 +245,20 @@ jobs:
         run: |
           ci_run zkstack dev test build
 
+      - name: Initialize ecosystem0
+        continue-on-error: true
+        run: |
+          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_era \
+          --ignore-prerequisites --verbose \
+          --observability=false
+
+      - name: Generate genesis
+        run: |
+          ci_run zkstack dev generate-genesis
+
       - name: Initialize ecosystem
         run: |
           ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
