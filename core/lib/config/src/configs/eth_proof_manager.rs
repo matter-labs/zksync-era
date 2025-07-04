@@ -16,7 +16,7 @@ pub struct EthProofManagerConfig {
     #[config(default_t = 10)]
     pub max_reward: u64,
     #[config(default_t = Duration::from_secs(120))]
-    pub proof_request_timeout: Duration,
+    pub acknowledgment_timeout: Duration,
     #[config(default_t = Duration::from_secs(7200))]
     pub proof_generation_timeout: Duration,
     #[config(default_t = 10)]
@@ -41,7 +41,7 @@ impl Default for EthProofManagerConfig {
             event_expiration_blocks: 1000,
             default_priority_fee_per_gas: 2_000_000_000,
             max_reward: 10,
-            proof_request_timeout: Duration::from_secs(120),
+            acknowledgment_timeout: Duration::from_secs(120),
             proof_generation_timeout: Duration::from_secs(7200),
             max_acceptable_priority_fee_in_gwei: 10,
             max_tx_sending_attempts: 5,

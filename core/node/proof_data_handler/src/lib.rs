@@ -23,6 +23,7 @@ mod errors;
 mod metrics;
 pub mod node;
 mod processor;
+mod proof_router;
 
 pub async fn run_server(
     config: ProofDataHandlerConfig,

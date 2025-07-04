@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
-use zksync_types::{api::Log, ethabi, h256_to_u256, H256, U256};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_object_store::{ObjectStore, StoredObject};
+use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
+use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
 use crate::watcher::events::EventHandler;
 
@@ -12,7 +13,6 @@ use crate::watcher::events::EventHandler;
 //    uint256 indexed chainId, uint256 indexed blockNumber, bytes proof, ProvingNetwork assignedTo
 //);
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ProofRequestProven {
     pub chain_id: U256,
     pub block_number: U256,
@@ -40,8 +40,8 @@ impl EventHandler for ProofRequestProvenHandler {
     async fn handle(
         &self,
         log: Log,
-        _connection_pool: ConnectionPool<Core>,
-        _blob_store: Arc<dyn ObjectStore>,
+        connection_pool: ConnectionPool<Core>,
+        blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()> {
         if log.topics.len() != 3 {
             return Err(anyhow::anyhow!(
@@ -69,6 +69,23 @@ impl EventHandler for ProofRequestProvenHandler {
         };
 
         tracing::info!("Received ProofRequestProvenEvent: {:?}", event);
+
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof).map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
+        // todo: verify proof
+        let verification_result = true;
+
+        let batch_number = L1BatchNumber(block_number.as_u32());
+
+        if verification_result {
+            let proof_blob_url = blob_store.put(
+                L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
+                &proof,
+            ).await?;
+
+            connection_pool.connection().await?.proof_generation_dal().save_proof_artifacts_metadata(batch_number, &proof_blob_url).await?;
+        }
+
+        connection_pool.connection().await?.eth_proof_manager_dal().mark_batch_as_proven(batch_number, verification_result).await?;
 
         Ok(())
     }

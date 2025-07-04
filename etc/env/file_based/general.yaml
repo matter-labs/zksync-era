@@ -285,4 +285,15 @@ gateway_migrator:
 eth_proof_manager:
   event_poll_interval: 10000 ms
   event_expiration_blocks: 1000
+  request_sending_interval: 10000 ms
+  default_priority_fee_per_gas: 2000000000
+  max_reward: 10
+  proof_request_timeout: 120000 ms
+  proof_generation_timeout: 7200000 ms
+  max_acceptable_priority_fee_in_gwei: 10
+  max_tx_sending_attempts: 5
+  tx_sending_sleep: 1000 ms
+  tx_receipt_checking_max_attempts: 10
+  tx_receipt_checking_sleep: 1000 ms
+  max_tx_gas: 100000000
   

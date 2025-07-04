@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_types::{api::Log, ethabi, h256_to_u256, H256, U256};
+use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
 use crate::{types::ProvingNetwork, watcher::events::EventHandler};
 
@@ -15,7 +15,6 @@ use crate::{types::ProvingNetwork, watcher::events::EventHandler};
 //     ProvingNetwork indexed assignedTo
 // );
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ProofRequestAcknowledged {
     pub chain_id: U256,
     pub block_number: U256,
@@ -44,7 +43,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
     async fn handle(
         &self,
         log: Log,
-        _connection_pool: ConnectionPool<Core>,
+        connection_pool: ConnectionPool<Core>,
         _blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()> {
         if log.topics.len() != 4 {
@@ -86,6 +85,14 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         };
 
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
+
+        if accepted {
+            connection_pool.connection().await?.eth_proof_manager_dal().acknowledge_batch(L1BatchNumber(event.block_number.as_u32()), event.assigned_to.into()).await?;
+        }
+        else {
+            tracing::info!("Proof request for batch {} not accepted, skipping", event.block_number);
+        }
+
         Ok(())
     }
 }

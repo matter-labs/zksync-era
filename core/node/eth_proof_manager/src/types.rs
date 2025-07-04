@@ -19,6 +19,16 @@ impl ProvingNetwork {
     }
 }
 
+impl Into<zksync_dal::eth_proof_manager_dal::ProvingNetwork> for ProvingNetwork {
+    fn into(self) -> zksync_dal::eth_proof_manager_dal::ProvingNetwork {
+        match self {
+            ProvingNetwork::None => zksync_dal::eth_proof_manager_dal::ProvingNetwork::None,
+            ProvingNetwork::Fermah => zksync_dal::eth_proof_manager_dal::ProvingNetwork::Fermah,
+            ProvingNetwork::Lagrange => zksync_dal::eth_proof_manager_dal::ProvingNetwork::Lagrange,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProofRequestIdentifier {
     pub chain_id: u64,     // uint256

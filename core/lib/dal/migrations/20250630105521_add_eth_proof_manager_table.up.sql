@@ -3,7 +3,6 @@ CREATE TABLE IF NOT EXISTS eth_proof_manager (
     assigned_to TEXT,
     status TEXT NOT NULL,
     witness_inputs_url TEXT NOT NULL,
-    proof_blob_url TEXT NOT NULL,
     proof_validation_result BOOLEAN,
     submit_proof_request_tx_hash BYTEA,
     submit_proof_request_tx_sent_at TIMESTAMP,

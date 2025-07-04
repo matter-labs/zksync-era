@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sqlx::QueryBuilder;
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt,
     utils::pg_interval_from_duration,
@@ -174,20 +175,17 @@ impl EthProofManagerDal<'_, '_> {
     pub async fn mark_batch_as_proven(
         &mut self,
         batch_number: L1BatchNumber,
-        proof_blob_url: &str,
         proof_validation_result: bool,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager SET
-                proof_blob_url = $2,
-                proof_validation_result = $3,
+                proof_validation_result = $2,
                 updated_at = NOW(),
-                status = $4
+                status = $3
             WHERE l1_batch_number = $1
             "#,
             batch_number.0 as i64,
-            proof_blob_url,
             proof_validation_result,
             EthProofManagerStatus::Proven.as_str()
         )
@@ -271,7 +269,7 @@ impl EthProofManagerDal<'_, '_> {
         }
     }
 
-    pub async fn batches_to_fallback(
+    pub async fn fallback_batches(
         &mut self,
         acknowledgment_timeout: Duration,
         proving_timeout: Duration,
@@ -279,7 +277,7 @@ impl EthProofManagerDal<'_, '_> {
         let acknowledgment_timeout = pg_interval_from_duration(acknowledgment_timeout);
         let proving_timeout = pg_interval_from_duration(proving_timeout);
 
-        // todo: actually move batches to fallback status
+        let mut transaction = self.storage.start_transaction().await?;
 
         // We move batches to fallback status if:
         // 1. The batch was sent but the proof request was not accepted after timeout
@@ -307,16 +305,37 @@ impl EthProofManagerDal<'_, '_> {
             EthProofManagerStatus::Validated.as_str()
         )
         .instrument("move_batches_to_fallback")
-        .fetch_all(self.storage)
+        .fetch_all(&mut transaction)
         .await?
         .into_iter()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
+        
+        let mut query_builder = QueryBuilder::new(
+            "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE l1_batch_number IN ("
+        );
+
+        for (index, batch) in batches.iter().enumerate() {
+            query_builder.push_bind(batch.0 as i64);
+            if index < batches.len() - 1 {
+                query_builder.push(", ");
+            }
+        }
+
+        query_builder.push(")");
+
+        query_builder.build()
+            .instrument("move_batches_to_fallback")
+            .execute(&mut transaction)
+            .await?;
+
+        transaction.commit().await?;
 
         Ok(batches.len())
     }
 
     pub async fn fallback_certain_batch(&mut self, batch_number: L1BatchNumber) -> DalResult<()> {
+        let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager SET status = $1, updated_at = NOW()
@@ -327,8 +346,22 @@ impl EthProofManagerDal<'_, '_> {
         )
         .instrument("fallback_certain_batch")
         .with_arg("batch_number", &batch_number)
-        .execute(self.storage)
+        .execute(&mut transaction)
         .await?;
+
+        sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET status = 'fallbacked', updated_at = NOW()
+            WHERE l1_batch_number = $1
+            "#,
+            batch_number.0 as i64
+        )
+        .instrument("fallback_certain_batch")
+        .execute(&mut transaction)
+        .await?;
+
+        transaction.commit().await?;
 
         Ok(())
     }
