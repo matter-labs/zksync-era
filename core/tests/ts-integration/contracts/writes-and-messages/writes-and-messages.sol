@@ -8,7 +8,7 @@ interface IL2Messenger {
 }
 
 contract WritesAndMessages {
-    IL2Messenger constant L2_MESSENGER = IL2Messenger(address(0x8008));
+    IL2Messenger constant L2_TO_L1_MESSENGER = IL2Messenger(address(0x8008));
     mapping(uint256 => uint256) public s;
 
     function writes(uint from, uint iterations, uint value) public {
@@ -24,7 +24,7 @@ contract WritesAndMessages {
     function l2_l1_messages(uint iterations) public {
         unchecked {
             for (uint i = 0; i < iterations; i++) {
-                L2_MESSENGER.sendToL1(abi.encode(i));
+                L2_TO_L1_MESSENGER.sendToL1(abi.encode(i));
             }
         }
     }
@@ -35,7 +35,7 @@ contract WritesAndMessages {
             for (uint i = 0; i < size; i++) {
                 message[i] = bytes1(uint8(i % 256));
             }
-            L2_MESSENGER.sendToL1(message);
+            L2_TO_L1_MESSENGER.sendToL1(message);
         }
     }
 }

@@ -2311,6 +2311,38 @@ impl BlocksDal<'_, '_> {
         ))
     }
 
+    pub async fn get_batch_chain_merkle_path_until_msg_root(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<BatchAndChainMerklePath>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                batch_chain_merkle_path_until_msg_root
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_batch_chain_merkle_path_until_msg_root")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(batch_chain_merkle_path_until_msg_root) =
+            row.batch_chain_merkle_path_until_msg_root
+        else {
+            return Ok(None);
+        };
+        Ok(Some(
+            bincode::deserialize(&batch_chain_merkle_path_until_msg_root).unwrap(),
+        ))
+    }
+
     pub async fn get_l1_batch_pubdata_params(
         &mut self,
         number: L1BatchNumber,
@@ -2387,6 +2419,32 @@ impl BlocksDal<'_, '_> {
             &proof_bin
         )
         .instrument("set_batch_chain_merkle_path")
+        .with_arg("number", &number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn set_batch_chain_merkle_path_until_msg_root(
+        &mut self,
+        number: L1BatchNumber,
+        proof: BatchAndChainMerklePath,
+    ) -> DalResult<()> {
+        let proof_bin = bincode::serialize(&proof).unwrap();
+        sqlx::query!(
+            r#"
+            UPDATE
+            l1_batches
+            SET
+                batch_chain_merkle_path_until_msg_root = $2
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0),
+            &proof_bin
+        )
+        .instrument("set_batch_chain_merkle_path_until_msg_root")
         .with_arg("number", &number)
         .execute(self.storage)
         .await?;
