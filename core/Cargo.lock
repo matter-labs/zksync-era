@@ -12621,6 +12621,7 @@ name = "zksync_external_price_api"
 version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bigdecimal",
  "chrono",

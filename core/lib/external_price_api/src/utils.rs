@@ -1,10 +1,13 @@
 use std::num::NonZeroU64;
 
+use chrono::Utc;
 use fraction::Fraction;
+use zksync_types::base_token_ratio::BaseTokenApiRatio;
 
 /// Using the base token price and eth price, calculate the fraction of the base token to eth.
 pub fn get_fraction(ratio_f64: f64) -> anyhow::Result<(NonZeroU64, NonZeroU64)> {
     let rate_fraction = Fraction::from(ratio_f64);
+    tracing::warn!("rate_fraction: {rate_fraction}, ratio_f64: {ratio_f64}");
     if rate_fraction.sign() == Some(fraction::Sign::Minus) {
         return Err(anyhow::anyhow!("number is negative"));
     }
@@ -23,6 +26,19 @@ pub fn get_fraction(ratio_f64: f64) -> anyhow::Result<(NonZeroU64, NonZeroU64)> 
     .ok_or(anyhow::anyhow!("denominator is zero"))?;
 
     Ok((numerator, denominator))
+}
+
+/// Take float price in ETH (1 BaseToken = X ETH) and convert it to BaseToken/ETH ratio (X BaseToken = 1 ETH)
+pub fn eth_price_to_base_token_ratio(price: f64) -> anyhow::Result<BaseTokenApiRatio> {
+    let (num_in_eth, denom_in_eth) = get_fraction(price)?;
+    // take reciprocal of price as returned price is ETH/BaseToken and BaseToken/ETH is needed
+    let (num_in_base, denom_in_base) = (denom_in_eth, num_in_eth);
+
+    Ok(BaseTokenApiRatio {
+        numerator: num_in_base,
+        denominator: denom_in_base,
+        ratio_timestamp: Utc::now(),
+    })
 }
 
 #[cfg(test)]

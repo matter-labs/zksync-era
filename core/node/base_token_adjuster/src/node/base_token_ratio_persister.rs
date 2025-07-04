@@ -11,7 +11,7 @@ use zksync_eth_client::{
         node::SettlementModeResource,
     },
 };
-use zksync_external_price_api::{NoOpPriceApiClient, PriceApiClient};
+use zksync_external_price_api::{APIToken, NoOpPriceApiClient, PriceApiClient};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -21,10 +21,7 @@ use zksync_node_framework::{
 };
 use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
-use crate::{
-    base_token_ratio_persister::BaseToken, BaseTokenL1Behaviour, BaseTokenRatioPersister,
-    UpdateOnL1Params,
-};
+use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 
 /// Wiring layer for `BaseTokenRatioPersister`
 ///
@@ -87,19 +84,17 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             .config
             .base_token_addr_override
             .unwrap_or(input.l1_ecosystem_contracts.0.base_token_address);
-        let base_token = BaseToken::from_config_address(base_token_addr);
+        let base_token = APIToken::from_config_address(base_token_addr);
 
         let sl_token = match input.settlement_mode.settlement_layer() {
-            SettlementLayer::L1 { .. } => BaseToken::Eth,
-            SettlementLayer::Gateway { .. } => BaseToken::ERC20(
-                self.config.gateway_base_token_addr_override.unwrap_or(
-                    // ZK Token address. There is only one official Gateway with ZK as base token.
-                    // (for price fetching on testnet we should/need to use mainnet address)
-                    "0x5A7d6b2F92C77FAD6CCaBd7EE0624E64907Eaf3E"
-                        .parse()
-                        .unwrap(),
-                ),
-            ),
+            SettlementLayer::L1 { .. } => APIToken::Eth,
+            SettlementLayer::Gateway { .. } => {
+                if let Some(address) = self.config.gateway_base_token_addr_override {
+                    APIToken::ERC20(address)
+                } else {
+                    APIToken::ZK
+                }
+            }
         };
 
         let l1_behaviour = self

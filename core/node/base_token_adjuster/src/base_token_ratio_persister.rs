@@ -4,30 +4,13 @@ use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_external_price_api::PriceApiClient;
-use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
+use zksync_external_price_api::{APIToken, PriceApiClient};
+use zksync_types::base_token_ratio::BaseTokenApiRatio;
 
 use crate::{
     base_token_l1_behaviour::BaseTokenL1Behaviour,
     metrics::{OperationResult, OperationResultLabels, METRICS},
 };
-
-#[derive(Debug, Clone)]
-pub enum BaseToken {
-    ERC20(Address),
-    Eth,
-}
-
-impl BaseToken {
-    /// Interprets 0x00 and 0x01 addresses as ETH
-    pub fn from_config_address(address: Address) -> Self {
-        if address == Address::zero() || address == Address::from_low_u64_be(1) {
-            Self::Eth
-        } else {
-            Self::ERC20(address)
-        }
-    }
-}
 
 /// When multiplying naivly to ratios based on u64 we can overflow. This function
 /// scales down the ratios to prevent overflow (effectively loosing some precision).
@@ -85,8 +68,8 @@ fn safe_u64_fraction_mul(
 pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
-    base_token: BaseToken,
-    sl_token: BaseToken,
+    base_token: APIToken,
+    sl_token: APIToken,
     price_api_client: Arc<dyn PriceApiClient>,
     l1_behaviour: BaseTokenL1Behaviour,
 }
@@ -96,8 +79,8 @@ impl BaseTokenRatioPersister {
     pub fn new(
         pool: ConnectionPool<Core>,
         config: BaseTokenAdjusterConfig,
-        base_token: BaseToken,
-        sl_token: BaseToken,
+        base_token: APIToken,
+        sl_token: APIToken,
         price_api_client: Arc<dyn PriceApiClient>,
         l1_behaviour: BaseTokenL1Behaviour,
     ) -> Self {
@@ -140,15 +123,9 @@ impl BaseTokenRatioPersister {
 
     async fn loop_iteration(&mut self) -> anyhow::Result<()> {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
-        let base_to_eth = match self.base_token {
-            BaseToken::Eth => BaseTokenApiRatio::identity(),
-            BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
-        };
+        let base_to_eth = self.retry_fetch_ratio(self.base_token).await?;
 
-        let sl_to_eth = match self.sl_token {
-            BaseToken::Eth => BaseTokenApiRatio::identity(),
-            BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
-        };
+        let sl_to_eth = self.retry_fetch_ratio(self.sl_token).await?;
 
         let sl_ratio = safe_u64_fraction_mul(base_to_eth, sl_to_eth.reciprocal())?;
         METRICS
@@ -157,7 +134,7 @@ impl BaseTokenRatioPersister {
 
         // In database we persist the ratio needed for calculating L2 gas price from SL (L1 or Gateway) gas price
         self.persist_ratio(sl_ratio).await?;
-        if matches!(self.base_token, BaseToken::Eth) {
+        if matches!(self.base_token, APIToken::Eth) {
             METRICS
                 .ratio_l1
                 .set((base_to_eth.numerator.get() as f64) / (base_to_eth.denominator.get() as f64));
@@ -166,14 +143,14 @@ impl BaseTokenRatioPersister {
         Ok(())
     }
 
-    async fn retry_fetch_ratio(&self, address: Address) -> anyhow::Result<BaseTokenApiRatio> {
+    async fn retry_fetch_ratio(&self, token: APIToken) -> anyhow::Result<BaseTokenApiRatio> {
         let sleep_duration = self.config.price_fetching_sleep;
         let max_retries = self.config.price_fetching_max_attempts;
         let mut last_error = None;
 
         for attempt in 0..max_retries {
             let start_time = Instant::now();
-            match self.price_api_client.fetch_ratio(address).await {
+            match self.price_api_client.fetch_ratio(token).await {
                 Ok(ratio) => {
                     METRICS.external_price_api_latency[&OperationResultLabels {
                         result: OperationResult::Success,
@@ -240,10 +217,10 @@ mod tests {
     use test_casing::test_casing;
     use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
     use zksync_dal::{ConnectionPool, Core, CoreDal};
-    use zksync_external_price_api::PriceApiClient;
+    use zksync_external_price_api::{APIToken, PriceApiClient};
     use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-    use crate::{base_token_ratio_persister::BaseToken, *};
+    use crate::*;
 
     // Mock for the PriceApiClient trait
     #[derive(Debug, Clone, Default)]
@@ -270,16 +247,22 @@ mod tests {
 
     #[async_trait]
     impl PriceApiClient for MockPriceApiClient {
-        async fn fetch_ratio(&self, token_address: Address) -> Result<BaseTokenApiRatio> {
+        async fn fetch_ratio(&self, token: APIToken) -> Result<BaseTokenApiRatio> {
             if *self.should_fail_count.lock().unwrap() > 0 {
                 *self.should_fail_count.lock().unwrap() -= 1;
                 return Err(anyhow::anyhow!("Simulated API failure"));
             }
 
+            let address = match token {
+                APIToken::ERC20(address) => address,
+                APIToken::ZK => ZK_ADDRESS,
+                APIToken::Eth => return Ok(BaseTokenApiRatio::identity()),
+            };
+
             self.ratios
                 .lock()
                 .unwrap()
-                .get(&token_address)
+                .get(&address)
                 .cloned()
                 .ok_or_else(|| anyhow::anyhow!("Token ratio not found"))
         }
@@ -321,17 +304,17 @@ mod tests {
     }
 
     const TOKEN_1_ADDRESS: Address = Address::repeat_byte(0x01);
-    const TOKEN_1: BaseToken = BaseToken::ERC20(TOKEN_1_ADDRESS);
+    const TOKEN_1: APIToken = APIToken::ERC20(TOKEN_1_ADDRESS);
     const TOKEN_1_PRICE: (u64, u64) = (500, 1);
-    const TOKEN_2_ADDRESS: Address = Address::repeat_byte(0x02);
-    const TOKEN_2: BaseToken = BaseToken::ERC20(TOKEN_2_ADDRESS);
-    const TOKEN_2_PRICE: (u64, u64) = (1000, 1);
-    const ETH: BaseToken = BaseToken::Eth;
+    const ZK_ADDRESS: Address = Address::repeat_byte(0x03);
+    const ZK_PRICE: (u64, u64) = (1000, 1);
+    const ZK: APIToken = APIToken::ZK;
+    const ETH: APIToken = APIToken::Eth;
 
     // Test initialization function
     async fn init_test(
-        base_token: BaseToken,
-        sl_token: BaseToken,
+        base_token: APIToken,
+        sl_token: APIToken,
     ) -> (
         ConnectionPool<Core>,
         Arc<MockPriceApiClient>,
@@ -345,10 +328,10 @@ mod tests {
 
         // Set up expected ratios in the mock client
         let base_to_eth_ratio = create_test_ratio(TOKEN_1_PRICE.0, TOKEN_1_PRICE.1);
-        let sl_to_eth_ratio = create_test_ratio(TOKEN_2_PRICE.0, TOKEN_2_PRICE.1);
+        let sl_to_eth_ratio = create_test_ratio(ZK_PRICE.0, ZK_PRICE.1);
 
         mock_client.set_ratio(TOKEN_1_ADDRESS, base_to_eth_ratio);
-        mock_client.set_ratio(TOKEN_2_ADDRESS, sl_to_eth_ratio);
+        mock_client.set_ratio(ZK_ADDRESS, sl_to_eth_ratio);
 
         // Create the persister with real database pool
         let persister = BaseTokenRatioPersister::new(
@@ -362,11 +345,11 @@ mod tests {
         (pool, mock_client, persister)
     }
 
-    #[test_casing(3, vec![(TOKEN_1, TOKEN_2, (500,1000)), (ETH, TOKEN_2, (1,1000)), (TOKEN_1, ETH, (500,1))])]
+    #[test_casing(3, vec![(TOKEN_1, ZK, (500,1000)), (ETH, ZK, (1,1000)), (TOKEN_1, ETH, (500,1))])]
     #[tokio::test]
     async fn test_fetch_and_persist(
-        base_token: BaseToken,
-        sl_token: BaseToken,
+        base_token: APIToken,
+        sl_token: APIToken,
         expected_db_ratio: (u64, u64),
     ) {
         // Setup test environment
@@ -378,11 +361,11 @@ mod tests {
         verify_db_ratios(&pool, expected_db_ratio.0, expected_db_ratio.1).await;
     }
 
-    #[test_casing(3, vec![(TOKEN_1, TOKEN_2, (500,1000)), (ETH, TOKEN_2, (1,1000)), (TOKEN_1, ETH, (500,1))])]
+    #[test_casing(3, vec![(TOKEN_1, ZK, (500,1000)), (ETH, ZK, (1,1000)), (TOKEN_1, ETH, (500,1))])]
     #[tokio::test]
     async fn test_retry_mechanism(
-        base_token: BaseToken,
-        sl_token: BaseToken,
+        base_token: APIToken,
+        sl_token: APIToken,
         expected_db_ratio: (u64, u64),
     ) {
         // Setup test environment
@@ -394,17 +377,5 @@ mod tests {
 
         // Verify that the correct ratio was eventually stored in DB
         verify_db_ratios(&pool, expected_db_ratio.0, expected_db_ratio.1).await;
-    }
-
-    #[tokio::test]
-    async fn test_base_token_from_config() {
-        let eth_address1 = Address::zero();
-        let eth_address2 = Address::from_low_u64_be(1);
-        let custom_address = Address::from_low_u64_be(0x1234);
-
-        // Test ETH address recognition
-        assert_matches!(BaseToken::from_config_address(eth_address1), BaseToken::Eth);
-        assert_matches!(BaseToken::from_config_address(eth_address2), BaseToken::Eth);
-        assert_matches!(BaseToken::from_config_address(custom_address), BaseToken::ERC20(addr) if addr == custom_address);
     }
 }
