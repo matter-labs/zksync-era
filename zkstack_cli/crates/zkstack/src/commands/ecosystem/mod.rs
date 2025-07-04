@@ -13,6 +13,7 @@ mod common;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
+pub(crate) mod init_core_contracts;
 pub(crate) mod register_ctm;
 pub(crate) mod setup_observability;
 mod utils;
@@ -28,6 +29,8 @@ pub enum EcosystemCommands {
     /// Initialize ecosystem and chain,
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
+    /// Initialize ecosystem core contracts
+    InitCoreContracts(EcosystemInitArgs),
     /// Change the default chain
     #[command(alias = "cd")]
     ChangeDefaultChain(ChangeDefaultChain),
@@ -44,6 +47,7 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Create(args) => create::run(args, shell).await,
         EcosystemCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         EcosystemCommands::Init(args) => init::run(args, shell).await,
+        EcosystemCommands::InitCoreContracts(args) => init_core_contracts::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
         EcosystemCommands::RegisterCTM(args) => register_ctm::run(args, shell).await,
