@@ -68,7 +68,6 @@ async fn main() -> anyhow::Result<()> {
         },
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
-            ()
         }
     }
     let shutdown_time = Instant::now();
