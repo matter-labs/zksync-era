@@ -65,7 +65,8 @@ impl EventProcessor for BatchRootProcessor {
         let mut transaction = storage
             .start_transaction()
             .await
-            .map_err(DalError::generalize)?;
+            .map_err(DalError::generalize)
+            .map_err(EventProcessorError::internal)?;
 
         let grouped_events: Vec<_> = events
             .into_iter()
@@ -117,14 +118,17 @@ impl EventProcessor for BatchRootProcessor {
             .sl_l2_client
             .chain_id()
             .await
-            .context("sl_l2_client.chain_id()")?;
+            .context("sl_l2_client.chain_id()")
+            .map_err(EventProcessorError::internal)?;
         for (sl_l1_batch_number, chain_batches) in new_events {
             let chain_agg_proof = self
                 .sl_l2_client
                 .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
                 .await
-                .context("sl_l2_client.get_chain_log_proof()")?
-                .context("Missing chain log proof for finalized batch")?;
+                .context("sl_l2_client.get_chain_log_proof()")
+                .map_err(EventProcessorError::internal)?
+                .context("Missing chain log proof for finalized batch")
+                .map_err(EventProcessorError::internal)?;
             let chain_proof_vector =
                 Self::chain_proof_vector(sl_l1_batch_number, chain_agg_proof, sl_chain_id);
 
@@ -133,8 +137,10 @@ impl EventProcessor for BatchRootProcessor {
                     .blocks_dal()
                     .get_l1_batch_l2_l1_merkle_root(*batch_number)
                     .await
-                    .map_err(DalError::generalize)?
-                    .context("Missing l2_l1_merkle_root for finalized batch")?;
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?
+                    .context("Missing l2_l1_merkle_root for finalized batch")
+                    .map_err(EventProcessorError::internal)?;
                 assert_eq!(root_from_db, *batch_root);
 
                 self.merkle_tree
@@ -147,7 +153,8 @@ impl EventProcessor for BatchRootProcessor {
                 .sl_l2_client
                 .get_chain_root_l2(sl_l1_batch_number, self.l2_chain_id)
                 .await
-                .context("sl_l2_client.get_chain_root_l2()")?;
+                .context("sl_l2_client.get_chain_root_l2()")
+                .map_err(EventProcessorError::internal)?;
             assert_eq!(
                 chain_root_local,
                 chain_root_remote.unwrap(),
@@ -178,11 +185,16 @@ impl EventProcessor for BatchRootProcessor {
                     .blocks_dal()
                     .set_batch_chain_merkle_path(*batch_number, proof)
                     .await
-                    .map_err(DalError::generalize)?;
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?;
             }
         }
 
-        transaction.commit().await.map_err(DalError::generalize)?;
+        transaction
+            .commit()
+            .await
+            .map_err(DalError::generalize)
+            .map_err(EventProcessorError::internal)?;
 
         Ok(events_count)
     }
