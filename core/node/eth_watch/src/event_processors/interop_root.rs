@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
@@ -60,7 +60,8 @@ impl EventProcessor for InteropRootProcessor {
         let mut transaction = storage
             .start_transaction()
             .await
-            .map_err(DalError::generalize)?;
+            .map_err(DalError::generalize)
+            .map_err(EventProcessorError::internal)?;
 
         for event in events {
             let mut tokens = ethabi::decode(
@@ -94,7 +95,11 @@ impl EventProcessor for InteropRootProcessor {
             let chain_id = u64::from_be_bytes(chain_id_bytes);
             if let Some(sl_l2_client) = self.sl_l2_client.clone() {
                 // we skip precommit message roots ( local roots) for GW.
-                let sl_chain_id = sl_l2_client.chain_id().await?;
+                let sl_chain_id = sl_l2_client
+                    .chain_id()
+                    .await
+                    .context("sl_l2_client.chain_id()")
+                    .map_err(EventProcessorError::internal)?;
                 if sl_chain_id.0 == chain_id && event.address == L1_MESSENGER_ADDRESS {
                     continue;
                 }
@@ -116,23 +121,23 @@ impl EventProcessor for InteropRootProcessor {
                 continue;
             }
 
-            let timestamp = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .context("incorrect system time")?
-                .as_secs();
             transaction
                 .interop_root_dal()
                 .set_interop_root(
                     SLChainId(chain_id),
                     L1BatchNumber(block_number as u32),
                     &root,
-                    timestamp,
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
         }
 
-        transaction.commit().await.map_err(DalError::generalize)?;
+        transaction
+            .commit()
+            .await
+            .map_err(DalError::generalize)
+            .map_err(EventProcessorError::internal)?;
 
         Ok(events_count)
     }
