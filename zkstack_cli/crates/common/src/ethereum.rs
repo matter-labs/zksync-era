@@ -65,7 +65,7 @@ pub async fn distribute_eth(
 ) -> anyhow::Result<()> {
     let client = create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?;
     let mut pending_txs = vec![];
-    let block = Some(BlockId::Number(BlockNumber::Pending.into()));
+    let block = Some(BlockId::Number(BlockNumber::Pending));
     let mut nonce = client
         .get_transaction_count(client.address(), block)
         .await?;
