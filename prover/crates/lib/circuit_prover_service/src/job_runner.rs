@@ -19,8 +19,9 @@ use crate::{
     types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
     witness_vector_generator::{
         HeavyWitnessVectorMetadataLoader, LightWitnessVectorMetadataLoader,
-        WitnessVectorGeneratorExecutor, WitnessVectorGeneratorJobPicker,
-        WitnessVectorGeneratorJobSaver, WitnessVectorMetadataLoader,
+        SimpleWitnessVectorMetadataLoader, WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker, WitnessVectorGeneratorJobSaver,
+        WitnessVectorMetadataLoader,
     },
 };
 
@@ -86,6 +87,21 @@ impl WvgRunnerBuilder {
     > {
         let metadata_loader =
             HeavyWitnessVectorMetadataLoader::new(self.pod_name.clone(), self.protocol_version);
+
+        self.wvg_runner(count, metadata_loader)
+    }
+
+    /// Witness Vector Generator runner implementation that doesn't prioritize jobs.
+    pub fn simple_wvg_runner(
+        &self,
+        count: usize,
+    ) -> JobRunner<
+        WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker<SimpleWitnessVectorMetadataLoader>,
+        WitnessVectorGeneratorJobSaver,
+    > {
+        let metadata_loader =
+            SimpleWitnessVectorMetadataLoader::new(self.pod_name.clone(), self.protocol_version);
 
         self.wvg_runner(count, metadata_loader)
     }

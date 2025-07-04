@@ -53,6 +53,9 @@ struct Cli {
     /// Corresponds to 1 CPU thread & ~9GB of RAM.
     #[arg(short = 'h', long, default_value_t = 1)]
     heavy_wvg_count: usize,
+    /// Number of CPU threads to run witness vector generators in parallel.
+    #[arg(short = 't', long, default_value_t = 0)]
+    threads: usize,
     /// Max VRAM to allocate. Useful if you want to limit the size of VRAM used.
     /// None corresponds to allocating all available VRAM.
     #[arg(short = 'm', long)]
@@ -140,11 +143,6 @@ async fn run_inner(
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
 
     PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
-    tracing::info!(
-        "Starting {} light WVGs and {} heavy WVGs.",
-        opt.light_wvg_count,
-        opt.heavy_wvg_count
-    );
 
     let builder = WvgRunnerBuilder::new(
         connection_pool.clone(),
@@ -155,11 +153,25 @@ async fn run_inner(
         cancellation_token.clone(),
     );
 
-    let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
-    let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
-
-    tasks.extend(light_wvg_runner.run());
-    tasks.extend(heavy_wvg_runner.run());
+    let wvg_tasks = if opt.threads > 0 {
+        // If threads are specified, use them.
+        // Otherwise, use heavy and light job functionality.
+        tracing::info!("Starting {} WVGs.", opt.threads,);
+        let simple_wvg_runner = builder.simple_wvg_runner(opt.threads);
+        simple_wvg_runner.run()
+    } else {
+        tracing::info!(
+            "Starting {} light WVGs and {} heavy WVGs.",
+            opt.light_wvg_count,
+            opt.heavy_wvg_count
+        );
+        let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
+        let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
+        let mut wvg_tasks = light_wvg_runner.run();
+        wvg_tasks.extend(heavy_wvg_runner.run());
+        wvg_tasks
+    };
+    tasks.extend(wvg_tasks);
 
     // necessary as it has a connection_pool which will keep 1 connection active by default
     drop(builder);

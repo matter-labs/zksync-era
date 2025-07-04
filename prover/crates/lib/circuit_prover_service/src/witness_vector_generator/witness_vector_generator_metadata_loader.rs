@@ -81,3 +81,34 @@ impl WitnessVectorMetadataLoader for HeavyWitnessVectorMetadataLoader {
             .await
     }
 }
+
+/// Simple MetadataLoader.
+///
+/// This loader will pick any job available, regardless of its type.
+#[derive(Debug)]
+pub struct SimpleWitnessVectorMetadataLoader {
+    pod_name: String,
+    protocol_version: ProtocolSemanticVersion,
+}
+
+impl SimpleWitnessVectorMetadataLoader {
+    pub fn new(pod_name: String, protocol_version: ProtocolSemanticVersion) -> Self {
+        Self {
+            pod_name,
+            protocol_version,
+        }
+    }
+}
+
+#[async_trait]
+impl WitnessVectorMetadataLoader for SimpleWitnessVectorMetadataLoader {
+    async fn load_metadata(
+        &self,
+        mut connection: Connection<'_, Prover>,
+    ) -> Option<FriProverJobMetadata> {
+        connection
+            .fri_prover_jobs_dal()
+            .get_next_job(self.protocol_version, &self.pod_name)
+            .await
+    }
+}
