@@ -45,10 +45,6 @@ async fn run_test(
     let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
         .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
-    wallets
-        .init_test_wallet(ecosystem_config, &chain_config)
-        .await?;
-
     let cmd = cmd!(shell, "yarn mocha tests/revert-and-restart-en.test.ts");
     let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())

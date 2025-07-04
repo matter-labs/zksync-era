@@ -77,10 +77,6 @@ impl<'a> IntegrationTestRunner<'a> {
         let wallets: TestWallets =
             serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
-        wallets
-            .init_test_wallet(&ecosystem_config, &chain_config)
-            .await?;
-
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
             &["-t", pattern]
         } else {

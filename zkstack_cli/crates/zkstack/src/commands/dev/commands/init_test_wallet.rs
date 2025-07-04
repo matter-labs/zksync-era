@@ -27,11 +27,6 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
         .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
-    // Initialize the test wallet (this will fund it if needed)
-    wallets
-        .init_test_wallet(&ecosystem_config, &chain_config)
-        .await?;
-
     let mut chain_wallets = chain_config.get_wallets_config()?;
     let test_wallet = wallets.get_test_wallet(&chain_config)?;
     chain_wallets.test_wallet = Some(test_wallet.clone());

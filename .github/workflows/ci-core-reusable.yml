@@ -300,7 +300,7 @@ jobs:
       # because as soon as they finish the bootloader will be different
       - name: Run upgrade test
         run: |
-          ci_run zkstack dev init_test_wallet --chain era
+          ci_run zkstack dev init-test-wallet --chain era
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
             ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
