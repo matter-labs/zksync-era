@@ -213,7 +213,7 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
                 &command.l2_block.executed_transactions,
                 command.base_fee_per_gas.into(),
                 command.l2_block.protocol_version,
-                command.pre_insert_txs,
+                command.pre_insert_data,
             )
             .await?;
 
@@ -478,6 +478,7 @@ impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
             .mark_interop_roots_as_executed(
                 &command.l2_block.interop_roots,
                 command.l2_block.number,
+                command.pre_insert_data,
             )
             .await?;
 
@@ -574,24 +575,15 @@ mod tests {
         let new_factory_deps = vec![(bytecode_hash, bytecode)].into_iter().collect();
         let l2_block_seal_command = L2BlockSealCommand {
             l1_batch_number: L1BatchNumber(1),
-            l2_block: L2BlockUpdates {
+            l2_block: L2BlockUpdates::new_with_data(
+                L2BlockNumber(1),
+                1000,
                 executed_transactions,
                 events,
                 storage_logs,
                 user_l2_to_l1_logs,
-                system_l2_to_l1_logs: Default::default(),
                 new_factory_deps,
-                block_execution_metrics: Default::default(),
-                txs_encoding_size: Default::default(),
-                payload_encoding_size: Default::default(),
-                l1_tx_count: 0,
-                timestamp: 1,
-                number: L2BlockNumber(1),
-                prev_block_hash: Default::default(),
-                virtual_blocks: Default::default(),
-                protocol_version: ProtocolVersionId::latest(),
-                interop_roots: vec![],
-            },
+            ),
             first_tx_index: 0,
             fee_account_address: Default::default(),
             fee_input: Default::default(),
@@ -599,8 +591,10 @@ mod tests {
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
-            pre_insert_txs: false,
+            pre_insert_data: false,
             pubdata_params: PubdataParams::default(),
+            insert_header: false, // Doesn't matter for this test.
+            rolling_txs_hash: Default::default(),
         };
 
         // Run.
@@ -648,7 +642,7 @@ mod tests {
         // Insert block header.
         let l2_block_header = L2BlockHeader {
             number: l2_block_seal_command.l2_block.number,
-            timestamp: l2_block_seal_command.l2_block.timestamp,
+            timestamp: l2_block_seal_command.l2_block.timestamp(),
             hash: l2_block_seal_command.l2_block.get_l2_block_hash(),
             l1_tx_count: 0,
             l2_tx_count: 1,
@@ -662,6 +656,7 @@ mod tests {
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
             logs_bloom: Default::default(),
             pubdata_params: l2_block_seal_command.pubdata_params,
+            rolling_txs_hash: Some(l2_block_seal_command.rolling_txs_hash),
         };
         connection
             .protocol_versions_dal()

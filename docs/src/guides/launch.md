@@ -37,6 +37,90 @@ To completely reset the dev environment:
   zkstack ecosystem init
   ```
 
+### Advanced local setup with ZKsync Gateway
+
+- Delete services from any other previous setup:
+
+  ```bash
+  zkstack dev clean all
+  ```
+
+- Start default ecosystem with default `era` chain config:
+
+  ```bash
+  zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+    --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_era \
+    --ignore-prerequisites --observability=false \
+    --chain era \
+    --update-submodules false
+  ```
+
+- Create additional `gateway` chain as rollup:
+
+  ```bash
+  zkstack chain create \
+    --chain-name gateway \
+    --chain-id 506 \
+    --prover-mode no-proofs \
+    --wallet-creation localhost \
+    --l1-batch-commit-data-generator-mode rollup \
+    --base-token-address 0x0000000000000000000000000000000000000001 \
+    --base-token-price-nominator 1 \
+    --base-token-price-denominator 1 \
+    --set-as-default false \
+    --evm-emulator false \
+    --ignore-prerequisites --update-submodules false
+  ```
+
+- Initialise `gateway` chain:
+
+  ```bash
+  zkstack chain init \
+    --deploy-paymaster \
+    --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_gateway \
+    --chain gateway --update-submodules false
+  ```
+
+- Transform `gateway` chain from rollup to ZKsync Gateway settlement layer:
+
+  ```bash
+  zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
+  ```
+
+- Start `gateway` chain server:
+
+  ```bash
+  mkdir zruns
+  zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &
+  zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+  ```
+
+- Migrate `era` chain to settle on `gateway`:
+
+  ```bash
+  zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
+  ```
+
+- Start `era` chain servers:
+
+  ```bash
+  zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log &
+  ```
+
+- Your chains will be running on the following ports:
+
+  ```bash
+  localhost:3050 - chain era (271)
+  localhost:3150 - chain gateway (506)
+  ```
+
+Any deposits or withdraws from L1 to `era` chain will go through `gateway`.
+
 ### Run observability stack
 
 If you want to run [Dockprom](https://github.com/stefanprodan/dockprom/) stack (Prometheus, Grafana) alongside other

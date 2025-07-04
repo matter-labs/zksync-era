@@ -15,8 +15,7 @@ pub struct FriProverGatewayConfig {
     pub api_mode: ApiMode,
     pub port: Option<u16>,
     // Configurations for prometheus
-    #[config(default_t = 3314)]
-    pub prometheus_listener_port: u16,
+    pub prometheus_listener_port: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -45,7 +44,7 @@ mod tests {
             api_poll_duration: Duration::from_secs(100),
             api_mode: ApiMode::ProverCluster,
             port: Some(8080),
-            prometheus_listener_port: 3316,
+            prometheus_listener_port: Some(3316),
         }
     }
 

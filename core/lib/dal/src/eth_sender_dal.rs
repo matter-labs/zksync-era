@@ -7,13 +7,15 @@ use zksync_db_connection::{
     match_query_as,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
 use crate::{
-    models::storage_eth_tx::{L1BatchEthSenderStats, StorageEthTx, StorageTxHistory},
+    models::storage_eth_tx::{BlocksEthSenderStats, StorageEthTx, StorageTxHistory},
     Core,
 };
 
@@ -200,42 +202,47 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {
+    pub async fn get_eth_all_blocks_stat(&mut self) -> sqlx::Result<BlocksEthSenderStats> {
         struct EthTxRow {
             number: i64,
             confirmed: bool,
         }
 
         const TX_TYPES: &[AggregatedActionType] = &[
-            AggregatedActionType::Commit,
-            AggregatedActionType::PublishProofOnchain,
-            AggregatedActionType::Execute,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain),
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
+            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
         ];
 
-        let mut stats = L1BatchEthSenderStats::default();
+        let mut stats = BlocksEthSenderStats::default();
         for &tx_type in TX_TYPES {
             let mut tx_rows = vec![];
             for confirmed in [true, false] {
                 let query = match_query_as!(
                     EthTxRow,
                     [
-                        "SELECT number AS number, ", _, " AS \"confirmed!\" FROM l1_batches ",
-                        "INNER JOIN eth_txs_history ON l1_batches.", _, " = eth_txs_history.eth_tx_id ",
+                        "SELECT number AS number, ", _, " AS \"confirmed!\" FROM ",_ ,
+                        " INNER JOIN eth_txs_history ON ", _, " = eth_txs_history.eth_tx_id ",
                         _, // WHERE clause
                         " ORDER BY number DESC LIMIT 1"
                     ],
                     match ((confirmed, tx_type)) {
-                        (false, AggregatedActionType::Commit) => ("false", "eth_commit_tx_id", "";),
-                        (true, AggregatedActionType::Commit) => (
-                            "true", "eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        (false, AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Commit)) => ("false", "l1_batches", "l1_batches.eth_commit_tx_id", "";),
+                        (true, AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Commit)) => (
+                            "true", "l1_batches", "l1_batches.eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false, AggregatedActionType::PublishProofOnchain) => ("false", "eth_prove_tx_id", "";),
-                        (true, AggregatedActionType::PublishProofOnchain) => (
-                            "true", "eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        (false,AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain)) => ("false", "l1_batches", "l1_batches.eth_prove_tx_id", "";),
+                        (true, AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain)) => (
+                            "true", "l1_batches", "l1_batches.eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false, AggregatedActionType::Execute) => ("false", "eth_execute_tx_id", "";),
-                        (true, AggregatedActionType::Execute) => (
-                            "true", "eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        (false,AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Execute)) => ("false", "l1_batches", "l1_batches.eth_execute_tx_id", "";),
+                        (true,AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Execute)) => (
+                            "true", "l1_batches", "l1_batches.eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                        (false,AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit)) => ("false", "miniblocks", "miniblocks.eth_precommit_tx_id", "";),
+                        (true,AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit)) => (
+                            "true", "miniblocks", "miniblocks.eth_precommit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
                     }
                 );
@@ -243,11 +250,11 @@ impl EthSenderDal<'_, '_> {
             }
 
             for row in tx_rows {
-                let batch_number = L1BatchNumber(row.number as u32);
+                let block_number = row.number as u32;
                 if row.confirmed {
-                    stats.mined.push((tx_type, batch_number));
+                    stats.mined.push((tx_type, block_number));
                 } else {
-                    stats.saved.push((tx_type, batch_number));
+                    stats.saved.push((tx_type, block_number));
                 }
             }
         }
@@ -466,7 +473,6 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         eth_tx_finality_status: EthTxFinalityStatus,
         gas_used: U256,
-        confirmed_at_block: u32,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -483,8 +489,7 @@ impl EthSenderDal<'_, '_> {
                 updated_at = NOW(),
                 confirmed_at = NOW(),
                 finality_status = $2,
-                sent_successfully = TRUE,
-                confirmed_at_block = $3
+                sent_successfully = TRUE
             WHERE
                 tx_hash = $1
             RETURNING
@@ -492,8 +497,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
-            eth_tx_finality_status.to_string(),
-            confirmed_at_block as i32
+            eth_tx_finality_status.to_string()
         )
         .fetch_one(transaction.conn())
         .await?;
@@ -617,7 +621,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn insert_bogus_confirmed_eth_tx(
         &mut self,
         l1_batch: L1BatchNumber,
-        tx_type: AggregatedActionType,
+        tx_type: L1BatchAggregatedActionType,
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
@@ -691,7 +695,11 @@ impl EthSenderDal<'_, '_> {
         super::BlocksDal {
             storage: &mut transaction,
         }
-        .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
+        .set_eth_tx_id_for_l1_batches(
+            l1_batch..=l1_batch,
+            eth_tx_id as u32,
+            AggregatedActionType::L1Batch(tx_type),
+        )
         .await
         .context("set_eth_tx_id()")?;
 
@@ -776,44 +784,35 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item)
     }
 
-    pub async fn get_last_sent_and_confirmed_eth_storage_tx(
+    pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
         &mut self,
-        eth_tx_id: u32,
-    ) -> sqlx::Result<Option<StorageTxHistory>> {
-        let history_item = sqlx::query_as!(
-            StorageTxHistory,
+        l1_batch_number: L1BatchNumber,
+        op_type: L1BatchAggregatedActionType,
+    ) -> sqlx::Result<Option<u32>> {
+        let row = sqlx::query!(
             r#"
             SELECT
-                eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_commit_tx_id,
+                eth_prove_tx_id,
+                eth_execute_tx_id
             FROM
-                eth_txs_history
-            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+                l1_batches
             WHERE
-                eth_tx_id = $1
-                AND eth_txs_history.confirmed_at IS NOT NULL
-                AND eth_txs.has_failed IS FALSE
-            ORDER BY
-                eth_txs_history.created_at DESC
-            LIMIT
-                1
+                number = $1
             "#,
-            eth_tx_id as i32
+            i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await?;
-        println!("history_item: {:?}", history_item);
-        Ok(Some(history_item[0].clone()))
-    }
 
-    pub async fn get_last_sent_successfully_eth_tx(
-        &mut self,
-        eth_tx_id: u32,
-    ) -> sqlx::Result<Option<TxHistory>> {
-        let history_item = self
-            .get_last_sent_successfully_eth_storage_tx(eth_tx_id)
-            .await?;
-        Ok(history_item.map(|tx| tx.into()))
+        Ok(row.and_then(|row| {
+            let tx_id_opt: Option<i32> = match op_type {
+                L1BatchAggregatedActionType::Commit => row.eth_commit_tx_id,
+                L1BatchAggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
+                L1BatchAggregatedActionType::Execute => row.eth_execute_tx_id,
+            };
+            tx_id_opt.map(|id| id as u32)
+        }))
     }
 
     /// Returns the next nonce for the operator account
@@ -963,48 +962,18 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
     }
 
-    pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-        op_type: AggregatedActionType,
-    ) -> Option<u32> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                eth_commit_tx_id,
-                eth_prove_tx_id,
-                eth_execute_tx_id
-            FROM
-                l1_batches
-            WHERE
-                number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .unwrap();
-        let eth_tx_id = match op_type {
-            AggregatedActionType::Commit => row.eth_commit_tx_id,
-            AggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
-            AggregatedActionType::Execute => row.eth_execute_tx_id,
-        }
-        .unwrap() as u32;
-        Some(eth_tx_id)
-    }
-
     pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        op_type: AggregatedActionType,
+        op_type: L1BatchAggregatedActionType,
     ) -> Option<TxHistory> {
         let eth_tx_id = self
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
-            .await?;
-        self.get_last_sent_successfully_eth_tx(eth_tx_id)
+            .await;
+        self.get_last_sent_successfully_eth_storage_tx(eth_tx_id.unwrap()?)
             .await
             .unwrap()
+            .map(|tx| tx.into())
     }
 
     pub async fn is_using_blobs_in_latest_batch(&mut self) -> DalResult<bool> {

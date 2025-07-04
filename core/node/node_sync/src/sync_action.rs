@@ -149,6 +149,10 @@ impl ActionQueue {
             .ok()?;
         self.peeked.clone()
     }
+
+    pub(super) fn validate_ready_for_next_block(&self) {
+        assert!(self.peeked.is_none());
+    }
 }
 
 /// An instruction for the ExternalIO to request a certain action from the state keeper.
@@ -194,12 +198,9 @@ mod tests {
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),
-                first_l2_block: L2BlockParams {
-                    timestamp: 1,
-                    virtual_blocks: 1,
-                    interop_roots: vec![],
-                },
+                first_l2_block: L2BlockParams::new(1000),
                 pubdata_params: Default::default(),
+                pubdata_limit: Some(100_000),
             },
             number: L1BatchNumber(1),
             first_l2_block_number: L2BlockNumber(1),
@@ -208,11 +209,7 @@ mod tests {
 
     fn l2_block() -> SyncAction {
         SyncAction::L2Block {
-            params: L2BlockParams {
-                timestamp: 1,
-                virtual_blocks: 1,
-                interop_roots: vec![],
-            },
+            params: L2BlockParams::new(1000),
             number: 1.into(),
         }
     }

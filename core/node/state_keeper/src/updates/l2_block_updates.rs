@@ -11,6 +11,8 @@ use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    transaction_status_commitment::TransactionStatusCommitment,
+    web3::{keccak256, keccak256_concat},
     InteropRoot, L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 
@@ -28,17 +30,17 @@ pub struct L2BlockUpdates {
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
     pub l1_tx_count: usize,
-    pub timestamp: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
     pub interop_roots: Vec<InteropRoot>,
+    timestamp_ms: u64,
 }
 
 impl L2BlockUpdates {
     pub(crate) fn new(
-        timestamp: u64,
+        timestamp_ms: u64,
         number: L2BlockNumber,
         prev_block_hash: H256,
         virtual_blocks: u32,
@@ -56,7 +58,7 @@ impl L2BlockUpdates {
             txs_encoding_size: 0,
             payload_encoding_size: 0,
             l1_tx_count: 0,
-            timestamp,
+            timestamp_ms,
             number,
             prev_block_hash,
             virtual_blocks,
@@ -167,7 +169,7 @@ impl L2BlockUpdates {
 
     /// Calculates L2 block hash based on the protocol version.
     pub(crate) fn get_l2_block_hash(&self) -> H256 {
-        let mut digest = L2BlockHasher::new(self.number, self.timestamp, self.prev_block_hash);
+        let mut digest = L2BlockHasher::new(self.number, self.timestamp(), self.prev_block_hash);
         for tx in &self.executed_transactions {
             digest.push_tx_hash(tx.hash);
         }
@@ -177,11 +179,73 @@ impl L2BlockUpdates {
     pub(crate) fn get_env(&self) -> L2BlockEnv {
         L2BlockEnv {
             number: self.number.0,
-            timestamp: self.timestamp,
+            timestamp: self.timestamp(),
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
             interop_roots: self.interop_roots.clone(),
         }
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp_ms / 1000
+    }
+
+    pub fn timestamp_ms(&self) -> u64 {
+        self.timestamp_ms
+    }
+
+    #[cfg(test)]
+    pub fn new_with_data(
+        number: L2BlockNumber,
+        timestamp_ms: u64,
+        executed_transactions: Vec<TransactionExecutionResult>,
+        events: Vec<VmEvent>,
+        storage_logs: Vec<StorageLogWithPreviousValue>,
+        user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
+        new_factory_deps: HashMap<H256, Vec<u8>>,
+    ) -> Self {
+        Self {
+            executed_transactions,
+            events,
+            storage_logs,
+            user_l2_to_l1_logs,
+            system_l2_to_l1_logs: Default::default(),
+            new_factory_deps,
+            block_execution_metrics: Default::default(),
+            txs_encoding_size: Default::default(),
+            payload_encoding_size: Default::default(),
+            l1_tx_count: 0,
+            timestamp_ms,
+            number,
+            prev_block_hash: Default::default(),
+            virtual_blocks: Default::default(),
+            protocol_version: ProtocolVersionId::latest(),
+            interop_roots: vec![],
+        }
+    }
+
+    #[cfg(test)]
+    pub fn set_timestamp_ms(&mut self, value: u64) {
+        self.timestamp_ms = value;
+    }
+}
+
+#[derive(Debug)]
+pub struct RollingTxHashUpdates {
+    pub rolling_hash: H256,
+}
+
+impl RollingTxHashUpdates {
+    pub fn append_rolling_hash(&mut self, tx_hash: H256, is_success: bool) {
+        let status = TransactionStatusCommitment {
+            tx_hash,
+            is_success,
+        };
+
+        self.rolling_hash = keccak256_concat(
+            self.rolling_hash,
+            H256(keccak256(&status.get_packed_bytes())),
+        );
     }
 }
 

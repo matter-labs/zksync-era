@@ -156,7 +156,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
-                batch_env.clone().first_l2_block,
+                batch_env.first_l2_block.clone(),
                 system_env.version,
             ),
             system_env,
@@ -576,25 +576,17 @@ where
                 }
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
-                    let preexisting_interop_roots_number =
-                        self.bootloader_state.get_preexisting_interop_roots_number();
-                    let preexisting_blocks_number =
-                        self.bootloader_state.get_preexisting_blocks_number();
+                    let interop_root_application_config =
+                        self.bootloader_state.get_interop_root_application_config();
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
-                    println!(
-                        "applying l2 block in final batch info {:?}",
-                        l2_block.number
-                    );
                     apply_l2_block(
                         &mut memory,
                         l2_block,
                         txs_index,
                         self.vm_version.into(),
-                        true,
-                        preexisting_interop_roots_number,
-                        preexisting_blocks_number,
+                        Some(interop_root_application_config),
                     );
                     self.write_to_bootloader_heap(memory);
                 }
@@ -908,6 +900,10 @@ where
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot();
         self.snapshot = None;
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        unimplemented!();
     }
 }
 

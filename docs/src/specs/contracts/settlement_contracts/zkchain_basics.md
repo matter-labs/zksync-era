@@ -98,7 +98,7 @@ More about L1->L2 operations can be found [here](./priority_queue/l1_l2_communic
 L2 -> L1 communication, in contrast to L1 -> L2 communication, is based only on transferring the information, and not on
 the transaction execution on L1. The full description of the mechanism for sending information from L2 to L1 can be found [here](./data_availability/standard_pubdata_format.md).
 
-The Mailbox facet also facilitates L1<>L2 communications for those chains that settle on top of Gateway. The user interfaces for those are identical to the L1<>L2 communication described above. To learn more about L1<>L2 communication works, check out [this document](../settlement_contracts/data_availability/custom_da.md) and [this one][TODO].
+The Mailbox facet also facilitates L1<>L2 communications for those chains that settle on top of Gateway. The user interfaces for those are identical to the L1<>L2 communication described above. To learn more about L1<>L2 communication works, check out [this document](../gateway/messaging_via_gateway.md) and [this one](../gateway/l2_gw_l1_messaging.md).
 
 ### ExecutorFacet
 

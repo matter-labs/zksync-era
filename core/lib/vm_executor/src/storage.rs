@@ -42,6 +42,16 @@ impl FirstL2BlockInBatch {
     }
 }
 
+/// L1 batch environment parameters restored from the storage.
+/// They are used to initialize state keeper with the pending batch data.
+#[derive(Debug)]
+pub struct RestoredL1BatchEnv {
+    pub l1_batch_env: L1BatchEnv,
+    pub system_env: SystemEnv,
+    pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
+}
+
 /// Returns the parameters required to initialize the VM for the next L1 batch.
 #[allow(clippy::too_many_arguments)]
 pub fn l1_batch_params(
@@ -264,22 +274,28 @@ impl L1BatchParamsProvider {
     /// Loads VM-related L1 batch parameters for the specified batch.
     pub async fn load_l1_batch_params(
         &self,
-        storage: &mut Connection<'_, Core>,
+        conn: &mut Connection<'_, Core>,
         first_l2_block_in_batch: &FirstL2BlockInBatch,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv, PubdataParams)> {
+    ) -> anyhow::Result<RestoredL1BatchEnv> {
         anyhow::ensure!(
             first_l2_block_in_batch.l1_batch_number > L1BatchNumber(0),
             "Loading params for genesis L1 batch not supported"
         );
-        // L1 batch timestamp is set to the timestamp of its first L2 block.
-        let l1_batch_timestamp = first_l2_block_in_batch.header.timestamp;
+
+        let l1_batch_header = conn
+            .blocks_dal()
+            .get_common_l1_batch_header(first_l2_block_in_batch.l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?
+            .context("pending batch is missing in DB")?;
+        let l1_batch_timestamp = l1_batch_header.timestamp;
 
         let prev_l1_batch_number = first_l2_block_in_batch.l1_batch_number - 1;
         tracing::info!("Getting previous L1 batch hash for batch #{prev_l1_batch_number}");
         let (prev_l1_batch_hash, prev_l1_batch_timestamp) = self
-            .wait_for_l1_batch_params(storage, prev_l1_batch_number)
+            .wait_for_l1_batch_params(conn, prev_l1_batch_number)
             .await
             .context("failed getting hash for previous L1 batch")?;
         tracing::info!("Got state root hash for previous L1 batch #{prev_l1_batch_number}: {prev_l1_batch_hash:?}");
@@ -300,7 +316,7 @@ impl L1BatchParamsProvider {
         });
         let prev_l2_block_hash = match prev_l2_block_hash {
             Some(hash) => hash,
-            None => storage
+            None => conn
                 .blocks_web3_dal()
                 .get_l2_block_hash(prev_l2_block_number)
                 .await
@@ -313,7 +329,7 @@ impl L1BatchParamsProvider {
 
         let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
         let base_system_contracts = get_base_system_contracts(
-            storage,
+            conn,
             first_l2_block_in_batch.header.protocol_version,
             contract_hashes.bootloader,
             contract_hashes.default_aa,
@@ -340,11 +356,12 @@ impl L1BatchParamsProvider {
             chain_id,
         );
 
-        Ok((
-            system_env,
+        Ok(RestoredL1BatchEnv {
             l1_batch_env,
-            first_l2_block_in_batch.header.pubdata_params,
-        ))
+            system_env,
+            pubdata_params: first_l2_block_in_batch.header.pubdata_params,
+            pubdata_limit: l1_batch_header.pubdata_limit,
+        })
     }
 
     /// Combines [`Self::load_first_l2_block_in_batch()`] and [Self::load_l1_batch_params()`]. Returns `Ok(None)`
@@ -357,7 +374,7 @@ impl L1BatchParamsProvider {
         number: L1BatchNumber,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv, PubdataParams)>> {
+    ) -> anyhow::Result<Option<RestoredL1BatchEnv>> {
         let first_l2_block = self
             .load_first_l2_block_in_batch(storage, number)
             .await

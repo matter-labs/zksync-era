@@ -4,7 +4,7 @@
 
 Chain migration reuses lots of logic from standard custom asset bridging which is enabled by the AssetRouter. The easiest way to imagine is that ZKChains are NFTs that are being migrated from one chain to another. Just like in case of the NFT contract, an CTM is assumed to have an `assetId := keccak256(abi.encode(L1_CHAIN_ID, address(ctmDeployer), bytes32(uint256(uint160(_ctmAddress)))))`. I.e. these are all assets with ADT = ctmDeployer contract on L1.
 
-CTMDeployer is a very lightweight contract used to facilitate chain migration. Its main purpose is to server as formal asset deployment tracker for CTMs. It serves two purposes:
+CTMDeployer is a very lightweight contract used to facilitate chain migration. Its main purpose is to serve as formal asset deployment tracker for CTMs. It serves two purposes:
 
 - Assign bridgehub as the asset handler for the “asset” of the CTM on the supported settlement layer.
 
@@ -30,11 +30,13 @@ You can read more about how the safety is ensured in the “Migration invariants
 
 ## Chain migration GW_1 → GW_2
 
-In this release we plan to only support a single whitelisted settlement layer, but if in the future more will be supported, as of now the plan is to migrate the chain firstly to L1 and then to GW.
+Currently we plan to only support a single whitelisted settlement layer, but if in the future more will be supported, as of now the plan is to migrate the chain firstly to L1 and then to GW.
 
 ## Chain migration invariants & protocol upgradability
 
-Note, that once a chain migrates to a new settlement layer, there are two deployments of contracts for the same ZKChain. What’s more, the L1 part will always be used.
+Note, that once a chain migrates to a new settlement layer, there are two deployments of contracts for the same ZKChain.
+For example if a chain migrates from L1 to GW, then there will be a deployment of the same ZKChain both on L1 and GW.
+What’s more, the L1 part will always be used for priority transactions initiation.
 
 There is a need to ensure that the chains work smoothly during migration and there are not many issues during the protocol upgrade.
 

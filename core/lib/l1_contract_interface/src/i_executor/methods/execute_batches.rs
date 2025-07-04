@@ -6,9 +6,7 @@ use zksync_types::{
     InteropRoot, ProtocolVersionId, H256,
 };
 
-use crate::i_executor::structures::{
-    StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
-};
+use crate::i_executor::structures::{get_encoding_version, StoredBatchInfo};
 
 /// Input required to encode `executeBatches` call.
 #[derive(Debug, Clone)]
@@ -39,8 +37,8 @@ impl ExecuteBatches {
                     })
                     .collect(),
             )]
-        } else if internal_protocol_version.is_pre_interop()
-            && chain_protocol_version.is_pre_interop()
+        } else if internal_protocol_version.is_pre_interop_fast_blocks()
+            && chain_protocol_version.is_pre_interop_fast_blocks()
         {
             let encoded_data = encode(&[
                 Token::Array(
@@ -59,9 +57,12 @@ impl ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let execute_data = [[PRE_INTEROP_ENCODING_VERSION].to_vec(), encoded_data]
-                .concat()
-                .to_vec();
+            let execute_data = [
+                [get_encoding_version(internal_protocol_version)].to_vec(),
+                encoded_data,
+            ]
+            .concat()
+            .to_vec();
 
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
@@ -101,9 +102,12 @@ impl ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
-                .concat()
-                .to_vec(); //
+            let execute_data = [
+                [get_encoding_version(internal_protocol_version)].to_vec(),
+                encoded_data,
+            ]
+            .concat()
+            .to_vec();
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
@@ -169,9 +173,12 @@ impl ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
-                .concat()
-                .to_vec(); //
+            let execute_data = [
+                [get_encoding_version(internal_protocol_version)].to_vec(),
+                encoded_data,
+            ]
+            .concat()
+            .to_vec(); //
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
