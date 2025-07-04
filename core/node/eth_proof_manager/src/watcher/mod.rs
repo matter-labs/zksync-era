@@ -8,16 +8,14 @@ use zksync_types::web3::BlockNumber;
 
 use crate::{
     client::{EthProofManagerClient, RETRY_LIMIT},
+    types::{FflonkFinalVerificationKey, PlonkFinalVerificationKey},
     watcher::events::{EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler},
 };
 
 mod events;
 
-#[derive(Debug)]
 pub struct EthProofWatcher {
     client: Box<dyn EthProofManagerClient>,
-    connection_pool: ConnectionPool<Core>,
-    blob_store: Arc<dyn ObjectStore>,
     config: EthProofManagerConfig,
     event_handlers: Vec<Box<dyn EventHandler>>,
 }
@@ -29,14 +27,28 @@ impl EthProofWatcher {
         blob_store: Arc<dyn ObjectStore>,
         config: EthProofManagerConfig,
     ) -> Self {
+        let fflonk_vk = serde_json::from_slice::<FflonkFinalVerificationKey>(
+            &std::fs::read(config.path_to_fflonk_verification_key.clone()).unwrap(),
+        )
+        .unwrap();
+        let plonk_vk = serde_json::from_slice::<PlonkFinalVerificationKey>(
+            &std::fs::read(config.path_to_plonk_verification_key.clone()).unwrap(),
+        )
+        .unwrap();
+
         Self {
             client,
-            connection_pool,
-            blob_store,
             config,
             event_handlers: vec![
-                Box::new(ProofRequestAcknowledgedHandler),
-                Box::new(ProofRequestProvenHandler),
+                Box::new(ProofRequestAcknowledgedHandler::new(
+                    connection_pool.clone(),
+                )),
+                Box::new(ProofRequestProvenHandler::new(
+                    connection_pool,
+                    blob_store,
+                    fflonk_vk,
+                    plonk_vk,
+                )),
             ],
         }
     }
@@ -79,9 +91,7 @@ impl EthProofWatcher {
                 tracing::info!("events: {:?}", events.len());
 
                 for log in events {
-                    event
-                        .handle(log, self.connection_pool.clone(), self.blob_store.clone())
-                        .await?;
+                    event.handle(log).await?;
                 }
             }
 

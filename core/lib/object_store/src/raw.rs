@@ -20,6 +20,7 @@ pub enum Bucket {
     StorageSnapshot,
     DataAvailability,
     VmDumps,
+    PublicWitnessInputs,
 }
 
 impl Bucket {
@@ -39,6 +40,7 @@ impl Bucket {
             Self::StorageSnapshot => "storage_logs_snapshots",
             Self::DataAvailability => "data_availability",
             Self::VmDumps => "vm_dumps",
+            Self::PublicWitnessInputs => "public_witness_inputs",
         }
     }
 }
