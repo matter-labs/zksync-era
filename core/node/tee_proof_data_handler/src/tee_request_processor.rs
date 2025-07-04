@@ -20,7 +20,6 @@ use zksync_tee_prover_interface::{
     },
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
-use zksync_types::aggregated_operations::AggregatedActionType::Tee;
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId, H256};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 

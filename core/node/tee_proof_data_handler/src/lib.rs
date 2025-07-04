@@ -19,8 +19,6 @@ pub mod node;
 mod tee_request_processor;
 
 pub mod tee_contract;
-#[cfg(test)]
-mod tests;
 
 pub async fn run_server(
     config: TeeProofDataHandlerConfig,
@@ -84,7 +82,7 @@ pub async fn run_server(
     Ok(())
 }
 
-fn create_proof_processing_router(
+pub fn create_proof_processing_router(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     config: TeeProofDataHandlerConfig,

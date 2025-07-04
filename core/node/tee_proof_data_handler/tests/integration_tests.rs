@@ -19,7 +19,7 @@ use zksync_types::{
     L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
-use crate::create_proof_processing_router;
+use zksync_tee_proof_data_handler::create_proof_processing_router;
 
 fn test_config() -> TeeProofDataHandlerConfig {
     TeeProofDataHandlerConfig {
@@ -112,18 +112,37 @@ async fn submit_tee_proof() {
 
     // save the attestation for the pubkey
 
-    let attestation = include_bytes!("650000_quote.bin");
+    let attestation = include_bytes!("data/650000_quote.bin");
     let register_tee_attestation_request = RegisterTeeAttestationRequest {
         attestation: attestation.to_vec(),
         pubkey: tee_proof_request.0.pubkey.clone(),
     };
     let response = send_submit_attestation_request(&app, &register_tee_attestation_request).await;
-    assert_eq!(response.status(), StatusCode::OK);
+    let response_status = response.status();
+    if response_status != StatusCode::OK {
+        let response_body = axum::body::to_bytes(response.into_body(), 65000)
+            .await
+            .unwrap();
+        let response_text = String::from_utf8_lossy(&response_body);
+        panic!(
+            "Response status: {}, Response body: {}",
+            response_status, response_text
+        );
+    }
 
     // resend the same request; this time, it should be successful
 
     let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
-    assert_eq!(response.status(), StatusCode::OK);
+    if response_status != StatusCode::OK {
+        let response_body = axum::body::to_bytes(response.into_body(), 65000)
+            .await
+            .unwrap();
+        let response_text = String::from_utf8_lossy(&response_body);
+        panic!(
+            "Response status: {}, Response body: {}",
+            response_status, response_text
+        );
+    }
 
     // there should not be any batches awaiting proof in the db anymore
 
