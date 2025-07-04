@@ -150,13 +150,20 @@ impl BaseTokenRatioPersister {
             BaseToken::ERC20(address) => self.retry_fetch_ratio(address).await?,
         };
 
-        let new_ratio = safe_u64_fraction_mul(base_to_eth, sl_to_eth.reciprocal())?;
+        let sl_ratio = safe_u64_fraction_mul(base_to_eth, sl_to_eth.reciprocal())?;
         METRICS
             .ratio
-            .set((new_ratio.numerator.get() as f64) / (new_ratio.denominator.get() as f64));
+            .set((sl_ratio.numerator.get() as f64) / (sl_ratio.denominator.get() as f64));
 
-        self.persist_ratio(new_ratio).await?;
-        self.l1_behaviour.update_l1(new_ratio).await
+        // In database we persist the ratio needed for calculating L2 gas price from SL (L1 or Gateway) gas price
+        self.persist_ratio(sl_ratio).await?;
+        if matches!(self.base_token, BaseToken::Eth) {
+            METRICS
+                .ratio_l1
+                .set((base_to_eth.numerator.get() as f64) / (base_to_eth.denominator.get() as f64));
+            self.l1_behaviour.update_l1(base_to_eth).await?
+        }
+        Ok(())
     }
 
     async fn retry_fetch_ratio(&self, address: Address) -> anyhow::Result<BaseTokenApiRatio> {
