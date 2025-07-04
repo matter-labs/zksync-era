@@ -70,22 +70,35 @@ impl EventHandler for ProofRequestProvenHandler {
 
         tracing::info!("Received ProofRequestProvenEvent: {:?}", event);
 
-        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof).map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
+            .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
         // todo: verify proof
         let verification_result = true;
 
         let batch_number = L1BatchNumber(block_number.as_u32());
 
         if verification_result {
-            let proof_blob_url = blob_store.put(
-                L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
-                &proof,
-            ).await?;
+            let proof_blob_url = blob_store
+                .put(
+                    L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
+                    &proof,
+                )
+                .await?;
 
-            connection_pool.connection().await?.proof_generation_dal().save_proof_artifacts_metadata(batch_number, &proof_blob_url).await?;
+            connection_pool
+                .connection()
+                .await?
+                .proof_generation_dal()
+                .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
+                .await?;
         }
 
-        connection_pool.connection().await?.eth_proof_manager_dal().mark_batch_as_proven(batch_number, verification_result).await?;
+        connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .mark_batch_as_proven(batch_number, verification_result)
+            .await?;
 
         Ok(())
     }

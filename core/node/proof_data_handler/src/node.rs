@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use zksync_config::configs::{eth_proof_manager::EthProofManagerConfig, fri_prover_gateway::ApiMode, proof_data_handler::ProvingMode, ProofDataHandlerConfig};
+use zksync_config::configs::{
+    eth_proof_manager::EthProofManagerConfig, fri_prover_gateway::ApiMode,
+    proof_data_handler::ProvingMode, ProofDataHandlerConfig,
+};
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core,
@@ -104,7 +107,8 @@ impl Task for ProofDataHandlerTask {
                 self.l2_chain_id,
                 self.api_mode.clone(),
                 stop_receiver.clone().0,
-            ).await?;
+            )
+            .await?;
 
             Ok(())
         } else {

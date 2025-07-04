@@ -310,7 +310,7 @@ impl EthProofManagerDal<'_, '_> {
         .into_iter()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
-        
+
         let mut query_builder = QueryBuilder::new(
             "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE l1_batch_number IN ("
         );
@@ -324,7 +324,8 @@ impl EthProofManagerDal<'_, '_> {
 
         query_builder.push(")");
 
-        query_builder.build()
+        query_builder
+            .build()
             .instrument("move_batches_to_fallback")
             .execute(&mut transaction)
             .await?;

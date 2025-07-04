@@ -12,8 +12,18 @@ pub struct ProofRouter {
 }
 
 impl ProofRouter {
-    pub fn new(config: ProofDataHandlerConfig, connection_pool: ConnectionPool<Core>, acknowledgment_timeout: Duration, proving_timeout: Duration) -> Self {
-        Self { config, connection_pool, acknowledgment_timeout, proving_timeout}
+    pub fn new(
+        config: ProofDataHandlerConfig,
+        connection_pool: ConnectionPool<Core>,
+        acknowledgment_timeout: Duration,
+        proving_timeout: Duration,
+    ) -> Self {
+        Self {
+            config,
+            connection_pool,
+            acknowledgment_timeout,
+            proving_timeout,
+        }
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -23,7 +33,12 @@ impl ProofRouter {
                 break;
             }
 
-            self.connection_pool.connection().await?.eth_proof_manager_dal().fallback_batches(self.acknowledgment_timeout, self.proving_timeout).await?;
+            self.connection_pool
+                .connection()
+                .await?
+                .eth_proof_manager_dal()
+                .fallback_batches(self.acknowledgment_timeout, self.proving_timeout)
+                .await?;
         }
         Ok(())
     }

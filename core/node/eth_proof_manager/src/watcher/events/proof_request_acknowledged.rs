@@ -87,10 +87,20 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
 
         if accepted {
-            connection_pool.connection().await?.eth_proof_manager_dal().acknowledge_batch(L1BatchNumber(event.block_number.as_u32()), event.assigned_to.into()).await?;
-        }
-        else {
-            tracing::info!("Proof request for batch {} not accepted, skipping", event.block_number);
+            connection_pool
+                .connection()
+                .await?
+                .eth_proof_manager_dal()
+                .acknowledge_batch(
+                    L1BatchNumber(event.block_number.as_u32()),
+                    event.assigned_to.into(),
+                )
+                .await?;
+        } else {
+            tracing::info!(
+                "Proof request for batch {} not accepted, skipping",
+                event.block_number
+            );
         }
 
         Ok(())
