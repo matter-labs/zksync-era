@@ -4,7 +4,7 @@ use chrono::Utc;
 use httpmock::MockServer;
 use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-use crate::PriceApiClient;
+use crate::{APIToken, PriceApiClient};
 
 const TIME_TOLERANCE_MS: i64 = 100;
 /// Uniswap (UNI)
@@ -34,7 +34,7 @@ pub(crate) async fn happy_day_test(setup: SetupFn) {
 
     // APIs return token price in ETH (ETH per 1 token)
     let SetupResult { client } = setup(&server, address, TEST_TOKEN_PRICE_ETH);
-    let api_price = client.fetch_ratio(address).await.unwrap();
+    let api_price = client.fetch_ratio(APIToken::ERC20(address)).await.unwrap();
 
     // we expect the returned ratio to be such that when multiplying gas price in ETH you get gas
     // price in base token. So we expect such ratio X that X Base = 1ETH
@@ -53,7 +53,7 @@ pub(crate) async fn error_test(setup: SetupFn) -> anyhow::Error {
     let address = Address::from_str(address_str).unwrap();
 
     let SetupResult { client } = setup(&server, address, 1.0);
-    let api_price = client.fetch_ratio(address).await;
+    let api_price = client.fetch_ratio(APIToken::ERC20(address)).await;
 
     assert!(api_price.is_err());
     api_price.err().unwrap()

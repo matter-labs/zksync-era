@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use rand::Rng;
 use tokio::sync::Mutex;
 use zksync_config::configs::ExternalPriceApiClientConfig;
-use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
+use zksync_types::base_token_ratio::BaseTokenApiRatio;
 
-use crate::PriceApiClient;
+use crate::{APIToken, PriceApiClient};
 
 // Struct for a forced price "client" (conversion ratio is always a configured "forced" ratio).
 #[derive(Debug)]
@@ -66,7 +66,12 @@ impl ForcedPriceClient {
 #[async_trait]
 impl PriceApiClient for ForcedPriceClient {
     /// Returns the configured ratio with fluctuation applied if enabled
-    async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenApiRatio> {
+    async fn fetch_ratio(&self, token: APIToken) -> anyhow::Result<BaseTokenApiRatio> {
+        // For non-ERC20 tokens we return default ratio, this way this client only applies to the CBT<->ETH not ZK<->ETH.
+        if !matches!(token, APIToken::ERC20(_)) {
+            return Ok(BaseTokenApiRatio::identity());
+        }
+
         if let Some(fluctation) = self.fluctuation {
             let mut previous_numerator = self.previous_numerator.lock().await;
             let mut rng = rand::thread_rng();

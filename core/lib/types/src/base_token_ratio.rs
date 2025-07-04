@@ -21,12 +21,26 @@ pub struct BaseTokenApiRatio {
     pub ratio_timestamp: DateTime<Utc>,
 }
 
-impl Default for BaseTokenApiRatio {
-    fn default() -> Self {
+impl BaseTokenApiRatio {
+    pub fn identity() -> Self {
         Self {
             numerator: NonZeroU64::new(1).unwrap(),
             denominator: NonZeroU64::new(1).unwrap(),
             ratio_timestamp: Utc::now(),
         }
+    }
+
+    pub fn reciprocal(&self) -> Self {
+        Self {
+            numerator: self.denominator,
+            denominator: self.numerator,
+            ratio_timestamp: self.ratio_timestamp,
+        }
+    }
+}
+
+impl Default for BaseTokenApiRatio {
+    fn default() -> Self {
+        Self::identity()
     }
 }
