@@ -75,9 +75,12 @@ async fn main() -> anyhow::Result<()> {
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
 
     tokio::select! {
-        _ = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {},
+        res = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {
+            res?
+        },
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
+            ()
         }
     }
     let shutdown_time = Instant::now();
