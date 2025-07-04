@@ -113,12 +113,17 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-        let sl_chain_id = self.sl_l2_client.chain_id().await?;
+        let sl_chain_id = self
+            .sl_l2_client
+            .chain_id()
+            .await
+            .context("sl_l2_client.chain_id()")?;
         for (sl_l1_batch_number, chain_batches) in new_events {
             let chain_agg_proof = self
                 .sl_l2_client
                 .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
-                .await?
+                .await
+                .context("sl_l2_client.get_chain_log_proof()")?
                 .context("Missing chain log proof for finalized batch")?;
             let chain_proof_vector =
                 Self::chain_proof_vector(sl_l1_batch_number, chain_agg_proof, sl_chain_id);
@@ -141,7 +146,8 @@ impl EventProcessor for BatchRootProcessor {
             let chain_root_remote = self
                 .sl_l2_client
                 .get_chain_root_l2(sl_l1_batch_number, self.l2_chain_id)
-                .await?;
+                .await
+                .context("sl_l2_client.get_chain_root_l2()")?;
             assert_eq!(
                 chain_root_local,
                 chain_root_remote.unwrap(),
