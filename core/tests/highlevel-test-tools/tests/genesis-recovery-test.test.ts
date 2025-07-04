@@ -12,12 +12,6 @@ describe('Genesis Recovery Test', () => {
 
         await testChain.initExternalNode();
 
-        // Run external node and store it in the testChain.externalNode field
-        await testChain.runExternalNode();
-
-        // Now we can access the external node through testChain.externalNode
-        // For example: await testChain.externalNode?.kill();
-
         await genesisRecoveryTest(testChain.chainName);
     });
 });
