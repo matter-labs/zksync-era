@@ -121,7 +121,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        max(self.l2_blocks.len(), 1) - 1
+        self.l2_blocks.len().saturating_sub(1)
     }
 
     pub(crate) fn get_interop_root_application_config(&self) -> InteropRootApplicationConfig {
