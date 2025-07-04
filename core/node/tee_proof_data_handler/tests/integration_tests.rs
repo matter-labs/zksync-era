@@ -15,8 +15,8 @@ use zksync_multivm::zk_evm_latest::ethereum_types::H256;
 use zksync_object_store::MockObjectStore;
 use zksync_tee_prover_interface::api::{RegisterTeeAttestationRequest, SubmitTeeProofRequest};
 use zksync_types::{
-    block::L1BatchHeader, commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber,
-    L2ChainId, ProtocolVersion, ProtocolVersionId,
+    block::L1BatchHeader, tee_types::TeeType, L1BatchNumber, L2ChainId, ProtocolVersion,
+    ProtocolVersionId,
 };
 
 use zksync_tee_proof_data_handler::create_proof_processing_router;
@@ -39,7 +39,6 @@ async fn request_tee_proof_inputs() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
     let test_cases = vec![
@@ -101,7 +100,6 @@ async fn submit_tee_proof() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
 

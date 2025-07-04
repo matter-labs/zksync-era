@@ -23,7 +23,7 @@ use zksync_dal::{
     Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::ObjectStore;
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::L2ChainId;
 
 use crate::{
     errors::{TeeProcessorContext, TeeProcessorError},
@@ -37,7 +37,6 @@ pub(crate) async fn updater(
     _blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     config: TeeProofDataHandlerConfig,
-    _commitment_mode: L1BatchCommitmentMode,
     _l2_chain_id: L2ChainId,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {

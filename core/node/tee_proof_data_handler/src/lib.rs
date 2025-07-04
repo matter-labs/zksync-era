@@ -10,7 +10,7 @@ use zksync_object_store::ObjectStore;
 use zksync_tee_prover_interface::api::{
     RegisterTeeAttestationRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::L2ChainId;
 
 mod collateral;
 mod errors;
@@ -24,7 +24,6 @@ pub async fn run_server(
     config: TeeProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -34,7 +33,6 @@ pub async fn run_server(
         blob_store.clone(),
         connection_pool.clone(),
         config.clone(),
-        commitment_mode,
         l2_chain_id,
     );
 
@@ -57,7 +55,6 @@ pub async fn run_server(
         blob_store,
         connection_pool,
         config,
-        commitment_mode,
         l2_chain_id,
         stop_receiver,
     ));
@@ -86,7 +83,6 @@ pub fn create_proof_processing_router(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     config: TeeProofDataHandlerConfig,
-    _commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 ) -> Router {
     let get_tee_proof_gen_processor =
