@@ -475,6 +475,7 @@ async fn complex_rollback_test() {
                 timestamp: 102,
                 prev_block_hash: block_hash1,
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             },
             txs2,
         ),
@@ -484,6 +485,7 @@ async fn complex_rollback_test() {
                 timestamp: 103,
                 prev_block_hash: block_hash2,
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             },
             txs3,
         ),
@@ -500,7 +502,10 @@ async fn complex_rollback_test() {
             let context_str = format!("Scenario: {scenario_str}, item index: {i}");
             match item {
                 Item::RunBlock(i) => {
-                    executor.start_next_l2_block(blocks[i].0).await.unwrap();
+                    executor
+                        .start_next_l2_block(blocks[i].0.clone())
+                        .await
+                        .unwrap();
                     for tx in &blocks[i].1 {
                         let res = executor
                             .execute_tx(tx.clone())
