@@ -14,7 +14,8 @@ use zksync_config::{
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
         CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
-        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        NodeSyncConfig, ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets,
+        SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -244,6 +245,8 @@ pub(crate) struct LocalConfig {
     pub consistency_checker: ConsistencyCheckerConfig,
     #[config(flatten)]
     pub secrets: Secrets,
+    #[config(nest)]
+    pub node_sync: NodeSyncConfig,
 }
 
 impl LocalConfig {
@@ -338,6 +341,7 @@ impl LocalConfig {
                 data_availability: None,
                 contract_verifier: ContractVerifierSecrets::default(),
             },
+            node_sync: NodeSyncConfig::default(),
         }
     }
 }

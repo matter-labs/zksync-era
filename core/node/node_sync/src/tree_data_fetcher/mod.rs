@@ -272,7 +272,13 @@ impl TreeDataFetcher {
         self.metrics.observe_info(&self);
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
-        let mut last_updated_l1_batch = None;
+        let mut last_updated_l1_batch = self
+            .pool
+            .connection_tagged("tree_data_fetcher")
+            .await?
+            .blocks_dal()
+            .get_last_l1_batch_number_with_tree_data()
+            .await?;
 
         while !*stop_receiver.borrow_and_update() {
             let step_outcome = self.step().await;

@@ -135,6 +135,7 @@ fn make_config(
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: u64::MAX.into(),
+        max_transaction_size: u64::MAX.into(),
         max_batch_size: u64::MAX.into(),
         view_timeout: Duration::from_secs(2),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -158,6 +159,7 @@ fn make_config(
         genesis_spec,
         rpc: RpcConfig::default(),
         debug_page_addr: None,
+        consensus_registry_read_rate: Duration::from_secs(1),
     }
 }
 

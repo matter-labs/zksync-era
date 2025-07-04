@@ -116,12 +116,12 @@ impl UpdaterCursor {
 
         let last_executed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_executed_on_eth()
+            .get_number_of_last_l1_batch_with_tx(AggregatedActionType::Execute)
             .await?
             .unwrap_or(starting_l1_batch_number);
         let last_proven_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_proven_on_eth()
+            .get_number_of_last_l1_batch_with_tx(AggregatedActionType::PublishProofOnchain)
             .await?
             .unwrap_or(starting_l1_batch_number);
         let last_committed_l1_batch = storage
@@ -395,16 +395,13 @@ impl BatchStatusUpdater {
                 change.number <= last_sealed_batch,
                 "Incorrect update state: unknown batch marked as committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
                     L1BatchAggregatedActionType::Commit,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_committed_l1_batch = change.number;
@@ -422,16 +419,13 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_committed_l1_batch,
                 "Incorrect update state: proven batch must be committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
                     L1BatchAggregatedActionType::PublishProofOnchain,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_proven_l1_batch = change.number;
@@ -449,16 +443,13 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_proven_l1_batch,
                 "Incorrect update state: executed batch must be proven"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
                     L1BatchAggregatedActionType::Execute,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_executed_l1_batch = change.number;

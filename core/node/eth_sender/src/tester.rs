@@ -17,7 +17,7 @@ use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentMode,
-    eth_sender::{EthTx, EthTxFinalityStatus},
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,

@@ -7,15 +7,15 @@ use std::{
 
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_shared_metrics::{BlockStage, L1Stage, L2BlockStage, APP_METRICS};
+use zksync_shared_metrics::{BlockL1Stage, BlockStage, L1Stage, L2BlockStage, APP_METRICS};
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
-    eth_sender::EthTx,
+    eth_sender::{EthTx, L1BlockNumbers},
 };
 
-use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
+use crate::abstract_l1_interface::OperatorType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]

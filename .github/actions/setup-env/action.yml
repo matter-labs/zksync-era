@@ -12,6 +12,8 @@ runs:
     - name: Setup misc environment variables
       shell: bash
       run: |
+        echo CACHE_DIR=/usr/src/cache >> .env
+        echo CACHE_DIR=/usr/src/cache >> $GITHUB_PATH
         echo $(pwd)/bin >> $GITHUB_PATH
         echo $HOME/.local/bin >> $GITHUB_PATH
         echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV

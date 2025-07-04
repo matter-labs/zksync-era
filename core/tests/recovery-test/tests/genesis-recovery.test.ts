@@ -3,7 +3,15 @@ import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
 import path from 'path';
 
-import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
+import {
+    NodeProcess,
+    dropNodeData,
+    getExternalNodeHealth,
+    NodeComponents,
+    sleep,
+    FundedWallet,
+    HealthCheckResponse
+} from '../src';
 import { loadConfig } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 
@@ -97,6 +105,42 @@ describe('genesis recovery', () => {
         await dropNodeData(chainName);
     });
 
+    const reorgDetectorCheck = (health: HealthCheckResponse, catchUpBatchNumber: number): boolean => {
+        const status = health.components.reorg_detector?.status;
+        expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
+        const details = health.components.reorg_detector?.details;
+        if (status === 'ready' && details !== undefined) {
+            console.log('Received reorg detector health details', details);
+            if (details.last_correct_l1_batch !== undefined && details.last_correct_l1_batch >= catchUpBatchNumber) {
+                console.log('Reorg detector caught up to L1 batch #', catchUpBatchNumber);
+                return true;
+            }
+        } else {
+            console.log('Reorg detector not ready', details);
+        }
+        return false;
+    };
+
+    const consistencyCheckerCheck = (health: HealthCheckResponse, catchUpBatchNumber: number): boolean => {
+        const status = health.components.consistency_checker?.status;
+        expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
+        const details = health.components.consistency_checker?.details;
+        if (status === 'ready' && details !== undefined) {
+            console.log('Received consistency checker health details', details);
+            if (
+                details.first_checked_batch !== undefined &&
+                details.last_checked_batch !== undefined &&
+                details.last_checked_batch >= catchUpBatchNumber
+            ) {
+                console.log('Consistency checker caught up to L1 batch #', catchUpBatchNumber);
+                return true;
+            }
+        } else {
+            console.log('Consistency checker not ready', details);
+        }
+        return false;
+    };
+
     step('initialize external node w/o a tree', async () => {
         externalNodeProcess = await NodeProcess.spawn(
             await logsPath(chainName, 'external-node.log'),
@@ -137,32 +181,19 @@ describe('genesis recovery', () => {
                 const details = health.components.tree_data_fetcher?.details;
                 if (status === 'ready' && details !== undefined && details.last_updated_l1_batch !== undefined) {
                     console.log('Received tree health details', details);
-                    treeFetcherSucceeded = details.last_updated_l1_batch >= CATCH_UP_BATCH_COUNT;
+                    if (details.last_updated_l1_batch >= CATCH_UP_BATCH_COUNT) {
+                        treeFetcherSucceeded = true;
+                        console.log('Tree caught up to L1 batch #', CATCH_UP_BATCH_COUNT);
+                    }
                 }
             }
 
             if (!reorgDetectorSucceeded) {
-                const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
-                const details = health.components.reorg_detector?.details;
-                if (status === 'ready' && details !== undefined) {
-                    console.log('Received reorg detector health details', details);
-                    if (details.last_correct_l1_batch !== undefined) {
-                        reorgDetectorSucceeded = details.last_correct_l1_batch >= CATCH_UP_BATCH_COUNT;
-                    }
-                }
+                reorgDetectorSucceeded = reorgDetectorCheck(health, CATCH_UP_BATCH_COUNT);
             }
 
             if (!consistencyCheckerSucceeded) {
-                const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
-                const details = health.components.consistency_checker?.details;
-                if (status === 'ready' && details !== undefined) {
-                    console.log('Received consistency checker health details', details);
-                    if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
-                        consistencyCheckerSucceeded = details.last_checked_batch >= CATCH_UP_BATCH_COUNT;
-                    }
-                }
+                consistencyCheckerSucceeded = consistencyCheckerCheck(health, CATCH_UP_BATCH_COUNT);
             }
         }
 
@@ -233,32 +264,21 @@ describe('genesis recovery', () => {
                 if (status === 'ready' && details !== undefined && details.next_l1_batch_number !== undefined) {
                     console.log('Received tree health details', details);
                     expect(details.min_l1_batch_number).to.be.equal(0);
-                    treeSucceeded = details.next_l1_batch_number > catchUpBatchNumber;
+                    if (details.next_l1_batch_number > catchUpBatchNumber) {
+                        treeSucceeded = true;
+                        console.log('Tree caught up to L1 batch #', catchUpBatchNumber);
+                    }
+                } else {
+                    console.log('Tree not ready', details);
                 }
             }
 
             if (!reorgDetectorSucceeded) {
-                const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
-                const details = health.components.reorg_detector?.details;
-                if (status === 'ready' && details !== undefined) {
-                    console.log('Received reorg detector health details', details);
-                    if (details.last_correct_l1_batch !== undefined) {
-                        reorgDetectorSucceeded = details.last_correct_l1_batch >= catchUpBatchNumber;
-                    }
-                }
+                reorgDetectorSucceeded = reorgDetectorCheck(health, catchUpBatchNumber);
             }
 
             if (!consistencyCheckerSucceeded) {
-                const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
-                const details = health.components.consistency_checker?.details;
-                if (status === 'ready' && details !== undefined) {
-                    console.log('Received consistency checker health details', details);
-                    if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
-                        consistencyCheckerSucceeded = details.last_checked_batch >= catchUpBatchNumber;
-                    }
-                }
+                consistencyCheckerSucceeded = consistencyCheckerCheck(health, catchUpBatchNumber);
             }
         }
     });

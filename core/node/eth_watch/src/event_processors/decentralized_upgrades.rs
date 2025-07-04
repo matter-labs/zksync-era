@@ -75,38 +75,58 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
     ) -> Result<usize, EventProcessorError> {
         let mut upgrades = Vec::new();
         for event in &events {
-            let version = event.topics.get(1).copied().context("missing topic 1")?;
+            let version = event
+                .topics
+                .get(1)
+                .copied()
+                .context("missing topic 1")
+                .map_err(EventProcessorError::internal)?;
             let timestamp: u64 = U256::from_big_endian(&event.data.0)
                 .try_into()
                 .ok()
-                .context("upgrade timestamp is too big")?;
+                .context("upgrade timestamp is too big")
+                .map_err(EventProcessorError::internal)?;
 
             let diamond_cut = self
                 .sl_client
                 .diamond_cut_by_version(version)
-                .await?
-                .context("missing upgrade data on STM")?;
+                .await
+                .map_err(EventProcessorError::client)?
+                .context("missing upgrade data on STM")
+                .map_err(EventProcessorError::internal)?;
 
             let upgrade = ProtocolUpgrade {
                 timestamp,
                 ..ProtocolUpgrade::try_from_diamond_cut(
                     &diamond_cut,
                     self.l1_client.as_ref(),
-                    self.l1_client.get_chain_gateway_upgrade_info().await?,
+                    self.l1_client
+                        .get_chain_gateway_upgrade_info()
+                        .await
+                        .map_err(EventProcessorError::contract_call)?,
                 )
-                .await?
+                .await
+                .map_err(EventProcessorError::internal)?
             };
 
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                Some(self.sl_client.scheduler_vk_hash(address).await?)
+                Some(
+                    self.sl_client
+                        .scheduler_vk_hash(address)
+                        .await
+                        .map_err(EventProcessorError::contract_call)?,
+                )
             } else {
                 None
             };
 
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                self.sl_client.fflonk_scheduler_vk_hash(address).await?
+                self.sl_client
+                    .fflonk_scheduler_vk_hash(address)
+                    .await
+                    .map_err(EventProcessorError::contract_call)?
             } else {
                 None
             };
@@ -135,21 +155,25 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .protocol_versions_dal()
                 .latest_semantic_version()
                 .await
-                .map_err(DalError::generalize)?
-                .context("expected some version to be present in DB")?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?
+                .context("expected some version to be present in DB")
+                .map_err(EventProcessorError::internal)?;
 
             if upgrade.version > latest_semantic_version {
                 let latest_version = storage
                     .protocol_versions_dal()
                     .get_protocol_version_with_latest_patch(latest_semantic_version.minor)
                     .await
-                    .map_err(DalError::generalize)?
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?
                     .with_context(|| {
                         format!(
                             "expected minor version {} to be present in DB",
                             latest_semantic_version.minor as u16
                         )
-                    })?;
+                    })
+                    .map_err(EventProcessorError::internal)?;
 
                 let new_version = latest_version.apply_upgrade(
                     upgrade,
@@ -168,7 +192,8 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     .protocol_versions_dal()
                     .save_protocol_version_with_tx(&new_version)
                     .await
-                    .map_err(DalError::generalize)?;
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?;
             }
         }
         stage_latency.observe();

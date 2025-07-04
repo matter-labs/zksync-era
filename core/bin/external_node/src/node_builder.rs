@@ -46,8 +46,8 @@ use zksync_node_storage_init::{
     SnapshotRecoveryConfig,
 };
 use zksync_node_sync::node::{
-    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, ExternalIOLayer, SyncStateUpdaterLayer,
-    TreeDataFetcherLayer, ValidateChainIdsLayer,
+    BatchStatusUpdaterLayer, BatchTransactionUpdaterLayer, DataAvailabilityFetcherLayer,
+    ExternalIOLayer, SyncStateUpdaterLayer, TreeDataFetcherLayer, ValidateChainIdsLayer,
 };
 use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
@@ -279,6 +279,20 @@ impl<R> ExternalNodeBuilder<R> {
 
     fn add_batch_status_updater_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(BatchStatusUpdaterLayer);
+        Ok(self)
+    }
+
+    fn add_batch_transaction_updater_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BatchTransactionUpdaterLayer::new(
+            self.config
+                .local
+                .node_sync
+                .batch_transaction_updater_interval,
+            self.config
+                .local
+                .node_sync
+                .batch_transaction_updater_batch_size,
+        ));
         Ok(self)
     }
 
@@ -681,6 +695,7 @@ impl ExternalNodeBuilder {
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
+                        .add_batch_transaction_updater_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }
             }

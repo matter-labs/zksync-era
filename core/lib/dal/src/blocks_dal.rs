@@ -12,6 +12,7 @@ use zksync_db_connection::{
     connection::Connection,
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
+    interpolate_query, match_query_as,
 };
 use zksync_types::{
     aggregated_operations::{
@@ -1810,6 +1811,40 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_number_of_last_l1_batch_executed_on_eth")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Returns the number of the last L1 batch for which an Ethereum commit tx exists in DB (may be unconfirmed)
+    pub async fn get_number_of_last_l1_batch_with_tx(
+        &mut self,
+        tx_type: AggregatedActionType,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        struct BlockNumberRow {
+            number: i64,
+        }
+        Ok(match_query_as!(
+            BlockNumberRow,
+            [r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE "#, 
+            _,
+            r#" ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#],
+            match (tx_type) {
+                AggregatedActionType::Commit => ("eth_commit_tx_id IS NOT NULL";),
+                AggregatedActionType::PublishProofOnchain => ("eth_prove_tx_id IS NOT NULL";),
+                AggregatedActionType::Execute => ("eth_execute_tx_id IS NOT NULL";),
+            }
+        )
+        .instrument("get_number_of_last_l1_batch_with_tx")
         .fetch_optional(self.storage)
         .await?
         .map(|row| L1BatchNumber(row.number as u32)))
