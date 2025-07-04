@@ -4,7 +4,12 @@ use anyhow::Context as _;
 use rand::Rng as _;
 use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
+use zksync_concurrency::{
+    ctx,
+    error::Wrap as _,
+    scope,
+    time::{self, Duration},
+};
 use zksync_config::configs::consensus as config;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_engine::{EngineInterface as _, EngineManager};
@@ -170,9 +175,10 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
                 .await
                 .unwrap();
             s.spawn_bg(runner.run(ctx));
-            let (engine_manager, runner) = EngineManager::new(ctx, Box::new(store.clone()))
-                .await
-                .unwrap();
+            let (engine_manager, runner) =
+                EngineManager::new(ctx, Box::new(store.clone()), Duration::seconds(1))
+                    .await
+                    .unwrap();
             s.spawn_bg(runner.run(ctx));
             engine_manager
                 .queue_block(ctx, block.clone())

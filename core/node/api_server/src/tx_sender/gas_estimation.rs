@@ -19,7 +19,7 @@ use super::{result::ApiCallResult, SubmitTxError, TxSender};
 use crate::execution_sandbox::{BlockArgs, SandboxAction, VmPermit, SANDBOX_METRICS};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum BinarySearchKind {
+pub enum BinarySearchKind {
     /// Full binary search.
     Full,
     /// Binary search with an optimized initial pivot.

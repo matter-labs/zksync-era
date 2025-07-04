@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use tokio::sync::watch;
+use tower_http::trace::TraceLayer;
 use zksync_prover_interface::api::{
     PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
     SubmitProofGenerationDataResponse,
@@ -27,6 +28,7 @@ impl Api {
                 "/submit_request_for_proofs",
                 post(Api::save_proof_generation_data),
             )
+            .layer(TraceLayer::new_for_http())
             .layer(DefaultBodyLimit::disable())
             .with_state(processor);
 
