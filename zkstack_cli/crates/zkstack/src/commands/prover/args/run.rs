@@ -146,6 +146,12 @@ impl ProverComponent {
                         args.circuit_prover_args.max_allocation.unwrap()
                     ));
                 };
+                if args.circuit_prover_args.threads.is_some() {
+                    additional_args.push(format!(
+                        "--threads={}",
+                        args.circuit_prover_args.threads.unwrap()
+                    ));
+                };
                 if args.circuit_prover_args.light_wvg_count.is_some() {
                     additional_args.push(format!(
                         "--light-wvg-count={}",
@@ -199,6 +205,8 @@ pub struct CircuitProverArgs {
     pub light_wvg_count: Option<usize>,
     #[clap(short = 'h', long)]
     pub heavy_wvg_count: Option<usize>,
+    #[clap(short = 't', long)]
+    pub threads: Option<usize>,
     #[clap(short = 'm', long)]
     pub max_allocation: Option<usize>,
 }
@@ -212,21 +220,40 @@ impl CircuitProverArgs {
             return Ok(Self::default());
         }
 
-        let light_wvg_count = self.light_wvg_count.unwrap_or_else(|| {
-            Prompt::new("Number of light WVG jobs to run in parallel")
-                .default("8")
-                .ask()
-        });
+        let threads = if self.light_wvg_count.is_none() && self.heavy_wvg_count.is_none() {
+            Some(self.threads.unwrap_or_else(|| {
+                Prompt::new("Number of CPU threads to run WVGs in parallel (to specify light & heavy WVGs put 0)")
+                    .default("0")
+                    .ask()
+            }))
+        } else {
+            None
+        };
 
-        let heavy_wvg_count = self.heavy_wvg_count.unwrap_or_else(|| {
-            Prompt::new("Number of heavy WVG jobs to run in parallel")
-                .default("2")
-                .ask()
-        });
+        let light_wvg_count = if threads.is_none() || threads == Some(0) {
+            Some(self.light_wvg_count.unwrap_or_else(|| {
+                Prompt::new("Number of light WVG jobs to run in parallel")
+                    .default("8")
+                    .ask()
+            }))
+        } else {
+            None
+        };
+
+        let heavy_wvg_count = if threads.is_none() || threads == Some(0) {
+            Some(self.heavy_wvg_count.unwrap_or_else(|| {
+                Prompt::new("Number of heavy WVG jobs to run in parallel")
+                    .default("2")
+                    .ask()
+            }))
+        } else {
+            None
+        };
 
         Ok(CircuitProverArgs {
-            light_wvg_count: Some(light_wvg_count),
-            heavy_wvg_count: Some(heavy_wvg_count),
+            light_wvg_count,
+            heavy_wvg_count,
+            threads,
             max_allocation: self.max_allocation,
         })
     }
