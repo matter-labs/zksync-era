@@ -6568,6 +6568,7 @@ dependencies = [
  "slugify-rs",
  "sqruff-lib",
  "strum",
+ "tempfile",
  "thiserror 2.0.12",
  "tokio",
  "toml",

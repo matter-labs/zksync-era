@@ -46,6 +46,7 @@ zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
 prost.workspace = true
 reqwest.workspace = true
+tempfile.workspace = true
 
 [build-dependencies]
 anyhow.workspace = true

@@ -31,6 +31,9 @@ enum Commands {
     GenerateKeys {
         #[clap(flatten)]
         setup: SetupOptions,
+        /// Path to the output verification key file
+        #[arg(long)]
+        vk_verification_key_file: Option<String>,
     },
 
     RunProver {
@@ -61,13 +64,20 @@ fn main() {
                     output_dir,
                     trusted_setup_file,
                 },
-        } => {
-            if let Err(e) =
-                zkos_wrapper::generate_vk(binary_path, output_dir, trusted_setup_file, true, false)
-            {
+            vk_verification_key_file,
+        } => match zkos_wrapper::generate_vk(binary_path, output_dir, trusted_setup_file, true) {
+            Ok(key) => {
+                if let Some(vk_file) = vk_verification_key_file {
+                    std::fs::write(vk_file, format!("{:?}", key))
+                        .expect("Failed to write verification key to file");
+                } else {
+                    println!("Verification key generated successfully: {:#?}", key);
+                }
+            }
+            Err(e) => {
                 println!("Error generating keys: {e}");
             }
-        }
+        },
         Commands::RunProver {
             sequencer_url,
             setup:

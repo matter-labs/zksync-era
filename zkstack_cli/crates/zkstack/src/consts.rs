@@ -34,3 +34,5 @@ pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";
 pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str =
     "etc/env/file_based/overrides/only_real_proofs.yaml";
 pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/validium.yaml";
+
+pub const PATH_TO_PROVER_COMMITMENT: &str = "prover/data/keys/commitments.json";

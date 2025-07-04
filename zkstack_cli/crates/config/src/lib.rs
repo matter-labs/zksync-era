@@ -1,11 +1,12 @@
 pub use crate::{
-    apps::*, chain::*, consensus::*, consts::*, contracts::*, ecosystem::*, en::*, file_config::*,
-    gateway::*, general::*, genesis::*, manipulations::*, object_store::*, secrets::*,
-    wallet_creation::*, wallets::*,
+    apps::*, chain::*, commitment_keys::*, consensus::*, consts::*, contracts::*, ecosystem::*,
+    en::*, file_config::*, gateway::*, general::*, genesis::*, manipulations::*, object_store::*,
+    secrets::*, wallet_creation::*, wallets::*,
 };
 
 mod apps;
 mod chain;
+mod commitment_keys;
 mod consensus;
 mod consts;
 mod contracts;

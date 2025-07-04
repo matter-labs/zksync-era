@@ -43,11 +43,18 @@ pub struct GenesisConfigPatch(PatchedConfig);
 impl GenesisConfigPatch {
     pub fn update_from_chain_config(&mut self, config: &ChainConfig) -> anyhow::Result<()> {
         self.0.insert("l2_chain_id", config.chain_id.as_u64())?;
-        // TODO(EVM-676): for now, the settlement layer is always the same as the L1 network
         self.0.insert("l1_chain_id", config.l1_network.chain_id())?;
         self.0.insert_yaml(
             "l1_batch_commit_data_generator_mode",
             config.l1_batch_commit_data_generator_mode,
+        )?;
+        Ok(())
+    }
+
+    pub fn update_snark_verification_key(&mut self, verification_key: H256) -> anyhow::Result<()> {
+        self.0.insert(
+            "prover.snark_wrapper_vk_hash",
+            format!("{:?}", verification_key),
         )?;
         Ok(())
     }
