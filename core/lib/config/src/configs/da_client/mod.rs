@@ -398,6 +398,7 @@ mod tests {
             cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
             operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
             registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
+            eigenda_prover_service_rpc: http://localhost:9999
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
