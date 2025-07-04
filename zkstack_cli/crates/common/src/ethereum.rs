@@ -5,11 +5,10 @@ use ethers::{
     contract::abigen,
     core::k256::ecdsa::SigningKey,
     middleware::MiddlewareBuilder,
-    prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
+    prelude::{BlockId, BlockNumber, Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
     types::{Address, TransactionRequest},
 };
-use ethers::prelude::{BlockId, BlockNumber};
 use zkstack_cli_types::TokenInfo;
 use zksync_types::{url::SensitiveUrl, L2ChainId};
 use zksync_web3_decl::client::{Client, L2};
@@ -67,7 +66,9 @@ pub async fn distribute_eth(
     let client = create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?;
     let mut pending_txs = vec![];
     let block = Some(BlockId::Number(BlockNumber::Pending.into()));
-    let mut nonce = client.get_transaction_count(client.address(), block).await?;
+    let mut nonce = client
+        .get_transaction_count(client.address(), block)
+        .await?;
     for address in addresses {
         let tx = TransactionRequest::new()
             .to(address)
@@ -80,7 +81,7 @@ pub async fn distribute_eth(
                 .send_transaction(tx, None)
                 .await?
                 // It's safe to set such low number of confirmations and low interval for localhost
-                .confirmations(5)
+                .confirmations(1)
                 .interval(Duration::from_millis(30)),
         );
     }

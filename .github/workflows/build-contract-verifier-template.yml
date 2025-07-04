@@ -121,9 +121,8 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
-          sudo chown -R $USER:$GROUP contracts/node_modules
           cp etc/tokens/{test,localhost}.json
-          zkstack dev contracts
+          zkstack dev contracts --verbose
 
       - name: Upload contracts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
