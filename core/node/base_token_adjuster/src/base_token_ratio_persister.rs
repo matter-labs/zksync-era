@@ -23,45 +23,33 @@ fn safe_u64_fraction_mul(
     let numerator = a.numerator.get() as u128 * b.numerator.get() as u128;
     let denominator = a.denominator.get() as u128 * b.denominator.get() as u128;
 
-    // Check if either numerator or denominator exceeds u64::MAX
-    if numerator > u64::MAX as u128 || denominator > u64::MAX as u128 {
-        //
-        let scaling_power = numerator
-            .max(denominator)
-            .leading_zeros()
-            .saturating_sub(64);
+    // We need to scale if numerator or denominator is bigger then u64.
+    // If not the scaling factor is zero and does nothing
+    let scaling_power = 64_u32.saturating_sub(numerator.max(denominator).leading_zeros());
 
-        // Scale down both values
-        let scaled_numerator = numerator >> scaling_power;
-        let scaled_denominator = denominator >> scaling_power;
+    // Scale down both values
+    let scaled_numerator = numerator >> scaling_power;
+    let scaled_denominator = denominator >> scaling_power;
 
-        // Ensure we don't have zeros after division
-        let safe_numerator = NonZeroU64::new(
-            scaled_numerator
-                .try_into()
-                .context(anyhow::anyhow!("Bad numerator after scaling down"))?,
-        )
-        .ok_or(anyhow::anyhow!("Scaled down numerator is zero"))?;
-        let safe_denominator = NonZeroU64::new(
-            scaled_denominator
-                .try_into()
-                .context(anyhow::anyhow!("Bad denominator after scaling down"))?,
-        )
-        .ok_or(anyhow::anyhow!("Scaled down denominator is zero"))?;
+    // Ensure we don't have zeros after division
+    let safe_numerator = NonZeroU64::new(
+        scaled_numerator
+            .try_into()
+            .context(anyhow::anyhow!("Bad numerator after scaling down"))?,
+    )
+    .ok_or(anyhow::anyhow!("Scaled down numerator is zero"))?;
+    let safe_denominator = NonZeroU64::new(
+        scaled_denominator
+            .try_into()
+            .context(anyhow::anyhow!("Bad denominator after scaling down"))?,
+    )
+    .ok_or(anyhow::anyhow!("Scaled down denominator is zero"))?;
 
-        Ok(BaseTokenApiRatio {
-            numerator: safe_numerator,
-            denominator: safe_denominator,
-            ratio_timestamp: a.ratio_timestamp.max(b.ratio_timestamp),
-        })
-    } else {
-        // No scaling needed, values are within u64 range
-        Ok(BaseTokenApiRatio {
-            numerator: NonZeroU64::new(numerator.try_into().unwrap()).unwrap(),
-            denominator: NonZeroU64::new(denominator.try_into().unwrap()).unwrap(),
-            ratio_timestamp: a.ratio_timestamp.max(b.ratio_timestamp),
-        })
-    }
+    Ok(BaseTokenApiRatio {
+        numerator: safe_numerator,
+        denominator: safe_denominator,
+        ratio_timestamp: a.ratio_timestamp.max(b.ratio_timestamp),
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -211,7 +199,6 @@ mod tests {
     };
 
     use anyhow::Result;
-    use assert_matches::assert_matches;
     use async_trait::async_trait;
     use chrono::Utc;
     use test_casing::test_casing;

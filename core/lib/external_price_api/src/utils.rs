@@ -1,29 +1,38 @@
 use std::num::NonZeroU64;
 
 use chrono::Utc;
-use fraction::Fraction;
+use fraction::GenericFraction;
 use zksync_types::base_token_ratio::BaseTokenApiRatio;
 
 /// Using the base token price and eth price, calculate the fraction of the base token to eth.
 pub fn get_fraction(ratio_f64: f64) -> anyhow::Result<(NonZeroU64, NonZeroU64)> {
-    let rate_fraction = Fraction::from(ratio_f64);
+    // fraction::Fraction uses u64 under the hood and conversion from f64 mail fail
+    // if the number is too small resulting in a big denominator. We use u128
+    // and then bitshift the denominator and numerator to fit
+    let rate_fraction = GenericFraction::<u128>::from(ratio_f64);
     tracing::warn!("rate_fraction: {rate_fraction}, ratio_f64: {ratio_f64}");
     if rate_fraction.sign() == Some(fraction::Sign::Minus) {
         return Err(anyhow::anyhow!("number is negative"));
     }
 
+    // we need to potentially lower precision to fit into u64
+    let denominator_before_division = rate_fraction
+        .denom()
+        .ok_or(anyhow::anyhow!("number is not rational"))?;
+
+    // how many lowest bits we need to "loose" to fit into u64
+    let bits_to_shift = 64_u32.saturating_sub(denominator_before_division.leading_zeros());
+
     let numerator = NonZeroU64::new(
-        *rate_fraction
+        (*rate_fraction
             .numer()
-            .ok_or(anyhow::anyhow!("number is not rational"))?,
+            .ok_or(anyhow::anyhow!("number is not rational"))?
+            >> bits_to_shift)
+            .try_into()?,
     )
     .ok_or(anyhow::anyhow!("numerator is zero"))?;
-    let denominator = NonZeroU64::new(
-        *rate_fraction
-            .denom()
-            .ok_or(anyhow::anyhow!("number is not rational"))?,
-    )
-    .ok_or(anyhow::anyhow!("denominator is zero"))?;
+    let denominator = NonZeroU64::new((denominator_before_division >> bits_to_shift).try_into()?)
+        .ok_or(anyhow::anyhow!("denominator is zero"))?;
 
     Ok((numerator, denominator))
 }
@@ -68,6 +77,12 @@ pub(crate) mod tests {
         assert_get_fraction_value(0.2, 1, 5);
         assert_get_fraction_value(0.5, 1, 2);
         assert_get_fraction_value(3.1415, 6283, 2000);
+        assert_get_fraction_value(
+            // very small value with high precision
+            1.8615235072372934e-5,
+            290863048005827,
+            15625000000000000000,
+        );
     }
 
     #[test]
