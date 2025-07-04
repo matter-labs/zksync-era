@@ -223,10 +223,11 @@ impl StateKeeperIO for MempoolIO {
 
         let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        let interop_roots = storage
-            .interop_root_dal()
-            .get_new_interop_roots(limit)
-            .await?;
+        // let interop_roots = storage
+        //     .interop_root_dal()
+        //     .get_new_interop_roots(limit)
+        //     .await?;
+        let interop_roots = vec![];
         Ok(Some(L2BlockParams::new_raw(
             timestamp_ms,
             // This value is effectively ignored by the protocol.
