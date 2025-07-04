@@ -118,13 +118,10 @@ impl CmcPriceApiClient {
             ));
         }
 
-        let data = response
+        response
             .json::<V2CryptocurrencyQuotesLatestResponse>()
-            .await?;
-
-        tracing::warn!("response: {:?}", data);
-
-        data.data
+            .await?
+            .data
             .get(&id)
             .and_then(|data| data.quote.get(REQUEST_QUOTE_IN_CURRENCY_ID))
             .map(|mq| mq.price)

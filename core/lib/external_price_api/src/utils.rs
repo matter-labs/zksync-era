@@ -10,7 +10,6 @@ pub fn get_fraction(ratio_f64: f64) -> anyhow::Result<(NonZeroU64, NonZeroU64)> 
     // if the number is too small resulting in a big denominator. We use u128
     // and then bitshift the denominator and numerator to fit
     let rate_fraction = GenericFraction::<u128>::from(ratio_f64);
-    tracing::warn!("rate_fraction: {rate_fraction}, ratio_f64: {ratio_f64}");
     if rate_fraction.sign() == Some(fraction::Sign::Minus) {
         return Err(anyhow::anyhow!("number is negative"));
     }
