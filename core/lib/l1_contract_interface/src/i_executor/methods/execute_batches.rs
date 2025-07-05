@@ -144,25 +144,27 @@ impl ExecuteBatches {
                         .collect(),
                 ),
                 Token::Array(
-                    self.logs
-                        .iter()
-                        .map(|log| {
-                            Token::Array(log.iter().map(|log| log.clone().0.into_token()).collect())
-                        })
-                        .collect(),
+                    vec![],
+                    // self.logs
+                    //     .iter()
+                    //     .map(|log| {
+                    //         Token::Array(log.iter().map(|log| log.clone().0.into_token()).collect())
+                    //     })
+                    //     .collect(),
                 ),
                 Token::Array(
-                    self.messages
-                        .iter()
-                        .map(|message| {
-                            Token::Array(
-                                message
-                                    .iter()
-                                    .map(|message| message.clone().into_token())
-                                    .collect(),
-                            )
-                        })
-                        .collect(),
+                    vec![],
+                    // self.messages
+                    //     .iter()
+                    //     .map(|message| {
+                    //         Token::Array(
+                    //             message
+                    //                 .iter()
+                    //                 .map(|message| message.clone().into_token())
+                    //                 .collect(),
+                    //         )
+                    //     })
+                    //     .collect(),
                 ),
                 Token::Array(
                     self.message_roots

@@ -450,7 +450,6 @@ pub async fn ensure_genesis_state(
             .ok_or(GenesisError::MalformedConfig(
                 "expected_rollup_last_leaf_index",
             ))?;
-
     println!("expected_root_hash: {:?}", expected_root_hash);
     println!("root_hash: {:?}", root_hash);
     println!("expected_commitment: {:?}", expected_commitment);

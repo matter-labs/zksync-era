@@ -266,7 +266,8 @@ jobs:
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_era \
           --ignore-prerequisites --verbose \
-          --observability=false
+          --observability=false \
+          --validium-type no-da
 
       - name: Read Custom Token address and set as environment variable
         run: |

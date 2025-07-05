@@ -48,7 +48,7 @@ jobs:
             --evm-emulator false \
             --update-submodules=true
 
-          ci_run zkstack ecosystem init --dev --update-submodules=true --verbose
+          ci_run zkstack ecosystem init --dev --update-submodules=true --verbose --validium-type no-da
 
           ci_run zkstack prover init --dev --verbose
           WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)

@@ -1,0 +1,15 @@
+id: 2
+name: second
+chain_id: 260
+prover_version: NoProofs
+configs: ./chains/second/configs/
+rocks_db_path: ./chains/second/db/
+external_node_config_path: null
+artifacts_path: ./chains/second/artifacts/
+l1_batch_commit_data_generator_mode: Validium
+base_token:
+  address: '0x0000000000000000000000000000000000000001'
+  nominator: 1
+  denominator: 1
+wallet_creation: Localhost
+evm_emulator: false
