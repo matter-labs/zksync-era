@@ -20,6 +20,7 @@
                 "PriorityTransactions",
                 "ChainBatchRoot",
                 "ServerNotification",
+                "ChainBatchRootInterop",
                 "InteropRoot"
               ]
             }

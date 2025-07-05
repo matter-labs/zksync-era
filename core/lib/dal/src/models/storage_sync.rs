@@ -5,7 +5,7 @@ use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
     commitment::{PubdataParams, PubdataType},
-    parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
+    parse_h160, parse_h256, parse_h256_opt, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };
 
@@ -31,6 +31,7 @@ pub(crate) struct StorageSyncBlock {
     pub hash: Vec<u8>,
     pub l2_da_validator_address: Vec<u8>,
     pub pubdata_type: String,
+    pub pubdata_limit: Option<i64>,
 }
 
 pub(crate) struct SyncBlock {
@@ -47,12 +48,15 @@ pub(crate) struct SyncBlock {
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
-impl TryFrom<StorageSyncBlock> for SyncBlock {
-    type Error = sqlx::Error;
-
-    fn try_from(block: StorageSyncBlock) -> Result<Self, Self::Error> {
+impl SyncBlock {
+    pub(crate) fn new(
+        block: StorageSyncBlock,
+        interop_roots: Vec<InteropRoot>,
+    ) -> Result<Self, sqlx::Error> {
         Ok(Self {
             number: L2BlockNumber(block.number.try_into().decode_column("number")?),
             l1_batch_number: L1BatchNumber(
@@ -102,6 +106,8 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
                     .decode_column("l2_da_validator_address")?,
             },
+            pubdata_limit: block.pubdata_limit.map(|l| l as u64),
+            interop_roots,
         })
     }
 }
@@ -123,6 +129,8 @@ impl SyncBlock {
             hash: Some(self.hash),
             protocol_version: self.protocol_version,
             pubdata_params: Some(self.pubdata_params),
+            pubdata_limit: self.pubdata_limit,
+            interop_roots: self.interop_roots,
         }
     }
 
@@ -140,6 +148,8 @@ impl SyncBlock {
             transactions,
             last_in_batch: self.last_in_batch,
             pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
+            interop_roots: self.interop_roots,
         }
     }
 }

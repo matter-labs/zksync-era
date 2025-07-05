@@ -37,7 +37,6 @@ impl EthConfig {
                 max_txs_in_flight: 30,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 max_aggregated_tx_gas: 4000000,
-                max_eth_tx_data_size: 6000000,
                 max_aggregated_blocks_to_commit: 10,
                 max_aggregated_blocks_to_execute: 10,
                 aggregated_block_commit_deadline: Duration::from_secs(1),
@@ -54,6 +53,7 @@ impl EthConfig {
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
+                precommit_params: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -132,8 +132,6 @@ pub struct SenderConfig {
     pub proof_sending_mode: ProofSendingMode,
     #[config(default_t = 4_000_000)]
     pub max_aggregated_tx_gas: u64,
-    #[config(default_t = 6_000_000)]
-    pub max_eth_tx_data_size: usize, // FIXME: never read
     #[config(default_t = 10)]
     pub max_aggregated_blocks_to_commit: u32,
     #[config(default_t = 10)]
@@ -177,6 +175,25 @@ pub struct SenderConfig {
     /// Cap for `b ^ time_in_mempool` used for price calculations.
     #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
+    /// Parameters for precommit operation.
+    #[config(nest)]
+    pub precommit_params: Option<PrecommitParams>,
+}
+
+/// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct PrecommitParams {
+    pub l2_blocks_to_aggregate: u32,
+    pub deadline: Duration,
+}
+
+impl PrecommitParams {
+    pub fn fast_precommit() -> Self {
+        Self {
+            l2_blocks_to_aggregate: 100000,
+            deadline: Duration::from_millis(1),
+        }
+    }
 }
 
 impl SenderConfig {
@@ -263,7 +280,6 @@ mod tests {
                 aggregated_block_prove_deadline: Duration::from_secs(3_000),
                 aggregated_block_execute_deadline: Duration::from_secs(4_000),
                 max_aggregated_tx_gas: 4_000_000,
-                max_eth_tx_data_size: 120_000,
                 timestamp_criteria_max_allowed_lag: 30,
                 max_aggregated_blocks_to_commit: 3,
                 max_aggregated_blocks_to_execute: 4,
@@ -282,6 +298,10 @@ mod tests {
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
                 time_in_mempool_multiplier_cap: Some(10),
+                precommit_params: Some(PrecommitParams {
+                    l2_blocks_to_aggregate: 1,
+                    deadline: Duration::from_secs(1),
+                }),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -344,6 +364,8 @@ mod tests {
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -381,6 +403,9 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
@@ -435,6 +460,9 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

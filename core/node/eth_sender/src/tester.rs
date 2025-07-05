@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentMode,
     eth_sender::{EthTx, EthTxFinalityStatus},
@@ -25,7 +25,7 @@ use zksync_types::{
 
 use crate::{
     abstract_l1_interface::{L1BlockNumbers, OperatorType},
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,
 };
@@ -73,7 +73,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 true,
                 EthTxFinalityStatus::FastFinalized,
             )
@@ -84,7 +84,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 true,
                 EthTxFinalityStatus::Finalized,
             )
@@ -95,7 +95,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
                 true,
                 EthTxFinalityStatus::Finalized,
             )
@@ -106,7 +106,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 false,
                 EthTxFinalityStatus::Finalized,
             )
@@ -115,7 +115,7 @@ impl TestL1Batch {
 
     pub async fn assert_commit_tx_just_sent(&self, tester: &mut EthSenderTester) {
         tester
-            .assert_tx_was_sent_in_last_iteration(self.number, AggregatedActionType::Commit)
+            .assert_tx_was_sent_in_last_iteration(self.number, L1BatchAggregatedActionType::Commit)
             .await;
     }
 
@@ -391,7 +391,7 @@ impl EthSenderTester {
     pub async fn execute_tx(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: L1BatchAggregatedActionType,
         success: bool,
         finality_status: EthTxFinalityStatus,
     ) {
@@ -433,14 +433,15 @@ impl EthSenderTester {
             self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
                 .await,
         ];
-        let operation = AggregatedOperation::Execute(ExecuteBatches {
-            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
-            l1_batches: l1_batch_headers
-                .into_iter()
-                .map(l1_batch_with_metadata)
-                .collect(),
-            dependency_roots: vec![vec![], vec![]],
-        });
+        let operation =
+            AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
+                priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
+                l1_batches: l1_batch_headers
+                    .into_iter()
+                    .map(l1_batch_with_metadata)
+                    .collect(),
+                dependency_roots: vec![vec![], vec![]],
+            }));
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
     }
@@ -455,18 +456,20 @@ impl EthSenderTester {
 
     pub async fn save_prove_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_prove);
-        let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
-            prev_l1_batch: l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
-                    .await,
-            ),
-            l1_batches: vec![l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove)
-                    .await,
-            )],
-            proofs: vec![],
-            should_verify: false,
-        });
+        let operation = AggregatedOperation::L1Batch(
+            L1BatchAggregatedOperation::PublishProofOnchain(ProveBatches {
+                prev_l1_batch: l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
+                        .await,
+                ),
+                l1_batches: vec![l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove)
+                        .await,
+                )],
+                proofs: vec![],
+                should_verify: false,
+            }),
+        );
         self.next_l1_batch_number_to_prove += 1;
         self.save_operation(operation).await
     }
@@ -524,7 +527,7 @@ impl EthSenderTester {
             L1BatchCommitmentMode::Rollup
         };
 
-        let operation = AggregatedOperation::Commit(
+        let operation = AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Commit(
             l1_batch_with_metadata(
                 self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
                     .await,
@@ -535,7 +538,7 @@ impl EthSenderTester {
             )],
             pubdata_mode,
             commitment_mode,
-        );
+        ));
         self.next_l1_batch_number_to_commit += 1;
         self.save_operation(operation).await
     }
@@ -605,7 +608,7 @@ impl EthSenderTester {
     pub async fn assert_tx_was_sent_in_last_iteration(
         &self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: L1BatchAggregatedActionType,
     ) {
         let last_entry = self
             .conn

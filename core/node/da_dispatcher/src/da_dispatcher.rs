@@ -225,7 +225,7 @@ impl DataAvailabilityDispatcher {
         // TODO: add metrics for finality latency
         let finality_response = self
             .client
-            .ensure_finality(blob.dispatch_request_id.clone())
+            .ensure_finality(blob.dispatch_request_id.clone(), blob.sent_at)
             .await;
 
         match finality_response {

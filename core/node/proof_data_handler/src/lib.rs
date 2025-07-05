@@ -11,7 +11,7 @@ use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, SubmitProofRequest,
     SubmitProofResponse,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchId, L1BatchNumber, L2ChainId};
+use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 pub use crate::{
     client::ProofDataHandlerClient,
@@ -29,21 +29,14 @@ pub async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
     api_mode: ApiMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::info!("Starting proof data handler server on {bind_address}");
-    let app = create_proof_processing_router(
-        blob_store,
-        connection_pool,
-        config,
-        api_mode,
-        commitment_mode,
-        l2_chain_id,
-    );
+    let app =
+        create_proof_processing_router(blob_store, connection_pool, config, api_mode, l2_chain_id);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -66,7 +59,6 @@ fn create_proof_processing_router(
     connection_pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     api_mode: ApiMode,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 ) -> Router {
     let mut router = Router::new();
@@ -76,7 +68,6 @@ fn create_proof_processing_router(
             blob_store.clone(),
             connection_pool.clone(),
             config.clone(),
-            commitment_mode,
             l2_chain_id,
         );
         let submit_proof_processor = get_proof_gen_processor.clone();
@@ -98,7 +89,7 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/submit_proof/:l1_batch_number",
+            "/submit_proof/{l1_batch_number}",
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);

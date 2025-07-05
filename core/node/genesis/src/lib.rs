@@ -107,8 +107,14 @@ impl GenesisParams {
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
             evm_emulator: config.evm_emulator_hash,
         };
-        println!("base_system_contracts_hashes: {:?}", base_system_contracts_hashes);
-        println!("base_system_contracts.hashes(): {:?}", base_system_contracts.hashes());
+        println!(
+            "base_system_contracts_hashes: {:?}",
+            base_system_contracts_hashes
+        );
+        println!(
+            "base_system_contracts.hashes(): {:?}",
+            base_system_contracts.hashes()
+        );
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
@@ -448,7 +454,10 @@ pub async fn ensure_genesis_state(
     println!("root_hash: {:?}", root_hash);
     println!("expected_commitment: {:?}", expected_commitment);
     println!("commitment: {:?}", commitment);
-    println!("expected_rollup_last_leaf_index: {:?}", expected_rollup_last_leaf_index);
+    println!(
+        "expected_rollup_last_leaf_index: {:?}",
+        expected_rollup_last_leaf_index
+    );
     println!("rollup_last_leaf_index: {:?}", rollup_last_leaf_index);
     if expected_root_hash != root_hash {
         return Err(GenesisError::RootHash(expected_root_hash, root_hash));
@@ -510,6 +519,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: Some(H256::zero()),
     };
 
     let mut transaction = storage.start_transaction().await?;

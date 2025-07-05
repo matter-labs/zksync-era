@@ -29,9 +29,8 @@ When a chain starts its migration to a new settlement layer (regardless of wheth
 
 1. It will be checked the that the protocolVersion is the latest in the CTM in the current settlement layer (just in case to not have to bother with backwards compatibility).
 2. The `s.settlementLayer` will be set for the chain. Now the chain becomes inactive and it can only take “inactive” upgrades.
-3. When migration finishes, it will be double checked that the `protocolVersion` is the same as the one in the target chains’ CTM.
-
-If the chain has already been deployed there, it will be checked that the `protocolVersion` of the deployed contracts there is the same as the one of the chain that is being moved. 4. All “inactive” instances of a chain can receive “inactive” upgrades of a chain. The single “active” instance of a chain (the one on the settlement layer) can receive only active upgrades.
+3. When migration finishes, it will be double checked that the `protocolVersion` is the same as the one in the target chains’ CTM. If the chain has already been deployed there, it will be checked that the `protocolVersion` of the deployed contracts there is the same as the one of the chain that is being moved. 
+4. All “inactive” instances of a chain can receive “inactive” upgrades of a chain. The single “active” instance of a chain (the one on the settlement layer) can receive only active upgrades.
 
 In case step (3) fails (or for any other reason the chain fails), the migration recovery process should be available. (`L1AssetRouter.bridgeRecoverFailedTransfer` method). Recovering a chain id basically just changing its `settlementLayerId` to the current block.chainid. It will be double checked that the chain has not conducted any inactive upgrades in the meantime, i.e. the `protocolVersion` of the chain is the same as the one when the chain started its migration.
 
@@ -88,7 +87,7 @@ The admin of the CTM (GW) will call the CTM (GW) with the new protocol version�
 
 ### Case of malicious Gateway operator
 
-In the future, malicious Gateway operator may try to exploit a known vulnerability in an CTM.
+In the future, malicious Gateway operator may try to exploit a vulnerability in an CTM.
 
 The recommended approach here is the following:
 
@@ -100,8 +99,6 @@ The recommended approach here is the following:
 It is the responsibility of the CTM to ensure that all the supported settlement layers are trusted enough to uphold to the above protocol. Using any sort of Validiums will be especially discouraged, since in theory those could get frozen forever without any true censorship resistance mechanisms.
 
 Also, note that the freezing period should be long enough to ensure that censorship resistance mechanisms have enough time to kick in
-
->
 
 ## Forcing “inactive chain upgrade”
 

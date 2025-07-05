@@ -16,7 +16,9 @@ use zksync_types::{
 };
 use zksync_vm_interface::VmRevertReason;
 
-use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
+use super::{
+    default_l1_batch, default_system_env, get_empty_storage, tester::VmTesterBuilder, TestedVm,
+};
 use crate::{
     interface::{
         storage::StorageView, ExecutionResult, Halt, InspectExecutionMode, L2BlockEnv,
@@ -304,20 +306,22 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
     );
 
     // Case 2: Timestamp not increasing
-    test_new_l2_block::<VM>(
-        correct_first_block.clone(),
-        None,
-        Some(0),
-        None,
-        Some(Halt::FailedToSetL2Block(
-            encode_function_call(
-                "NonMonotonicL2BlockTimestamp",
-                &[ParamType::Uint(128), ParamType::Uint(128)],
-                &[Token::Uint(U256::from(0)), Token::Uint(U256::from(1))],
-            )
-            .unwrap(),
-        )),
-    );
+    if default_system_env().version.is_pre_interop_fast_blocks() {
+        test_new_l2_block::<VM>(
+            correct_first_block.clone(),
+            None,
+            Some(0),
+            None,
+            Some(Halt::FailedToSetL2Block(
+                encode_function_call(
+                    "NonMonotonicL2BlockTimestamp",
+                    &[ParamType::Uint(128), ParamType::Uint(128)],
+                    &[Token::Uint(U256::from(0)), Token::Uint(U256::from(1))],
+                )
+                .unwrap(),
+            )),
+        );
+    }
 
     // Case 3: Incorrect previous block hash
     test_new_l2_block::<VM>(

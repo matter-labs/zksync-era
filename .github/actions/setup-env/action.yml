@@ -1,0 +1,98 @@
+name: Setup Environment
+
+inputs:
+  runner-compose-file:
+    description: 'Path to the runner compose file'
+    default: 'docker-compose.yml'
+
+runs:
+  using: composite
+  steps:
+
+    - name: Setup misc environment variables
+      shell: bash
+      run: |
+        echo $(pwd)/bin >> $GITHUB_PATH
+        echo $HOME/.local/bin >> $GITHUB_PATH
+        echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+        echo CI=1 >> $GITHUB_ENV
+        echo IN_DOCKER=1 >> .env
+        echo CI=1 >> .env
+        echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
+
+    - name: Setup sccache for building rust code outside Docker
+      shell: bash
+      run: |
+        echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
+        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
+        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
+        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
+        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
+        echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
+
+        # sccache outside docker will run it's own server
+        echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
+
+    - name: Setup sccache for building rust code inside Docker
+      shell: bash
+      run: |
+        echo SCCACHE_CACHE_SIZE=50G >> .env
+        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
+        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> .env
+        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
+        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
+        echo RUSTC_WRAPPER=sccache >> .env
+        echo DOCKER_PWD=$(pwd) >> .env
+
+    - name: Start localnet
+      shell: bash
+      run: |
+        mkdir -p ./hardhat-nodejs
+        ci_localnet_up
+
+    - name: Start sccache servers
+      shell: bash
+      run: |
+        ci_run sccache --start-server
+        sccache --start-server
+
+    - name: Init git safe directories
+      shell: bash
+      run: |
+        ci_run git config --global --add safe.directory /usr/src/zksync
+        ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+        ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+        ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
+    - name: restore zkstack binary from cache
+      id: zkstack_cache
+      uses: actions/cache/restore@v4
+      with:
+        path: zkstack
+        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}
+
+    - name: Copy cached zkstack binary to inside docker (on cache hit)
+      if: steps.zkstack_cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        ci_run cp /usr/src/zksync/zkstack /usr/local/bin/zkstack 
+
+    - name: Install zkstack inside docker (on cache miss)
+      if: steps.zkstack_cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+        ci_run zkstackup -g --local
+        ci_run cp /usr/local/bin/zkstack /usr/src/zksync/zkstack
+
+    - name: Save zkstack binary to cache (on cache miss)
+      if: steps.zkstack_cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: zkstack
+        key: ${{ steps.zkstack_cache.outputs.cache-primary-key }}
+
+    - name: Install zkstack binary locally as well
+      shell: bash
+      run: |
+        mv zkstack bin/zkstack
