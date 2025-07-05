@@ -658,6 +658,25 @@ impl<'a> Deserialize<'a> for BlockNumber {
     }
 }
 
+// Manual implementation of `AuthorizationList` from EIP7702.
+
+/// Authorization list
+pub type AuthorizationList = Vec<AuthorizationListItem>;
+
+/// Authorization list item
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthorizationListItem {
+    pub chain_id: U256,
+    pub address: Address,
+    pub nonce: U256,
+    pub y_parity: U256,
+    // Note: `r` and `s` are encoded as QUANTITY in the RPC, so they're represented as numbers,
+    // even though in Solidity they are normally represented as `bytes32`.
+    pub r: U256,
+    pub s: U256,
+}
+
 // `AccessList`, `AccessListItem`, `TransactionReceipt`, `SignedTransaction`: from `web3::types::transaction`
 
 /// Access list
