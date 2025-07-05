@@ -2,20 +2,20 @@ use anyhow::Context as _;
 use ethers::utils::hex::ToHexExt;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig};
 
 use crate::messages::MSG_DEPLOYING_PROVING_NETWORKS_SPINNER;
 
 pub(crate) async fn deploy_proving_networks(
     shell: &Shell,
-    config: &EcosystemConfig,
+    config: &ChainConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let dir_guard = shell.push_dir(config.path_to_proving_networks());
 
     let proving_networks_deploy_script_path = config.path_to_proving_networks_deploy_script();
 
-    let wallets = config.get_wallets()?;
+    let wallets = config.get_wallets_config()?;
 
     if let Some(wallet) = wallets.deployer {
         let private_key = wallet.private_key_h256();
@@ -82,7 +82,7 @@ pub(crate) async fn deploy_proving_networks(
 
     contracts_config.set_proving_network_addresses(impl_addr, proxy_addr, proxy_admin_addr)?;
 
-    contracts_config.save_with_base_path(shell, &config.config)?;
+    contracts_config.save_with_base_path(shell, &config.configs)?;
 
     spinner.finish();
 
