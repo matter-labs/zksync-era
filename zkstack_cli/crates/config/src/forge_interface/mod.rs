@@ -9,3 +9,5 @@ pub mod paymaster;
 pub mod register_chain;
 pub mod script_params;
 pub mod setup_legacy_bridge;
+pub mod upgrade_chain;
+pub mod upgrade_ecosystem;
