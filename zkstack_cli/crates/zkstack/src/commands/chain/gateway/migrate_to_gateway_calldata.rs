@@ -12,7 +12,7 @@ use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     gateway_common::{
@@ -51,7 +51,7 @@ async fn precompute_chain_address_on_gateway(
 
     let result = gw_ctm
         .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(L2_CHAIN_ASSET_HANDLER_ADDRESS)
+        .from(L2_BRIDGEHUB_ADDRESS)
         .await?;
 
     Ok(result)
