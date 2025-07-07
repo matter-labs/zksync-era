@@ -12,15 +12,13 @@ use self::commands::{
     database::DatabaseCommands, fmt::FmtArgs, lint::LintArgs, prover::ProverCommands,
     send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
 };
+#[cfg(feature = "upgrades")]
+use crate::commands::dev::messages::{GENERAL_CHAIN_UPGRADE, GENERAL_ECOSYSTEM_UPGRADE};
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
     MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
     MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
-};
-#[cfg(feature = "upgrades")]
-use crate::commands::dev::messages::{
-    GENERAL_CHAIN_UPGRADE, GENERAL_ECOSYSTEM_UPGRADE,
 };
 
 pub(crate) mod commands;

@@ -11,8 +11,8 @@ use zkstack_cli_config::{
         deploy_ecosystem::input::GenesisInput,
         gateway_preparation::input::GatewayPreparationConfig,
         script_params::{
-            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
-            V29_UPGRADE_ECOSYSTEM_PARAMS,ForgeScriptParams
+            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION,
+            V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
     },
@@ -35,8 +35,7 @@ use crate::{
             genesis::genesis,
         },
         dev::commands::v29_ecosystem_args::{
-            EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage,
-            UpgradeVersions,
+            EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage, UpgradeVersions,
         },
     },
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
@@ -61,20 +60,50 @@ pub async fn run(
 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
-            no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config, &upgrade_version).await?;
+            no_governance_prepare(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                &upgrade_version,
+            )
+            .await?;
             // no_governance_prepare_gateway(shell, &mut ecosystem_config).await?;
         }
         EcosystemUpgradeStage::GovernanceStage0 => {
-            governance_stage_0(&mut final_ecosystem_args, shell, &ecosystem_config, &upgrade_version).await?;
+            governance_stage_0(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                &upgrade_version,
+            )
+            .await?;
         }
         EcosystemUpgradeStage::GovernanceStage1 => {
-            governance_stage_1(&mut final_ecosystem_args, shell, &ecosystem_config, &upgrade_version).await?;
+            governance_stage_1(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                &upgrade_version,
+            )
+            .await?;
         }
         EcosystemUpgradeStage::GovernanceStage2 => {
-            governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config, &upgrade_version).await?;
+            governance_stage_2(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                &upgrade_version,
+            )
+            .await?;
         }
         EcosystemUpgradeStage::NoGovernanceStage2 => {
-            no_governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config, &upgrade_version).await?;
+            no_governance_stage_2(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                &upgrade_version,
+            )
+            .await?;
         }
     }
 
@@ -157,8 +186,8 @@ async fn no_governance_prepare(
 
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
-    let ecosystem_upgrade_config_path =
-        get_ecosystem_upgrade_params(&upgrade_version).input(&ecosystem_config.path_to_l1_foundry());
+    let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(&upgrade_version)
+        .input(&ecosystem_config.path_to_l1_foundry());
 
     let era_config = ecosystem_config
         .load_chain(Some("era".to_string()))
@@ -198,7 +227,10 @@ async fn no_governance_prepare(
         ecosystem_config.path_to_l1_foundry().display()
     );
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
-        .script(&get_ecosystem_upgrade_params(&upgrade_version).script(), forge_args.clone())
+        .script(
+            &get_ecosystem_upgrade_params(&upgrade_version).script(),
+            forge_args.clone(),
+        )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_slow()
@@ -235,7 +267,8 @@ async fn no_governance_prepare(
 
     let mut output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version).output(&ecosystem_config.path_to_l1_foundry()),
+        get_ecosystem_upgrade_params(&upgrade_version)
+            .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
 
     // Add all the transaction hashes.
@@ -260,7 +293,8 @@ async fn no_governance_prepare_gateway(
 
     let output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version).output(&ecosystem_config.path_to_l1_foundry()),
+        get_ecosystem_upgrade_params(&upgrade_version)
+            .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
 
     let mut s: String = "0x".to_string();
@@ -314,7 +348,8 @@ async fn governance_stage_0(
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version).output(&ecosystem_config.path_to_l1_foundry()),
+        get_ecosystem_upgrade_params(&upgrade_version)
+            .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -348,7 +383,8 @@ async fn governance_stage_1(
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version).output(&ecosystem_config.path_to_l1_foundry()),
+        get_ecosystem_upgrade_params(&upgrade_version)
+            .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
