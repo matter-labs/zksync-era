@@ -652,6 +652,7 @@ fn eigen_da_client_from_env() {
         EN_DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
         EN_DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
         EN_DA_BLOB_VERSION="0"
+        EN_DA_EIGENDA_PROVER_SERVICE_RPC="http://localhost:12345"
 
         # Secrets
         EN_DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
@@ -684,6 +685,10 @@ fn eigen_da_client_from_env() {
     assert_eq!(
         config.registry_coordinator_addr,
         "0x0000000000000000000000000000000000000125"
+    );
+    assert_eq!(
+        config.eigenda_prover_service_rpc.clone().unwrap(),
+        "http://localhost:12345"
     );
 
     let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();

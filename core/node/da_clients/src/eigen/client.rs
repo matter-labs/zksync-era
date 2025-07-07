@@ -154,14 +154,6 @@ impl DataAvailabilityClient for EigenDAClient {
             .send_payload(payload)
             .await
             .map_err(to_retriable_da_error)?;
-
-        // Prover Service RPC being set means we are using EigenDA V2 Secure
-        if self.eigenda_prover_service_rpc.is_some() {
-            // In V2Secure, we need to send the blob key to the prover service for proof generation
-            self.send_blob_key(blob_key.to_hex())
-                .await
-                .map_err(to_retriable_da_error)?;
-        }
         Ok(DispatchResponse::from(blob_key.to_hex()))
     }
 
@@ -181,6 +173,15 @@ impl DataAvailabilityClient for EigenDAClient {
                 "Failed to convert bytes to a 32-byte array"
             ))
         })?);
+
+        // Prover Service RPC being set means we are using EigenDA V2 Secure
+        if self.eigenda_prover_service_rpc.is_some() {
+            // In V2Secure, we need to send the blob key to the prover service for proof generation
+            self.send_blob_key(blob_key.to_hex())
+                .await
+                .map_err(to_retriable_da_error)?;
+        }
+
         let eigenda_cert = self
             .client
             .get_cert(&blob_key)
