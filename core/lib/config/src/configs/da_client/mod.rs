@@ -33,7 +33,7 @@ mod tests {
         ConfigRepository, ConfigSchema, Environment, Yaml,
     };
 
-    use super::{avail::AvailClientConfig, eigen::PointsSource, *};
+    use super::{avail::AvailClientConfig, *};
     use crate::configs::{object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
 
     #[test]
@@ -295,14 +295,11 @@ mod tests {
         let env = r#"
           DA_CLIENT="Eigen"
           DA_DISPERSER_RPC="http://localhost:8080"
-          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
-          DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-          DA_WAIT_FOR_FINALIZATION=true
-          DA_AUTHENTICATED=false
-          DA_POINTS_SOURCE="Path"
-          DA_POINTS_PATH="./resources"
-          DA_CUSTOM_QUORUM_NUMBERS="2,3"
+          DA_CERT_VERIFIER_ROUTER_ADDR="0x0000000000000000000000000000000000000123"
+          DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
+          DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
+          DA_BLOB_VERSION="0"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -314,38 +311,36 @@ mod tests {
         };
 
         assert_eq!(config.disperser_rpc, "http://localhost:8080");
-        assert_eq!(config.settlement_layer_confirmation_depth, 0);
         assert_eq!(
             config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
             "http://localhost:8545/"
         );
-        assert!(config.wait_for_finalization);
-        assert!(!config.authenticated);
 
-        let PointsSource::Path { path } = &config.points else {
-            panic!("Unexpected config: {config:?}");
-        };
-        assert_eq!(path, "./resources");
-        assert_eq!(config.custom_quorum_numbers, [2, 3]);
+        assert_eq!(config.blob_version, 0);
+        assert_eq!(
+            config.cert_verifier_router_addr,
+            "0x0000000000000000000000000000000000000123"
+        );
+        assert_eq!(
+            config.operator_state_retriever_addr,
+            "0x0000000000000000000000000000000000000124"
+        );
+        assert_eq!(
+            config.registry_coordinator_addr,
+            "0x0000000000000000000000000000000000000125"
+        );
     }
 
     #[test]
     fn eigen_config_from_yaml() {
         let yaml = r#"
-          client: Eigen
-          disperser_rpc: https://disperser-holesky.eigenda.xyz:443
-          settlement_layer_confirmation_depth: 1
-          eigenda_eth_rpc: https://holesky.infura.io/
-          eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-          wait_for_finalization: true
-          authenticated: true
-          points:
-            source: Url
-            g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
-            g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
-          custom_quorum_numbers:
-            - 1
-            - 3
+            client: Eigen
+            disperser_rpc: https://disperser-holesky.eigenda.xyz:443
+            eigenda_eth_rpc: https://holesky.infura.io/
+            cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
+            operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
+            registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
+            blob_version: 0
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -361,24 +356,24 @@ mod tests {
             config.disperser_rpc,
             "https://disperser-holesky.eigenda.xyz:443"
         );
-        assert_eq!(config.settlement_layer_confirmation_depth, 1);
         assert_eq!(
             config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
             "https://holesky.infura.io/"
         );
+
+        assert_eq!(config.blob_version, 0);
         assert_eq!(
-            config.eigenda_svc_manager_address,
-            "0xD4A7E1Bd8015057293f0D0A557088c286942e84b"
-                .parse()
-                .unwrap()
+            config.cert_verifier_router_addr,
+            "0x0000000000000000000000000000000000000123"
         );
-        assert!(config.wait_for_finalization);
-        assert!(config.authenticated);
-        let PointsSource::Url { g1_url, g2_url } = &config.points else {
-            panic!("Unexpected config: {config:?}");
-        };
-        assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
-        assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
+        assert_eq!(
+            config.operator_state_retriever_addr,
+            "0x0000000000000000000000000000000000000124"
+        );
+        assert_eq!(
+            config.registry_coordinator_addr,
+            "0x0000000000000000000000000000000000000125"
+        );
     }
 
     #[test]
@@ -386,15 +381,11 @@ mod tests {
         let yaml = r#"
           eigen:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
-            settlement_layer_confirmation_depth: 1
             eigenda_eth_rpc: https://holesky.infura.io/
-            eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-            wait_for_finalization: true
-            authenticated: true
-            points: # This still doesn't correspond to the previous schema!
-              url:
-                g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
-                g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+            blob_version: 0
+            cert_verifier_router_addr: "0x0000000000000000000000000000000000000123"
+            operator_state_retriever_addr: "0x0000000000000000000000000000000000000124"
+            registry_coordinator_addr: "0x0000000000000000000000000000000000000125"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

@@ -161,6 +161,7 @@ impl CommonStorage<'static> {
     /// Creates a storage snapshot. Require protective reads to be persisted for the batch, otherwise
     /// will return `Ok(None)`.
     #[tracing::instrument(skip(connection))]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub async fn snapshot(
         connection: &mut Connection<'static, Core>,
         l1_batch_number: L1BatchNumber,
