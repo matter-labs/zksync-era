@@ -168,14 +168,12 @@ fn apply_l2_block_inner(
         );
     }
 
-    if config.should_start_new_l2_block() {
-        apply_interop_root_number_in_block_number(
-            memory,
-            config.subversion,
-            bootloader_l2_block.interop_roots.len(),
-            new_block_config.block_index_in_batch,
-        );
-    }
+    apply_interop_root_number_in_block_number(
+        memory,
+        config.subversion,
+        bootloader_l2_block.interop_roots.len(),
+        new_block_config.block_index_in_batch,
+    );
 
     bootloader_l2_block.interop_roots.len()
 }
