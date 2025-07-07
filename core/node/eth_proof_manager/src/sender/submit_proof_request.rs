@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use zksync_config::configs::{
     eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
 };
@@ -54,6 +55,8 @@ impl ProofRequestSubmitter {
                 .proof_generation_data_for_existing_batch(batch_id)
                 .await?;
 
+            tracing::info!("Need to send proof request for batch {}", batch_id);
+
             let url = self
                 .blob_store
                 .put(
@@ -63,7 +66,8 @@ impl ProofRequestSubmitter {
                     ),
                     &proof_generation_data,
                 )
-                .await?;
+                .await
+                .context("Failed to put proof generation data into blob store")?;
 
             let proof_request_identifier = ProofRequestIdentifier {
                 chain_id: proof_generation_data.chain_id.as_u64(),

@@ -75,6 +75,15 @@ pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observab
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
+pub(super) const MSG_FERMAH_ADDRESS_PROMPT: &str =
+    "What is the address of the Fermah(who will be able to send proofs on Fermah side)?";
+pub(super) const MSG_LAGRANGE_ADDRESS_PROMPT: &str =
+    "What is the address of the Lagrange(who will be able to send proofs on Lagrange side)?";
+pub(super) const MSG_USDC_ADDRESS_PROMPT: &str =
+    "What is the address of the USDC(who will be able to send proofs on USDC side)?";
+pub(super) const MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT: &str = "What is the address of the ProofManager owner(who will be able to send proofs on ProofManager side)?";
+pub(super) const MSG_PROXY_OWNER_ADDRESS_PROMPT: &str =
+    "What is the address of the Proxy owner(who will be able to upgrade the contract)?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
 pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";

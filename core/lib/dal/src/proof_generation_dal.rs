@@ -306,7 +306,7 @@ impl ProofGenerationDal<'_, '_> {
             INSERT INTO
             proof_generation_details (l1_batch_number, status, created_at, updated_at)
             VALUES
-            ($1, 'unpicked_by_prover_network', NOW(), NOW())
+            ($1, 'unpicked', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(l1_batch_number.0),

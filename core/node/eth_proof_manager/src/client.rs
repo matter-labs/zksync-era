@@ -139,7 +139,7 @@ impl ProofManagerClient {
             }
         }
 
-        let error_message = "Failed to update base token multiplier on L1";
+        let error_message = "Failed to send proof request";
         Err(last_error
             .map(|x| x.context(error_message))
             .unwrap_or_else(|| anyhow::anyhow!(error_message))

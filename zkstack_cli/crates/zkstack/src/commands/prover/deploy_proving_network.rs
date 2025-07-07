@@ -4,14 +4,18 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 
-use crate::messages::MSG_DEPLOYING_PROVING_NETWORKS_SPINNER;
+use crate::{
+    commands::prover::args::deploy_proving_network::DeployProvingNetworkArgs,
+    messages::MSG_DEPLOYING_PROVING_NETWORKS_SPINNER,
+};
 
-pub(crate) async fn deploy_proving_networks(
+pub(crate) async fn deploy_proving_network(
     shell: &Shell,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    l1_rpc_url: String,
+    deploy_proving_network_args: DeployProvingNetworkArgs,
 ) -> anyhow::Result<()> {
+    let args = deploy_proving_network_args.fill_values_with_prompt();
     let dir_guard = shell.push_dir(config.path_to_proving_networks());
 
     let proving_networks_deploy_script_path = config.path_to_proving_networks_deploy_script();
@@ -33,7 +37,15 @@ pub(crate) async fn deploy_proving_networks(
         ));
     }
 
-    shell.set_var("RPC_URL", l1_rpc_url);
+    shell.set_var("RPC_URL", args.l1_rpc_url);
+    shell.set_var("FERMAH_ADDRESS", args.fermah_address);
+    shell.set_var("LAGRANGE_ADDRESS", args.lagrange_address);
+    shell.set_var("USDC_ADDRESS", args.usdc_address);
+    shell.set_var(
+        "PROOF_MANAGER_OWNER_ADDRESS",
+        args.proof_manager_owner_address,
+    );
+    shell.set_var("PROXY_OWNER_ADDRESS", args.proxy_owner_address);
 
     let spinner = Spinner::new(MSG_DEPLOYING_PROVING_NETWORKS_SPINNER);
 

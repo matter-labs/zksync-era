@@ -2,7 +2,7 @@
 //! This module defines the types used in the API.
 
 use serde::{Deserialize, Serialize};
-use zksync_object_store::{StoredObject, _reexports::BoxedError};
+use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     L1BatchId, L1BatchNumber, L2ChainId,
@@ -64,7 +64,7 @@ pub struct PollGeneratedProofsResponse {
 pub struct VerifyProofRequest(pub Box<JsonL1BatchProofForL1>);
 
 impl StoredObject for ProofGenerationData {
-    const BUCKET: zksync_object_store::Bucket = zksync_object_store::Bucket::PublicWitnessInputs;
+    const BUCKET: Bucket = Bucket::PublicWitnessInputs;
 
     type Key<'a> = (L1BatchId, ProtocolSemanticVersion);
 
