@@ -1,6 +1,6 @@
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
@@ -67,9 +67,8 @@ impl ZksNamespaceServer for ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, interop_mode)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
