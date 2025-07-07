@@ -135,6 +135,11 @@ fn prompt_db_config(config: &ChainConfig) -> anyhow::Result<Url> {
 
 pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
+    let configs_dir = if chain_config.configs.is_absolute() {
+        chain_config.configs.clone()
+    } else {
+        shell.current_dir().join(chain_config.configs.clone())
+    };
 
     let chain_name = chain_config.name.clone();
 
@@ -157,14 +162,9 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
     let src_permissions_path = "example-permissions.yaml";
-    let dst_permissions_dir = if chain_config.configs.is_absolute() {
-        chain_config.configs.clone()
-    } else {
-        shell.current_dir().join(chain_config.configs.clone())
-    };
-    let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
+    let dst_permissions_path = configs_dir.join("private-rpc-permissions.yaml");
 
-    if !dst_permissions_dir.exists() {
+    if !dst_permissions_path.exists() {
         shell
             .copy_file(src_permissions_path, &dst_permissions_path)
             .context("Failed to copy private RPC permissions file")?;
@@ -188,7 +188,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
             ports.port,
             DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
             l2_rpc_url,
-            &dst_permissions_dir,
+            &configs_dir,
             &chain_name,
             args.docker_network_host,
         )
@@ -201,7 +201,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         other: serde_json::Value::Null,
     };
 
-    let docker_compose_path = get_private_rpc_docker_compose_path(&dst_permissions_dir);
+    let docker_compose_path = get_private_rpc_docker_compose_path(&configs_dir);
     logger::info(msg_private_rpc_docker_compose_file_generated(
         docker_compose_path.display(),
     ));
