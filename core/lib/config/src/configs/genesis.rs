@@ -5,7 +5,10 @@ use std::{
 };
 
 use anyhow::Context;
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{Error as DeError, Unexpected},
+    Deserialize, Serialize,
+};
 use smart_config::{
     de::{DeserializeContext, DeserializeParam, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata},
