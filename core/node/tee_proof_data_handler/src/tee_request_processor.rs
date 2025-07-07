@@ -23,8 +23,8 @@ use zksync_tee_prover_interface::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId, H256};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
+use crate::collateral::CollateralUpdater;
 use crate::{
-    collateral::update_collateral_for_quote,
     errors::{TeeProcessorContext, TeeProcessorError},
     metrics::METRICS,
     tee_contract::TeeFunctions,
@@ -306,7 +306,14 @@ impl TeeRequestProcessor {
 
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
 
-        update_collateral_for_quote(&mut connection, &payload.attestation, &self.functions).await?;
+        let quote =
+            teepot::quote::Quote::parse(&payload.attestation).context("Failed to parse quote")?;
+        let fmspc = quote.fmspc().context("Failed to get FMSPC")?;
+        let tee_type = quote.tee_type();
+        let dal = connection.tee_dcap_collateral_dal();
+        let mut updater =
+            CollateralUpdater::new(&self.functions, dal).context("Failed to create updater")?;
+        updater.update_tcb_info(&fmspc, tee_type).await?;
 
         let mut dal = connection.tee_proof_generation_dal();
         let calldata = self

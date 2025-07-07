@@ -51,13 +51,7 @@ pub async fn run_server(
             }).into_future()
         );
 
-    let updater = tokio::spawn(collateral::updater(
-        blob_store,
-        connection_pool,
-        config,
-        l2_chain_id,
-        stop_receiver,
-    ));
+    let updater = tokio::spawn(collateral::updater(connection_pool, config, stop_receiver));
 
     // FIXME: TEE - the updater should most likely be its own node/server
     tokio::select! {
