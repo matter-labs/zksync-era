@@ -5,7 +5,7 @@ use zksync_shared_resources::tree::TreeApiError;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
@@ -175,7 +175,6 @@ impl ZksNamespace {
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
-        interop_mode: Option<InteropMode>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -208,6 +207,7 @@ impl ZksNamespace {
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
+
         let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
@@ -239,28 +239,20 @@ impl ZksNamespace {
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
-                if interop_mode == Some(InteropMode::ProofBasedGateway) {
-                    // Serve a proof to Gateway's MessageRoot
-                    return Err(Web3Error::InternalError(anyhow::anyhow!(
-                    "`interop_mode == Some(InteropMode::ProofBasedGateway)` is not supported yet"
-                )));
-                };
-                // Serve a proof to Gateway's ChainBatchRoot, used for withdrawals
-                let batch_chain_proof = storage
+                let Some(batch_chain_proof) = storage
                     .blocks_dal()
                     .get_l1_batch_chain_merkle_path(l1_batch_number)
                     .await
-                    .map_err(DalError::generalize);
-
-                if let Ok(Some(batch_chain_proof)) = batch_chain_proof {
-                    (
-                        batch_chain_proof.batch_proof_len,
-                        batch_chain_proof.proof,
-                        false,
-                    )
-                } else {
+                    .map_err(DalError::generalize)?
+                else {
                     return Ok(None);
-                }
+                };
+
+                (
+                    batch_chain_proof.batch_proof_len,
+                    batch_chain_proof.proof,
+                    false,
+                )
             } else {
                 (0, Vec::new(), true)
             };
@@ -291,18 +283,16 @@ impl ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        interop_mode: Option<InteropMode>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
             return handler
-                .get_l2_to_l1_log_proof(tx_hash, index, interop_mode)
+                .get_l2_to_l1_log_proof(tx_hash, index)
                 .rpc_context("get_l2_to_l1_log_proof")
                 .await
                 .map_err(Into::into);
         }
 
         let mut storage = self.state.acquire_connection().await?;
-        // kl todo for precommit based, we need it based on blocks.
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -323,7 +313,6 @@ impl ZksNamespace {
                 l1_batch_number,
                 index.unwrap_or(0),
                 |log| log.tx_number_in_block == l1_batch_tx_index,
-                interop_mode,
             )
             .await?;
         Ok(log_proof)
