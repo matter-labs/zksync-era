@@ -317,6 +317,7 @@ impl FriProverDal<'_, '_> {
     /// - pick the lowest batch
     /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
+    /// 
     /// NOTE: We don't differentiate between heavy and light jobs in this function.
     pub async fn get_next_job(
         &mut self,
