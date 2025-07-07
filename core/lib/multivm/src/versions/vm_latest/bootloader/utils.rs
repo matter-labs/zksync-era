@@ -24,7 +24,7 @@ use crate::{
 
 pub struct NewBlockConfig {
     pub number_of_applied_interop_roots: usize,
-    pub preexisting_blocks_number: usize,
+    pub block_index_in_batch: usize,
 }
 
 pub(super) struct L2BlockApplicationConfig {
@@ -173,7 +173,7 @@ fn apply_l2_block_inner(
             memory,
             config.subversion,
             bootloader_l2_block.interop_roots.len(),
-            new_block_config.preexisting_blocks_number,
+            new_block_config.block_index_in_batch,
         );
     }
 
@@ -210,9 +210,9 @@ fn apply_interop_root_number_in_block_number(
     memory: &mut BootloaderMemory,
     subversion: MultiVmSubversion,
     number_of_interop_roots: usize,
-    preexisting_blocks_number: usize,
+    block_index_in_batch: usize,
 ) {
-    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
+    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + block_index_in_batch;
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
     memory.push((first_empty_slot, number_of_interop_roots_plus_one));
 }

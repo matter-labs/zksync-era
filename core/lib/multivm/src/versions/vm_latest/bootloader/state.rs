@@ -117,14 +117,14 @@ impl BootloaderState {
         self.subversion
     }
 
-    pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
+    pub(crate) fn get_block_index_in_batch(&self) -> usize {
         self.l2_blocks.len().saturating_sub(1)
     }
 
     pub(crate) fn get_new_block_config(&self) -> NewBlockConfig {
         NewBlockConfig {
             number_of_applied_interop_roots: self.number_of_applied_interop_roots,
-            preexisting_blocks_number: self.get_preexisting_blocks_number(),
+            block_index_in_batch: self.get_block_index_in_batch(),
         }
     }
 
@@ -213,7 +213,7 @@ impl BootloaderState {
                 let new_block_config = if num == 0 {
                     Some(NewBlockConfig {
                         number_of_applied_interop_roots: applied_interop_roots_offset,
-                        preexisting_blocks_number: i,
+                        block_index_in_batch: i,
                     })
                 } else {
                     None
@@ -241,7 +241,7 @@ impl BootloaderState {
             if l2_block.txs.is_empty() {
                 let new_block_config = Some(NewBlockConfig {
                     number_of_applied_interop_roots: applied_interop_roots_offset,
-                    preexisting_blocks_number: self.get_preexisting_blocks_number(),
+                    block_index_in_batch: self.get_block_index_in_batch(),
                 });
                 applied_interop_roots_offset += apply_l2_block(
                     &mut initial_memory,
