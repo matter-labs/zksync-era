@@ -283,7 +283,6 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
                 self.calculate_fees_for_gateway_tx(previous_sent_tx, time_in_mempool_in_l1_blocks)
             }
             OperatorType::Tee => {
-                // FIXME: TEE
                 self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks)
             }
         }

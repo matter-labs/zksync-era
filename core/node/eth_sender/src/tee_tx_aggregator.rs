@@ -177,7 +177,6 @@ impl TeeTxAggregator {
         Ok(())
     }
 
-    // FIXME: TEE
     async fn aggregate_tee_dcap_transactions(
         &self,
         storage: &mut Connection<'_, Core>,

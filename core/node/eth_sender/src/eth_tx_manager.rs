@@ -563,7 +563,6 @@ impl EthTxManager {
             .failure_reason(tx_status.receipt.transaction_hash, self.operator_type(tx))
             .await;
 
-        // FIXME: TEE
         if tx.tx_type == AggregatedActionType::Tee {
             tracing::info!(
                 "TEE Eth tx failed {:?}, {:?}, failure reason {:?}",
@@ -579,7 +578,6 @@ impl EthTxManager {
                 failure_reason
             );
         }
-        // FIXME: TEE
         if tx.tx_type != AggregatedActionType::Tee {
             panic!("We can't operate after tx fail");
         }

@@ -569,8 +569,9 @@ impl BlockReverter {
             AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
             AggregatedActionType::Execute => "getTotalBatchesExecuted",
             AggregatedActionType::Tee => {
-                // FIXME: TEE
-                return Err(anyhow::anyhow!("TEE is not supported"));
+                return Err(anyhow::anyhow!(
+                    "AggregatedActionType::Tee is not supported"
+                ));
             }
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())

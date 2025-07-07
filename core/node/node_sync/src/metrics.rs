@@ -29,8 +29,7 @@ impl From<AggregatedActionType> for L1BatchStage {
             AggregatedActionType::PublishProofOnchain => Self::Proven,
             AggregatedActionType::Execute => Self::Executed,
             AggregatedActionType::Tee => {
-                // FIXME: TEE
-                todo!("Tee is not supported yet.")
+                panic!("AggregatedActionType::Tee is not supported.")
             }
         }
     }

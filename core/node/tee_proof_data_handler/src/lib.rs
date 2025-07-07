@@ -53,7 +53,7 @@ pub async fn run_server(
 
     let updater = tokio::spawn(collateral::updater(connection_pool, config, stop_receiver));
 
-    // FIXME: TEE - the updater should most likely be its own node/server
+    // Should the updater should be its own node?
     tokio::select! {
         server_result = server => {
             tracing::info!("Proof data handler server completed first");

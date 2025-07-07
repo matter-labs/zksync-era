@@ -32,8 +32,7 @@ fn l1_batch_stage_to_action_str(stage: AggregatedActionType) -> &'static str {
         AggregatedActionType::PublishProofOnchain => "proven",
         AggregatedActionType::Execute => "executed",
         AggregatedActionType::Tee => {
-            // FIXME: TEE
-            todo!()
+            panic!("TEE is not supported")
         }
     }
 }
@@ -161,8 +160,7 @@ impl UpdaterCursor {
                 batch_info.base.execute_chain_id,
             ),
             AggregatedActionType::Tee => {
-                // FIXME: TEE
-                todo!()
+                panic!("TEE is not supported")
             }
         }
     }
@@ -202,8 +200,7 @@ impl UpdaterCursor {
                 &mut status_changes.execute,
             ),
             AggregatedActionType::Tee => {
-                // FIXME: TEE
-                todo!()
+                panic!("TEE is not supported")
             }
         };
 
