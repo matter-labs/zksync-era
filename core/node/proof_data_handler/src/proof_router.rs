@@ -7,6 +7,7 @@ pub struct ProofRouter {
     connection_pool: ConnectionPool<Core>,
     acknowledgment_timeout: Duration,
     proving_timeout: Duration,
+    picking_timeout: Duration,
 }
 
 impl ProofRouter {
@@ -14,11 +15,13 @@ impl ProofRouter {
         connection_pool: ConnectionPool<Core>,
         acknowledgment_timeout: Duration,
         proving_timeout: Duration,
+        picking_timeout: Duration,
     ) -> Self {
         Self {
             connection_pool,
             acknowledgment_timeout,
             proving_timeout,
+            picking_timeout,
         }
     }
 
@@ -36,7 +39,11 @@ impl ProofRouter {
                 .connection()
                 .await?
                 .eth_proof_manager_dal()
-                .fallback_batches(self.acknowledgment_timeout, self.proving_timeout)
+                .fallback_batches(
+                    self.acknowledgment_timeout,
+                    self.proving_timeout,
+                    self.picking_timeout,
+                )
                 .await?;
 
             tracing::info!("Fallbacked {} batches with timeouts: acknowledgment timeout: {:?} and proving timeout: {:?}", amount, self.acknowledgment_timeout, self.proving_timeout);

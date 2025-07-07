@@ -19,6 +19,8 @@ pub struct EthProofManagerConfig {
     pub acknowledgment_timeout: Duration,
     #[config(default_t = Duration::from_secs(7200))]
     pub proof_generation_timeout: Duration,
+    #[config(default_t = Duration::from_secs(300))]
+    pub picking_timeout: Duration,
     #[config(default_t = 100000000000)]
     pub max_acceptable_priority_fee_in_gwei: u64,
     #[config(default_t = 10)]
@@ -47,6 +49,7 @@ impl Default for EthProofManagerConfig {
             max_reward: 10,
             acknowledgment_timeout: Duration::from_secs(120),
             proof_generation_timeout: Duration::from_secs(7200),
+            picking_timeout: Duration::from_secs(300),
             max_acceptable_priority_fee_in_gwei: 100000000000,
             max_tx_sending_attempts: 5,
             tx_sending_sleep: Duration::from_secs(1),

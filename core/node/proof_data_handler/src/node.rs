@@ -124,6 +124,7 @@ impl Task for ProofDataHandlerTask {
                     self.main_pool.clone(),
                     self.eth_proof_manager_config.acknowledgment_timeout,
                     self.eth_proof_manager_config.proof_generation_timeout,
+                    self.eth_proof_manager_config.picking_timeout,
                 );
 
                 tokio::select! {

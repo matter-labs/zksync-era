@@ -279,6 +279,7 @@ impl EthProofManagerDal<'_, '_> {
         &mut self,
         acknowledgment_timeout: Duration,
         proving_timeout: Duration,
+        picking_timeout: Duration,
     ) -> DalResult<usize> {
         let acknowledgment_timeout = pg_interval_from_duration(acknowledgment_timeout);
         let proving_timeout = pg_interval_from_duration(proving_timeout);
@@ -317,16 +318,13 @@ impl EthProofManagerDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
 
-        tracing::info!(
-            "Moving {} batches to fallback, batches: {:?}",
-            batches.len(),
-            batches
-        );
-
         if !batches.is_empty() {
             let mut query_builder = QueryBuilder::new(
-                "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE l1_batch_number IN ("
+                "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - $1::INTERVAL) OR l1_batch_number IN ("
             );
+
+            let timeout = pg_interval_from_duration(picking_timeout);
+            query_builder.push_bind(&timeout);
 
             for (index, batch) in batches.iter().enumerate() {
                 query_builder.push_bind(batch.0 as i64);
@@ -343,7 +341,7 @@ impl EthProofManagerDal<'_, '_> {
                 .execute(&mut transaction)
                 .await?;
 
-            tracing::info!("Result: {:?}", result.rows_affected());
+            tracing::info!("Moved {} batches to fallback", result.rows_affected());
         }
 
         transaction.commit().await?;
