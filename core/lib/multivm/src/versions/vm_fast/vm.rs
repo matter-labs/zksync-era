@@ -576,8 +576,7 @@ where
                 }
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
-                    let interop_root_application_config =
-                        self.bootloader_state.get_interop_root_application_config();
+                    let new_block_config = self.bootloader_state.get_new_block_config();
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
@@ -586,7 +585,7 @@ where
                         l2_block,
                         txs_index,
                         self.vm_version.into(),
-                        Some(interop_root_application_config),
+                        Some(new_block_config),
                     );
                     self.write_to_bootloader_heap(memory);
                 }

@@ -27,8 +27,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 63_800_000,
-        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 63_800_000,
     }
 }
 
@@ -130,12 +130,12 @@ pub(crate) const fn get_current_number_of_roots_in_block_offset(
     get_last_processed_block_number_offset(subversion) + 1
 }
 
-/// The slot starting from which the interop roots are stored.
+/// The slot starting from which the current interop root is contained.
 pub(crate) const fn get_current_interop_root_offset(subversion: MultiVmSubversion) -> usize {
     get_current_number_of_roots_in_block_offset(subversion) + 1
 }
 
-/// The slot starting from which the interop roots are stored.
+/// The slot starting from which the interop blocks are stored.
 pub(crate) const fn get_interop_blocks_begin_offset(subversion: MultiVmSubversion) -> usize {
     get_current_interop_root_offset(subversion) + 1
 }
