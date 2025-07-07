@@ -163,18 +163,29 @@ impl ProofGenerationDal<'_, '_> {
 
     /// Marks a previously locked batch as 'unpicked', allowing it to be picked without having
     /// to wait for the processing timeout.
-    pub async fn unlock_batch(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<()> {
+    pub async fn unlock_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        proving_mode: ProvingMode,
+    ) -> DalResult<()> {
+        let status = if proving_mode == ProvingMode::ProverCluster {
+            "unpicked"
+        } else {
+            "fallbacked"
+        };
+
         let batch_number = i64::from(l1_batch_number.0);
         sqlx::query!(
             r#"
             UPDATE proof_generation_details
             SET
-                status = 'unpicked',
+                status = $2,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $1
             "#,
             batch_number,
+            status,
         )
         .instrument("unlock_batch")
         .with_arg("l1_batch_number", &l1_batch_number)
@@ -505,7 +516,7 @@ mod tests {
 
         // Check that we can unlock the batch and then pick it again.
         conn.proof_generation_dal()
-            .unlock_batch(L1BatchNumber(1))
+            .unlock_batch(L1BatchNumber(1), ProvingMode::ProverCluster)
             .await
             .unwrap();
         let picked_l1_batch = conn

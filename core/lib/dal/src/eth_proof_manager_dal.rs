@@ -132,7 +132,10 @@ impl EthProofManagerDal<'_, '_> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager SET
-                submit_proof_request_tx_hash = $2, updated_at = NOW(), status = $3
+                submit_proof_request_tx_hash = $2,
+                submit_proof_request_tx_sent_at = NOW(),
+                updated_at = NOW(),
+                status = $3
             WHERE l1_batch_number = $1
             "#,
             batch_number.0 as i64,
@@ -156,7 +159,10 @@ impl EthProofManagerDal<'_, '_> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager SET
-                validated_proof_request_tx_hash = $2, updated_at = NOW(), status = $3
+                validated_proof_request_tx_hash = $2,
+                validated_proof_request_tx_sent_at = NOW(),
+                updated_at = NOW(),
+                status = $3
             WHERE l1_batch_number = $1
             "#,
             batch_number.0 as i64,
@@ -311,24 +317,34 @@ impl EthProofManagerDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
 
-        let mut query_builder = QueryBuilder::new(
-            "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE l1_batch_number IN ("
+        tracing::info!(
+            "Moving {} batches to fallback, batches: {:?}",
+            batches.len(),
+            batches
         );
 
-        for (index, batch) in batches.iter().enumerate() {
-            query_builder.push_bind(batch.0 as i64);
-            if index < batches.len() - 1 {
-                query_builder.push(", ");
+        if !batches.is_empty() {
+            let mut query_builder = QueryBuilder::new(
+                "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE l1_batch_number IN ("
+            );
+
+            for (index, batch) in batches.iter().enumerate() {
+                query_builder.push_bind(batch.0 as i64);
+                if index < batches.len() - 1 {
+                    query_builder.push(", ");
+                }
             }
+
+            query_builder.push(")");
+
+            let result = query_builder
+                .build()
+                .instrument("move_batches_to_fallback")
+                .execute(&mut transaction)
+                .await?;
+
+            tracing::info!("Result: {:?}", result.rows_affected());
         }
-
-        query_builder.push(")");
-
-        query_builder
-            .build()
-            .instrument("move_batches_to_fallback")
-            .execute(&mut transaction)
-            .await?;
 
         transaction.commit().await?;
 

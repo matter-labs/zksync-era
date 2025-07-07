@@ -69,6 +69,13 @@ impl ProofRequestSubmitter {
                 .await
                 .context("Failed to put proof generation data into blob store")?;
 
+            self.connection_pool
+                .connection()
+                .await?
+                .eth_proof_manager_dal()
+                .insert_batch(batch_id, &url)
+                .await?;
+
             let proof_request_identifier = ProofRequestIdentifier {
                 chain_id: proof_generation_data.chain_id.as_u64(),
                 block_number: proof_generation_data.l1_batch_number.0 as u64,
