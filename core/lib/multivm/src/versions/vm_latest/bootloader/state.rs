@@ -154,7 +154,7 @@ impl BootloaderState {
         } else {
             None
         };
-        let config: L2BlockApplicationConfig = L2BlockApplicationConfig {
+        let config = L2BlockApplicationConfig {
             tx_index: self.free_tx_index(),
             subversion: self.subversion,
             new_block_config,
@@ -218,7 +218,7 @@ impl BootloaderState {
                 } else {
                     None
                 };
-                let config: L2BlockApplicationConfig = L2BlockApplicationConfig {
+                let config = L2BlockApplicationConfig {
                     tx_index,
                     subversion: self.subversion,
                     new_block_config,
