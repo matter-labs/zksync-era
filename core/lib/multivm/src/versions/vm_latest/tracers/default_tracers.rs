@@ -116,7 +116,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         bootloader_state: &mut BootloaderState,
     ) {
         let current_timestamp = Timestamp(state.local_state.timestamp);
-        let new_block_config = bootloader_state.get_interop_root_application_config();
+        let new_block_config = bootloader_state.get_new_block_config();
         let subversion = bootloader_state.get_vm_subversion();
         let txs_index = bootloader_state.free_tx_index();
         let l2_block = bootloader_state.insert_fictive_l2_block();

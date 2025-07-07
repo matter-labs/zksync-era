@@ -121,7 +121,7 @@ impl BootloaderState {
         self.l2_blocks.len().saturating_sub(1)
     }
 
-    pub(crate) fn get_interop_root_application_config(&self) -> NewBlockConfig {
+    pub(crate) fn get_new_block_config(&self) -> NewBlockConfig {
         NewBlockConfig {
             number_of_applied_interop_roots: self.number_of_applied_interop_roots,
             preexisting_blocks_number: self.get_preexisting_blocks_number(),
@@ -150,7 +150,7 @@ impl BootloaderState {
 
         let mut memory = vec![];
         let new_block_config = if self.last_l2_block().txs.is_empty() {
-            Some(self.get_interop_root_application_config())
+            Some(self.get_new_block_config())
         } else {
             None
         };
