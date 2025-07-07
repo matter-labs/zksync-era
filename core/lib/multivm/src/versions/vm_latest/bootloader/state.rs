@@ -118,7 +118,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_block_index_in_batch(&self) -> usize {
-        self.l2_blocks.len().saturating_sub(1)
+        self.l2_blocks.len() - 1
     }
 
     pub(crate) fn get_new_block_config(&self) -> NewBlockConfig {
