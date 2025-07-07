@@ -12,14 +12,15 @@ use xshell::Shell;
 
 use self::commands::{
     clean::CleanCommands, config_writer::ConfigWriterArgs, contracts::ContractsArgs,
-    database::DatabaseCommands, fmt::FmtArgs, lint::LintArgs, prover::ProverCommands,
-    send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
+    database::DatabaseCommands, fmt::FmtArgs, init_test_wallet::run as init_test_wallet_run,
+    lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
+    snapshot::SnapshotCommands, test::TestCommands,
 };
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
-    MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
-    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_INIT_TEST_WALLET_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
 pub(crate) mod commands;
@@ -54,6 +55,8 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[command(about = MSG_INIT_TEST_WALLET_ABOUT)]
+    InitTestWallet,
     #[command(about = MSG_RICH_ACCOUNT_ABOUT)]
     RichAccount(RichAccountArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT)]
@@ -82,6 +85,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        DevCommands::InitTestWallet => init_test_wallet_run(shell).await?,
         DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
         DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
