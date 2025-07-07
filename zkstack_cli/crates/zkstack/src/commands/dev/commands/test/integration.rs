@@ -1,20 +1,15 @@
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
-use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
 use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::integration::IntegrationArgs,
-    utils::{
-        build_contracts, install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH,
-        TS_INTEGRATION_PATH,
-    },
+    utils::{build_contracts, install_and_build_dependencies, TS_INTEGRATION_PATH},
 };
 use crate::commands::dev::messages::{
-    msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR,
-    MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    msg_integration_tests_run, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
 #[derive(Debug)]
@@ -61,9 +56,6 @@ impl<'a> IntegrationTestRunner<'a> {
 
     pub async fn build_command(self) -> anyhow::Result<xshell::Cmd<'a>> {
         let ecosystem_config = self.ecosystem_config;
-        let chain_config = ecosystem_config
-            .load_current_chain()
-            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
         self.shell
             .change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
@@ -71,11 +63,6 @@ impl<'a> IntegrationTestRunner<'a> {
             install_and_build_dependencies(self.shell, &ecosystem_config)?;
             build_contracts(self.shell, &ecosystem_config)?;
         }
-
-        let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
-        let raw_wallets = self.shell.read_file(&wallets_path)?;
-        let wallets: TestWallets =
-            serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
             &["-t", pattern]

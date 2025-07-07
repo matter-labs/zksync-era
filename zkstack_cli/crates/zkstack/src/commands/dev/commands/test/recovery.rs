@@ -39,20 +39,11 @@ async fn run_test(
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     Spinner::new("Running test...").freeze();
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-
     let cmd = if args.snapshot {
         cmd!(shell, "yarn mocha tests/snapshot-recovery.test.ts")
     } else {
         cmd!(shell, "yarn mocha tests/genesis-recovery.test.ts")
     };
-
-    let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
-    let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
-        .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
-
     let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("NO_KILL", args.no_kill.to_string());

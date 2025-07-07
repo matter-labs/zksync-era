@@ -1,18 +1,9 @@
-use std::path::PathBuf;
-
-use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
 use zkstack_cli_config::EcosystemConfig;
 
-use super::{
-    args::revert::RevertArgs,
-    utils::{install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
-};
-use crate::commands::dev::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_REVERT_TEST_RUN_INFO,
-    MSG_REVERT_TEST_RUN_SUCCESS,
-};
+use super::{args::revert::RevertArgs, utils::install_and_build_dependencies};
+use crate::commands::dev::messages::{MSG_REVERT_TEST_RUN_INFO, MSG_REVERT_TEST_RUN_SUCCESS};
 
 const REVERT_TESTS_PATH: &str = "core/tests/revert-test";
 
@@ -37,14 +28,6 @@ async fn run_test(
     args: &RevertArgs,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-
-    let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
-    let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
-        .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
-
     let cmd = cmd!(shell, "yarn mocha tests/revert-and-restart-en.test.ts");
     let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())

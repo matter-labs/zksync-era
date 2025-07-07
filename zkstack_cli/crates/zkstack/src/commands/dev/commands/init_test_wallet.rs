@@ -29,6 +29,19 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let mut chain_wallets = chain_config.get_wallets_config()?;
     let test_wallet = wallets.get_test_wallet(&chain_config)?;
+
+    let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
+    let raw_wallets = shell.read_file(&wallets_path)?;
+    let wallets: TestWallets =
+        serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    wallets
+        .init_test_wallet(&ecosystem_config, &chain_config)
+        .await?;
+
     chain_wallets.test_wallet = Some(test_wallet.clone());
     chain_wallets.save(shell, chain_config.configs.join("wallets.yaml"))?;
 
