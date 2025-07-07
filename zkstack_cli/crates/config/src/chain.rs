@@ -49,6 +49,8 @@ pub struct ChainConfigInternal {
     pub legacy_bridge: Option<bool>,
     #[serde(default)] // for backward compatibility
     pub evm_emulator: bool,
+    #[serde(default)] // for backward compatibility
+    pub tight_ports: bool,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -72,6 +74,7 @@ pub struct ChainConfig {
     pub shell: OnceCell<Shell>,
     pub legacy_bridge: Option<bool>,
     pub evm_emulator: bool,
+    pub tight_ports: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -202,6 +205,7 @@ impl ChainConfig {
             wallet_creation: self.wallet_creation,
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
+            tight_ports: self.tight_ports,
         }
     }
     pub(crate) fn from_internal(
@@ -234,6 +238,7 @@ impl ChainConfig {
             evm_emulator: chain_internal.evm_emulator,
             self_path: shell.current_dir().join(CONFIG_NAME),
             shell: shell.into(),
+            tight_ports: chain_internal.tight_ports,
         })
     }
 }

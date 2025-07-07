@@ -1,0 +1,44 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
+use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{traits::SaveConfig, ZkStackConfig};
+
+use crate::commands::dev::{
+    commands::test::utils::{TestWallets, TEST_WALLETS_PATH},
+    messages::{
+        MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_INIT_TEST_WALLET_RUN_INFO,
+        MSG_INIT_TEST_WALLET_RUN_SUCCESS,
+    },
+};
+
+pub async fn run(shell: &Shell) -> anyhow::Result<()> {
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+
+    logger::info(MSG_INIT_TEST_WALLET_RUN_INFO);
+
+    // Load test wallets configuration
+    let wallets_path: PathBuf = chain_config.link_to_code.join(TEST_WALLETS_PATH);
+    let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
+        .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
+
+    let mut chain_wallets = chain_config.get_wallets_config()?;
+    let test_wallet = wallets.get_test_wallet(&chain_config)?;
+
+    let wallets_path: PathBuf = chain_config.link_to_code.join(TEST_WALLETS_PATH);
+    let raw_wallets = shell.read_file(&wallets_path)?;
+    let wallets: TestWallets =
+        serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
+
+    wallets
+        .init_test_wallet(chain_config.l1_network, &chain_config)
+        .await?;
+
+    chain_wallets.test_wallet = Some(test_wallet.clone());
+    chain_wallets.save(shell, chain_config.configs.join("wallets.yaml"))?;
+
+    logger::outro(MSG_INIT_TEST_WALLET_RUN_SUCCESS);
+
+    Ok(())
+}

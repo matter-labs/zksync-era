@@ -93,6 +93,7 @@ impl StaleKeysRepairTask {
 
     /// Runs stale key detection for a single tree version.
     #[tracing::instrument(skip(db))]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub fn bogus_stale_keys(db: &RocksDBWrapper, version: u64) -> Vec<NodeKey> {
         const SAMPLE_COUNT: usize = 5;
 

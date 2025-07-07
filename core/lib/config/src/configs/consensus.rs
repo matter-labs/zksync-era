@@ -146,9 +146,14 @@ pub struct ConsensusConfig {
     /// that will be advertised to peers, so that they can connect to this
     /// node.
     pub public_addr: Host,
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: Option<std::net::SocketAddr>,
     /// Maximal allowed size of the payload in bytes.
     #[config(default_t = ByteSize(2_500_000), with = Fallback(SizeUnit::Bytes))]
     pub max_payload_size: ByteSize,
+    /// Maximal allowed size of transactions propagated through the p2p network, in bytes.
+    #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
+    pub max_transaction_size: ByteSize,
     /// View timeout duration.
     #[config(default_t = Duration::from_secs(2), with = Fallback(CustomDurationFormat))]
     pub view_timeout: Duration,
@@ -170,19 +175,20 @@ pub struct ConsensusConfig {
     /// establish and maintain.
     #[config(default, with = Entries::WELL_KNOWN.named("key", "addr"))]
     pub gossip_static_outbound: BTreeMap<NodePublicKey, Host>,
+    /// Rate limiting configuration for the p2p RPCs.
+    #[config(nest)]
+    pub rpc: RpcConfig,
+
+    /// Rate at which the node tries to read from the ConsensusRegistry contract, in milliseconds.
+    /// It should be set to a value that is much less than what we expect a validator epoch to be.
+    #[config(default_t = Duration::from_secs(30), with = Fallback(CustomDurationFormat))]
+    pub consensus_registry_read_rate: Duration,
 
     /// MAIN NODE ONLY: consensus genesis specification.
     /// Used to (re)initialize genesis if needed.
     /// External nodes fetch the genesis from the main node.
     #[config(nest)]
     pub genesis_spec: Option<GenesisSpec>,
-
-    /// Rate limiting configuration for the p2p RPCs.
-    #[config(nest)]
-    pub rpc: RpcConfig,
-
-    /// Local socket address to expose the node debug page.
-    pub debug_page_addr: Option<std::net::SocketAddr>,
 }
 
 impl ConsensusConfig {
@@ -200,6 +206,7 @@ impl ConsensusConfig {
             server_addr: "127.0.0.1:0".parse().unwrap(),
             public_addr: Host("127.0.0.1:0".into()),
             max_payload_size: ByteSize(2000000),
+            max_transaction_size: ByteSize(1000000),
             view_timeout: Duration::from_secs(3),
             max_batch_size: ByteSize(125001024),
             gossip_dynamic_inbound_limit: 10,
@@ -224,7 +231,8 @@ impl ConsensusConfig {
             rpc: RpcConfig {
                 get_block_rps: NonZeroUsize::new(5).unwrap(),
             },
-            debug_page_addr: Some("127.0.0.1:0".parse().unwrap()),
+            debug_page_addr: Some("127.0.0.1:5000".parse().unwrap()),
+            consensus_registry_read_rate: Duration::from_secs(30),
         }
     }
 }
@@ -255,6 +263,7 @@ mod tests {
             server_addr: "127.0.0.1:2954".parse().unwrap(),
             public_addr: Host("127.0.0.1:2954".into()),
             max_payload_size: ByteSize(2000000),
+            max_transaction_size: ByteSize(1000000),
             view_timeout: Duration::from_secs(3),
             max_batch_size: ByteSize(125001024),
             gossip_dynamic_inbound_limit: 10,
@@ -280,6 +289,7 @@ mod tests {
                 get_block_rps: NonZeroUsize::new(5).unwrap(),
             },
             debug_page_addr: Some("127.0.0.1:3000".parse().unwrap()),
+            consensus_registry_read_rate: Duration::from_secs(30),
         }
     }
 
@@ -290,6 +300,7 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000
+            max_transaction_size: 1000000
             view_timeout:
               seconds: 3
               nanos: 0
@@ -314,6 +325,9 @@ mod tests {
             port: 2954
             rpc:
               get_block_rps: 5
+            consensus_registry_read_rate:
+              seconds: 30
+              nanos: 0
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ConsensusConfig = test_complete(yaml).unwrap();
@@ -327,6 +341,7 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000 bytes
+            max_transaction_size: 1000000 bytes
             view_timeout: 3s
             gossip_dynamic_inbound_limit: 10
             gossip_static_inbound:
@@ -346,6 +361,9 @@ mod tests {
             port: 2954
             rpc:
               get_block_rps: 5
+            consensus_registry_read_rate:
+              seconds: 30
+              nanos: 0
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ConsensusConfig = test_complete(yaml).unwrap();

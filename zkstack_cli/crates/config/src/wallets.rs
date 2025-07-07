@@ -15,6 +15,8 @@ pub struct WalletsConfig {
     pub fee_account: Wallet,
     pub governor: Wallet,
     pub token_multiplier_setter: Option<Wallet>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_wallet: Option<Wallet>,
 }
 
 impl WalletsConfig {
@@ -27,6 +29,7 @@ impl WalletsConfig {
             fee_account: Wallet::random(rng),
             governor: Wallet::random(rng),
             token_multiplier_setter: Some(Wallet::random(rng)),
+            test_wallet: None,
         }
     }
 
@@ -39,6 +42,7 @@ impl WalletsConfig {
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
             token_multiplier_setter: Some(Wallet::empty()),
+            test_wallet: None,
         }
     }
 }
