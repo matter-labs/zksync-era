@@ -2,14 +2,8 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
-use super::{
-    args::recovery::RecoveryArgs,
-    utils::{install_and_build_dependencies},
-};
-use crate::commands::dev::messages::{
-    MSG_RECOVERY_TEST_RUN_INFO,
-    MSG_RECOVERY_TEST_RUN_SUCCESS,
-};
+use super::{args::recovery::RecoveryArgs, utils::install_and_build_dependencies};
+use crate::commands::dev::messages::{MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS};
 
 const RECOVERY_TESTS_PATH: &str = "core/tests/recovery-test";
 
