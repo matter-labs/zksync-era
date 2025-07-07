@@ -1,16 +1,13 @@
-use std::path::PathBuf;
-
-use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::recovery::RecoveryArgs,
-    utils::{install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
+    utils::{install_and_build_dependencies},
 };
 use crate::commands::dev::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_RECOVERY_TEST_RUN_INFO,
+    MSG_RECOVERY_TEST_RUN_INFO,
     MSG_RECOVERY_TEST_RUN_SUCCESS,
 };
 
