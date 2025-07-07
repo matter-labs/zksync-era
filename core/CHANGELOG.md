@@ -1,5 +1,24 @@
 # Changelog
 
+## [28.8.0](https://github.com/matter-labs/zksync-era/compare/core-v28.7.0...core-v28.8.0) (2025-07-07)
+
+
+### Features
+
+* **ci:** fast integration tests framework ([#4255](https://github.com/matter-labs/zksync-era/issues/4255)) ([a72cbd8](https://github.com/matter-labs/zksync-era/commit/a72cbd85c28552f97116f4c4ab70305c3d7c148e))
+* **eigenda:** EigenDA V2 M0 ([#3983](https://github.com/matter-labs/zksync-era/issues/3983)) ([8302a81](https://github.com/matter-labs/zksync-era/commit/8302a81b5903a49a173a6e2c972845e67206cc40))
+* EN commit, prove, execute batch transactions verification and finality status ([#4080](https://github.com/matter-labs/zksync-era/issues/4080)) ([d06697d](https://github.com/matter-labs/zksync-era/commit/d06697df7c67b7528d25517ab6e1d1b481d59451))
+* **en:** remove JSON RPC syncing ([#4258](https://github.com/matter-labs/zksync-era/issues/4258)) ([d194604](https://github.com/matter-labs/zksync-era/commit/d19460424c2d23bd3b3c6f0579e979f71093dd9a))
+* **state-keeper:** implement block commit/rollback ([#4197](https://github.com/matter-labs/zksync-era/issues/4197)) ([99af8fc](https://github.com/matter-labs/zksync-era/commit/99af8fc0ebed6786426e9ccf56b4dcedb3300374))
+* **zkstack:** fast fmt ([#4222](https://github.com/matter-labs/zksync-era/issues/4222)) ([d05c3dd](https://github.com/matter-labs/zksync-era/commit/d05c3ddef1e93b0a906ec7bbb290976c6c014051))
+
+
+### Bug Fixes
+
+* **consensus:** Debug page server port reuse ([#4273](https://github.com/matter-labs/zksync-era/issues/4273)) ([77d043f](https://github.com/matter-labs/zksync-era/commit/77d043fa136fbbbdd6c059aba6c1d3d7dcdd2abd))
+* **eth-watch:** return internal errors from BatchRootProcessor ([#4285](https://github.com/matter-labs/zksync-era/issues/4285)) ([1f668e5](https://github.com/matter-labs/zksync-era/commit/1f668e52d6662bcc2959d27541cf640269764fad))
+* use FullPubdataBuilder for all pre-gateway batches ([#4265](https://github.com/matter-labs/zksync-era/issues/4265)) ([7c46480](https://github.com/matter-labs/zksync-era/commit/7c464802db0aaadc4170e0b4623fc925770f5739))
+
 ## [28.7.0](https://github.com/matter-labs/zksync-era/compare/core-v28.6.0...core-v28.7.0) (2025-06-30)
 
 
