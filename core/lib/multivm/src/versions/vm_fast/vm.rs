@@ -578,7 +578,7 @@ where
                     // set fictive l2 block
                     let new_block_config = self.bootloader_state.get_new_block_config();
                     let txs_index = self.bootloader_state.free_tx_index();
-                    let l2_block = self.bootloader_state.last_l2_block();
+                    let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
                     apply_l2_block(
                         &mut memory,
