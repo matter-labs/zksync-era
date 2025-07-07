@@ -468,7 +468,7 @@ async fn complex_rollback_test() {
     block_hasher.push_tx_hash(txs2[1].hash());
     let block_hash2 = block_hasher.finalize(ProtocolVersionId::latest());
 
-    let blocks = vec![
+    let blocks = [
         (
             L2BlockEnv {
                 number: 2,
