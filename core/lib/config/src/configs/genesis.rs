@@ -27,7 +27,8 @@ pub struct PersistedGenesisProverConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PersistedGenesisConfig {
-    genesis_protocol_semantic_version: ProtocolSemanticVersion,
+    genesis_protocol_semantic_version: Option<ProtocolSemanticVersion>,
+    genesis_protocol_version: Option<u16>,
     genesis_root: H256,
     genesis_rollup_leaf_index: u64,
     genesis_batch_commitment: H256,
@@ -48,9 +49,12 @@ impl TryFrom<GenesisConfig> for PersistedGenesisConfig {
 
     fn try_from(config: GenesisConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            genesis_protocol_semantic_version: config
-                .protocol_version
-                .context("missing `protocol_version`")?,
+            genesis_protocol_semantic_version: Some(
+                config
+                    .protocol_version
+                    .context("missing `protocol_version`")?,
+            ),
+            genesis_protocol_version: None, // semantic version has precedence
             genesis_root: config
                 .genesis_root_hash
                 .context("missing `genesis_root_hash`")?,
@@ -86,7 +90,21 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
 
     fn try_from(config: PersistedGenesisConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            protocol_version: Some(config.genesis_protocol_semantic_version),
+            protocol_version: Some(match config.genesis_protocol_semantic_version {
+                Some(ver) => ver,
+                None => {
+                    let minor = config.genesis_protocol_version.ok_or_else(|| {
+                        DeError::custom("Either genesis_protocol_version or genesis_protocol_semantic_version should be presented")
+                    })?;
+                    let minor: ProtocolVersionId = minor.try_into().map_err(|_| {
+                        DeError::invalid_value(
+                            Unexpected::Unsigned(minor.into()),
+                            &"protocol version ID",
+                        )
+                    })?;
+                    ProtocolSemanticVersion::new(minor, 0.into())
+                }
+            }),
             genesis_root_hash: Some(config.genesis_root),
             rollup_last_leaf_index: Some(config.genesis_rollup_leaf_index),
             genesis_commitment: Some(config.genesis_batch_commitment),
@@ -256,10 +274,10 @@ mod tests {
     fn parsing_from_yaml() {
         let yaml = r#"
           genesis:
-            genesis_protocol_semantic_version: 0.25.0
             genesis_root: 0x9b30c35100835c0d811c9d385cc9804816dbceb4461b8fe4cbb8d0d5ecdacdec
             genesis_rollup_leaf_index: 54
             genesis_batch_commitment: 0x043d432c1b668e54ada198d683516109e45e4f7f81f216ff4c4f469117732e50
+            genesis_protocol_version: 25
             default_aa_hash: 0x01000523eadd3061f8e701acda503defb7ac3734ae3371e4daf7494651d8b523
             bootloader_hash: 0x010008e15394cd83a8d463d61e00b4361afbc27c932b07a9d2100861b7d05e78
             l1_chain_id: 9
@@ -269,6 +287,7 @@ mod tests {
               dummy_verifier: true
               snark_wrapper_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
               fflonk_snark_wrapper_vk_hash: 0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef
+            genesis_protocol_semantic_version: 0.25.0
             l1_batch_commit_data_generator_mode: Rollup
             custom_genesis_state_path: "/db/genesis"
         "#;

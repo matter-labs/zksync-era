@@ -1,4 +1,5 @@
 genesis_protocol_semantic_version: 0.28.0
+genesis_protocol_version: null
 genesis_root: 0x85fa0abaa93032259defb7bc3d060f1fcce909600a71841e9a578db386723966
 genesis_rollup_leaf_index: 78
 genesis_batch_commitment: 0xc66918c8860c607e73892cb3e686bfba6185f7a49f8c7ec21fb1cce3c4f353cd
