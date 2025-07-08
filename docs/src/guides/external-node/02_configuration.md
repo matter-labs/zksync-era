@@ -74,7 +74,7 @@ Add the following to your node configuration YAML file:
 ```yaml
 api:
   web3_json_rpc:
-    eth_call_gas_cap: 50000000  # 50M gas limit (optional)
+    eth_call_gas_cap: 50000000 # 50M gas limit (optional)
 ```
 
 **Gas cap behavior:**
@@ -110,8 +110,8 @@ api:
     # eth_call_gas_cap not specified - uses protocol default
 ```
 
-**Compatibility note:** This feature provides the same functionality as geth's `--rpc.gascap` flag, ensuring compatibility
-with existing Ethereum tooling and dApps that expect gas limiting behavior.
+**Compatibility note:** This feature provides the same functionality as geth's `--rpc.gascap` flag, ensuring
+compatibility with existing Ethereum tooling and dApps that expect gas limiting behavior.
 
 ## JSON-RPC API namespaces
 
