@@ -157,8 +157,9 @@ impl EcosystemConfig {
     }
 
     fn load_chain_inner(&self, name: &str) -> anyhow::Result<ChainConfig> {
-        let path = self.chains.join(name).join(CONFIG_NAME);
-        let config = ChainConfigInternal::read(self.get_shell(), path.clone())?;
+        let path = self.chains.join(name);
+
+        let config = ChainConfigInternal::read(self.get_shell(), path.join(CONFIG_NAME).clone())?;
 
         Ok(ChainConfig {
             id: config.id,
@@ -170,7 +171,7 @@ impl EcosystemConfig {
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             l1_network: self.l1_network,
             self_path: path,
-            link_to_code: self.get_shell().current_dir().join(&self.link_to_code),
+            link_to_code: self.link_to_code.clone(),
             base_token: config.base_token,
             rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,

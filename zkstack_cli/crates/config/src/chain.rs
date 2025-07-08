@@ -229,7 +229,7 @@ impl ChainConfig {
             link_to_code,
             artifacts,
             evm_emulator: chain_internal.evm_emulator,
-            self_path: shell.current_dir().join(CONFIG_NAME),
+            self_path: shell.current_dir(),
             shell: shell.into(),
         })
     }
