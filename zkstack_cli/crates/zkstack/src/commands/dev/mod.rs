@@ -76,10 +76,10 @@ pub enum DevCommands {
     RunEcosystemUpgrade(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
-    GenerateChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    GenerateChainUpgrade(commands::v29_chain_args::ChainUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
-    RunChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    RunChainUpgrade(commands::v29_chain_args::ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {

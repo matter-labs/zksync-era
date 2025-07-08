@@ -20,6 +20,7 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
+use crate::commands::dev::commands::v29_ecosystem_args::UpgradeVersions;
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{accept_admin, governance_execute_calls, set_da_validator_pair},
@@ -30,7 +31,7 @@ use crate::{
         },
         dev::commands::{
             upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
-            v29_chain_args::{V29ChainUpgradeArgs, V29UpgradeArgsInner},
+            v29_chain_args::{ChainUpgradeArgs, UpgradeArgsInner},
         },
     },
     utils::addresses::apply_l1_to_l2_alias,
@@ -116,8 +117,8 @@ pub async fn check_chain_readiness(
 }
 
 pub async fn fetch_chain_info(
-    upgrade_info: &V29UpgradeInfo,
-    args: &V29UpgradeArgsInner,
+    upgrade_info: &UpgradeInfo,
+    args: &UpgradeArgsInner,
 ) -> anyhow::Result<FetchedChainInfo> {
     // Connect to the L1 Ethereum network
     let l1_provider = get_ethers_provider(&args.l1_rpc_url)?;
@@ -170,7 +171,7 @@ pub async fn fetch_chain_info(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct V29UpgradeInfo {
+pub struct UpgradeInfo {
     // Information about pre-upgrade contracts.
     l1_chain_id: u32,
     gateway_chain_id: u32,
@@ -198,23 +199,32 @@ pub struct BridgehubAddresses {
     pub(crate) bridgehub_proxy_addr: Address,
 }
 
-impl ZkStackConfig for V29UpgradeInfo {}
+impl ZkStackConfig for UpgradeInfo {}
 
 pub(crate) async fn run(
     shell: &Shell,
-    args_input: V29ChainUpgradeArgs,
+    args_input: ChainUpgradeArgs,
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
     let foundry_contracts_path = get_default_foundry_path(shell)?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let mut args = args_input.clone().fill_if_empyty(shell)?;
+    let mut args = args_input.clone().fill_if_empty(shell)?;
     if args.upgrade_description_path.is_none() {
+        let path = match args_input.upgrade_version {
+            UpgradeVersions::V29_InteropA_FF => {
+                "./contracts/l1-contracts/script-out/v29-local-output.yaml"
+            }
+            UpgradeVersions::V28_1_VK => {
+                "./contracts/l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
+            }
+        };
+
         args.upgrade_description_path = Some(
             ecosystem_config
                 .link_to_code
-                .join("./contracts/l1-contracts/script-out/v29-local-output.yaml")
+                .join(path)
                 .to_string_lossy()
                 .to_string(),
         );
@@ -222,7 +232,7 @@ pub(crate) async fn run(
     println!("args: {:?}", args);
     // 0. Read the GatewayUpgradeInfo
 
-    let upgrade_info = V29UpgradeInfo::read(
+    let upgrade_info = UpgradeInfo::read(
         shell,
         &args
             .clone()

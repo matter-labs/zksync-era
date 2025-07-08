@@ -193,10 +193,15 @@ async fn no_governance_prepare(
         .load_chain(Some("era".to_string()))
         .context("No era")?;
 
+    let mut new_genesis = default_genesis_input;
+    let mut new_version = new_genesis.protocol_version;
+    new_version.patch += 1;
+    new_genesis.protocol_version = new_version;
+
     // FIXME: we will have to force this in production environment
     // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
     let mut gateway_upgrade_input = EcosystemUpgradeInput::new(
-        &default_genesis_input,
+        &new_genesis,
         &current_contracts_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
@@ -257,7 +262,7 @@ async fn no_governance_prepare(
                 .link_to_code
                 .join("contracts/l1-contracts")
                 .join(format!(
-                    "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
+                    "broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/{}/run-latest.json",
                     l1_chain_id
                 )),
         )
@@ -297,13 +302,15 @@ async fn no_governance_prepare_gateway(
             .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
 
-    let mut s: String = "0x".to_string();
-    s += &hex::encode(output.contracts_config.diamond_cut_data.0);
-    contracts_config.ecosystem_contracts.diamond_cut_data = s;
+    contracts_config.ecosystem_contracts.diamond_cut_data = format!(
+        "0x{}",
+        &hex::encode(output.contracts_config.diamond_cut_data.0)
+    );
 
-    s = "0x".to_string();
-    s += &hex::encode(output.contracts_config.force_deployments_data.0);
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(s);
+    contracts_config.ecosystem_contracts.force_deployments_data = Some(format!(
+        "0x{}",
+        &hex::encode(output.contracts_config.force_deployments_data.0)
+    ));
 
     contracts_config.l1.rollup_l1_da_validator_addr =
         Some(output.deployed_addresses.rollup_l1_da_validator_addr);

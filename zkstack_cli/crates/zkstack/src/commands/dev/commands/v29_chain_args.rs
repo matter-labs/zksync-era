@@ -9,6 +9,7 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_config::EcosystemConfig;
 use zkstack_cli_types::L1Network;
 
+use crate::commands::dev::commands::v29_ecosystem_args::UpgradeVersions;
 use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
@@ -18,7 +19,7 @@ use crate::{
 };
 
 #[derive(Parser, Debug, Clone)]
-pub struct V29ChainUpgradeArgs {
+pub struct ChainUpgradeArgs {
     pub upgrade_description_path: Option<String>,
     pub chain_id: Option<u64>,
     pub gw_chain_id: Option<u64>,
@@ -31,10 +32,12 @@ pub struct V29ChainUpgradeArgs {
     pub dangerous_no_cross_check: Option<bool>,
     #[clap(long, default_missing_value = "false")]
     pub force_display_finalization_params: Option<bool>,
+    #[clap(long, value_enum)]
+    pub upgrade_version: UpgradeVersions,
 }
 
-impl V29ChainUpgradeArgs {
-    pub fn fill_if_empyty(mut self, shell: &Shell) -> anyhow::Result<Self> {
+impl ChainUpgradeArgs {
+    pub fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         self.chain_id = Some(
             self.chain_id
@@ -67,14 +70,14 @@ impl V29ChainUpgradeArgs {
     }
 }
 
-pub struct V29UpgradeArgsInner {
+pub struct UpgradeArgsInner {
     pub chain_id: u64,
     pub l1_rpc_url: String,
     pub gw_rpc_url: String,
 }
 
-impl From<V29ChainUpgradeArgs> for V29UpgradeArgsInner {
-    fn from(value: V29ChainUpgradeArgs) -> Self {
+impl From<ChainUpgradeArgs> for UpgradeArgsInner {
+    fn from(value: ChainUpgradeArgs) -> Self {
         Self {
             chain_id: value.chain_id.unwrap(),
             l1_rpc_url: value.l1_rpc_url.unwrap(),

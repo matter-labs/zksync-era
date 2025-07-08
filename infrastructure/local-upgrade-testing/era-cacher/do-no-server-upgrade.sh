@@ -1,29 +1,21 @@
-# era-cacher/reset.sh
+## era-cacher/reset.sh
+#
+## era-cacher/use-new-era.sh && cd zksync-working
+#
+#cargo install --path zkstack_cli/crates/zkstack --force --locked --features upgrades && zkstack dev clean containers && zkstack up --observability false
+#zkstack dev contracts
 
-# era-cacher/use-new-era.sh && cd zksync-working
-
-cargo install --path zkstack_cli/crates/zkstack --force --locked --features upgrades && zkstack dev clean containers && zkstack up --observability false
-zkstack dev contracts
-
-zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-    --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
-    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-    --server-db-name=zksync_server_localhost_era \
-    --ignore-prerequisites --verbose \
-    --observability=false \
-    --validium-type no-da \
-    --update-submodules false 
-
+zkstack ecosystem init --dev
 # Server should be started in a different window for consistency
 zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
 echo "Server started"
 
-zkstack dev run-ecosystem-upgrade --upgrade-version v28-1-vk --ecosystem-upgrade-stage no-governance-prepare
+zkstack dev run-ecosystem-upgrade --upgrade-version v28-1-vk --ecosystem-upgrade-stage no-governance-prepare -v
 
-zkstack dev run-ecosystem-upgrade  --upgrade-version v28-1-vk --ecosystem-upgrade-stage governance-stage0
+zkstack dev run-ecosystem-upgrade  --upgrade-version v28-1-vk --ecosystem-upgrade-stage governance-stage0 -v
 
 zkstack  dev run-ecosystem-upgrade --upgrade-version v28-1-vk --ecosystem-upgrade-stage governance-stage1
-
+#
 cd contracts/l1-contracts
 UPGRADE_ECOSYSTEM_OUTPUT=script-out/v28-1-zk-os-upgrade-ecosystem.toml \
 UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/9/run-latest.json  \
