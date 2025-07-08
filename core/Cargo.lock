@@ -13824,6 +13824,7 @@ dependencies = [
  "zksync_config",
  "zksync_da_client",
  "zksync_dal",
+ "zksync_eth_client",
  "zksync_node_framework",
  "zksync_object_store",
  "zksync_types",
