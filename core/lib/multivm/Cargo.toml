@@ -36,6 +36,9 @@ tracing.workspace = true
 vise.workspace = true
 ethabi.workspace = true
 
+[features]
+test-utils = []
+
 [dev-dependencies]
 assert_matches.workspace = true
 pretty_assertions.workspace = true
