@@ -21,3 +21,21 @@ impl EthSenderError {
         }
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum TeeAggregatorError {
+    #[error("Failed to retrieve TEE proofs for eth sender: {0}")]
+    TeeProofRetrieval(#[from] zksync_dal::DalError),
+    #[error("Failed to set eth_tx_id for TEE proof: {0}")]
+    TeeProofEthTxUpdate(zksync_dal::DalError),
+    #[error("Failed to retrieve pending DCAP collateral: {0}")]
+    DcapCollateralRetrieval(zksync_dal::DalError),
+    #[error("Failed to set eth_tx_id for DCAP field collateral: {0}")]
+    DcapFieldCollateralUpdate(zksync_dal::DalError),
+    #[error("Failed to set eth_tx_id for DCAP TCB info collateral: {0}")]
+    DcapTcbInfoCollateralUpdate(zksync_dal::DalError),
+    #[error("Failed to retrieve pending TEE attestations: {0}")]
+    TeeAttestationRetrieval(zksync_dal::DalError),
+    #[error("Failed to set eth_tx_id for TEE attestation: {0}")]
+    TeeAttestationEthTxUpdate(zksync_dal::DalError),
+}

@@ -1,3 +1,5 @@
+extern crate core;
+
 mod aggregated_operations;
 mod aggregator;
 mod error;

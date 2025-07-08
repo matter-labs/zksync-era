@@ -11,10 +11,11 @@ use zksync_dal::{
 use zksync_eth_client::BoundEthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, settlement::SettlementLayer, Address, SLChainId,
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, settlement::SettlementLayer,
+    Address, SLChainId,
 };
 
-use crate::{publish_criterion::L1GasCriterion, EthSenderError};
+use crate::{error::TeeAggregatorError, publish_criterion::L1GasCriterion};
 
 #[derive(Debug)]
 pub struct TeeTxAggregator {
@@ -82,7 +83,7 @@ impl TeeTxAggregator {
 
         let pool = self.pool.clone();
         loop {
-            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await?;
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop request received, tee_tx_aggregator is shutting down");
@@ -104,73 +105,77 @@ impl TeeTxAggregator {
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
+    ) -> Result<(), TeeAggregatorError> {
         self.aggregate_tee_dcap_transactions(storage).await?;
         self.aggregate_tee_attestations(storage).await?;
         self.aggregate_tee_proofs(storage).await?;
         Ok(())
     }
 
-    // FIXME: TEE
+    async fn save_tee_transaction(
+        &self,
+        calldata: Vec<u8>,
+        mut transaction: &mut Connection<'_, Core>,
+    ) -> Result<EthTx, TeeAggregatorError> {
+        // Choose the appropriate client for TEE operations
+        let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
+
+        // Get the next nonce for the TEE transactions
+        let nonce = self
+            .get_next_nonce(&mut transaction, sender_addr, true)
+            .await?;
+
+        // Save the TEE transaction to the database
+        let mut eth_tx = transaction
+            .eth_sender_dal()
+            .save_eth_tx(
+                nonce,
+                calldata,
+                AggregatedActionType::Tee,
+                self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
+                // FIXME: TEE
+                Some(L1GasCriterion::total_tee_gas_amount()),
+                Some(sender_addr),
+                None, // No sidecar for TEE operations
+                false,
+            )
+            .await
+            .unwrap();
+
+        transaction
+            .eth_sender_dal()
+            .set_chain_id(eth_tx.id, self.sl_chain_id.0)
+            .await
+            .unwrap();
+        eth_tx.chain_id = Some(self.sl_chain_id);
+        Ok(eth_tx)
+    }
+
     async fn aggregate_tee_proofs(
         &self,
         storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
+    ) -> Result<(), TeeAggregatorError> {
         let pending = storage
             .tee_proof_generation_dal()
             .get_tee_proofs_for_eth_sender()
             .await
-            .map_err(|_e| {
-                // FIXME: TEE
-                EthSenderError::ExceedMaxBaseFee
-            })?;
+            .map_err(TeeAggregatorError::TeeProofRetrieval)?;
         for (sig, calldata) in pending.into_iter() {
             // Start a database transaction
-            let mut transaction = storage.start_transaction().await.unwrap();
+            let mut transaction = storage.start_transaction().await?;
 
-            // Choose the appropriate client for TEE operations
-            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
-
-            // Get the next nonce for the TEE transactions
-            let nonce = self
-                .get_next_nonce(&mut transaction, sender_addr, true)
+            let eth_tx = self
+                .save_tee_transaction(calldata, &mut transaction)
                 .await?;
-
-            // Save the TEE transaction to the database
-            let mut eth_tx = transaction
-                .eth_sender_dal()
-                .save_eth_tx(
-                    nonce,
-                    calldata,
-                    AggregatedActionType::Tee,
-                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
-                    // FIXME: TEE
-                    Some(L1GasCriterion::total_tee_gas_amount()),
-                    Some(sender_addr),
-                    None, // No sidecar for TEE operations
-                    false,
-                )
-                .await
-                .unwrap();
-
-            transaction
-                .eth_sender_dal()
-                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                .await
-                .unwrap();
-            eth_tx.chain_id = Some(self.sl_chain_id);
 
             transaction
                 .tee_proof_generation_dal()
                 .set_eth_tx_id_for_proof(&sig, eth_tx.id)
                 .await
-                .map_err(|_e| {
-                    // FIXME: TEE
-                    EthSenderError::ExceedMaxBaseFee
-                })?;
+                .map_err(TeeAggregatorError::TeeProofEthTxUpdate)?;
 
             // Commit the transaction
-            transaction.commit().await.unwrap();
+            transaction.commit().await?;
 
             tracing::info!("eth_tx with ID {} for block proof", eth_tx.id);
         }
@@ -180,52 +185,22 @@ impl TeeTxAggregator {
     async fn aggregate_tee_dcap_transactions(
         &self,
         storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
+    ) -> Result<(), TeeAggregatorError> {
         let pending = storage
             .tee_dcap_collateral_dal()
             .get_pending_collateral_for_eth_tx()
             .await
-            .map_err(|_e| {
-                // FIXME: TEE
-                EthSenderError::ExceedMaxBaseFee
-            })?;
+            .map_err(TeeAggregatorError::DcapCollateralRetrieval)?;
 
         // Generate TEE data
         for pending_collateral in pending.into_iter() {
+            let calldata = pending_collateral.calldata().to_vec();
             // Start a database transaction
-            let mut transaction = storage.start_transaction().await.unwrap();
+            let mut transaction = storage.start_transaction().await?;
 
-            // Choose the appropriate client for TEE operations
-            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
-
-            // Get the next nonce for the TEE transactions
-            let nonce = self
-                .get_next_nonce(&mut transaction, sender_addr, true)
+            let eth_tx = self
+                .save_tee_transaction(calldata, &mut transaction)
                 .await?;
-
-            // Save the TEE transaction to the database
-            let mut eth_tx = transaction
-                .eth_sender_dal()
-                .save_eth_tx(
-                    nonce,
-                    pending_collateral.calldata().to_vec(),
-                    AggregatedActionType::Tee,
-                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
-                    // FIXME: TEE
-                    Some(L1GasCriterion::total_tee_gas_amount()),
-                    Some(sender_addr),
-                    None, // No sidecar for TEE operations
-                    false,
-                )
-                .await
-                .unwrap();
-
-            transaction
-                .eth_sender_dal()
-                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                .await
-                .unwrap();
-            eth_tx.chain_id = Some(self.sl_chain_id);
 
             match pending_collateral {
                 PendingCollateral::Field(PendingFieldCollateral { kind, .. }) => {
@@ -233,25 +208,19 @@ impl TeeTxAggregator {
                         .tee_dcap_collateral_dal()
                         .set_field_eth_tx_id(kind, eth_tx.id as i32)
                         .await
-                        .map_err(|_e| {
-                            // FIXME: TEE
-                            EthSenderError::ExceedMaxBaseFee
-                        })?;
+                        .map_err(TeeAggregatorError::DcapFieldCollateralUpdate)?;
                 }
                 PendingCollateral::TcbInfo(PendingTcbInfoCollateral { kind, fmspc, .. }) => {
                     transaction
                         .tee_dcap_collateral_dal()
                         .set_tcb_info_eth_tx_id(kind, &fmspc, eth_tx.id as i32)
                         .await
-                        .map_err(|_e| {
-                            // FIXME: TEE
-                            EthSenderError::ExceedMaxBaseFee
-                        })?;
+                        .map_err(TeeAggregatorError::DcapTcbInfoCollateralUpdate)?;
                 }
             }
 
             // Commit the transaction
-            transaction.commit().await.unwrap();
+            transaction.commit().await?;
 
             tracing::info!("eth_tx with ID {} for op TEE", eth_tx.id);
         }
@@ -262,63 +231,29 @@ impl TeeTxAggregator {
     async fn aggregate_tee_attestations(
         &self,
         storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
+    ) -> Result<(), TeeAggregatorError> {
         let pending = storage
             .tee_proof_generation_dal()
             .get_pending_attestations_for_eth_tx()
             .await
-            .map_err(|_e| {
-                // FIXME: TEE
-                EthSenderError::ExceedMaxBaseFee
-            })?;
+            .map_err(TeeAggregatorError::TeeAttestationRetrieval)?;
         // Generate TEE data
         for (pubkey, calldata) in pending.into_iter() {
             // Start a database transaction
-            let mut transaction = storage.start_transaction().await.unwrap();
+            let mut transaction = storage.start_transaction().await?;
 
-            // Choose the appropriate client for TEE operations
-            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
-
-            // Get the next nonce for the TEE transactions
-            let nonce = self
-                .get_next_nonce(&mut transaction, sender_addr, true)
+            let eth_tx = self
+                .save_tee_transaction(calldata, &mut transaction)
                 .await?;
-
-            // Save the TEE transaction to the database
-            let mut eth_tx = transaction
-                .eth_sender_dal()
-                .save_eth_tx(
-                    nonce,
-                    calldata,
-                    AggregatedActionType::Tee,
-                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
-                    // FIXME: TEE
-                    Some(L1GasCriterion::total_tee_gas_amount()),
-                    Some(sender_addr),
-                    None, // No sidecar for TEE operations
-                    false,
-                )
-                .await
-                .unwrap();
-
-            transaction
-                .eth_sender_dal()
-                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                .await
-                .unwrap();
-            eth_tx.chain_id = Some(self.sl_chain_id);
 
             transaction
                 .tee_proof_generation_dal()
                 .set_eth_tx_id_for_attestation(&pubkey, eth_tx.id)
                 .await
-                .map_err(|_e| {
-                    // FIXME: TEE
-                    EthSenderError::ExceedMaxBaseFee
-                })?;
+                .map_err(TeeAggregatorError::TeeAttestationEthTxUpdate)?;
 
             // Commit the transaction
-            transaction.commit().await.unwrap();
+            transaction.commit().await?;
 
             tracing::info!(
                 "eth_tx with ID {} for attestation for TEE pubkey {}",
@@ -344,7 +279,7 @@ impl TeeTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Address,
         is_non_blob_sender: bool,
-    ) -> Result<u64, EthSenderError> {
+    ) -> Result<u64, TeeAggregatorError> {
         let is_gateway = self.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()

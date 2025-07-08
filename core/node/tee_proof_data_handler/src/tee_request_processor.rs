@@ -23,8 +23,8 @@ use zksync_tee_prover_interface::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId, H256};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::collateral::CollateralUpdater;
 use crate::{
+    collateral::CollateralUpdater,
     errors::{TeeProcessorContext, TeeProcessorError},
     metrics::METRICS,
     tee_contract::TeeFunctions,
