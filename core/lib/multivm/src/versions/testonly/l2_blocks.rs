@@ -89,6 +89,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
         timestamp: 0,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     });
     let l1_tx = get_l1_noop();
 
@@ -112,6 +113,7 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
         timestamp: l1_batch.timestamp,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
 
     let mut vm = VmTesterBuilder::new()
@@ -284,11 +286,12 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         timestamp: 1,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
 
     // Case 1: Block number increasing by more than 1
     test_new_l2_block::<VM>(
-        correct_first_block,
+        correct_first_block.clone(),
         Some(3),
         None,
         None,
@@ -305,7 +308,7 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
     // Case 2: Timestamp not increasing
     if default_system_env().version.is_pre_fast_blocks() {
         test_new_l2_block::<VM>(
-            correct_first_block,
+            correct_first_block.clone(),
             None,
             Some(1),
             None,
@@ -322,7 +325,7 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
 
     // Case 3: Incorrect previous block hash
     test_new_l2_block::<VM>(
-        correct_first_block,
+        correct_first_block.clone(),
         None,
         None,
         Some(H256::zero()),
@@ -415,6 +418,7 @@ fn test_first_in_batch<VM: TestedVm>(
         timestamp: last_l2_block.timestamp + 1,
         prev_block_hash: vm.vm.last_l2_block_hash(),
         max_virtual_blocks_to_create: last_l2_block.max_virtual_blocks_to_create,
+        interop_roots: vec![],
     };
 
     vm.vm.push_l2_block_unchecked(new_l2_block);
@@ -445,6 +449,7 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             timestamp: 2,
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         None,
     );
@@ -464,6 +469,7 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             timestamp: 9,
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         Some(Halt::FailedToSetL2Block(
             encode_function_call(

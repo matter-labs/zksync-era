@@ -4,6 +4,7 @@ pub mod contracts;
 pub mod database;
 pub mod fmt;
 pub mod genesis;
+pub mod init_test_wallet;
 pub mod lint;
 pub(crate) mod lint_utils;
 pub mod prover;
