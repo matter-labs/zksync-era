@@ -7,6 +7,7 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{Locking, Processor};
+use zksync_prover_interface::inputs::PublicWitnessInputData;
 use zksync_types::{L1BatchId, L2ChainId};
 
 use crate::{
@@ -57,14 +58,14 @@ impl ProofRequestSubmitter {
 
             tracing::info!("Need to send proof request for batch {}", batch_id);
 
+            let witness_input_data =
+                PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
+
             let url = self
                 .blob_store
                 .put(
-                    (
-                        L1BatchId::new(self.processor.chain_id(), batch_id),
-                        proof_generation_data.protocol_version,
-                    ),
-                    &proof_generation_data,
+                    L1BatchId::new(self.processor.chain_id(), batch_id),
+                    &witness_input_data,
                 )
                 .await
                 .context("Failed to put proof generation data into blob store")?;
@@ -86,7 +87,7 @@ impl ProofRequestSubmitter {
                 protocol_minor: proof_generation_data.protocol_version.minor as u32,
                 protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
                 proof_inputs_url: url,
-                timeout_after: self.config.acknowledgment_timeout.as_secs() as u64,
+                timeout_after: self.config.proof_generation_timeout.as_secs() as u64,
                 max_reward: self.config.max_reward,
             };
 

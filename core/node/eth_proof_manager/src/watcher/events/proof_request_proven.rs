@@ -93,7 +93,11 @@ impl EventHandler for ProofRequestProvenHandler {
             proof: proof.clone(),
         };
 
-        tracing::info!("Received ProofRequestProvenEvent: {:?}", event);
+        tracing::info!(
+            "Received ProofRequestProvenEvent for batch {}, chain_id: {}",
+            event.block_number,
+            event.chain_id
+        );
 
         let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;

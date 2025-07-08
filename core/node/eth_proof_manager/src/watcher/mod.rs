@@ -97,7 +97,14 @@ impl EthProofWatcher {
                 tracing::info!("events: {:?}", events.len());
 
                 for log in events {
-                    event.handle(log).await?;
+                    match event.handle(log).await {
+                        Ok(_) => {
+                            tracing::info!("Event {:?} handled successfully", topic);
+                        }
+                        Err(e) => {
+                            tracing::error!("Error handling event: {:?}", e);
+                        }
+                    }
                 }
             }
 
