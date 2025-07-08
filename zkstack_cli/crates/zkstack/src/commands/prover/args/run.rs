@@ -16,6 +16,7 @@ use crate::{
     },
     messages::{
         MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_WITNESS_GENERATOR_ROUND_ERR,
+        MSG_WVG_MODE_PROMPT,
     },
 };
 
@@ -201,14 +202,32 @@ pub enum WitnessGeneratorRound {
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct CircuitProverArgs {
-    #[clap(short = 'l', long)]
+    #[clap(
+        short = 'l',
+        long,
+        conflicts_with = "threads",
+        requires = "heavy_wvg_count"
+    )]
     pub light_wvg_count: Option<usize>,
-    #[clap(short = 'h', long)]
+    #[clap(
+        short = 'h',
+        long,
+        conflicts_with = "threads",
+        requires = "light_wvg_count"
+    )]
     pub heavy_wvg_count: Option<usize>,
-    #[clap(short = 't', long)]
+    #[clap(short = 't', long,
+        conflicts_with_all = ["light_wvg_count", "heavy_wvg_count"]
+    )]
     pub threads: Option<usize>,
     #[clap(short = 'm', long)]
     pub max_allocation: Option<usize>,
+}
+
+#[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
+pub enum WVGMode {
+    Simple,
+    Advanced,
 }
 
 impl CircuitProverArgs {
@@ -220,17 +239,26 @@ impl CircuitProverArgs {
             return Ok(Self::default());
         }
 
-        let threads = if self.light_wvg_count.is_none() && self.heavy_wvg_count.is_none() {
+        let wvg_mode = match (
+            self.threads.is_none(),
+            self.heavy_wvg_count.is_none() && self.light_wvg_count.is_none(),
+        ) {
+            (true, true) => PromptSelect::new(MSG_WVG_MODE_PROMPT, WVGMode::iter()).ask(),
+            (true, false) => WVGMode::Advanced,
+            (false, _) => WVGMode::Simple,
+        };
+
+        let threads = if wvg_mode == WVGMode::Simple {
             Some(self.threads.unwrap_or_else(|| {
-                Prompt::new("Number of CPU threads to run WVGs in parallel (to specify light & heavy WVGs put 0)")
-                    .default("0")
+                Prompt::new("Number of CPU threads to run WVGs in parallel")
+                    .default("32")
                     .ask()
             }))
         } else {
             None
         };
 
-        let light_wvg_count = if threads.is_none() || threads == Some(0) {
+        let light_wvg_count = if wvg_mode == WVGMode::Advanced {
             Some(self.light_wvg_count.unwrap_or_else(|| {
                 Prompt::new("Number of light WVG jobs to run in parallel")
                     .default("8")
@@ -240,7 +268,7 @@ impl CircuitProverArgs {
             None
         };
 
-        let heavy_wvg_count = if threads.is_none() || threads == Some(0) {
+        let heavy_wvg_count = if wvg_mode == WVGMode::Advanced {
             Some(self.heavy_wvg_count.unwrap_or_else(|| {
                 Prompt::new("Number of heavy WVG jobs to run in parallel")
                     .default("2")

@@ -47,15 +47,29 @@ struct Cli {
     pub(crate) secrets_path: Option<PathBuf>,
     /// Number of light witness vector generators to run in parallel.
     /// Corresponds to 1 CPU thread & ~2GB of RAM.
-    #[arg(short = 'l', long, default_value_t = 1)]
+    #[arg(
+        short = 'l',
+        long,
+        default_value_t = 1,
+        conflicts_with = "threads",
+        requires = "heavy_wvg_count"
+    )]
     light_wvg_count: usize,
     /// Number of heavy witness vector generators to run in parallel.
     /// Corresponds to 1 CPU thread & ~9GB of RAM.
-    #[arg(short = 'h', long, default_value_t = 1)]
+    #[arg(
+        short = 'h',
+        long,
+        default_value_t = 1,
+        conflicts_with = "threads",
+        requires = "light_wvg_count"
+    )]
     heavy_wvg_count: usize,
     /// Number of CPU threads to run witness vector generators in parallel.
-    #[arg(short = 't', long, default_value_t = 0)]
-    threads: usize,
+    #[arg(short = 't', long, default_value = None,
+        conflicts_with_all = ["light_wvg_count", "heavy_wvg_count"]
+    )]
+    threads: Option<usize>,
     /// Max VRAM to allocate. Useful if you want to limit the size of VRAM used.
     /// None corresponds to allocating all available VRAM.
     #[arg(short = 'm', long)]
@@ -153,11 +167,11 @@ async fn run_inner(
         cancellation_token.clone(),
     );
 
-    let wvg_tasks = if opt.threads > 0 {
-        // If threads are specified, use them.
-        // Otherwise, use heavy and light job functionality.
-        tracing::info!("Starting {} WVGs.", opt.threads,);
-        let simple_wvg_runner = builder.simple_wvg_runner(opt.threads);
+    let wvg_tasks = if let Some(threads) = opt.threads {
+        // If threads are specified, we run a simple WVG runner.
+        // Otherwise, we use heavy and light job functionality.
+        tracing::info!("Starting {} WVGs.", threads,);
+        let simple_wvg_runner = builder.simple_wvg_runner(threads);
         simple_wvg_runner.run()
     } else {
         tracing::info!(
