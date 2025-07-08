@@ -91,7 +91,7 @@ impl WvgRunnerBuilder {
         self.wvg_runner(count, metadata_loader)
     }
 
-    /// Witness Vector Generator runner implementation that doesn't prioritize jobs.
+    /// Witness Vector Generator runner implementation that will execute any type of job.
     pub fn simple_wvg_runner(
         &self,
         count: usize,
