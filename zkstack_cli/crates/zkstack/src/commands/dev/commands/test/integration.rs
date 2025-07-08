@@ -23,13 +23,13 @@ pub(super) struct IntegrationTestRunner<'a> {
 }
 
 impl<'a> IntegrationTestRunner<'a> {
-    pub fn new(shell: &'a Shell, no_deps: bool, timeout: Option<u64>) -> anyhow::Result<Self> {
+    pub fn new(shell: &'a Shell, no_deps: bool) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         Ok(Self {
             shell,
             no_deps,
             ecosystem_config,
-            test_timeout: Duration::from_secs(timeout.unwrap_or(600)), // See jest.config.json
+            test_timeout: Duration::from_secs(600), // See jest.config.json
             test_suites: vec![],
             test_pattern: None,
         })
@@ -94,7 +94,7 @@ impl<'a> IntegrationTestRunner<'a> {
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     logger::info(msg_integration_tests_run(args.external_node));
-    let mut command = IntegrationTestRunner::new(shell, args.no_deps, args.timeout)?
+    let mut command = IntegrationTestRunner::new(shell, args.no_deps)?
         .with_test_suites(args.suite.iter().map(String::as_str))
         .with_test_pattern(args.test_pattern.as_deref())
         .build_command()

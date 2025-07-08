@@ -5,7 +5,7 @@ use super::{args::fees::FeesArgs, integration::IntegrationTestRunner};
 use crate::commands::dev::messages::MSG_INTEGRATION_TESTS_RUN_SUCCESS;
 
 pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
-    let runner = IntegrationTestRunner::new(shell, args.no_deps, None)?;
+    let runner = IntegrationTestRunner::new(shell, args.no_deps)?;
 
     logger::info(format!(
         "Running fees tests on chain: {}",

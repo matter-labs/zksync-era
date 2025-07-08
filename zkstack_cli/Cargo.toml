@@ -71,6 +71,9 @@ async-trait = "0.1.68"
 sqruff-lib = "0.19.0"
 reqwest = { version = "0.12.8", features = ["blocking"] }
 tempfile = "3.11.0"
+alloy = "0.13.0"
+sha2 = "0.10.8"
+walkdir = "2.5.0"
 
 [profile.release]
 strip = true
