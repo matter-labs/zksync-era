@@ -169,6 +169,9 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
         );
     }
 
+    // Needed to set the block index in batch to the bootloader heap
+    vm.vm.set_manual_l2_block_info();
+
     // Now we count how much ergs were spent at the end of the batch
     // It is assumed that the top level frame is the bootloader
     let gas_before = vm.vm.gas_remaining();

@@ -72,6 +72,10 @@ pub(crate) fn test_simple_execute<VM: TestedVm>() {
     assert_matches!(tx.result, ExecutionResult::Revert { .. });
     let tx = vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(tx.result, ExecutionResult::Success { .. });
+
+    // Needed to set the block index in batch to the bootloader heap
+    vm.set_manual_l2_block_info();
+
     let block_tip = vm
         .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;

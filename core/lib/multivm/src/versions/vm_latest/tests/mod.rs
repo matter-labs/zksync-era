@@ -31,7 +31,7 @@ use crate::{
         TestedVmWithCallTracer, TestedVmWithStorageLimit,
     },
     vm_latest::{
-        constants::BOOTLOADER_HEAP_PAGE,
+        constants::{get_current_number_of_roots_in_block_offset, BOOTLOADER_HEAP_PAGE},
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
         tracers::PubdataTracer,
         types::TransactionData,
@@ -180,6 +180,21 @@ impl TestedVm for TestedLatestVm {
         self.state
             .memory
             .populate_page(BOOTLOADER_HEAP_PAGE as usize, cells.to_vec(), timestamp)
+    }
+
+    fn set_manual_l2_block_info(&mut self) {
+        // Storing the block index in batch to the bootloader heap
+        let number_of_roots_in_block_position =
+            get_current_number_of_roots_in_block_offset(self.bootloader_state.get_vm_subversion());
+        let block_index_in_batch = self.bootloader_state.get_block_index_in_batch();
+        println!(
+            "setting block index in batch to bootloader heap at position: {}, value: {}",
+            number_of_roots_in_block_position, block_index_in_batch
+        );
+        self.write_to_bootloader_heap(&[(
+            number_of_roots_in_block_position,
+            block_index_in_batch.into(),
+        )]);
     }
 
     fn read_storage(&mut self, key: StorageKey) -> U256 {

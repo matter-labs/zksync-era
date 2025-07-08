@@ -11,12 +11,13 @@ use crate::{
         bootloader::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
-            get_interop_blocks_begin_offset, get_interop_root_offset,
-            get_operator_provided_l1_messenger_pubdata_offset, get_operator_refunds_offset,
-            get_tx_description_offset, get_tx_operator_l2_block_info_offset,
-            get_tx_overhead_offset, get_tx_trusted_gas_limit_offset,
-            BOOTLOADER_TX_DESCRIPTION_SIZE, INTEROP_ROOT_SLOTS_SIZE,
-            OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+            get_current_number_of_roots_in_block_offset, get_interop_blocks_begin_offset,
+            get_interop_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
+            get_operator_refunds_offset, get_tx_description_offset,
+            get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
+            get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
+            INTEROP_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
     },
@@ -213,6 +214,11 @@ fn apply_interop_root_number_in_block_number(
     let first_empty_slot = get_interop_blocks_begin_offset(subversion) + block_index_in_batch;
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
     memory.push((first_empty_slot, number_of_interop_roots_plus_one));
+    println!(
+        "number of roots in block offset: {}",
+        get_current_number_of_roots_in_block_offset(subversion)
+    );
+    println!("block index in batch: {}", block_index_in_batch);
 }
 
 fn bootloader_memory_input(

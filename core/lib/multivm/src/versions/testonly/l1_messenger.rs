@@ -115,6 +115,9 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
+    // Needed to set the block index in batch to the bootloader heap
+    vm.vm.set_manual_l2_block_info();
+
     let pubdata_builder = FullPubdataBuilder::new(l2_da_validator_address);
     let batch_result = vm.vm.finish_batch(Rc::new(pubdata_builder));
     assert!(

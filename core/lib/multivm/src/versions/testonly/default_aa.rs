@@ -36,6 +36,9 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
+    // Needed to set the block index in batch to the bootloader heap
+    vm.vm.set_manual_l2_block_info();
+
     let batch_result = vm.vm.finish_batch(default_pubdata_builder());
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),

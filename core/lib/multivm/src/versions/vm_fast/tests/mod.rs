@@ -14,9 +14,12 @@ use crate::{
         Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface,
     },
-    versions::testonly::{
-        validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
-        TestedVmWithStorageLimit,
+    versions::{
+        testonly::{
+            validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+            TestedVmWithStorageLimit,
+        },
+        vm_latest::constants::get_current_number_of_roots_in_block_offset,
     },
     vm_fast::{
         tracers::WithBuiltinTracers, CallTracer, FastValidationTracer, StorageInvocationsTracer,
@@ -158,6 +161,21 @@ where
 
     fn write_to_bootloader_heap(&mut self, cells: &[(usize, U256)]) {
         self.write_to_bootloader_heap(cells.iter().copied());
+    }
+
+    fn set_manual_l2_block_info(&mut self) {
+        // Storing the block index in batch to the bootloader heap
+        let number_of_roots_in_block_position =
+            get_current_number_of_roots_in_block_offset(self.bootloader_state.get_vm_subversion());
+        let block_index_in_batch = self.bootloader_state.get_block_index_in_batch();
+        println!(
+            "setting block index in batch to bootloader heap at position: {}, value: {}",
+            number_of_roots_in_block_position, block_index_in_batch
+        );
+        self.write_to_bootloader_heap([(
+            number_of_roots_in_block_position,
+            block_index_in_batch.into(),
+        )]);
     }
 
     fn read_storage(&mut self, key: StorageKey) -> U256 {

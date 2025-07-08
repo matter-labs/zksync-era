@@ -32,6 +32,8 @@ pub(crate) fn test_bytecode_publishing<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
+    // Needed to set the block index in batch to the bootloader heap
+    vm.vm.set_manual_l2_block_info();
     vm.vm.finish_batch(default_pubdata_builder());
 
     let state = vm.vm.get_current_execution_state();

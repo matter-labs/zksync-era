@@ -74,6 +74,9 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
         "Transaction wasn't successful"
     );
 
+    // Needed to set the block index in batch to the bootloader heap
+    vm.vm.set_manual_l2_block_info();
+
     let batch_result = vm
         .vm
         .finish_batch(default_pubdata_builder())
@@ -176,6 +179,9 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
         tx2_result.result.is_failed(),
         "Transaction 2 should have failed, but it succeeded"
     );
+
+    // Needed to set the block index in batch to the bootloader heap
+    vm.vm.set_manual_l2_block_info();
 
     let batch_result = vm
         .vm

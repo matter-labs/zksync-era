@@ -491,7 +491,7 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
             + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
     let number_of_roots_in_block_position =
         get_current_number_of_roots_in_block_offset(MultiVmSubversion::latest());
-    let number_of_interop_roots_plus_one = block_info.interop_roots.len() + 1;
+    let block_index_in_batch = block_info.number - 1;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),
@@ -505,7 +505,7 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
         ),
         (
             number_of_roots_in_block_position,
-            number_of_interop_roots_plus_one.into(),
+            block_index_in_batch.into(),
         ),
     ])
 }

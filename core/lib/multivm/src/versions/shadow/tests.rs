@@ -109,6 +109,13 @@ where
         });
     }
 
+    fn set_manual_l2_block_info(&mut self) {
+        self.get_mut("set_manual_l2_block_info", |r| match r {
+            ShadowMut::Main(vm) => vm.set_manual_l2_block_info(),
+            ShadowMut::Shadow(vm) => TestedVm::set_manual_l2_block_info(vm),
+        });
+    }
+
     fn read_storage(&mut self, key: StorageKey) -> U256 {
         self.get_mut("read_storage", |r| match r {
             ShadowMut::Main(vm) => vm.read_storage(key),

@@ -257,6 +257,8 @@ pub(crate) trait TestedVm:
 
     fn write_to_bootloader_heap(&mut self, cells: &[(usize, U256)]);
 
+    fn set_manual_l2_block_info(&mut self);
+
     /// Reads storage accounting for changes made during the VM run.
     fn read_storage(&mut self, key: StorageKey) -> U256;
 
