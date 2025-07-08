@@ -71,8 +71,9 @@ pub enum ContractType {
     SystemContracts,
 }
 
+type CommandType = Box<dyn FnOnce(Shell, &Path) -> anyhow::Result<()>>;
 struct ContractBuilder {
-    cmd: Box<dyn FnOnce(Shell, &Path) -> anyhow::Result<()>>,
+    cmd: CommandType,
     msg: String,
     link_to_code: PathBuf,
 }
