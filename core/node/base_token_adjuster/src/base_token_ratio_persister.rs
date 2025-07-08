@@ -122,7 +122,7 @@ impl BaseTokenRatioPersister {
 
         // In database we persist the ratio needed for calculating L2 gas price from SL (L1 or Gateway) gas price
         self.persist_ratio(sl_ratio).await?;
-        if matches!(self.base_token, APIToken::Eth) {
+        if !matches!(self.base_token, APIToken::Eth) {
             METRICS
                 .ratio_l1
                 .set((base_to_eth.numerator.get() as f64) / (base_to_eth.denominator.get() as f64));
