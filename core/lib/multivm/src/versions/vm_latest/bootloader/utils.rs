@@ -215,7 +215,7 @@ fn apply_interop_root_number_in_block_number(
     let first_empty_slot = get_interop_blocks_begin_offset(subversion) + block_index_in_batch;
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
     memory.push((first_empty_slot, number_of_interop_roots_plus_one));
-    // Needed to write the block index in batch to the bootloader memory
+    // FIXME: Needed to write the block index in batch to the bootloader memory
     // This value is directly set by the bootloader, so we only need to write it in test mode
     #[cfg(any(test, feature = "test-utils"))]
     memory.extend(vec![(
