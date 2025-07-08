@@ -79,7 +79,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
 
 fn interop_root(rng: &mut impl Rng) -> InteropRoot {
     InteropRoot {
-        chain_id: L2ChainId::new(rng.gen()).unwrap(),
+        chain_id: L2ChainId::new(rng.gen::<u32>().into()).unwrap(),
         block_number: rng.gen(),
         sides: (0..10).map(|_| rng.gen()).collect(),
     }
