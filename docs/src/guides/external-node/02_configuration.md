@@ -61,6 +61,58 @@ use, but these can be edited, e.g. to make the Node more/less restrictive.
 - `EN_REQ_ENTITIES_LIMIT` (default 10,000) controls max possible limit of entities to be requested at once. Hitting the
   limit will result in errors similar to: "Query returned more than 10000 results (...)"
 
+### Gas Cap for eth_call
+
+The external node supports configuring a gas cap for `eth_call` requests, similar to geth's `--rpc.gascap` option. This
+limits the maximum amount of gas that can be used in a single `eth_call`, preventing resource exhaustion from
+computationally expensive calls.
+
+**Configuration:**
+
+Add the following to your node configuration YAML file:
+
+```yaml
+api:
+  web3_json_rpc:
+    eth_call_gas_cap: 50000000  # 50M gas limit (optional)
+```
+
+**Gas cap behavior:**
+
+- **If not specified**: Uses the protocol version-based gas limit (recommended default)
+- **If set to 0**: No gas limit (unlimited gas, use with caution)
+- **If set to a positive value**: Caps `eth_call` gas usage to this limit
+
+The node will use `min(requested_gas, gas_cap)` when processing `eth_call` requests. This ensures that even if a client
+requests more gas than the cap allows, the call will be limited to the configured maximum.
+
+**Examples:**
+
+```yaml
+# Example 1: 10M gas cap (conservative)
+api:
+  web3_json_rpc:
+    eth_call_gas_cap: 10000000
+
+# Example 2: 100M gas cap (permissive)
+api:
+  web3_json_rpc:
+    eth_call_gas_cap: 100000000
+
+# Example 3: No gas cap (unlimited, not recommended for public nodes)
+api:
+  web3_json_rpc:
+    eth_call_gas_cap: 0
+
+# Example 4: Use protocol default (recommended)
+api:
+  web3_json_rpc:
+    # eth_call_gas_cap not specified - uses protocol default
+```
+
+**Compatibility note:** This feature provides the same functionality as geth's `--rpc.gascap` flag, ensuring compatibility
+with existing Ethereum tooling and dApps that expect gas limiting behavior.
+
 ## JSON-RPC API namespaces
 
 There are 7 total supported API namespaces: `eth`, `net`, `web3`, `debug` - standard ones; `zks` - rollup-specific one;

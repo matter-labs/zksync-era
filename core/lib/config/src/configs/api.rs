@@ -332,6 +332,10 @@ pub struct Web3JsonRpcConfig {
     /// considered experimental.
     #[config(default)]
     pub estimate_gas_optimize_search: bool,
+    /// Gas cap for `eth_call` requests. If specified, limits the maximum amount of gas that can be used in a single `eth_call`.
+    /// If not specified or set to 0, uses the default protocol version-based gas limit. Similar to geth's --rpc.gascap option.
+    #[config(default)]
+    pub eth_call_gas_cap: Option<u64>,
     /// Max possible size of an ABI-encoded transaction.
     #[config(default_t = 10 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
     pub max_tx_size: ByteSize,
@@ -541,6 +545,7 @@ mod tests {
                 api_namespaces: HashSet::from([Namespace::Debug]),
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
+                eth_call_gas_cap: None,
             },
             healthcheck: HealthCheckConfig {
                 port: 8081.into(),
