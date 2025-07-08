@@ -284,7 +284,7 @@ impl DataAvailabilityClient for AvailClient {
             })?
             .join(
                 format!(
-                    "/eth/proof/{}?block_hash={}&index={}",
+                    "/v1/proof/{}?block_hash={}&index={}",
                     self.sl_chain_id, block_hash, tx_idx
                 )
                 .as_str(),
