@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig, GenesisConfig, ZkStackConfig, CONFIG_NAME, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
 
@@ -96,7 +96,7 @@ pub(crate) async fn create_chain_inner(
         chain_id,
         prover_version: args.prover_version,
         l1_network: ecosystem_config.l1_network,
-        self_path: chain_path.join(CONFIG_NAME),
+        self_path: chain_path.clone(),
         link_to_code: ecosystem_config.link_to_code.clone(),
         rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
         artifacts: ecosystem_config.get_chain_artifacts_path(&default_chain_name),
