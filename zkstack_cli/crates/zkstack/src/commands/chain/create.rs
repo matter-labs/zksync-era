@@ -124,6 +124,7 @@ pub(crate) async fn create_chain_inner(
         shell: OnceCell::from(shell.clone()),
         legacy_bridge,
         evm_emulator: args.evm_emulator,
+        tight_ports: args.tight_ports,
     };
 
     create_wallets(

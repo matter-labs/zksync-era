@@ -1,7 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{
-    h256_to_u256, u256_to_h256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256,
-};
+use zksync_types::{InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256};
 
 use crate::Core;
 
@@ -19,11 +17,11 @@ impl TryFrom<StorageInteropRoot> for InteropRoot {
         let sides = rec
             .interop_root_sides
             .iter()
-            .map(|side| h256_to_u256(H256::from_slice(side)))
+            .map(|side| H256::from_slice(side))
             .collect::<Vec<_>>();
 
         Ok(Self {
-            chain_id: rec.chain_id as u32,
+            chain_id: L2ChainId::new(rec.chain_id as u64).unwrap(),
             block_number: rec.dependency_block_number as u32,
             sides,
         })
@@ -139,7 +137,7 @@ impl InteropRootDal<'_, '_> {
                 .sides
                 .iter()
                 .cloned()
-                .map(|root| u256_to_h256(root).as_bytes().to_vec())
+                .map(|root| root.as_bytes().to_vec())
                 .collect::<Vec<_>>();
 
             // There can be interop root in the DB in case of block rollback or if the DB was restored from a dump.
@@ -157,7 +155,7 @@ impl InteropRootDal<'_, '_> {
                 DO UPDATE SET interop_root_sides = excluded.interop_root_sides,
                 processed_block_number = excluded.processed_block_number;
                 "#,
-                root.chain_id as i32,
+                root.chain_id.as_u64() as i64,
                 root.block_number as i32,
                 &sides,
                 l2block_number.0 as i32,
@@ -187,7 +185,7 @@ impl InteropRootDal<'_, '_> {
                     AND dependency_block_number = $3
                 "#,
                 l2block_number.0 as i32,
-                root.chain_id as i32,
+                root.chain_id.as_u64() as i64,
                 root.block_number as i32
             )
             .instrument("mark_interop_roots_as_executed")

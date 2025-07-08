@@ -33,7 +33,9 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "0BSD",
     "BSL-1.0",
-    "Unicode-3.0"
+    "Unicode-3.0",
+    "BUSL-1.1",
+    "CDLA-Permissive-2.0"
 ]
 confidence-threshold = 0.8
 

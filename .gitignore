@@ -110,10 +110,7 @@ prover/data/keys/fflonk_setup_snark_data.bin
 prover/data/keys/plonk_setup_snark_data.bin
 
 # ZK Stack CLI
-chains/era/configs/*
-chains/second/configs/*
-chains/gateway/configs/*
-chains/avail/*
+chains/*
 configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
@@ -121,6 +118,7 @@ transactions/
 
 # foundry-zksync
 install
+
 
 .format_sql_snapshot
 .prettier_cache.json

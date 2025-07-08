@@ -161,6 +161,11 @@ pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ra
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
 
+// Init test wallet related messages
+pub(super) const MSG_INIT_TEST_WALLET_ABOUT: &str = "Initialize test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
+
 // Migration test related messages
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
