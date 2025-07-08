@@ -171,7 +171,7 @@ impl EcosystemConfig {
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             l1_network: self.l1_network,
             self_path: path,
-            link_to_code: self.link_to_code.clone(),
+            link_to_code: config.link_to_code.unwrap_or(self.link_to_code.clone()),
             base_token: config.base_token,
             rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,
