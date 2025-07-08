@@ -136,7 +136,7 @@ impl ProtoRepr for proto::InteropRoot {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            chain_id: L2ChainId::new(*required(&self.chain_id).context("chain_id")? as u64)
+            chain_id: L2ChainId::new(u64::from(*required(&self.chain_id).context("chain_id")?))
                 .unwrap(),
             block_number: *required(&self.block_number).context("block_number")?,
             sides: self
