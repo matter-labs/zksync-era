@@ -76,7 +76,7 @@ Agents need the following Kubernetes permissions:
 
 ```yaml
 - apiGroups:
-    - ''
+    - ""
   resources:
     - pods
     - events
@@ -116,7 +116,7 @@ Example:
 graceful_shutdown_timeout: 5s
 observability:
   log_format: plain
-  log_directives: 'zksync_prover_autoscaler=debug'
+  log_directives: "zksync_prover_autoscaler=debug"
 ```
 
 ### Agent configuration

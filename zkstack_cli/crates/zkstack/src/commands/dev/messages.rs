@@ -159,6 +159,14 @@ pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran succes
 // pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
 // pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
 
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
+    "General ecosystem upgrade checker and calldata generator";
+
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_CHAIN_UPGRADE: &str =
+    "General chain upgrade checker and calldata generator";
+
 // Migration test related messages
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
