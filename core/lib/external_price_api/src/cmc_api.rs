@@ -13,7 +13,7 @@ const AUTH_HEADER: &str = "x-cmc_pro_api_key";
 const DEFAULT_API_URL: &str = "https://pro-api.coinmarketcap.com";
 const ALLOW_TOKENS_ONLY_ON_PLATFORM_ID: i32 = 1; // 1 = Ethereum
 const REQUEST_QUOTE_IN_CURRENCY_ID: &str = "1027"; // 1027 = ETH
-const ZKSYNC_ID: i32 = 24091; //TODO FIX THIS
+const ZKSYNC_ID: i32 = 24091;
 
 #[derive(Debug)]
 pub struct CmcPriceApiClient {
