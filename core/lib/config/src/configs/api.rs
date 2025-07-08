@@ -573,6 +573,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.3
             API_WEB3_JSON_RPC_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
+            API_WEB3_JSON_RPC_ETH_CALL_GAS_CAP=""
             API_WEB3_JSON_RPC_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
             API_WEB3_JSON_RPC_EXTENDED_API_TRACING=true
@@ -654,6 +655,7 @@ mod tests {
             - "0x0000000000000000000000000000000000000002"
             extended_api_tracing: true
             estimate_gas_optimize_search: true
+            eth_call_gas_cap: null
             request_timeout_sec: 20
             tree_api_url: "http://tree/"
           prometheus:
@@ -716,6 +718,7 @@ mod tests {
             - "0x0000000000000000000000000000000000000002"
             extended_api_tracing: true
             estimate_gas_optimize_search: true
+            eth_call_gas_cap: null
             request_timeout: 20s
             tree_api_url: "http://tree/"
           prometheus:
