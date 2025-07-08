@@ -181,7 +181,7 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: EcosystemContracts,
     // Setting default values to zero(for backwards compatibility)
     #[config(nest, default)]
-    pub eth_proof_manager: ProofManagerContracts,
+    pub proof_manager_contracts: ProofManagerContracts,
 }
 
 impl ContractsConfig {
@@ -191,7 +191,7 @@ impl ContractsConfig {
             l2: L2ContractsConfig::for_tests(),
             bridges: BridgesConfig::for_tests(),
             ecosystem_contracts: EcosystemContracts::for_tests(),
-            eth_proof_manager: ProofManagerContracts::for_tests(),
+            proof_manager_contracts: ProofManagerContracts::for_tests(),
         }
     }
 
@@ -242,7 +242,7 @@ impl ContractsConfig {
     }
 
     pub fn eth_proof_manager_contracts(&self) -> ProofManagerContracts {
-        self.eth_proof_manager.clone()
+        self.proof_manager_contracts.clone()
     }
 
     pub(crate) fn insert_into_schema(schema: &mut ConfigSchema) {
@@ -329,7 +329,7 @@ mod tests {
                 )),
                 server_notifier_addr: Some(addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a")),
             },
-            eth_proof_manager: ProofManagerContracts {
+            proof_manager_contracts: ProofManagerContracts {
                 proof_manager_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 proxy_admin_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
@@ -371,9 +371,9 @@ mod tests {
             CONTRACTS_BRIDGES_WETH_L1_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_WETH_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 
-            CONTRACTS_ETH_PROOF_MANAGER_PROOF_MANAGER_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
-            CONTRACTS_ETH_PROOF_MANAGER_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
-            CONTRACTS_ETH_PROOF_MANAGER_PROXY_ADMIN_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROOF_MANAGER_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADMIN_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
 
@@ -425,7 +425,7 @@ mod tests {
               timestamp_asserter_addr: '0x0000000000000000000000000000000000000002'
               da_validator_addr: 0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff
               multicall3: '0x0000000000000000000000000000000000010002'
-            eth_proof_manager:
+            proof_manager_contracts:
               proof_manager_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
               proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
               proxy_admin_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297

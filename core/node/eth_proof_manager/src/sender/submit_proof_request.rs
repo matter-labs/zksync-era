@@ -103,16 +103,18 @@ impl ProofRequestSubmitter {
                         .mark_batch_as_sent(batch_id, tx_hash)
                         .await?;
                     tracing::info!(
-                        "Submitted proof request for batch {} with tx hash {}",
-                        batch_id,
+                        "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
+                        proof_generation_data.l1_batch_number,
+                        proof_generation_data.chain_id,
                         tx_hash
                     );
                     return Ok(());
                 }
                 Err(e) => {
                     tracing::error!(
-                        "Failed to submit proof request for batch {}, moving to prover cluster: {}",
-                        batch_id,
+                        "Failed to submit proof request for batch {}, chain_id: {}, moving to prover cluster: {}",
+                        proof_generation_data.l1_batch_number,
+                        proof_generation_data.chain_id,
                         e
                     );
                     self.connection_pool

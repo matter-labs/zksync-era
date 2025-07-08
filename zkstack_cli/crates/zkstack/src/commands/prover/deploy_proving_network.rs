@@ -70,13 +70,13 @@ pub(crate) async fn deploy_proving_network(
     let mut proxy_admin_addr = String::new();
 
     for line in output.lines() {
-        if line.contains("IMPLEMENTATION") {
+        if line.contains("IMPLEMENTATION:") {
             impl_addr = line.split(":").nth(1).unwrap().to_string();
         }
-        if line.contains("PROXY") {
+        if line.contains("PROXY:") {
             proxy_addr = line.split(":").nth(1).unwrap().to_string();
         }
-        if line.contains("PROXY_ADMIN") {
+        if line.contains("PROXY_ADMIN:") {
             proxy_admin_addr = line.split(":").nth(1).unwrap().to_string();
         }
     }

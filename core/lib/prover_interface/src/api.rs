@@ -71,7 +71,7 @@ impl StoredObject for ProofGenerationData {
     fn encode_key(key: Self::Key<'_>) -> String {
         let semver_suffix = key.1.to_string().replace('.', "_");
         format!(
-            "witness_input_data_{}_{}_{}",
+            "witness_input_data_{}_{}_{}.cbor",
             key.0.batch_number(),
             key.0.chain_id(),
             semver_suffix

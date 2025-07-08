@@ -317,14 +317,15 @@ impl EthProofManagerDal<'_, '_> {
         .into_iter()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
+        let mut query_builder = QueryBuilder::new(
+            "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - $1::INTERVAL)"
+        );
+
+        let timeout = pg_interval_from_duration(picking_timeout);
+        query_builder.push_bind(&timeout);
 
         if !batches.is_empty() {
-            let mut query_builder = QueryBuilder::new(
-                "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - $1::INTERVAL) OR l1_batch_number IN ("
-            );
-
-            let timeout = pg_interval_from_duration(picking_timeout);
-            query_builder.push_bind(&timeout);
+            query_builder.push(" OR l1_batch_number IN (");
 
             for (index, batch) in batches.iter().enumerate() {
                 query_builder.push_bind(batch.0 as i64);
@@ -334,15 +335,15 @@ impl EthProofManagerDal<'_, '_> {
             }
 
             query_builder.push(")");
-
-            let result = query_builder
-                .build()
-                .instrument("move_batches_to_fallback")
-                .execute(&mut transaction)
-                .await?;
-
-            tracing::info!("Moved {} batches to fallback", result.rows_affected());
         }
+
+        let result = query_builder
+            .build()
+            .instrument("move_batches_to_fallback")
+            .execute(&mut transaction)
+            .await?;
+
+        tracing::info!("Moved {} batches to fallback", result.rows_affected());
 
         transaction.commit().await?;
 
