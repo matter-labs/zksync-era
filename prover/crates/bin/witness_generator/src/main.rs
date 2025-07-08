@@ -111,7 +111,9 @@ async fn main() -> anyhow::Result<()> {
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
 
     tokio::select! {
-        _ = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {},
+        res = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {
+            res.context("Failed to run witness generator")?;
+        },
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
         }
@@ -214,7 +216,6 @@ async fn run_inner(
                     config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
-                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -226,7 +227,6 @@ async fn run_inner(
                     config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
-                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -238,7 +238,6 @@ async fn run_inner(
                     config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
-                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -250,7 +249,6 @@ async fn run_inner(
                     config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
-                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -262,7 +260,6 @@ async fn run_inner(
                     config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
-                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),

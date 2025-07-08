@@ -18,7 +18,6 @@ pub fn witness_generator_runner<R>(
     max_circuits_in_flight: usize,
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
-    num_workers: usize,
     protocol_version: ProtocolSemanticVersion,
     keystore: Arc<dyn VerificationKeyManager>,
     cancellation_token: CancellationToken,
@@ -40,7 +39,7 @@ where
         executor,
         job_picker,
         job_saver,
-        num_workers,
+        1,
         Some(BackoffAndCancellable::new(
             backoff,
             cancellation_token.clone(),
