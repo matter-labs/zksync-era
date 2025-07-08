@@ -12,7 +12,7 @@ use xshell::Shell;
 
 use self::commands::{
     clean::CleanCommands, config_writer::ConfigWriterArgs, contracts::ContractsArgs,
-    database::DatabaseCommands, fmt::FmtArgs, init_test_wallet::run as init_test_wallet_run,
+    database::DatabaseCommands, fmt::FmtArgs,
     lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
     snapshot::SnapshotCommands, test::TestCommands,
 };
@@ -57,10 +57,10 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
-    #[command(about = MSG_INIT_TEST_WALLET_ABOUT)]
-    InitTestWallet,
-    #[command(about = MSG_RICH_ACCOUNT_ABOUT)]
-    RichAccount(RichAccountArgs),
+    // #[command(about = MSG_INIT_TEST_WALLET_ABOUT)]
+    // InitTestWallet,
+    // #[command(about = MSG_RICH_ACCOUNT_ABOUT)]
+    // RichAccount(RichAccountArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT)]
     TrackPriorityOps(TrackPriorityOpsArgs),
     #[cfg(feature = "v27_evm_interpreter")]
@@ -99,8 +99,8 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
-        DevCommands::InitTestWallet => init_test_wallet_run(shell).await?,
-        DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
+        // DevCommands::InitTestWallet => init_test_wallet_run(shell).await?,
+        // DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
         DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {

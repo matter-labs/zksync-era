@@ -179,10 +179,10 @@ async fn no_governance_prepare(
     // The variable `message_root_address_from_cast` now holds the address as a string.
     // It can be used for subsequent operations if needed.
 
-    current_contracts_config
-        .ecosystem_contracts
-        .message_root_proxy_addr = Some(H160::from_str(&message_root_address_from_cast).unwrap());
-    current_contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
+    // current_contracts_config
+    //     .ecosystem_contracts
+    //     .message_root_proxy_addr = Some(H160::from_str(&message_root_address_from_cast).unwrap());
+    // current_contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
 
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
