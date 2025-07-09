@@ -15,7 +15,7 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     u256_to_h256, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    L2ChainId, L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
 };
 
 use super::*;
@@ -136,25 +136,25 @@ impl ProtoRepr for proto::InteropRoot {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            chain_id: *required(&self.chain_id).context("chain_id")?,
+            chain_id: L2ChainId::new(u64::from(*required(&self.chain_id).context("chain_id")?))
+                .unwrap(),
             block_number: *required(&self.block_number).context("block_number")?,
             sides: self
                 .sides
                 .iter()
-                .map(|s| parse_h256(s).context("sides").map(h256_to_u256))
+                .map(|s| parse_h256(s).context("sides"))
                 .collect::<anyhow::Result<_>>()?,
         })
     }
 
     fn build(r: &Self::Type) -> Self {
         Self {
-            chain_id: Some(r.chain_id),
+            chain_id: Some(r.chain_id.as_u64() as u32),
             block_number: Some(r.block_number),
             sides: r
                 .sides
                 .iter()
                 .cloned()
-                .map(u256_to_h256)
                 .map(|h| h.as_bytes().to_vec())
                 .collect(),
         }

@@ -1,6 +1,8 @@
 use zksync_types::{ethabi, h256_to_u256, InteropRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
+#[cfg(any(test, feature = "test-utils"))]
+use crate::versions::vm_latest::constants::get_current_number_of_roots_in_block_offset;
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
@@ -22,16 +24,21 @@ use crate::{
     },
 };
 
-pub struct InteropRootApplicationConfig {
+pub struct NewBlockConfig {
     pub number_of_applied_interop_roots: usize,
-    pub preexisting_blocks_number: usize,
+    pub block_index_in_batch: usize,
 }
 
 pub(super) struct L2BlockApplicationConfig {
     pub tx_index: usize,
-    pub start_new_l2_block: bool,
     pub subversion: MultiVmSubversion,
-    pub interop_root_application_config: Option<InteropRootApplicationConfig>,
+    pub new_block_config: Option<NewBlockConfig>,
+}
+
+impl L2BlockApplicationConfig {
+    pub fn should_start_new_l2_block(&self) -> bool {
+        self.new_block_config.is_some()
+    }
 }
 
 pub(super) fn get_memory_for_compressed_bytecodes(
@@ -108,16 +115,15 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     tx_index: usize,
     subversion: MultiVmSubversion,
-    interop_root_application_config: Option<InteropRootApplicationConfig>,
+    new_block_config: Option<NewBlockConfig>,
 ) -> usize {
     apply_l2_block_inner(
         memory,
         bootloader_l2_block,
         L2BlockApplicationConfig {
             tx_index,
-            start_new_l2_block: true,
             subversion,
-            interop_root_application_config,
+            new_block_config,
         },
     )
 }
@@ -134,38 +140,30 @@ fn apply_l2_block_inner(
     let block_position = get_tx_operator_l2_block_info_offset(config.subversion)
         + config.tx_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-    memory.extend(vec![
-        (block_position, bootloader_l2_block.number.into()),
-        (block_position + 1, bootloader_l2_block.timestamp.into()),
-        (
-            block_position + 2,
-            h256_to_u256(bootloader_l2_block.prev_block_hash),
-        ),
-        (
-            block_position + 3,
-            if config.start_new_l2_block {
-                bootloader_l2_block.max_virtual_blocks_to_create.into()
-            } else {
-                U256::zero()
-            },
-        ),
-    ]);
+    memory.push((block_position, bootloader_l2_block.number.into()));
+    memory.push((block_position + 1, bootloader_l2_block.timestamp.into()));
+    memory.push((
+        block_position + 2,
+        h256_to_u256(bootloader_l2_block.prev_block_hash),
+    ));
+    memory.push((
+        block_position + 3,
+        if config.should_start_new_l2_block() {
+            bootloader_l2_block.max_virtual_blocks_to_create.into()
+        } else {
+            U256::zero()
+        },
+    ));
 
-    if config.subversion != MultiVmSubversion::Interop
-        || config.interop_root_application_config.is_none()
-    {
+    if config.subversion < MultiVmSubversion::Interop || !config.should_start_new_l2_block() {
         return 0;
     }
 
-    if !config.start_new_l2_block {
-        return 0;
-    }
-
-    let interop_root_application_config = config.interop_root_application_config.unwrap();
+    let new_block_config = config.new_block_config.as_ref().unwrap();
     for (offset, interop_root) in bootloader_l2_block.interop_roots.iter().enumerate() {
         apply_interop_root(
             memory,
-            interop_root_application_config.number_of_applied_interop_roots + offset,
+            new_block_config.number_of_applied_interop_roots + offset,
             interop_root.clone(),
             config.subversion,
             bootloader_l2_block.number,
@@ -176,7 +174,7 @@ fn apply_l2_block_inner(
         memory,
         config.subversion,
         bootloader_l2_block.interop_roots.len(),
-        interop_root_application_config.preexisting_blocks_number,
+        new_block_config.block_index_in_batch,
     );
 
     bootloader_l2_block.interop_roots.len()
@@ -193,28 +191,37 @@ fn apply_interop_root(
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
-        U256::from(interop_root.chain_id),
+        U256::from(interop_root.chain_id.as_u64()),
         U256::from(interop_root.block_number),
         U256::from(interop_root.sides.len()),
     ];
 
-    u256_words.extend(interop_root.sides);
-    memory.extend(
-        (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
-            ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
-            .zip(u256_words),
-    )
+    u256_words.extend(
+        interop_root
+            .sides
+            .iter()
+            .map(|hash| U256::from(hash.as_bytes())),
+    );
+    let start_slot = interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE;
+    memory.extend((start_slot..).zip(u256_words));
 }
 
 fn apply_interop_root_number_in_block_number(
     memory: &mut BootloaderMemory,
     subversion: MultiVmSubversion,
     number_of_interop_roots: usize,
-    preexisting_blocks_number: usize,
+    block_index_in_batch: usize,
 ) {
-    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
+    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + block_index_in_batch;
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
-    memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
+    memory.push((first_empty_slot, number_of_interop_roots_plus_one));
+    // FIXME: Needed to write the block index in batch to the bootloader memory
+    // This value is directly set by the bootloader, so we only need to write it in test mode
+    #[cfg(any(test, feature = "test-utils"))]
+    memory.extend(vec![(
+        get_current_number_of_roots_in_block_offset(subversion),
+        block_index_in_batch.into(),
+    )]);
 }
 
 fn bootloader_memory_input(

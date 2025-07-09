@@ -22,13 +22,13 @@ pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
 
-#[cfg(feature = "v29_interopA_ff")]
-pub(super) const MSG_V29_INTEROP_A_FF_UPGRADE: &str =
-    "Interop A + FF (v29) upgrade checker and calldata generator";
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
+    "General ecosystem upgrade checker and calldata generator";
 
-#[cfg(feature = "v29_interopA_ff")]
-pub(super) const MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE: &str =
-    "Interop A + FF (v29) chain upgrade checker and calldata generator";
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_CHAIN_UPGRADE: &str =
+    "General chain upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -160,6 +160,11 @@ pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ra
 // Recovery tests related messages
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
+// Init test wallet related messages
+pub(super) const MSG_INIT_TEST_WALLET_ABOUT: &str = "Initialize test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
 
 // Migration test related messages
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";

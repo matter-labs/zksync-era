@@ -107,6 +107,18 @@ pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/upgrade/ChainUpgrade_v29.s.sol",
 };
 
+pub const ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/zk-os-v28-1-upgrade-ecosystem.toml",
+    output: "script-out/zk-os-v28-1-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v28_1_zk_os.s.sol",
+};
+
+pub const ZK_OS_V28_1_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/zk-os-v28-1-upgrade-chain.toml",
+    output: "script-out/zk-os-v28-1-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/ChainUpgrade_v28_1_zk_os.s.sol",
+};
+
 pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-finalize-upgrade.toml",
     output: "script-out/gateway-finalize-upgrade.toml",

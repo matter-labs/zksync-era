@@ -63,5 +63,6 @@ pub fn create_localhost_wallets(
             &base_path,
             5,
         )?),
+        test_wallet: None,
     })
 }
