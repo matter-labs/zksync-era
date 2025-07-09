@@ -257,6 +257,22 @@ impl Tester {
             .unwrap();
     }
 
+    pub(super) async fn insert_unsealed_batch(
+        &self,
+        pool: &ConnectionPool<Core>,
+        number: u32,
+        fee_input: BatchFeeInput,
+    ) {
+        let mut batch_header = create_l1_batch(number);
+        batch_header.batch_fee_input = fee_input;
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
+        storage
+            .blocks_dal()
+            .insert_l1_batch(batch_header.to_unsealed_header())
+            .await
+            .unwrap();
+    }
+
     pub(super) fn insert_tx(
         &self,
         guard: &mut MempoolGuard,

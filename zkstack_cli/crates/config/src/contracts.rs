@@ -24,7 +24,8 @@ pub struct ContractsConfig {
     pub create2_factory_salt: H256,
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
-    pub proof_manager_contracts: EthProofManagerContracts,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof_manager_contracts: Option<ProvingNetworkContracts>,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
     #[serde(flatten)]
@@ -142,9 +143,11 @@ impl ContractsConfig {
         proxy_addr: String,
         proxy_admin_addr: String,
     ) -> anyhow::Result<()> {
-        self.proof_manager_contracts.proof_manager_addr = H160::from_str(&impl_addr)?;
-        self.proof_manager_contracts.proxy_addr = H160::from_str(&proxy_addr)?;
-        self.proof_manager_contracts.proxy_admin_addr = H160::from_str(&proxy_admin_addr)?;
+        self.proving_network = Some(ProvingNetworkContracts {
+            proof_manager_addr: H160::from_str(&impl_addr)?,
+            proxy_addr: H160::from_str(&proxy_addr)?,
+            proxy_admin_addr: H160::from_str(&proxy_admin_addr)?,
+        });
 
         Ok(())
     }

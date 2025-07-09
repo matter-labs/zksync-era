@@ -397,7 +397,7 @@ export function getWallet(l1rpc, privateKey) {
     if (!l1rpc) {
         l1rpc = web3Url();
     }
-    const provider = new ethers.providers.JsonRpcProvider(l1rpc);
+    const provider = new ethers.JsonRpcProvider(l1rpc);
 
     return privateKey
         ? new ethers.Wallet(privateKey, provider)

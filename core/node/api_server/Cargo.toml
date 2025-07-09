@@ -65,4 +65,7 @@ zksync_node_test_utils.workspace = true
 zksync_test_contracts.workspace = true
 
 assert_matches.workspace = true
+http-body-util.workspace = true
+hyper-util.workspace = true
+tempfile.workspace = true
 test-casing.workspace = true
