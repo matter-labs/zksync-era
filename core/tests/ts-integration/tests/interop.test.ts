@@ -120,6 +120,7 @@ describe('Interop behavior checks', () => {
         /// see hashProof in MessageHashing.sol for this logic.
         let gwProofIndex =
             1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
     }
 
@@ -146,8 +147,10 @@ describe('Interop behavior checks', () => {
 
             currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
             await zksync.utils.sleep(alice.provider.pollingInterval);
+            console.log('currentRoot', currentRoot, count);
             count++;
         }
+        console.log('Interop root is non-zero', currentRoot);
     }
 
     afterAll(async () => {
