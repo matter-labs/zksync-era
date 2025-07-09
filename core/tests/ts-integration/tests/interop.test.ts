@@ -27,7 +27,7 @@ describe('Interop behavior checks', () => {
     let aliceSecondChain: RetryableWallet;
     let tokenDetails: Token;
 
-    let skipInteropTest = false;
+    let skipInteropTests = false;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -46,7 +46,7 @@ describe('Interop behavior checks', () => {
             (await bridgehub.settlementLayer((await alice.provider.getNetwork()).chainId)) ==
             (await alice.providerL1!.getNetwork()).chainId
         ) {
-            skipInteropTest = true;
+            skipInteropTests = true;
         } else {
             // Define the second chain wallet if the SL is different from the L1.
             const maybeAliceSecondChain = testMaster.mainAccountSecondChain();
@@ -57,15 +57,13 @@ describe('Interop behavior checks', () => {
         }
     });
 
-    beforeEach(() => {
-        if (skipInteropTest) {
-            pending('Skipping interop test because settlement layer is the same as L1');
-        }
-    });
-
     let withdrawalHash: string;
     let params: FinalizeWithdrawalParams;
     test('Can check withdrawal hash in L2-A', async () => {
+        if (skipInteropTests) {
+            pending('Skipping interop test because settlement layer is the same as L1');
+        }
+
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
@@ -100,6 +98,10 @@ describe('Interop behavior checks', () => {
     });
 
     test('Can check withdrawal hash from L2-B', async () => {
+        if (skipInteropTests) {
+            pending('Skipping interop test because settlement layer is the same as L1');
+        }
+
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
