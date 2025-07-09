@@ -19,10 +19,7 @@ use zksync_object_store::ObjectStore;
 
 use crate::{client::ProofManagerClient, EthProofManager};
 
-/// Wiring layer for ethereum watcher
-///
-/// Responsible for initializing and running of [`EthWatch`] component, that polls the Ethereum node for the relevant events,
-/// such as priority operations (aka L1 transactions), protocol upgrades etc.
+/// Wiring layer for proof manager.
 #[derive(Debug)]
 pub struct EthProofManagerLayer {
     eth_proof_manager_config: EthProofManagerConfig,
