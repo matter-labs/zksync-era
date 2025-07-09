@@ -608,17 +608,20 @@ export class TestContextOwner {
         );
         l2startNonce += l2TxPromises.length;
 
-        // ETH transfers on second chain.
-        const l2TxPromisesSecondChain = await sendTransfers(
-            zksync.utils.ETH_ADDRESS,
-            this.secondChainMainSyncWallet,
-            wallets,
-            this.requiredL2ETHPerAccountSecondChain(),
-            l2startNonceSecondChain,
-            undefined,
-            this.reporter
-        );
-        l2startNonceSecondChain += l2TxPromisesSecondChain.length;
+        let l2TxPromisesSecondChain: Promise<any>[] = [];
+        if (this.env.l2ChainIdSecondChain !== this.env.l2ChainId) {
+            // ETH transfers on second chain.
+            l2TxPromisesSecondChain = await sendTransfers(
+                zksync.utils.ETH_ADDRESS,
+                this.secondChainMainSyncWallet,
+                wallets,
+                this.requiredL2ETHPerAccountSecondChain(),
+                l2startNonceSecondChain,
+                undefined,
+                this.reporter
+            );
+            l2startNonceSecondChain += l2TxPromisesSecondChain.length;
+        }
 
         // ERC20 transfers.
         const l2TokenAddress = await this.mainSyncWallet.l2TokenAddress(this.env.erc20Token.l1Address);
