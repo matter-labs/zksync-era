@@ -41,7 +41,6 @@ jobs:
               - 'docker-compose-runner-nightly.yml'
               - '!**/*.md'
               - '!**/*.MD'
-              - 'core/**'
             core:
               - 'core/**'
               - '!core/CHANGELOG.md'
