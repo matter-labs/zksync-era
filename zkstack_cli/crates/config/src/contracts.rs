@@ -25,7 +25,7 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub proof_manager_contracts: Option<ProvingNetworkContracts>,
+    pub proof_manager_contracts: Option<EthProofManagerContracts>,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
     #[serde(flatten)]
