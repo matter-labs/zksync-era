@@ -27,12 +27,12 @@ pub fn submodule_update(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<
 "
     ))
     .run()?;
-    if let Err(err) = attach_head(shell, link_to_code) {
-        logger::warn(format!(
-            "Failed to attach head to submodule: {}. Continuing with the update.",
-            err
-        ));
-    }
+    // if let Err(err) = attach_head(shell, link_to_code) {
+    //     logger::warn(format!(
+    //         "Failed to attach head to submodule: {}. Continuing with the update.",
+    //         err
+    //     ));
+    // }
 
     Ok(())
 }

@@ -355,7 +355,7 @@ pub(crate) async fn run(
                 .governor
                 .private_key_h256()
                 .unwrap(),
-            "migrating from gateway",
+            "set timestamp for upgrade",
         )
         .await?;
 
@@ -370,7 +370,7 @@ pub(crate) async fn run(
                 .governor
                 .private_key_h256()
                 .unwrap(),
-            "migrating from gateway",
+            "finalize upgrade",
         )
         .await?;
         // governance_execute_calls(

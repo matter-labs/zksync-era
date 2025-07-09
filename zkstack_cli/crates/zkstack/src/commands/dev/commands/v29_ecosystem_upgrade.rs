@@ -189,6 +189,7 @@ async fn no_governance_prepare(
     let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(&upgrade_version)
         .input(&ecosystem_config.path_to_l1_foundry());
 
+    // TODO do not use era chain at all
     let era_config = ecosystem_config
         .load_chain(Some("era".to_string()))
         .context("No era")?;
@@ -254,19 +255,15 @@ async fn no_governance_prepare(
 
     println!("done!");
 
-    let l1_chain_id = era_config.l1_network.chain_id();
+    let l1_chain_id = ecosystem_config.l1_network.chain_id();
 
     let broadcast_file: BroadcastFile = {
-        let file_content = std::fs::read_to_string(
-            ecosystem_config
-                .link_to_code
-                .join("contracts/l1-contracts")
-                .join(format!(
-                    "broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/{}/run-latest.json",
-                    l1_chain_id
-                )),
-        )
-        .context("Failed to read broadcast file")?;
+        let file_content =
+            std::fs::read_to_string(ecosystem_config.path_to_l1_foundry().join(format!(
+                "broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/{}/run-latest.json",
+                l1_chain_id
+            )))
+            .context("Failed to read broadcast file")?;
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
