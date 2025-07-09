@@ -2,11 +2,7 @@
 
 # era-cacher/use-new-era.sh && cd zksync-working
 
-upgrade_version="v29-interop-a-ff"
-# "v28-1-vk"
-upgrade_file_extension="v29"
-# v28-1-zk-os
-
+upgrade_version="v28-1-vk"
 
 zkstackup  --local --cargo-features upgrades && zkstack dev clean containers && zkstack up --observability false
 zkstack dev contracts
@@ -24,16 +20,16 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
 echo "Server started"
 
-zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage no-governance-prepare --update-submodules false
+zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage no-governance-prepare
 
-zkstack dev run-ecosystem-upgrade  --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage0 --update-submodules false
+zkstack dev run-ecosystem-upgrade  --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage0
 
-zkstack  dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage1 --update-submodules false
+zkstack  dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage1
 
 cd contracts/l1-contracts
-UPGRADE_ECOSYSTEM_OUTPUT=script-out/$upgrade_file_extension-upgrade-ecosystem.toml \
-UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_$upgrade_file_extension.s.sol/9/run-latest.json  \
-YAML_OUTPUT_FILE=script-out/$upgrade_file_extension-local-output.yaml yarn upgrade-yaml-output-generator
+UPGRADE_ECOSYSTEM_OUTPUT=script-out/v28-1-zk-os-upgrade-ecosystem.toml \
+UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/9/run-latest.json  \
+YAML_OUTPUT_FILE=script-out/v28-1-zk-os-local-output.yaml yarn upgrade-yaml-output-generator
 cd ../../
 
 zkstack dev run-chain-upgrade --upgrade-version $upgrade_version
