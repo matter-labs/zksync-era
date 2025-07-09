@@ -52,15 +52,6 @@ impl ProvingNetwork {
             ProvingNetwork::Fermah => "fermah",
         }
     }
-
-    pub fn from_str(status: &str) -> ProvingNetwork {
-        match status {
-            "none" => ProvingNetwork::None,
-            "lagrange" => ProvingNetwork::Lagrange,
-            "fermah" => ProvingNetwork::Fermah,
-            _ => panic!("Invalid proving network: {}", status),
-        }
-    }
 }
 
 impl EthProofManagerDal<'_, '_> {
@@ -310,7 +301,7 @@ impl EthProofManagerDal<'_, '_> {
         );
 
         let timeout = pg_interval_from_duration(picking_timeout);
-        query_builder.push_bind(&timeout);
+        query_builder.push_bind(timeout);
 
         if !batches.is_empty() {
             query_builder.push(" OR l1_batch_number IN (");
