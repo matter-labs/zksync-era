@@ -73,6 +73,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     } else {
         Cmd::new(cmd).with_force_run()
     };
+    cmd.run()?;
 
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
     Ok(())
