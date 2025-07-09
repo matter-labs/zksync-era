@@ -57,7 +57,7 @@ export interface TestEnvironment {
      * Chain Id of the L2 Network for the second chain, used for interop tests.
      * Defaults to the same as `l2ChainId` if not set.
      */
-    l2ChainIdSecondChain: bigint;
+    l2ChainIdSecondChain: bigint | undefined;
     /*
      * Mode of the l2 node
      */
@@ -89,7 +89,7 @@ export interface TestEnvironment {
      * URL of ZKsync node's HTTP Web3 API for the second chain, used for interop tests.
      * Defaults to the same as `l2NodeUrl` if not set.
      */
-    l2NodeUrlSecondChain: string;
+    l2NodeUrlSecondChain: string | undefined;
     /**
      * URL of Ethereum node's HTTP Web3 API.
      */

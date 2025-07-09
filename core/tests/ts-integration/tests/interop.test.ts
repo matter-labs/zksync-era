@@ -32,7 +32,12 @@ describe('Interop behavior checks', () => {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        aliceSecondChain = testMaster.mainAccountSecondChain();
+
+        const maybeAliceSecondChain = testMaster.mainAccountSecondChain();
+        if (!maybeAliceSecondChain) {
+            throw new Error('Interop tests cannot be run if the second chain is not set');
+        }
+        aliceSecondChain = maybeAliceSecondChain;
 
         tokenDetails = testMaster.environment().erc20Token;
 
@@ -51,13 +56,15 @@ describe('Interop behavior checks', () => {
         }
     });
 
+    beforeEach(() => {
+        if (skipInteropTest) {
+            pending('Skipping interop test because settlement layer is the same as L1');
+        }
+    });
+
     let withdrawalHash: string;
     let params: FinalizeWithdrawalParams;
     test('Can check withdrawal hash in L2-A', async () => {
-        if (skipInteropTest) {
-            return;
-        }
-
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
@@ -92,10 +99,6 @@ describe('Interop behavior checks', () => {
     });
 
     test('Can check withdrawal hash from L2-B', async () => {
-        if (skipInteropTest) {
-            return;
-        }
-
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,

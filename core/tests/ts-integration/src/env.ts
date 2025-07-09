@@ -102,17 +102,13 @@ async function loadTestEnvironmentFromFile(
             chain: secondChainFileConfig.chain!,
             config: 'contracts.yaml'
         });
-    } else {
-        genesisConfigSecondChain = genesisConfig;
-        generalConfigSecondChain = generalConfig;
-        contractsSecondChain = contracts;
     }
 
     const network = ecosystem.l1_network.toLowerCase();
     const chainName = process.env.CHAIN_NAME!!;
     let mainWalletPK = getMainWalletPk(chainName);
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
-    const l2NodeUrlSecondChain = generalConfigSecondChain.api.web3_json_rpc.http_url;
+    const l2NodeUrlSecondChain = generalConfigSecondChain?.api.web3_json_rpc.http_url;
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
 
     const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
@@ -151,8 +147,6 @@ async function loadTestEnvironmentFromFile(
 
             await secondChainNodeSpawner.killAndSpawnMainNode();
             l2NodeSecondChain = secondChainNodeSpawner.mainNode;
-        } else {
-            l2NodeSecondChain = l2Node;
         }
     }
 
@@ -190,7 +184,7 @@ async function loadTestEnvironmentFromFile(
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);
-    const l2ChainIdSecondChain = BigInt(genesisConfigSecondChain.l2_chain_id);
+    const l2ChainIdSecondChain = genesisConfigSecondChain ? BigInt(genesisConfigSecondChain.l2_chain_id) : undefined;
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
 
