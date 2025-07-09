@@ -34,7 +34,7 @@ use crate::{
             // },
             genesis::genesis,
         },
-        dev::commands::v29_ecosystem_args::{
+        dev::commands::ecosystem_upgrade_args::{
             EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage, UpgradeVersions,
         },
     },
