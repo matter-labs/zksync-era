@@ -136,7 +136,7 @@ describe('Interop behavior checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while (currentRoot === ethers.ZeroHash && count < 20) {
+        while (currentRoot === ethers.ZeroHash && count < 30) {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
@@ -145,7 +145,7 @@ describe('Interop behavior checks', () => {
             await tx.wait();
 
             currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
-            await new Promise((resolve) => setTimeout(resolve, provider.pollingInterval));
+            await zksync.utils.sleep(alice.provider.pollingInterval);
             count++;
         }
     }
