@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use sqlx::QueryBuilder;
 use zksync_db_connection::{
@@ -33,18 +33,6 @@ impl EthProofManagerStatus {
             EthProofManagerStatus::Proven => "proven",
             EthProofManagerStatus::Fallbacked => "fallbacked",
             EthProofManagerStatus::Validated => "validated",
-        }
-    }
-
-    pub fn from_str(status: &str) -> EthProofManagerStatus {
-        match status {
-            "unpicked" => EthProofManagerStatus::Unpicked,
-            "sent" => EthProofManagerStatus::Sent,
-            "acknowledged" => EthProofManagerStatus::Acknowledged,
-            "proven" => EthProofManagerStatus::Proven,
-            "fallbacked" => EthProofManagerStatus::Fallbacked,
-            "validated" => EthProofManagerStatus::Validated,
-            _ => panic!("Invalid status: {}", status),
         }
     }
 }
@@ -88,7 +76,7 @@ impl EthProofManagerDal<'_, '_> {
             )
             VALUES ($1, $2, NOW(), $3, NOW())
             "#,
-            batch_number.0 as i64,
+            i64::from(batch_number.0),
             EthProofManagerStatus::Unpicked.as_str(),
             witness_inputs_url
         )
@@ -111,7 +99,7 @@ impl EthProofManagerDal<'_, '_> {
             UPDATE eth_proof_manager SET status = $2, updated_at = NOW(), assigned_to = $3
             WHERE l1_batch_number = $1
             "#,
-            batch_number.0 as i64,
+            i64::from(batch_number.0),
             EthProofManagerStatus::Acknowledged.as_str(),
             assigned_to.as_str()
         )
@@ -138,7 +126,7 @@ impl EthProofManagerDal<'_, '_> {
                 status = $3
             WHERE l1_batch_number = $1
             "#,
-            batch_number.0 as i64,
+            i64::from(batch_number.0),
             tx_hash.as_bytes(),
             EthProofManagerStatus::Sent.as_str()
         )
@@ -165,7 +153,7 @@ impl EthProofManagerDal<'_, '_> {
                 status = $3
             WHERE l1_batch_number = $1
             "#,
-            batch_number.0 as i64,
+            i64::from(batch_number.0),
             tx_hash.as_bytes(),
             EthProofManagerStatus::Validated.as_str()
         )
@@ -191,7 +179,7 @@ impl EthProofManagerDal<'_, '_> {
                 status = $3
             WHERE l1_batch_number = $1
             "#,
-            batch_number.0 as i64,
+            i64::from(batch_number.0),
             proof_validation_result,
             EthProofManagerStatus::Proven.as_str()
         )
@@ -213,7 +201,7 @@ impl EthProofManagerDal<'_, '_> {
             UPDATE eth_proof_manager SET status = $2, updated_at = NOW()
             WHERE l1_batch_number = $1
             "#,
-            batch_number.0 as i64,
+            i64::from(batch_number.0),
             status.as_str()
         )
         .instrument("update_status")
@@ -328,7 +316,7 @@ impl EthProofManagerDal<'_, '_> {
             query_builder.push(" OR l1_batch_number IN (");
 
             for (index, batch) in batches.iter().enumerate() {
-                query_builder.push_bind(batch.0 as i64);
+                query_builder.push_bind(i64::from(batch.0));
                 if index < batches.len() - 1 {
                     query_builder.push(", ");
                 }
@@ -358,7 +346,7 @@ impl EthProofManagerDal<'_, '_> {
             WHERE l1_batch_number = $2
             "#,
             EthProofManagerStatus::Fallbacked.as_str(),
-            batch_number.0 as i64
+            i64::from(batch_number.0),
         )
         .instrument("fallback_certain_batch")
         .with_arg("batch_number", &batch_number)
@@ -371,7 +359,7 @@ impl EthProofManagerDal<'_, '_> {
             SET status = 'fallbacked', updated_at = NOW()
             WHERE l1_batch_number = $1
             "#,
-            batch_number.0 as i64
+            i64::from(batch_number.0),
         )
         .instrument("fallback_certain_batch")
         .execute(&mut transaction)
