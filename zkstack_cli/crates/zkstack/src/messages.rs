@@ -24,6 +24,7 @@ pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
 pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Use defaults for all options and flags. Suitable for local development";
+pub(super) const MSG_TEE_ARG_HELP: &str = "Use TEE proofs and DCAP attestation.";
 
 /// Autocomplete message
 pub(super) fn msg_generate_autocomplete_file(filename: &str) -> String {

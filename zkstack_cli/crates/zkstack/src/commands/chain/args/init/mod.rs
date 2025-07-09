@@ -14,7 +14,7 @@ use crate::{
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
         MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_TEE_ARG_HELP,
     },
 };
 
@@ -45,6 +45,8 @@ pub struct InitArgs {
     pub make_permanent_rollup: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
+    #[clap(long, help = MSG_TEE_ARG_HELP)]
+    pub enable_tee: bool,
     #[clap(flatten)]
     pub validium_args: da_configs::ValidiumTypeArgs,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]

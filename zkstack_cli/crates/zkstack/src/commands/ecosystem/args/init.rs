@@ -13,7 +13,7 @@ use crate::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_TEE_ARG_HELP,
     },
 };
 
@@ -105,6 +105,8 @@ pub struct EcosystemInitArgs {
     pub no_port_reallocation: bool,
     #[clap(long)]
     pub update_submodules: Option<bool>,
+    #[clap(long, help = MSG_TEE_ARG_HELP)]
+    pub enable_tee: bool,
     #[clap(flatten)]
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
@@ -154,6 +156,7 @@ impl EcosystemInitArgs {
             ecosystem,
             forge_args: self.forge_args.clone(),
             dev: self.dev,
+            enable_tee: self.enable_tee,
             observability,
             ecosystem_only: self.ecosystem_only,
             no_port_reallocation: self.no_port_reallocation,
@@ -172,6 +175,7 @@ pub struct EcosystemInitArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub dev: bool,
+    pub enable_tee: bool,
     pub observability: bool,
     pub ecosystem_only: bool,
     pub no_port_reallocation: bool,

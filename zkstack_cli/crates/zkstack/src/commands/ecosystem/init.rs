@@ -131,6 +131,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
+        init_args.enable_tee,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -192,6 +193,7 @@ async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
+    enable_tee: bool,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -201,6 +203,7 @@ async fn deploy_ecosystem(
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
             support_l2_legacy_shared_bridge_test,
+            enable_tee,
         )
         .await;
     }
@@ -263,6 +266,7 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
     support_l2_legacy_shared_bridge_test: bool,
+    enable_tee: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let mut contracts_config = deploy_l1(
@@ -354,18 +358,20 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    // Deploy TEE DCAP attestation contracts
-    let spinner = Spinner::new(MSG_DEPLOYING_TEE_CONTRACTS_SPINNER);
-    // Deploy the TEE contracts
-    deploy_tee_contracts(
-        shell,
-        config,
-        &mut contracts_config,
-        forge_args.clone(),
-        &l1_rpc_url,
-    )
-    .await?;
-    spinner.finish();
+    if enable_tee {
+        // Deploy TEE DCAP attestation contracts
+        let spinner = Spinner::new(MSG_DEPLOYING_TEE_CONTRACTS_SPINNER);
+        // Deploy the TEE contracts
+        deploy_tee_contracts(
+            shell,
+            config,
+            &mut contracts_config,
+            forge_args.clone(),
+            &l1_rpc_url,
+        )
+        .await?;
+        spinner.finish();
+    }
 
     Ok(contracts_config)
 }
@@ -413,6 +419,7 @@ async fn init_chains(
             validium_args: final_init_args.validium_args.clone(),
             server_command: genesis_args.server_command.clone(),
             make_permanent_rollup: init_args.make_permanent_rollup,
+            enable_tee: init_args.enable_tee,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
