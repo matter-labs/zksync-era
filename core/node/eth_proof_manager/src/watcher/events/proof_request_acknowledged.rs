@@ -54,10 +54,10 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
             ));
         }
 
-        if *log.topics.get(0).context("missing topic 0")? != self.signature() {
+        if *log.topics.first().context("missing topic 0")? != self.signature() {
             return Err(anyhow::anyhow!(
                 "invalid signature: {:?}, expected {:?}",
-                log.topics.get(0),
+                log.topics.first(),
                 self.signature()
             ));
         }

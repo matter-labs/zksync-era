@@ -83,8 +83,7 @@ where
             .address(vec![self.proof_manager_address])
             .build();
 
-        let mut result: Result<Vec<Log>, EnrichedClientError> =
-            self.client.get_logs(filter).await.map_err(Into::into);
+        let mut result: Result<Vec<Log>, EnrichedClientError> = self.client.get_logs(filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -125,7 +124,7 @@ where
                     BlockNumber::Latest => self.client.block_number().await?,
                     _ => {
                         // invalid variant
-                        return result.map_err(Into::into);
+                        return result;
                     }
                 };
 
@@ -181,13 +180,13 @@ where
                     "Finalized block must be present on L1".into(),
                 );
                 let err = EnrichedClientError::new(err, "block");
-                ClientError::ProviderError(err)
+                ClientError::Provider(err)
             })?;
         let block_number = block.number.ok_or_else(|| {
             let err =
                 jsonrpsee::core::ClientError::Custom("Finalized block must contain number".into());
             let err = EnrichedClientError::new(err, "block").with_arg("block", &block);
-            ClientError::ProviderError(err)
+            ClientError::Provider(err)
         })?;
 
         Ok(block_number.as_u64())

@@ -21,9 +21,9 @@ impl ProvingNetwork {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
-    ContractCallError(#[from] ContractCallError),
-    ProviderError(#[from] EnrichedClientError),
-    GenericError(#[from] anyhow::Error),
+    ContractCall(#[from] ContractCallError),
+    Provider(#[from] EnrichedClientError),
+    Generic(#[from] anyhow::Error),
 }
 
 impl std::fmt::Display for ClientError {
