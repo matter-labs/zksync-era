@@ -79,8 +79,8 @@ impl ProofDataManager {
             .connection()
             .await
             .unwrap()
-            .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch(batch_id)
+            .fri_proof_compressor_dal()
+            .protocol_version_for_successful_proof(batch_id)
             .await;
 
         let Some(protocol_version) = protocol_version else {

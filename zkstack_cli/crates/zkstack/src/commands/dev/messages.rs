@@ -152,6 +152,11 @@ pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ra
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
 
+// Init test wallet related messages
+pub(super) const MSG_INIT_TEST_WALLET_ABOUT: &str = "Initialize test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
+
 // Migration test related messages
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
@@ -180,24 +185,13 @@ pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
 pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
     format!("Running linter for files with extension: .{}", target)
 }
-
-pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
-    format!("Running prettier for: {target:?}")
-}
-
-pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
-    format!("Running rustfmt for: {dir:?}")
-}
-
-pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
-    format!("Running prettier for: {targets:?} and rustfmt")
+pub(super) fn msg_running_fmt_spinner(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!("{}", e)).collect();
+    format!("Running formatters for: {:?}", targets)
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
-pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
-
-pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
 
 pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
     format!("File {} is not formatted", file)

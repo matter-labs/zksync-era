@@ -61,7 +61,8 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let mut final_ecosystem_args = args
         .clone()
-        .fill_values_with_prompt(ecosystem_config.l1_network);
+        .fill_values_with_prompt(ecosystem_config.l1_network)
+        .await?;
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
