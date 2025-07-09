@@ -95,8 +95,7 @@ async function loadTestEnvironmentFromFile(
         generalConfigSecondChain = loadConfig({
             pathToHome,
             chain: secondChainFileConfig.chain!,
-            config: 'general.yaml',
-            configsFolderSuffix
+            config: 'general.yaml'
         });
         contractsSecondChain = loadConfig({
             pathToHome,

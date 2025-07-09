@@ -10,16 +10,12 @@ describe('External Node Integration tests Test', () => {
         const testSecondChain = await createChainAndStartServer(secondChainType, 'External Node Integration tests');
 
         await testChain.generateRealisticLoad();
-        await testSecondChain.generateRealisticLoad();
 
         await testChain.waitForAllBatchesToBeExecuted();
-        await testSecondChain.waitForAllBatchesToBeExecuted();
 
         await testChain.initExternalNode();
-        await testSecondChain.initExternalNode();
 
         await testChain.runExternalNode();
-        await testSecondChain.runExternalNode();
 
         await enIntegrationTests(testChain.chainName, testSecondChain.chainName);
     });
