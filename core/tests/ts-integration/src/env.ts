@@ -6,7 +6,13 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
-import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile, getSecondChainConfig } from 'utils/build/file-configs';
+import {
+    FileConfig,
+    loadConfig,
+    loadEcosystem,
+    shouldLoadConfigFromFile,
+    getSecondChainConfig
+} from 'utils/build/file-configs';
 import { NodeSpawner } from 'utils/src/node-spawner';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
@@ -55,7 +61,10 @@ export async function waitForServer(l2NodeUrl: string) {
 /*
     Loads the environment for file based configs.
  */
-async function loadTestEnvironmentFromFile(fileConfig: FileConfig, secondChainFileConfig: FileConfig | undefined): Promise<TestEnvironment> {
+async function loadTestEnvironmentFromFile(
+    fileConfig: FileConfig,
+    secondChainFileConfig: FileConfig | undefined
+): Promise<TestEnvironment> {
     let chain = fileConfig.chain!;
     const pathToHome = path.join(__dirname, '../../../..');
     let spawnNode = process.env.SPAWN_NODE;
@@ -78,9 +87,22 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig, secondChainFi
     let generalConfigSecondChain;
     let contractsSecondChain;
     if (secondChainFileConfig) {
-        genesisConfigSecondChain = loadConfig({ pathToHome, chain: secondChainFileConfig.chain!, config: 'genesis.yaml' });
-        generalConfigSecondChain = loadConfig({ pathToHome, chain: secondChainFileConfig.chain!, config: 'general.yaml', configsFolderSuffix });
-        contractsSecondChain = loadConfig({ pathToHome, chain: secondChainFileConfig.chain!, config: 'contracts.yaml' });
+        genesisConfigSecondChain = loadConfig({
+            pathToHome,
+            chain: secondChainFileConfig.chain!,
+            config: 'genesis.yaml'
+        });
+        generalConfigSecondChain = loadConfig({
+            pathToHome,
+            chain: secondChainFileConfig.chain!,
+            config: 'general.yaml',
+            configsFolderSuffix
+        });
+        contractsSecondChain = loadConfig({
+            pathToHome,
+            chain: secondChainFileConfig.chain!,
+            config: 'contracts.yaml'
+        });
     } else {
         genesisConfigSecondChain = genesisConfig;
         generalConfigSecondChain = generalConfig;

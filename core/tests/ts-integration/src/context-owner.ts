@@ -125,7 +125,11 @@ export class TestContextOwner {
 
         this.mainEthersWallet = new ethers.Wallet(env.mainWalletPK, this.l1Provider);
         this.mainSyncWallet = new zksync.Wallet(env.mainWalletPK, this.l2Provider, this.l1Provider);
-        this.secondChainMainSyncWallet = new zksync.Wallet(env.mainWalletPK, this.l2ProviderSecondChain, this.l1Provider);
+        this.secondChainMainSyncWallet = new zksync.Wallet(
+            env.mainWalletPK,
+            this.l2ProviderSecondChain,
+            this.l1Provider
+        );
     }
 
     // Returns the required amount of L1 ETH
@@ -140,7 +144,9 @@ export class TestContextOwner {
 
     // Returns the required amount of L2 ETH for the second chain
     requiredL2ETHPerAccountSecondChain() {
-        return isLocalHost(this.env.network) ? L2_SECOND_CHAIN_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_SECOND_CHAIN_ETH_PER_ACCOUNT;
+        return isLocalHost(this.env.network)
+            ? L2_SECOND_CHAIN_EXTENDED_TESTS_ETH_PER_ACCOUNT
+            : L2_SECOND_CHAIN_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -250,14 +256,20 @@ export class TestContextOwner {
         // `+ 1  for the main account (it has to send all these transactions).
         const accountsAmount = BigInt(suites.length) + 1n;
 
-        const {l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain} = await this.ensureBalances(accountsAmount);
+        const { l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain } = await this.ensureBalances(accountsAmount);
         const l2ERC20AmountToDeposit = ERC20_PER_ACCOUNT * accountsAmount;
         const wallets = this.createTestWallets(suites);
         const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
         const baseTokenAddress = await bridgehubContract.baseToken(this.env.l2ChainId);
         await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.cancelAllowances();
-        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain, l2ERC20AmountToDeposit, baseTokenAddress);
+        await this.distributeL1Tokens(
+            wallets,
+            l2ETHAmountToDeposit,
+            l2ETHAmountToDepositSecondChain,
+            l2ERC20AmountToDeposit,
+            baseTokenAddress
+        );
         await this.distributeL2Tokens(wallets);
 
         this.reporter.finishAction();
@@ -267,7 +279,9 @@ export class TestContextOwner {
     /**
      * Checks the operator account balances on L1 and L2 and deposits funds if required.
      */
-    private async ensureBalances(accountsAmount: bigint): Promise<{l2ETHAmountToDeposit: bigint, l2ETHAmountToDepositSecondChain: bigint}> {
+    private async ensureBalances(
+        accountsAmount: bigint
+    ): Promise<{ l2ETHAmountToDeposit: bigint; l2ETHAmountToDepositSecondChain: bigint }> {
         this.reporter.startAction(`Checking main account balance`);
 
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
@@ -275,13 +289,15 @@ export class TestContextOwner {
         const requiredL2ETHAmount = this.requiredL2ETHPerAccount() * accountsAmount;
         const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
         this.reporter.message(`Operator balance on L2 is ${ethers.formatEther(actualL2ETHAmount)} ETH`);
-        
+
         let l2ETHAmountToDepositSecondChain = 0n;
         if (this.env.l2ChainIdSecondChain !== this.env.l2ChainId) {
             // We only need enough funds for a single test suite
             const requiredL2SecondChainETHAmount = this.requiredL2ETHPerAccountSecondChain() * accountsAmount;
             const actualL2SecondChainETHAmount = await this.secondChainMainSyncWallet.getBalance();
-            this.reporter.message(`Operator balance on second chain is ${ethers.formatEther(actualL2SecondChainETHAmount)} ETH`);
+            this.reporter.message(
+                `Operator balance on second chain is ${ethers.formatEther(actualL2SecondChainETHAmount)} ETH`
+            );
             if (requiredL2SecondChainETHAmount > actualL2SecondChainETHAmount) {
                 l2ETHAmountToDepositSecondChain = requiredL2SecondChainETHAmount - actualL2SecondChainETHAmount;
             }
@@ -291,7 +307,8 @@ export class TestContextOwner {
         const l2ETHAmountToDeposit =
             requiredL2ETHAmount > actualL2ETHAmount ? requiredL2ETHAmount - actualL2ETHAmount : 0n;
 
-        const requiredL1ETHAmount = this.requiredL1ETHPerAccount() * accountsAmount + l2ETHAmountToDeposit + l2ETHAmountToDepositSecondChain;
+        const requiredL1ETHAmount =
+            this.requiredL1ETHPerAccount() * accountsAmount + l2ETHAmountToDeposit + l2ETHAmountToDepositSecondChain;
         // Both mainSyncWallet and secondChainMainSyncWallet share the same L1 wallet
         const actualL1ETHAmount = await this.mainSyncWallet.getBalanceL1();
         this.reporter.message(`Operator balance on L1 is ${ethers.formatEther(actualL1ETHAmount)} ETH`);
@@ -304,7 +321,7 @@ export class TestContextOwner {
         }
         this.reporter.finishAction();
 
-        return {l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain};
+        return { l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain };
     }
 
     /**
@@ -481,13 +498,13 @@ export class TestContextOwner {
                 })
                 .then((tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);
-                    this.reporter.debug(`Sent ETH deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
+                    this.reporter.debug(
+                        `Sent ETH deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
+                    );
                     return tx.wait();
                 });
             nonce = nonce + 1;
-            this.reporter.debug(
-                `Nonce changed by 1 for ETH deposit on second chain, new nonce: ${nonce}`
-            );
+            this.reporter.debug(`Nonce changed by 1 for ETH deposit on second chain, new nonce: ${nonce}`);
             await depositHandle;
         }
 
