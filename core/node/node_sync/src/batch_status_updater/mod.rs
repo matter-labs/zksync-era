@@ -125,7 +125,7 @@ impl UpdaterCursor {
             .unwrap_or(starting_l1_batch_number);
         let last_committed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_finailized_on_eth()
+            .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::Commit)
             .await?
             .unwrap_or(starting_l1_batch_number);
         Ok(Self {
