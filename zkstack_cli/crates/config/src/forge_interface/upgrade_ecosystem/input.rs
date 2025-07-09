@@ -31,7 +31,6 @@ impl EcosystemUpgradeInput {
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
-        era_diamond_proxy: Address,
         testnet_verifier: bool,
     ) -> Self {
         Self {
@@ -80,7 +79,6 @@ impl EcosystemUpgradeInput {
                 transparent_proxy_admin: current_contracts_config
                     .ecosystem_contracts
                     .transparent_proxy_admin_addr,
-                era_diamond_proxy,
                 legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,
                 old_validator_timelock: current_contracts_config
                     .ecosystem_contracts
@@ -134,7 +132,6 @@ pub struct EcosystemUpgradeContractsConfig {
     pub shared_bridge_proxy_address: Address,
     pub state_transition_manager_address: Address,
     pub transparent_proxy_admin: Address,
-    pub era_diamond_proxy: Address,
     pub legacy_erc20_bridge_address: Address,
     pub old_validator_timelock: Address,
 

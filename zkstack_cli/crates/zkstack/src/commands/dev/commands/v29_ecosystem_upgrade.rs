@@ -140,7 +140,6 @@ async fn no_governance_prepare(
     let bridgehub_proxy_address = current_contracts_config
         .ecosystem_contracts
         .bridgehub_proxy_addr;
-    // .context("BridgeHub proxy address is not set in current_contracts_config.ecosystem_contracts. This is required to fetch the messageRoot address.")?;
 
     let bridgehub_proxy_address_str = format!("{:#x}", bridgehub_proxy_address);
 
@@ -176,62 +175,31 @@ async fn no_governance_prepare(
         "Successfully retrieved messageRoot address from BridgeHub: {}",
         message_root_address_from_cast
     );
-    // The variable `message_root_address_from_cast` now holds the address as a string.
-    // It can be used for subsequent operations if needed.
-
-    // current_contracts_config
-    //     .ecosystem_contracts
-    //     .message_root_proxy_addr = Some(H160::from_str(&message_root_address_from_cast).unwrap());
-    // current_contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
 
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
     let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(&upgrade_version)
         .input(&ecosystem_config.path_to_l1_foundry());
 
-    // TODO do not use era chain at all
-    let era_config = ecosystem_config
-        .load_chain(Some("era".to_string()))
-        .context("No era")?;
-
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
     new_version.patch += 1;
     new_genesis.protocol_version = new_version;
 
-    // FIXME: we will have to force this in production environment
-    // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
-    let mut gateway_upgrade_input = EcosystemUpgradeInput::new(
+    let mut ecosystem_upgrade = EcosystemUpgradeInput::new(
         &new_genesis,
         &current_contracts_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
-        era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );
-    // println!("6");
-    // let mut contracts_config = ecosystem_config.get_contracts_config()?;
-    // println!("7");
-    // let gateway_ecosystem_preparation_output =
-    //     EcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
-    // println!("8");
-    // update_contracts_config_from_output(
-    //     &mut contracts_config,
-    //     &gateway_ecosystem_preparation_output,
-    // );
-    // println!("9");
-    // update_upgrade_input_from_config(&mut gateway_upgrade_input, &contracts_config);
-    // println!("10");
-    println!("gateway_upgrade_input: {:?}", gateway_upgrade_input);
+
+    println!("ecosystem_upgrade: {:?}", ecosystem_upgrade);
     println!(
         "ecosystem_upgrade_config_path: {:?}",
         ecosystem_upgrade_config_path
     );
-    gateway_upgrade_input.save(shell, ecosystem_upgrade_config_path.clone())?;
-    println!(
-        "path to foundry: {}",
-        ecosystem_config.path_to_l1_foundry().display()
-    );
+    ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(
             &get_ecosystem_upgrade_params(&upgrade_version).script(),
