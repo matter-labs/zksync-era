@@ -5,6 +5,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_config::EcosystemConfig;
 use zksync_types::Address;
 
 use super::{
@@ -119,8 +120,8 @@ pub async fn run(
         direction,
     )
     .await?;
-
-    display_admin_script_output(result);
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), result);
 
     Ok(())
 }

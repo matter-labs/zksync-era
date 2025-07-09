@@ -32,8 +32,8 @@ pub fn get_default_foundry_path(shell: &Shell) -> anyhow::Result<PathBuf> {
     Ok(EcosystemConfig::from_file(shell)?.path_to_l1_foundry())
 }
 
-pub fn display_admin_script_output(result: AdminScriptOutput) {
-    let builder = AdminCallBuilder::new(result.calls);
+pub fn display_admin_script_output(link_to_code: PathBuf, result: AdminScriptOutput) {
+    let builder = AdminCallBuilder::new(link_to_code.clone(), result.calls);
     logger::info(format!(
         "Breakdown of calls to be performed by the chain admin:\n{}",
         builder.to_json_string()

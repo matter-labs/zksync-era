@@ -55,8 +55,7 @@ pub async fn run(
 
     let upgrade_version = args.upgrade_version;
 
-    let mut final_ecosystem_args =
-        args.fill_values_with_prompt(ecosystem_config.l1_network, true, run_upgrade);
+    let mut final_ecosystem_args = args.fill_values_with_prompt(run_upgrade);
 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
@@ -129,7 +128,16 @@ async fn no_governance_prepare(
     spinner.finish();
 
     let forge_args = init_args.forge_args.clone();
-    let l1_rpc_url = init_args.l1_rpc_url.clone();
+    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+        url
+    } else {
+        ecosystem_config
+            .load_current_chain()?
+            .get_secrets_config()
+            .await?
+            .l1_rpc_url()?
+    };
+    dbg!(&l1_rpc_url);
 
     let genesis_config_path = ecosystem_config
         .get_default_configs_path()
@@ -153,7 +161,7 @@ async fn no_governance_prepare(
     // This retrieves the address of the messageRoot contract associated with the BridgeHub.
     let cast_output_stdout = cmd!(
         shell,
-        "cast call {bridgehub_proxy_address_str} messageRoot()(address)"
+        "cast call {bridgehub_proxy_address_str} messageRoot()(address) -r {l1_rpc_url}"
     )
     .read()
     .context("Failed to execute 'cast call' to retrieve messageRoot address from BridgeHub.")?;
@@ -324,6 +332,15 @@ async fn governance_stage_0(
             .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
+    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+        url
+    } else {
+        ecosystem_config
+            .load_current_chain()?
+            .get_secrets_config()
+            .await?
+            .l1_rpc_url()?
+    };
 
     // These are ABI-encoded
     let stage0_calls = previous_output.governance_calls.stage0_calls;
@@ -334,7 +351,7 @@ async fn governance_stage_0(
         &ecosystem_config.get_wallets()?.governor,
         stage0_calls.0,
         &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
+        l1_rpc_url,
     )
     .await?;
 
@@ -362,6 +379,15 @@ async fn governance_stage_1(
 
     // These are ABI-encoded
     let stage1_calls = previous_output.governance_calls.stage1_calls;
+    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+        url
+    } else {
+        ecosystem_config
+            .load_current_chain()?
+            .get_secrets_config()
+            .await?
+            .l1_rpc_url()?
+    };
 
     governance_execute_calls(
         shell,
@@ -369,7 +395,7 @@ async fn governance_stage_1(
         &ecosystem_config.get_wallets()?.governor,
         stage1_calls.0,
         &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
+        l1_rpc_url.clone(),
     )
     .await?;
 
@@ -450,6 +476,15 @@ async fn governance_stage_2(
 
     // These are ABI-encoded
     let stage2_calls = previous_output.governance_calls.stage2_calls;
+    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+        url
+    } else {
+        ecosystem_config
+            .load_current_chain()?
+            .get_secrets_config()
+            .await?
+            .l1_rpc_url()?
+    };
 
     governance_execute_calls(
         shell,
@@ -457,7 +492,7 @@ async fn governance_stage_2(
         &ecosystem_config.get_wallets()?.governor,
         stage2_calls.0,
         &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
+        l1_rpc_url.clone(),
     )
     .await?;
 
@@ -511,6 +546,16 @@ async fn no_governance_stage_2(
         })
         .collect();
 
+    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+        url
+    } else {
+        chains
+            .first()
+            .unwrap()
+            .get_secrets_config()
+            .await?
+            .l1_rpc_url()?
+    };
     let chain_ids: Vec<_> = chains
         .into_iter()
         .map(|c| ethers::abi::Token::Uint(U256::from(c.chain_id.as_u64())))
@@ -562,7 +607,7 @@ async fn no_governance_stage_2(
     let forge = Forge::new(&foundry_contracts_path)
         .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(init_args.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast()
         .with_calldata(&init_chains_calldata)
         .with_private_key(deployer_private_key);
@@ -574,7 +619,7 @@ async fn no_governance_stage_2(
     let forge = Forge::new(&foundry_contracts_path)
         .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(init_args.l1_rpc_url.clone())
+        .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&init_tokens_calldata)
         .with_private_key(deployer_private_key);
@@ -582,194 +627,6 @@ async fn no_governance_stage_2(
     forge.run(shell)?;
 
     println!("Done!");
-
-    Ok(())
-}
-
-async fn governance_stage_3(
-    init_args: &mut EcosystemUpgradeArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let chain_config = ecosystem_config
-        .load_chain(Some("gateway".to_string()))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    // call_script(
-    //     shell,
-    //     init_args.forge_args.clone(),
-    //     &GATEWAY_PREPARATION_INTERFACE
-    //         .encode("executeGovernanceTxs", ())
-    //         .unwrap(),
-    //     ecosystem_config,
-    //     &chain_config,
-    //     &ecosystem_config.get_wallets()?.governor,
-    //     init_args.l1_rpc_url.clone(),
-    //     true,
-    // )
-    // .await?;
-
-    Ok(())
-}
-
-async fn no_governance_stage_3(
-    init_args: &mut EcosystemUpgradeArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let chain_config = ecosystem_config
-        .load_chain(Some("gateway".to_string()))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-
-    let chain_genesis_config = chain_config.get_genesis_config().await?;
-    let genesis_input = GenesisInput::new(&chain_genesis_config)?;
-    let mut chain_contracts_config = chain_config.get_contracts_config()?;
-
-    // Fund gateway's governor (chain_config.get_wallets_config()?.governor)
-    chain::common::distribute_eth(
-        ecosystem_config,
-        &chain_config,
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-
-    // Accept ownership for DiamondProxy (run by L2 Governor)
-    // accept_admin(
-    //     shell,
-    //     ecosystem_config,
-    //     chain_contracts_config.l1.chain_admin_addr,
-    //     &chain_config.get_wallets_config()?.governor,
-    //     chain_contracts_config.l1.diamond_proxy_addr,
-    //     &init_args.forge_args.clone(),
-    //     init_args.l1_rpc_url.clone(),
-    // )
-    // .await?;
-
-    // prepare script input
-    // let gateway_config = calculate_gateway_ctm(
-    //     shell,
-    //     init_args.forge_args.clone(),
-    //     ecosystem_config,
-    //     &chain_config,
-    //     &genesis_input,
-    //     &ecosystem_config.get_initial_deployment_config().unwrap(),
-    //     init_args.l1_rpc_url.clone(),
-    // )
-    // .await?;
-
-    // let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
-    // let preparation_config = GatewayPreparationConfig::new(
-    //     &chain_config,
-    //     &chain_contracts_config,
-    //     &ecosystem_config.get_contracts_config()?,
-    //     &gateway_config,
-    // )?;
-    // preparation_config.save(shell, gateway_preparation_config_path)?;
-
-    // deploy filterer
-    // let output = call_script(
-    //     shell,
-    //     init_args.forge_args.clone(),
-    //     &GATEWAY_PREPARATION_INTERFACE
-    //         .encode("deployAndSetGatewayTransactionFilterer", ())
-    //         .unwrap(),
-    //     ecosystem_config,
-    //     &chain_config,
-    //     &chain_config.get_wallets_config()?.governor,
-    //     init_args.l1_rpc_url.clone(),
-    //     true,
-    // )
-    // .await?;
-
-    // chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
-
-    // whitelist deployer
-    // call_script(
-    //     shell,
-    //     init_args.forge_args.clone(),
-    //     &GATEWAY_PREPARATION_INTERFACE
-    //         .encode(
-    //             "grantWhitelist",
-    //             (
-    //                 output.gateway_transaction_filterer_proxy,
-    //                 vec![
-    //                     ecosystem_config.get_contracts_config()?.l1.governance_addr,
-    //                     ecosystem_config
-    //                         .get_wallets()?
-    //                         .deployer
-    //                         .context("no deployer addr")?
-    //                         .address,
-    //                 ],
-    //             ),
-    //         )
-    //         .unwrap(),
-    //     ecosystem_config,
-    //     &chain_config,
-    //     &chain_config.get_wallets_config()?.governor,
-    //     init_args.l1_rpc_url.clone(),
-    //     true,
-    // )
-    // .await?;
-
-    // deploy ctm
-    // chain::convert_to_gateway::deploy_gateway_ctm(
-    //     shell,
-    //     init_args.forge_args.clone(),
-    //     ecosystem_config,
-    //     &chain_config,
-    //     &genesis_input,
-    //     &ecosystem_config.get_initial_deployment_config().unwrap(),
-    //     init_args.l1_rpc_url.clone(),
-    // )
-    // .await?;
-
-    chain_contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-
-    // Set da validators
-    let validium_mode =
-        chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
-    let l1_da_validator_addr = if validium_mode {
-        chain_contracts_config.l1.no_da_validium_l1_validator_addr
-    } else {
-        chain_contracts_config.l1.rollup_l1_da_validator_addr
-    };
-    // set_da_validator_pair(
-    //     shell,
-    //     ecosystem_config,
-    //     chain_contracts_config.l1.chain_admin_addr,
-    //     &chain_config.get_wallets_config()?.governor,
-    //     chain_contracts_config.l1.diamond_proxy_addr,
-    //     l1_da_validator_addr.context("l1_da_validator_addr")?,
-    //     chain_contracts_config
-    //         .l2
-    //         .da_validator_addr
-    //         .context("da_validator_addr")?,
-    //     &init_args.forge_args.clone(),
-    //     init_args.l1_rpc_url.clone(),
-    // )
-    // .await?;
-    // if !validium_mode {
-    //     make_permanent_rollup(
-    //         shell,
-    //         ecosystem_config,
-    //         chain_contracts_config.l1.chain_admin_addr,
-    //         &chain_config.get_wallets_config()?.governor,
-    //         chain_contracts_config.l1.diamond_proxy_addr,
-    //         &init_args.forge_args.clone(),
-    //         init_args.l1_rpc_url.clone(),
-    //     )
-    //     .await?;
-    // }
-
-    let DBNames { server_name, .. } = generate_db_names(&chain_config);
-    let args = GenesisArgsFinal {
-        server_command: init_args.server_command.clone(),
-        server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
-        dont_drop: false,
-    };
-    // Run genesis (create DB and run server with --genesis)
-    genesis(args, shell, &chain_config)
-        .await
-        .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
 }

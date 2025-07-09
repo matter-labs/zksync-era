@@ -101,46 +101,61 @@ fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> Option<s
     )
 }
 
-fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
-    let zksync_home = home_path();
-    let path = Path::new(&zksync_home).join(path);
+fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug, S: AsRef<Path> + std::fmt::Debug>(
+    zksync_home: S,
+    path: P,
+) -> Option<Contract> {
+    let path = zksync_home.as_ref().join(path);
     path.exists().then(|| {
         serde_json::from_value(read_file_to_json_value(&path).unwrap()["abi"].take())
             .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
     })
 }
 
-fn load_contract_for_hardhat(path: (&str, &str)) -> Option<Contract> {
+fn load_contract_for_hardhat(zksync_home: PathBuf, path: (&str, &str)) -> Option<Contract> {
     let path = Path::new(HARDHAT_PATH_PREFIX).join(path.0).join(path.1);
-    load_contract_if_present(path)
+    load_contract_if_present(zksync_home, path)
 }
 
-fn load_contract_for_forge(file_path: &str) -> Option<Contract> {
+fn load_contract_for_forge(zksync_home: PathBuf, file_path: &str) -> Option<Contract> {
     let path = Path::new(FORGE_PATH_PREFIX).join(file_path);
-    load_contract_if_present(path)
+    load_contract_if_present(zksync_home, path)
 }
 
 fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
-    if let Some(contract) = load_contract_for_forge(path.1) {
+    let zksync_home = home_path();
+    load_contract_for_both_compilers_for_specific_home(zksync_home, path)
+}
+
+fn load_contract_for_both_compilers_for_specific_home(
+    zksync_home: PathBuf,
+    path: (&str, &str),
+) -> Contract {
+    if let Some(contract) = load_contract_for_forge(zksync_home.clone(), path.1) {
         return contract;
     };
 
-    load_contract_for_hardhat(path).unwrap_or_else(|| {
+    load_contract_for_hardhat(zksync_home, path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
     })
 }
 
 pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
-    load_contract_if_present(&path).unwrap_or_else(|| {
+    load_contract_if_present(home_path(), &path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
     })
 }
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
-    if let Some(contract) = load_contract_if_present(format!(
-        "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
-        contract_name
-    )) {
+    if let Some(contract) = load_contract_if_present(
+        home_path()
+            .to_str()
+            .expect("Failed to convert home path to str"),
+        &format!(
+            "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
+            contract_name
+        ),
+    ) {
         contract
     } else {
         load_contract(format!(
@@ -167,6 +182,10 @@ pub fn governance_contract() -> Contract {
     load_contract_for_both_compilers(GOVERNANCE_CONTRACT_FILE)
 }
 
+pub fn chain_admin_contract_for_home(zksync_home: PathBuf) -> Contract {
+    load_contract_for_both_compilers_for_specific_home(zksync_home, CHAIN_ADMIN_CONTRACT_FILE)
+}
+
 pub fn chain_admin_contract() -> Contract {
     load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
 }
@@ -185,6 +204,10 @@ pub fn state_transition_manager_contract() -> Contract {
 
 pub fn bytecode_supplier_contract() -> Contract {
     load_contract_for_both_compilers(BYTECODE_SUPPLIER_CONTRACT_FILE)
+}
+
+pub fn hyperchain_contract_for_home(zksync_home: PathBuf) -> Contract {
+    load_contract_for_both_compilers_for_specific_home(zksync_home, ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
 
 pub fn hyperchain_contract() -> Contract {

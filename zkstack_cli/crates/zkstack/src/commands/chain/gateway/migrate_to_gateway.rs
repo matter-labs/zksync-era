@@ -100,7 +100,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         return Ok(());
     }
 
-    let (calldata, value) = AdminCallBuilder::new(calls).compile_full_calldata();
+    let (calldata, value) =
+        AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), calls).compile_full_calldata();
 
     let receipt = send_tx(
         chain_admin,

@@ -1,6 +1,4 @@
-#[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
-use std::path::Path;
-
+use ethers::contract::abigen;
 #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
 use ethers::types::Bytes;
 use ethers::{
@@ -9,10 +7,15 @@ use ethers::{
 };
 use serde::Serialize;
 #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
 use xshell::Shell;
 #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::{
+    chain_admin_contract, chain_admin_contract_for_home, hyperchain_contract_for_home,
+};
 use zksync_types::{ethabi, Address, U256};
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,13 +91,15 @@ where
 pub struct AdminCallBuilder {
     calls: Vec<AdminCall>,
     chain_admin_abi: ethabi::Contract,
+    pub hyperchain_abi: ethabi::Contract,
 }
 
 impl AdminCallBuilder {
-    pub fn new(calls: Vec<AdminCall>) -> Self {
+    pub fn new(link_to_code: PathBuf, calls: Vec<AdminCall>) -> Self {
         Self {
             calls,
-            chain_admin_abi: chain_admin_contract(),
+            chain_admin_abi: chain_admin_contract_for_home(link_to_code.clone()),
+            hyperchain_abi: hyperchain_contract_for_home(link_to_code),
         }
     }
 
@@ -159,9 +164,9 @@ impl AdminCallBuilder {
             .decode_input(&diamond_cut_data.0)
             .unwrap()[0]
             .clone();
-        let zkchain_abi = zksync_contracts::hyperchain_contract();
 
-        let data = zkchain_abi
+        let data = self
+            .hyperchain_abi
             .function("upgradeChainFromVersion")
             .unwrap()
             .encode_input(&[Token::Uint(protocol_version.into()), diamond_cut])

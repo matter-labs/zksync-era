@@ -37,16 +37,10 @@ pub struct ChainUpgradeArgs {
 }
 
 impl ChainUpgradeArgs {
-    pub fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
+    pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        self.chain_id = Some(
-            self.chain_id
-                .unwrap_or(ecosystem_config.era_chain_id.as_u64()),
-        );
-        self.l1_rpc_url = Some(
-            self.l1_rpc_url
-                .unwrap_or("http://localhost:8545".to_string()),
-        );
+        let chain_config = ecosystem_config.load_current_chain()?;
+        self.chain_id = Some(self.chain_id.unwrap_or(chain_config.chain_id.as_u64()));
 
         self.server_upgrade_timestamp = Some(
             self.server_upgrade_timestamp.unwrap_or(
@@ -60,12 +54,27 @@ impl ChainUpgradeArgs {
             self.gw_rpc_url
                 .unwrap_or("http://localhost:3250".to_string()),
         );
+
+        self.gw_rpc_url = if let Some(url) = self.gw_rpc_url {
+            Some(url)
+        } else {
+            chain_config.get_secrets_config().await?.gw_rpc_url().ok()
+        };
+
+        self.l1_rpc_url = if let Some(url) = self.l1_rpc_url {
+            Some(url)
+        } else {
+            chain_config.get_secrets_config().await?.l1_rpc_url().ok()
+        };
+
         self.gw_chain_id = Some(self.gw_chain_id.unwrap_or(506));
         self.l1_gas_price = Some(self.l1_gas_price.unwrap_or(100000));
-        self.l2_rpc_url = Some(
-            self.l2_rpc_url
-                .unwrap_or("http://localhost:3050".to_string()),
-        );
+        self.l2_rpc_url = if let Some(url) = self.l2_rpc_url {
+            Some(url)
+        } else {
+            chain_config.get_general_config().await?.l2_http_url().ok()
+        };
+
         Ok(self)
     }
 }

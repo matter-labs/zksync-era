@@ -491,7 +491,8 @@ pub(crate) async fn notify_server(
     )
     .await?;
 
-    let (data, value) = AdminCallBuilder::new(calls.calls).compile_full_calldata();
+    let (data, value) = AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), calls.calls)
+        .compile_full_calldata();
 
     send_tx(
         calls.admin_address,

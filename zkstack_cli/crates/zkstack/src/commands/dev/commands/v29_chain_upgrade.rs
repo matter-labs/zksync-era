@@ -210,7 +210,7 @@ pub(crate) async fn run(
     let foundry_contracts_path = get_default_foundry_path(shell)?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let mut args = args_input.clone().fill_if_empty(shell)?;
+    let mut args = args_input.clone().fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
         let path = match args_input.upgrade_version {
             UpgradeVersions::V29_InteropA_FF => {
@@ -279,7 +279,8 @@ pub(crate) async fn run(
 
     let mut calldata;
     if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
-        let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
+        let mut admin_calls_gw =
+            AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), vec![]);
 
         admin_calls_gw.append_execute_upgrade(
             chain_info.hyperchain_addr,
@@ -318,7 +319,8 @@ pub(crate) async fn run(
             hex::encode(&gw_chain_admin_calldata)
         );
     } else {
-        let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
+        let mut admin_calls_finalize =
+            AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), vec![]);
 
         admin_calls_finalize.append_execute_upgrade(
             chain_info.hyperchain_addr,
@@ -340,7 +342,7 @@ pub(crate) async fn run(
     if run_upgrade {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let chain_config = ecosystem_config
-            .load_chain(Some("era".to_string()))
+            .load_current_chain()
             .context("Chain not found")?;
         // let forge_args = ForgeScriptArgs::default();
         println!("Running upgrade");

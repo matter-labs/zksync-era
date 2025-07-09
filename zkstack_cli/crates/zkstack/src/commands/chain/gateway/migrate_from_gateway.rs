@@ -109,8 +109,11 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     .await?;
 
     let chain_admin = start_migrate_from_gateway_call.admin_address;
-    let (calldata, value) =
-        AdminCallBuilder::new(start_migrate_from_gateway_call.calls).compile_full_calldata();
+    let (calldata, value) = AdminCallBuilder::new(
+        ecosystem_config.link_to_code.clone(),
+        start_migrate_from_gateway_call.calls,
+    )
+    .compile_full_calldata();
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let gw_rpc_url = general_config.l2_http_url()?;
