@@ -18,7 +18,7 @@ use crate::{
 };
 
 #[derive(Parser, Debug, Clone)]
-pub struct V29ChainUpgradeArgs {
+pub struct ChainUpgradeArgs {
     pub upgrade_description_path: Option<String>,
     pub chain_id: Option<u64>,
     pub gw_chain_id: Option<u64>,
@@ -33,7 +33,7 @@ pub struct V29ChainUpgradeArgs {
     pub force_display_finalization_params: Option<bool>,
 }
 
-impl V29ChainUpgradeArgs {
+impl ChainUpgradeArgs {
     pub fn fill_if_empyty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         self.chain_id = Some(
@@ -67,14 +67,14 @@ impl V29ChainUpgradeArgs {
     }
 }
 
-pub struct V29UpgradeArgsInner {
+pub struct ChainUpgradeArgsInner {
     pub chain_id: u64,
     pub l1_rpc_url: String,
     pub gw_rpc_url: String,
 }
 
-impl From<V29ChainUpgradeArgs> for V29UpgradeArgsInner {
-    fn from(value: V29ChainUpgradeArgs) -> Self {
+impl From<ChainUpgradeArgs> for ChainUpgradeArgsInner {
+    fn from(value: ChainUpgradeArgs) -> Self {
         Self {
             chain_id: value.chain_id.unwrap(),
             l1_rpc_url: value.l1_rpc_url.unwrap(),

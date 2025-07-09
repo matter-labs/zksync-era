@@ -34,13 +34,25 @@ pub enum EcosystemUpgradeStage {
     NoGovernanceStage2,
 }
 
+#[derive(
+    Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
+)]
+pub enum UpgradeVersions {
+    V29_InteropA_FF,
+    V28_1_VK,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemUpgradeArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
     #[clap(long, value_enum)]
+    pub upgrade_version: UpgradeVersions,
+    #[clap(long, value_enum)]
     ecosystem_upgrade_stage: EcosystemUpgradeStage,
+    #[clap(long, help = "Whether to update git submodules of repo", default_missing_value = "true", num_args = 0..=1)]
+    pub update_submodules: Option<bool>,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,

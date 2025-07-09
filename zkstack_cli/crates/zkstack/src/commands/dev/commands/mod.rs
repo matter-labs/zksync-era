@@ -1,7 +1,15 @@
+#[cfg(feature = "upgrades")]
+pub mod chain_upgrade;
+#[cfg(feature = "upgrades")]
+pub mod chain_upgrade_args;
 pub mod clean;
 pub mod config_writer;
 pub mod contracts;
 pub mod database;
+#[cfg(feature = "upgrades")]
+pub mod ecosystem_upgrade;
+#[cfg(feature = "upgrades")]
+pub mod ecosystem_upgrade_args;
 pub mod fmt;
 pub mod genesis;
 pub mod init_test_wallet;
@@ -18,18 +26,10 @@ pub mod track_priority_txs;
 #[cfg(any(
     feature = "v27_evm_interpreter",
     feature = "v28_precompiles",
-    feature = "v29_interopA_ff"
+    feature = "upgrades"
 ))]
 pub mod upgrade_utils;
 #[cfg(feature = "v27_evm_interpreter")]
 pub mod v27_evm_eq;
 #[cfg(feature = "v28_precompiles")]
 pub mod v28_precompiles;
-#[cfg(feature = "v29_interopA_ff")]
-pub mod v29_chain_args;
-#[cfg(feature = "v29_interopA_ff")]
-pub mod v29_chain_upgrade;
-#[cfg(feature = "v29_interopA_ff")]
-pub mod v29_ecosystem_args;
-#[cfg(feature = "v29_interopA_ff")]
-pub mod v29_ecosystem_upgrade;
