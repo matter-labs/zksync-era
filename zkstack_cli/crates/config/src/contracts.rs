@@ -143,7 +143,7 @@ impl ContractsConfig {
         proxy_addr: String,
         proxy_admin_addr: String,
     ) -> anyhow::Result<()> {
-        self.proving_network = Some(ProvingNetworkContracts {
+        self.proof_manager_contracts = Some(EthProofManagerContracts {
             proof_manager_addr: H160::from_str(&impl_addr)?,
             proxy_addr: H160::from_str(&proxy_addr)?,
             proxy_admin_addr: H160::from_str(&proxy_admin_addr)?,
