@@ -113,6 +113,8 @@ pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contr
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
 pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
+pub(super) const MSG_TEST_SECOND_CHAIN_HELP: &str =
+    "Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
