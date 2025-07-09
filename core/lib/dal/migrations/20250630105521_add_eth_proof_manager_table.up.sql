@@ -11,3 +11,6 @@ CREATE TABLE IF NOT EXISTS eth_proof_manager (
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
 );
+
+ALTER TYPE event_type ADD VALUE 'ProofRequestAcknowledged';
+ALTER TYPE event_type ADD VALUE 'ProofRequestProven';

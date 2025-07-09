@@ -1,6 +1,6 @@
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
 use crate::{types::ProvingNetwork, watcher::events::EventHandler};
@@ -44,6 +44,10 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
                 ethabi::ParamType::Uint(8),
             ],
         )
+    }
+
+    fn event_type(&self) -> EventType {
+        EventType::ProofRequestAcknowledged
     }
 
     async fn handle(&self, log: Log) -> anyhow::Result<()> {
@@ -102,6 +106,12 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
                 "Proof request for batch {} not accepted, skipping",
                 event.block_number
             );
+            self.connection_pool
+                .connection()
+                .await?
+                .eth_proof_manager_dal()
+                .fallback_certain_batch(L1BatchNumber(event.block_number.as_u32()))
+                .await?;
         }
 
         Ok(())

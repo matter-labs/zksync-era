@@ -6,7 +6,8 @@ use bellman::{
     bn256::Fr, plonk::commitments::transcript::keccak_transcript::RollingKeccakTranscript,
 };
 use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use ethabi::{decode, ParamType, Token};
+use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::outputs::{
     L1BatchProofForL1, L1BatchProofForL1Key, TypedL1BatchProofForL1,
@@ -14,7 +15,7 @@ use zksync_prover_interface::outputs::{
 use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
 use crate::{
-    types::{FflonkFinalVerificationKey, PlonkFinalVerificationKey},
+    types::{FflonkFinalVerificationKey, PlonkFinalVerificationKey, ProvingNetwork},
     watcher::events::EventHandler,
 };
 
@@ -27,6 +28,7 @@ pub struct ProofRequestProven {
     pub chain_id: U256,
     pub block_number: U256,
     pub proof: Vec<u8>,
+    pub assigned_to: ProvingNetwork,
 }
 
 pub struct ProofRequestProvenHandler {
@@ -67,6 +69,10 @@ impl EventHandler for ProofRequestProvenHandler {
         )
     }
 
+    fn event_type(&self) -> EventType {
+        EventType::ProofRequestProven
+    }
+
     async fn handle(&self, log: Log) -> anyhow::Result<()> {
         if log.topics.len() != 3 {
             return Err(anyhow::anyhow!(
@@ -85,18 +91,31 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let chain_id = h256_to_u256(*log.topics.get(1).context("missing topic 1")?);
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
-        let proof = log.data.0.to_vec();
+
+        let decoded = decode(&[ParamType::Bytes, ParamType::Uint(8)], &log.data.0)?;
+
+        let proof = match &decoded[0] {
+            Token::Bytes(b) => b.clone(),
+            _ => panic!("Expected bytes"),
+        };
+
+        let assigned_to = match &decoded[1] {
+            Token::Uint(u) => ProvingNetwork::from_u256(*u),
+            _ => panic!("Expected uint8"),
+        };
 
         let event = ProofRequestProven {
             chain_id,
             block_number,
             proof: proof.clone(),
+            assigned_to,
         };
 
         tracing::info!(
-            "Received ProofRequestProvenEvent for batch {}, chain_id: {}",
+            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}",
             event.block_number,
-            event.chain_id
+            event.chain_id,
+            event.assigned_to,
         );
 
         let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
@@ -142,6 +161,14 @@ impl EventHandler for ProofRequestProvenHandler {
                 .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
                 .await?;
         }
+
+        tracing::info!(
+            "Batch {}, chain_id: {}, assigned_to: {:?}, verification_result: {:?}",
+            batch_number,
+            event.chain_id,
+            event.assigned_to,
+            verification_result
+        );
 
         self.connection_pool
             .connection()

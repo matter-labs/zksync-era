@@ -296,6 +296,6 @@ eth_proof_manager:
   tx_sending_sleep: 1000 ms
   tx_receipt_checking_max_attempts: 10
   tx_receipt_checking_sleep: 1000 ms
-  max_tx_gas: 80000
+  max_tx_gas: 1000000
   path_to_fflonk_verification_key: "./prover/data/keys/fflonk_verification_snark_key.json"
   path_to_plonk_verification_key: "./prover/data/keys/verification_snark_key.json"

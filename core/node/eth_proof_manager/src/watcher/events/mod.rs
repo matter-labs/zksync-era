@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use zksync_dal::eth_watcher_dal::EventType;
 use zksync_types::{api::Log, H256};
 
 pub mod proof_request_acknowledged;
@@ -11,6 +12,8 @@ pub use proof_request_proven::ProofRequestProvenHandler;
 pub trait EventHandler: Send + Sync {
     // using reference to self here, otherwise we cannot call signature() on dyn traits
     fn signature(&self) -> H256;
+
+    fn event_type(&self) -> EventType;
 
     async fn handle(&self, log: Log) -> anyhow::Result<()>;
 }
