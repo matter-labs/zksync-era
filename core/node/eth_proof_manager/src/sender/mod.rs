@@ -59,25 +59,13 @@ impl EthProofSender {
             self.l2_chain_id,
         );
 
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, eth proof sender is shutting down");
-                break;
+        tokio::select! {
+            _ = proof_request_submitter.run(stop_receiver.clone()) => {
+                tracing::error!("Proof request submitter stopped");
             }
-
-            if let Err(e) = proof_request_submitter.loop_iteration().await {
-                tracing::error!("Error submitting proof request: {e}");
+            _ = proof_validation_submitter.run(stop_receiver) => {
+                tracing::error!("Proof validation result submitter stopped");
             }
-
-            if let Err(e) = proof_validation_submitter.loop_iteration().await {
-                tracing::error!("Error submitting proof validation result: {e}");
-            }
-
-            tracing::info!(
-                "Sleeping for {} seconds",
-                self.config.request_sending_interval.as_secs()
-            );
-            tokio::time::sleep(self.config.request_sending_interval).await;
         }
 
         Ok(())

@@ -15,9 +15,9 @@ pub struct EthProofManagerConfig {
     // todo: should be revisited
     #[config(default_t = 10)]
     pub max_reward: u64,
-    #[config(default_t = Duration::from_secs(120))]
+    #[config(default_t = Duration::from_secs(150))]
     pub acknowledgment_timeout: Duration,
-    #[config(default_t = Duration::from_secs(7200))]
+    #[config(default_t = Duration::from_secs(4800))]
     pub proof_generation_timeout: Duration,
     #[config(default_t = Duration::from_secs(300))]
     pub picking_timeout: Duration,
@@ -35,8 +35,6 @@ pub struct EthProofManagerConfig {
     pub max_tx_gas: u64,
     #[config(default)]
     pub path_to_fflonk_verification_key: String,
-    #[config(default)]
-    pub path_to_plonk_verification_key: String,
 }
 
 impl Default for EthProofManagerConfig {
@@ -47,8 +45,8 @@ impl Default for EthProofManagerConfig {
             event_expiration_blocks: 1000,
             default_priority_fee_per_gas: 1000000,
             max_reward: 10,
-            acknowledgment_timeout: Duration::from_secs(120),
-            proof_generation_timeout: Duration::from_secs(7200),
+            acknowledgment_timeout: Duration::from_secs(150),
+            proof_generation_timeout: Duration::from_secs(4800),
             picking_timeout: Duration::from_secs(300),
             max_acceptable_priority_fee_in_gwei: 100000000000,
             max_tx_sending_attempts: 5,
@@ -57,7 +55,6 @@ impl Default for EthProofManagerConfig {
             tx_receipt_checking_sleep: Duration::from_secs(1),
             max_tx_gas: 80000,
             path_to_fflonk_verification_key: "".to_string(),
-            path_to_plonk_verification_key: "".to_string(),
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use tokio::sync::watch;
 use zksync_config::configs::{
     eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
 };
@@ -44,6 +45,25 @@ impl ProofRequestSubmitter {
             blob_store,
             config,
             processor,
+        }
+    }
+
+    pub async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        loop {
+            if *stop_receiver.borrow() {
+                tracing::info!("Stop request received, eth proof sender is shutting down");
+                return Ok(());
+            }
+
+            if let Err(e) = self.loop_iteration().await {
+                tracing::error!("Error submitting proof request: {e}");
+            }
+
+            tracing::info!(
+                "Sleeping for {} seconds",
+                self.config.request_sending_interval.as_secs()
+            );
+            tokio::time::sleep(self.config.request_sending_interval).await;
         }
     }
 

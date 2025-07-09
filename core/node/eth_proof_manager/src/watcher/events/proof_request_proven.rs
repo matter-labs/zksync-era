@@ -15,7 +15,7 @@ use zksync_prover_interface::outputs::{
 use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
 use crate::{
-    types::{FflonkFinalVerificationKey, PlonkFinalVerificationKey, ProvingNetwork},
+    types::{FflonkFinalVerificationKey, ProvingNetwork},
     watcher::events::EventHandler,
 };
 
@@ -35,7 +35,6 @@ pub struct ProofRequestProvenHandler {
     connection_pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
     fflonk_vk: FflonkFinalVerificationKey,
-    plonk_vk: PlonkFinalVerificationKey,
 }
 
 impl ProofRequestProvenHandler {
@@ -43,13 +42,11 @@ impl ProofRequestProvenHandler {
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         fflonk_vk: FflonkFinalVerificationKey,
-        plonk_vk: PlonkFinalVerificationKey,
     ) -> Self {
         Self {
             connection_pool,
             blob_store,
             fflonk_vk,
-            plonk_vk,
         }
     }
 }
@@ -131,15 +128,10 @@ impl EventHandler for ProofRequestProvenHandler {
                 >(&self.fflonk_vk, &proof, None)
                 .map_err(|e| anyhow::anyhow!("Failed to verify fflonk proof: {}", e))?
             }
-            TypedL1BatchProofForL1::Plonk(proof) => {
-                let proof = proof.scheduler_proof;
-
-                bellman::plonk::better_better_cs::verifier::verify::<
-                    _,
-                    _,
-                    RollingKeccakTranscript<Fr>,
-                >(&self.plonk_vk, &proof, None)
-                .map_err(|e| anyhow::anyhow!("Failed to verify plonk proof: {}", e))?
+            TypedL1BatchProofForL1::Plonk(_) => {
+                return Err(anyhow::anyhow!(
+                    "Plonk proofs are not supported by proving networks"
+                ));
             }
         };
 

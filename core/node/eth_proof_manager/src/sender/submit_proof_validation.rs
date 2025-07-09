@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L2ChainId;
 
@@ -19,6 +22,24 @@ impl SubmitProofValidationSubmitter {
             client,
             connection_pool,
             l2_chain_id,
+        }
+    }
+
+    pub async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        loop {
+            if *stop_receiver.borrow() {
+                tracing::info!("Stop request received, eth proof sender is shutting down");
+                return Ok(());
+            }
+
+            if let Err(e) = self.loop_iteration().await {
+                tracing::error!("Error submitting proof validation: {e}");
+            }
+
+            let duration = Duration::from_secs(10);
+
+            tracing::info!("Sleeping for {} seconds", duration.as_secs());
+            tokio::time::sleep(duration).await;
         }
     }
 
