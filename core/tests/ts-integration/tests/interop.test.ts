@@ -33,12 +33,6 @@ describe('Interop behavior checks', () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
 
-        const maybeAliceSecondChain = testMaster.mainAccountSecondChain();
-        if (!maybeAliceSecondChain) {
-            throw new Error('Interop tests cannot be run if the second chain is not set');
-        }
-        aliceSecondChain = maybeAliceSecondChain;
-
         tokenDetails = testMaster.environment().erc20Token;
 
         // Skip interop tests if the SL is the same as the L1.
@@ -53,6 +47,13 @@ describe('Interop behavior checks', () => {
             (await alice.providerL1!.getNetwork()).chainId
         ) {
             skipInteropTest = true;
+        } else {
+            // Define the second chain wallet if the SL is different from the L1.
+            const maybeAliceSecondChain = testMaster.mainAccountSecondChain();
+            if (!!maybeAliceSecondChain) {
+                throw new Error('Interop tests cannot be run if the second chain is not set');
+            }
+            aliceSecondChain = maybeAliceSecondChain!;
         }
     });
 
