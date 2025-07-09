@@ -8909,7 +8909,6 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_job_processor",
- "zksync_prover_keystore",
  "zksync_types",
 ]
 
@@ -9544,8 +9543,11 @@ dependencies = [
  "tracing",
  "zkevm_test_harness",
  "zksync_basic_types",
+ "zksync_circuit_prover_service",
  "zksync_prover_fri_types",
+ "zksync_types",
  "zksync_utils",
+ "zksync_witness_generator_service",
 ]
 
 [[package]]
@@ -9767,6 +9769,7 @@ dependencies = [
  "structopt",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "vise",
  "zkevm_test_harness",
@@ -9784,4 +9787,36 @@ dependencies = [
  "zksync_task_management",
  "zksync_types",
  "zksync_vlog",
+ "zksync_witness_generator_service",
+]
+
+[[package]]
+name = "zksync_witness_generator_service"
+version = "21.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "circuit_definitions",
+ "const-decoder 0.3.0",
+ "futures 0.3.31",
+ "once_cell",
+ "serde",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "vise",
+ "zkevm_test_harness",
+ "zksync_circuit_prover_service",
+ "zksync_multivm",
+ "zksync_object_store",
+ "zksync_prover_dal",
+ "zksync_prover_fri_types",
+ "zksync_prover_fri_utils",
+ "zksync_prover_interface",
+ "zksync_prover_job_processor",
+ "zksync_system_constants",
+ "zksync_types",
 ]
