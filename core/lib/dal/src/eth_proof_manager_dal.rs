@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::time::Duration;
 
 use sqlx::QueryBuilder;
 use zksync_db_connection::{
