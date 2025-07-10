@@ -7,9 +7,10 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_tee::output::DeployTeeOutput, script_params::DEPLOY_TEE_SCRIPT_PARAMS,
+        deploy_tee::{input::DeployTeeInput, output::DeployTeeOutput},
+        script_params::DEPLOY_TEE_SCRIPT_PARAMS,
     },
-    traits::ReadConfig,
+    traits::{ReadConfig, SaveConfig},
     ContractsConfig, EcosystemConfig,
 };
 
@@ -49,6 +50,11 @@ async fn call_forge_tee_deploy(
         .link_to_code
         .join("contracts/tee-contracts");
 
+    let wallets = ecosystem_config.get_wallets()?;
+    let tee_dcap_operator_address = wallets.tee_dcap_operator.as_ref().unwrap().address;
+    let input = DeployTeeInput::new(tee_dcap_operator_address);
+    input.save(shell, DEPLOY_TEE_SCRIPT_PARAMS.input(&tee_contracts_path))?;
+
     // Create forge instance
     let mut forge = Forge::new(&tee_contracts_path)
         .script(&DEPLOY_TEE_SCRIPT_PARAMS.script(), forge_args.clone())
@@ -59,9 +65,9 @@ async fn call_forge_tee_deploy(
     // Set the deployer private key
     forge = fill_forge_private_key(
         forge,
-        // FIXME: TEE
-        ecosystem_config.get_wallets()?.tee_dcap_operator.as_ref(),
-        //ecosystem_config.get_wallets()?.deployer.as_ref(),
+        // FIXME: TEE - is governor or deployer the correct owner?
+        // ecosystem_config.get_wallets()?.deployer.as_ref(),
+        Some(&ecosystem_config.get_wallets()?.governor),
         WalletOwner::TEE,
     )?;
 
