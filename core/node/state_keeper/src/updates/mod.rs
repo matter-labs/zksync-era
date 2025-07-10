@@ -259,12 +259,15 @@ impl UpdatesManager {
         let new_interop_roots: Vec<_> = l2_block_params
             .interop_roots()
             .iter()
-            .filter(|root| !self.committed_updates.interop_roots.contains(root))
+            .filter(|root| {
+                !self.committed_updates.interop_roots.contains(root)
+                    && self
+                        .pending_l2_blocks
+                        .iter()
+                        .all(|block| !block.interop_roots.contains(root))
+            })
             .cloned()
             .collect();
-        self.committed_updates
-            .interop_roots
-            .extend(new_interop_roots.iter().cloned());
 
         l2_block_params.set_interop_roots(new_interop_roots);
         self.next_l2_block_params = Some(l2_block_params);
@@ -393,6 +396,9 @@ impl UpdatesManager {
         self.last_committed_l2_block_number = block.number;
         self.last_committed_l2_block_hash = block.get_l2_block_hash();
         self.last_committed_l2_block_timestamp = Some(block.timestamp());
+        self.committed_updates
+            .interop_roots
+            .extend(block.interop_roots.iter().cloned());
         self.committed_updates.extend_from_sealed_l2_block(block);
         self.storage_writes_deduplicator
             .pop_front_snapshot_no_rollback();
