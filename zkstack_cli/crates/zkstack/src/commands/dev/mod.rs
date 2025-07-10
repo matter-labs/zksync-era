@@ -1,7 +1,9 @@
 use clap::Subcommand;
+#[cfg(feature = "upgrades")]
+use commands::upgrades;
 use commands::{
     rich_account::args::RichAccountArgs, status::args::StatusArgs,
-    track_priority_txs::TrackPriorityOpsArgs, upgrades,
+    track_priority_txs::TrackPriorityOpsArgs,
 };
 #[cfg(feature = "v27_evm_interpreter")]
 use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
