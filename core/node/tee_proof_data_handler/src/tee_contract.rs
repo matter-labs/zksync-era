@@ -61,7 +61,6 @@ pub(crate) fn get_function(contract: &Contract, name: &str) -> Function {
 
 #[derive(Debug, Clone)]
 pub struct TeeFunctions {
-    f_verify_and_attest_on_chain: Function,
     f_register_signer: Function,
     f_verify_digest: Function,
     f_upsert_root_certificate: Function,
@@ -78,7 +77,6 @@ impl Default for TeeFunctions {
         let contract = tee_contract();
 
         Self {
-            f_verify_and_attest_on_chain: get_function(&contract, "verifyAndAttestOnChain"),
             f_register_signer: get_function(&contract, "registerSigner"),
             f_verify_digest: get_function(&contract, "verifyDigest"),
             f_upsert_root_certificate: get_function(&contract, "upsertRootCertificate"),
@@ -93,20 +91,6 @@ impl Default for TeeFunctions {
 }
 
 impl TeeFunctions {
-    /// function verifyAndAttestOnChain(bytes calldata rawQuote, bytes32 digest, bytes calldata signature) external {
-    pub fn verify_and_attest_on_chain(
-        &self,
-        raw_quote: Vec<u8>,
-        digest: H256,
-        signature: Vec<u8>,
-    ) -> zksync_types::ethabi::Result<Bytes> {
-        self.f_verify_and_attest_on_chain.encode_input(&[
-            raw_quote.into_token(),
-            digest.into_token(),
-            signature.into_token(),
-        ])
-    }
-
     /// function registerSigner(bytes calldata rawQuote) external {
     pub fn register_signer(&self, raw_quote: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
         self.f_register_signer
