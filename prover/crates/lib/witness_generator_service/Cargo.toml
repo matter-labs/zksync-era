@@ -1,6 +1,6 @@
 [package]
-name = "zksync_circuit_prover_service"
-description = "ZKsync circuit prover service implementation"
+name = "zksync_witness_generator_service"
+description = "ZKsync witness generator service implementation"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -13,22 +13,30 @@ categories.workspace = true
 [dependencies]
 zksync_prover_job_processor.workspace = true
 zksync_prover_fri_types.workspace = true
+zksync_prover_fri_utils.workspace = true
 zksync_prover_dal.workspace = true
 zksync_types.workspace = true
 zksync_object_store.workspace = true
+zksync_prover_interface.workspace = true
+zksync_multivm.workspace = true
+zksync_system_constants.workspace = true
+zksync_circuit_prover_service.workspace = true
 
 async-trait.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["macros", "time"] }
+tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 serde = { workspace = true, features = ["derive"] }
+futures = { workspace = true, features = ["compat"] }
+once_cell.workspace = true
+tempfile.workspace = true
 
-shivini = { workspace = true, features = ["circuit_definitions"] }
+circuit_definitions = { workspace = true, features = ["log_tracing"] }
 zkevm_test_harness.workspace = true
 vise.workspace = true
 
-[features]
-default = ["gpu-light"]
-# feature to not compile era-bellman-cuda, but to be able to use GPU features
-gpu-light = []
+[dev-dependencies]
+const-decoder = "0.3.0"
+bincode.workspace = true
