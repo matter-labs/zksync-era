@@ -13938,7 +13938,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_proof_manager"
-version = "28.8.0-non-semver-compat"
+version = "28.9.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
