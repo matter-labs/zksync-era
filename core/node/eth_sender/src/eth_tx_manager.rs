@@ -138,8 +138,7 @@ impl EthTxManager {
             .eth_sender_dal()
             .get_last_sent_successfully_eth_tx(tx.id)
             .await
-            .unwrap()
-            .map(|tx| tx.into());
+            .unwrap();
 
         let operator_type = self.operator_type(tx);
         let EthFees {
