@@ -12,7 +12,7 @@ use zkstack_cli_common::{
     init_prompt_theme, logger,
     version::version_message,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::{
     args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
@@ -166,7 +166,7 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
 
 fn init_global_config_inner(shell: &Shell, zkstack_args: &ZkStackGlobalArgs) -> anyhow::Result<()> {
     if let Some(name) = &zkstack_args.chain {
-        if let Ok(config) = EcosystemConfig::from_file(shell) {
+        if let Ok(config) = ZkStackConfig::ecosystem(shell) {
             let chains = config.list_of_chains();
             if !chains.contains(name) {
                 anyhow::bail!(

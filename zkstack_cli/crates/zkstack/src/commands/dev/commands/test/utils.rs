@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
-use zkstack_cli_config::{ChainConfig, EcosystemConfig};
+use zkstack_cli_config::ChainConfig;
+use zkstack_cli_types::L1Network;
 
 use crate::commands::dev::messages::{
     MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
@@ -37,7 +38,7 @@ impl TestWallets {
 
     pub async fn init_test_wallet(
         &self,
-        ecosystem_config: &EcosystemConfig,
+        l1_network: L1Network,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<()> {
         let wallet = self.get_test_wallet(chain_config)?;
@@ -48,7 +49,7 @@ impl TestWallets {
             self.get_main_wallet()?,
             vec![wallet.address],
             l1_rpc,
-            ecosystem_config.l1_network.chain_id(),
+            l1_network.chain_id(),
             AMOUNT_FOR_DISTRIBUTION_TO_TEST_WALLETS,
         )
         .await?;
@@ -57,8 +58,8 @@ impl TestWallets {
     }
 }
 
-pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
+pub fn build_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    shell.change_dir(link_to_code.join(TS_INTEGRATION_PATH));
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
@@ -69,11 +70,8 @@ pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> any
     Ok(())
 }
 
-pub fn install_and_build_dependencies(
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
+pub fn install_and_build_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code);
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
 
     Cmd::new(cmd!(shell, "yarn install")).run()?;

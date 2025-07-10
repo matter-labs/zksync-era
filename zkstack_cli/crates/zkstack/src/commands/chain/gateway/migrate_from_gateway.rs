@@ -24,7 +24,7 @@ use zkstack_cli_common::{
     zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, EcosystemConfig,
+    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, ZkStackConfig,
 };
 use zksync_basic_types::{H256, U256};
 use zksync_web3_decl::{
@@ -68,7 +68,7 @@ lazy_static! {
 }
 
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
