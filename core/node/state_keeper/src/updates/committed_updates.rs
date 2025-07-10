@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
 use zksync_types::{
     priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot, H256,
@@ -13,7 +15,7 @@ pub struct CommittedUpdates {
     pub txs_encoding_size: usize,
     pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
-    pub interop_roots: Vec<InteropRoot>,
+    pub interop_roots: HashSet<InteropRoot>,
 }
 
 impl CommittedUpdates {
@@ -25,7 +27,7 @@ impl CommittedUpdates {
             txs_encoding_size: 0,
             l1_tx_count: 0,
             finished: None,
-            interop_roots: vec![],
+            interop_roots: HashSet::new(),
         }
     }
 

@@ -203,6 +203,11 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             batch
                 .header
                 .protocol_version
+                .map(|v| v.is_pre_interop())
+                .unwrap_or(false),
+            batch
+                .header
+                .protocol_version
                 .map_or(EncodingVersion::PreInterop.value(), get_encoding_version),
         )
         .unwrap();
@@ -225,6 +230,7 @@ fn extracting_commit_data_for_boojum_batch() {
         commit_function,
         L1BatchNumber(4_470),
         true,
+        true,
         0,
     )
     .unwrap();
@@ -239,6 +245,7 @@ fn extracting_commit_data_for_boojum_batch() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(bogus_l1_batch),
+            true,
             true,
             0,
         )
@@ -259,6 +266,7 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_function,
             L1BatchNumber(l1_batch),
             true,
+            true,
             0,
         )
         .unwrap();
@@ -274,6 +282,7 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(bogus_l1_batch),
+            true,
             true,
             0,
         )
@@ -291,6 +300,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         commit_tx_input_data,
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
+        true,
         true,
         0,
     )

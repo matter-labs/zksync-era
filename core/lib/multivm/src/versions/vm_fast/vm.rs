@@ -160,7 +160,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
                 system_env.version,
             ),
             system_env,
-            batch_env: batch_env.clone(),
+            batch_env,
             snapshot: None,
             vm_version,
             skip_signature_verification: false,

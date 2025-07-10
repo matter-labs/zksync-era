@@ -29,7 +29,28 @@ pub struct StoredBatchInfo {
 }
 
 impl StoredBatchInfo {
-    pub fn schema() -> ParamType {
+    pub fn schema_for_protocol_version(protocol_version: ProtocolVersionId) -> ParamType {
+        if protocol_version.is_pre_interop() {
+            Self::schema_pre_interop()
+        } else {
+            Self::schema_post_interop()
+        }
+    }
+
+    pub fn schema_pre_interop() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Uint(64),       // `batch_number`
+            ParamType::FixedBytes(32), // `batch_hash`
+            ParamType::Uint(64),       // `index_repeated_storage_changes`
+            ParamType::Uint(256),      // `number_of_layer1_txs`
+            ParamType::FixedBytes(32), // `priority_operations_hash`
+            ParamType::FixedBytes(32), // `l2_logs_tree_root`
+            ParamType::Uint(256),      // `timestamp`
+            ParamType::FixedBytes(32), // `commitment`
+        ])
+    }
+
+    pub fn schema_post_interop() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::Uint(64),       // `batch_number`
             ParamType::FixedBytes(32), // `batch_hash`
@@ -49,10 +70,11 @@ impl StoredBatchInfo {
     }
 
     /// Decodes the struct from RLP.
-    pub fn decode(rlp: &[u8]) -> anyhow::Result<Self> {
-        let [token] = ethabi::decode_whole(&[Self::schema()], rlp)?
-            .try_into()
-            .unwrap();
+    pub fn decode(rlp: &[u8], protocol_version: ProtocolVersionId) -> anyhow::Result<Self> {
+        let [token] =
+            ethabi::decode_whole(&[Self::schema_for_protocol_version(protocol_version)], rlp)?
+                .try_into()
+                .unwrap();
         Ok(Self::from_token(token)?)
     }
 
@@ -97,16 +119,20 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
             index_repeated_storage_changes: x.metadata.rollup_last_leaf_index,
             number_of_layer1_txs: x.header.l1_tx_count.into(),
             priority_operations_hash: x.header.priority_ops_onchain_data_hash(),
-            dependency_roots_rolling_hash: if x.header.system_logs.is_empty() {
+            dependency_roots_rolling_hash: if x
+                .header
+                .protocol_version
+                .unwrap_or(ProtocolVersionId::Version0)
+                .is_pre_interop()
+            {
                 H256::zero()
             } else {
                 x.header
                     .system_logs
                     .iter()
                     .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                    .unwrap()
-                    .0
-                    .value
+                    .map(|log| log.0.value)
+                    .unwrap_or(H256::zero())
             },
             l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
             timestamp: x.header.timestamp.into(),

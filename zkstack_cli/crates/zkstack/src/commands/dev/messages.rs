@@ -22,13 +22,13 @@ pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
 
-#[cfg(feature = "v29_interopA_ff")]
-pub(super) const MSG_V29_INTEROP_A_FF_UPGRADE: &str =
-    "Interop A + FF (v29) upgrade checker and calldata generator";
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
+    "General ecosystem upgrade checker and calldata generator";
 
-#[cfg(feature = "v29_interopA_ff")]
-pub(super) const MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE: &str =
-    "Interop A + FF (v29) chain upgrade checker and calldata generator";
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_CHAIN_UPGRADE: &str =
+    "General chain upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -113,6 +113,8 @@ pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contr
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
 pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
+pub(super) const MSG_TEST_SECOND_CHAIN_HELP: &str =
+    "Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
