@@ -23,7 +23,6 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, FriProofWrapper,
 };
-use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::LeafAggregationJobMetadata, L1BatchId,
@@ -31,9 +30,9 @@ use zksync_types::{
 
 use super::JobMetadata;
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::JobManager,
+    rounds::{JobManager, VerificationKeyManager},
     utils::{
         load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts,
         ClosedFormInputWrapper,
@@ -66,7 +65,7 @@ pub struct LeafAggregation;
 #[async_trait]
 impl JobManager for LeafAggregation {
     type Job = LeafAggregationWitnessGeneratorJob;
-    type Metadata = LeafAggregationJobMetadata;
+    type Metadata = (LeafAggregationJobMetadata, Instant);
 
     const ROUND: AggregationRound = AggregationRound::LeafAggregation;
     const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
@@ -79,8 +78,8 @@ impl JobManager for LeafAggregation {
         job: LeafAggregationWitnessGeneratorJob,
         object_store: Arc<dyn ObjectStore>,
         max_circuits_in_flight: usize,
-        started_at: Instant,
     ) -> anyhow::Result<LeafAggregationArtifacts> {
+        let started_at = Instant::now();
         tracing::info!(
             "Starting witness generation of type {:?} for block {} with circuit {}",
             AggregationRound::LeafAggregation,
@@ -174,10 +173,6 @@ impl JobManager for LeafAggregation {
             .flat_map(|x| x.unwrap())
             .collect();
 
-        WITNESS_GENERATOR_METRICS.witness_generation_time
-            [&AggregationRound::LeafAggregation.into()]
-            .observe(started_at.elapsed());
-
         tracing::info!(
             "Leaf witness generation for block {} with circuit id {}: is complete in {:?}.",
             job.batch_id,
@@ -196,20 +191,19 @@ impl JobManager for LeafAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %metadata.batch_id, circuit_id = %metadata.circuit_id)
+        fields(l1_batch = %metadata.0.batch_id, circuit_id = %metadata.0.circuit_id)
     )]
     async fn prepare_job(
-        metadata: LeafAggregationJobMetadata,
+        metadata: Self::Metadata,
         object_store: &dyn ObjectStore,
-        keystore: Keystore,
+        keystore: Arc<dyn VerificationKeyManager>,
     ) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
-        let started_at = Instant::now();
+        let (metadata, started_at) = metadata;
         let closed_form_input = Self::get_artifacts(&metadata, object_store).await?;
 
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
             .observe(started_at.elapsed());
 
-        let started_at = Instant::now();
         let base_vk = keystore
             .load_base_layer_verification_key(metadata.circuit_id)
             .context("get_base_layer_vk_for_circuit_type()")?;
@@ -222,9 +216,6 @@ impl JobManager for LeafAggregation {
             .load_recursive_layer_verification_key(leaf_circuit_id)
             .context("get_recursive_layer_vk_for_circuit_type()")?;
         let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
-
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
-            .observe(started_at.elapsed());
 
         Ok(LeafAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,
@@ -250,12 +241,16 @@ impl JobManager for LeafAggregation {
         else {
             return Ok(None);
         };
-        Ok(Some(metadata))
+        let started_at = Instant::now();
+        Ok(Some((metadata, started_at)))
     }
 }
 
-impl JobMetadata for LeafAggregationJobMetadata {
+impl JobMetadata for (LeafAggregationJobMetadata, Instant) {
     fn job_id(&self) -> JobId {
-        JobId::new(self.id, self.batch_id.chain_id())
+        JobId::new(self.0.id, self.0.batch_id.chain_id())
+    }
+    fn started_at(&self) -> Instant {
+        self.1
     }
 }
