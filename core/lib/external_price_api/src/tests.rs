@@ -17,7 +17,7 @@ const TEST_BASE_PRICE: f64 = 371.74;
 const PRICE_FLOAT_COMPARE_TOLERANCE: f64 = 0.1;
 
 pub(crate) fn approximate_value(api_price: &BaseTokenApiRatio) -> f64 {
-    api_price.numerator.get() as f64 / api_price.denominator.get() as f64
+    api_price.ratio.numerator.get() as f64 / api_price.ratio.denominator.get() as f64
 }
 
 pub(crate) struct SetupResult {
@@ -39,7 +39,7 @@ pub(crate) async fn happy_day_test(setup: SetupFn) {
     // we expect the returned ratio to be such that when multiplying gas price in ETH you get gas
     // price in base token. So we expect such ratio X that X Base = 1ETH
     assert!(
-        ((api_price.numerator.get() as f64) / (api_price.denominator.get() as f64)
+        ((api_price.ratio.numerator.get() as f64) / (api_price.ratio.denominator.get() as f64)
             - TEST_BASE_PRICE)
             .abs()
             < PRICE_FLOAT_COMPARE_TOLERANCE

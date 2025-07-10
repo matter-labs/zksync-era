@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use rand::Rng;
 use tokio::sync::Mutex;
 use zksync_config::configs::ExternalPriceApiClientConfig;
-use zksync_types::base_token_ratio::BaseTokenApiRatio;
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, fee_model::ConversionRatio};
 
 use crate::{APIToken, PriceApiClient};
 
@@ -42,14 +42,18 @@ impl ForcedPriceClient {
         let ratio = if numerator < 100 && fluctuation.is_some_and(|f| f > 0) {
             // If numerator is too small we need to multiply by 100 to make sure fluctuations can be applied
             BaseTokenApiRatio {
-                numerator: NonZeroU64::new(numerator * 100).unwrap(),
-                denominator: NonZeroU64::new(denominator * 100).unwrap(),
+                ratio: ConversionRatio {
+                    numerator: NonZeroU64::new(numerator * 100).unwrap(),
+                    denominator: NonZeroU64::new(denominator * 100).unwrap(),
+                },
                 ratio_timestamp: chrono::Utc::now(),
             }
         } else {
             BaseTokenApiRatio {
-                numerator: NonZeroU64::new(numerator).unwrap(),
-                denominator: NonZeroU64::new(denominator).unwrap(),
+                ratio: ConversionRatio {
+                    numerator: NonZeroU64::new(numerator).unwrap(),
+                    denominator: NonZeroU64::new(denominator).unwrap(),
+                },
                 ratio_timestamp: chrono::Utc::now(),
             }
         };
@@ -77,14 +81,14 @@ impl PriceApiClient for ForcedPriceClient {
             let mut rng = rand::thread_rng();
             let numerator_range = (
                 max(
-                    (self.ratio.numerator.get() as f64 * (1.0 - (fluctation as f64 / 100.0)))
+                    (self.ratio.ratio.numerator.get() as f64 * (1.0 - (fluctation as f64 / 100.0)))
                         .round() as u64,
                     (previous_numerator.get() as f64
                         * (1.0 - (self.next_value_fluctuation as f64 / 100.0)))
                         .round() as u64,
                 ),
                 min(
-                    (self.ratio.numerator.get() as f64 * (1.0 + (fluctation as f64 / 100.0)))
+                    (self.ratio.ratio.numerator.get() as f64 * (1.0 + (fluctation as f64 / 100.0)))
                         .round() as u64,
                     (previous_numerator.get() as f64
                         * (1.0 + (self.next_value_fluctuation as f64 / 100.0)))
@@ -94,10 +98,12 @@ impl PriceApiClient for ForcedPriceClient {
 
             let new_numerator =
                 NonZeroU64::new(rng.gen_range(numerator_range.0..=numerator_range.1))
-                    .unwrap_or(self.ratio.numerator);
+                    .unwrap_or(self.ratio.ratio.numerator);
             let adjusted_ratio = BaseTokenApiRatio {
-                numerator: new_numerator,
-                denominator: self.ratio.denominator,
+                ratio: ConversionRatio {
+                    numerator: new_numerator,
+                    denominator: self.ratio.ratio.denominator,
+                },
                 ratio_timestamp: chrono::Utc::now(),
             };
             *previous_numerator = new_numerator;

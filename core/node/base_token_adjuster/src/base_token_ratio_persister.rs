@@ -5,7 +5,10 @@ use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_external_price_api::{APIToken, PriceApiClient};
-use zksync_types::base_token_ratio::BaseTokenApiRatio;
+use zksync_types::{
+    base_token_ratio::BaseTokenApiRatio,
+    fee_model::{BaseTokenConversionRatio, ConversionRatio},
+};
 
 use crate::{
     base_token_l1_behaviour::BaseTokenL1Behaviour,
@@ -20,8 +23,8 @@ fn safe_u64_fraction_mul(
     a: BaseTokenApiRatio,
     b: BaseTokenApiRatio,
 ) -> anyhow::Result<BaseTokenApiRatio> {
-    let numerator = a.numerator.get() as u128 * b.numerator.get() as u128;
-    let denominator = a.denominator.get() as u128 * b.denominator.get() as u128;
+    let numerator = a.ratio.numerator.get() as u128 * b.ratio.numerator.get() as u128;
+    let denominator = a.ratio.denominator.get() as u128 * b.ratio.denominator.get() as u128;
 
     // We need to scale if numerator or denominator is bigger then u64.
     // If not the scaling factor is zero and does nothing
@@ -46,8 +49,10 @@ fn safe_u64_fraction_mul(
     .ok_or(anyhow::anyhow!("Scaled down denominator is zero"))?;
 
     Ok(BaseTokenApiRatio {
-        numerator: safe_numerator,
-        denominator: safe_denominator,
+        ratio: ConversionRatio {
+            numerator: safe_numerator,
+            denominator: safe_denominator,
+        },
         ratio_timestamp: a.ratio_timestamp.max(b.ratio_timestamp),
     })
 }
@@ -116,16 +121,24 @@ impl BaseTokenRatioPersister {
         let sl_to_eth = self.retry_fetch_ratio(self.sl_token).await?;
 
         let sl_ratio = safe_u64_fraction_mul(base_to_eth, sl_to_eth.reciprocal())?;
-        METRICS
-            .ratio
-            .set((sl_ratio.numerator.get() as f64) / (sl_ratio.denominator.get() as f64));
+        METRICS.ratio.set(
+            (sl_ratio.ratio.numerator.get() as f64) / (sl_ratio.ratio.denominator.get() as f64),
+        );
 
         // In database we persist the ratio needed for calculating L2 gas price from SL (L1 or Gateway) gas price
-        self.persist_ratio(sl_ratio).await?;
+        self.persist_ratio(
+            BaseTokenConversionRatio {
+                sl: sl_ratio.ratio,
+                l1: base_to_eth.ratio,
+            },
+            sl_ratio.ratio_timestamp,
+        )
+        .await?;
         if !matches!(self.base_token, APIToken::Eth) {
-            METRICS
-                .ratio_l1
-                .set((base_to_eth.numerator.get() as f64) / (base_to_eth.denominator.get() as f64));
+            METRICS.ratio_l1.set(
+                (base_to_eth.ratio.numerator.get() as f64)
+                    / (base_to_eth.ratio.denominator.get() as f64),
+            );
             self.l1_behaviour.update_l1(base_to_eth).await?
         }
         Ok(())
@@ -168,7 +181,11 @@ impl BaseTokenRatioPersister {
             .unwrap_or_else(|| anyhow::anyhow!(error_message)))
     }
 
-    async fn persist_ratio(&self, api_ratio: BaseTokenApiRatio) -> anyhow::Result<usize> {
+    async fn persist_ratio(
+        &self,
+        api_ratio: BaseTokenConversionRatio,
+        timestamp: chrono::DateTime<chrono::Utc>,
+    ) -> anyhow::Result<usize> {
         let mut conn = self
             .pool
             .connection_tagged("base_token_ratio_persister")
@@ -177,11 +194,7 @@ impl BaseTokenRatioPersister {
 
         let id = conn
             .base_token_dal()
-            .insert_token_ratio(
-                api_ratio.numerator,
-                api_ratio.denominator,
-                &api_ratio.ratio_timestamp.naive_utc(),
-            )
+            .insert_token_ratio(api_ratio, &timestamp.naive_utc())
             .await
             .context("Failed to insert base token ratio into the database")?;
 
@@ -205,7 +218,7 @@ mod tests {
     use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
     use zksync_dal::{ConnectionPool, Core, CoreDal};
     use zksync_external_price_api::{APIToken, PriceApiClient};
-    use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
+    use zksync_types::{base_token_ratio::BaseTokenApiRatio, fee_model::ConversionRatio, Address};
 
     use crate::*;
 
@@ -267,8 +280,10 @@ mod tests {
 
     fn create_test_ratio(numerator: u64, denominator: u64) -> BaseTokenApiRatio {
         BaseTokenApiRatio {
-            numerator: NonZeroU64::new(numerator).unwrap(),
-            denominator: NonZeroU64::new(denominator).unwrap(),
+            ratio: ConversionRatio {
+                numerator: NonZeroU64::new(numerator).unwrap(),
+                denominator: NonZeroU64::new(denominator).unwrap(),
+            },
             ratio_timestamp: Utc::now(),
         }
     }
@@ -286,8 +301,8 @@ mod tests {
 
         // Check the latest ratio matches expected values
         let ratio = ratio.unwrap();
-        assert_eq!(ratio.numerator.get(), expected_num_ratio);
-        assert_eq!(ratio.denominator.get(), expected_denom_ratio);
+        assert_eq!(ratio.ratio.sl.numerator.get(), expected_num_ratio);
+        assert_eq!(ratio.ratio.sl.denominator.get(), expected_denom_ratio);
     }
 
     const TOKEN_1_ADDRESS: Address = Address::repeat_byte(0x01);

@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 
 use chrono::Utc;
 use fraction::GenericFraction;
-use zksync_types::base_token_ratio::BaseTokenApiRatio;
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, fee_model::ConversionRatio};
 
 /// Using the base token price and eth price, calculate the fraction of the base token to eth.
 pub fn get_fraction(ratio_f64: f64) -> anyhow::Result<(NonZeroU64, NonZeroU64)> {
@@ -43,8 +43,10 @@ pub fn eth_price_to_base_token_ratio(price: f64) -> anyhow::Result<BaseTokenApiR
     let (num_in_base, denom_in_base) = (denom_in_eth, num_in_eth);
 
     Ok(BaseTokenApiRatio {
-        numerator: num_in_base,
-        denominator: denom_in_base,
+        ratio: ConversionRatio {
+            numerator: num_in_base,
+            denominator: denom_in_base,
+        },
         ratio_timestamp: Utc::now(),
     })
 }

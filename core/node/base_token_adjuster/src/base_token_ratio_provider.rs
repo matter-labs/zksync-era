@@ -71,10 +71,7 @@ impl DBBaseTokenRatioProvider {
             .await;
 
         let ratio = match latest_storage_ratio {
-            Ok(Some(latest_storage_price)) => BaseTokenConversionRatio {
-                numerator: latest_storage_price.numerator,
-                denominator: latest_storage_price.denominator,
-            },
+            Ok(Some(latest_storage_price)) => latest_storage_price.ratio,
             Ok(None) => {
                 // TODO(PE-136): Insert initial ratio from genesis.
                 // Though the DB should be populated very soon after the server starts, it is possible
