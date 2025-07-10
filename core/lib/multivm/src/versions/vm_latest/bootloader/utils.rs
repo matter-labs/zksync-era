@@ -2,7 +2,6 @@ use zksync_types::{ethabi, h256_to_u256, InteropRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 #[cfg(any(test, feature = "test-utils"))]
-use crate::versions::vm_latest::constants::get_current_number_of_roots_in_block_offset;
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
