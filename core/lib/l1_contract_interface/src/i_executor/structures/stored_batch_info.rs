@@ -109,9 +109,8 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
                     .system_logs
                     .iter()
                     .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                    .unwrap()
-                    .0
-                    .value
+                    .map(|log| log.0.value)
+                    .unwrap_or(H256::zero())
             },
             l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
             timestamp: x.header.timestamp.into(),
