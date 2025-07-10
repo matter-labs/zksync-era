@@ -1,10 +1,15 @@
 use clap::Subcommand;
-use commands::{status::args::StatusArgs, track_priority_txs::TrackPriorityOpsArgs};
-use messages::MSG_STATUS_ABOUT;
+#[cfg(feature = "upgrades")]
+use commands::upgrades;
+use commands::{
+    rich_account::args::RichAccountArgs, status::args::StatusArgs,
+    track_priority_txs::TrackPriorityOpsArgs,
+};
 #[cfg(feature = "v27_evm_interpreter")]
 use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
 #[cfg(feature = "v28_precompiles")]
 use messages::MSG_V28_PRECOMPILES_UPGRADE;
+use messages::{MSG_RICH_ACCOUNT_ABOUT, MSG_STATUS_ABOUT};
 use xshell::Shell;
 
 use self::commands::{
@@ -12,6 +17,8 @@ use self::commands::{
     database::DatabaseCommands, fmt::FmtArgs, lint::LintArgs, prover::ProverCommands,
     send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
 };
+#[cfg(feature = "upgrades")]
+use crate::commands::dev::messages::{GENERAL_CHAIN_UPGRADE, GENERAL_ECOSYSTEM_UPGRADE};
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
     MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
@@ -51,14 +58,30 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    // #[command(about = MSG_INIT_TEST_WALLET_ABOUT)]
+    // InitTestWallet,
+    #[command(about = MSG_RICH_ACCOUNT_ABOUT)]
+    RichAccount(RichAccountArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT)]
     TrackPriorityOps(TrackPriorityOpsArgs),
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
-    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
+    V27EvmInterpreterUpgradeCalldata(upgrades::v27_evm_eq::V27EvmInterpreterCalldataArgs),
     #[cfg(feature = "v28_precompiles")]
     #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
-    GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
+    GenerateV28UpgradeCalldata(upgrades::v28_precompiles::V28PrecompilesCalldataArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
+    GenerateEcosystemUpgradeCalldata(upgrades::args::ecosystem::EcosystemUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
+    RunEcosystemUpgrade(upgrades::args::ecosystem::EcosystemUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_CHAIN_UPGRADE)]
+    GenerateChainUpgrade(upgrades::args::chain::ChainUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_CHAIN_UPGRADE)]
+    RunChainUpgrade(upgrades::args::chain::ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -77,14 +100,32 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        // DevCommands::InitTestWallet => init_test_wallet_run(shell).await?,
+        DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
         DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
-            commands::v27_evm_eq::run(shell, args).await?
+            upgrades::v27_evm_eq::run(shell, args).await?
         }
         #[cfg(feature = "v28_precompiles")]
         DevCommands::GenerateV28UpgradeCalldata(args) => {
-            commands::v28_precompiles::run(shell, args).await?
+            upgrades::v28_precompiles::run(shell, args).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::GenerateEcosystemUpgradeCalldata(args) => {
+            upgrades::default_ecosystem_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::RunEcosystemUpgrade(args) => {
+            upgrades::default_ecosystem_upgrade::run(shell, args, true).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::GenerateChainUpgrade(args) => {
+            upgrades::default_chain_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::RunChainUpgrade(args) => {
+            upgrades::default_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())

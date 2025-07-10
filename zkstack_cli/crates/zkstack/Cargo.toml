@@ -47,6 +47,9 @@ zksync_contracts.workspace = true
 prost.workspace = true
 reqwest.workspace = true
 tempfile.workspace = true
+alloy.workspace = true
+sha2.workspace = true
+walkdir.workspace = true
 
 [build-dependencies]
 anyhow.workspace = true
@@ -58,3 +61,4 @@ xshell.workspace = true
 [features]
 v27_evm_interpreter = []
 v28_precompiles = []
+upgrades = []

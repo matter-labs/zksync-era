@@ -28,6 +28,8 @@ artifacts-zk
 cache-zk
 # Ignore directories with OZ and forge submodules.
 contracts/l1-contracts/lib
+# ignore full infrastructure
+infrastructure/*
 
 # Ignore ecosystem configs
 /configs/

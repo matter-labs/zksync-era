@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_config::EcosystemConfig;
 use zksync_types::Address;
 
 use super::utils::{display_admin_script_output, get_default_foundry_path};
@@ -32,8 +33,8 @@ pub async fn run(shell: &Shell, args: SetTransactionFiltererArgs) -> anyhow::Res
         args.l1_rpc_url,
     )
     .await?;
-
-    display_admin_script_output(result);
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), result);
 
     Ok(())
 }

@@ -10,7 +10,7 @@ use ethers::{
 };
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
-use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
+use zkstack_cli_config::{traits::ReadConfig, EcosystemConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
@@ -361,11 +361,14 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
         params.into_migrate_params(gateway_config.diamond_cut_data.0),
     )
     .await?;
-
-    display_admin_script_output(AdminScriptOutput {
-        admin_address,
-        calls,
-    });
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    display_admin_script_output(
+        ecosystem_config.link_to_code.clone(),
+        AdminScriptOutput {
+            admin_address,
+            calls,
+        },
+    );
 
     Ok(())
 }

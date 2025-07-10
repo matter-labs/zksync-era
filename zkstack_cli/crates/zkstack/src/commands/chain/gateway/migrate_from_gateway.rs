@@ -39,9 +39,10 @@ use crate::{
         admin_call_builder::AdminCallBuilder,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-            gateway_common::{extract_and_wait_for_priority_ops, send_tx},
+            gateway_common::extract_and_wait_for_priority_ops,
         },
         init::get_l1_da_validator,
+        utils::send_tx,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
@@ -108,8 +109,11 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     .await?;
 
     let chain_admin = start_migrate_from_gateway_call.admin_address;
-    let (calldata, value) =
-        AdminCallBuilder::new(start_migrate_from_gateway_call.calls).compile_full_calldata();
+    let (calldata, value) = AdminCallBuilder::new(
+        ecosystem_config.link_to_code.clone(),
+        start_migrate_from_gateway_call.calls,
+    )
+    .compile_full_calldata();
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let gw_rpc_url = general_config.l2_http_url()?;

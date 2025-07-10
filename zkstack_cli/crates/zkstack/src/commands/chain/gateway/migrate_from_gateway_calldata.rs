@@ -8,7 +8,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
-use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
+use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, EcosystemConfig};
 
 use super::{
     gateway_common::{
@@ -158,8 +158,8 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
         params.l1_rpc_url,
     )
     .await?;
-
-    display_admin_script_output(output);
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), output);
 
     logger::warn("Note, that the above calldata ONLY includes calldata to start migration from ZK Gateway to L1. Once the migration finishes, the DA validator pair will be reset and so you will have to set again. ");
     logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);

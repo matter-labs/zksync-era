@@ -4,7 +4,10 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
-use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
+use zkstack_cli_config::{
+    traits::{ReadConfig, ZkStackConfig},
+    EcosystemConfig,
+};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
@@ -17,7 +20,7 @@ use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     commands::{
         chain::admin_call_builder::{AdminCall, AdminCallBuilder},
-        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+        dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
     },
 };
 
@@ -182,7 +185,10 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
         };
     }
 
-    let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+
+    let mut admin_calls_finalize =
+        AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), vec![]);
 
     admin_calls_finalize.append_execute_upgrade(
         chain_info.hyperchain_addr,

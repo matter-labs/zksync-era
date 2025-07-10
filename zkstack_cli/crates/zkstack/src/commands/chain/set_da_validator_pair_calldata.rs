@@ -4,6 +4,7 @@ use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
+use zkstack_cli_config::EcosystemConfig;
 use zksync_types::{Address, L2_BRIDGEHUB_ADDRESS};
 
 use super::utils::{display_admin_script_output, get_default_foundry_path};
@@ -114,8 +115,8 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
 
         output
     };
-
-    display_admin_script_output(result);
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), result);
 
     Ok(())
 }

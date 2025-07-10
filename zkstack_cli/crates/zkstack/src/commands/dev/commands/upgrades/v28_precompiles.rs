@@ -4,7 +4,10 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
-use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
+use zkstack_cli_config::{
+    traits::{ReadConfig, ZkStackConfig},
+    EcosystemConfig,
+};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
@@ -21,7 +24,7 @@ use crate::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
             utils::get_default_foundry_path,
         },
-        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+        dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
     },
     utils::addresses::apply_l1_to_l2_alias,
 };
@@ -206,7 +209,7 @@ impl ZkStackConfig for V28UpgradeInfo {}
 pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyhow::Result<()> {
     let forge_args = &Default::default();
     let foundry_contracts_path = get_default_foundry_path(shell)?;
-
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
     // 0. Read the GatewayUpgradeInfo
 
     let upgrade_info = V28UpgradeInfo::read(shell, &args.upgrade_description_path)?;
@@ -248,7 +251,8 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
     }
 
     if chain_info.settlement_layer == args.gw_chain_id {
-        let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
+        let mut admin_calls_gw =
+            AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), vec![]);
 
         admin_calls_gw.append_execute_upgrade(
             chain_info.hyperchain_addr,
@@ -283,7 +287,8 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
             hex::encode(&gw_chain_admin_calldata)
         );
     } else {
-        let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
+        let mut admin_calls_finalize =
+            AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), vec![]);
 
         admin_calls_finalize.append_execute_upgrade(
             chain_info.hyperchain_addr,

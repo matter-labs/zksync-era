@@ -12,11 +12,12 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-    gateway_common::{extract_and_wait_for_priority_ops, send_tx},
+    gateway_common::extract_and_wait_for_priority_ops,
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
 };
 use crate::{
-    abi::BridgehubAbi, commands::chain::admin_call_builder::AdminCallBuilder,
+    abi::BridgehubAbi,
+    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
@@ -99,7 +100,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         return Ok(());
     }
 
-    let (calldata, value) = AdminCallBuilder::new(calls).compile_full_calldata();
+    let (calldata, value) =
+        AdminCallBuilder::new(ecosystem_config.link_to_code.clone(), calls).compile_full_calldata();
 
     let receipt = send_tx(
         chain_admin,
