@@ -61,7 +61,7 @@ describe('Interop behavior checks', () => {
     let params: FinalizeWithdrawalParams;
     test('Can check withdrawal hash in L2-A', async () => {
         if (skipInteropTests) {
-            pending('Skipping interop test because settlement layer is the same as L1');
+            return;
         }
 
         const l2MessageVerification = new zksync.Contract(
@@ -99,7 +99,7 @@ describe('Interop behavior checks', () => {
 
     test('Can check withdrawal hash from L2-B', async () => {
         if (skipInteropTests) {
-            pending('Skipping interop test because settlement layer is the same as L1');
+            return;
         }
 
         const l2MessageVerification = new zksync.Contract(
