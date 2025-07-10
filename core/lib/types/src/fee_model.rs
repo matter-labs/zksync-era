@@ -329,7 +329,7 @@ impl FeeParamsV2 {
         conversion_ratio: ConversionRatio,
     ) -> u64 {
         let converted_price = u128::from(price_in_wei)
-            * u128::from(conversion_ratio.numerator.get()) //TODO DISTINCT
+            * u128::from(conversion_ratio.numerator.get())
             / u128::from(conversion_ratio.denominator.get());
 
         // Match on the converted price to ensure it can be represented as a u64
