@@ -136,7 +136,7 @@ impl EthTxManager {
     ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
             .eth_sender_dal()
-            .get_last_sent_successfully_eth_storage_tx(tx.id)
+            .get_last_sent_successfully_eth_tx(tx.id)
             .await
             .unwrap()
             .map(|tx| tx.into());

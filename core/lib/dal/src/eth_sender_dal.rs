@@ -838,10 +838,10 @@ impl EthSenderDal<'_, '_> {
         Ok(sent_at_block.flatten().map(|block| block as u32))
     }
 
-    pub async fn get_last_sent_successfully_eth_storage_tx(
+    pub async fn get_last_sent_successfully_eth_tx(
         &mut self,
         eth_tx_id: u32,
-    ) -> sqlx::Result<Option<StorageTxHistory>> {
+    ) -> sqlx::Result<Option<TxHistory>> {
         let history_item = sqlx::query_as!(
             StorageTxHistory,
             r#"
@@ -864,7 +864,7 @@ impl EthSenderDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?;
-        Ok(history_item)
+        Ok(history_item.map(|tx| tx.into()))
     }
 
     pub async fn get_eth_tx_id_by_batch_and_op(
@@ -1054,10 +1054,9 @@ impl EthSenderDal<'_, '_> {
         let eth_tx_id = self
             .get_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
             .await;
-        self.get_last_sent_successfully_eth_storage_tx(eth_tx_id.unwrap()?)
+        self.get_last_sent_successfully_eth_tx(eth_tx_id.unwrap()?)
             .await
             .unwrap()
-            .map(|tx| tx.into())
     }
 
     pub async fn is_using_blobs_in_latest_batch(&mut self) -> DalResult<bool> {
