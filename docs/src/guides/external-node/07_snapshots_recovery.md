@@ -45,17 +45,17 @@ To enable snapshot recovery on ZKsync mainnet, you need to set environment varia
 the first time:
 
 ```yaml
-EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
-EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-mainnet-external-node-snapshots'
-EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
+EN_SNAPSHOTS_RECOVERY_ENABLED: "true"
+EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-mainnet-external-node-snapshots"
+EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
 ```
 
 For the ZKsync Sepolia testnet, use:
 
 ```yaml
-EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
-EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-boojnet-external-node-snapshots'
-EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
+EN_SNAPSHOTS_RECOVERY_ENABLED: "true"
+EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-boojnet-external-node-snapshots"
+EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
 ```
 
 For a working examples of a fully configured ZKsync Nodes recovering from snapshots, see

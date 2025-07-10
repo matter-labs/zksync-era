@@ -83,5 +83,4 @@ If you've been running the Node for some time and are going to redeploy it using
 Monitoring the node behavior and analyzing the state it's in is covered in the
 [observability section](04_observability.md).
 
-[host_docker_internal]:
-  https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host
+[host_docker_internal]: https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host

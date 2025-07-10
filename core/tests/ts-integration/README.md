@@ -42,13 +42,13 @@ Sample test suite would look like this:
  * This suite contains tests checking our handling of Ether (such as depositing, checking `msg.value`, etc).
  */
 
-import { TestMaster } from '../src/index';
-import { shouldChangeETHBalances } from '../src/modifiers/balance-checker.ts';
+import { TestMaster } from "../src/index";
+import { shouldChangeETHBalances } from "../src/modifiers/balance-checker.ts";
 
-import * as zksync from 'zksync-ethers';
-import { BigNumber } from 'ethers';
+import * as zksync from "zksync-ethers";
+import { BigNumber } from "ethers";
 
-describe('ETH token checks', () => {
+describe("ETH token checks", () => {
   let testMaster: TestMaster;
   let alice: zksync.Wallet;
   let bob: zksync.Wallet;
@@ -62,17 +62,19 @@ describe('ETH token checks', () => {
     bob = testMaster.newEmptyAccount();
   });
 
-  test('Can perform a transfer', async () => {
+  test("Can perform a transfer", async () => {
     const value = BigNumber.from(200);
 
     // Declare modifier to check that ETH balances would change in the following way.
     const ethBalanceChange = await shouldChangeETHBalances([
       { wallet: alice, change: -value },
-      { wallet: bob, change: value }
+      { wallet: bob, change: value },
     ]);
 
     // Send transfer, it should succeed. Apply a modifier we declared above.
-    await expect(alice.sendTransaction({ to: bob.address, value })).toBeAccepted([ethBalanceChange]);
+    await expect(
+      alice.sendTransaction({ to: bob.address, value }),
+    ).toBeAccepted([ethBalanceChange]);
   });
 
   afterAll(async () => {
@@ -151,7 +153,10 @@ You can do it as follows:
 
 ```typescript
 // Create promise
-const withdrawalPromise = alice.withdraw({ token: zksync.utils.ETH_ADDRESS, amount });
+const withdrawalPromise = alice.withdraw({
+  token: zksync.utils.ETH_ADDRESS,
+  amount,
+});
 // Here you use promise in the matcher.
 await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
 // And here you retrieve its value. It's OK to await same promise twice.

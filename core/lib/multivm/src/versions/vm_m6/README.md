@@ -37,5 +37,5 @@ The `VMInstance` in `vm.rs` allows for easy rollbacks. You can save the current 
 This rollback affects all subcomponents, like memory, storage, and events, and is mainly used if a transaction doesn't
 fit in a block.
 
-[zk_evm_repo]: https://github.com/matter-labs/zk_evm 'internal zk EVM repo'
-[zk_evm_repo_ext]: https://github.com/matter-labs/era-zk_evm 'external zk EVM repo'
+[zk_evm_repo]: https://github.com/matter-labs/zk_evm "internal zk EVM repo"
+[zk_evm_repo_ext]: https://github.com/matter-labs/era-zk_evm "external zk EVM repo"

@@ -37,14 +37,14 @@ A rough guide whether to choose the recovery option and/or pruning is as follows
 You can enable pruning by setting the environment variable
 
 ```yaml
-EN_PRUNING_ENABLED: 'true'
+EN_PRUNING_ENABLED: "true"
 ```
 
 By default, the node will keep L1 batch data for 7 days determined by the batch timestamp (always equal to the timestamp
 of the first block in the batch). You can configure the retention period using:
 
 ```yaml
-EN_PRUNING_DATA_RETENTION_SEC: '259200' # 3 days
+EN_PRUNING_DATA_RETENTION_SEC: "259200" # 3 days
 ```
 
 The retention period can be set to any value, but for mainnet values under 24h will be ignored because a batch can only

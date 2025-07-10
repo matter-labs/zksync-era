@@ -1,21 +1,21 @@
-import * as ethers from 'ethers';
-import * as zksync from 'zksync-ethers';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as ethers from "ethers";
+import * as zksync from "zksync-ethers";
+import * as fs from "fs";
+import * as path from "path";
 
 export class Tester {
-    public runningFee: Map<zksync.types.Address, bigint>;
-    constructor(
-        public ethProvider: ethers.Provider,
-        public ethWallet: ethers.Wallet,
-        public syncWallet: zksync.Wallet,
-        public web3Provider: zksync.Provider
-    ) {
-        this.runningFee = new Map();
-    }
+  public runningFee: Map<zksync.types.Address, bigint>;
+  constructor(
+    public ethProvider: ethers.Provider,
+    public ethWallet: ethers.Wallet,
+    public syncWallet: zksync.Wallet,
+    public web3Provider: zksync.Provider,
+  ) {
+    this.runningFee = new Map();
+  }
 
-    // prettier-ignore
-    static async init(ethProviderAddress: string, web3JsonRpc: string) {
+  // prettier-ignore
+  static async init(ethProviderAddress: string, web3JsonRpc: string) {
         const ethProvider = new ethers.JsonRpcProvider(ethProviderAddress);
 
         let ethWallet;
@@ -62,8 +62,12 @@ export class Tester {
         return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
     }
 
-    emptyWallet() {
-        const walletHD = zksync.Wallet.createRandom();
-        return new zksync.Wallet(walletHD.privateKey, this.web3Provider, this.ethProvider);
-    }
+  emptyWallet() {
+    const walletHD = zksync.Wallet.createRandom();
+    return new zksync.Wallet(
+      walletHD.privateKey,
+      this.web3Provider,
+      this.ethProvider,
+    );
+  }
 }

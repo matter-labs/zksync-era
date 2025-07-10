@@ -71,18 +71,10 @@ transactions that don't fit.
 In a separate article, we will delve into more details about how these oracles and the VM work, providing a
 comprehensive understanding of their functionality and interactions.
 
-[block_layout]:
-  https://user-images.githubusercontent.com/128217157/236494232-aeed380c-78f6-4fda-ab2a-8de26c1089ff.png
-  'block layout'
-[explorer_example]:
-  https://user-images.githubusercontent.com/128217157/236500717-165470ad-30b8-4ad6-97ed-fc29c8eb1fe0.png
-  'explorer example'
-[conditional_sealer]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/conditional_sealer.rs#20
-  'Conditional Sealer'
-[reasons_for_sealing]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/mod.rs#L106
-  'Reasons for Sealing'
+[block_layout]: https://user-images.githubusercontent.com/128217157/236494232-aeed380c-78f6-4fda-ab2a-8de26c1089ff.png "block layout"
+[explorer_example]: https://user-images.githubusercontent.com/128217157/236500717-165470ad-30b8-4ad6-97ed-fc29c8eb1fe0.png "explorer example"
+[conditional_sealer]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/conditional_sealer.rs#20 "Conditional Sealer"
+[reasons_for_sealing]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/mod.rs#L106 "Reasons for Sealing"
 
 ## Deeper dive
 

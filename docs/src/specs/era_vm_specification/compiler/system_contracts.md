@@ -117,13 +117,10 @@ used for these cases:
 2. Allocating calldata and return data for calling the [System Contracts][docs-system-contracts].
 
 [docs-system-contracts]: https://docs.zksync.io/build/developer-reference/era-contracts/system-contracts
-[docs-immutable]:
-  https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable
+[docs-immutable]: https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable
 [docs-zksolc]: https://docs.zksync.io/zk-stack/components/compiler/toolchain/solidity
 [docs-zkvyper]: https://docs.zksync.io/zk-stack/components/compiler/toolchain/vyper
 [docs-ir]: https://docs.zksync.io/zk-stack/components/compiler/toolchain#ir-compilers
-[docs-high-level-compilers]:
-  https://docs.zksync.io/zk-stack/components/compiler/toolchain#high-level-source-code-compilers
+[docs-high-level-compilers]: https://docs.zksync.io/zk-stack/components/compiler/toolchain#high-level-source-code-compilers
 [docs-create]: https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#create-create2
-[docs-data]:
-  https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#datasize-dataoffset-datacopy
+[docs-data]: https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#datasize-dataoffset-datacopy

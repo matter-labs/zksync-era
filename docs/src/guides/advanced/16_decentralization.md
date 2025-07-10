@@ -31,14 +31,14 @@ If you are using the recommended file-based configuration then you'll need to ad
 
 ```yaml
 consensus:
-  server_addr: '0.0.0.0:3054'
+  server_addr: "0.0.0.0:3054"
   public_addr:
-    '???'
+    "???"
     # Address under which the node is accessible to the other nodes.
     # It can be a public domain, like `example.com:3054`, in case the main node is accessible from the internet,
     # or it can be a kubernetes cluster domain, like `server-v2-core.<cluster name>.svc.cluster.local:3054` in
     # case the main node should be only accessible within the cluster.
-  debug_page_addr: '0.0.0.0:5000'
+  debug_page_addr: "0.0.0.0:5000"
   max_payload_size: 3200000
   gossip_dynamic_inbound_limit: 10
   genesis_spec:
@@ -49,8 +49,8 @@ consensus:
         weight: 1
     leader: validator:public:??? # same as above - main node will be the only validator and the only leader.
     seed_peers:
-      - key: 'node:public:ed25519:...' # node public key of the main node (copy this PUBLIC key from the secrets you generated)
-        addr: '???' # same as public_addr above
+      - key: "node:public:ed25519:..." # node public key of the main node (copy this PUBLIC key from the secrets you generated)
+        addr: "???" # same as public_addr above
 ```
 
 And the secrets you generated to your `secrets.yaml` config file:
@@ -67,14 +67,14 @@ If you are using the env-based configuration you'll need to create a `consensus_
 content:
 
 ```yaml
-server_addr: '0.0.0.0:3054'
+server_addr: "0.0.0.0:3054"
 public_addr:
-  '???'
+  "???"
   # Address under which the node is accessible to the other nodes.
   # It can be a public domain, like `example.com:3054`, in case the main node is accessible from the internet,
   # or it can be a kubernetes cluster domain, like `server-v2-core.<cluster name>.svc.cluster.local:3054` in
   # case the main node should be only accessible within the cluster.
-debug_page_addr: '0.0.0.0:5000'
+debug_page_addr: "0.0.0.0:5000"
 max_payload_size: 3200000
 gossip_dynamic_inbound_limit: 10
 genesis_spec:
@@ -85,8 +85,8 @@ genesis_spec:
       weight: 1
   leader: validator:public:??? # same as above - main node will be the only validator and the only leader.
   seed_peers:
-    - key: 'node:public:ed25519:...' # node public key of the main node (copy this PUBLIC key from the secrets you generated)
-      addr: '???' # same as public_addr above
+    - key: "node:public:ed25519:..." # node public key of the main node (copy this PUBLIC key from the secrets you generated)
+      addr: "???" # same as public_addr above
 ```
 
 And a `consensus_secrets.yaml` file with the with the secrets you generated previously:
@@ -162,7 +162,7 @@ spec:
         name: consensus-secrets # this is the name of the secret kubernetes object we defined above
         enabled: true
         type: secret
-        mountPath: '/etc/consensus_secrets/'
+        mountPath: "/etc/consensus_secrets/"
     configMap:
       consensus:
         enabled: true
