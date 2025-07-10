@@ -20,7 +20,7 @@ message BlockMetadata {
 message InteropRoot {
   optional uint32 chain_id = 1; // required; u32
   optional uint32 block_number = 2; // required; u32
-  repeated bytes sides = 4; // required; Vec<U256>
+  repeated bytes sides = 3; // required; Vec<U256>
 }
 
 message Payload {
