@@ -27,11 +27,6 @@ on:
         type: string
         required: false
         default: "do nothing"
-      zksync_os:
-        description: 'Flag that determines if zksync-os should be built'
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   prepare-contracts:
@@ -167,9 +162,6 @@ jobs:
     strategy:
       matrix:
         components:
-          - server-v2
-          - external-node
-          - snapshots-creator
           - zksync-os-server
         platforms:
           - linux/amd64
@@ -250,7 +242,7 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ inputs.zksync_os && 'zksync_os-' || '' }}latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
             matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
@@ -259,7 +251,7 @@ jobs:
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ inputs.zksync_os && 'zksync_os-' || '' }}latest
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
 
   create_manifest:
     name: Create release manifest
@@ -279,7 +271,7 @@ jobs:
             platform: linux/amd64
 
     env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.zksync_os && 'zksync_os-' || '' }}${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
