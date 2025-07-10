@@ -1,4 +1,7 @@
-use ethers::contract::abigen;
+#[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
+use std::path::Path;
+use std::path::PathBuf;
+
 #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
 use ethers::types::Bytes;
 use ethers::{
@@ -7,15 +10,10 @@ use ethers::{
 };
 use serde::Serialize;
 #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
-use std::path::Path;
-use std::path::PathBuf;
-#[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
 use xshell::Shell;
 #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zksync_contracts::{
-    chain_admin_contract, chain_admin_contract_for_home, hyperchain_contract_for_home,
-};
+use zksync_contracts::{chain_admin_contract_for_home, hyperchain_contract_for_home};
 use zksync_types::{ethabi, Address, U256};
 
 #[derive(Debug, Clone, Serialize)]

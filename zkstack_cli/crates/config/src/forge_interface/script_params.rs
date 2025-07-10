@@ -95,18 +95,6 @@ pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 
-pub const V29_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/v29-upgrade-ecosystem.toml",
-    output: "script-out/v29-upgrade-ecosystem.toml",
-    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v29.s.sol",
-};
-
-pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/v29-upgrade-chain.toml",
-    output: "script-out/v29-upgrade-chain.toml",
-    script_path: "deploy-scripts/upgrade/ChainUpgrade_v29.s.sol",
-};
-
 pub const ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/zk-os-v28-1-upgrade-ecosystem.toml",
     output: "script-out/zk-os-v28-1-upgrade-ecosystem.toml",

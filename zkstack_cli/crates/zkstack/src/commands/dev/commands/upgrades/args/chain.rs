@@ -1,22 +1,8 @@
-use std::path::PathBuf;
-
-use clap::{Parser, ValueEnum};
-use serde::{Deserialize, Serialize};
-use strum::EnumIter;
-use url::Url;
+use clap::Parser;
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_config::EcosystemConfig;
-use zkstack_cli_types::L1Network;
 
-use crate::commands::dev::commands::v29_ecosystem_args::UpgradeVersions;
-use crate::{
-    defaults::LOCAL_RPC_URL,
-    messages::{
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
-        MSG_SERVER_COMMAND_HELP,
-    },
-};
+use crate::commands::dev::commands::upgrades::types::UpgradeVersions;
 
 #[derive(Parser, Debug, Clone)]
 pub struct ChainUpgradeArgs {
@@ -82,7 +68,7 @@ impl ChainUpgradeArgs {
 pub struct UpgradeArgsInner {
     pub chain_id: u64,
     pub l1_rpc_url: String,
-    pub gw_rpc_url: String,
+    pub _gw_rpc_url: Option<String>,
 }
 
 impl From<ChainUpgradeArgs> for UpgradeArgsInner {
@@ -90,7 +76,7 @@ impl From<ChainUpgradeArgs> for UpgradeArgsInner {
         Self {
             chain_id: value.chain_id.unwrap(),
             l1_rpc_url: value.l1_rpc_url.unwrap(),
-            gw_rpc_url: value.gw_rpc_url.unwrap(),
+            _gw_rpc_url: value.gw_rpc_url,
         }
     }
 }

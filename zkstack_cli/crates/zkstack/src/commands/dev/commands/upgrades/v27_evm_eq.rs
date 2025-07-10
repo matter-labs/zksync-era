@@ -4,8 +4,10 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
-use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{
+    traits::{ReadConfig, ZkStackConfig},
+    EcosystemConfig,
+};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
@@ -14,12 +16,11 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::ZkStackSubcommands::Ecosystem;
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     commands::{
         chain::admin_call_builder::{AdminCall, AdminCallBuilder},
-        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+        dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
     },
 };
 
