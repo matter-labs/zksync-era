@@ -51,7 +51,9 @@ describe('Interop behavior checks', () => {
             // Define the second chain wallet if the SL is different from the L1.
             const maybeAliceSecondChain = testMaster.mainAccountSecondChain();
             if (!maybeAliceSecondChain) {
-                throw new Error('Interop tests cannot be run if the second chain is not set');
+                throw new Error(
+                    'Interop tests cannot be run if the second chain is not set. Use the --second-chain flag to specify a different second chain to run the tests on.'
+                );
             }
             aliceSecondChain = maybeAliceSecondChain!;
         }
