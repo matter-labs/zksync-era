@@ -74,7 +74,6 @@ pub enum DAValidatorType {
     NoDA = 1,
     Avail = 2,
     EigenDA = 3,
-    EigenDAV2Secure = 4,
 }
 
 impl Serialize for ChainConfig {

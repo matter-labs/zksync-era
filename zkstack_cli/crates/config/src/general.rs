@@ -255,8 +255,8 @@ impl GeneralConfigPatch {
         Ok(())
     }
 
-    pub fn set_eigendav2secure_client(&mut self) -> anyhow::Result<()> {
-        self.0.insert("da_client.client", "EigenDAV2Secure")?;
+    pub fn set_eigenda_client(&mut self) -> anyhow::Result<()> {
+        self.0.insert("da_client.client", "EigenDA")?;
         Ok(())
     }
 
