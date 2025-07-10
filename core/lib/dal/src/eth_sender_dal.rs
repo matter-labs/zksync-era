@@ -867,7 +867,7 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item)
     }
 
-    pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
+    pub async fn get_eth_tx_id_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
         op_type: AggregatedActionType,
@@ -1052,7 +1052,7 @@ impl EthSenderDal<'_, '_> {
         op_type: AggregatedActionType,
     ) -> Option<TxHistory> {
         let eth_tx_id = self
-            .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
+            .get_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
             .await;
         self.get_last_sent_successfully_eth_storage_tx(eth_tx_id.unwrap()?)
             .await
