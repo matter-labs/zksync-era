@@ -69,7 +69,6 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "push"
-      zksync_os: true
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
