@@ -1,14 +1,14 @@
 export default {
-    networks: {
-        hardhat: {}
+  networks: {
+    hardhat: {},
+  },
+  solidity: {
+    version: "0.8.26",
+    settings: {
+      evmVersion: "cancun",
     },
-    solidity: {
-        version: '0.8.26',
-        settings: {
-            evmVersion: 'cancun'
-        }
-    },
-    paths: {
-        sources: './evm-contracts'
-    }
+  },
+  paths: {
+    sources: "./evm-contracts",
+  },
 };

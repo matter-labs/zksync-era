@@ -184,27 +184,18 @@ transmitted to L1 for final verification.
 
 [overview_image]: https://user-images.githubusercontent.com/128217157/257739371-f971c10b-87c7-4ee9-bd0e-731670c616ac.png
 [user_docs]: https://code.zksync.io/tutorials/how-to-send-l2-l1-message
-[l1_messenger]:
-  https://github.com/matter-labs/era-system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
-[list_of_opcodes]:
-  https://github.com/matter-labs/era-system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
+[l1_messenger]: https://github.com/matter-labs/era-system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
+[list_of_opcodes]: https://github.com/matter-labs/era-system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
 [opcode_catch_compiler]: https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/eravm/evm/call.rs
-[iterate_over_events]:
-  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
-[vm_execution_result]:
-  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
-[log_queries]:
-  https://github.com/matter-labs/era-zk_evm_abstractions/blob/15a2af404902d5f10352e3d1fac693cc395fcff9/src/queries.rs#L30C2-L30C2
+[iterate_over_events]: https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
+[vm_execution_result]: https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
+[log_queries]: https://github.com/matter-labs/era-zk_evm_abstractions/blob/15a2af404902d5f10352e3d1fac693cc395fcff9/src/queries.rs#L30C2-L30C2
 [aux_bytes]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/system_params.rs#L37C39-L37C39
-[event_sink]:
-  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116
+[event_sink]: https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/event_sink.rs#L116
 [log_writing_in_vm]: https://github.com/matter-labs/era-zk_evm/blob/v1.3.2/src/opcodes/execution/log.rs
 [log_opcode]: https://github.com/matter-labs/era-zkevm_opcode_defs/blob/v1.3.2/src/definitions/log.rs#L16
-[zkevm_assembly_parse]:
-  https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32
-[executor_sol]:
-  https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L21
+[zkevm_assembly_parse]: https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32
+[executor_sol]: https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L21
 [mainnet_executor]: https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D
 [sepolia_tx]: https://sepolia.etherscan.io/tx/0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c
-[mailbox_log_inclusion]:
-  https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L70
+[mailbox_log_inclusion]: https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L70

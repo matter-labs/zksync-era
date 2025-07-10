@@ -106,21 +106,9 @@ caller. Since this isn't a real transaction, we don't have to do any proofs, wit
 In this article, we covered the 'life of a call' from the RPC to the inner workings of the system, and finally to the
 'out-of-circuit' VM with the bootloader.
 
-[namespaces_rpc_api]:
-  https://github.com/matter-labs/zksync-era/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs
-  'namespaces RPC api'
-[namespaces_rpc_impl]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/node/api_server/src/web3/namespaces/eth.rs
-  'namespaces RPC implementation'
-[execution_sandbox]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/node/api_server/src/execution_sandbox/execute.rs
-  'execution sandbox'
-[vm_code]:
-  https://github.com/matter-labs/zksync-era/blob/ccd13ce88ff52c3135d794c6f92bec3b16f2210f/core/lib/multivm/src/versions/vm_latest/implementation/execution.rs#L108
-  'vm code'
-[bootloader_code]:
-  https://github.com/matter-labs/era-system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
-  'bootloader code'
-[init_vm_inner]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/multivm/src/versions/vm_m6/vm_with_bootloader.rs#L330
-  'vm constructor'
+[namespaces_rpc_api]: https://github.com/matter-labs/zksync-era/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs "namespaces RPC api"
+[namespaces_rpc_impl]: https://github.com/matter-labs/zksync-era/blob/main/core/node/api_server/src/web3/namespaces/eth.rs "namespaces RPC implementation"
+[execution_sandbox]: https://github.com/matter-labs/zksync-era/blob/main/core/node/api_server/src/execution_sandbox/execute.rs "execution sandbox"
+[vm_code]: https://github.com/matter-labs/zksync-era/blob/ccd13ce88ff52c3135d794c6f92bec3b16f2210f/core/lib/multivm/src/versions/vm_latest/implementation/execution.rs#L108 "vm code"
+[bootloader_code]: https://github.com/matter-labs/era-system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul "bootloader code"
+[init_vm_inner]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/multivm/src/versions/vm_m6/vm_with_bootloader.rs#L330 "vm constructor"

@@ -1,11 +1,11 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
 // All ZKsync test suites are expected to be named `*.test.ts`.
-const TEST_SUITE_MARKER = 'test.ts';
+const TEST_SUITE_MARKER = "test.ts";
 
 // Files that are excluded from the integration test suited (e.g. unit tests for the framework itself).
-const EXCLUDED_FILES = ['self-unit.test.ts'];
+const EXCLUDED_FILES = ["self-unit.test.ts"];
 
 /**
  * Gets all the files that contain ZKsync integration test suites.
@@ -14,9 +14,12 @@ const EXCLUDED_FILES = ['self-unit.test.ts'];
  * @returns list of filenames that correspond to ZKsync integration test suites.
  */
 export function lookupPrerequisites(): string[] {
-    const files = loadFilesRecursively(`${__dirname}/../tests/`);
+  const files = loadFilesRecursively(`${__dirname}/../tests/`);
 
-    return files.filter((file) => !EXCLUDED_FILES.includes(file) && file.endsWith(TEST_SUITE_MARKER));
+  return files.filter(
+    (file) =>
+      !EXCLUDED_FILES.includes(file) && file.endsWith(TEST_SUITE_MARKER),
+  );
 }
 
 /**
@@ -27,17 +30,25 @@ export function lookupPrerequisites(): string[] {
  * @param arrayOfFiles Array of files collected so far.
  * @returns Array of file paths.
  */
-function loadFilesRecursively(base: string, dirPath: string = '', arrayOfFiles: string[] = []): string[] {
-    const files = fs.readdirSync(base + dirPath);
+function loadFilesRecursively(
+  base: string,
+  dirPath: string = "",
+  arrayOfFiles: string[] = [],
+): string[] {
+  const files = fs.readdirSync(base + dirPath);
 
-    files.forEach((file) => {
-        if (fs.statSync(base + dirPath + '/' + file).isDirectory()) {
-            arrayOfFiles = loadFilesRecursively(base, dirPath + '/' + file, arrayOfFiles);
-        } else {
-            const relativePath = path.join(dirPath, '/', file).substring(1); // strip the `/` at the beginning.
-            arrayOfFiles.push(relativePath);
-        }
-    });
+  files.forEach((file) => {
+    if (fs.statSync(base + dirPath + "/" + file).isDirectory()) {
+      arrayOfFiles = loadFilesRecursively(
+        base,
+        dirPath + "/" + file,
+        arrayOfFiles,
+      );
+    } else {
+      const relativePath = path.join(dirPath, "/", file).substring(1); // strip the `/` at the beginning.
+      arrayOfFiles.push(relativePath);
+    }
+  });
 
-    return arrayOfFiles;
+  return arrayOfFiles;
 }

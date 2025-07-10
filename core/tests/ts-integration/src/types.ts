@@ -1,102 +1,102 @@
 export enum NodeMode {
-    Main,
-    External
+  Main,
+  External,
 }
 
 export enum DataAvailabityMode {
-    Rollup = 'Rollup',
-    Validium = 'Validium'
+  Rollup = "Rollup",
+  Validium = "Validium",
 }
 
 /**
  * Description of an ERC20 token.
  */
 export interface Token {
-    name: string;
-    symbol: string;
-    decimals: bigint;
-    l1Address: string;
-    l2Address: string;
+  name: string;
+  symbol: string;
+  decimals: bigint;
+  l1Address: string;
+  l2Address: string;
 }
 
 /**
  * Description of the environment the integration tests are being run in.
  */
 export interface TestEnvironment {
-    /*
-     * Max Logs limit
-     */
-    maxLogsLimit: number;
-    /*
-     * Gas limit for priority txs
-     */
-    priorityTxMaxGasLimit: bigint;
-    /*
-     * Gas limit for computations
-     */
-    validationComputationalGasLimit: number;
-    /*
-     * Minimal gas price of l2
-     */
-    minimalL2GasPrice: bigint;
-    /*
-     * Data availability mode
-     */
-    l1BatchCommitDataGeneratorMode: DataAvailabityMode;
-    /*
-     * Path to code home directory
-     */
-    pathToHome: string;
-    /**
-     * Chain Id of the L2 Network
-     */
-    l2ChainId: bigint;
-    /*
-     * Mode of the l2 node
-     */
-    nodeMode: NodeMode;
-    /*
-     * L2 node PID
-     */
-    l2NodePid: number | undefined;
-    /**
-     * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
-     */
-    network: string;
-    /**
-     * Private key of the "master" wallet (used to distribute funds to other wallets).
-     * Do not use it directly unless you know what you're doing!
-     * Use wallets provided through the test context instead.
-     */
-    mainWalletPK: string;
-    /**
-     * URL of ZKsync node's HTTP Web3 API.
-     */
-    l2NodeUrl: string;
-    /**
-     * URL of Ethereum node's HTTP Web3 API.
-     */
-    l1NodeUrl: string;
-    /**
-     * URL of ZKsync node's WS Web3 API.
-     */
-    wsL2NodeUrl: string;
-    /**
-     * URL of ZKsync node's contract verification API.
-     */
-    contractVerificationUrl: string;
-    /**
-     * Description of the "main" ERC20 token used in the tests.
-     */
-    erc20Token: Token;
-    /**
-     * Description of the "base" ERC20 token used in the tests.
-     */
-    baseToken: Token;
-    healthcheckPort: string;
-    timestampAsserterAddress: string;
-    timestampAsserterMinTimeTillEndSec: number;
-    l2WETHAddress: string | undefined;
+  /*
+   * Max Logs limit
+   */
+  maxLogsLimit: number;
+  /*
+   * Gas limit for priority txs
+   */
+  priorityTxMaxGasLimit: bigint;
+  /*
+   * Gas limit for computations
+   */
+  validationComputationalGasLimit: number;
+  /*
+   * Minimal gas price of l2
+   */
+  minimalL2GasPrice: bigint;
+  /*
+   * Data availability mode
+   */
+  l1BatchCommitDataGeneratorMode: DataAvailabityMode;
+  /*
+   * Path to code home directory
+   */
+  pathToHome: string;
+  /**
+   * Chain Id of the L2 Network
+   */
+  l2ChainId: bigint;
+  /*
+   * Mode of the l2 node
+   */
+  nodeMode: NodeMode;
+  /*
+   * L2 node PID
+   */
+  l2NodePid: number | undefined;
+  /**
+   * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
+   */
+  network: string;
+  /**
+   * Private key of the "master" wallet (used to distribute funds to other wallets).
+   * Do not use it directly unless you know what you're doing!
+   * Use wallets provided through the test context instead.
+   */
+  mainWalletPK: string;
+  /**
+   * URL of ZKsync node's HTTP Web3 API.
+   */
+  l2NodeUrl: string;
+  /**
+   * URL of Ethereum node's HTTP Web3 API.
+   */
+  l1NodeUrl: string;
+  /**
+   * URL of ZKsync node's WS Web3 API.
+   */
+  wsL2NodeUrl: string;
+  /**
+   * URL of ZKsync node's contract verification API.
+   */
+  contractVerificationUrl: string;
+  /**
+   * Description of the "main" ERC20 token used in the tests.
+   */
+  erc20Token: Token;
+  /**
+   * Description of the "base" ERC20 token used in the tests.
+   */
+  baseToken: Token;
+  healthcheckPort: string;
+  timestampAsserterAddress: string;
+  timestampAsserterMinTimeTillEndSec: number;
+  l2WETHAddress: string | undefined;
 }
 
 /**
@@ -104,7 +104,7 @@ export interface TestEnvironment {
  * Represents mapping (file name => private key of funded wallet).
  */
 export type TestWallets = {
-    [testSuiteFile: string]: string;
+  [testSuiteFile: string]: string;
 };
 
 /**
@@ -117,12 +117,12 @@ export type TestWallets = {
  * as an argument.
  */
 export interface TestContext {
-    wallets: TestWallets;
-    environment: TestEnvironment;
+  wallets: TestWallets;
+  environment: TestEnvironment;
 }
 
 export interface Fee {
-    feeBeforeRefund: bigint;
-    feeAfterRefund: bigint;
-    refund: bigint;
+  feeBeforeRefund: bigint;
+  feeAfterRefund: bigint;
+  refund: bigint;
 }

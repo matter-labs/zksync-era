@@ -336,6 +336,7 @@ jobs:
       - name: Run gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
+          zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 

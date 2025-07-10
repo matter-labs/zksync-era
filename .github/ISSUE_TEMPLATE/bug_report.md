@@ -1,9 +1,9 @@
 ---
 name: Bug report
 about: Use this template for reporting issues
-title: ''
+title: ""
 labels: bug
-assignees: ''
+assignees: ""
 ---
 
 ### 🐛 Bug Report

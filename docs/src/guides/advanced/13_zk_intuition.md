@@ -137,16 +137,12 @@ looking through the code, make sure you're checking the version that’s relevan
 this guide was written, the latest version was 1.3.4, but there was also ongoing development on a new proof system in
 version 1.4.0.
 
-[witness_example]:
-  https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24
+[witness_example]: https://github.com/matter-labs/era-zkevm_test_harness/tree/main/src/witness/individual_circuits/decommit_code.rs#L24
 [verifier]: https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/Verifier.sol
 [bellman repo]: https://github.com/matter-labs/bellman
 [bellman cuda repo]: https://github.com/matter-labs/era-bellman-cuda
-[example ecrecover circuit]:
-  https://github.com/matter-labs/era-sync_vm/blob/v1.3.2/src/glue/ecrecover_circuit/mod.rs#L157
-[separate witness binary]:
-  https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/witness_generator/src/main.rs
-[zkevm_test_harness witness]:
-  https://github.com/matter-labs/era-zkevm_test_harness/blob/fb47657ae3b6ff6e4bb5199964d3d37212978200/src/external_calls.rs#L579
+[example ecrecover circuit]: https://github.com/matter-labs/era-sync_vm/blob/v1.3.2/src/glue/ecrecover_circuit/mod.rs#L157
+[separate witness binary]: https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/witness_generator/src/main.rs
+[zkevm_test_harness witness]: https://github.com/matter-labs/era-zkevm_test_harness/blob/fb47657ae3b6ff6e4bb5199964d3d37212978200/src/external_calls.rs#L579
 [heavy_ops_service repo]: https://github.com/matter-labs/era-heavy-ops-service
 [franklin repo]: https://github.com/matter-labs/franklin-crypto

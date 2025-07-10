@@ -76,15 +76,9 @@ The transaction can have three different results in state keeper:
 - Rejection - when it fails validation, and cannot be included in the block. This last case should (in theory) never
   happen - as we cannot charge the fee in such scenario, and it opens the possibility for the DDoS attack.
 
-[transaction_request_from_bytes]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L196
-  'transaction request from bytes'
-[eth_watcher]: https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch 'Ethereum watcher component'
-[l1_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l1/mod.rs#L183 'l1 tx'
-[l2_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l2/mod.rs#L140 'l2 tx'
-[submit_tx]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L288
-  'submit tx'
-[process_l1_batch]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/keeper.rs#L257
-  'process l1 batch'
+[transaction_request_from_bytes]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L196 "transaction request from bytes"
+[eth_watcher]: https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch "Ethereum watcher component"
+[l1_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l1/mod.rs#L183 "l1 tx"
+[l2_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l2/mod.rs#L140 "l2 tx"
+[submit_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/tx_sender/mod.rs#L288 "submit tx"
+[process_l1_batch]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/keeper.rs#L257 "process l1 batch"
