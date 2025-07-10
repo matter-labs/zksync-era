@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use chrono::{Duration as ChronoDuration, Utc};
+use secp256k1::PublicKey;
 use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_crypto_primitives::PackedEthSignature;
 use zksync_dal::{
@@ -20,7 +21,7 @@ use zksync_tee_prover_interface::{
     },
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId, H256};
+use zksync_types::{tee_types::TeeType, web3::keccak256, Address, L1BatchNumber, L2ChainId, H256};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
@@ -37,6 +38,17 @@ pub(crate) struct TeeRequestProcessor {
     config: TeeProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
     functions: TeeFunctions,
+}
+
+pub fn public_key_to_ethereum_address(public: &PublicKey) -> Address {
+    let public_key_bytes = public.serialize_uncompressed();
+
+    // Skip the first byte (0x04) which indicates uncompressed key
+    let hash: [u8; 32] = keccak256(&public_key_bytes[1..]).into();
+
+    let mut result = Address::zero();
+    result.as_bytes_mut().copy_from_slice(&hash[12..]);
+    result
 }
 
 impl TeeRequestProcessor {
@@ -248,11 +260,16 @@ impl TeeRequestProcessor {
             .signature_recover_signer(&root_hash)
             .map_err(|_| TeeProcessorError::GeneralError("Invalid signature".into()))?;
 
-        if proof_address.as_bytes() != proof.0.pubkey {
+        let pubkey = PublicKey::from_slice(&proof.0.pubkey)
+            .map_err(|_| TeeProcessorError::GeneralError("Invalid signature".into()))?;
+
+        let pubkey_address = public_key_to_ethereum_address(&pubkey);
+
+        if proof_address != pubkey_address {
             tracing::warn!(
                 "submit_proof: Invalid signature proof_address {} != pubkey {}",
-                hex::encode(proof_address.as_bytes()),
-                hex::encode(&proof.0.pubkey)
+                proof_address,
+                pubkey_address
             );
 
             return Err(TeeProcessorError::GeneralError("Invalid signature".into()));

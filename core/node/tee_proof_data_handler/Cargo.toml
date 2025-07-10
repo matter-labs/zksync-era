@@ -24,6 +24,11 @@ jsonrpsee = { workspace = true, features = [
   "client-ws-transport-tls",
 ] }
 reqwest.workspace = true
+secp256k1 = { workspace = true, features = [
+  "global-context",
+  "recovery",
+  "serde",
+] }
 serde_json.workspace = true
 sha2.workspace = true
 teepot = { version = "0.6.0", default-features = false }
