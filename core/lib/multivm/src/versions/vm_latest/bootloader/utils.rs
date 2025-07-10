@@ -1,7 +1,6 @@
 use zksync_types::{ethabi, h256_to_u256, InteropRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
-#[cfg(any(test, feature = "test-utils"))]
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
