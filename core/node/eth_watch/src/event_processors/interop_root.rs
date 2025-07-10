@@ -86,17 +86,6 @@ impl EventProcessor for InteropRootProcessor {
             let chain_id_bytes: [u8; 8] = event.topics[1].as_bytes()[24..32].try_into().unwrap();
             let block_number: u64 = u64::from_be_bytes(block_bytes);
             let chain_id = u64::from_be_bytes(chain_id_bytes);
-            if let Some(sl_l2_client) = self.sl_l2_client.clone() {
-                // we skip precommit message roots ( local roots) for GW.
-                let sl_chain_id = sl_l2_client
-                    .chain_id()
-                    .await
-                    .context("sl_l2_client.chain_id()")
-                    .map_err(EventProcessorError::internal)?;
-                if sl_chain_id.0 == chain_id && event.address == L1_MESSENGER_ADDRESS {
-                    continue;
-                }
-            }
             if L2ChainId::new(chain_id).unwrap() == self.l2_chain_id {
                 // we ignore our chainBatchRoots
                 continue;
