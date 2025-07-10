@@ -583,6 +583,7 @@ impl StateKeeperInner {
             if index > 0 {
                 Self::set_l2_block_params(
                     updates_manager,
+                    // For re-executing purposes it's ok to not use exact precise millis.
                     L2BlockParams::new_raw(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
