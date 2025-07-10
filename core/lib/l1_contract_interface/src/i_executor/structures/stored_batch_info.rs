@@ -97,7 +97,12 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
             index_repeated_storage_changes: x.metadata.rollup_last_leaf_index,
             number_of_layer1_txs: x.header.l1_tx_count.into(),
             priority_operations_hash: x.header.priority_ops_onchain_data_hash(),
-            dependency_roots_rolling_hash: if x.header.system_logs.is_empty() {
+            dependency_roots_rolling_hash: if x
+                .header
+                .protocol_version
+                .unwrap_or(ProtocolVersionId::Version0)
+                .is_pre_interop()
+            {
                 H256::zero()
             } else {
                 x.header
