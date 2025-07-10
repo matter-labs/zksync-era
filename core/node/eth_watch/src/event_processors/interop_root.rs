@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{api::Log, ethabi, L1BatchNumber, L2ChainId, SLChainId, H256};
 
 use crate::{
@@ -16,7 +14,6 @@ pub struct InteropRootProcessor {
     appended_interop_root_signature: H256,
     event_source: EventsSource,
     l2_chain_id: L2ChainId,
-    pub sl_l2_client: Option<Arc<dyn ZkSyncExtentionEthClient>>,
     pub sl_chain_id: Option<SLChainId>,
 }
 
@@ -43,7 +40,6 @@ impl InteropRootProcessor {
             ),
             event_source,
             l2_chain_id,
-            sl_l2_client,
             sl_chain_id,
         }
     }
