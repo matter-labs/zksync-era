@@ -26,7 +26,7 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_current_number_of_roots_in_block_offset, get_tx_operator_l2_block_info_offset,
+            get_interop_blocks_begin_offset, get_tx_operator_l2_block_info_offset,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         utils::l2_blocks::get_l2_block_hash_key,
@@ -489,9 +489,8 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
     let fictive_miniblock_position =
         get_tx_operator_l2_block_info_offset(MultiVmSubversion::latest())
             + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
-    let number_of_roots_in_block_position =
-        get_current_number_of_roots_in_block_offset(MultiVmSubversion::latest());
-    let block_index_in_batch = block_info.number - 1;
+    let interop_blocks_begin_offset = get_interop_blocks_begin_offset(MultiVmSubversion::latest());
+    let number_of_interop_roots_plus_one = block_info.interop_roots.len() + 1;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),
@@ -504,8 +503,8 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
             block_info.max_virtual_blocks_to_create.into(),
         ),
         (
-            number_of_roots_in_block_position,
-            block_index_in_batch.into(),
+            interop_blocks_begin_offset,
+            number_of_interop_roots_plus_one.into(),
         ),
     ])
 }
