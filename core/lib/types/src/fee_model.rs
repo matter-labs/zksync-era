@@ -304,26 +304,33 @@ impl FeeParamsV2 {
     /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn config(&self) -> FeeModelConfigV2 {
         FeeModelConfigV2 {
-            minimal_l2_gas_price: self.convert_to_base_token(self.config.minimal_l2_gas_price), //TODO L1 PRICE EHRE
+            minimal_l2_gas_price: self.convert_l1_to_base_token(
+                self.config.minimal_l2_gas_price,
+                self.conversion_ratio.l1,
+            ),
             ..self.config
         }
     }
 
     /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_gas_price(&self) -> u64 {
-        self.convert_to_base_token(self.l1_gas_price) //TODO SL PRICE HERE
+        self.convert_l1_to_base_token(self.l1_gas_price, self.conversion_ratio.sl)
     }
 
     /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_pubdata_price(&self) -> u64 {
-        self.convert_to_base_token(self.l1_pubdata_price)
+        self.convert_l1_to_base_token(self.l1_pubdata_price, self.conversion_ratio.sl)
     }
 
     /// Converts the fee param to the base token.
-    fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
+    fn convert_l1_to_base_token(
+        &self,
+        price_in_wei: u64,
+        conversion_ratio: ConversionRatio,
+    ) -> u64 {
         let converted_price = u128::from(price_in_wei)
-            * u128::from(self.conversion_ratio.l1.numerator.get()) //TODO DISTINCT
-            / u128::from(self.conversion_ratio.l1.denominator.get());
+            * u128::from(conversion_ratio.numerator.get()) //TODO DISTINCT
+            / u128::from(conversion_ratio.denominator.get());
 
         // Match on the converted price to ensure it can be represented as a u64
         match converted_price.try_into() {
