@@ -256,16 +256,17 @@ impl UpdatesManager {
         );
         // We need to filter already applied interop roots. Because we seal L2 blocks in async manner,
         // it's possible that database returns already applied interop roots
-        let mut interop_roots = vec![];
-        for interop_root in l2_block_params.interop_roots() {
-            if !self.committed_updates.interop_roots.contains(interop_root) {
-                interop_roots.push(interop_root.clone());
-                self.committed_updates
-                    .interop_roots
-                    .push(interop_root.clone());
-            }
-        }
-        l2_block_params.set_interop_roots(interop_roots);
+        let new_interop_roots: Vec<_> = l2_block_params
+            .interop_roots()
+            .iter()
+            .filter(|root| !self.committed_updates.interop_roots.contains(root))
+            .cloned()
+            .collect();
+        self.committed_updates
+            .interop_roots
+            .extend(new_interop_roots.iter().cloned());
+
+        l2_block_params.set_interop_roots(new_interop_roots);
         self.next_l2_block_params = Some(l2_block_params);
     }
 
