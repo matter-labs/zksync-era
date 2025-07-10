@@ -18,6 +18,13 @@ use crate::{
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
+#[derive(Debug, Clone, Copy)]
+struct AppendedChainBatchRootEvent {
+    sl_block_number: L2BlockNumber,
+    chain_l1_batch_number: L1BatchNumber,
+    logs_root_hash: H256,
+}
+
 /// Listens to `AppendedChainBatchRoot` events and saves `BatchAndChainMerklePath` for batches.
 /// These events are emitted on SL each time L1 batch is executed. Processor uses them to track which batches are already executed
 /// and group them by SL's batch number they are executed in as this data is required to build `BatchAndChainMerklePath`.
@@ -99,7 +106,11 @@ impl EventProcessor for BatchRootProcessor {
                     .into_iter()
                     .map(
                         |(_, sl_block_number, chain_l1_batch_number, logs_root_hash)| {
-                            (sl_block_number, chain_l1_batch_number, logs_root_hash)
+                            AppendedChainBatchRootEvent {
+                                sl_block_number,
+                                chain_l1_batch_number,
+                                logs_root_hash,
+                            }
                         },
                     )
                     .collect();
@@ -116,8 +127,8 @@ impl EventProcessor for BatchRootProcessor {
                 let last_event = events.last().unwrap();
 
                 match (
-                    first_event.1 < next_batch_number_lower_bound,
-                    last_event.1 < next_batch_number_lower_bound,
+                    first_event.chain_l1_batch_number < next_batch_number_lower_bound,
+                    last_event.chain_l1_batch_number < next_batch_number_lower_bound,
                 ) {
                     (true, true) => true,    // skip
                     (false, false) => false, // do not skip
@@ -150,14 +161,12 @@ impl EventProcessor for BatchRootProcessor {
             let chain_batches_by_sl_block_number: Vec<_> = chain_batches
                 .clone()
                 .into_iter()
-                .chunk_by(|(sl_block_number, _, _)| *sl_block_number)
+                .chunk_by(|event| event.sl_block_number)
                 .into_iter()
                 .map(|(sl_block_number, group)| {
                     let group: Vec<_> = group
                         .into_iter()
-                        .map(|(_, chain_l1_batch_number, logs_root_hash)| {
-                            (chain_l1_batch_number, logs_root_hash)
-                        })
+                        .map(|event| (event.chain_l1_batch_number, event.logs_root_hash))
                         .collect();
 
                     (sl_block_number, group)
@@ -266,11 +275,11 @@ impl EventProcessor for BatchRootProcessor {
             });
 
             // Set the batch chain proof for each batch in the SL L1 batch
-            for ((_, batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
-                tracing::info!(%batch_number, "Saving batch-chain merkle path");
+            for (event, proof) in chain_batches.iter().zip(batch_proofs) {
+                tracing::info!(batch_number = %event.chain_l1_batch_number, "Saving batch-chain merkle path");
                 transaction
                     .blocks_dal()
-                    .set_batch_chain_merkle_path(*batch_number, proof)
+                    .set_batch_chain_merkle_path(event.chain_l1_batch_number, proof)
                     .await
                     .map_err(DalError::generalize)
                     .map_err(EventProcessorError::internal)?;
