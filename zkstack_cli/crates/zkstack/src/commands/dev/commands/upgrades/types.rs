@@ -7,5 +7,5 @@ use zksync_web3_decl::jsonrpsee::core::Serialize;
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
 )]
 pub enum UpgradeVersions {
-    V28_1Vk,
+    V28_1_Vk,
 }

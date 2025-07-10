@@ -52,7 +52,6 @@ pub async fn run(
                 &upgrade_version,
             )
             .await?;
-            // no_governance_prepare_gateway(shell, &mut ecosystem_config).await?;
         }
         EcosystemUpgradeStage::GovernanceStage0 => {
             governance_stage_0(
@@ -530,6 +529,6 @@ async fn no_governance_stage_2(
 
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersions) -> ForgeScriptParams {
     match upgrade_version {
-        UpgradeVersions::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersions::V28_1_Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }

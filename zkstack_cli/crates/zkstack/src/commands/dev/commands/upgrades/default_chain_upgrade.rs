@@ -46,6 +46,7 @@ pub struct FetchedChainInfo {
 async fn verify_next_batch_new_version(
     batch_number: u32,
     main_node_client: &DynClient<L2>,
+    upgrade_versions: UpgradeVersions,
 ) -> anyhow::Result<()> {
     let (_, right_bound) = main_node_client
         .get_l2_block_range(L1BatchNumber(batch_number))
@@ -65,10 +66,18 @@ async fn verify_next_batch_new_version(
             next_l2_block.as_u64()
         )
     })?;
-    ensure!(
-        protocol_version >= ProtocolVersionId::Version29,
-        "THe block does not yet contain the v29 () upgrade"
-    );
+    match upgrade_versions {
+        UpgradeVersions::V28_1_Vk => {
+            ensure!(
+                protocol_version >= ProtocolVersionId::Version28,
+                "THe block does not yet contain the v28 upgrade"
+            )
+        }
+        _ => ensure!(
+            protocol_version >= ProtocolVersionId::Version29,
+            "THe block does not yet contain the v29  upgrade"
+        ),
+    }
 
     Ok(())
 }
@@ -80,6 +89,7 @@ pub async fn check_chain_readiness(
     l2_chain_id: u64,
     gw_chain_id: Option<u64>,
     settlement_layer: u64,
+    upgrade_versions: UpgradeVersions,
 ) -> anyhow::Result<()> {
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
 
@@ -97,8 +107,8 @@ pub async fn check_chain_readiness(
         let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
         let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-        verify_next_batch_new_version(batches_committed, &l2_client).await?;
-        verify_next_batch_new_version(batches_verified, &l2_client).await?;
+        verify_next_batch_new_version(batches_committed, &l2_client, upgrade_versions).await?;
+        verify_next_batch_new_version(batches_verified, &l2_client, upgrade_versions).await?;
     } else {
         // L1
         let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
@@ -107,8 +117,8 @@ pub async fn check_chain_readiness(
         let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
         let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-        verify_next_batch_new_version(batches_committed, &l2_client).await?;
-        verify_next_batch_new_version(batches_verified, &l2_client).await?;
+        verify_next_batch_new_version(batches_committed, &l2_client, upgrade_versions).await?;
+        verify_next_batch_new_version(batches_verified, &l2_client, upgrade_versions).await?;
     }
 
     Ok(())
@@ -192,7 +202,7 @@ pub(crate) async fn run(
     let mut args = args_input.clone().fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
         let path = match args_input.upgrade_version {
-            UpgradeVersions::V28_1Vk => {
+            UpgradeVersions::V28_1_Vk => {
                 "./contracts/l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
             }
         };
@@ -242,6 +252,7 @@ pub(crate) async fn run(
             args.chain_id.expect("chain_id is required"),
             args.gw_chain_id,
             chain_info.settlement_layer,
+            args.upgrade_version,
         )
         .await;
 
