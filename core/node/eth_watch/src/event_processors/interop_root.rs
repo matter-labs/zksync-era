@@ -73,19 +73,12 @@ impl EventProcessor for InteropRootProcessor {
             .expect("Failed to decode BytecodeL1PublicationRequested message");
             let token = tokens.remove(0);
 
-            let mut root: Vec<H256> = vec![];
-            if event.address == L1_MESSENGER_ADDRESS {
-                root.push(H256::zero());
-            }
-            root = [
-                root,
-                token
-                    .into_array()
-                    .unwrap()
-                    .into_iter()
-                    .map(|t| H256::from_slice(&t.clone().into_fixed_bytes().unwrap()))
-                    .collect::<Vec<_>>(),
-            ]
+            let root: Vec<H256> = [token
+                .into_array()
+                .unwrap()
+                .into_iter()
+                .map(|t| H256::from_slice(&t.clone().into_fixed_bytes().unwrap()))
+                .collect::<Vec<_>>()]
             .concat();
             assert_eq!(event.topics[0], self.appended_interop_root_signature); // guaranteed by the watcher
 
@@ -103,10 +96,6 @@ impl EventProcessor for InteropRootProcessor {
                 if sl_chain_id.0 == chain_id && event.address == L1_MESSENGER_ADDRESS {
                     continue;
                 }
-            }
-            if event.address == L1_MESSENGER_ADDRESS {
-                // kl todo we skip precommit for now.
-                continue;
             }
             if L2ChainId::new(chain_id).unwrap() == self.l2_chain_id {
                 // we ignore our chainBatchRoots
