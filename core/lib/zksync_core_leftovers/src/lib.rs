@@ -94,6 +94,8 @@ impl FromStr for Components {
             ])),
             "eth_watcher" => Ok(Components(vec![Component::EthWatcher])),
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
+            "tee" => Ok(Components(vec![Component::TeeTxAggregator])),
+            "tee_tx_aggregator" => Ok(Components(vec![Component::TeeTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "tee_proof_data_handler" => Ok(Components(vec![Component::TeeProofDataHandler])),
