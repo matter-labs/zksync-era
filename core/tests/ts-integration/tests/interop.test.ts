@@ -87,7 +87,7 @@ describe('Interop behavior checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, 'proof_based_gw');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params), tokenDetails.l2Address);
+        await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -135,7 +135,6 @@ describe('Interop behavior checks', () => {
         provider: zksync.Provider,
         alice: zksync.Wallet,
         l1BatchNumber: number,
-        tokenToSend: string = ETH_ADDRESS
     ) {
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
@@ -149,7 +148,6 @@ describe('Interop behavior checks', () => {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
-                token: tokenToSend
             });
             await tx.wait();
 
