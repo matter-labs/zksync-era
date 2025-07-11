@@ -12,8 +12,8 @@ use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
-        CommitBatchInfo, EncodingVersion, StoredBatchInfo, PUBDATA_SOURCE_BLOBS,
-        PUBDATA_SOURCE_CALLDATA, PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
+        get_encoding_version, CommitBatchInfo, EncodingVersion, StoredBatchInfo,
+        PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA, PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
     },
     Tokenizable,
 };
@@ -178,10 +178,11 @@ impl LocalL1BatchCommitData {
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
-            .await?
-            .with_context(|| {
-                format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
-            })?;
+            .await?;
+
+        let Some(commit_tx_hash) = commit_tx_hash else {
+            return Ok(None);
+        };
 
         let Some(l1_batch) = storage
             .blocks_dal()
@@ -237,6 +238,13 @@ impl LocalL1BatchCommitData {
             .header
             .protocol_version
             .is_none_or(|version| version.is_pre_gateway())
+    }
+
+    fn get_encoding_version(&self) -> u8 {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(EncodingVersion::PreInterop.value(), get_encoding_version)
     }
 
     fn is_pre_v29_interop(&self) -> bool {
@@ -526,6 +534,8 @@ impl ConsistencyChecker {
             commit_function,
             batch_number,
             local.is_pre_v26_gateway(),
+            local.is_pre_v29_interop(),
+            local.get_encoding_version(),
         )
         .with_context(|| {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
@@ -544,6 +554,8 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
         pre_gateway: bool,
+        pre_interop: bool,
+        encoding_version: u8,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -574,13 +586,18 @@ impl ConsistencyChecker {
             };
             let (version, encoded_data) = commitment_bytes.split_at(1);
             anyhow::ensure!(
-                version[0] == EncodingVersion::Supported.value(),
+                version[0] == encoding_version,
                 "Unexpected encoding version: {}",
                 version[0]
             );
+            let schema = if pre_interop {
+                StoredBatchInfo::schema_pre_interop()
+            } else {
+                StoredBatchInfo::schema_post_interop()
+            };
             let decoded_data = ethabi::decode(
                 &[
-                    StoredBatchInfo::schema(),
+                    schema,
                     ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,

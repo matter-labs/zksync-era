@@ -296,7 +296,7 @@ impl AsyncTree {
         let span = tracing::Span::current();
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
             let _entered_span = span.entered();
-            let _guard = AllocationGuard::new("tree#process_batch");
+            let _guard = AllocationGuard::for_operation("tree#process_batch");
             let metadata = tree.process_l1_batch(&batch.storage_logs)?;
             anyhow::Ok((tree, metadata))
         })
@@ -316,7 +316,7 @@ impl AsyncTree {
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
                 let _entered_span = span.entered();
-                let _guard = AllocationGuard::new("tree#save");
+                let _guard = AllocationGuard::for_operation("tree#save");
                 tree.save()?;
                 anyhow::Ok(tree)
             })

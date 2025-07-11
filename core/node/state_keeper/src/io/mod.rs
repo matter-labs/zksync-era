@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2ChainId,
+    ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -40,6 +40,7 @@ pub struct PendingBatchData {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     pub(crate) pubdata_params: PubdataParams,
+    pub(crate) pubdata_limit: Option<u64>,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
@@ -69,15 +70,7 @@ impl L2BlockParams {
         }
     }
 
-    pub fn with_custom_virtual_block_count(timestamp_ms: u64, virtual_blocks: u32) -> Self {
-        Self {
-            timestamp_ms,
-            virtual_blocks,
-            interop_roots: vec![],
-        }
-    }
-
-    pub fn with_custom_virtual_block_count_and_interop_roots(
+    pub fn new_raw(
         timestamp_ms: u64,
         virtual_blocks: u32,
         interop_roots: Vec<InteropRoot>,
@@ -108,7 +101,7 @@ impl L2BlockParams {
         self.virtual_blocks
     }
 
-    pub fn interop_roots(&self) -> &Vec<InteropRoot> {
+    pub fn interop_roots(&self) -> &[InteropRoot] {
         &self.interop_roots
     }
 
@@ -132,6 +125,8 @@ pub struct L1BatchParams {
     pub first_l2_block: L2BlockParams,
     /// Params related to how the pubdata should be processed by the bootloader in the batch.
     pub pubdata_params: PubdataParams,
+    /// Pubdata limit for the batch. It's set only if protocol version >= v29.
+    pub pubdata_limit: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -139,6 +134,7 @@ pub(crate) struct BatchInitParams {
     pub system_env: SystemEnv,
     pub l1_batch_env: L1BatchEnv,
     pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
     pub timestamp_ms: u64,
 }
 
@@ -169,6 +165,7 @@ impl L1BatchParams {
             system_env,
             l1_batch_env,
             pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
             timestamp_ms: self.first_l2_block.timestamp_ms(),
         }
     }
@@ -216,8 +213,16 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         max_wait: Duration,
         l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>>;
+
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
+
+    /// Marks block transactions as "not executed", so they can be retrieved from the IO again.
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()>;
+
+    /// Updates mempool state (nonces for L2 txs and next priority op id) after block is processed.
+    async fn advance_mempool(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
+
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;
 
@@ -237,18 +242,6 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
-
-    /// Loads the latest message root.
-    async fn load_latest_interop_root(
-        &self,
-        number_of_roots: usize,
-    ) -> anyhow::Result<Vec<InteropRoot>>;
-
-    /// Loads the latest message root.
-    async fn load_l2_block_interop_root(
-        &self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>>;
 
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.

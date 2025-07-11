@@ -226,6 +226,7 @@ where
                 || err_message.contains(TOO_BIG_RANGE_RETH)
                 || err_message.contains(TOO_MANY_RESULTS_CHAINSTACK)
                 || err_message.contains(REQUEST_REJECTED_503)
+                || err.is_timeout()
             {
                 // get the numeric block ids
                 let from_number = match from {

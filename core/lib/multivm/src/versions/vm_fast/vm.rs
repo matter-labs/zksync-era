@@ -160,7 +160,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
                 system_env.version,
             ),
             system_env,
-            batch_env: batch_env.clone(),
+            batch_env,
             snapshot: None,
             vm_version,
             skip_signature_verification: false,
@@ -576,10 +576,7 @@ where
                 }
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
-                    let preexisting_interop_roots_number =
-                        self.bootloader_state.get_preexisting_interop_roots_number();
-                    let preexisting_blocks_number =
-                        self.bootloader_state.get_preexisting_blocks_number();
+                    let new_block_config = self.bootloader_state.get_new_block_config();
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
@@ -588,9 +585,7 @@ where
                         l2_block,
                         txs_index,
                         self.vm_version.into(),
-                        true,
-                        preexisting_interop_roots_number,
-                        preexisting_blocks_number,
+                        Some(new_block_config),
                     );
                     self.write_to_bootloader_heap(memory);
                 }
@@ -904,6 +899,10 @@ where
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot();
         self.snapshot = None;
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        unimplemented!();
     }
 }
 

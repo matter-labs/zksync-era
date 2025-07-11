@@ -34,8 +34,8 @@ use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
-    AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
-    ZkSyncStateKeeper,
+    AsyncRocksdbCache, OutputHandler, StateKeeperBuilder, StateKeeperPersistence,
+    TreeWritesPersistence,
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
@@ -135,6 +135,7 @@ fn make_config(
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: u64::MAX.into(),
+        max_transaction_size: u64::MAX.into(),
         max_batch_size: u64::MAX.into(),
         view_timeout: Duration::from_secs(2),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -158,6 +159,7 @@ fn make_config(
         genesis_spec,
         rpc: RpcConfig::default(),
         debug_page_addr: None,
+        consensus_registry_read_rate: Duration::from_secs(1),
     }
 }
 
@@ -260,6 +262,8 @@ impl StateKeeper {
                     }),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
+                    pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
+                        .then_some(100_000),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -367,21 +371,6 @@ impl StateKeeper {
                 }
             }
         }
-    }
-
-    /// Runs the centralized fetcher.
-    pub async fn run_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: Box<DynClient<L2>>,
-    ) -> anyhow::Result<()> {
-        en::EN {
-            pool: self.pool,
-            client,
-            sync_state: self.sync_state.clone(),
-        }
-        .run_fetcher(ctx, self.actions_sender)
-        .await
     }
 
     /// Runs consensus node for the external node.
@@ -532,6 +521,20 @@ impl StateKeeperRunner {
                 self.rocksdb_dir.path().join("cache"),
                 Default::default(),
             );
+            let executor_factory = MainBatchExecutorFactory::<()>::new(false);
+            let state_keeper = StateKeeperBuilder::new(
+                Box::new(io),
+                Box::new(executor_factory),
+                OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                    .with_handler(Box::new(self.sync_state.clone())),
+                Arc::new(NoopSealer),
+                Arc::new(async_cache),
+                None,
+            )
+            .build(&stop_recv)
+            .await
+            .unwrap();
+
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
@@ -549,21 +552,12 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
-                let executor_factory = MainBatchExecutorFactory::<()>::new(false);
                 let stop_recv = stop_recv.clone();
                 async {
-                    ZkSyncStateKeeper::new(
-                        Box::new(io),
-                        Box::new(executor_factory),
-                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
-                            .with_handler(Box::new(self.sync_state.clone())),
-                        Arc::new(NoopSealer),
-                        Arc::new(async_cache),
-                        None,
-                    )
-                    .run(stop_recv)
-                    .await
-                    .context("ZkSyncStateKeeper::run()")?;
+                    state_keeper
+                        .run(stop_recv)
+                        .await
+                        .context("StateKeeper::run()")?;
                     Ok(())
                 }
             });
@@ -620,6 +614,21 @@ impl StateKeeperRunner {
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
             )?;
+
+            let state_keeper = StateKeeperBuilder::new(
+                Box::new(io),
+                Box::new(MockBatchExecutor),
+                OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                    .with_handler(Box::new(tree_writes_persistence))
+                    .with_handler(Box::new(self.sync_state.clone())),
+                Arc::new(NoopSealer),
+                Arc::new(MockReadStorageFactory),
+                None,
+            )
+            .build(&stop_recv)
+            .await
+            .unwrap();
+
             s.spawn_bg(async {
                 Ok(l2_block_sealer
                     .run()
@@ -638,19 +647,10 @@ impl StateKeeperRunner {
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
-                    ZkSyncStateKeeper::new(
-                        Box::new(io),
-                        Box::new(MockBatchExecutor),
-                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
-                            .with_handler(Box::new(tree_writes_persistence))
-                            .with_handler(Box::new(self.sync_state.clone())),
-                        Arc::new(NoopSealer),
-                        Arc::new(MockReadStorageFactory),
-                        None,
-                    )
-                    .run(stop_recv)
-                    .await
-                    .context("ZkSyncStateKeeper::run()")?;
+                    state_keeper
+                        .run(stop_recv)
+                        .await
+                        .context("StateKeeper::run()")?;
                     Ok(())
                 }
             });

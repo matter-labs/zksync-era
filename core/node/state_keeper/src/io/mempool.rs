@@ -10,16 +10,20 @@ use async_trait::async_trait;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_mempool::L2TxFilter;
-use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_mempool::{AdvanceInput, L2TxFilter};
+use zksync_multivm::{
+    interface::Halt,
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
+    l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
-    H256, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    Transaction, H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -63,6 +67,7 @@ pub struct MempoolIO {
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
     pubdata_type: PubdataType,
+    pubdata_limit: u64,
     last_batch_protocol_version: Option<ProtocolVersionId>,
 }
 
@@ -125,7 +130,7 @@ impl StateKeeperIO for MempoolIO {
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
-        let Some((system_env, l1_batch_env, pubdata_params)) = self
+        let Some(restored_l1_batch_env) = self
             .l1_batch_params_provider
             .load_l1_batch_env(
                 &mut storage,
@@ -137,15 +142,14 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
-        let pending_batch_data =
-            load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed loading data for re-execution for pending L1 batch #{}",
-                        cursor.l1_batch
-                    )
-                })?;
+        let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading data for re-execution for pending L1 batch #{}",
+                    cursor.l1_batch
+                )
+            })?;
 
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
@@ -165,7 +169,10 @@ impl StateKeeperIO for MempoolIO {
                 pending_batch_data
                     .l1_batch_env
                     .clone()
-                    .into_unsealed_header(Some(pending_batch_data.system_env.version)),
+                    .into_unsealed_header(
+                        Some(pending_batch_data.system_env.version),
+                        pending_batch_data.pubdata_limit,
+                    ),
             )
             .await?;
         self.last_batch_protocol_version = Some(pending_batch_data.system_env.version);
@@ -214,7 +221,18 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        Ok(Some(L2BlockParams::new(timestamp_ms)))
+        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        let interop_roots = storage
+            .interop_root_dal()
+            .get_new_interop_roots(limit)
+            .await?;
+        Ok(Some(L2BlockParams::new_raw(
+            timestamp_ms,
+            // This value is effectively ignored by the protocol.
+            1,
+            interop_roots,
+        )))
     }
 
     fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u64) {
@@ -287,6 +305,45 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+        let mut to_add = Vec::with_capacity(txs.len());
+        for tx in txs
+            .into_iter()
+            .filter(|tx| tx.tx_format() != TransactionType::ProtocolUpgradeTransaction)
+            .rev()
+        {
+            let constraint = self.mempool.rollback(&tx);
+            to_add.push((tx, constraint));
+        }
+
+        to_add.reverse();
+        self.mempool.insert(to_add, HashMap::new());
+
+        Ok(())
+    }
+
+    async fn advance_mempool(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+        let mut next_account_nonces = HashMap::new();
+        let mut next_priority_id = None;
+        for tx in txs.into_iter() {
+            match &tx.common_data {
+                ExecuteTransactionCommon::L1(data) => {
+                    next_priority_id = Some(data.serial_id + 1);
+                }
+                ExecuteTransactionCommon::L2(_) => {
+                    next_account_nonces.insert(tx.initiator_account(), tx.nonce().unwrap() + 1);
+                }
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => {}
+            }
+        }
+
+        let _guard = self.mempool.enter_critical().await;
+        self.mempool.advance_after_block(AdvanceInput {
+            next_priority_id,
+            next_account_nonces: next_account_nonces.into_iter().collect(),
+        });
+    }
+
     async fn reject(
         &mut self,
         rejected: &Transaction,
@@ -354,28 +411,6 @@ impl StateKeeperIO for MempoolIO {
             .get_protocol_upgrade_tx(version_id)
             .await
             .map_err(Into::into)
-    }
-
-    async fn load_latest_interop_root(
-        &self,
-        number_of_roots: usize,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
-            .interop_root_dal()
-            .get_new_interop_roots(number_of_roots)
-            .await?)
-    }
-
-    async fn load_l2_block_interop_root(
-        &self,
-        l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
-            .interop_root_dal()
-            .get_interop_roots(l2block_number)
-            .await?)
     }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
@@ -475,6 +510,7 @@ impl MempoolIO {
             chain_id,
             l2_da_validator_address,
             pubdata_type,
+            pubdata_limit: config.max_pubdata_per_batch.0,
             last_batch_protocol_version: None,
         })
     }
@@ -521,6 +557,7 @@ impl MempoolIO {
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                 first_l2_block: L2BlockParams::new(unsealed_storage_batch.timestamp * 1000),
                 pubdata_params: self.pubdata_params(protocol_version)?,
+                pubdata_limit: unsealed_storage_batch.pubdata_limit,
             }));
         }
 
@@ -603,6 +640,11 @@ impl MempoolIO {
                 continue;
             }
 
+            let pubdata_limit = if protocol_version < ProtocolVersionId::Version29 {
+                None
+            } else {
+                Some(self.pubdata_limit)
+            };
             self.pool
                 .connection_tagged("state_keeper")
                 .await?
@@ -613,6 +655,7 @@ impl MempoolIO {
                     protocol_version: Some(protocol_version),
                     fee_address: self.fee_account,
                     fee_input: self.filter.fee_input,
+                    pubdata_limit,
                 })
                 .await?;
 
@@ -623,6 +666,7 @@ impl MempoolIO {
                 fee_input: self.filter.fee_input,
                 first_l2_block: L2BlockParams::new(timestamp_ms),
                 pubdata_params: self.pubdata_params(protocol_version)?,
+                pubdata_limit,
             }));
         }
         Ok(None)

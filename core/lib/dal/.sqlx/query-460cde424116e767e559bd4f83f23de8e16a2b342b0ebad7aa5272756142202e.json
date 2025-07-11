@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                interop_roots.chain_id,\n                interop_roots.dependency_block_number,\n                interop_roots.interop_root_sides\n            FROM interop_roots\n            JOIN miniblocks\n                ON interop_roots.processed_block_number = miniblocks.number\n            WHERE l1_batch_number = $1\n            ORDER BY chain_id, dependency_block_number;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chain_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "dependency_block_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "interop_root_sides",
+        "type_info": "ByteaArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "460cde424116e767e559bd4f83f23de8e16a2b342b0ebad7aa5272756142202e"
+}

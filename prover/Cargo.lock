@@ -3850,7 +3850,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower 0.5.2",
- "tower-http",
+ "tower-http 0.6.2",
  "tracing",
 ]
 
@@ -4460,23 +4460,23 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.24.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
+checksum = "aaf416e4cb72756655126f7dd7bb0af49c674f4c1b9903e80c009e0c37e552e6"
 dependencies = [
  "futures-core",
  "futures-sink",
  "js-sys",
- "once_cell",
  "pin-project-lite",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "opentelemetry-appender-tracing"
-version = "0.5.0"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b84de945cb3a6f1e0d6317cbd998bbd0519ab00f4b790db67e0ff4fdcf7cedb6"
+checksum = "e68f63eca5fad47e570e00e893094fc17be959c80c79a7d6ec1abdd5ae6ffc16"
 dependencies = [
  "opentelemetry",
  "tracing",
@@ -4486,9 +4486,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-http"
-version = "0.13.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad31e9de44ee3538fb9d64fe3376c1362f406162434609e79aea2a41a0af78ab"
+checksum = "50f6639e842a97dbea8886e3439710ae463120091e2e064518ba8e716e6ac36d"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4499,12 +4499,10 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-otlp"
-version = "0.17.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b925a602ffb916fb7421276b86756027b37ee708f9dce2dbdcc51739f07e727"
+checksum = "dbee664a43e07615731afc539ca60c6d9f1a9425e25ca09c57bc36c87c55852b"
 dependencies = [
- "async-trait",
- "futures-core",
  "http 1.3.1",
  "opentelemetry",
  "opentelemetry-http",
@@ -4512,16 +4510,15 @@ dependencies = [
  "opentelemetry_sdk",
  "prost 0.13.5",
  "reqwest 0.12.9",
- "thiserror 1.0.69",
- "tokio",
- "tonic",
+ "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "opentelemetry-proto"
-version = "0.7.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30ee9f20bff9c984511a02f082dc8ede839e4a9bf15cc2487c8d6fea5ad850d9"
+checksum = "2e046fd7660710fe5a05e8748e70d9058dc15c94ba914e7c4faa7c728f0e8ddc"
 dependencies = [
  "opentelemetry",
  "opentelemetry_sdk",
@@ -4531,29 +4528,24 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-semantic-conventions"
-version = "0.16.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cefe0543875379e47eb5f1e68ff83f45cc41366a92dfd0d073d513bf68e9a05"
+checksum = "83d059a296a47436748557a353c5e6c5705b9470ef6c95cfc52c21a8814ddac2"
 
 [[package]]
 name = "opentelemetry_sdk"
-version = "0.24.1"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692eac490ec80f24a17828d49b40b60f5aeaccdfe6a503f939713afd22bc28df"
+checksum = "11f644aa9e5e31d11896e024305d7e3c98a88884d9f8919dbf37a9991bc47a4b"
 dependencies = [
- "async-trait",
  "futures-channel",
  "futures-executor",
  "futures-util",
- "glob",
- "once_cell",
  "opentelemetry",
  "percent-encoding",
- "rand 0.8.5",
+ "rand 0.9.1",
  "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tokio-stream",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -5027,7 +5019,7 @@ dependencies = [
  "lazy_static",
  "num-traits",
  "rand 0.8.5",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "rand_xorshift",
  "regex-syntax 0.8.5",
  "rusty-fork",
@@ -5156,7 +5148,7 @@ dependencies = [
 
 [[package]]
 name = "prover_cli"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -5188,7 +5180,7 @@ dependencies = [
 
 [[package]]
 name = "prover_version"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "zksync_prover_fri_types",
 ]
@@ -5284,8 +5276,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
+dependencies = [
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -5296,6 +5298,16 @@ checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -5320,6 +5332,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.16",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
+dependencies = [
+ "getrandom 0.3.2",
 ]
 
 [[package]]
@@ -7284,29 +7305,20 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.12.3"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
+checksum = "7e581ba15a835f4d9ea06c55ab1bd4dce26fc53752c69a04aac00703bfb49ba9"
 dependencies = [
- "async-stream",
  "async-trait",
- "axum",
  "base64 0.22.1",
  "bytes",
- "h2 0.4.9",
  "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
- "hyper 1.6.0",
- "hyper-timeout",
- "hyper-util",
  "percent-encoding",
  "pin-project",
  "prost 0.13.5",
- "socket2",
- "tokio",
  "tokio-stream",
- "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -7320,13 +7332,8 @@ checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
 dependencies = [
  "futures-core",
  "futures-util",
- "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.5",
- "slab",
- "tokio",
- "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -7344,6 +7351,23 @@ dependencies = [
  "sync_wrapper 1.0.2",
  "tokio",
  "tokio-util",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "bitflags 2.9.0",
+ "bytes",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "pin-project-lite",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -7425,9 +7449,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.25.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9784ed4da7d921bc8df6963f8c80a0e4ce34ba6ba76668acadd3edbd985ff3b"
+checksum = "ddcf5959f39507d0d04d6413119c04f33b623f4f951ebcbdddddfad2d0623a9c"
 dependencies = [
  "js-sys",
  "once_cell",
@@ -7714,9 +7738,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vise"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41db40082986e8571805fe7be3f9a465dfa78656aa32133124553f73173e0d46"
+checksum = "cec485349f926890c1d90a27e8f3147b552bf16cfd80212cd5ff72e8645056fd"
 dependencies = [
  "compile-fmt",
  "ctor",
@@ -7728,9 +7752,9 @@ dependencies = [
 
 [[package]]
 name = "vise-exporter"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "123b171330b78f46a6f79370bd92f827da7e04636ad3a90d245dac334420222d"
+checksum = "d2f9be7083dca21a182f7ba0ec98f5e87dc9e47944f624443b4e7a6c9c911679"
 dependencies = [
  "http-body-util",
  "hyper 1.6.0",
@@ -7743,9 +7767,9 @@ dependencies = [
 
 [[package]]
 name = "vise-macros"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42d75b2029d281365bc3e8f2942b8cd31fed7349e8870356a7759366906f72ae"
+checksum = "fe466916e9bf50cc69aba41affc11970885e9dd2b9e448e20e1fb8fc726132ed"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8803,7 +8827,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8848,7 +8872,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -8870,7 +8894,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover_service"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8891,9 +8915,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd78167a0cc7ce83103929aabc58b4f819ca9fc4acac4ae4076f2d1748215839"
+checksum = "75d6c6ee96606feeaf8376dca54815591a96702d86bf94faf44dc280b763645a"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8910,7 +8934,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "secrecy",
@@ -8928,9 +8952,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b27bfa499a47d8a8916eb1d251f612790209deef18868d0033c08ca3e4a7b8f4"
+checksum = "42985ecd42d50132d2b5ba6d4d5c0ddd5c2aa8165ec55755cadab5dd5e01ce88"
 dependencies = [
  "anyhow",
  "blst",
@@ -8946,25 +8970,27 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_engine"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40ca7fedf8035dbd2f495027c665e1c8b31f11479450dac94605e57736f73f2f"
+checksum = "72b5228e97d5b2545494c77b6fdf486be0684f4829cb6c5fbc08abadfb5a3c28"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hex",
  "rand 0.8.5",
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_protobuf_build",
 ]
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b060555df53620677c82d4da9ae0b4438f8d6f11fbb82c0633e8d9c5381b1cd"
+checksum = "3ebd80ccee65a942a4da2286fce540b047671a67808c9cfd67d695ff654d5c62"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -8982,9 +9008,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0df57fdc2a2791ae0031e86931f2d08b31a54a46f5f28b0f833f2e4aa598bc59"
+checksum = "4c1d64d96be295de498c908b03e9f2f87fc3bb8dc1e74da60c757c10eaa1d6a4"
 dependencies = [
  "rand 0.8.5",
  "thiserror 1.0.69",
@@ -8993,7 +9019,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "hex",
  "once_cell",
@@ -9005,7 +9031,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -9033,7 +9059,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9070,7 +9096,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9086,7 +9112,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9106,7 +9132,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -9145,7 +9171,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_gpu_checker"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9184,7 +9210,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -9201,7 +9227,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9210,7 +9236,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -9237,7 +9263,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9276,7 +9302,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -9299,7 +9325,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor_service"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9320,9 +9346,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c76eacd3b54bf8ea132a2a265fc6c78d0839b48b9a07ae2cb7d02a4b6b7389d"
+checksum = "e362c8e7025907707d0b4d153728817425620a654439eb73a5375efa17aaed7f"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -9341,9 +9367,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.11.4"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd1cd4ac0c6767585fc3f68fc5c5d87322ff8d48c62c8c6d913442553bce0fc1"
+checksum = "7cfec98c42651ec08eee8fd23ff5f9e7325a70803e4984a761da0923f912291b"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -9358,7 +9384,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_autoscaler"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9392,7 +9418,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_dal"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "sqlx",
  "strum",
@@ -9403,7 +9429,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_gateway"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9414,6 +9440,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.12",
  "tokio",
+ "tower-http 0.5.2",
  "tracing",
  "vise",
  "zksync_config",
@@ -9427,7 +9454,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_types"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "circuit_definitions",
  "serde",
@@ -9437,7 +9464,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_utils"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "vise",
  "zksync_prover_fri_types",
@@ -9446,7 +9473,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_interface"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "chrono",
  "ciborium",
@@ -9462,7 +9489,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_monitor"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9484,7 +9511,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_processor"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9497,7 +9524,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_keystore"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9523,7 +9550,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_task"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9533,7 +9560,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9562,7 +9589,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9570,7 +9597,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_task_management"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -9582,7 +9609,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9611,7 +9638,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -9621,7 +9648,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vk_setup_data_generator_server_fri"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -9641,7 +9668,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9689,7 +9716,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9705,7 +9732,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "28.6.0-non-semver-compat"
+version = "28.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9725,7 +9752,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator"
-version = "21.1.0"
+version = "21.2.0"
 dependencies = [
  "anyhow",
  "async-trait",

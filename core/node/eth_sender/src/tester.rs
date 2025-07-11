@@ -17,14 +17,14 @@ use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentMode,
-    eth_sender::{EthTx, EthTxFinalityStatus},
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
 };
 
 use crate::{
-    abstract_l1_interface::{L1BlockNumbers, OperatorType},
+    abstract_l1_interface::OperatorType,
     aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,

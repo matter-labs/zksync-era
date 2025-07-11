@@ -1,3 +1,5 @@
+state_keeper:
+  block_commit_deadline_ms: 50000
 eth:
   sender:
     wait_confirmations: 1

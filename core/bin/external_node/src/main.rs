@@ -4,7 +4,10 @@ use anyhow::Context as _;
 use clap::Parser;
 use node_builder::ExternalNodeBuilder;
 use smart_config::Prefixed;
-use zksync_config::{cli::ConfigArgs, sources::ConfigFilePaths};
+use zksync_config::{
+    cli::ConfigArgs,
+    sources::{ConfigFilePaths, ConfigSources},
+};
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -42,8 +45,7 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
-    /// do not use unless you know what you're doing.
+    /// Consensus is enabled unconditionally. This var is unused and kept for compatibility.
     #[arg(long)]
     enable_consensus: bool,
 
@@ -51,11 +53,7 @@ struct Cli {
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
-    #[arg(
-        long,
-        requires = "secrets_path",
-        requires = "external_node_config_path"
-    )]
+    #[arg(long)]
     config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long, requires = "config_path", requires = "external_node_config_path")]
@@ -68,10 +66,34 @@ struct Cli {
         long,
         requires = "config_path",
         requires = "secrets_path",
-        requires = "external_node_config_path",
-        requires = "enable_consensus"
+        requires = "external_node_config_path"
     )]
     consensus_path: Option<std::path::PathBuf>,
+}
+
+impl Cli {
+    fn config_sources(&self, env_prefix: Option<&str>) -> anyhow::Result<ConfigSources> {
+        let config_file_paths = ConfigFilePaths {
+            general: self.config_path.clone(),
+            secrets: self.secrets_path.clone(),
+            external_node: self.external_node_config_path.clone(),
+            consensus: if let Some(path) = self.consensus_path.clone() {
+                Some(path)
+            } else if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
+                Some(path.into())
+            } else {
+                None
+            },
+            ..ConfigFilePaths::default()
+        };
+        let mut config_sources = config_file_paths.into_config_sources(env_prefix)?;
+        // Legacy compatibility: read consensus secrets from one more source.
+        if let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") {
+            let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
+            config_sources.push(Prefixed::new(yaml, "consensus"));
+        }
+        Ok(config_sources)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -137,25 +159,7 @@ fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
     let schema = LocalConfig::schema().context("Internal error: cannot build config schema")?;
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path.clone(),
-        secrets: opt.secrets_path.clone(),
-        external_node: opt.external_node_config_path.clone(),
-        consensus: if let Some(path) = opt.consensus_path.clone() {
-            Some(path)
-        } else if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
-            Some(path.into())
-        } else {
-            None
-        },
-        ..ConfigFilePaths::default()
-    };
-    let mut config_sources = config_file_paths.into_config_sources("EN_")?;
-    // Legacy compatibility: read consensus secrets from one more source.
-    if let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") {
-        let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
-        config_sources.push(Prefixed::new(yaml, "secrets.consensus"));
-    }
+    let config_sources = opt.config_sources(Some("EN_"))?;
 
     let observability = {
         // Observability initialization should be performed within tokio context.
@@ -181,7 +185,7 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let config = ExternalNodeConfig::new(repo, opt.enable_consensus)?;
+    let config = ExternalNodeConfig::new(repo)?;
 
     if let Some(l1_batch) = revert_to_l1_batch {
         let node = ExternalNodeBuilder::on_runtime(runtime, config).build_for_revert(l1_batch)?;

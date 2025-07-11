@@ -2,17 +2,19 @@
 
 use std::{
     collections::HashSet,
+    env,
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
     time::Duration,
 };
 
 use assert_matches::assert_matches;
+use clap::Parser;
 use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
 use zksync_config::{
     configs::{
         api::{MaxResponseSizeOverrides, Namespace},
-        da_client::{avail::AvailClientConfig, eigen::PointsSource},
+        da_client::avail::AvailClientConfig,
         database::MerkleTreeMode,
         object_store::ObjectStoreMode,
         observability::LogFormat,
@@ -56,7 +58,7 @@ fn assert_common_prepared_env(config: &LocalConfig, observability: &Observabilit
 
     assert_eq!(config.api.web3_json_rpc.http_port, 3_060);
     assert_eq!(config.api.web3_json_rpc.ws_port, 3_061);
-    assert_eq!(config.api.healthcheck.port, 3_081);
+    assert_eq!(config.api.healthcheck.port, 3_081.into());
     assert_eq!(
         config.db.state_keeper_db_path.as_os_str(),
         "./db/ext-node/state_keeper"
@@ -375,7 +377,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let config: HealthCheckConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.slow_time_limit, Some(Duration::from_millis(75)));
     assert_eq!(config.hard_time_limit, Some(Duration::from_millis(2_500)));
-    assert_eq!(config.port, 2_952);
+    assert_eq!(config.port, 2_952.into());
 
     let config: MerkleTreeApiConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.port, 2955);
@@ -535,6 +537,10 @@ fn parsing_with_consensus_from_yaml() {
     let mut repo = config_sources.build_repository(&schema);
 
     let config: ConsensusConfig = repo.parse().unwrap();
+    assert_consensus_config(config);
+}
+
+fn assert_consensus_config(config: ConsensusConfig) {
     assert_eq!(config.port, Some(3_055));
     assert_eq!(config.max_payload_size, ByteSize(2_500_000));
     assert_eq!(config.gossip_dynamic_inbound_limit, 100);
@@ -641,14 +647,11 @@ fn eigen_da_client_from_env() {
     let env = r#"
         EN_DA_CLIENT="Eigen"
         EN_DA_DISPERSER_RPC="http://localhost:8080"
-        EN_DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
         EN_DA_EIGENDA_ETH_RPC="http://localhost:8545"
-        EN_DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-        EN_DA_WAIT_FOR_FINALIZATION=true
-        EN_DA_AUTHENTICATED=false
-        EN_DA_POINTS_SOURCE="Path"
-        EN_DA_POINTS_PATH="resources"
-        EN_DA_CUSTOM_QUORUM_NUMBERS="2"
+        EN_DA_CERT_VERIFIER_ROUTER_ADDR="0x0000000000000000000000000000000000000123"
+        EN_DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
+        EN_DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
+        EN_DA_BLOB_VERSION="0"
 
         # Secrets
         EN_DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
@@ -665,24 +668,23 @@ fn eigen_da_client_from_env() {
         panic!("unexpected config: {config:?}");
     };
     assert_eq!(config.disperser_rpc, "http://localhost:8080");
-    assert_eq!(config.settlement_layer_confirmation_depth, 0);
     assert_eq!(
         config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
         "http://localhost:8545/"
     );
+    assert_eq!(config.blob_version, 0);
     assert_eq!(
-        config.eigenda_svc_manager_address,
+        config.cert_verifier_router_addr,
         "0x0000000000000000000000000000000000000123"
-            .parse()
-            .unwrap()
     );
-    assert!(config.wait_for_finalization);
-    assert!(!config.authenticated);
-    let PointsSource::Path { path } = &config.points else {
-        panic!("unexpected points: {config:?}");
-    };
-    assert_eq!(path, "resources");
-    assert_eq!(config.custom_quorum_numbers, [2]);
+    assert_eq!(
+        config.operator_state_retriever_addr,
+        "0x0000000000000000000000000000000000000124"
+    );
+    assert_eq!(
+        config.registry_coordinator_addr,
+        "0x0000000000000000000000000000000000000125"
+    );
 
     let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
     let DataAvailabilitySecrets::Eigen(secrets) = secrets else {
@@ -692,4 +694,37 @@ fn eigen_da_client_from_env() {
         secrets.private_key.expose_secret(),
         "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
     );
+}
+
+#[test]
+fn parsing_consensus_from_env_vars() {
+    // We don't want to read env vars in tests since they are unpredictable, hence we read the general config from YAML
+    let this_dir_in_crate = Path::new("src/config/tests");
+    let cli = crate::Cli::parse_from([
+        "zksync_external_node".as_ref(),
+        "--config-path".as_ref(),
+        this_dir_in_crate.join("config.yaml").as_os_str(),
+    ]);
+    env::set_var(
+        "EN_CONSENSUS_CONFIG_PATH",
+        this_dir_in_crate.join("consensus.yaml"),
+    );
+    env::set_var(
+        "EN_CONSENSUS_SECRETS_PATH",
+        this_dir_in_crate.join("consensus-secrets.yaml"),
+    );
+
+    let config_sources = cli.config_sources(None).unwrap();
+    let schema = LocalConfig::schema().unwrap();
+    let repo = config_sources.build_repository(&schema);
+    let config = ExternalNodeConfig::new(repo).unwrap();
+
+    assert_consensus_config(config.consensus.unwrap());
+    let node_key = config.local.secrets.consensus.node_key.unwrap();
+    assert_eq!(
+        node_key.expose_secret(),
+        "node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c"
+    );
+    let validator_key = config.local.secrets.consensus.validator_key.unwrap();
+    assert_eq!(validator_key.expose_secret(), "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4");
 }

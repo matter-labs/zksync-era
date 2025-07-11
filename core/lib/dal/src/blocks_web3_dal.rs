@@ -934,6 +934,106 @@ impl BlocksWeb3Dal<'_, '_> {
 
         Ok(l1_batch_details.map(Into::into))
     }
+
+    /// Returns L1 batch details returns batch transactions even if they are pending
+    /// This is to be used in testing only as pending transactions are unverified
+    pub async fn get_l1_batch_details_incl_unverified_transactions(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<api::L1BatchDetails>> {
+        let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
+            StorageL1BatchDetails,
+            r#"
+            WITH
+            mb AS (
+                SELECT
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                LIMIT
+                    1
+            )
+            
+            SELECT
+                l1_batches.number,
+                l1_batches.timestamp,
+                l1_batches.l1_tx_count,
+                l1_batches.l2_tx_count,
+                l1_batches.hash AS "root_hash?",
+                commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
+                commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
+                prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
+                prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
+                execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
+                execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
+                mb.l1_gas_price,
+                mb.l2_fair_gas_price,
+                mb.fair_pubdata_price,
+                l1_batches.bootloader_code_hash,
+                l1_batches.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash
+            FROM
+                l1_batches
+            INNER JOIN mb ON TRUE
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON
+                    l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+            
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+            
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+            
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx_data.id
+            
+            WHERE
+                l1_batches.number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l1_batch_details_with_pending_transactions")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(l1_batch_details.map(Into::into))
+    }
 }
 
 #[cfg(test)]

@@ -15,7 +15,7 @@ import { TestContextOwner, TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { getTestContract, waitForNewL1Batch, anyTransaction } from '../src/helpers';
+import { getTestContract, anyTransaction } from '../src/helpers';
 import { SYSTEM_CONTEXT_ADDRESS } from '../src/constants';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
@@ -25,6 +25,7 @@ import path from 'path';
 import { NodeSpawner } from 'utils/src/node-spawner';
 import { sendTransfers } from '../src/context-owner';
 import { Reporter } from '../src/reporter';
+import { waitForNewL1Batch } from 'utils';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
@@ -73,7 +74,6 @@ testFees('Test fees', function () {
 
     const fileConfig = shouldLoadConfigFromFile();
     const pathToHome = path.join(__dirname, '../../../..');
-    const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
 
     async function logsPath(chain: string | undefined, name: string): Promise<string> {
         chain = chain ? chain : 'default';
@@ -118,7 +118,7 @@ testFees('Test fees', function () {
         console.log(`Writing server logs to ${pathToMainLogs}`);
 
         mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
-            enableConsensus,
+            enableConsensus: true,
             ethClientWeb3Url,
             apiWeb3JsonRpcHttpUrl,
             baseTokenAddress

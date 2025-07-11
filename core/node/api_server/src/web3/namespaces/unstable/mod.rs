@@ -4,24 +4,20 @@ use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
-use zksync_dal::{CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_multivm::{
-    interface::VmEvent,
-    zk_evm_latest::ethereum_types::{U256, U64},
-};
+use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
     api,
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
-    block::BatchOrBlockNumber,
     server_notification::GatewayMigrationState,
     tee_types::TeeType,
     web3,
     web3::Bytes,
-    L1BatchNumber, L2ChainId,
+    L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
 
@@ -86,43 +82,85 @@ impl UnstableNamespace {
         Ok(proofs)
     }
 
-    // This method is used for both get_chain_log_proof and get_chain_log_proof_until_msg_root
     pub async fn get_chain_log_proof_impl(
         &self,
-        batch_or_block_number: BatchOrBlockNumber,
+        l1_batch_number: L1BatchNumber,
         l2_chain_id: L2ChainId,
     ) -> Result<Option<ChainAggProof>, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
         self.state
             .start_info
-            .ensure_not_pruned(batch_or_block_number, &mut connection)
+            .ensure_not_pruned(l1_batch_number, &mut connection)
             .await?;
 
-        let l2_block_number = match batch_or_block_number {
-            BatchOrBlockNumber::BatchNumber(l1_batch_number) => {
-                match connection
-                    .blocks_dal()
-                    .get_l2_block_range_of_l1_batch(l1_batch_number)
-                    .await
-                    .map_err(DalError::generalize)?
-                    .map(|(_, end_block)| end_block)
-                {
-                    Some(block_num) => block_num,
-                    None => return Ok(None),
-                }
-            }
-            BatchOrBlockNumber::BlockNumber(l2_block_number) => l2_block_number,
+        let l2_block_number = match connection
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?
+            .map(|(_, end_block)| end_block)
+        {
+            Some(block_num) => block_num,
+            None => return Ok(None),
         };
-        let chain_count_integer = get_chain_count(&mut connection, l2_block_number).await?;
+
+        let mut chain_log_proof = match self
+            .get_chain_log_proof_inner(&mut connection, l2_block_number, l2_chain_id)
+            .await?
+        {
+            Some(chain_log_proof) => chain_log_proof,
+            None => return Ok(None),
+        };
+
+        let Some(local_root) = connection
+            .blocks_dal()
+            .get_l1_batch_local_root(l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            return Ok(None);
+        };
+
+        // Chain tree is the right subtree of the aggregated tree.
+        // We append root of the left subtree to form full proof.
+        chain_log_proof.chain_id_leaf_proof_mask |= 1 << chain_log_proof.chain_id_leaf_proof.len();
+        chain_log_proof.chain_id_leaf_proof.push(local_root);
+
+        Ok(Some(chain_log_proof))
+    }
+
+    pub async fn get_chain_log_proof_until_msg_root_impl(
+        &self,
+        l2_block_number: L2BlockNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<Option<ChainAggProof>, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+
+        self.get_chain_log_proof_inner(&mut connection, l2_block_number, l2_chain_id)
+            .await
+    }
+
+    // This method is used for both get_chain_log_proof and get_chain_log_proof_until_msg_root.
+    async fn get_chain_log_proof_inner(
+        &self,
+        connection: &mut Connection<'_, Core>,
+        l2_block_number: L2BlockNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<Option<ChainAggProof>, Web3Error> {
+        self.state
+            .start_info
+            .ensure_not_pruned(l2_block_number, connection)
+            .await?;
+
+        let chain_count_integer = get_chain_count(connection, l2_block_number).await?;
 
         let mut chain_ids = Vec::new();
         for chain_index in 0..chain_count_integer {
-            chain_ids.push(
-                get_chain_id_from_index(&mut connection, chain_index, l2_block_number).await?,
-            );
+            chain_ids
+                .push(get_chain_id_from_index(connection, chain_index, l2_block_number).await?);
         }
 
-        let Some((mut chain_id_leaf_proof_mask, _)) = chain_ids
+        let Some((chain_id_leaf_proof_mask, _)) = chain_ids
             .iter()
             .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.as_u64()))
         else {
@@ -131,33 +169,16 @@ impl UnstableNamespace {
 
         let mut leaves = Vec::new();
         for chain_id in chain_ids {
-            let chain_root =
-                get_chain_root_from_id(&mut connection, chain_id, l2_block_number).await?;
+            let chain_root = get_chain_root_from_id(connection, chain_id, l2_block_number).await?;
             leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
         }
 
         let chain_merkle_tree =
             MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
 
-        let mut chain_id_leaf_proof = chain_merkle_tree
+        let chain_id_leaf_proof = chain_merkle_tree
             .merkle_root_and_path(chain_id_leaf_proof_mask)
             .1;
-
-        if let BatchOrBlockNumber::BatchNumber(l1_batch_number) = batch_or_block_number {
-            let Some(local_root) = connection
-                .blocks_dal()
-                .get_l1_batch_local_root(l1_batch_number)
-                .await
-                .map_err(DalError::generalize)?
-            else {
-                return Ok(None);
-            };
-
-            // Chain tree is the right subtree of the aggregated tree.
-            // We append root of the left subtree to form full proof.
-            chain_id_leaf_proof_mask |= 1 << chain_id_leaf_proof.len();
-            chain_id_leaf_proof.push(local_root);
-        }
 
         Ok(Some(ChainAggProof {
             chain_id_leaf_proof,
@@ -271,11 +292,6 @@ impl UnstableNamespace {
                 .map(|event| map_event(event, tx_hash))
                 .collect(),
         })
-    }
-
-    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
-        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
-        Ok(gas_per_pubdata.into())
     }
 }
 

@@ -17,13 +17,11 @@ pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExten
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        EventProcessor, EventProcessorError, InteropRootProcessor, PriorityOpsEventProcessor,
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
     },
     metrics::METRICS,
-};
-use crate::event_processors::{
-    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
-    GatewayMigrationProcessor,
 };
 
 mod client;
@@ -171,13 +169,11 @@ impl EthWatch {
                     /* everything went fine */
                     METRICS.eth_poll.inc();
                 }
-                Err(EventProcessorError::Internal(err)) => {
-                    tracing::error!("Internal error processing new blocks: {err:?}");
-                    return Err(err);
+                Err(EventProcessorError::Fatal(err)) => {
+                    tracing::error!("Fatal error processing new blocks: {err:?}");
+                    return Err(err.into());
                 }
-                Err(err) => {
-                    // This is an error because otherwise we could potentially miss a priority operation
-                    // thus entering priority mode, which is not desired.
+                Err(EventProcessorError::Transient(err)) => {
                     tracing::error!("Failed to process new blocks: {err}");
                 }
             }
@@ -197,13 +193,17 @@ impl EthWatch {
                 EventsSource::L1 => self.l1_client.as_ref(),
                 EventsSource::SL => self.sl_client.as_ref(),
             };
-            let chain_id = client.chain_id().await?;
+            let chain_id = client
+                .chain_id()
+                .await
+                .map_err(EventProcessorError::client)?;
 
             let to_block = if processor.only_finalized_block() {
-                client.finalized_block_number().await?
+                client.finalized_block_number().await
             } else {
-                client.confirmed_block_number().await?
-            };
+                client.confirmed_block_number().await
+            }
+            .map_err(EventProcessorError::client)?;
 
             let from_block = storage
                 .eth_watcher_dal()
@@ -213,7 +213,8 @@ impl EthWatch {
                     to_block.saturating_sub(self.event_expiration_blocks),
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
 
             // There are no new blocks so there is nothing to be done
             if from_block > to_block {
@@ -228,7 +229,8 @@ impl EthWatch {
                     processor.topic2(),
                     RETRY_LIMIT,
                 )
-                .await?;
+                .await
+                .map_err(EventProcessorError::client)?;
             let processed_events_count = processor
                 .process_events(storage, processor_events.clone())
                 .await?;
@@ -254,7 +256,8 @@ impl EthWatch {
                     next_block_to_process,
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
         }
 
         Ok(())

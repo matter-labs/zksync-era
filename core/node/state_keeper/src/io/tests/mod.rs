@@ -81,6 +81,9 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fair_l2_gas_price: 1000,
         fair_pubdata_price: 500,
     });
+    tester
+        .insert_unsealed_batch(&connection_pool, 2, fee_input)
+        .await;
     tester.set_timestamp(2);
     tester
         .insert_l2_block(&connection_pool, 2, 10, fee_input)
@@ -148,10 +151,10 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     assert_eq!(mempool.filter(), &want_filter);
 }
 
-async fn test_timestamps_are_distinct(
+async fn test_timestamps(
     connection_pool: ConnectionPool<Core>,
+    prev_l1_batch_timestamp: u64,
     prev_l2_block_timestamp: u64,
-    delay_prev_l2_block_compared_to_batch: bool,
     mut tester: Tester,
 ) {
     tester.genesis(&connection_pool).await;
@@ -160,9 +163,7 @@ async fn test_timestamps_are_distinct(
     let tx_result = tester
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
-    if delay_prev_l2_block_compared_to_batch {
-        tester.set_timestamp(prev_l2_block_timestamp - 1);
-    }
+    tester.set_timestamp(prev_l1_batch_timestamp);
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
@@ -197,6 +198,7 @@ async fn test_timestamps_are_distinct(
     } else {
         assert!(l1_batch_params.first_l2_block.timestamp() >= prev_l2_block_timestamp);
     }
+    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l1_batch_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -205,7 +207,13 @@ async fn l1_batch_timestamp_basics(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp,
+        current_timestamp,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -214,7 +222,13 @@ async fn l1_batch_timestamp_with_clock_skew(commitment_mode: L1BatchCommitmentMo
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp + 2,
+        current_timestamp + 2,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -223,7 +237,13 @@ async fn l1_batch_timestamp_respects_prev_l2_block(commitment_mode: L1BatchCommi
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp,
+        current_timestamp - 1,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -234,7 +254,13 @@ async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp + 2,
+        current_timestamp + 1,
+        tester,
+    )
+    .await;
 }
 
 fn create_block_seal_command(
@@ -255,8 +281,9 @@ fn create_block_seal_command(
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_legacy_shared_bridge_addr: Some(Address::default()),
-        pre_insert_txs: false,
+        pre_insert_data: false,
         pubdata_params: PubdataParams::default(),
+        insert_header: true,
         rolling_txs_hash: Default::default(),
     }
 }
@@ -312,7 +339,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     );
 
     let l1_batch_number = L1BatchNumber(2);
-    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block.clone());
     connection_pool
         .connection()
         .await
@@ -385,7 +412,7 @@ async fn processing_events_when_sealing_l2_block() {
         );
     }
 
-    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block.clone());
     pool.connection()
         .await
         .unwrap()
@@ -571,7 +598,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         previous_batch_hash,
     );
     let version = batch_init_params.system_env.version;
-    let mut updates = UpdatesManager::new(&batch_init_params, version);
+    let mut updates = UpdatesManager::new(
+        &batch_init_params,
+        version,
+        cursor.prev_l1_batch_timestamp,
+        Some(cursor.prev_l2_block_timestamp),
+        true,
+    );
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
@@ -586,7 +619,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
             .await
             .unwrap();
     tokio::spawn(l2_block_sealer.run());
-    persistence.handle_l2_block(&updates).await.unwrap();
+    persistence.handle_l2_block_data(&updates).await.unwrap();
 
     // Check that the L2 block is persisted and has correct data.
     let persisted_l2_block = storage
@@ -743,6 +776,9 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
     // Pre-insert L2 block without its unsealed L1 batch counterpart
+    tester
+        .insert_unsealed_batch(&connection_pool, 2, fee_input)
+        .await;
     tester.set_timestamp(2);
     tester
         .insert_l2_block(&connection_pool, 2, 5, fee_input)

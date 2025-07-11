@@ -5,11 +5,12 @@ import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
 import { types } from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
+import { anyTransaction, deployContract, getTestContract } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
 import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
 import { NodeMode } from '../../src/types';
+import { waitForNewL1Batch } from 'utils';
 
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
