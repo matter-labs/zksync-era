@@ -70,7 +70,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::VmGateway => Ok(Self::Gateway),
             VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
             VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
-            VmVersion::VmInterop => Ok(Self::Interop),
+            VmVersion::VmInterop | VmVersion::VmMediumInterop => Ok(Self::Interop),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
