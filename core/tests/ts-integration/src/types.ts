@@ -17,6 +17,8 @@ export interface Token {
     decimals: bigint;
     l1Address: string;
     l2Address: string;
+    l2AddressSecondChain?: string;
+    assetId?: string;
 }
 
 /**
@@ -51,6 +53,11 @@ export interface TestEnvironment {
      * Chain Id of the L2 Network
      */
     l2ChainId: bigint;
+    /**
+     * Chain Id of the L2 Network for the second chain, used for interop tests.
+     * Defaults to the same as `l2ChainId` if not set.
+     */
+    l2ChainIdSecondChain: bigint | undefined;
     /*
      * Mode of the l2 node
      */
@@ -59,6 +66,11 @@ export interface TestEnvironment {
      * L2 node PID
      */
     l2NodePid: number | undefined;
+    /*
+     * L2 node PID for the second chain, used for interop tests.
+     * Defaults to the same as `l2NodePid` if not set.
+     */
+    l2NodePidSecondChain: number | undefined;
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */
@@ -73,6 +85,11 @@ export interface TestEnvironment {
      * URL of ZKsync node's HTTP Web3 API.
      */
     l2NodeUrl: string;
+    /**
+     * URL of ZKsync node's HTTP Web3 API for the second chain, used for interop tests.
+     * Defaults to the same as `l2NodeUrl` if not set.
+     */
+    l2NodeUrlSecondChain: string | undefined;
     /**
      * URL of Ethereum node's HTTP Web3 API.
      */

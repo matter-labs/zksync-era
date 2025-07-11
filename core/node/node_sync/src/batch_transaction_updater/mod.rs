@@ -9,10 +9,10 @@ use zksync_dal::{blocks_dal::L1BatchWithOptionalMetadata, ConnectionPool, Core, 
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
     web3::TransactionReceipt,
-    Address, ProtocolVersionId, SLChainId,
+    Address, L1BatchNumber, ProtocolVersionId, SLChainId,
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
@@ -113,7 +113,7 @@ impl BatchTransactionUpdater {
 
         // validate the transaction against db
         for batch in &batches {
-            let batch_number = batch.number;
+            let batch_number = L1BatchNumber(batch.number);
 
             let Some(protocol_version) = connection
                 .blocks_dal()
@@ -153,19 +153,27 @@ impl BatchTransactionUpdater {
             };
 
             match eth_history_tx.tx_type {
-                AggregatedActionType::Commit => self.l1_transaction_verifier.validate_commit_tx(
-                    &receipt,
-                    batch_metadata,
-                    batch_number,
-                )?,
-                AggregatedActionType::PublishProofOnchain => self
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) => self
                     .l1_transaction_verifier
-                    .validate_prove_tx(&receipt, batch_metadata, batch_number)?,
-                AggregatedActionType::Execute => self.l1_transaction_verifier.validate_execute_tx(
-                    &receipt,
-                    batch_metadata,
-                    batch_number,
-                )?,
+                    .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain) => {
+                    self.l1_transaction_verifier.validate_prove_tx(
+                        &receipt,
+                        batch_metadata,
+                        batch_number,
+                    )?
+                }
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute) => self
+                    .l1_transaction_verifier
+                    .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
+                _ => {
+                    tracing::debug!(
+                        "Skipping verification for transaction {} ({})",
+                        receipt.transaction_hash,
+                        eth_history_tx.tx_type
+                    );
+                    continue;
+                }
             };
             tracing::debug!(
                 "Verified transaction {} ({}) for batch {}",

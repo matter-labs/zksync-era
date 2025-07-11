@@ -1,9 +1,33 @@
 //! Structures exposed by the `IExecutor.sol`.
 
+use zksync_types::ProtocolVersionId;
+
 mod commit_batch_info;
 mod stored_batch_info;
 
-pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EncodingVersion {
+    PreInterop = 0,
+    InteropSupported = 1,
+}
+
+impl EncodingVersion {
+    pub const fn latest() -> Self {
+        Self::InteropSupported
+    }
+
+    pub fn value(self) -> u8 {
+        self as u8
+    }
+}
+
+pub fn get_encoding_version(protocol_version: ProtocolVersionId) -> u8 {
+    if protocol_version.is_pre_interop_fast_blocks() {
+        EncodingVersion::PreInterop.value()
+    } else {
+        EncodingVersion::InteropSupported.value()
+    }
+}
 
 #[cfg(test)]
 mod tests;

@@ -78,11 +78,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version28
+        Self::Version29
     }
 
     pub const fn next() -> Self {
-        Self::Version29
+        Self::Version30
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -129,7 +129,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
-            ProtocolVersionId::Version29 => VmVersion::VmEcPrecompiles, // TODO: Switch to `VmInterop` after contracts are finalized
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version30 => VmVersion::VmInterop,
@@ -166,8 +166,8 @@ impl ProtocolVersionId {
         self >= &Self::Version27
     }
 
-    pub fn is_pre_interop(&self) -> bool {
-        self < &Self::Version30
+    pub fn is_pre_interop_fast_blocks(&self) -> bool {
+        self < &Self::Version29
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -208,11 +208,6 @@ impl ProtocolVersionId {
 
     pub const fn gateway_upgrade() -> Self {
         ProtocolVersionId::Version26
-    }
-
-    pub fn is_pre_fast_blocks(&self) -> bool {
-        // TODO: change this to `self < ProtocolVersionId::Version29` when v29 contracts are merged.
-        true
     }
 }
 
@@ -321,7 +316,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
-            ProtocolVersionId::Version29 => VmVersion::VmEcPrecompiles, // TODO: Switch to `VmInterop` after contracts are finalized
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }

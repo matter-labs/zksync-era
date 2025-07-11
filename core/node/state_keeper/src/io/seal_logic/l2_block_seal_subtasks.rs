@@ -110,6 +110,7 @@ impl L2BlockSealProcess {
             Box::new(InsertTokensSubtask),
             Box::new(InsertEventsSubtask),
             Box::new(InsertL2ToL1LogsSubtask),
+            Box::new(MarkInteropRootsAsSealed),
         ]
     }
 
@@ -212,7 +213,7 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
                 &command.l2_block.executed_transactions,
                 command.base_fee_per_gas.into(),
                 command.l2_block.protocol_version,
-                command.pre_insert_txs,
+                command.pre_insert_data,
             )
             .await?;
 
@@ -453,6 +454,51 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
     }
 }
 
+#[derive(Debug)]
+pub(super) struct MarkInteropRootsAsSealed;
+
+#[async_trait]
+impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
+    fn name(&self) -> &'static str {
+        "mark_messsage_roots_as_sealed"
+    }
+
+    async fn run(
+        self: Box<Self>,
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let progress = L2_BLOCK_METRICS.start(
+            L2BlockSealStage::MarkInteropRootsAsSealed,
+            command.is_l2_block_fictive(),
+        );
+
+        connection
+            .interop_root_dal()
+            .mark_interop_roots_as_executed(
+                &command.l2_block.interop_roots,
+                command.l2_block.number,
+                command.pre_insert_data,
+            )
+            .await?;
+
+        progress.observe(command.l2_block.interop_roots.len());
+        Ok(())
+    }
+
+    async fn rollback(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        last_sealed_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        storage
+            .interop_root_dal()
+            .reset_interop_roots_state(last_sealed_l2_block)
+            .await?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
@@ -545,9 +591,10 @@ mod tests {
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
-            pre_insert_txs: false,
+            pre_insert_data: false,
             pubdata_params: PubdataParams::default(),
             insert_header: false, // Doesn't matter for this test.
+            rolling_txs_hash: Default::default(),
         };
 
         // Run.
@@ -609,6 +656,7 @@ mod tests {
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
             logs_bloom: Default::default(),
             pubdata_params: l2_block_seal_command.pubdata_params,
+            rolling_txs_hash: Some(l2_block_seal_command.rolling_txs_hash),
         };
         connection
             .protocol_versions_dal()

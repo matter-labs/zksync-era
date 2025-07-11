@@ -6,7 +6,13 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
-import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import {
+    FileConfig,
+    loadConfig,
+    loadEcosystem,
+    shouldLoadConfigFromFile,
+    getSecondChainConfig
+} from 'utils/build/file-configs';
 import { NodeSpawner } from 'utils/src/node-spawner';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
@@ -55,7 +61,10 @@ export async function waitForServer(l2NodeUrl: string) {
 /*
     Loads the environment for file based configs.
  */
-async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<TestEnvironment> {
+async function loadTestEnvironmentFromFile(
+    fileConfig: FileConfig,
+    secondChainFileConfig: FileConfig | undefined
+): Promise<TestEnvironment> {
     let chain = fileConfig.chain!;
     const pathToHome = path.join(__dirname, '../../../..');
     let spawnNode = process.env.SPAWN_NODE;
@@ -74,15 +83,38 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
     let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml' });
 
+    let genesisConfigSecondChain;
+    let generalConfigSecondChain;
+    let contractsSecondChain;
+    if (secondChainFileConfig) {
+        genesisConfigSecondChain = loadConfig({
+            pathToHome,
+            chain: secondChainFileConfig.chain!,
+            config: 'genesis.yaml'
+        });
+        generalConfigSecondChain = loadConfig({
+            pathToHome,
+            chain: secondChainFileConfig.chain!,
+            config: 'general.yaml'
+        });
+        contractsSecondChain = loadConfig({
+            pathToHome,
+            chain: secondChainFileConfig.chain!,
+            config: 'contracts.yaml'
+        });
+    }
+
     const network = ecosystem.l1_network.toLowerCase();
     const chainName = process.env.CHAIN_NAME!!;
     let mainWalletPK = getMainWalletPk(chainName);
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
+    const l2NodeUrlSecondChain = generalConfigSecondChain?.api.web3_json_rpc.http_url;
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
 
     const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
     let mainLogs = await nodefs.open(pathToMainLogs, 'a');
     let l2Node;
+    let l2NodeSecondChain;
     console.log(`Loading test environment from file: spawnNode: ${spawnNode}, noKill: ${process.env.NO_KILL}`);
     if (spawnNode) {
         // Before starting any actual logic, we need to ensure that the server is running (it may not
@@ -104,6 +136,18 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
         await mainNodeSpawner.killAndSpawnMainNode();
         l2Node = mainNodeSpawner.mainNode;
+
+        if (secondChainFileConfig) {
+            const secondChainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, secondChainFileConfig, {
+                enableConsensus: true,
+                ethClientWeb3Url: l1NodeUrl,
+                apiWeb3JsonRpcHttpUrl: l2NodeUrlSecondChain,
+                baseTokenAddress: contractsSecondChain.l1.base_token_addr
+            });
+
+            await secondChainNodeSpawner.killAndSpawnMainNode();
+            l2NodeSecondChain = secondChainNodeSpawner.mainNode;
+        }
     }
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
@@ -140,6 +184,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);
+    const l2ChainIdSecondChain = genesisConfigSecondChain ? BigInt(genesisConfigSecondChain.l2_chain_id) : undefined;
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
 
@@ -161,10 +206,13 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
         minimalL2GasPrice,
         l1BatchCommitDataGeneratorMode,
         l2ChainId,
+        l2ChainIdSecondChain,
         network,
         mainWalletPK,
         l2NodeUrl,
+        l2NodeUrlSecondChain,
         l2NodePid: l2Node ? l2Node.proc.pid : undefined,
+        l2NodePidSecondChain: l2NodeSecondChain ? l2NodeSecondChain.proc.pid : undefined,
         l1NodeUrl,
         wsL2NodeUrl,
         contractVerificationUrl,
@@ -195,7 +243,9 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     if (!fileConfig.loadFromFile) {
         throw new Error('loading test environment from env is no longer supported');
     }
-    return await loadTestEnvironmentFromFile(fileConfig);
+    const secondChainFileConfig = getSecondChainConfig();
+    const testEnvironment = await loadTestEnvironmentFromFile(fileConfig, secondChainFileConfig);
+    return testEnvironment;
 }
 
 interface TokensDict {

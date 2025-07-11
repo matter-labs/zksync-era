@@ -2225,6 +2225,11 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(number)
+                .await?;
 
             data.push(L2BlockExecutionData {
                 number,
@@ -2232,7 +2237,7 @@ impl TransactionsDal<'_, '_> {
                 prev_block_hash,
                 virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
-                interop_roots: vec![],
+                interop_roots,
             });
         }
         Ok(data)

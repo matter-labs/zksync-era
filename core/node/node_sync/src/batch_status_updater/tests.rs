@@ -195,6 +195,12 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(1)),
             execute_tx_finality: (stage >= L1BatchStage::Executed)
                 .then_some(EthTxFinalityStatus::Pending),
+            precommit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(4)),
+            precommit_tx_finality: (stage >= L1BatchStage::Committed)
+                .then_some(EthTxFinalityStatus::Finalized),
+            precommitted_at: (stage >= L1BatchStage::Committed)
+                .then(|| Utc.timestamp_opt(100, 0).unwrap()),
+            precommit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             fair_pubdata_price: None,

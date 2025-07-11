@@ -84,6 +84,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: Some(H256::zero()),
     }
 }
 
@@ -256,6 +257,7 @@ impl Snapshot {
             gas_limit: 0,
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
+            rolling_txs_hash: Some(H256::zero()),
         };
         Snapshot {
             l1_batch,

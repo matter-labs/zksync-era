@@ -8,7 +8,7 @@ use zksync_dal::{Connection, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::L1BatchTreeData,
+    aggregated_operations::L1BatchAggregatedActionType, block::L1BatchTreeData,
     commitment::L1BatchCommitmentArtifacts, eth_sender::EthTxFinalityStatus, web3::Log, Address,
     L1BatchNumber, L1BlockNumber, SLChainId, H256, U64,
 };
@@ -170,7 +170,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
 async fn insert_tx(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
-    action_type: AggregatedActionType,
+    action_type: L1BatchAggregatedActionType,
 ) -> anyhow::Result<()> {
     let tx_hash = create_tx_hash(action_type, batch_number.0);
     storage
@@ -184,7 +184,7 @@ async fn insert_tx(
 async fn insert_invalid_tx(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
-    action_type: AggregatedActionType,
+    action_type: L1BatchAggregatedActionType,
 ) -> anyhow::Result<()> {
     storage
         .eth_sender_dal()
@@ -235,7 +235,7 @@ async fn insert_batch_transactions(
     // For each stage, insert the appropriate transactions
     if stage >= L1BatchStage::Committed {
         // Insert commit transaction
-        insert_tx(storage, batch_number, AggregatedActionType::Commit).await?;
+        insert_tx(storage, batch_number, L1BatchAggregatedActionType::Commit).await?;
     }
 
     if stage >= L1BatchStage::Proven {
@@ -243,14 +243,14 @@ async fn insert_batch_transactions(
         insert_tx(
             storage,
             batch_number,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await?;
     }
 
     if stage >= L1BatchStage::Executed {
         // Insert execute transaction
-        insert_tx(storage, batch_number, AggregatedActionType::Execute).await?;
+        insert_tx(storage, batch_number, L1BatchAggregatedActionType::Execute).await?;
     }
 
     Ok(())
@@ -323,12 +323,12 @@ async fn verify_transaction_statuses(
 /// Helper function to create transaction hash
 /// The first byte is the transaction type (1 for commit, 2 for prove, 3 for execute)
 /// The last 4 bytes are the batch number
-fn create_tx_hash(tx_type: AggregatedActionType, batch_number: u32) -> H256 {
+fn create_tx_hash(tx_type: L1BatchAggregatedActionType, batch_number: u32) -> H256 {
     let mut h = [0u8; 32];
     h[0] = match tx_type {
-        AggregatedActionType::Commit => 1,
-        AggregatedActionType::PublishProofOnchain => 2,
-        AggregatedActionType::Execute => 3,
+        L1BatchAggregatedActionType::Commit => 1,
+        L1BatchAggregatedActionType::PublishProofOnchain => 2,
+        L1BatchAggregatedActionType::Execute => 3,
     };
     h[28..].copy_from_slice(&batch_number.to_be_bytes());
     H256::from(h)
@@ -417,7 +417,12 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
         setup_test_environment().await?;
 
     // Start with commit tx online
-    insert_tx(&mut storage, batch_number, AggregatedActionType::Commit).await?;
+    insert_tx(
+        &mut storage,
+        batch_number,
+        L1BatchAggregatedActionType::Commit,
+    )
+    .await?;
 
     // STAGE 1: Initial update with pending transactions
     // ------------------------------------------------------------
@@ -447,7 +452,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     insert_tx(
         &mut storage,
         batch_number,
-        AggregatedActionType::PublishProofOnchain,
+        L1BatchAggregatedActionType::PublishProofOnchain,
     )
     .await?;
 
@@ -490,7 +495,12 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     // STAGE 3: Add execute transaction and update with mixed finality
     // ------------------------------------------------------------
     // Add execute transaction for current batch and create next batch with all transactions
-    insert_tx(&mut storage, batch_number, AggregatedActionType::Execute).await?;
+    insert_tx(
+        &mut storage,
+        batch_number,
+        L1BatchAggregatedActionType::Execute,
+    )
+    .await?;
     seal_l1_batch(&mut storage, batch_number + 1).await;
     insert_batch_transactions(&mut storage, batch_number + 1, L1BatchStage::Executed).await?;
 
@@ -560,42 +570,62 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     Ok(())
 }
 
-#[test_casing(3, [AggregatedActionType::Commit, AggregatedActionType::PublishProofOnchain, AggregatedActionType::Execute])]
+#[test_casing(3, [L1BatchAggregatedActionType::Commit, L1BatchAggregatedActionType::PublishProofOnchain, L1BatchAggregatedActionType::Execute])]
 #[tokio::test]
 async fn test_invalid_transaction_handling(
-    invalid_tx_type: AggregatedActionType,
+    invalid_tx_type: L1BatchAggregatedActionType,
 ) -> anyhow::Result<()> {
     // Set up test environment
     let (_pool, mut storage, updater, batch_number, _genesis_params) =
         setup_test_environment().await?;
 
     // Insert all three transaction types, but make the specified one invalid
-    if invalid_tx_type != AggregatedActionType::Commit {
-        insert_tx(&mut storage, batch_number, AggregatedActionType::Commit).await?;
-    } else {
-        insert_invalid_tx(&mut storage, batch_number, AggregatedActionType::Commit).await?;
-    }
-
-    if invalid_tx_type != AggregatedActionType::PublishProofOnchain {
+    if invalid_tx_type != L1BatchAggregatedActionType::Commit {
         insert_tx(
             &mut storage,
             batch_number,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::Commit,
         )
         .await?;
     } else {
         insert_invalid_tx(
             &mut storage,
             batch_number,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::Commit,
         )
         .await?;
     }
 
-    if invalid_tx_type != AggregatedActionType::Execute {
-        insert_tx(&mut storage, batch_number, AggregatedActionType::Execute).await?;
+    if invalid_tx_type != L1BatchAggregatedActionType::PublishProofOnchain {
+        insert_tx(
+            &mut storage,
+            batch_number,
+            L1BatchAggregatedActionType::PublishProofOnchain,
+        )
+        .await?;
     } else {
-        insert_invalid_tx(&mut storage, batch_number, AggregatedActionType::Execute).await?;
+        insert_invalid_tx(
+            &mut storage,
+            batch_number,
+            L1BatchAggregatedActionType::PublishProofOnchain,
+        )
+        .await?;
+    }
+
+    if invalid_tx_type != L1BatchAggregatedActionType::Execute {
+        insert_tx(
+            &mut storage,
+            batch_number,
+            L1BatchAggregatedActionType::Execute,
+        )
+        .await?;
+    } else {
+        insert_invalid_tx(
+            &mut storage,
+            batch_number,
+            L1BatchAggregatedActionType::Execute,
+        )
+        .await?;
     }
 
     // Update with blocks that would finalize all transactions

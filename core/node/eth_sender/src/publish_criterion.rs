@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
+    aggregated_operations::L1BatchAggregatedActionType, commitment::L1BatchWithMetadata,
+    L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -28,7 +29,7 @@ pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct NumberCriterion {
-    pub op: AggregatedActionType,
+    pub op: L1BatchAggregatedActionType,
     /// Maximum number of L1 batches to be packed together.
     pub limit: u32,
 }
@@ -71,7 +72,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
 
 #[derive(Debug)]
 pub struct TimestampDeadlineCriterion {
-    pub op: AggregatedActionType,
+    pub op: L1BatchAggregatedActionType,
     /// Maximum L1 batch age in seconds. Once reached, we pack and publish all the available L1 batches.
     pub deadline: Duration,
     /// If `max_allowed_lag` is `Some(_)` and last batch sent to L1 is more than `max_allowed_lag` behind,
@@ -127,11 +128,11 @@ pub enum GasCriterionKind {
     Execute,
 }
 
-impl From<GasCriterionKind> for AggregatedActionType {
+impl From<GasCriterionKind> for L1BatchAggregatedActionType {
     fn from(value: GasCriterionKind) -> Self {
         match value {
-            GasCriterionKind::CommitValidium => AggregatedActionType::Commit,
-            GasCriterionKind::Execute => AggregatedActionType::Execute,
+            GasCriterionKind::CommitValidium => L1BatchAggregatedActionType::Commit,
+            GasCriterionKind::Execute => L1BatchAggregatedActionType::Execute,
         }
     }
 }
@@ -150,16 +151,25 @@ impl L1GasCriterion {
     pub async fn total_execute_gas_amount(
         storage: &mut Connection<'_, Core>,
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+        dependency_roots_per_batch: Vec<u64>,
         is_gateway: bool,
     ) -> u64 {
         let costs = GasConsts::execute_costs(is_gateway);
         let mut total = costs.base;
 
-        for batch_number in batch_numbers.start().0..=batch_numbers.end().0 {
-            total += Self::get_execute_gas_amount(storage, batch_number.into(), &costs).await;
+        let batch_range = batch_numbers.start().0..=batch_numbers.end().0;
+        for (batch_number, dependency_roots) in batch_range.zip(dependency_roots_per_batch) {
+            total +=
+                Self::get_execute_gas_amount(storage, batch_number.into(), dependency_roots, &costs)
+                    .await
         }
 
         total
+    }
+
+    pub fn total_precommit_gas_amount(is_gateway: bool, txs_len: usize) -> u64 {
+        let costs = GasConsts::precommit_costs(is_gateway);
+        costs.base + costs.per_tx * txs_len as u64
     }
 
     pub fn total_proof_gas_amount(is_gateway: bool) -> u64 {
@@ -181,6 +191,7 @@ impl L1GasCriterion {
     async fn get_execute_gas_amount(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
+        dependency_roots_number: u64,
         costs: &ExecuteCosts,
     ) -> u64 {
         let header = storage
@@ -190,7 +201,9 @@ impl L1GasCriterion {
             .unwrap()
             .unwrap_or_else(|| panic!("Missing L1 batch header in DB for #{batch_number}"));
 
-        costs.per_batch + u64::from(header.l1_tx_count) * costs.per_l1_l2_tx
+        costs.per_batch
+            + u64::from(header.l1_tx_count) * costs.per_l1_l2_tx
+            + costs.per_interop_root * dependency_roots_number
     }
 }
 
@@ -223,10 +236,22 @@ impl L1BatchPublishCriterion for L1GasCriterion {
 
         let mut last_l1_batch = None;
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
+            let interop_roots_number = storage
+                .interop_root_dal()
+                .get_interop_roots_batch(l1_batch.header.number)
+                .await
+                .unwrap()
+                .len() as u64;
+
             let batch_gas = match self.kind {
                 GasCriterionKind::Execute => {
-                    Self::get_execute_gas_amount(storage, l1_batch.header.number, &execute_costs)
-                        .await
+                    Self::get_execute_gas_amount(
+                        storage,
+                        l1_batch.header.number,
+                        interop_roots_number,
+                        &execute_costs,
+                    )
+                    .await
                 }
                 GasCriterionKind::CommitValidium => commit_costs.per_batch,
             };
@@ -245,7 +270,7 @@ impl L1BatchPublishCriterion for L1GasCriterion {
         }
 
         if let Some(last_l1_batch) = last_l1_batch {
-            let op: AggregatedActionType = self.kind.into();
+            let op: L1BatchAggregatedActionType = self.kind.into();
             let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
             tracing::debug!(
                 "`gas_limit` publish criterion (gas={}) triggered for op {} with L1 batch range {:?}",
@@ -273,15 +298,22 @@ struct ExecuteCosts {
     base: u64,
     per_batch: u64,
     per_l1_l2_tx: u64,
+    per_interop_root: u64,
+}
+
+#[derive(Debug)]
+struct PrecommitCosts {
+    base: u64,
+    per_tx: u64,
 }
 
 impl GasConsts {
     /// Base gas cost of processing aggregated `Execute` operation.
     /// It's applicable iff SL is Ethereum.
-    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u64 = 200_000;
+    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u64 = 210_000;
     /// Base gas cost of processing aggregated `Execute` operation.
     /// It's applicable if SL is  Gateway.
-    const AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST: u64 = 300_000;
+    const AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST: u64 = 410_000;
 
     /// Base gas cost of processing aggregated `Commit` operation.
     /// It's applicable if SL is Ethereum.
@@ -315,13 +347,27 @@ impl GasConsts {
     /// It's applicable if SL is GATEWAY.
     const GATEWAY_L1_OPERATION_COST: u64 = 4_000;
 
+    /// Gas cost of processing `interop_root` in batch.
+    /// It's applicable if SL is GATEWAY.
+    const GATEWAY_INTEROP_ROOT_COST: u64 = 5_500;
+
     /// Additional gas cost of processing `Execute` operation per batch.
     /// It's applicable iff SL is Ethereum.
-    const L1_BATCH_EXECUTE_BASE_COST: u64 = 30_000;
+    const L1_BATCH_EXECUTE_BASE_COST: u64 = 50_000;
 
     /// Additional gas cost of processing `Execute` operation per L1->L2 tx.
     /// It's applicable iff SL is Ethereum.
-    const L1_OPERATION_EXECUTE_COST: u64 = 12_500;
+    const L1_OPERATION_EXECUTE_COST: u64 = 15_000;
+
+    /// Base gas cost of processing `Precommit` operation.
+    const PRECOMMIT_BASE_COST: u64 = 200_000;
+
+    /// Additional gas cost of processing `Precommit` operation per tx.
+    const PRECOMMIT_PER_TX_COST: u64 = 10_000;
+
+    /// Gas cost of processing `interop_root` in batch.
+    /// It's applicable if SL is Ethereum.
+    const L1_INTEROP_ROOT_COST: u64 = 4_500;
 
     fn commit_costs(is_gateway: bool) -> CommitGasConsts {
         if is_gateway {
@@ -345,18 +391,32 @@ impl GasConsts {
         }
     }
 
+    fn precommit_costs(is_gateway: bool) -> PrecommitCosts {
+        let mut costs = PrecommitCosts {
+            base: Self::PRECOMMIT_BASE_COST,
+            per_tx: Self::PRECOMMIT_PER_TX_COST,
+        };
+        if is_gateway {
+            costs.base *= 2;
+            costs.per_tx *= 2;
+        }
+        costs
+    }
+
     fn execute_costs(is_gateway: bool) -> ExecuteCosts {
         if is_gateway {
             ExecuteCosts {
                 base: Self::AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST,
                 per_batch: Self::GATEWAY_BATCH_EXECUTION_COST,
                 per_l1_l2_tx: Self::GATEWAY_L1_OPERATION_COST,
+                per_interop_root: Self::GATEWAY_INTEROP_ROOT_COST,
             }
         } else {
             ExecuteCosts {
                 base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
                 per_batch: Self::L1_BATCH_EXECUTE_BASE_COST,
                 per_l1_l2_tx: Self::L1_OPERATION_EXECUTE_COST,
+                per_interop_root: Self::L1_INTEROP_ROOT_COST,
             }
         }
     }

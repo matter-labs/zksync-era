@@ -22,8 +22,10 @@ export class TestMaster {
     readonly reporter: Reporter;
     private readonly l1Provider: EthersRetryProvider;
     private readonly l2Provider: RetryProvider;
+    private readonly l2ProviderSecondChain: RetryProvider | undefined;
 
     private readonly mainWallet: RetryableWallet;
+    private readonly mainWalletSecondChain: RetryableWallet | undefined;
     private readonly subAccounts: zksync.Wallet[] = [];
 
     private constructor(file: string) {
@@ -73,6 +75,31 @@ export class TestMaster {
         }
 
         this.mainWallet = new RetryableWallet(suiteWalletPK, this.l2Provider, this.l1Provider);
+
+        if (this.env.l2ChainIdSecondChain) {
+            // Set up second chain provider if defined
+            this.l2ProviderSecondChain = new RetryProvider(
+                {
+                    url: this.env.l2NodeUrlSecondChain!,
+                    timeout: 1200 * 1000
+                },
+                undefined,
+                this.reporter
+            );
+            this.mainWalletSecondChain = new RetryableWallet(
+                suiteWalletPK,
+                this.l2ProviderSecondChain,
+                this.l1Provider
+            );
+
+            if (isLocalHost(context.environment.network)) {
+                // Setup small polling interval on localhost to speed up tests.
+                this.l2ProviderSecondChain.pollingInterval = 100;
+            } else {
+                // Poll less frequently to not make the server sad.
+                this.l2ProviderSecondChain.pollingInterval = 5000;
+            }
+        }
     }
 
     /**
@@ -104,6 +131,14 @@ export class TestMaster {
      */
     mainAccount(): RetryableWallet {
         return this.mainWallet;
+    }
+
+    /**
+     * Getter for the main (funded) account in the second chain exclusive to the suite, used for interop tests.
+     * Defaults to the same as `mainAccount` if the second chain is not set.
+     */
+    mainAccountSecondChain(): RetryableWallet | undefined {
+        return this.mainWalletSecondChain;
     }
 
     /**

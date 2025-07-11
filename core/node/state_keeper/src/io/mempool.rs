@@ -11,7 +11,10 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::{AdvanceInput, L2TxFilter};
-use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{
+    interface::Halt,
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
@@ -204,7 +207,7 @@ impl StateKeeperIO for MempoolIO {
         // - We sleep past `prev_l2_block_timestamp` for <= v28.
         // - Otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
         //   if clock returns consistent time then it shouldn't actually sleep.
-        let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks() {
+        let timestamp_to_sleep_past = if protocol_version.is_pre_interop_fast_blocks() {
             cursor.prev_l2_block_timestamp
         } else {
             cursor.prev_l2_block_timestamp.saturating_sub(1)
@@ -218,7 +221,18 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        Ok(Some(L2BlockParams::new(timestamp_ms)))
+        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        let interop_roots = storage
+            .interop_root_dal()
+            .get_new_interop_roots(limit)
+            .await?;
+        Ok(Some(L2BlockParams::new_raw(
+            timestamp_ms,
+            // This value is effectively ignored by the protocol.
+            1,
+            interop_roots,
+        )))
     }
 
     fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u64) {
@@ -576,7 +590,8 @@ impl MempoolIO {
             // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
             //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
             // Note, that when the first v29 batch is starting it should still follow v28 rules since upgrade tx wasn't executed yet.
-            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_fast_blocks() {
+            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_interop_fast_blocks()
+            {
                 cursor.prev_l2_block_timestamp
             } else {
                 cursor

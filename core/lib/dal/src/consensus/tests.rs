@@ -11,7 +11,7 @@ use zksync_test_contracts::Account;
 use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     web3::Bytes,
-    Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
+    Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
 };
 
 use super::*;
@@ -73,6 +73,15 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         } else {
             Some(rng.gen())
         },
+        interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
+    }
+}
+
+fn interop_root(rng: &mut impl Rng) -> InteropRoot {
+    InteropRoot {
+        chain_id: L2ChainId::new(rng.gen::<u32>().into()).unwrap(),
+        block_number: rng.gen(),
+        sides: (0..10).map(|_| rng.gen()).collect(),
     }
 }
 
@@ -89,6 +98,8 @@ fn test_encoding() {
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l2_transaction(rng));
+    encode_decode::<proto::InteropRoot, InteropRoot>(interop_root(rng));
+
     encode_decode::<proto::Transaction, ComparableTransaction>(
         mock_protocol_upgrade_transaction().into(),
     );
