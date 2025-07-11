@@ -36,25 +36,3 @@ pub struct EthProofManagerConfig {
     #[config(default)]
     pub path_to_fflonk_verification_key: String,
 }
-
-impl Default for EthProofManagerConfig {
-    fn default() -> Self {
-        Self {
-            event_poll_interval: Duration::from_secs(10),
-            request_sending_interval: Duration::from_secs(10),
-            event_expiration_blocks: 1000,
-            default_priority_fee_per_gas: 1000000,
-            max_reward: 4000000,
-            acknowledgment_timeout: Duration::from_secs(150),
-            proof_generation_timeout: Duration::from_secs(4800),
-            picking_timeout: Duration::from_secs(300),
-            max_acceptable_priority_fee_in_gwei: 100000000000,
-            max_tx_sending_attempts: 5,
-            tx_sending_sleep: Duration::from_secs(1),
-            tx_receipt_checking_max_attempts: 10,
-            tx_receipt_checking_sleep: Duration::from_secs(1),
-            max_tx_gas: 1000000,
-            path_to_fflonk_verification_key: "".to_string(),
-        }
-    }
-}

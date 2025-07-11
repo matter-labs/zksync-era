@@ -182,28 +182,6 @@ impl EthProofManagerDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn update_status(
-        &mut self,
-        batch_number: L1BatchNumber,
-        status: EthProofManagerStatus,
-    ) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            UPDATE eth_proof_manager SET status = $2, updated_at = NOW()
-            WHERE l1_batch_number = $1
-            "#,
-            i64::from(batch_number.0),
-            status.as_str()
-        )
-        .instrument("update_status")
-        .with_arg("batch_number", &batch_number)
-        .with_arg("status", &status.as_str())
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
-    }
-
     pub async fn get_batch_to_send(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let batch: Option<L1BatchNumber> = sqlx::query!(
             r#"

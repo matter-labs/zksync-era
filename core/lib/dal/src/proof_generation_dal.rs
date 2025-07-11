@@ -8,7 +8,8 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_types::{prover_dal::ProvingMode, L1BatchNumber};
+use zksync_config::configs::proof_data_handler::ProvingMode;
+use zksync_types::L1BatchNumber;
 
 use crate::Core;
 
@@ -44,12 +45,8 @@ impl ProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
 
-        let status = if proving_mode == ProvingMode::ProverCluster {
-            "unpicked"
-        } else {
-            "fallbacked"
-        };
-
+        let status = proving_mode.status_for_dal();
+        
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details

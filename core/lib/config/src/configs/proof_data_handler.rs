@@ -25,22 +25,18 @@ pub enum ProvingMode {
     ProverCluster,
 }
 
+impl ProvingMode {
+    pub fn status_for_dal(&self) -> String {
+        match self {
+            ProvingMode::ProvingNetwork => "fallbacked".to_string(),
+            ProvingMode::ProverCluster => "unpicked".to_string(),
+        }
+    }
+}
+
 impl WellKnown for ProvingMode {
     type Deserializer = Serde![str];
     const DE: Self::Deserializer = Serde![str];
-}
-
-impl From<ProvingMode> for zksync_basic_types::prover_dal::ProvingMode {
-    fn from(mode: ProvingMode) -> Self {
-        match mode {
-            ProvingMode::ProvingNetwork => {
-                zksync_basic_types::prover_dal::ProvingMode::ProvingNetwork
-            }
-            ProvingMode::ProverCluster => {
-                zksync_basic_types::prover_dal::ProvingMode::ProverCluster
-            }
-        }
-    }
 }
 
 #[cfg(test)]

@@ -10,12 +10,6 @@ use crate::{
     L1BatchNumber, L2ChainId,
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ProvingMode {
-    ProvingNetwork,
-    ProverCluster,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
