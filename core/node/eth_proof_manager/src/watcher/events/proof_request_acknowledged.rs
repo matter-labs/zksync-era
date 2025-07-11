@@ -103,14 +103,14 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
                 .await?;
         } else {
             tracing::info!(
-                "Proof request for batch {} not accepted, skipping",
+                "Proof request for batch {} not accepted, moving to prover cluster",
                 event.block_number
             );
             self.connection_pool
                 .connection()
                 .await?
                 .eth_proof_manager_dal()
-                .fallback_certain_batch(L1BatchNumber(event.block_number.as_u32()))
+                .fallback_batch(L1BatchNumber(event.block_number.as_u32()))
                 .await?;
         }
 

@@ -306,7 +306,7 @@ impl EthProofManagerDal<'_, '_> {
         Ok(batches.len())
     }
 
-    pub async fn fallback_certain_batch(&mut self, batch_number: L1BatchNumber) -> DalResult<()> {
+    pub async fn fallback_batch(&mut self, batch_number: L1BatchNumber) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
             r#"
@@ -329,7 +329,7 @@ impl EthProofManagerDal<'_, '_> {
             "#,
             i64::from(batch_number.0),
         )
-        .instrument("fallback_certain_batch")
+        .instrument("fallback_batch")
         .execute(&mut transaction)
         .await?;
 

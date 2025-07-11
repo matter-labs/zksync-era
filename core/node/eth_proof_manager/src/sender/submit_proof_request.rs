@@ -142,7 +142,7 @@ impl ProofRequestSubmitter {
                         .connection()
                         .await?
                         .eth_proof_manager_dal()
-                        .fallback_certain_batch(batch_id)
+                        .fallback_batch(batch_id)
                         .await?;
                 }
             }

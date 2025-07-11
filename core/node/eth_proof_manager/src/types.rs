@@ -75,11 +75,11 @@ pub(crate) type FflonkFinalVerificationKey =
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
-    ContractCallError(#[from] ContractCallError),
-    EthabiError(#[from] ethabi::Error),
-    SigningError(#[from] SigningError),
-    ProviderError(#[from] EnrichedClientError),
-    GenericError(#[from] anyhow::Error),
+    ContractCall(#[from] ContractCallError),
+    Ethabi(#[from] ethabi::Error),
+    Signing(#[from] SigningError),
+    Provider(#[from] EnrichedClientError),
+    Generic(#[from] anyhow::Error),
 }
 
 impl std::fmt::Display for ClientError {
