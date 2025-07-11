@@ -25,8 +25,9 @@ impl ProofFetcher {
         let processor = Processor::new(
             blob_store.clone(),
             pool.clone(),
-            config.clone(),
+            config.proof_generation_timeout,
             l2_chain_id,
+            config.proving_mode.clone(),
         );
 
         let Some(api_url) = config.gateway_api_url.clone() else {

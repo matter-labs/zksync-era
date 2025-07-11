@@ -14,8 +14,8 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
-        MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
+        MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
@@ -58,7 +58,7 @@ impl EcosystemArgs {
         });
 
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
+            let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
             if dev {
                 return LOCAL_RPC_URL.to_string();
             }
