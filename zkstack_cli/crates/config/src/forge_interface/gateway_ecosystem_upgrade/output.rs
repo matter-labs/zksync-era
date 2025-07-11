@@ -5,7 +5,7 @@ use zksync_basic_types::web3::Bytes;
 use crate::traits::{FileConfigWithDefaultName, ZkStackConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EcosystemUpgradeOutput {
+pub struct GatewayEcosystemUpgradeOutput {
     pub create2_factory_addr: Address,
     pub create2_factory_salt: H256,
     pub deployer_addr: Address,
@@ -13,22 +13,23 @@ pub struct EcosystemUpgradeOutput {
     pub l1_chain_id: u32,
     pub owner_address: Address,
     pub chain_upgrade_diamond_cut: Bytes,
-    pub governance_calls: GovernanceCalls,
+    pub governance_stage1_calls: Bytes,
+    pub governance_stage2_calls: Bytes,
 
-    pub contracts_config: EcosystemUpgradeContractsOutput,
-    pub deployed_addresses: EcosystemUpgradeDeployedAddresses,
+    pub contracts_config: GatewayEcosystemUpgradeContractsOutput,
+    pub deployed_addresses: GatewayEcosystemUpgradeDeployedAddresses,
     /// List of transactions that were executed during the upgrade.
     /// This is added later by the zkstack and not present in the toml file that solidity creates.
     #[serde(default)]
     pub transactions: Vec<String>,
 }
 
-impl FileConfigWithDefaultName for EcosystemUpgradeOutput {
-    const FILE_NAME: &'static str = "../contracts/l1-contracts/script-out/v29_local_output.yaml";
+impl FileConfigWithDefaultName for GatewayEcosystemUpgradeOutput {
+    const FILE_NAME: &'static str = "gateway_ecosystem_upgrade_output.yaml";
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EcosystemUpgradeContractsOutput {
+pub struct GatewayEcosystemUpgradeContractsOutput {
     pub diamond_cut_data: Bytes,
 
     pub diamond_init_batch_overhead_l1_gas: u64,
@@ -56,7 +57,7 @@ pub struct EcosystemUpgradeContractsOutput {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EcosystemUpgradeDeployedAddresses {
+pub struct GatewayEcosystemUpgradeDeployedAddresses {
     pub native_token_vault_addr: Address,
     pub rollup_l1_da_validator_addr: Address,
     pub validator_timelock_addr: Address,
@@ -64,13 +65,13 @@ pub struct EcosystemUpgradeDeployedAddresses {
     pub l1_bytecodes_supplier_addr: Address,
     pub l2_wrapped_base_token_store_addr: Address,
 
-    pub bridgehub: EcosystemUpgradeBridgehub,
-    pub bridges: EcosystemUpgradeBridges,
-    pub state_transition: EcosystemUpgradeStateTransition,
+    pub bridgehub: GatewayEcosystemUpgradeBridgehub,
+    pub bridges: GatewayEcosystemUpgradeBridges,
+    pub state_transition: GatewayEcosystemUpgradeStateTransition,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EcosystemUpgradeBridgehub {
+pub struct GatewayEcosystemUpgradeBridgehub {
     pub bridgehub_implementation_addr: Address,
     pub ctm_deployment_tracker_implementation_addr: Address,
     pub ctm_deployment_tracker_proxy_addr: Address,
@@ -79,7 +80,7 @@ pub struct EcosystemUpgradeBridgehub {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EcosystemUpgradeBridges {
+pub struct GatewayEcosystemUpgradeBridges {
     pub erc20_bridge_implementation_addr: Address,
     pub l1_nullifier_implementation_addr: Address,
     pub shared_bridge_implementation_addr: Address,
@@ -87,7 +88,7 @@ pub struct EcosystemUpgradeBridges {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EcosystemUpgradeStateTransition {
+pub struct GatewayEcosystemUpgradeStateTransition {
     pub admin_facet_addr: Address,
     pub default_upgrade_addr: Address,
     pub diamond_init_addr: Address,
@@ -99,11 +100,4 @@ pub struct EcosystemUpgradeStateTransition {
     pub verifier_addr: Address,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GovernanceCalls {
-    pub stage0_calls: Bytes,
-    pub stage1_calls: Bytes,
-    pub stage2_calls: Bytes,
-}
-
-impl ZkStackConfig for EcosystemUpgradeOutput {}
+impl ZkStackConfig for GatewayEcosystemUpgradeOutput {}

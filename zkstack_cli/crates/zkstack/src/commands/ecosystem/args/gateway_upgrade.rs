@@ -18,39 +18,30 @@ use crate::{
 #[derive(
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
 )]
-pub enum EcosystemUpgradeStage {
+pub enum GatewayUpgradeStage {
     // Deploy contracts + init everything the governance will need to approve the upgrade
     NoGovernancePrepare,
-    /// Pause migration to/from Gateway
-    GovernanceStage0,
     // Governance will execute stage 1 of the upgrade, which appends
     // a new protocol version and all chains involved must upgrade
     GovernanceStage1,
     // Governance will execute stage 2 of the upgrade. It is CRUCIAL
     // to have it done only after protocol deadline has passed.
-    // Unpause migrations, etc.
     GovernanceStage2,
     // Finish finalizing tokens, chains, etc
     NoGovernanceStage2,
-}
-
-#[derive(
-    Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
-)]
-pub enum UpgradeVersions {
-    V29_InteropA_FF,
-    V28_1_VK,
+    // Registering and setting up gateway chain
+    GovernanceStage3,
+    // Deploy CTM
+    NoGovernanceStage3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct EcosystemUpgradeArgs {
+pub struct GatewayUpgradeArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
     #[clap(long, value_enum)]
-    pub upgrade_version: UpgradeVersions,
-    #[clap(long, value_enum)]
-    ecosystem_upgrade_stage: EcosystemUpgradeStage,
+    ecosystem_upgrade_stage: GatewayUpgradeStage,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
@@ -60,14 +51,13 @@ pub struct EcosystemUpgradeArgs {
     pub server_command: Option<String>,
 }
 
-impl EcosystemUpgradeArgs {
+impl GatewayUpgradeArgs {
     #[allow(dead_code)]
     pub fn fill_values_with_prompt(
         self,
         l1_network: L1Network,
         dev: bool,
-        run_upgrade: bool,
-    ) -> EcosystemUpgradeArgsFinal {
+    ) -> GatewayUpgradeArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if dev {
@@ -84,24 +74,23 @@ impl EcosystemUpgradeArgs {
                 })
                 .ask()
         });
-        EcosystemUpgradeArgsFinal {
+        GatewayUpgradeArgsFinal {
             forge_args: self.forge_args,
             ecosystem_upgrade_stage: self.ecosystem_upgrade_stage,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
             l1_rpc_url,
             server_command: self.server_command,
-            run_upgrade,
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct EcosystemUpgradeArgsFinal {
+pub struct GatewayUpgradeArgsFinal {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
     #[clap(long, value_enum)]
-    pub ecosystem_upgrade_stage: EcosystemUpgradeStage,
+    pub ecosystem_upgrade_stage: GatewayUpgradeStage,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
@@ -109,5 +98,4 @@ pub struct EcosystemUpgradeArgsFinal {
     pub l1_rpc_url: String,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
-    pub run_upgrade: bool,
 }
