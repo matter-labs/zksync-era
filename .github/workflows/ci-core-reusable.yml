@@ -98,6 +98,15 @@ jobs:
           toolchain: nightly-2024-09-01
           rustflags: ""
 
+      - name: Install mold
+        run: |
+          git clone --branch stable https://github.com/rui314/mold.git
+          cd mold
+          ./install-build-deps.sh
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ -B build
+          cmake --build build -j$(nproc)
+          sudo cmake --build build --target install
+
       - name: Build zkstack cli
         run: cargo build --bin zkstack --release
 
