@@ -143,8 +143,10 @@ describe('Migration From/To gateway test', function () {
     step('Migrate to/from gateway', async () => {
         if (direction == 'TO') {
             await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`);
+            await utils.spawn(`zkstack chain gateway migrate-token-balances-to-gateway --gateway-chain-name gateway --chain ${fileConfig.chain}`);
         } else {
             await utils.spawn(`zkstack chain gateway notify-about-from-gateway-update --chain ${fileConfig.chain}`);
+            // kl todo add migrate from gateway token balances
         }
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);

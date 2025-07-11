@@ -198,7 +198,7 @@ describe('Interop behavior checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, 'proof_based_gw');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params), tokenDetails.l2Address);
+        await waitForInteropRootNonZero(alice.provider, alice, GW_CHAIN_ID, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -222,7 +222,7 @@ describe('Interop behavior checks', () => {
         );
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(aliceSecondChain.provider, aliceSecondChain, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(aliceSecondChain.provider, aliceSecondChain, GW_CHAIN_ID, getGWBlockNumber(params));
 
         // We use the same proof that was verified in L2-A
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
