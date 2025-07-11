@@ -332,6 +332,10 @@ pub struct Web3JsonRpcConfig {
     /// considered experimental.
     #[config(default)]
     pub estimate_gas_optimize_search: bool,
+    /// Gas cap for `eth_call` requests. If specified, limits the maximum amount of gas that can be used in a single `eth_call`.
+    /// If not specified or set to 0, uses the default protocol version-based gas limit. Similar to geth's --rpc.gascap option.
+    #[config(default)]
+    pub eth_call_gas_cap: Option<u64>,
     /// Max possible size of an ABI-encoded transaction.
     #[config(default_t = 10 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
     pub max_tx_size: ByteSize,
@@ -541,6 +545,7 @@ mod tests {
                 api_namespaces: HashSet::from([Namespace::Debug]),
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
+                eth_call_gas_cap: None,
             },
             healthcheck: HealthCheckConfig {
                 port: 8081.into(),
@@ -568,6 +573,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.3
             API_WEB3_JSON_RPC_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
+            API_WEB3_JSON_RPC_ETH_CALL_GAS_CAP=""
             API_WEB3_JSON_RPC_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
             API_WEB3_JSON_RPC_EXTENDED_API_TRACING=true
@@ -649,6 +655,7 @@ mod tests {
             - "0x0000000000000000000000000000000000000002"
             extended_api_tracing: true
             estimate_gas_optimize_search: true
+            eth_call_gas_cap: null
             request_timeout_sec: 20
             tree_api_url: "http://tree/"
           prometheus:
@@ -711,6 +718,7 @@ mod tests {
             - "0x0000000000000000000000000000000000000002"
             extended_api_tracing: true
             estimate_gas_optimize_search: true
+            eth_call_gas_cap: null
             request_timeout: 20s
             tree_api_url: "http://tree/"
           prometheus:

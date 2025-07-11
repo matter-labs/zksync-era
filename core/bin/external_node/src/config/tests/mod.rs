@@ -221,6 +221,7 @@ fn parsing_from_full_env() {
         EN_ESTIMATE_GAS_SCALE_FACTOR=1.2
         EN_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=2000
         EN_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
+        EN_ETH_CALL_GAS_CAP=""
         EN_GAS_PRICE_SCALE_FACTOR=1.4
 
         # NEW PARAMS: From Web3RpcConfig

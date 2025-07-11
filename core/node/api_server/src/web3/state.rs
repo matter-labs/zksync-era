@@ -123,6 +123,7 @@ pub struct InternalApiConfigBase {
     pub fee_history_limit: u64,
     pub filters_disabled: bool,
     pub l1_to_l2_txs_paused: bool,
+    pub eth_call_gas_cap: Option<u64>,
 }
 
 impl InternalApiConfigBase {
@@ -141,6 +142,7 @@ impl InternalApiConfigBase {
             fee_history_limit: web3_config.fee_history_limit,
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
+            eth_call_gas_cap: web3_config.eth_call_gas_cap,
         }
     }
 
@@ -181,6 +183,7 @@ pub struct InternalApiConfig {
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
     pub settlement_layer: Option<SettlementLayer>,
+    pub eth_call_gas_cap: Option<u64>,
 }
 
 impl InternalApiConfig {
@@ -226,6 +229,7 @@ impl InternalApiConfig {
             l2_multicall3: l2_contracts.multicall3,
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
             settlement_layer,
+            eth_call_gas_cap: base.eth_call_gas_cap,
         }
     }
 
