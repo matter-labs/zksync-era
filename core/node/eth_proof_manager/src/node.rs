@@ -7,7 +7,7 @@ use zksync_config::configs::{
 };
 use zksync_contracts::proof_manager_contract;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_eth_client::clients::{DynClient, SigningClient, L1};
+use zksync_eth_client::clients::{DynClient, SigningClient, L2};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
@@ -64,7 +64,7 @@ impl EthProofManagerLayer {
 
     fn create_client(
         &self,
-        client: Box<DynClient<L1>>,
+        client: Box<DynClient<L2>>,
         gas_adjuster: Arc<dyn TxParamsProvider>,
         contracts: &ProofManagerContracts,
         owner_wallet: Wallet,
