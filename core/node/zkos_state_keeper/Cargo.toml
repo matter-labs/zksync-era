@@ -38,3 +38,4 @@ async-trait.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
 futures.workspace = true
+vise.workspace = true

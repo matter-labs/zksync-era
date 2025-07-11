@@ -14673,6 +14673,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "vise",
  "zk_ee",
  "zksync_config",
  "zksync_dal",

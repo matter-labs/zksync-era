@@ -13,6 +13,7 @@ pub use self::{
 mod batch_executor;
 pub mod io;
 mod keeper;
+mod metrics;
 mod seal_criteria;
 pub mod state_keeper_storage;
 mod updates;

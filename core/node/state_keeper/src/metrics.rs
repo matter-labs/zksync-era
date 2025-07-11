@@ -146,7 +146,7 @@ pub static KEEPER_METRICS: vise::Global<StateKeeperMetrics> = vise::Global::new(
 /// State keeper-related gauges exposed via a collector.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_keeper")]
-pub(super) struct StateKeeperGauges {
+pub struct StateKeeperGauges {
     /// Current number of L1 transactions in the mempool.
     mempool_l1_size: Gauge<usize>,
     /// Current number of L2 transactions in the mempool.
@@ -204,7 +204,7 @@ impl From<&SealResolution> for SealResolutionLabel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "reason", rename_all = "snake_case")]
-pub(super) enum L2BlockSealReason {
+pub enum L2BlockSealReason {
     Timeout,
     PayloadSize,
 }
@@ -217,7 +217,7 @@ struct TxAggregationLabels {
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_tx_aggregation")]
-pub(super) struct TxAggregationMetrics {
+pub struct TxAggregationMetrics {
     reason: Family<TxAggregationLabels, Counter>,
     l2_block_reason: Family<L2BlockSealReason, Counter>,
     #[metrics(labels = ["criterion"], buckets = Buckets::ZERO_TO_ONE, unit = Unit::Ratios)]
@@ -251,7 +251,7 @@ impl TxAggregationMetrics {
 }
 
 #[vise::register]
-pub(super) static AGGREGATION_METRICS: vise::Global<TxAggregationMetrics> = vise::Global::new();
+pub static AGGREGATION_METRICS: vise::Global<TxAggregationMetrics> = vise::Global::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -281,7 +281,7 @@ const L1_BATCH_SEAL_DELTA_BUCKETS: Buckets = Buckets::values(&[
 /// Metrics related to L1 batch sealing.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_keeper_l1_batch")]
-pub(crate) struct L1BatchMetrics {
+pub struct L1BatchMetrics {
     /// Delta between sealing consecutive L1 batches.
     #[metrics(buckets = L1_BATCH_SEAL_DELTA_BUCKETS)]
     pub seal_delta: Histogram<Duration>,
@@ -326,7 +326,7 @@ pub(crate) static L1_BATCH_METRICS: vise::Global<L1BatchMetrics> = vise::Global:
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
-pub(super) enum L2BlockQueueStage {
+pub enum L2BlockQueueStage {
     Submit,
     WaitForAllCommands,
     NextCommand,
@@ -334,7 +334,7 @@ pub(super) enum L2BlockQueueStage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
-pub(super) enum L2BlockSealStage {
+pub enum L2BlockSealStage {
     #[metrics(name = "insert_miniblock_header")]
     InsertL2BlockHeader,
     #[metrics(name = "mark_transactions_in_miniblock")]
@@ -359,7 +359,7 @@ struct L2BlockSealLabels {
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_keeper_miniblock")]
-pub(super) struct L2BlockMetrics {
+pub struct L2BlockMetrics {
     /// Delta between sealing consecutive L2 blocks.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub seal_delta: Histogram<Duration>,
@@ -403,12 +403,12 @@ impl L2BlockMetrics {
 }
 
 #[vise::register]
-pub(super) static L2_BLOCK_METRICS: vise::Global<L2BlockMetrics> = vise::Global::new();
+pub static L2_BLOCK_METRICS: vise::Global<L2BlockMetrics> = vise::Global::new();
 
 /// Tracking progress of L1 batch or L2 block sealing.
 #[must_use = "Progress must be `observe()`d"]
 #[derive(Debug)]
-pub(super) struct SealProgress<'a> {
+pub struct SealProgress<'a> {
     target: &'static str,
     stage_name: String,
     latency: LatencyObserver<'a>,
@@ -441,7 +441,7 @@ impl SealProgress<'_> {
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "batch_tip")]
-pub(crate) struct BatchTipMetrics {
+pub struct BatchTipMetrics {
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     block_writes_metrics_positive_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
@@ -481,5 +481,4 @@ pub struct UpdatesManagerMetrics {
 }
 
 #[vise::register]
-pub(crate) static UPDATES_MANAGER_METRICS: vise::Global<UpdatesManagerMetrics> =
-    vise::Global::new();
+pub static UPDATES_MANAGER_METRICS: vise::Global<UpdatesManagerMetrics> = vise::Global::new();

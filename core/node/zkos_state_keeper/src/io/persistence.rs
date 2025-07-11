@@ -11,6 +11,7 @@ use crate::{
     io::{
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IoCursor, StateKeeperOutputHandler,
     },
+    metrics::{L2BlockQueueStage, L2_BLOCK_METRICS},
     updates::{BlockSealCommand, FinishedBlock},
 };
 
@@ -84,8 +85,8 @@ impl StateKeeperPersistence {
         if self.is_sync {
             self.wait_for_all_commands().await;
         } else {
-            // L2_BLOCK_METRICS.seal_queue_capacity.set(queue_capacity);
-            // L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::Submit].observe(elapsed);
+            L2_BLOCK_METRICS.seal_queue_capacity.set(queue_capacity);
+            L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::Submit].observe(elapsed);
         }
     }
 
@@ -115,8 +116,8 @@ impl StateKeeperPersistence {
         if self.is_sync {
             self.wait_for_all_commands().await;
         } else {
-            // L2_BLOCK_METRICS.seal_queue_capacity.set(queue_capacity);
-            // L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::Submit].observe(elapsed);
+            L2_BLOCK_METRICS.seal_queue_capacity.set(queue_capacity);
+            L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::Submit].observe(elapsed);
         }
     }
 
@@ -139,11 +140,11 @@ impl StateKeeperPersistence {
         // Since this method called from outside is essentially a no-op if `self.is_sync`,
         // we don't report its metrics in this case.
         if !self.is_sync {
-            // L2_BLOCK_METRICS
-            //     .seal_queue_capacity
-            //     .set(self.commands_sender.capacity());
-            // L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::WaitForAllCommands]
-            //     .observe(elapsed);
+            L2_BLOCK_METRICS
+                .seal_queue_capacity
+                .set(self.commands_sender.capacity());
+            L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::WaitForAllCommands]
+                .observe(elapsed);
         }
     }
 }
@@ -227,9 +228,9 @@ impl BlockPersistenceTask {
         // Commands must be processed sequentially.
         while let Some(completable) = self.next_command().await {
             completable.command.process(self.pool.clone()).await?;
-            // if let Some(delta) = l2_block_seal_delta {
-            //     L2_BLOCK_METRICS.seal_delta.observe(delta.elapsed());
-            // }
+            if let Some(delta) = l2_block_seal_delta {
+                L2_BLOCK_METRICS.seal_delta.observe(delta.elapsed());
+            }
             l2_block_seal_delta = Some(Instant::now());
 
             completable.completion_sender.send(()).ok();
@@ -240,23 +241,23 @@ impl BlockPersistenceTask {
 
     async fn next_command(&mut self) -> Option<Completable<PersistenceCommand>> {
         tracing::debug!("Polling L2 block seal queue for next command");
-        // let start = Instant::now();
+        let start = Instant::now();
         let command = self.commands_receiver.recv().await;
-        // let elapsed = start.elapsed();
+        let elapsed = start.elapsed();
 
         // if let Some(completable) = &command {
-        // tracing::debug!(
-        //     "Received command to seal L2 block #{} (polling took {elapsed:?})",
-        //     completable.command.l2_block.number
-        // );
+        //     tracing::debug!(
+        //         "Received command to seal L2 block #{} (polling took {elapsed:?})",
+        //         completable.command.
+        //     );
         // }
-
-        // if !self.is_sync {
-        //     L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::NextCommand].observe(elapsed);
-        //     if let Some(sender) = self.commands_sender.upgrade() {
-        //         L2_BLOCK_METRICS.seal_queue_capacity.set(sender.capacity());
-        //     }
-        // }
+        //
+        if !self.is_sync {
+            L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::NextCommand].observe(elapsed);
+            if let Some(sender) = self.commands_sender.upgrade() {
+                L2_BLOCK_METRICS.seal_queue_capacity.set(sender.capacity());
+            }
+        }
         command
     }
 }

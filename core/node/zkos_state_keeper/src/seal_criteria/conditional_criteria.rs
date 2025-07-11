@@ -1,9 +1,13 @@
 use std::fmt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_state_keeper::seal_criteria::UnexecutableReason;
 use zksync_types::L2BlockNumber;
 
-use crate::seal_criteria::criteria::{GasCriterion, PayloadSizeCriterion, TxCountCriterion};
+use crate::{
+    metrics::AGGREGATION_METRICS,
+    seal_criteria::criteria::{GasCriterion, PayloadSizeCriterion, TxCountCriterion},
+};
 
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +26,28 @@ pub enum SealResolution {
     ///
     /// Contains a reason for why transaction was considered unexecutable.
     Unexecutable(String),
+}
+
+impl Into<zksync_state_keeper::seal_criteria::SealResolution> for SealResolution {
+    fn into(self) -> zksync_state_keeper::seal_criteria::SealResolution {
+        match self {
+            SealResolution::NoSeal => zksync_state_keeper::seal_criteria::SealResolution::NoSeal,
+            SealResolution::IncludeAndSeal => {
+                zksync_state_keeper::seal_criteria::SealResolution::IncludeAndSeal
+            }
+            SealResolution::Seal => {
+                zksync_state_keeper::seal_criteria::SealResolution::IncludeAndSeal
+            }
+            SealResolution::ExcludeAndSeal => {
+                zksync_state_keeper::seal_criteria::SealResolution::ExcludeAndSeal
+            }
+            SealResolution::Unexecutable(reason) => {
+                zksync_state_keeper::seal_criteria::SealResolution::Unexecutable(
+                    UnexecutableReason::Other(reason),
+                )
+            }
+        }
+    }
 }
 
 impl SealResolution {
@@ -145,8 +171,10 @@ impl ConditionalSealer for SequencerSealer {
                         "Block #{block_number} processed by `{name}` with resolution {seal_resolution:?}",
                         name = sealer.prom_criterion_name()
                     );
-                    // AGGREGATION_METRICS
-                    //     .l1_batch_reason_inc(sealer.prom_criterion_name(), &seal_resolution);
+                    AGGREGATION_METRICS.l1_batch_reason_inc(
+                        sealer.prom_criterion_name(),
+                        &seal_resolution.clone().into(),
+                    );
                 }
                 SealResolution::NoSeal => { /* Don't do anything */ }
                 SealResolution::ExcludeAndSeal => {

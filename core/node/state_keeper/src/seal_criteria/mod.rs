@@ -68,6 +68,7 @@ pub enum UnexecutableReason {
     NotEnoughGasProvided,
     TooMuchUserL2L1Logs,
     DeploymentNotAllowed,
+    Other(String),
 }
 
 impl UnexecutableReason {
@@ -84,6 +85,8 @@ impl UnexecutableReason {
             UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
             UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs",
             UnexecutableReason::DeploymentNotAllowed => "DeploymentNotAllowed",
+            // TODO
+            UnexecutableReason::Other(val) => "Other: ",
         }
     }
 }
@@ -110,6 +113,7 @@ impl fmt::Display for UnexecutableReason {
             UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
             UnexecutableReason::TooMuchUserL2L1Logs => write!(f, "Too much user l2 l1 logs"),
             UnexecutableReason::DeploymentNotAllowed => write!(f, "Deployment not allowed"),
+            UnexecutableReason::Other(val) => write!(f, "{}", val),
         }
     }
 }
