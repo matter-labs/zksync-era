@@ -60,3 +60,4 @@ xshell.workspace = true
 [features]
 v27_evm_interpreter = []
 v28_precompiles = []
+upgrades = []

@@ -80,6 +80,12 @@ pub const DEPLOY_GATEWAY_TX_FILTERER: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/gateway/DeployGatewayTransactionFilterer.s.sol",
 };
 
+pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-preparation.toml",
+    output: "script-out/gateway-preparation.toml",
+    script_path: "deploy-scripts/gateway/GatewayPreparation.s.sol",
+};
+
 pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-vote-preparation.toml",
     output: "script-out/gateway-vote-preparation.toml",
@@ -89,16 +95,28 @@ pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 
-pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-upgrade-ecosystem.toml",
-    output: "script-out/gateway-upgrade-ecosystem.toml",
-    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v28.s.sol",
+pub const V29_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/v29-upgrade-ecosystem.toml",
+    output: "script-out/v29-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v29.s.sol",
 };
 
-pub const GATEWAY_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-upgrade-chain.toml",
-    output: "script-out/gateway-upgrade-chain.toml",
-    script_path: "deploy-scripts/upgrade/ChainUpgrade.s.sol",
+pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/v29-upgrade-chain.toml",
+    output: "script-out/v29-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/ChainUpgrade_v29.s.sol",
+};
+
+pub const ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/zk-os-v28-1-upgrade-ecosystem.toml",
+    output: "script-out/zk-os-v28-1-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v28_1_zk_os.s.sol",
+};
+
+pub const ZK_OS_V28_1_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/zk-os-v28-1-upgrade-chain.toml",
+    output: "script-out/zk-os-v28-1-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/ChainUpgrade_v28_1_zk_os.s.sol",
 };
 
 pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
