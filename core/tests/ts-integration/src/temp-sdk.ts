@@ -44,14 +44,14 @@ export async function getInteropBundleData(
     const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(4));
 
     let calls = [];
-    for (let i = 0; i < decodedRequest[0][2].length; i++) {
+    for (let i = 0; i < decodedRequest[0][3].length; i++) {
         calls.push({
-            version: decodedRequest[0][2][i][0],
-            shadowAccount: decodedRequest[0][2][i][1],
-            to: decodedRequest[0][2][i][2],
-            from: decodedRequest[0][2][i][3],
-            value: decodedRequest[0][2][i][4],
-            data: decodedRequest[0][2][i][5]
+            version: decodedRequest[0][3][i][0],
+            shadowAccount: decodedRequest[0][3][i][1],
+            to: decodedRequest[0][3][i][2],
+            from: decodedRequest[0][3][i][3],
+            value: decodedRequest[0][3][i][4],
+            data: decodedRequest[0][3][i][5]
         });
     }
     // console.log(decodedRequest);
@@ -61,7 +61,10 @@ export async function getInteropBundleData(
         destinationChainId: decodedRequest[0][1],
         interopBundleSalt: decodedRequest[0][2],
         calls: calls,
-        bundleAttributes: decodedRequest[0][3]
+        bundleAttributes: {
+            executionAddress: decodedRequest[0][4][0],
+            unbundlerAddress: decodedRequest[0][4][1]
+        }
     };
     // console.log("response.proof", proof_fee)
     const rawData = ethers.AbiCoder.defaultAbiCoder().encode([INTEROP_BUNDLE_ABI], [xl2Input]);

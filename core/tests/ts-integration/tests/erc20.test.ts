@@ -387,7 +387,7 @@ describe('L1 ERC20 contract checks', () => {
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
     });
 
-    test.skip('Can perform a deposit with precalculated max value', async () => {
+    test('Can perform a deposit with precalculated max value', async () => {
         if (!isETHBasedChain) {
             // approving whole base token balance
             const baseTokenDetails = testMaster.environment().baseToken;
