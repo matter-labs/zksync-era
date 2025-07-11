@@ -15,7 +15,8 @@ pub(crate) async fn deploy_proving_network(
     chain_config: &ChainConfig,
     deploy_proving_network_args: DeployProvingNetworkArgs,
 ) -> anyhow::Result<()> {
-    let args = deploy_proving_network_args.fill_values_with_prompt();
+    let rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
+    let args = deploy_proving_network_args.fill_values_with_prompt(&rpc_url);
     let dir_guard = shell.push_dir(config.path_to_proving_networks());
 
     let proving_networks_deploy_script_path = config.path_to_proving_networks_deploy_script();
@@ -37,7 +38,8 @@ pub(crate) async fn deploy_proving_network(
         ));
     }
 
-    shell.set_var("RPC_URL", args.l1_rpc_url);
+    shell.set_var("RPC_URL", rpc_url);
+
     shell.set_var("FERMAH_ADDRESS", args.fermah_address);
     shell.set_var("LAGRANGE_ADDRESS", args.lagrange_address);
     shell.set_var("USDC_ADDRESS", args.usdc_address);

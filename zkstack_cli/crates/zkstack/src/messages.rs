@@ -74,7 +74,8 @@ pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
-pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
+pub(super) const MSG_RPC_URL_PROMPT: &str =
+    "What is the RPC URL of the network(defaults to local L2)?";
 pub(super) const MSG_FERMAH_ADDRESS_PROMPT: &str =
     "What is Fermah's Proving Network address (allows acknowledging/submitting proofs for Fermah)?";
 pub(super) const MSG_LAGRANGE_ADDRESS_PROMPT: &str =

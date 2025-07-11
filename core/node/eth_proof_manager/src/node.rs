@@ -34,7 +34,7 @@ pub struct EthProofManagerLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     master_pool: PoolResource<MasterPool>,
-    eth_client: Box<DynClient<L1>>,
+    eth_client: Box<DynClient<L2>>,
     blob_store: Arc<dyn ObjectStore>,
     gas_adjuster: Arc<dyn TxParamsProvider>,
 }
