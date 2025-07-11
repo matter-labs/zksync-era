@@ -131,11 +131,7 @@ describe('Interop behavior checks', () => {
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
     }
 
-    async function waitForInteropRootNonZero(
-        provider: zksync.Provider,
-        alice: zksync.Wallet,
-        l1BatchNumber: number,
-    ) {
+    async function waitForInteropRootNonZero(provider: zksync.Provider, alice: zksync.Wallet, l1BatchNumber: number) {
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
             ArtifactL2InteropRootStorage.abi,
@@ -147,7 +143,7 @@ describe('Interop behavior checks', () => {
             // We make repeated transactions to force the L2 to update the interop root.
             const tx = await alice.transfer({
                 to: alice.address,
-                amount: 1,
+                amount: 1
             });
             await tx.wait();
 
