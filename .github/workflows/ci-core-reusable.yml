@@ -47,6 +47,11 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.16.x'
+
       - name: Install mold
         run: |
           git clone --branch stable https://github.com/rui314/mold.git
