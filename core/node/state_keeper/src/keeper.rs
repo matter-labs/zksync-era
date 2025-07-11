@@ -1097,6 +1097,7 @@ impl StateKeeper {
         self.inner
             .report_seal_criteria_capacity(&state.updates_manager);
 
+        // Interop roots are set on txs, and since fictive blocks have no txs, interop roots cannot be set.
         // During the batch sealing we must ensure that the fictive l2 block has no interop roots.
         state.updates_manager.clear_interop_roots();
         let (finished_batch, _) = state.batch_executor.finish_batch().await?;
