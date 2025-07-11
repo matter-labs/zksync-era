@@ -298,7 +298,7 @@ impl EthProofManagerClient for ProofManagerClient {
                     BlockNumber::Latest => self.client.deref().as_ref().block_number().await?,
                     _ => {
                         // invalid variant
-                        return result.map_err(Into::into);
+                        return result;
                     }
                 };
 
@@ -369,13 +369,13 @@ impl EthProofManagerClient for ProofManagerClient {
                     "Finalized block must be present on L1".into(),
                 );
                 let err = EnrichedClientError::new(err, "block");
-                ClientError::ProviderError(err)
+                ClientError::Provider(err)
             })?;
         let block_number = block.number.ok_or_else(|| {
             let err =
                 jsonrpsee::core::ClientError::Custom("Finalized block must contain number".into());
             let err = EnrichedClientError::new(err, "block").with_arg("block", &block);
-            ClientError::ProviderError(err)
+            ClientError::Provider(err)
         })?;
 
         Ok(block_number.as_u64())

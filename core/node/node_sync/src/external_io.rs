@@ -245,7 +245,7 @@ impl StateKeeperIO for ExternalIO {
             pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
-        let (system_env, l1_batch_env, pubdata_params) = self
+        let restored_l1_batch_env = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
@@ -263,12 +263,16 @@ impl StateKeeperIO for ExternalIO {
         storage
             .blocks_dal()
             .ensure_unsealed_l1_batch_exists(
-                l1_batch_env
+                restored_l1_batch_env
+                    .l1_batch_env
                     .clone()
-                    .into_unsealed_header(Some(system_env.version)),
+                    .into_unsealed_header(
+                        Some(restored_l1_batch_env.system_env.version),
+                        restored_l1_batch_env.pubdata_limit,
+                    ),
             )
             .await?;
-        let data = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
+        let data = load_pending_batch(&mut storage, restored_l1_batch_env)
             .await
             .with_context(|| {
                 format!(
@@ -317,6 +321,7 @@ impl StateKeeperIO for ExternalIO {
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
+                        pubdata_limit: params.pubdata_limit,
                     })
                     .await?;
                 return Ok(Some(params));
@@ -387,6 +392,18 @@ impl StateKeeperIO for ExternalIO {
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // We are replaying the already sealed batches so no rollbacks are expected to occur.
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
+    }
+
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        self.actions.validate_ready_for_next_block();
+        Ok(())
+    }
+
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
+        // Do nothing
     }
 
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
@@ -524,6 +541,7 @@ mod tests {
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

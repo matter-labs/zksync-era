@@ -12,7 +12,7 @@ pub(crate) enum Component {
     Tree,
     /// Merkle tree API.
     TreeApi,
-    /// Eth proof manager.
+    /// Eth proof manager. Component for interacting with proof manager (proof distribution contracts)
     EthProofManager,
     EthWatcher,
     /// Eth tx generator.

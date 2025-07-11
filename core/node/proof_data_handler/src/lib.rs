@@ -90,7 +90,7 @@ fn create_proof_processing_router(
             ),
         )
         .route(
-            "/submit_proof/:l1_batch_number",
+            "/submit_proof/{l1_batch_number}",
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
