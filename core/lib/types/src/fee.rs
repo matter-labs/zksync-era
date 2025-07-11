@@ -28,6 +28,7 @@ impl Fee {
     }
 }
 
+/// This is just a comment to trigger CI to recompile and run tests
 /// Returns how many slots would ABI-encoding of the transaction with such parameters take
 pub fn encoding_len(
     data_len: u64,
