@@ -63,8 +63,8 @@ impl BaseTokenL1Behaviour {
             prev_ratio
         };
 
-        let current_ratio = BigDecimal::from(new_ratio.numerator.get())
-            .div(BigDecimal::from(new_ratio.denominator.get()));
+        let current_ratio = BigDecimal::from(new_ratio.ratio.numerator.get())
+            .div(BigDecimal::from(new_ratio.ratio.denominator.get()));
         let deviation = Self::compute_deviation(prev_ratio.clone(), current_ratio.clone());
 
         if deviation < BigDecimal::from(l1_params.config.l1_update_deviation_percentage) {
@@ -95,8 +95,8 @@ impl BaseTokenL1Behaviour {
                 Ok(x) => {
                     tracing::info!(
                         "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}, deviation {}",
-                        new_ratio.numerator.get(),
-                        new_ratio.denominator.get(),
+                        new_ratio.ratio.numerator.get(),
+                        new_ratio.ratio.denominator.get(),
                         base_fee_per_gas,
                         priority_fee_per_gas,
                         deviation
@@ -109,8 +109,8 @@ impl BaseTokenL1Behaviour {
                     }]
                         .observe(start_time.elapsed());
                     self.update_last_persisted_l1_ratio(
-                        BigDecimal::from(new_ratio.numerator.get())
-                            .div(BigDecimal::from(new_ratio.denominator.get())),
+                        BigDecimal::from(new_ratio.ratio.numerator.get())
+                            .div(BigDecimal::from(new_ratio.ratio.denominator.get())),
                     );
 
                     return Ok(());
@@ -169,8 +169,8 @@ impl BaseTokenL1Behaviour {
             .encode_input(
                 &(
                     Token::Address(l1_params.diamond_proxy_contract_address),
-                    Token::Uint(api_ratio.numerator.get().into()),
-                    Token::Uint(api_ratio.denominator.get().into()),
+                    Token::Uint(api_ratio.ratio.numerator.get().into()),
+                    Token::Uint(api_ratio.ratio.denominator.get().into()),
                 )
                     .into_tokens(),
             )

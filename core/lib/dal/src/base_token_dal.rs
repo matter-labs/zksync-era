@@ -1,8 +1,6 @@
-use std::num::NonZeroU64;
-
 use bigdecimal::{BigDecimal, FromPrimitive};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::base_token_ratio::BaseTokenRatio;
+use zksync_types::{base_token_ratio::BaseTokenRatio, fee_model::BaseTokenConversionRatio};
 
 use crate::{models::storage_base_token_ratio::StorageBaseTokenRatio, Core};
 
@@ -14,23 +12,30 @@ pub struct BaseTokenDal<'a, 'c> {
 impl BaseTokenDal<'_, '_> {
     pub async fn insert_token_ratio(
         &mut self,
-        numerator: NonZeroU64,
-        denominator: NonZeroU64,
+        base_token_conversion_ratio: BaseTokenConversionRatio,
         ratio_timestamp: &chrono::NaiveDateTime,
     ) -> DalResult<usize> {
         let row = sqlx::query!(
             r#"
             INSERT INTO
             base_token_ratios (
-                numerator, denominator, ratio_timestamp, created_at, updated_at
+                numerator_l1,
+                denominator_l1,
+                numerator_sl,
+                denominator_sl,
+                ratio_timestamp,
+                created_at,
+                updated_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW())
             RETURNING
             id
             "#,
-            BigDecimal::from_u64(numerator.get()),
-            BigDecimal::from_u64(denominator.get()),
+            BigDecimal::from_u64(base_token_conversion_ratio.l1.numerator.get()),
+            BigDecimal::from_u64(base_token_conversion_ratio.l1.denominator.get()),
+            BigDecimal::from_u64(base_token_conversion_ratio.sl.numerator.get()),
+            BigDecimal::from_u64(base_token_conversion_ratio.sl.denominator.get()),
             ratio_timestamp,
         )
         .instrument("insert_token_ratio")
