@@ -59,6 +59,8 @@ pub struct GeneralConfig {
     pub db_config: DBConfig,
     #[config(nest)]
     pub eth: Option<EthConfig>,
+    #[config(nest, default)]
+    pub eth_proof_manager: EthProofManagerConfig,
     #[config(nest)]
     pub eth_proof_manager: EthProofManagerConfig,
     #[config(nest)]

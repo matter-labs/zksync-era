@@ -282,7 +282,6 @@ consensus:
 
 gateway_migrator:
   eth_node_poll_interval: 300 ms
-
 eth_proof_manager:
   event_poll_interval: 10000 ms
   event_expiration_blocks: 1000
@@ -298,4 +297,3 @@ eth_proof_manager:
   tx_receipt_checking_sleep: 1000 ms
   max_tx_gas: 1000000
   path_to_fflonk_verification_key: "./prover/data/keys/fflonk_verification_snark_key.json"
-  path_to_plonk_verification_key: "./prover/data/keys/verification_snark_key.json"

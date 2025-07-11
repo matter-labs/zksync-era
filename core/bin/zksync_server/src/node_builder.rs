@@ -16,7 +16,7 @@ use zksync_config::{
         api::Namespace,
         consensus::ConsensusConfig,
         contracts::{
-            chain::{L2Contracts, ProofManagerContracts},
+            chain::{{L2Contracts,ProofManagerContracts},
             ecosystem::L1SpecificContracts,
             SettlementLayerSpecificContracts,
         },
