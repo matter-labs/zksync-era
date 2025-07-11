@@ -19,7 +19,6 @@ import {
     GATEWAY_CHAIN_ID
 } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
-import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
 
 describe('Interop behavior checks', () => {
     let testMaster: TestMaster;
