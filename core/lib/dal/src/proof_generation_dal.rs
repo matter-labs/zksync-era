@@ -2,13 +2,13 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
+use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_types::L1BatchNumber;
 
 use crate::Core;
@@ -46,7 +46,7 @@ impl ProofGenerationDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
 
         let status = proving_mode.status_for_dal();
-        
+
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
