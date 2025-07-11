@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ethabi::Token, L2ChainId, H256};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
 pub struct InteropRoot {
     pub chain_id: L2ChainId,
     pub block_number: u32,

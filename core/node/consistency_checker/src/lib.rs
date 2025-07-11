@@ -534,6 +534,7 @@ impl ConsistencyChecker {
             commit_function,
             batch_number,
             local.is_pre_v26_gateway(),
+            local.is_pre_v29_interop(),
             local.get_encoding_version(),
         )
         .with_context(|| {
@@ -553,6 +554,7 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
         pre_gateway: bool,
+        pre_interop: bool,
         encoding_version: u8,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
@@ -588,9 +590,14 @@ impl ConsistencyChecker {
                 "Unexpected encoding version: {}",
                 version[0]
             );
+            let schema = if pre_interop {
+                StoredBatchInfo::schema_pre_interop()
+            } else {
+                StoredBatchInfo::schema_post_interop()
+            };
             let decoded_data = ethabi::decode(
                 &[
-                    StoredBatchInfo::schema(),
+                    schema,
                     ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,

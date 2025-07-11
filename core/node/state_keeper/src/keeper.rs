@@ -583,6 +583,7 @@ impl StateKeeperInner {
             if index > 0 {
                 Self::set_l2_block_params(
                     updates_manager,
+                    // For re-executing purposes it's ok to not use exact precise millis.
                     L2BlockParams::new_raw(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
@@ -1096,6 +1097,7 @@ impl StateKeeper {
         self.inner
             .report_seal_criteria_capacity(&state.updates_manager);
 
+        // Interop roots are set on txs, and since fictive blocks have no txs, interop roots cannot be set.
         // During the batch sealing we must ensure that the fictive l2 block has no interop roots.
         state.updates_manager.clear_interop_roots();
         let (finished_batch, _) = state.batch_executor.finish_batch().await?;
