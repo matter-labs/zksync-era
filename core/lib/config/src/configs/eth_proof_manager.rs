@@ -12,8 +12,8 @@ pub struct EthProofManagerConfig {
     pub event_expiration_blocks: u64,
     #[config(default_t = 1000000)]
     pub default_priority_fee_per_gas: u64,
-    // todo: should be revisited
-    #[config(default_t = 10)]
+    // USDC contract has 6 decimals, standard reward should be 4$
+    #[config(default_t = 4000000)]
     pub max_reward: u64,
     #[config(default_t = Duration::from_secs(150))]
     pub acknowledgment_timeout: Duration,
@@ -31,7 +31,7 @@ pub struct EthProofManagerConfig {
     pub tx_receipt_checking_max_attempts: u64,
     #[config(default_t = Duration::from_secs(1))]
     pub tx_receipt_checking_sleep: Duration,
-    #[config(default_t = 80000)]
+    #[config(default_t = 1000000)]
     pub max_tx_gas: u64,
     #[config(default)]
     pub path_to_fflonk_verification_key: String,
@@ -44,7 +44,7 @@ impl Default for EthProofManagerConfig {
             request_sending_interval: Duration::from_secs(10),
             event_expiration_blocks: 1000,
             default_priority_fee_per_gas: 1000000,
-            max_reward: 10,
+            max_reward: 4000000,
             acknowledgment_timeout: Duration::from_secs(150),
             proof_generation_timeout: Duration::from_secs(4800),
             picking_timeout: Duration::from_secs(300),
@@ -53,7 +53,7 @@ impl Default for EthProofManagerConfig {
             tx_sending_sleep: Duration::from_secs(1),
             tx_receipt_checking_max_attempts: 10,
             tx_receipt_checking_sleep: Duration::from_secs(1),
-            max_tx_gas: 80000,
+            max_tx_gas: 1000000,
             path_to_fflonk_verification_key: "".to_string(),
         }
     }
