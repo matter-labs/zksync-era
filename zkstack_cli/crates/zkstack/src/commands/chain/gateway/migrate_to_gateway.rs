@@ -12,12 +12,11 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-    gateway_common::extract_and_wait_for_priority_ops,
+    gateway_common::{extract_and_wait_for_priority_ops, send_tx},
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
 };
 use crate::{
-    abi::BridgehubAbi,
-    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
+    abi::BridgehubAbi, commands::chain::admin_call_builder::AdminCallBuilder,
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 

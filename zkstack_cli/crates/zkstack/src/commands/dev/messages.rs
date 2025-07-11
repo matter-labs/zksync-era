@@ -22,14 +22,6 @@ pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
 
-#[cfg(feature = "upgrades")]
-pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
-    "General ecosystem upgrade checker and calldata generator";
-
-#[cfg(feature = "upgrades")]
-pub(super) const GENERAL_CHAIN_UPGRADE: &str =
-    "General chain upgrade checker and calldata generator";
-
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";

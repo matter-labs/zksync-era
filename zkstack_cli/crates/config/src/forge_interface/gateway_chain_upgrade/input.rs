@@ -7,23 +7,23 @@ use zksync_basic_types::L2ChainId;
 use crate::{traits::ZkStackConfig, ChainConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ChainUpgradeInput {
+pub struct GatewayChainUpgradeInput {
     // This should be the address that controls the current `ChainAdmin`
     // contract
     pub owner_address: Address,
-    pub chain: ChainUpgradeChain,
+    pub chain: GatewayChainUpgradeChain,
 }
-impl ZkStackConfig for ChainUpgradeInput {}
+impl ZkStackConfig for GatewayChainUpgradeInput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ChainUpgradeChain {
+pub struct GatewayChainUpgradeChain {
     pub chain_id: L2ChainId,
     pub diamond_proxy_address: Address,
     pub validium_mode: bool,
     pub permanent_rollup: bool,
 }
 
-impl ChainUpgradeInput {
+impl GatewayChainUpgradeInput {
     pub async fn new(current_chain_config: &ChainConfig) -> anyhow::Result<Self> {
         let contracts_config = current_chain_config
             .get_contracts_config()
@@ -42,7 +42,7 @@ impl ChainUpgradeInput {
                 .context("failed loading wallets config")?
                 .governor
                 .address,
-            chain: ChainUpgradeChain {
+            chain: GatewayChainUpgradeChain {
                 chain_id: current_chain_config.chain_id,
                 diamond_proxy_address: contracts_config.l1.diamond_proxy_addr,
                 validium_mode: validum,

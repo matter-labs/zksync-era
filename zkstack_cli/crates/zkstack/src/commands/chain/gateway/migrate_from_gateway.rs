@@ -39,10 +39,9 @@ use crate::{
         admin_call_builder::AdminCallBuilder,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-            gateway_common::extract_and_wait_for_priority_ops,
+            gateway_common::{extract_and_wait_for_priority_ops, send_tx},
         },
         init::get_l1_da_validator,
-        utils::send_tx,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
