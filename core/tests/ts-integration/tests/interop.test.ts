@@ -55,6 +55,8 @@ describe('Interop checks', () => {
     let interop1Provider: zksync.Provider;
     let interop1Wallet: zksync.Wallet;
     let interop1RichWallet: zksync.Wallet;
+    // kl todo remove very rich wallet. Useful for local debugging, calldata can be sent directly using cast.
+    let interop1VeryRichWallet: zksync.Wallet;
     let interop1InteropCenter: zksync.Contract;
     let interop2InteropHandler: zksync.Contract;
     let interop1NativeTokenVault: zksync.Contract;
@@ -83,6 +85,7 @@ describe('Interop checks', () => {
         // Initialize Test Master and create wallets for Interop1
         interop1Wallet = new zksync.Wallet(testWalletPK, interop1Provider, l1Provider);
         interop1RichWallet = new zksync.Wallet(mainAccount.privateKey, interop1Provider, l1Provider);
+        interop1VeryRichWallet = new zksync.Wallet(richPk, interop1Provider, l1Provider);
 
         // Setup Interop2 Provider and Wallet
         interop2Provider = new RetryProvider(
@@ -179,13 +182,20 @@ describe('Interop checks', () => {
 
     test('Can perform cross chain transfer', async () => {
         const transferAmount = 100n;
+        let interop1TokenAVeryRichWallet = new zksync.Contract(
+            tokenA.l2Address,
+            ArtifactMintableERC20.abi,
+            interop1VeryRichWallet
+        );
 
         await Promise.all([
             // Approve token transfer on Interop1
             (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
+            (await interop1TokenAVeryRichWallet.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
 
             // Mint tokens for the test wallet on Interop1 for the transfer
-            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
+            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait(),
+            (await interop1TokenA.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', transferAmount)).wait()
         ]);
 
         // Compose and send the interop request transaction
@@ -216,6 +226,7 @@ describe('Interop checks', () => {
                 }
             ]
         );
+        // console.log('receipt', receipt);
 
         // Broadcast interop transaction from Interop1 to Interop2
         // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
@@ -349,8 +360,10 @@ describe('Interop checks', () => {
         const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, senderProvider);
         const txReceipt = await senderProvider.getTransactionReceipt(txHash);
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
+        // const gwWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, gatewayProvider);
+        // await waitUntilBlockExecutedOnGateway(senderUtilityWallet, gatewayWallet, txReceipt!.blockNumber);
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
-        await sleep(100000);
+        await sleep(25000);
         // console.log((await senderProvider.getNetwork()).chainId);
         // console.log((await senderProvider.getNetwork()).name)
         // console.log(await senderUtilityWallet.getL2BridgeContracts())

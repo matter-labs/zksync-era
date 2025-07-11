@@ -167,16 +167,59 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
  * @param blockNumber Number of block.
  */
 export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number) {
-    // console.log('Waiting for block to be finalized...', blockNumber);
+    console.log('Waiting for block to be finalized...', blockNumber);
+    let printedBlockNumber = 0;
     while (true) {
         const block = await wallet.provider.getBlock('finalized');
         if (blockNumber <= block.number) {
             break;
         } else {
+            if (printedBlockNumber < block.number) {
+                console.log('Waiting for block to be finalized...', blockNumber, block.number);
+                console.log('time', new Date().toISOString());
+                printedBlockNumber = block.number;
+            }
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
 }
+
+// /**
+//  * Waits until the requested block is finalized.
+//  *
+//  * @param wallet Wallet to use to poll the server.
+//  * @param blockNumber Number of block.
+//  */
+// export async function waitUntilBlockExecutedOnGateway(
+//     wallet: zksync.Wallet,
+//     gwWallet: zksync.Wallet,
+//     blockNumber: number
+// ) {
+//     // console.log('Waiting for block to be finalized...', blockNumber);
+//     let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
+//     let currentExecutedBatchNumber = 0;
+//     while (currentExecutedBatchNumber < batchNumber) {
+//         const bridgehub = new ethers.Contract(
+//             L2_BRIDGEHUB_ADDRESS,
+//             ['function getZKChain(uint256) view returns (address)'],
+//             gwWallet
+//         );
+//         const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net) => net.chainId));
+//         const gettersFacet = new ethers.Contract(
+//             zkChainAddr,
+//             ['function getTotalBatchesExecuted() view returns (uint256)'],
+//             gwWallet
+//         );
+//         currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
+//         // console.log('currentExecutedBatchNumber', currentExecutedBatchNumber);
+//         // console.log('batchNumber awaited', batchNumber);
+//         if (currentExecutedBatchNumber >= batchNumber) {
+//             break;
+//         } else {
+//             await zksync.utils.sleep(wallet.provider.pollingInterval);
+//         }
+//     }
+// }
 
 export async function waitUntilBlockCommitted(wallet: zksync.Wallet, blockNumber: number) {
     console.log('Waiting for block to be committed...', blockNumber);
@@ -227,9 +270,11 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     await waitUntilBlockFinalized(wallet, blockNumber);
 
     // Second, we wait for the log proof.
+    let i = 0;
     while ((await wallet.provider.getLogProof(txHash)) == null) {
-        // console.log('Waiting for log proof...');
+        console.log('Waiting for log proof...', i);
         await zksync.utils.sleep(wallet.provider.pollingInterval);
+        i++;
     }
 }
 
