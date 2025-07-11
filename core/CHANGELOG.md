@@ -1,5 +1,12 @@
 # Changelog
 
+## [28.10.0](https://github.com/matter-labs/zksync-era/compare/core-v28.9.0...core-v28.10.0) (2025-07-11)
+
+
+### Features
+
+* Proof manager watcher ([#4241](https://github.com/matter-labs/zksync-era/issues/4241)) ([6423b0d](https://github.com/matter-labs/zksync-era/commit/6423b0db81ca3a75d053b25b9448a9a70b894b04))
+
 ## [28.9.0](https://github.com/matter-labs/zksync-era/compare/core-v28.8.0...core-v28.9.0) (2025-07-08)
 
 
