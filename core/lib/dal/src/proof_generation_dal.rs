@@ -45,8 +45,10 @@ impl ProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
 
-        let status = proving_mode.status_for_dal();
-
+        // We are picking up the batch for proving by prover cluster if:
+        // 1. Global proving mode is prover cluster(no matter what proving mode of batch is set to)
+        // 2. Global proving mode is proving network, but proving mode of batch is set to prover cluster
+        // 3. Global proving mode is proving network, batch's proving mode is proving network, but it was not picked up after processing timeout
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
@@ -68,7 +70,20 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.hash IS NOT NULL
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = $2
+                            AND status = 'unpicked'
+                            AND (
+                                $2 = 'proving_cluster'
+                                OR (
+                                    $2 = 'proving_network'
+                                    AND proving_mode = 'prover_cluster'
+                                )
+                                OR (
+                                    $2 = 'proving_network'
+                                    AND proving_mode = 'proving_network'
+                                    AND proof_generation_details.updated_at
+                                    < NOW() - $1::INTERVAL
+                                )
+                            )
                         )
                         OR (
                             status = 'picked_by_prover'
@@ -83,7 +98,7 @@ impl ProofGenerationDal<'_, '_> {
             proof_generation_details.l1_batch_number
             "#,
             &processing_timeout,
-            status,
+            &proving_mode.into_string(),
         )
         .instrument("lock_batch_for_proving")
         .with_arg("processing_timeout", &processing_timeout)
@@ -99,7 +114,7 @@ impl ProofGenerationDal<'_, '_> {
             r#"
             UPDATE proof_generation_details
             SET
-                status = 'picked_by_prover_network',
+                status = 'picked_by_prover',
                 updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
@@ -117,6 +132,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
                             AND status = 'unpicked'
+                            AND proving_mode = 'proving_network'
                         )
                     ORDER BY
                         l1_batch_number ASC

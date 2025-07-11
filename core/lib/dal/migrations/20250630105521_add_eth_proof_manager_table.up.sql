@@ -12,5 +12,8 @@ CREATE TABLE IF NOT EXISTS eth_proof_manager (
     updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TYPE proving_mode AS ENUM ('proving_network', 'prover_cluster');
+ALTER TABLE proof_generation_details ADD COLUMN proving_mode proving_mode DEFAULT 'proving_network';
+
 ALTER TYPE event_type ADD VALUE 'ProofRequestAcknowledged';
 ALTER TYPE event_type ADD VALUE 'ProofRequestProven';

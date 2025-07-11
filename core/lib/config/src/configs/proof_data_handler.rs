@@ -26,10 +26,10 @@ pub enum ProvingMode {
 }
 
 impl ProvingMode {
-    pub fn status_for_dal(&self) -> String {
+    pub fn into_string(&self) -> String {
         match self {
-            ProvingMode::ProvingNetwork => "fallbacked".to_string(),
-            ProvingMode::ProverCluster => "unpicked".to_string(),
+            ProvingMode::ProvingNetwork => "proving_network".to_string(),
+            ProvingMode::ProverCluster => "prover_cluster".to_string(),
         }
     }
 }

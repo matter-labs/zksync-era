@@ -246,8 +246,7 @@ impl EthProofManagerDal<'_, '_> {
         // We move batches to fallback status if:
         // 1. The batch was sent but the proof request was not accepted after timeout
         // 2. The batch was acknowledged but the proof wasn't generated on time
-        // 3. The batch was not sent after max attempts
-        // 4. The batch was proven but the proof was invalid
+        // 3. The batch was proven but the proof was invalid
         let batches: Vec<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE eth_proof_manager
@@ -275,7 +274,7 @@ impl EthProofManagerDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
         let mut query_builder = QueryBuilder::new(
-            "UPDATE proof_generation_details SET status = 'fallbacked', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - $1::INTERVAL)"
+            "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - $1::INTERVAL)"
         );
 
         let timeout = pg_interval_from_duration(picking_timeout);
@@ -325,7 +324,7 @@ impl EthProofManagerDal<'_, '_> {
         sqlx::query!(
             r#"
             UPDATE proof_generation_details
-            SET status = 'fallbacked', updated_at = NOW()
+            SET status = 'unpicked', proving_mode = 'prover_cluster', updated_at = NOW()
             WHERE l1_batch_number = $1
             "#,
             i64::from(batch_number.0),
