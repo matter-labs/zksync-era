@@ -22,7 +22,7 @@ impl EncodingVersion {
 }
 
 pub fn get_encoding_version(protocol_version: ProtocolVersionId) -> u8 {
-    if protocol_version.is_pre_interop() {
+    if protocol_version.is_pre_interop_fast_blocks() {
         EncodingVersion::PreInterop.value()
     } else {
         EncodingVersion::InteropSupported.value()

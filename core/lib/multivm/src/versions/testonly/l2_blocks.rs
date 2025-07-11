@@ -25,7 +25,10 @@ use crate::{
         TxExecutionMode, VmInterfaceExt,
     },
     vm_latest::{
-        constants::{get_tx_operator_l2_block_info_offset, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
+        constants::{
+            get_interop_blocks_begin_offset, get_tx_operator_l2_block_info_offset,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+        },
         utils::l2_blocks::get_l2_block_hash_key,
         MultiVmSubversion,
     },
@@ -306,7 +309,7 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
     );
 
     // Case 2: Timestamp not increasing
-    if default_system_env().version.is_pre_fast_blocks() {
+    if default_system_env().version.is_pre_interop_fast_blocks() {
         test_new_l2_block::<VM>(
             correct_first_block.clone(),
             None,
@@ -486,6 +489,8 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
     let fictive_miniblock_position =
         get_tx_operator_l2_block_info_offset(MultiVmSubversion::latest())
             + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+    let interop_blocks_begin_offset = get_interop_blocks_begin_offset(MultiVmSubversion::latest());
+    let number_of_interop_roots_plus_one = block_info.interop_roots.len() + 1;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),
@@ -496,6 +501,10 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
         (
             fictive_miniblock_position + 3,
             block_info.max_virtual_blocks_to_create.into(),
+        ),
+        (
+            interop_blocks_begin_offset,
+            number_of_interop_roots_plus_one.into(),
         ),
     ])
 }

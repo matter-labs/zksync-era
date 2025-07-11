@@ -166,7 +166,7 @@ impl ProtocolVersionId {
         self >= &Self::Version27
     }
 
-    pub fn is_pre_interop(&self) -> bool {
+    pub fn is_pre_interop_fast_blocks(&self) -> bool {
         self < &Self::Version29
     }
 
@@ -208,10 +208,6 @@ impl ProtocolVersionId {
 
     pub const fn gateway_upgrade() -> Self {
         ProtocolVersionId::Version26
-    }
-
-    pub fn is_pre_fast_blocks(&self) -> bool {
-        self < &ProtocolVersionId::Version29
     }
 }
 

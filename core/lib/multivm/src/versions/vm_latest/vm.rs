@@ -37,7 +37,7 @@ use crate::{
 /// In the first version of the v1.5.0 release, the bootloader memory was too small, so a new
 /// version was released with increased bootloader memory. The version with the small bootloader memory
 /// is available only on internal staging environments.
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd)]
 pub(crate) enum MultiVmSubversion {
     /// The initial version of v1.5.0, available only on staging environments.
     SmallBootloaderMemory,

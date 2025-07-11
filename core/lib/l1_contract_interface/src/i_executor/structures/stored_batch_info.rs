@@ -26,7 +26,7 @@ pub struct StoredBatchInfo {
 
 impl StoredBatchInfo {
     pub fn schema_for_protocol_version(protocol_version: ProtocolVersionId) -> ParamType {
-        if protocol_version.is_pre_interop() {
+        if protocol_version.is_pre_interop_fast_blocks() {
             Self::schema_pre_interop()
         } else {
             Self::schema_post_interop()
@@ -120,7 +120,7 @@ impl StoredBatchInfo {
     }
 
     pub fn into_token_with_protocol_version(self, protocol_version: ProtocolVersionId) -> Token {
-        if protocol_version.is_pre_interop() {
+        if protocol_version.is_pre_interop_fast_blocks() {
             Token::Tuple(vec![
                 Token::Uint(self.batch_number.into()),
                 Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
@@ -159,7 +159,7 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
                 .header
                 .protocol_version
                 .unwrap_or(ProtocolVersionId::Version0)
-                .is_pre_interop()
+                .is_pre_interop_fast_blocks()
             {
                 H256::zero()
             } else {

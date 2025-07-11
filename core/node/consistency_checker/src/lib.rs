@@ -4,7 +4,8 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::{
-    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
+    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+    POST_V26_GATEWAY_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
@@ -232,18 +233,11 @@ impl LocalL1BatchCommitData {
             .is_none_or(|version| version.is_pre_shared_bridge())
     }
 
-    fn is_pre_gateway(&self) -> bool {
+    fn is_pre_v26_gateway(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
             .is_none_or(|version| version.is_pre_gateway())
-    }
-
-    fn is_pre_interop(&self) -> bool {
-        self.l1_batch
-            .header
-            .protocol_version
-            .is_none_or(|version| version.is_pre_interop())
     }
 
     fn get_encoding_version(&self) -> u8 {
@@ -251,6 +245,13 @@ impl LocalL1BatchCommitData {
             .header
             .protocol_version
             .map_or(EncodingVersion::PreInterop.value(), get_encoding_version)
+    }
+
+    fn is_pre_v29_interop(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .is_none_or(|version| version.is_pre_interop_fast_blocks())
     }
 
     /// All returned errors are validation errors.
@@ -517,8 +518,10 @@ impl ConsistencyChecker {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else if local.is_pre_shared_bridge() {
             &*POST_BOOJUM_COMMIT_FUNCTION
-        } else if local.is_pre_gateway() {
+        } else if local.is_pre_v26_gateway() {
             &*POST_SHARED_BRIDGE_COMMIT_FUNCTION
+        } else if local.is_pre_v29_interop() {
+            &*POST_V26_GATEWAY_COMMIT_FUNCTION
         } else {
             self.contract
                 .function("commitBatchesSharedBridge")
@@ -530,8 +533,8 @@ impl ConsistencyChecker {
             &commit_tx.input.0,
             commit_function,
             batch_number,
-            local.is_pre_gateway(),
-            local.is_pre_interop(),
+            local.is_pre_v26_gateway(),
+            local.is_pre_v29_interop(),
             local.get_encoding_version(),
         )
         .with_context(|| {
@@ -648,7 +651,7 @@ impl ConsistencyChecker {
             .connection()
             .await?
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
             .await?)
     }
 

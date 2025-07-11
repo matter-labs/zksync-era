@@ -38,6 +38,8 @@ pub enum BlockNumber {
     FastFinalized,
     /// Latest sealed block
     Latest,
+    /// Precommitted
+    Precommitted,
     /// Last block that was committed on L1
     L1Committed,
     /// Earliest block (genesis)
@@ -67,8 +69,8 @@ impl Serialize for BlockNumber {
             BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
-            // not using the new "fast_finalized" option here for backwards compatibility
-            BlockNumber::FastFinalized => serializer.serialize_str("l1_committed"),
+            BlockNumber::FastFinalized => serializer.serialize_str("fast_finalized"),
+            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
         }
     }
 }
@@ -91,10 +93,11 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "latest" => BlockNumber::Latest,
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
-                    // For zksync safe is l1 committed. Real chances of revert are very low.
-                    "safe" => BlockNumber::L1Committed,
+                    // For zksync safe is l1 precommitted. Real chances of revert are very low.
+                    "safe" => BlockNumber::Precommitted,
                     "pending" => BlockNumber::Pending,
                     "fast_finalized" => BlockNumber::FastFinalized,
+                    "precommitted" => BlockNumber::Precommitted,
                     num => {
                         let number =
                             U64::deserialize(de::value::BorrowedStrDeserializer::new(num))?;
@@ -680,7 +683,8 @@ pub struct Transaction {
 pub enum TransactionStatus {
     Pending,
     Included,
-    // FastFinalized,
+    FastFinalized,
+    Precommitted,
     Verified,
     Failed,
 }
@@ -697,6 +701,7 @@ pub struct TransactionDetails {
     pub eth_commit_tx_hash: Option<H256>,
     pub eth_prove_tx_hash: Option<H256>,
     pub eth_execute_tx_hash: Option<H256>,
+    pub eth_precommit_tx_hash: Option<H256>,
 }
 
 #[derive(Debug, Clone)]
@@ -908,8 +913,7 @@ impl Default for TracerConfig {
 pub enum BlockStatus {
     Sealed,
     Verified,
-    // note: not enabling this status for backwards compatibility
-    // FastFinalized,
+    FastFinalized,
 }
 
 /// Result tracers need to have a nested result field for compatibility. So we have two different
@@ -982,6 +986,10 @@ pub struct BlockDetailsBase {
     pub execute_tx_finality: Option<EthTxFinalityStatus>,
     pub executed_at: Option<DateTime<Utc>>,
     pub execute_chain_id: Option<SLChainId>,
+    pub precommit_tx_hash: Option<H256>,
+    pub precommit_tx_finality: Option<EthTxFinalityStatus>,
+    pub precommitted_at: Option<DateTime<Utc>>,
+    pub precommit_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).

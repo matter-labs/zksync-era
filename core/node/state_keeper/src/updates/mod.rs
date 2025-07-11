@@ -20,7 +20,10 @@ use super::{
     io::{BatchInitParams, IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
-use crate::metrics::{L2BlockSealStage, L2_BLOCK_METRICS};
+use crate::{
+    metrics::{L2BlockSealStage, L2_BLOCK_METRICS},
+    updates::l2_block_updates::RollingTxHashUpdates,
+};
 
 pub mod committed_updates;
 pub mod l2_block_updates;
@@ -42,6 +45,7 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
+    rolling_tx_hash_updates: RollingTxHashUpdates,
     pubdata_params: PubdataParams,
     pubdata_limit: Option<u64>,
     previous_batch_protocol_version: ProtocolVersionId,
@@ -117,6 +121,9 @@ impl UpdatesManager {
                     .interop_roots
                     .clone(),
             )]),
+            rolling_tx_hash_updates: RollingTxHashUpdates {
+                rolling_hash: H256::zero(),
+            },
             storage_writes_deduplicator,
             next_l2_block_params: None,
         }
@@ -181,6 +188,7 @@ impl UpdatesManager {
             pubdata_params: self.pubdata_params,
             insert_header: self.sync_block_data_and_header_persistence
                 || (tx_count_in_last_block == 0),
+            rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
         }
     }
 
@@ -196,6 +204,9 @@ impl UpdatesManager {
             .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
+
+        self.rolling_tx_hash_updates
+            .append_rolling_hash(tx.hash(), !tx_execution_result.result.is_failed());
         self.last_pending_l2_block_mut()
             .extend_from_executed_transaction(
                 tx,
@@ -347,6 +358,7 @@ impl UpdatesManager {
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
             pubdata_params: self.pubdata_params,
+            rolling_txs_hash: Some(self.rolling_tx_hash_updates.rolling_hash),
         }
     }
 
@@ -478,6 +490,7 @@ pub struct L2BlockSealCommand {
     pub pre_insert_data: bool,
     pub pubdata_params: PubdataParams,
     pub insert_header: bool,
+    pub rolling_txs_hash: H256,
 }
 
 #[cfg(test)]
