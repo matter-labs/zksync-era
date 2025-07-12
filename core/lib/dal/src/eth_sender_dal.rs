@@ -10,7 +10,7 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
-    Address, L1BatchNumber, SLChainId, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -644,7 +644,7 @@ impl EthSenderDal<'_, '_> {
 
         // Check if the transaction with the corresponding hash already exists.
         let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
-            eth_tx_id
+            eth_tx_id //FIXME: mark tx as pending
         } else {
             // No such transaction in the database yet, we have to insert it.
 
@@ -687,6 +687,88 @@ impl EthSenderDal<'_, '_> {
         .context("set_eth_tx_id()")?;
 
         transaction.commit().await.context("commit()")
+    }
+
+    pub async fn insert_pending_received_precommit_eth_tx(
+        &mut self,
+        miniblock: L2BlockNumber,
+        tx_hash: H256,
+        sl_chain_id: Option<SLChainId>,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let tx_hash_str = format!("{:#x}", tx_hash);
+
+        let eth_tx_id = sqlx::query_scalar!(
+            "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs \
+            ON eth_txs.id = eth_txs_history.eth_tx_id \
+            WHERE eth_txs_history.tx_hash = $1",
+            tx_hash_str
+        )
+        .fetch_optional(transaction.conn())
+        .await?;
+
+        // Check if the transaction with the corresponding hash already exists.
+        let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
+            eth_tx_id //FIXME: mark tx as pending
+        } else {
+            // No such transaction in the database yet, we have to insert it.
+
+            // Insert general tx descriptor.
+            let eth_tx_id = sqlx::query_scalar!(
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
+                RETURNING id",
+                L2BlockAggregatedActionType::Precommit.to_string(),
+                sl_chain_id.map(|chain_id| chain_id.0 as i64)
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+
+            // Insert a "sent transaction".
+            sqlx::query_scalar!(
+                "INSERT INTO eth_txs_history \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3) \
+                RETURNING id",
+                eth_tx_id,
+                tx_hash_str,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+            eth_tx_id
+        };
+
+        // Update the miniblocks table with the precommit transaction hash
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                eth_precommit_tx_id = $1
+            WHERE
+                number = $2
+            "#,
+            eth_tx_id as i32,
+            i64::from(miniblock.0)
+        )
+        .execute(transaction.conn())
+        .await
+        .context("Failed to update miniblock with precommit hash")?;
+
+        transaction.commit().await.context("commit")?;
+
+        tracing::info!(
+            "Recorded precommit for miniblock {}, tx_hash {}, on sl_chain_id {:?}",
+            miniblock.0,
+            tx_hash,
+            sl_chain_id
+        );
+
+        Ok(())
     }
 
     pub async fn get_unfinalized_transactions(
