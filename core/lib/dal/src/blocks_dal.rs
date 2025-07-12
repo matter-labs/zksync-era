@@ -396,6 +396,29 @@ impl BlocksDal<'_, '_> {
         Ok(row.map(|row| L1BatchNumber(row.number as u32)))
     }
 
+    pub async fn get_last_miniblock_with_precommit(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                eth_precommit_tx_id IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_miniblock_with_precommit")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L2BlockNumber(row.number as u32)))
+    }
+
     /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
     /// or `None` if there are no such L1 batches.
     pub async fn get_earliest_l1_batch_number_with_metadata(

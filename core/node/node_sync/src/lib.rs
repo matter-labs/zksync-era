@@ -6,6 +6,7 @@ pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
 mod metrics;
+pub mod miniblock_precommit_fetcher;
 pub mod node;
 pub mod sync_action;
 pub mod testonly;
