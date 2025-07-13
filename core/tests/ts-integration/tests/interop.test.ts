@@ -258,7 +258,7 @@ describe('Interop behavior checks', () => {
             })
         ).wait();
 
-        // Deposit funds on Interop1
+        // Deposit funds on Interop2
         await (
             await interop2RichWallet.deposit({
                 token: ETH_ADDRESS_IN_CONTRACTS,
@@ -290,20 +290,20 @@ describe('Interop behavior checks', () => {
 
     test('Can perform cross chain transfer', async () => {
         const transferAmount = 100n;
-        let interop1TokenAVeryRichWallet = new zksync.Contract(
-            tokenA.l2Address,
-            ArtifactMintableERC20.abi,
-            interop1VeryRichWallet
-        );
+        // let interop1TokenAVeryRichWallet = new zksync.Contract(
+        //     tokenA.l2Address,
+        //     ArtifactMintableERC20.abi,
+        //     interop1VeryRichWallet
+        // );
+        // await ((await interop1TokenAVeryRichWallet.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait()).wait();
+        // await ((await interop1TokenA.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', transferAmount)).wait()).wait();
 
         await Promise.all([
             // Approve token transfer on Interop1
             (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
-            (await interop1TokenAVeryRichWallet.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
 
             // Mint tokens for the test wallet on Interop1 for the transfer
             (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait(),
-            (await interop1TokenA.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', transferAmount)).wait()
         ]);
 
         // Compose and send the interop request transaction

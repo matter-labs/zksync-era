@@ -354,6 +354,29 @@ async function getChainBalance(
     const provider = l1 ? wallet.providerL1! : wallet.provider;
     // kl todo get from env or something.
     const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
+
+    const ecosystemContracts = await getEcosystemContracts(wallet);
+   
+    const assetId = await ecosystemContracts.nativeTokenVault.assetId(token);
+    const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactAssetTracker.abi, gwProvider);
+
+    // console.log("chainId", (await wallet.provider.getNetwork()).chainId, "assetId", assetId);
+    let balance = await ecosystemContracts.assetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
+    // console.log('balance', l1 ? 'l1' : 'l2', balance);
+    if (balance == 0n && l1) {
+        balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
+    }
+    return balance;
+}
+
+interface EcosystemContracts {
+    bridgehub: ethers.Contract;
+    assetRouter: ethers.Contract;
+    assetTracker: ethers.Contract;
+    nativeTokenVault: ethers.Contract;
+}
+
+export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<EcosystemContracts> {
     const bridgehub = new ethers.Contract(
         await (await wallet.getBridgehubContract()).getAddress(),
         ArtifactBridgeHub.abi,
@@ -380,16 +403,12 @@ async function getChainBalance(
         ArtifactNativeTokenVault.abi,
         wallet.providerL1!
     );
-    const assetId = await nativeTokenVault.assetId(token);
-    const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactAssetTracker.abi, gwProvider);
-
-    // console.log("chainId", (await wallet.provider.getNetwork()).chainId, "assetId", assetId);
-    let balance = await assetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
-    // console.log('balance', l1 ? 'l1' : 'l2', balance);
-    if (balance == 0n && l1) {
-        balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
-    }
-    return balance;
+    return {
+        bridgehub,
+        assetRouter,
+        assetTracker,
+        nativeTokenVault
+    };
 }
 
 async function isMinterChain(l1: boolean, wallet: zksync.Wallet, token: string): Promise<boolean> {

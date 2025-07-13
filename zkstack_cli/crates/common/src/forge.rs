@@ -161,6 +161,11 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_no_cache(mut self) -> Self {
+        self.args.add_arg(ForgeScriptArg::NoCache);
+        self
+    }
+
     /// Adds the private key of the deployer account.
     pub fn with_private_key(mut self, private_key: H256) -> Self {
         self.args.add_arg(ForgeScriptArg::PrivateKey {
@@ -289,6 +294,7 @@ pub enum ForgeScriptArg {
     Skip {
         skip_path: String,
     },
+    NoCache,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
