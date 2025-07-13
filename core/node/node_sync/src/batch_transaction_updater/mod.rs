@@ -14,7 +14,7 @@ use zksync_types::{
     },
     eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
     web3::TransactionReceipt,
-    Address, L1BatchNumber, ProtocolVersionId, SLChainId,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId,
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
@@ -178,8 +178,44 @@ impl BatchTransactionUpdater {
                 batches.iter().map(|batch| batch.number).collect::<Vec<_>>()
             }
             AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
-                //TODO validate precommit transaction
-                vec![]
+                let miniblocks = connection
+                    .blocks_dal()
+                    .get_l2_blocks_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
+                    .await?;
+
+                if miniblocks.is_empty() {
+                    anyhow::bail!(
+                        "Transaction {} is not associated with any miniblock",
+                        eth_history_tx.tx_hash
+                    );
+                }
+
+                //validate against db
+                for miniblock in &miniblocks {
+                    let miniblock_number = L2BlockNumber(miniblock.number);
+
+                    // miniblock must be in db due to how we perform fetching
+                    let Some(miniblock_header) = connection
+                        .blocks_dal()
+                        .get_l2_block_header(miniblock_number)
+                        .await?
+                    else {
+                        tracing::debug!(
+                                "Miniblock {} is not found in the database. Cannot verify transaction {} right now",
+                                miniblock_number,
+                                eth_history_tx.tx_hash
+                            );
+                        return Ok(false);
+                    };
+
+                    self.l1_transaction_verifier
+                        .validate_precommit_tx(&receipt, miniblock_header)?;
+                }
+
+                miniblocks
+                    .iter()
+                    .map(|miniblock| miniblock.number)
+                    .collect::<Vec<_>>()
             }
         };
 

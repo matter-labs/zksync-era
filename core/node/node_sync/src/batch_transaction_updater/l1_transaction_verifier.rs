@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_types::{
-    commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber, H256,
-    U64,
+    block::L2BlockHeader, commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address,
+    L1BatchNumber, L2BlockNumber, H256, U64,
 };
 
 /// Verifies the L1 transaction against the database and the SL.
@@ -16,6 +16,8 @@ pub struct L1TransactionVerifier {
 pub enum TransactionValidationError {
     #[error("Batch transaction {tx_hash} invalid: {reason}")]
     BatchTransactionInvalid { tx_hash: H256, reason: String },
+    #[error("Precommit transaction {tx_hash} invalid: {reason}")]
+    PrecommitTransactionInvalid { tx_hash: H256, reason: String },
     #[error(transparent)]
     OtherValidationError(#[from] anyhow::Error),
 }
@@ -287,6 +289,96 @@ impl L1TransactionVerifier {
             });
         }
         // OK verified successfully the execute transaction.
+        Ok(())
+    }
+
+    /// validates precommit transaction against miniblock header
+    pub fn validate_precommit_tx(
+        &self,
+        receipt: &TransactionReceipt,
+        miniblock_header: L2BlockHeader,
+    ) -> Result<(), TransactionValidationError> {
+        if receipt.status != Some(U64::one()) {
+            return Err(TransactionValidationError::BatchTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
+                reason: "transaction reverted".to_string(),
+            });
+        }
+
+        let event = self
+            .contract
+            .event("BatchPrecommitmentSet")
+            .context("`BatchPrecommitmentSet` event not found for ZKsync L1 contract")?;
+
+        let precommitment: Option<H256> = receipt.logs.iter().find_map(|log| {
+            if log.address != self.diamond_proxy_addr {
+                tracing::debug!(
+                    "Log address {} does not match diamond proxy address {}, skipping",
+                    log.address,
+                    self.diamond_proxy_addr
+                );
+                return None;
+            }
+            let parsed_log = event.parse_log_whole(log.clone().into()).ok()?; // Skip logs that are of different event type
+
+            // we don't verify batchNumber, because verifying precommitment is enough.
+            // And we don't have convenient access to that value.
+
+            let l2_block_number_hint = get_param(&parsed_log.params, "untrustedLastL2BlockNumberHint")
+                .and_then(ethabi::Token::into_uint)
+                .and_then(|l2_block_number_hint| {
+                    u32::try_from(l2_block_number_hint).ok().map(L2BlockNumber)
+                })
+                .expect(
+                    "Missing expected `untrustedLastL2BlockNumberHint` parameter in `BatchPrecommitmentSet` event log",
+                );
+
+            if l2_block_number_hint != miniblock_header.number {
+                tracing::debug!(
+                    "Skipping event log miniblockNumber={l2_block_number_hint} for precommit transaction {}. \
+                    We are checking for miniblockNumber={}",
+                    receipt.transaction_hash,
+                    miniblock_header.number.0,
+                );
+                return None;
+            }
+
+            let precommitment = get_param(&parsed_log.params, "precommitment")
+                .and_then(ethabi::Token::into_fixed_bytes)
+                .map(|bytes| H256::from_slice(&bytes))
+                .expect(
+                    "Missing expected `precommitment` parameter in `BatchPrecommitmentSet` event log",
+                );
+
+            Some(precommitment)
+        });
+
+        let precommitment =
+            precommitment.ok_or_else(|| TransactionValidationError::BatchTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
+                reason: "does not have `BatchPrecommitmentSet` event log".to_string(),
+            })?;
+
+        let Some(rolling_txs_hash) = miniblock_header.rolling_txs_hash else {
+            return Err(TransactionValidationError::PrecommitTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
+                reason: format!(
+                    "we do not have the rolling_txs_hash value for miniblock {}. This is unexpected.",
+                    miniblock_header.number
+                ),
+            });
+        };
+
+        if precommitment != rolling_txs_hash {
+            return Err(TransactionValidationError::PrecommitTransactionInvalid {
+                tx_hash: receipt.transaction_hash,
+                reason: format!(
+                    "has different precommitment: miniblock {:?}, transaction log {:?}",
+                    rolling_txs_hash, precommitment,
+                ),
+            });
+        }
+
         Ok(())
     }
 }
