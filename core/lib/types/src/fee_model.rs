@@ -378,18 +378,35 @@ impl Default for ConversionRatio {
 }
 
 /// The struct that represents the BaseToken<->ETH conversion ratio.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct BaseTokenConversionRatio {
     pub l1: ConversionRatio,
     pub sl: ConversionRatio,
+    #[deprecated(note = "backwards compatibility for API")]
+    numerator: NonZeroU64,
+    #[deprecated(note = "backwards compatibility for API")]
+    denominator: NonZeroU64,
 }
 
+#[allow(deprecated)]
 impl BaseTokenConversionRatio {
     pub fn new_simple(l1_sl: ConversionRatio) -> Self {
+        Self::new(l1_sl, l1_sl)
+    }
+
+    pub fn new(l1: ConversionRatio, sl: ConversionRatio) -> Self {
         Self {
-            l1: l1_sl,
-            sl: l1_sl,
+            l1,
+            sl,
+            numerator: l1.numerator,
+            denominator: l1.denominator,
         }
+    }
+}
+
+impl Default for BaseTokenConversionRatio {
+    fn default() -> Self {
+        Self::new_simple(ConversionRatio::default())
     }
 }
 

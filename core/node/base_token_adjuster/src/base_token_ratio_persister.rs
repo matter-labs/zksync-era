@@ -127,10 +127,7 @@ impl BaseTokenRatioPersister {
 
         // In database we persist the ratio needed for calculating L2 gas price from SL (L1 or Gateway) gas price
         self.persist_ratio(
-            BaseTokenConversionRatio {
-                sl: sl_ratio.ratio,
-                l1: base_to_eth.ratio,
-            },
+            BaseTokenConversionRatio::new(base_to_eth.ratio, sl_ratio.ratio),
             sl_ratio.ratio_timestamp,
         )
         .await?;

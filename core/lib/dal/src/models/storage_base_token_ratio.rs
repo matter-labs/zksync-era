@@ -26,8 +26,8 @@ impl From<StorageBaseTokenRatio> for BaseTokenRatio {
         BaseTokenRatio {
             id: row.id as u32,
             ratio_timestamp: row.ratio_timestamp.and_utc(),
-            ratio: BaseTokenConversionRatio {
-                l1: ConversionRatio {
+            ratio: BaseTokenConversionRatio::new(
+                ConversionRatio {
                     numerator: NonZeroU64::new(
                         row.numerator_l1.to_u64().expect("numerator is not u64"),
                     )
@@ -37,7 +37,7 @@ impl From<StorageBaseTokenRatio> for BaseTokenRatio {
                     )
                     .unwrap(),
                 },
-                sl: ConversionRatio {
+                ConversionRatio {
                     numerator: NonZeroU64::new(
                         row.numerator_sl.to_u64().expect("numerator is not u64"),
                     )
@@ -47,7 +47,7 @@ impl From<StorageBaseTokenRatio> for BaseTokenRatio {
                     )
                     .unwrap(),
                 },
-            },
+            ),
             used_in_l1: row.used_in_l1,
         }
     }
