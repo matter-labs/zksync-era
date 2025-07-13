@@ -689,6 +689,11 @@ impl EthSenderDal<'_, '_> {
         transaction.commit().await.context("commit()")
     }
 
+    /// Inserts a pending precommit transaction into the database.
+    /// It should be used only in external node context as most properties are not set.
+    /// Inserted transaction does not need to be validated as its set as pending.
+    /// Validation needs to be done before marking with one of the executed statuses.
+    /// Errors if transaction was already inserted.
     pub async fn insert_pending_received_precommit_eth_tx(
         &mut self,
         miniblock: L2BlockNumber,
@@ -711,14 +716,17 @@ impl EthSenderDal<'_, '_> {
         .fetch_optional(transaction.conn())
         .await?;
 
-        // Check if the transaction with the corresponding hash already exists.
-        let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
-            eth_tx_id //FIXME: mark tx as pending
-        } else {
-            // No such transaction in the database yet, we have to insert it.
+        let None = eth_tx_id else {
+            // We do not expect to have a pending precommit tx with the same hash.
+            anyhow::bail!(
+                "Pending precommit tx with hash {} already exists",
+                tx_hash_str
+            );
+        };
 
-            // Insert general tx descriptor.
-            let eth_tx_id = sqlx::query_scalar!(
+        // No such transaction in the database yet, we insert it.
+
+        let eth_tx_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
                 VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
                 RETURNING id",
@@ -728,8 +736,8 @@ impl EthSenderDal<'_, '_> {
             .fetch_one(transaction.conn())
             .await?;
 
-            // Insert a "sent transaction".
-            sqlx::query_scalar!(
+        // Insert a "sent transaction".
+        sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
                 (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
                 VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3) \
@@ -740,8 +748,6 @@ impl EthSenderDal<'_, '_> {
             )
             .fetch_one(transaction.conn())
             .await?;
-            eth_tx_id
-        };
 
         // Update the miniblocks table with the precommit transaction hash
         sqlx::query!(
