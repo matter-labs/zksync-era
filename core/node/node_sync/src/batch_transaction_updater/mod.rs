@@ -9,7 +9,9 @@ use zksync_dal::{blocks_dal::L1BatchWithOptionalMetadata, ConnectionPool, Core, 
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
     eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
     web3::TransactionReceipt,
     Address, L1BatchNumber, ProtocolVersionId, SLChainId,
@@ -99,89 +101,87 @@ impl BatchTransactionUpdater {
             .get_eth_tx_history_by_id(db_eth_history_id)
             .await?;
 
-        let batches = connection
-            .blocks_dal()
-            .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
-            .await?;
+        // variable only for logging
+        let for_blocks_or_batches = match eth_history_tx.tx_type {
+            AggregatedActionType::L1Batch(tx_type) => {
+                let batches = connection
+                    .blocks_dal()
+                    .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
+                    .await?;
 
-        if batches.is_empty() {
-            anyhow::bail!(
-                "Transaction {} is not associated with any batch",
-                eth_history_tx.tx_hash
-            );
-        }
+                if batches.is_empty() {
+                    anyhow::bail!(
+                        "Transaction {} is not associated with any batch",
+                        eth_history_tx.tx_hash
+                    );
+                }
 
-        // validate the transaction against db
-        for batch in &batches {
-            let batch_number = L1BatchNumber(batch.number);
+                // validate the transaction against db
+                for batch in &batches {
+                    let batch_number = L1BatchNumber(batch.number);
 
-            let Some(protocol_version) = connection
-                .blocks_dal()
-                .get_batch_protocol_version_id(batch_number)
-                .await?
-            else {
-                tracing::debug!(
-                    "Batch {} protocol version is not found in the database. Cannot verify transaction {} right now",
-                    batch_number,
-                    eth_history_tx.tx_hash
-                );
-                return Ok(false);
-            };
+                    let Some(protocol_version) = connection
+                        .blocks_dal()
+                        .get_batch_protocol_version_id(batch_number)
+                        .await?
+                    else {
+                        tracing::debug!(
+                            "Batch {} protocol version is not found in the database. Cannot verify transaction {} right now",
+                            batch_number,
+                            eth_history_tx.tx_hash
+                        );
+                        return Ok(false);
+                    };
 
-            // Do not validate transactions for batches with protocol version before 29
-            if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
-                continue;
-            }
+                    // Do not validate transactions for batches with protocol version before 29
+                    if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
+                        continue;
+                    }
 
-            let batch_metadata = match connection
-                .blocks_dal()
-                .get_optional_l1_batch_metadata(batch_number)
-                .await?
-            {
-                Some(L1BatchWithOptionalMetadata {
-                    header: _,
-                    metadata: Ok(batch_metadata),
-                }) => batch_metadata,
-                _ => {
-                    tracing::debug!(
+                    let batch_metadata = match connection
+                        .blocks_dal()
+                        .get_optional_l1_batch_metadata(batch_number)
+                        .await?
+                    {
+                        Some(L1BatchWithOptionalMetadata {
+                            header: _,
+                            metadata: Ok(batch_metadata),
+                        }) => batch_metadata,
+                        _ => {
+                            tracing::debug!(
                             "Batch {} metadata is not found in the database. Cannot verify transaction {} right now",
                             batch_number,
                             eth_history_tx.tx_hash
                         );
-                    return Ok(false);
-                }
-            };
+                            return Ok(false);
+                        }
+                    };
 
-            match eth_history_tx.tx_type {
-                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) => self
-                    .l1_transaction_verifier
-                    .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
-                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain) => {
-                    self.l1_transaction_verifier.validate_prove_tx(
-                        &receipt,
-                        batch_metadata,
-                        batch_number,
-                    )?
-                }
-                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute) => self
-                    .l1_transaction_verifier
-                    .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
-                _ => {
+                    match tx_type {
+                        L1BatchAggregatedActionType::Commit => self
+                            .l1_transaction_verifier
+                            .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
+                        L1BatchAggregatedActionType::PublishProofOnchain => self
+                            .l1_transaction_verifier
+                            .validate_prove_tx(&receipt, batch_metadata, batch_number)?,
+                        L1BatchAggregatedActionType::Execute => self
+                            .l1_transaction_verifier
+                            .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
+                    };
                     tracing::debug!(
-                        "Skipping verification for transaction {} ({})",
+                        "Verified transaction {} ({}) for batch {}",
                         receipt.transaction_hash,
-                        eth_history_tx.tx_type
+                        eth_history_tx.tx_type,
+                        batch_number
                     );
-                    continue;
                 }
-            };
-            tracing::debug!(
-                "Verified transaction {} ({}) for batch {}",
-                receipt.transaction_hash,
-                eth_history_tx.tx_type,
-                batch_number
-            );
-        }
+                batches.iter().map(|batch| batch.number).collect::<Vec<_>>()
+            }
+            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
+                //TODO validate precommit transaction
+                vec![]
+            }
+        };
 
         connection
             .eth_sender_dal()
@@ -193,14 +193,10 @@ impl BatchTransactionUpdater {
             .await?;
 
         tracing::info!(
-            "Updated finality status for transaction {} ({} for batch {}) from {:?} to {:?}",
+            "Updated finality status for transaction {} ({} for {:?}) from {:?} to {:?}",
             eth_history_tx.tx_hash,
             eth_history_tx.tx_type,
-            batches
-                .iter()
-                .map(|batch| batch.number.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
+            for_blocks_or_batches,
             eth_history_tx.eth_tx_finality_status,
             updated_status
         );

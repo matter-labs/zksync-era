@@ -12,6 +12,8 @@ pub struct NodeSyncConfig {
     /// Maximum number of transactions to process in a single batch
     #[config(default_t = NonZeroU64::new(10_000).unwrap())]
     pub batch_transaction_updater_batch_size: NonZeroU64,
+    #[config(default_t = false)]
+    pub precommits_sync_enabled: bool,
 }
 
 #[cfg(test)]
@@ -24,6 +26,7 @@ mod tests {
         NodeSyncConfig {
             batch_transaction_updater_interval: Duration::from_secs(2),
             batch_transaction_updater_batch_size: NonZeroU64::new(100).unwrap(),
+            precommits_sync_enabled: true,
         }
     }
 
@@ -32,6 +35,7 @@ mod tests {
         let env = r#"
             NODE_SYNC_BATCH_TRANSACTION_UPDATER_INTERVAL=2sec
             NODE_SYNC_BATCH_TRANSACTION_UPDATER_BATCH_SIZE=100
+            NODE_SYNC_PRECOMMITS_SYNC_ENABLED=true
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -46,6 +50,7 @@ mod tests {
         let yaml = r#"
           batch_transaction_updater_interval: 2sec
           batch_transaction_updater_batch_size: 100
+          precommits_sync_enabled: true
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: NodeSyncConfig = test_complete(yaml).unwrap();
