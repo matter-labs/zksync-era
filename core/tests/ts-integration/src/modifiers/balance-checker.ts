@@ -356,12 +356,15 @@ async function getChainBalance(
     const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
 
     const ecosystemContracts = await getEcosystemContracts(wallet);
-   
+
     const assetId = await ecosystemContracts.nativeTokenVault.assetId(token);
     const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactAssetTracker.abi, gwProvider);
 
     // console.log("chainId", (await wallet.provider.getNetwork()).chainId, "assetId", assetId);
-    let balance = await ecosystemContracts.assetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
+    let balance = await ecosystemContracts.assetTracker.chainBalance(
+        (await wallet.provider.getNetwork()).chainId,
+        assetId
+    );
     // console.log('balance', l1 ? 'l1' : 'l2', balance);
     if (balance == 0n && l1) {
         balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);

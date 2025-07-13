@@ -11,12 +11,7 @@ import * as ethers from 'ethers';
 import { waitForL2ToL1LogProof } from '../src/helpers';
 import { RetryableWallet } from '../src/retry-provider';
 
-import {
-    scaledGasPrice,
-    deployContract,
-    waitUntilBlockFinalized,
-    getL2bUrl
-} from '../src/helpers';
+import { scaledGasPrice, deployContract, waitUntilBlockFinalized, getL2bUrl } from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
@@ -53,39 +48,39 @@ describe('Interop behavior checks', () => {
 
     let skipInteropTests = false;
 
-        // L1 Variables
-        let l1Provider: ethers.Provider;
-        let veryRichWallet: zksync.Wallet;
-    
-        // Token details
-        let tokenA: Token = {
-            name: 'Token A',
-            symbol: 'AA',
-            decimals: 18n,
-            l1Address: '',
-            l2Address: '',
-            l2AddressSecondChain: ''
-        };
-    
-        // Interop1 (Main Chain) Variables
-        let interop1Provider: zksync.Provider;
-        let interop1Wallet: zksync.Wallet;
-        let interop1RichWallet: zksync.Wallet;
-        // kl todo remove very rich wallet. Useful for local debugging, calldata can be sent directly using cast.
-        let interop1VeryRichWallet: zksync.Wallet;
-        let interop1InteropCenter: zksync.Contract;
-        let interop2InteropHandler: zksync.Contract;
-        let interop1NativeTokenVault: zksync.Contract;
-        let interop1TokenA: zksync.Contract;
-    
-        // Interop2 (Second Chain) Variables
-        let interop2RichWallet: zksync.Wallet;
-        let interop2Provider: zksync.Provider;
-        let interop2NativeTokenVault: zksync.Contract;
-    
-        // Gateway Variables
-        let gatewayProvider: zksync.Provider;
-        let gatewayWallet: zksync.Wallet;
+    // L1 Variables
+    let l1Provider: ethers.Provider;
+    let veryRichWallet: zksync.Wallet;
+
+    // Token details
+    let tokenA: Token = {
+        name: 'Token A',
+        symbol: 'AA',
+        decimals: 18n,
+        l1Address: '',
+        l2Address: '',
+        l2AddressSecondChain: ''
+    };
+
+    // Interop1 (Main Chain) Variables
+    let interop1Provider: zksync.Provider;
+    let interop1Wallet: zksync.Wallet;
+    let interop1RichWallet: zksync.Wallet;
+    // kl todo remove very rich wallet. Useful for local debugging, calldata can be sent directly using cast.
+    let interop1VeryRichWallet: zksync.Wallet;
+    let interop1InteropCenter: zksync.Contract;
+    let interop2InteropHandler: zksync.Contract;
+    let interop1NativeTokenVault: zksync.Contract;
+    let interop1TokenA: zksync.Contract;
+
+    // Interop2 (Second Chain) Variables
+    let interop2RichWallet: zksync.Wallet;
+    let interop2Provider: zksync.Provider;
+    let interop2NativeTokenVault: zksync.Contract;
+
+    // Gateway Variables
+    let gatewayProvider: zksync.Provider;
+    let gatewayWallet: zksync.Wallet;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -93,19 +88,19 @@ describe('Interop behavior checks', () => {
 
         tokenDetails = testMaster.environment().erc20Token;
 
-            const testWalletPK = testMaster.newEmptyAccount().privateKey;
-            const mainAccount = testMaster.mainAccount();
+        const testWalletPK = testMaster.newEmptyAccount().privateKey;
+        const mainAccount = testMaster.mainAccount();
 
-            // Initialize providers
-            l1Provider = mainAccount.providerL1!;
-            interop1Provider = mainAccount.provider;
-            // Setup wallets for Interop1
-            veryRichWallet = new zksync.Wallet(richPk, interop1Provider, l1Provider);
+        // Initialize providers
+        l1Provider = mainAccount.providerL1!;
+        interop1Provider = mainAccount.provider;
+        // Setup wallets for Interop1
+        veryRichWallet = new zksync.Wallet(richPk, interop1Provider, l1Provider);
 
-            // Initialize Test Master and create wallets for Interop1
-            interop1Wallet = new zksync.Wallet(testWalletPK, interop1Provider, l1Provider);
-            interop1RichWallet = new zksync.Wallet(mainAccount.privateKey, interop1Provider, l1Provider);
-            interop1VeryRichWallet = new zksync.Wallet(richPk, interop1Provider, l1Provider);
+        // Initialize Test Master and create wallets for Interop1
+        interop1Wallet = new zksync.Wallet(testWalletPK, interop1Provider, l1Provider);
+        interop1RichWallet = new zksync.Wallet(mainAccount.privateKey, interop1Provider, l1Provider);
+        interop1VeryRichWallet = new zksync.Wallet(richPk, interop1Provider, l1Provider);
 
         // Skip interop tests if the SL is the same as the L1.
         const bridgehub = new ethers.Contract(
@@ -130,44 +125,44 @@ describe('Interop behavior checks', () => {
             aliceSecondChain = maybeAliceSecondChain!;
         }
 
-                // Setup Interop2 Provider and Wallet
-                interop2Provider = new RetryProvider(
-                    { url: await getL2bUrl('validium'), timeout: 1200 * 1000 },
-                    undefined,
-                    testMaster.reporter
-                );
-                interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
-        
-                gatewayProvider = new RetryProvider(
-                    { url: await getL2bUrl('gateway'), timeout: 1200 * 1000 },
-                    undefined,
-                    testMaster.reporter
-                );
-                gatewayWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, gatewayProvider);
-        
-                // Initialize Contracts on Interop1
-                interop1InteropCenter = new zksync.Contract(
-                    L2_INTEROP_CENTER_ADDRESS,
-                    ArtifactInteropCenter.abi,
-                    interop1Wallet
-                );
-                interop2InteropHandler = new zksync.Contract(
-                    L2_INTEROP_HANDLER_ADDRESS,
-                    ArtifactInteropHandler.abi,
-                    interop2RichWallet
-                );
-                interop1NativeTokenVault = new zksync.Contract(
-                    L2_NATIVE_TOKEN_VAULT_ADDRESS,
-                    ArtifactNativeTokenVault.abi,
-                    interop1Wallet
-                );
-        
-                // Initialize Contracts on Interop2
-                interop2NativeTokenVault = new zksync.Contract(
-                    L2_NATIVE_TOKEN_VAULT_ADDRESS,
-                    ArtifactNativeTokenVault.abi,
-                    interop2Provider
-                );
+        // Setup Interop2 Provider and Wallet
+        interop2Provider = new RetryProvider(
+            { url: await getL2bUrl('validium'), timeout: 1200 * 1000 },
+            undefined,
+            testMaster.reporter
+        );
+        interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
+
+        gatewayProvider = new RetryProvider(
+            { url: await getL2bUrl('gateway'), timeout: 1200 * 1000 },
+            undefined,
+            testMaster.reporter
+        );
+        gatewayWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, gatewayProvider);
+
+        // Initialize Contracts on Interop1
+        interop1InteropCenter = new zksync.Contract(
+            L2_INTEROP_CENTER_ADDRESS,
+            ArtifactInteropCenter.abi,
+            interop1Wallet
+        );
+        interop2InteropHandler = new zksync.Contract(
+            L2_INTEROP_HANDLER_ADDRESS,
+            ArtifactInteropHandler.abi,
+            interop2RichWallet
+        );
+        interop1NativeTokenVault = new zksync.Contract(
+            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            ArtifactNativeTokenVault.abi,
+            interop1Wallet
+        );
+
+        // Initialize Contracts on Interop2
+        interop2NativeTokenVault = new zksync.Contract(
+            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            ArtifactNativeTokenVault.abi,
+            interop2Provider
+        );
     });
 
     let withdrawalHash: string;
@@ -222,7 +217,12 @@ describe('Interop behavior checks', () => {
         );
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(aliceSecondChain.provider, aliceSecondChain, GW_CHAIN_ID, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(
+            aliceSecondChain.provider,
+            aliceSecondChain,
+            GW_CHAIN_ID,
+            getGWBlockNumber(params)
+        );
 
         // We use the same proof that was verified in L2-A
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
@@ -303,7 +303,7 @@ describe('Interop behavior checks', () => {
             (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
 
             // Mint tokens for the test wallet on Interop1 for the transfer
-            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait(),
+            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
         ]);
 
         // Compose and send the interop request transaction
@@ -588,7 +588,6 @@ describe('Interop behavior checks', () => {
         const tokenContract = new zksync.Contract(tokenAddress, ArtifactMintableERC20.abi, provider);
         return await tokenContract.balanceOf(address);
     }
-
 
     afterAll(async () => {
         await testMaster.deinitialize();

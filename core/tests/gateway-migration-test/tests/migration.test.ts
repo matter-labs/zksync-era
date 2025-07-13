@@ -219,9 +219,13 @@ describe('Migration From/To gateway test', function () {
 
     step('Migrate token balances', async () => {
         if (direction == 'TO') {
-            await utils.spawn(`zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`);
+            await utils.spawn(
+                `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
+            );
         } else {
-            await utils.spawn(`zkstack chain gateway migrate-token-balances --to-gateway false --gateway-chain-name gateway --chain ${fileConfig.chain}`);
+            await utils.spawn(
+                `zkstack chain gateway migrate-token-balances --to-gateway false --gateway-chain-name gateway --chain ${fileConfig.chain}`
+            );
         }
     });
 
@@ -232,7 +236,9 @@ describe('Migration From/To gateway test', function () {
         const l1AssetSettlementLayer = await ecosystemContracts.assetTracker.assetSettlementLayer(assetId);
 
         const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-        const gatewayEcosystemContracts = await getEcosystemContracts(new zksync.Wallet(getMainWalletPk("gateway"), gatewayInfo?.gatewayProvider!));
+        const gatewayEcosystemContracts = await getEcosystemContracts(
+            new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!)
+        );
         const gatewayAssetSettlementLayer = await gatewayEcosystemContracts.assetTracker.assetSettlementLayer(assetId);
 
         let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;

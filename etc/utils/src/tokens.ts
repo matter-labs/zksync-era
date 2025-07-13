@@ -20,7 +20,10 @@ export type L1Token = {
     address: string;
 };
 
-export function getToken(pathToHome: string, baseTokenAddress: zksync.types.Address): { token: L1Token, baseToken: L1Token | undefined } {
+export function getToken(
+    pathToHome: string,
+    baseTokenAddress: zksync.types.Address
+): { token: L1Token; baseToken: L1Token | undefined } {
     const tokens = getTokensNew(pathToHome);
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.

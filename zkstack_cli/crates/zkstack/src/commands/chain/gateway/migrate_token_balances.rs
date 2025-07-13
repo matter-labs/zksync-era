@@ -1,7 +1,5 @@
-use crate::{
-    messages::MSG_CHAIN_NOT_INITIALIZED,
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
-};
+use std::path::{Path, PathBuf};
+
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
@@ -10,7 +8,6 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
@@ -22,6 +19,11 @@ use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, EcosystemConfig,
 };
 use zksync_basic_types::U256;
+
+use crate::{
+    messages::MSG_CHAIN_NOT_INITIALIZED,
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+};
 
 lazy_static! {
     static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract = BaseContract::from(

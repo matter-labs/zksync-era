@@ -11,7 +11,7 @@ export class Tester {
         public ethWallet: ethers.Wallet,
         public syncWallet: zksync.Wallet,
         public web3Provider: zksync.Provider,
-        public token: L1Token,
+        public token: L1Token
     ) {
         this.runningFee = new Map();
     }
