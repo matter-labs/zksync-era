@@ -2,6 +2,7 @@
 
 use std::{fmt, time::Duration};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -9,7 +10,7 @@ use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     web3::{BlockId, BlockNumber},
-    L2BlockNumber, H256,
+    L2BlockNumber, SLChainId, H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -30,10 +31,9 @@ enum FetcherError {
     Internal(#[from] anyhow::Error),
 }
 
-impl From<zksync_dal::DalError> for FetcherError {
-    fn from(err: zksync_dal::DalError) -> Self {
-        Self::Internal(err.into())
-    }
+struct MiniblockPrecommitDetails {
+    hash: H256,
+    chain_id: SLChainId,
 }
 
 #[async_trait]
@@ -41,7 +41,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn get_miniblock_precommit_hash(
         &self,
         number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<H256>>;
+    ) -> EnrichedClientResult<Option<MiniblockPrecommitDetails>>;
 
     async fn get_safe_block(&self) -> EnrichedClientResult<L2BlockNumber>;
 }
@@ -51,7 +51,7 @@ impl MainNodeClient for Box<DynClient<L2>> {
     async fn get_miniblock_precommit_hash(
         &self,
         number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<H256>> {
+    ) -> EnrichedClientResult<Option<MiniblockPrecommitDetails>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockDetails].start();
         let details = self
             .get_block_details(number)
@@ -59,7 +59,19 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .with_arg("number", &number)
             .await?;
         request_latency.observe();
-        Ok(details.and_then(|details| details.base.precommit_tx_hash))
+        Ok(details.and_then(|details| {
+            if let (Some(precommit_tx_hash), Some(precommit_chain_id)) = (
+                details.base.precommit_tx_hash,
+                details.base.precommit_chain_id,
+            ) {
+                Some(MiniblockPrecommitDetails {
+                    hash: precommit_tx_hash,
+                    chain_id: precommit_chain_id,
+                })
+            } else {
+                None
+            }
+        }))
     }
 
     async fn get_safe_block(&self) -> EnrichedClientResult<L2BlockNumber> {
@@ -180,98 +192,77 @@ impl MiniblockPrecommitFetcher {
         Ok(())
     }
 
-    const MAX_BLOCKS_PER_ITERATION: u32 = 1000;
-
     /// Fetches precommits for blocks from the cursor up to the safe block
     /// Returns true if any precommits were fetched
     async fn fetch_precommits(&self, cursor: &mut FetcherCursor) -> Result<bool, FetcherError> {
         // Get the current safe block from the main node
         let safe_block = self.client.get_safe_block().await?;
-
-        tracing::debug!(
-            "Safe block is {}, last processed block is {}",
-            safe_block.0,
-            cursor.last_processed_miniblock.0
-        );
+        let processing_from = cursor.last_processed_miniblock;
 
         // Check if there are new blocks to process
         if safe_block <= cursor.last_processed_miniblock {
             return Ok(false);
         }
 
-        // Calculate end block with limit to avoid processing too many blocks at once
-        let end_block = std::cmp::min(
-            safe_block,
-            L2BlockNumber(cursor.last_processed_miniblock.0 + Self::MAX_BLOCKS_PER_ITERATION),
+        tracing::debug!(
+            "Processing blocks from {} to {}",
+            cursor.last_processed_miniblock.0 + 1,
+            safe_block.0
         );
-
-        if end_block > safe_block {
-            tracing::info!(
-                "Processing blocks from {} to {} (limited from {})",
-                cursor.last_processed_miniblock.0 + 1,
-                end_block.0,
-                safe_block.0
-            );
-        }
 
         let mut blocks_processed = 0;
         let mut precommits_found = 0;
         let mut fetched_any = false;
 
         // Process blocks from the next one after the last processed up to the calculated end block
-        let mut current_block = cursor.last_processed_miniblock + 1;
-        while current_block <= end_block {
-            let precommit_hash = match self
+        for current_block in (cursor.last_processed_miniblock.0 + 1)..=safe_block.0 {
+            let current_block = L2BlockNumber(current_block);
+            let precommit = self
                 .client
                 .get_miniblock_precommit_hash(current_block)
-                .await
-            {
-                Ok(precommit_hash) => precommit_hash,
-                Err(err) => {
-                    tracing::warn!("Failed to get precommit hash {}", err);
-                    // FIXME soft fail on error?
-                    self.health_updater
-                        .update(Health::from(HealthStatus::Ready).with_details(*cursor));
-                    return Err(err.into());
-                }
-            };
+                .await?;
 
             blocks_processed += 1;
 
-            match precommit_hash {
-                Some(precommit_hash) => {
-                    let mut connection = self.pool.connection_tagged("sync_layer").await?;
-
-                    tracing::info!("Found precommitment for block {}", current_block.0);
+            match precommit {
+                Some(precommit) => {
+                    tracing::info!(
+                        "Registering precommitment for block {}, tx_hash: {}",
+                        current_block,
+                        precommit.hash
+                    );
 
                     // Store the precommitment in the database
-                    connection
+                    self.pool
+                        .connection_tagged("sync_layer")
+                        .await
+                        .context("Failed to get connection for miniblock_precommit_fetcher")?
                         .eth_sender_dal()
                         .insert_pending_received_precommit_eth_tx(
                             current_block,
-                            precommit_hash,
-                            None,
+                            precommit.hash,
+                            Some(precommit.chain_id),
                         )
                         .await?;
 
                     precommits_found += 1;
                     fetched_any = true;
-
-                    // Update cursor regardless of whether we found a precommitment
-                    cursor.last_processed_miniblock = current_block;
-                    current_block += 1;
                 }
                 None => {
                     tracing::debug!("No precommitment for block {}", current_block.0);
-                    break;
                 }
             }
+            // Even if precommitment was not found, it does not need to be synced
+            // in the future as the current miniblock is reported as safe by main node
+            cursor.last_processed_miniblock = current_block;
         }
 
         if blocks_processed > 0 {
-            tracing::info!(
-                "Processed {} blocks, found {} precommits",
+            tracing::debug!(
+                "Processed successfully {} blocks ({} -> {}), found {} precommits",
                 blocks_processed,
+                processing_from.0,
+                safe_block.0,
                 precommits_found
             );
         }
