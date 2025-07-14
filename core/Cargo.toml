@@ -211,6 +211,8 @@ time = "0.3.36" # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 yab = "0.1.0"
+base64 = "0.22.1"
+
 
 # Proc-macro
 syn = "2.0"
@@ -283,15 +285,15 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 
 
 zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4", features = ["evm-compatibility", "unlimited_native"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4"}
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4"}
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4"}
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4" }
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4" }
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", tag = "v0.0.4" }
 
 # only used for verifinfg proofs
-air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
-execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
-verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
-full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", tag="v0.3.1" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.1" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.1" }
+verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.1" }
+full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.1" }
 
 # New VM
 zksync_vm2 = "=0.4.0"

@@ -72,21 +72,20 @@ pub enum UnexecutableReason {
 }
 
 impl UnexecutableReason {
-    pub fn as_metric_label(&self) -> &'static str {
+    pub fn as_metric_label(&self) -> String {
         match self {
-            UnexecutableReason::Halt(halt) => halt_as_metric_label(halt),
-            UnexecutableReason::TxEncodingSize => "TxEncodingSize",
-            UnexecutableReason::LargeEncodingSize => "LargeEncodingSize",
-            UnexecutableReason::PubdataLimit => "PubdataLimit",
-            UnexecutableReason::ProofWillFail => "ProofWillFail",
-            UnexecutableReason::TooMuchGas => "TooMuchGas",
-            UnexecutableReason::OutOfGasForBatchTip => "OutOfGasForBatchTip",
-            UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas",
-            UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
-            UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs",
-            UnexecutableReason::DeploymentNotAllowed => "DeploymentNotAllowed",
-            // TODO
-            UnexecutableReason::Other(val) => "Other: ",
+            UnexecutableReason::Halt(halt) => halt_as_metric_label(halt).to_string(),
+            UnexecutableReason::TxEncodingSize => "TxEncodingSize".to_string(),
+            UnexecutableReason::LargeEncodingSize => "LargeEncodingSize".to_string(),
+            UnexecutableReason::PubdataLimit => "PubdataLimit".to_string(),
+            UnexecutableReason::ProofWillFail => "ProofWillFail".to_string(),
+            UnexecutableReason::TooMuchGas => "TooMuchGas".to_string(),
+            UnexecutableReason::OutOfGasForBatchTip => "OutOfGasForBatchTip".to_string(),
+            UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas".to_string(),
+            UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided".to_string(),
+            UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs".to_string(),
+            UnexecutableReason::DeploymentNotAllowed => "DeploymentNotAllowed".to_string(),
+            UnexecutableReason::Other(val) => format!("Other: {val}"),
         }
     }
 }

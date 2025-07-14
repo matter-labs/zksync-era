@@ -14,7 +14,7 @@ use tracing::{error, info};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber};
 
-use crate::proof_verifier::verify_fri_proof;
+use crate::{metrics::PROVER_STATE_METRICS, proof_verifier::verify_fri_proof};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct NextProverJobPayload {
@@ -47,6 +47,8 @@ async fn pick_fri_job(State(pool): State<Arc<ConnectionPool<Core>>>) -> Response
     {
         Ok(Some((block_number, data))) => {
             info!("Picked FRI block to prove: {}", block_number);
+
+            PROVER_STATE_METRICS.fri_queue.set(block_number.0 as usize);
             let encoded = base64::encode(&data);
             let resp = NextProverJobPayload {
                 block_number: block_number.0,
@@ -75,6 +77,9 @@ async fn submit_fri_proof(
         .expect("Failed to get DB connection");
 
     info!("Received FRI proof for block {}", payload.block_number);
+    PROVER_STATE_METRICS
+        .latest_submitted_fri_proof
+        .set(payload.block_number as usize);
 
     let proof_bytes = base64::decode(&payload.proof).map_err(|err| {
         error!("Invalid base64 FRI proof: {err}");
@@ -149,6 +154,9 @@ async fn pick_snark_job(State(pool): State<Arc<ConnectionPool<Core>>>) -> Respon
         .await
     {
         Ok(Some((block_number, data))) => {
+            PROVER_STATE_METRICS
+                .snark_queue
+                .set(block_number.0 as usize);
             info!("Picked SNARK block to prove: {}", block_number);
             let encoded = base64::encode(&data);
             let resp = NextProverJobPayload {
@@ -188,6 +196,9 @@ async fn submit_snark_proof(
 
     let block_number = L2BlockNumber(payload.block_number);
     info!("Submitting SNARK proof for block {}", block_number);
+    PROVER_STATE_METRICS
+        .latest_submitted_snark_proof
+        .set(payload.block_number as usize);
     match conn
         .zkos_prover_dal()
         .save_snark_proof(block_number, proof_bytes)

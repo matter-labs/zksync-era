@@ -43,7 +43,7 @@ services:
       - 3124:3124
     volumes:
       - ./chains/era/configs:/configs
-    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --wallets-path=/configs/wallets.yaml --components=eth,state_keeper,zkos_prover_input_generator
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --genesis-path=/configs/genesis.yaml --contracts-config-path=/configs/contracts.yaml --wallets-path=/configs/wallets.yaml --components=eth,state_keeper,zkos_prover_input_generator,house_keeper
     network_mode: host
 
   zksync-os-api:

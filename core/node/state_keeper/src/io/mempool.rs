@@ -395,8 +395,8 @@ impl StateKeeperIO for MempoolIO {
 
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-
-        KEEPER_METRICS.inc_rejected_txs(reason.as_metric_label());
+        let reason_str = reason.as_metric_label();
+        KEEPER_METRICS.inc_rejected_txs(reason_str);
 
         tracing::warn!(
             "Transaction {} is rejected with error: {reason}",

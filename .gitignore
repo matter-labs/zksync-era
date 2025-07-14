@@ -87,6 +87,8 @@ server_logs.txt
 core/lib/storage/.env
 
 .zcli-config.json
+.prettier_cache.json
+.prettier_cache_contracts.json
 
 db/
 en_db/
