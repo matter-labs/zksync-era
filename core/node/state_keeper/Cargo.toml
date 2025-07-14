@@ -16,6 +16,7 @@ zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_mempool.workspace = true

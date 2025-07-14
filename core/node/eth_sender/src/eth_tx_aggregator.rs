@@ -676,11 +676,7 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
-            // For the migration from gateway to L1, we need to wait for all blocks to be executed
-            if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
-                op_restrictions.prove_restriction = reason;
-                op_restrictions.execute_restriction = reason;
-            }
+            // For the migration to and from gateway, we need to wait for all blocks to be executed
         }
 
         let precommit_params = self.precommit_params(storage).await?;

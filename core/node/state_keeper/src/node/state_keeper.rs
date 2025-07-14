@@ -11,6 +11,7 @@ use zksync_state::{AsyncCatchupTask, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::try_stoppable;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
+use zksync_eth_client::web3_decl::node::SettlementModeResource;
 
 use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
 use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperBuilder};
@@ -33,6 +34,7 @@ pub struct Input {
     shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
+    settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
