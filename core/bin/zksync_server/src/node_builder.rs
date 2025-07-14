@@ -784,6 +784,7 @@ impl MainNodeBuilder {
 
         if components.contains(&Component::EthTxAggregator)
             | components.contains(&Component::EthTxManager)
+            | components.contains(&Component::TeeTxAggregator)
         {
             self = self.add_pk_signing_client_layer()?;
         }
