@@ -8,7 +8,6 @@ use super::*;
 use crate::storage::ConnectionPool;
 
 /// Test checking that parsing logic matches the abi specified in the json file.
-#[ignore = "We still use the old abi. When the new consensus registry is merged, this test should be enabled."]
 #[test]
 fn test_consensus_registry_abi() {
     zksync_concurrency::testonly::abort_on_panic();
@@ -25,7 +24,6 @@ fn test_consensus_registry_abi() {
     c.call(abi::Owner).test().unwrap();
 }
 
-#[ignore = "We still use the old abi. When the new consensus registry is merged, this test should be enabled."]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_current_validator_committee() {
     zksync_concurrency::testonly::abort_on_panic();
@@ -107,7 +105,6 @@ async fn test_current_validator_committee() {
     .unwrap();
 }
 
-#[ignore = "We still use the old abi. When the new consensus registry is merged, this test should be enabled."]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pending_validator_committee() {
     const DELAY: u32 = 100;
