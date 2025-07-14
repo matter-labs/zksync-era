@@ -288,13 +288,15 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_proof_manager_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
         self.node.add_layer(EthProofManagerLayer::new(
             self.configs.eth_proof_manager.clone(),
+            gas_adjuster_config,
             self.eth_proof_manager_contracts
                 .clone()
                 .expect("Eth proof manager contracts are required to run eth proof manager"),
             self.wallets.clone(),
-            self.genesis_config.l1_chain_id,
+            zksync_types::SLChainId(self.configs.eth_proof_manager.sl_chain_id),
             self.genesis_config.l2_chain_id,
         ));
         Ok(self)

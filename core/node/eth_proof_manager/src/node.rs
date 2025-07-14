@@ -1,23 +1,29 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
-use zksync_config::configs::{
-    contracts::chain::ProofManagerContracts,
-    eth_proof_manager::EthProofManagerConfig,
-    wallets::{Wallet, Wallets},
+use zksync_config::{
+    configs::{
+        contracts::chain::ProofManagerContracts,
+        eth_proof_manager::EthProofManagerConfig,
+        wallets::{Wallet, Wallets},
+    },
+    GasAdjusterConfig,
 };
 use zksync_contracts::proof_manager_contract;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_eth_client::clients::{DynClient, SigningClient, L2};
+use zksync_eth_client::clients::{Client, DynClient, SigningClient, L2};
 use zksync_eth_signer::PrivateKeySigner;
-use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
+use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::ObjectStore;
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_object_store::ObjectStoreFactory;
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, url::SensitiveUrl,
+    L2ChainId, SLChainId,
+};
 
 use crate::{client::ProofManagerClient, EthProofManager};
 
@@ -25,18 +31,16 @@ use crate::{client::ProofManagerClient, EthProofManager};
 #[derive(Debug)]
 pub struct EthProofManagerLayer {
     eth_proof_manager_config: EthProofManagerConfig,
+    gas_adjuster_config: GasAdjusterConfig,
     eth_proof_manager_contracts: ProofManagerContracts,
     wallets_config: Wallets,
-    l1_chain_id: L1ChainId,
+    sl_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     master_pool: PoolResource<MasterPool>,
-    eth_client: Box<DynClient<L2>>,
-    blob_store: Arc<dyn ObjectStore>,
-    gas_adjuster: Arc<dyn TxParamsProvider>,
 }
 
 #[derive(IntoContext)]
@@ -48,24 +52,26 @@ pub struct Output {
 impl EthProofManagerLayer {
     pub fn new(
         eth_proof_manager_config: EthProofManagerConfig,
+        gas_adjuster_config: GasAdjusterConfig,
         eth_proof_manager_contracts: ProofManagerContracts,
         wallets_config: Wallets,
-        l1_chain_id: L1ChainId,
+        sl_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_proof_manager_config,
+            gas_adjuster_config,
             eth_proof_manager_contracts,
             wallets_config,
-            l1_chain_id,
+            sl_chain_id,
             l2_chain_id,
         }
     }
 
-    fn create_client(
+    async fn create_client(
         &self,
-        client: Box<DynClient<L2>>,
-        gas_adjuster: Arc<dyn TxParamsProvider>,
+        http_rpc_url: String,
+        sl_chain_id: SLChainId,
         contracts: &ProofManagerContracts,
         owner_wallet: Wallet,
     ) -> ProofManagerClient {
@@ -73,6 +79,27 @@ impl EthProofManagerLayer {
         let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
         tracing::info!("Operator address: {operator_address:?}");
+
+        let client = Box::new(
+            Client::<L2>::http(SensitiveUrl::from_str(&http_rpc_url).expect("failed to parse url"))
+                .expect("failed to create client")
+                .for_network(L2::from(L2ChainId::from(sl_chain_id.0 as u32)))
+                .build(),
+        ) as Box<DynClient<L2>>;
+
+        let gas_adjuster_client = GasAdjusterClient::from(client.clone_boxed());
+
+        // todo: what is this?
+        let gas_adjuster = Arc::new(
+            GasAdjuster::new(
+                gas_adjuster_client,
+                self.gas_adjuster_config.clone(),
+                PubdataSendingMode::Custom,
+                L1BatchCommitmentMode::Rollup,
+            )
+            .await
+            .unwrap(),
+        );
 
         let eth_client = SigningClient::new(
             client,
@@ -83,7 +110,7 @@ impl EthProofManagerLayer {
             self.eth_proof_manager_config
                 .default_priority_fee_per_gas
                 .into(),
-            self.l1_chain_id.into(),
+            self.sl_chain_id.into(),
         );
 
         ProofManagerClient::new(
@@ -112,20 +139,27 @@ impl WiringLayer for EthProofManagerLayer {
             self.eth_proof_manager_contracts.proxy_addr
         );
 
-        let client = self.create_client(
-            input.eth_client,
-            input.gas_adjuster,
-            &self.eth_proof_manager_contracts,
-            self.wallets_config
-                .eth_proof_manager
-                .clone()
-                .expect("Eth proof manager wallet is required"),
-        );
+        let client = self
+            .create_client(
+                self.eth_proof_manager_config.http_rpc_url.clone(),
+                self.sl_chain_id,
+                &self.eth_proof_manager_contracts,
+                self.wallets_config
+                    .eth_proof_manager
+                    .clone()
+                    .expect("Eth proof manager wallet is required"),
+            )
+            .await;
+
+        let object_store =
+            ObjectStoreFactory::new(self.eth_proof_manager_config.object_store.clone())
+                .create_store()
+                .await?;
 
         let eth_proof_manager = EthProofManager::new(
             Box::new(client),
             main_pool,
-            input.blob_store,
+            object_store,
             self.eth_proof_manager_config.clone(),
             self.l2_chain_id,
         );
