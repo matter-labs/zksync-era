@@ -29,8 +29,8 @@ use crate::{
             utils::{get_default_foundry_path, send_tx},
         },
         dev::commands::{
+            chain_upgrade_args::{ChainUpgradeArgs, ChainUpgradeArgsInner},
             upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
-            v29_chain_args::{V29ChainUpgradeArgs, V29UpgradeArgsInner},
         },
     },
     utils::addresses::apply_l1_to_l2_alias,
@@ -117,7 +117,7 @@ pub async fn check_chain_readiness(
 
 pub async fn fetch_chain_info(
     upgrade_info: &V29UpgradeInfo,
-    args: &V29UpgradeArgsInner,
+    args: &ChainUpgradeArgsInner,
 ) -> anyhow::Result<FetchedChainInfo> {
     // Connect to the L1 Ethereum network
     let l1_provider = get_ethers_provider(&args.l1_rpc_url)?;
@@ -202,7 +202,7 @@ impl ZkStackConfig for V29UpgradeInfo {}
 
 pub(crate) async fn run(
     shell: &Shell,
-    args_input: V29ChainUpgradeArgs,
+    args_input: ChainUpgradeArgs,
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();

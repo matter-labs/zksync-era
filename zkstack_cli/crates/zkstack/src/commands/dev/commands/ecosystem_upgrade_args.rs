@@ -51,6 +51,8 @@ pub struct EcosystemUpgradeArgs {
     pub upgrade_version: UpgradeVersions,
     #[clap(long, value_enum)]
     ecosystem_upgrade_stage: EcosystemUpgradeStage,
+    #[clap(long, help = "Whether to update git submodules of repo", default_missing_value = "true", num_args = 0..=1)]
+    pub update_submodules: Option<bool>,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,

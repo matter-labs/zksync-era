@@ -71,16 +71,16 @@ pub enum DevCommands {
     GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
-    GenerateEcosystemUpgradeCalldata(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    GenerateEcosystemUpgradeCalldata(commands::ecosystem_upgrade_args::EcosystemUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
-    RunEcosystemUpgrade(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    RunEcosystemUpgrade(commands::ecosystem_upgrade_args::EcosystemUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
-    GenerateChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    GenerateChainUpgrade(commands::chain_upgrade_args::ChainUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
-    RunChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    RunChainUpgrade(commands::chain_upgrade_args::ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -112,19 +112,19 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         #[cfg(feature = "upgrades")]
         DevCommands::GenerateEcosystemUpgradeCalldata(args) => {
-            commands::v29_ecosystem_upgrade::run(shell, args, false).await?
+            commands::ecosystem_upgrade::run(shell, args, false).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::RunEcosystemUpgrade(args) => {
-            commands::v29_ecosystem_upgrade::run(shell, args, true).await?
+            commands::ecosystem_upgrade::run(shell, args, true).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::GenerateChainUpgrade(args) => {
-            commands::v29_chain_upgrade::run(shell, args, false).await?
+            commands::chain_upgrade::run(shell, args, false).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::RunChainUpgrade(args) => {
-            commands::v29_chain_upgrade::run(shell, args, true).await?
+            commands::chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())

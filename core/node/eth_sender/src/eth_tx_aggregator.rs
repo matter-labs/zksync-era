@@ -663,14 +663,8 @@ impl EthTxAggregator {
             op_restrictions.execute_restriction = reason;
             op_restrictions.precommit_restriction = reason;
         }
-        let is_gateway = self.is_gateway();
 
-        if gateway_migration_state == GatewayMigrationState::InProgress {
-            let reason = Some("Gateway migration started");
-            op_restrictions.commit_restriction = reason;
-            op_restrictions.prove_restriction = reason;
-            op_restrictions.execute_restriction = reason;
-        }
+        let is_gateway = self.is_gateway();
 
         if gateway_migration_state == GatewayMigrationState::InProgress {
             let reason = Some("Gateway migration started");

@@ -34,7 +34,7 @@ use crate::{
             // },
             genesis::genesis,
         },
-        dev::commands::v29_ecosystem_args::{
+        dev::commands::ecosystem_upgrade_args::{
             EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage, UpgradeVersions,
         },
     },
@@ -51,7 +51,9 @@ pub async fn run(
     println!("Running ecosystem gateway upgrade args");
 
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    if args.update_submodules.unwrap_or(true) {
+        git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    }
 
     let upgrade_version = args.upgrade_version;
 
@@ -193,13 +195,18 @@ async fn no_governance_prepare(
         .load_chain(Some("era".to_string()))
         .context("No era")?;
 
-    // FIXME: we will have to force this in production environment
+    // FIXME: we will have to get the ecosystem.config era_chain_id in production environment
+    println!("era_config.chain_id: {:?}", era_config.chain_id);
+    println!(
+        "ecosystem_config.era_chain_id: {:?}",
+        ecosystem_config.era_chain_id
+    );
     // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
     let mut gateway_upgrade_input = EcosystemUpgradeInput::new(
         &default_genesis_input,
         &current_contracts_config,
         &initial_deployment_config,
-        ecosystem_config.era_chain_id,
+        era_config.chain_id,
         era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );

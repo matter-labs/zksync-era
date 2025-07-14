@@ -1,7 +1,15 @@
+#[cfg(feature = "upgrades")]
+pub mod chain_upgrade;
+#[cfg(feature = "upgrades")]
+pub mod chain_upgrade_args;
 pub mod clean;
 pub mod config_writer;
 pub mod contracts;
 pub mod database;
+#[cfg(feature = "upgrades")]
+pub mod ecosystem_upgrade;
+#[cfg(feature = "upgrades")]
+pub mod ecosystem_upgrade_args;
 pub mod fmt;
 pub mod genesis;
 pub mod init_test_wallet;
@@ -25,11 +33,3 @@ pub mod upgrade_utils;
 pub mod v27_evm_eq;
 #[cfg(feature = "v28_precompiles")]
 pub mod v28_precompiles;
-#[cfg(feature = "upgrades")]
-pub mod v29_chain_args;
-#[cfg(feature = "upgrades")]
-pub mod v29_chain_upgrade;
-#[cfg(feature = "upgrades")]
-pub mod v29_ecosystem_args;
-#[cfg(feature = "upgrades")]
-pub mod v29_ecosystem_upgrade;

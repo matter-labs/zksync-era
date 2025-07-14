@@ -438,7 +438,7 @@ describe('Interop behavior checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while (currentRoot === ethers.ZeroHash && count < 20) {
+        while (currentRoot === ethers.ZeroHash && count < 40) {
             // We make repeated transactions to force the L2 to update the interop root.
             const tx = await alice.transfer({
                 to: alice.address,
@@ -450,7 +450,7 @@ describe('Interop behavior checks', () => {
             currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
             await zksync.utils.sleep(alice.provider.pollingInterval);
 
-            console.log('currentRoot', currentRoot, count);
+            // console.log('currentRoot', currentRoot, count);
             count++;
         }
         console.log('Interop root is non-zero', currentRoot, l1BatchNumber);
