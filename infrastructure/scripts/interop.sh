@@ -63,6 +63,7 @@ zkstack chain init \
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era1.log &
 sh ./infrastructure/scripts/bridge_eth_to_era.sh 271
 sh ./infrastructure/scripts/bridge_token_to_era.sh 271
+
 zkstack server wait --ignore-prerequisites --verbose --chain era
 sh ./infrastructure/scripts/bridge_token_from_era.sh 271
 pkill -9 zksync_server
@@ -91,6 +92,6 @@ zkstack dev init-test-wallet --chain era
 zkstack dev init-test-wallet --chain validium
 # Runs interop integration test between era-validium in parallel
 mkdir -p zlogs
-./bin/run_on_all_chains.sh "zkstack dev test integration -t 'L1 ERC20' --verbose" \
+./bin/run_on_all_chains.sh "zkstack dev test integration -t 'Interop' --verbose" \
             "era,validium" zlogs/ \
             'era:--evm' 'validium:--evm'

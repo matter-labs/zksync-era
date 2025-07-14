@@ -28,6 +28,7 @@ export TOKEN_ADDRESS=$(forge create ./contracts/dev-contracts/TestnetERC20Token.
   -r "$RPC_URL" \
   --constructor-args L2TestToken TT 18 | grep "Deployed to:" | awk '{print $3}'
 )
+# export TOKEN_ADDRESS="" // for speed the token deployment can be skipped if running multiple times.
 
 # === Calculate token asset ID ===
 CHAIN_ID=$(cast chain-id -r "$RPC_URL")
