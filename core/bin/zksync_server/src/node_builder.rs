@@ -72,7 +72,7 @@ use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    Address,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -193,12 +193,10 @@ impl MainNodeBuilder {
     }
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
-        // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        if self.l1_specific_contracts.base_token_address != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
-            let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
-            self.node
-                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
-        }
+        // We always insert base token ratio persister as its needed for all chains on gateway
+        let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
+        self.node
+            .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let api_config = try_load_config!(self.configs.api_config);
         let l1_gas_layer = L1GasLayer::new(
