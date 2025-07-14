@@ -648,7 +648,7 @@ async fn test_invalid_transaction_handling(
     assert_matches!(
         err.downcast_ref::<TransactionValidationError>()
             .expect("Unexpected error type"),
-        TransactionValidationError::BatchTransactionInvalid { .. }
+        TransactionValidationError::TransactionInvalid { .. }
     );
 
     Ok(())

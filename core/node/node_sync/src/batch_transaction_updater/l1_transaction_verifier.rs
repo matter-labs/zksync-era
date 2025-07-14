@@ -14,10 +14,8 @@ pub struct L1TransactionVerifier {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionValidationError {
-    #[error("Batch transaction {tx_hash} invalid: {reason}")]
-    BatchTransactionInvalid { tx_hash: H256, reason: String },
-    #[error("Precommit transaction {tx_hash} invalid: {reason}")]
-    PrecommitTransactionInvalid { tx_hash: H256, reason: String },
+    #[error("Operator transaction {tx_hash} invalid: {reason}")]
+    TransactionInvalid { tx_hash: H256, reason: String },
     #[error(transparent)]
     OtherValidationError(#[from] anyhow::Error),
 }
@@ -44,7 +42,7 @@ impl L1TransactionVerifier {
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: "transaction reverted".to_string(),
             });
@@ -92,18 +90,17 @@ impl L1TransactionVerifier {
                 Some((batch_hash, commitment))
             });
 
-        let (batch_hash, commitment) = committed_batch_info.ok_or_else(|| {
-            TransactionValidationError::BatchTransactionInvalid {
+        let (batch_hash, commitment) =
+            committed_batch_info.ok_or_else(|| TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "does not have `BlockCommit` event log for batch {}",
                     batch_number
                 ),
-            }
-        })?;
+            })?;
 
         if db_batch.commitment != commitment {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "batch {} has different commitment: batch: {:?}, transaction log: {:?}",
@@ -113,7 +110,7 @@ impl L1TransactionVerifier {
         }
 
         if db_batch.root_hash != batch_hash {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "batch {} has different root hash: batch: {:?}, transaction log: {:?}",
@@ -133,7 +130,7 @@ impl L1TransactionVerifier {
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: "transaction reverted".to_string(),
             });
@@ -177,19 +174,19 @@ impl L1TransactionVerifier {
             });
 
         let (from, to) =
-            proved_from_to.ok_or_else(|| TransactionValidationError::BatchTransactionInvalid {
+            proved_from_to.ok_or_else(|| TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: "does not have `BlocksVerification` event log".to_string(),
             })?;
 
         if from >= batch_number.0 {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!("has invalid `from` value for batch {}", batch_number),
             });
         }
         if to < batch_number.0 {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!("has invalid `to` value for batch {}", batch_number),
             });
@@ -206,7 +203,7 @@ impl L1TransactionVerifier {
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: "transaction reverted".to_string(),
             });
@@ -261,17 +258,16 @@ impl L1TransactionVerifier {
                 Some((batch_hash, commitment))
             });
 
-        let (batch_hash, commitment) = executed_batch_info.ok_or_else(|| {
-            TransactionValidationError::BatchTransactionInvalid {
+        let (batch_hash, commitment) =
+            executed_batch_info.ok_or_else(|| TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "does not have `BlockExecution` event log for batch {}",
                     batch_number,
                 ),
-            }
-        })?;
+            })?;
         if db_batch.commitment != commitment {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "has different commitment: batch {:?}, transaction log {:?}",
@@ -280,7 +276,7 @@ impl L1TransactionVerifier {
             });
         }
         if db_batch.root_hash != batch_hash {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "has different root hash: batch {:?}, transaction log {:?}",
@@ -299,7 +295,7 @@ impl L1TransactionVerifier {
         miniblock_header: L2BlockHeader,
     ) -> Result<(), TransactionValidationError> {
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::BatchTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: "transaction reverted".to_string(),
             });
@@ -354,13 +350,13 @@ impl L1TransactionVerifier {
         });
 
         let precommitment =
-            precommitment.ok_or_else(|| TransactionValidationError::BatchTransactionInvalid {
+            precommitment.ok_or_else(|| TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: "does not have `BatchPrecommitmentSet` event log".to_string(),
             })?;
 
         let Some(rolling_txs_hash) = miniblock_header.rolling_txs_hash else {
-            return Err(TransactionValidationError::PrecommitTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "we do not have the rolling_txs_hash value for miniblock {}. This is unexpected.",
@@ -370,7 +366,7 @@ impl L1TransactionVerifier {
         };
 
         if precommitment != rolling_txs_hash {
-            return Err(TransactionValidationError::PrecommitTransactionInvalid {
+            return Err(TransactionValidationError::TransactionInvalid {
                 tx_hash: receipt.transaction_hash,
                 reason: format!(
                     "has different precommitment: miniblock {:?}, transaction log {:?}",

@@ -644,7 +644,40 @@ impl EthSenderDal<'_, '_> {
 
         // Check if the transaction with the corresponding hash already exists.
         let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
-            eth_tx_id //FIXME: mark tx as pending
+            // insert_pending_received_eth_tx binds a tx to a batch however its
+            // called without checking if the tx is valid (is actually performing
+            // the assumed operation for a given batch). Thus we cannot add this
+            // binding unless the transaction is pending. Note that we normally
+            // don't batch multiple operations in one transaction so this path
+            // should be rarely exercised.
+
+            // mark transaction as pending
+            sqlx::query_scalar!(
+                "UPDATE eth_txs_history \
+                SET \
+                    confirmed_at = NULL, \
+                    finality_status = $2, \
+                    updated_at = NOW() \
+                WHERE \
+                    tx_hash = $1",
+                tx_hash,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .execute(transaction.conn())
+            .await?;
+
+            sqlx::query_scalar!(
+                "UPDATE eth_txs \
+                SET \
+                    confirmed_eth_tx_history_id = NULL \
+                WHERE \
+                    id = $1",
+                eth_tx_id,
+            )
+            .execute(transaction.conn())
+            .await?;
+
+            eth_tx_id
         } else {
             // No such transaction in the database yet, we have to insert it.
 
@@ -765,16 +798,7 @@ impl EthSenderDal<'_, '_> {
         .await
         .context("Failed to update miniblock with precommit hash")?;
 
-        transaction.commit().await.context("commit")?;
-
-        tracing::info!(
-            "Recorded precommit for miniblock {}, tx_hash {}, on sl_chain_id {:?}",
-            miniblock.0,
-            tx_hash,
-            sl_chain_id
-        );
-
-        Ok(())
+        transaction.commit().await.context("commit")
     }
 
     pub async fn get_unfinalized_transactions(

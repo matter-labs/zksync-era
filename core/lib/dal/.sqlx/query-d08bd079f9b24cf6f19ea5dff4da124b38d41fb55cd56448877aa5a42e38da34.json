@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE eth_txs SET confirmed_eth_tx_history_id = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d08bd079f9b24cf6f19ea5dff4da124b38d41fb55cd56448877aa5a42e38da34"
+}

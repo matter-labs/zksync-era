@@ -13,4 +13,3 @@ base_token:
   denominator: 1
 wallet_creation: Localhost
 evm_emulator: true
-tight_ports: false
