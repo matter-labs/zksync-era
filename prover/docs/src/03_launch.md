@@ -13,6 +13,14 @@ It will create a config similar to `era`, but with:
 - Proof sending mode set to `OnlyRealProofs`
 - Prover mode set to `Local` instead of `GCS`.
 
+
+Next, initialize the prover which will setup the prover db and give you options for downloading keys and setting up an artifacts directory:
+```bash
+zkstack prover init
+```
+
+Note that by default the gateway service expects the name of the prover db to be `prover_local` so make sure you either enter a custom database name or use the generated database name with the other components.
+
 ## Key generation
 
 This operation should only be done once; if you already generated keys, you can skip it.
