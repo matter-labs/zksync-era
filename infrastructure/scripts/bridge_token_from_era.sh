@@ -87,6 +87,10 @@ withdrawTxHash=$(
 )
 echo "Withdraw transaction hash: $withdrawTxHash"
 
-forge script deploy-scripts/provider/ZKSProvider.s.sol:ZKSProvider --broadcast --slow --no-cache --legacy --ffi --rpc-url http://localhost:8545 \
+forge script deploy-scripts/provider/ZKSProvider.s.sol:ZKSProvider --broadcast --slow --legacy --skip-simulation  --ffi --rpc-url http://localhost:8545 \
+  --private-key $PRIVATE_KEY --sig "waitForWithdrawalToBeFinalized(uint256,address,string,bytes32,uint256)" \
+  $CHAIN_ID  $L1_BH_ADDRESS  $RPC_URL  $withdrawTxHash 0
+
+forge script deploy-scripts/provider/ZKSProvider.s.sol:ZKSProvider --broadcast --slow --legacy --skip-simulation  --ffi --rpc-url http://localhost:8545 \
   --private-key $PRIVATE_KEY --sig "finalizeWithdrawal(uint256,address,string,bytes32,uint256)" \
   $CHAIN_ID  $L1_BH_ADDRESS  $RPC_URL  $withdrawTxHash 0

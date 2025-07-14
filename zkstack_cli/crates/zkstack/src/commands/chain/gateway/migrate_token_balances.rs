@@ -31,7 +31,7 @@ lazy_static! {
             "function fundL2Address(uint256, address, address, uint256) public",
             "function startTokenMigrationOnL2(uint256, string) public",
             // "function continueMigrationOnGateway(uint256, string) public",
-            "function finishMigrationOnL1(address, uint256, string) public",
+            "function finishMigrationOnL1(address, uint256, string, bool) public",
             "function checkAllMigrated(uint256, string) public",
         ])
             .unwrap(),
@@ -189,6 +189,7 @@ pub async fn migrate_token_balances_from_gateway(
         println!("Token migration started");
     }
 
+
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "finishMigrationOnL1",
@@ -196,6 +197,7 @@ pub async fn migrate_token_balances_from_gateway(
                 l1_bridgehub_addr,
                 U256::from(l2_chain_id),
                 l2_rpc_url.clone(),
+                true
             ),
         )
         .unwrap();
@@ -206,10 +208,36 @@ pub async fn migrate_token_balances_from_gateway(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(l1_rpc_url)
+        .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast()
         .with_slow()
-        .with_no_cache()
+        .with_calldata(&calldata);
+
+    // Governor private key is required for this script
+    // forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
+    forge.run(shell)?;
+
+    let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
+        .encode(
+            "finishMigrationOnL1",
+            (
+                l1_bridgehub_addr,
+                U256::from(l2_chain_id),
+                l2_rpc_url.clone(),
+                false
+            ),
+        )
+        .unwrap();
+
+    let mut forge = Forge::new(foundry_scripts_path)
+        .script(
+            &PathBuf::from(GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url.clone())
+        .with_broadcast()
+        .with_slow()
         .with_calldata(&calldata);
 
     // Governor private key is required for this script
