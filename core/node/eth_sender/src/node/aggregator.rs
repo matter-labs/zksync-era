@@ -205,7 +205,6 @@ pub struct TeeInput {
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: Option<BoundEthInterfaceResource>,
-    pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub eth_client_tee_dcap: Option<BoundEthInterfaceForTeeDcapResource>,
     pub settlement_mode: SettlementModeResource,
@@ -249,7 +248,6 @@ impl WiringLayer for TeeTxAggregatorLayer {
         let master_pool = input.master_pool.get().await?;
         let replica_pool = input.replica_pool.get().await?;
 
-        let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let eth_client_tee_dcap = input.eth_client_tee_dcap.map(|c| c.0);
 
         // Create and add tasks.
@@ -260,7 +258,6 @@ impl WiringLayer for TeeTxAggregatorLayer {
             master_pool.clone(),
             config,
             eth_client,
-            eth_client_blobs,
             eth_client_tee_dcap,
             input.settlement_mode.settlement_layer_for_sending_txs(),
         )

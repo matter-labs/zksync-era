@@ -39,20 +39,13 @@ impl TeeTxAggregator {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         eth_client: Box<dyn BoundEthInterface>,
-        eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
         eth_client_tee_dcap: Option<Box<dyn BoundEthInterface>>,
         settlement_layer: Option<SettlementLayer>,
     ) -> Self {
-        let eth_client = eth_client.for_component("tee_tx_aggregator");
-        let eth_client_blobs = eth_client_blobs.map(|c| c.for_component("tee_tx_aggregator"));
         let eth_client_tee_dcap = eth_client_tee_dcap.map(|c| c.for_component("tee_tx_aggregator"));
 
         let mut initial_pending_nonces = HashMap::new();
-        for client in eth_client_blobs
-            .iter()
-            .chain(std::iter::once(&eth_client))
-            .chain(eth_client_tee_dcap.iter())
-        {
+        for client in eth_client_tee_dcap.iter() {
             let address = client.sender_account();
             let nonce = client.pending_nonce().await.unwrap().as_u64();
 
@@ -115,15 +108,13 @@ impl TeeTxAggregator {
     async fn save_tee_transaction(
         &self,
         calldata: Vec<u8>,
-        mut transaction: &mut Connection<'_, Core>,
+        transaction: &mut Connection<'_, Core>,
     ) -> Result<EthTx, TeeAggregatorError> {
         // Choose the appropriate client for TEE operations
         let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
 
         // Get the next nonce for the TEE transactions
-        let nonce = self
-            .get_next_nonce(&mut transaction, sender_addr, true)
-            .await?;
+        let nonce = self.get_next_nonce(transaction, sender_addr, true).await?;
 
         // Save the TEE transaction to the database
         let mut eth_tx = transaction
