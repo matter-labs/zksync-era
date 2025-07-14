@@ -23,7 +23,7 @@ pub mod keys;
 pub const MAX_COMPRESSION_CIRCUITS: u8 = 5;
 
 // THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
-pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version29;
+pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version28;
 pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(0);
 pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
     minor: PROVER_PROTOCOL_VERSION,
