@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE data_availability\n            SET\n                inclusion_data = $1,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $2\n                AND inclusion_data IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c99342c4fbf36ccc8e9c9dafc76de37201091bfccd3caf922e766896c5a542b"
+}

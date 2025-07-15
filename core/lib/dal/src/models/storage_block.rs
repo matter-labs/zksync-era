@@ -4,11 +4,12 @@ use bigdecimal::{BigDecimal, ToPrimitive};
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::commitment::L2DACommitmentScheme;
 use zksync_types::{
     api,
     block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata, PubdataParams, PubdataType},
+    commitment::{
+        L1BatchMetaParameters, L1BatchMetadata, L2DACommitmentScheme, PubdataParams, PubdataType,
+    },
     eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
@@ -632,10 +633,12 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
             pubdata_params: PubdataParams {
-                l2_da_validator_address: row.l2_da_validator_address.map(Address::from_slice),
+                l2_da_validator_address: row
+                    .l2_da_validator_address
+                    .map(|a| Address::from_slice(&a)),
                 l2_da_commitment_scheme: row
                     .l2_da_commitment_scheme
-                    .map(L2DACommitmentScheme::from),
+                    .map(|a| L2DACommitmentScheme::from(a as u8)),
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
         }
@@ -669,8 +672,10 @@ pub(crate) struct StoragePubdataParams {
 impl From<StoragePubdataParams> for PubdataParams {
     fn from(row: StoragePubdataParams) -> Self {
         Self {
-            l2_da_validator_address: row.l2_da_validator_address.map(Address::from_slice),
-            l2_da_commitment_scheme: row.l2_da_commitment_scheme.map(L2DACommitmentScheme::from),
+            l2_da_validator_address: row.l2_da_validator_address.map(|a| Address::from_slice(&a)),
+            l2_da_commitment_scheme: row
+                .l2_da_commitment_scheme
+                .map(|a| L2DACommitmentScheme::from(a as u8)),
             pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
         }
     }

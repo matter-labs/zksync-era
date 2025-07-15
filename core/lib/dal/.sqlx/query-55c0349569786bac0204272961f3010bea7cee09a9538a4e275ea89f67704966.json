@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH\n            available_batches AS (\n                SELECT\n                    MAX(number) AS \"last_batch\"\n                FROM\n                    l1_batches\n                WHERE\n                    is_sealed\n            ),\n            \n            processed_batches AS (\n                SELECT\n                    COALESCE(MAX(l1_batch_number), $1) + $2 AS \"last_ready_batch\"\n                FROM\n                    vm_runner_bwip\n                WHERE\n                    time_taken IS NOT NULL\n            )\n            \n            SELECT\n                LEAST(last_batch, last_ready_batch) AS \"last_ready_batch!\"\n            FROM\n                available_batches\n            FULL JOIN processed_batches ON TRUE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_ready_batch!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "55c0349569786bac0204272961f3010bea7cee09a9538a4e275ea89f67704966"
+}

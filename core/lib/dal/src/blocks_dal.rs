@@ -1049,6 +1049,7 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
+                l2_da_commitment_scheme,
                 pubdata_type
             FROM
                 miniblocks
@@ -1092,6 +1093,7 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
+                l2_da_commitment_scheme,
                 pubdata_type
             FROM
                 miniblocks
@@ -2267,7 +2269,9 @@ impl BlocksDal<'_, '_> {
             StoragePubdataParams,
             r#"
             SELECT
-                l2_da_validator_address, pubdata_type
+                l2_da_validator_address,
+                l2_da_commitment_scheme,
+                pubdata_type
             FROM
                 miniblocks
             WHERE

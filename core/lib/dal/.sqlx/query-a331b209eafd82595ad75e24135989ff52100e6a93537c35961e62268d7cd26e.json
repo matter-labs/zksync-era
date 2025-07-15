@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    address,\n                    verification_info::text AS verification_info\n                FROM\n                    contracts_verification_info\n                WHERE address > $1\n                ORDER BY\n                    address\n                LIMIT $2\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "verification_info",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "a331b209eafd82595ad75e24135989ff52100e6a93537c35961e62268d7cd26e"
+}

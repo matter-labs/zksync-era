@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                protocol_version\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8cfde47f25cf65030f34e70edf83d3b4c514a18d8a33ec978d3e8007af8d0c20"
+}

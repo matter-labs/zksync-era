@@ -1,15 +1,15 @@
 use std::str::FromStr;
 
-use crate::{consensus_dal::Payload, models::parse_protocol_version};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
-use zksync_types::commitment::L2DACommitmentScheme;
 use zksync_types::{
     api::en,
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
     parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };
+
+use crate::{consensus_dal::Payload, models::parse_protocol_version};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct StorageSyncBlock {
@@ -107,7 +107,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                     .decode_column("l2_da_validator_address")?,
                 l2_da_commitment_scheme: block
                     .l2_da_commitment_scheme
-                    .map(L2DACommitmentScheme::from),
+                    .map(|a| L2DACommitmentScheme::from(a as u8)),
             },
         })
     }

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM snapshots\n            WHERE\n                l1_batch_number > $1\n            RETURNING\n            version,\n            l1_batch_number,\n            factory_deps_filepath,\n            storage_logs_filepaths\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "factory_deps_filepath",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "storage_logs_filepaths",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6da05c9ac3d0f30b856177e28d28aaad910ca46830c470f8fc1d4265f9ed8631"
+}

@@ -12449,7 +12449,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
- "zksync_test_contracts",
  "zksync_types",
  "zksync_vm_interface",
 ]

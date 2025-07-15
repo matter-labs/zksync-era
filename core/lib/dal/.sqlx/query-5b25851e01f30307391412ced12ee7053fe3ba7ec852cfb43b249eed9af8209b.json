@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                INDEX\n            FROM\n                INITIAL_WRITES\n            WHERE\n                L1_BATCH_NUMBER <= $1\n            ORDER BY\n                L1_BATCH_NUMBER DESC,\n                INDEX DESC\n            LIMIT\n                1;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "index",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5b25851e01f30307391412ced12ee7053fe3ba7ec852cfb43b249eed9af8209b"
+}

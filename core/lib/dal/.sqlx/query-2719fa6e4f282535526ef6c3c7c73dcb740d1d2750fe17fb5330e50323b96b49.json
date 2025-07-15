@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                miniblock_number,\n                log_index_in_miniblock,\n                log_index_in_tx,\n                tx_hash,\n                NULL::BIGINT AS \"l1_batch_number?\",\n                shard_id,\n                is_service,\n                tx_index_in_miniblock,\n                tx_index_in_l1_batch,\n                sender,\n                key,\n                value\n            FROM\n                l2_to_l1_logs\n            WHERE\n                tx_hash = ANY($1)\n            ORDER BY\n                tx_index_in_l1_batch ASC,\n                log_index_in_tx ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "log_index_in_miniblock",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "log_index_in_tx",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "l1_batch_number?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "shard_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_service",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "tx_index_in_miniblock",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "tx_index_in_l1_batch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "sender",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 11,
+        "name": "value",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2719fa6e4f282535526ef6c3c7c73dcb740d1d2750fe17fb5330e50323b96b49"
+}

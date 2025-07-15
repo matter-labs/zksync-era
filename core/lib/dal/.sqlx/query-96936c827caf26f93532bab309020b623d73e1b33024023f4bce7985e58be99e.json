@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                VERSION,\n                L1_BATCH_NUMBER,\n                FACTORY_DEPS_FILEPATH,\n                STORAGE_LOGS_FILEPATHS\n            FROM\n                SNAPSHOTS\n            ORDER BY\n                L1_BATCH_NUMBER DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "factory_deps_filepath",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "storage_logs_filepaths",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "96936c827caf26f93532bab309020b623d73e1b33024023f4bce7985e58be99e"
+}

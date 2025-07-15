@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH\n            soft AS (\n                SELECT\n                    pruned_l1_batch,\n                    pruned_miniblock\n                FROM\n                    pruning_log\n                WHERE\n                    type = 'Soft'\n                ORDER BY\n                    pruned_l1_batch DESC\n                LIMIT\n                    1\n            ),\n            \n            hard AS (\n                SELECT\n                    pruned_l1_batch,\n                    pruned_miniblock,\n                    pruned_l1_batch_root_hash\n                FROM\n                    pruning_log\n                WHERE\n                    type = 'Hard'\n                ORDER BY\n                    pruned_l1_batch DESC\n                LIMIT\n                    1\n            )\n            \n            SELECT\n                soft.pruned_l1_batch AS last_soft_pruned_l1_batch,\n                soft.pruned_miniblock AS last_soft_pruned_l2_block,\n                hard.pruned_l1_batch AS last_hard_pruned_l1_batch,\n                hard.pruned_miniblock AS last_hard_pruned_l2_block,\n                hard.pruned_l1_batch_root_hash AS last_hard_pruned_batch_root_hash\n            FROM\n                soft\n            FULL JOIN hard ON TRUE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_soft_pruned_l1_batch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "last_soft_pruned_l2_block",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_hard_pruned_l1_batch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_hard_pruned_l2_block",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_hard_pruned_batch_root_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "8bab3c429fc5bbf4a91819e55cfb71ef6258e011f424c705d56c9827e8277c84"
+}
