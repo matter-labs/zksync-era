@@ -9,6 +9,12 @@ use crate::{
     messages::MSG_DEPLOYING_PROVING_NETWORKS_SPINNER,
 };
 
+pub(crate) async fn run(shell: &Shell, args: DeployProvingNetworkArgs) -> anyhow::Result<()> {
+    let config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
+    let chain_config = config.load_current_chain()?;
+    deploy_proving_network(shell, &config, &chain_config, args).await
+}
+
 pub(crate) async fn deploy_proving_network(
     shell: &Shell,
     config: &EcosystemConfig,

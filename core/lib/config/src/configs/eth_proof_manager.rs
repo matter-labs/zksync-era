@@ -12,7 +12,7 @@ pub struct EthProofManagerConfig {
     #[config(default_t = "http://127.0.0.1:8545".to_string())]
     pub http_rpc_url: String,
     /// Object store config
-    #[config(flatten)]
+    #[config(nest)]
     pub object_store: ObjectStoreConfig,
     /// Interval for polling for new events
     #[config(default_t = Duration::from_secs(10))]

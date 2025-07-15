@@ -5,7 +5,9 @@ use args::{
 use clap::Subcommand;
 use xshell::Shell;
 
-use crate::commands::prover::args::setup_keys::SetupKeysArgs;
+use crate::commands::prover::args::{
+    deploy_proving_network::DeployProvingNetworkArgs, setup_keys::SetupKeysArgs,
+};
 
 mod args;
 mod compressor_keys;
@@ -31,6 +33,9 @@ pub enum ProverCommands {
     /// Download compressor keys
     #[command(alias = "ck")]
     CompressorKeys(CompressorKeysArgs),
+    /// Deploy proving network
+    #[command(alias = "dpn")]
+    DeployProvingNetwork(DeployProvingNetworkArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
@@ -40,5 +45,8 @@ pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<(
         ProverCommands::Run(args) => run::run(args, shell).await,
         ProverCommands::InitBellmanCuda(args) => init_bellman_cuda::run(shell, *args).await,
         ProverCommands::CompressorKeys(args) => compressor_keys::run(shell, args).await,
+        ProverCommands::DeployProvingNetwork(args) => {
+            deploy_proving_network::run(shell, args).await
+        }
     }
 }
