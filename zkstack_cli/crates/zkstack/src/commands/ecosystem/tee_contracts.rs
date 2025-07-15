@@ -68,7 +68,7 @@ async fn call_forge_tee_deploy(
         // FIXME: TEE - is governor or deployer the correct owner?
         // ecosystem_config.get_wallets()?.deployer.as_ref(),
         Some(&ecosystem_config.get_wallets()?.governor),
-        WalletOwner::TEE,
+        WalletOwner::Tee,
     )?;
 
     // Check balance and run forge script
