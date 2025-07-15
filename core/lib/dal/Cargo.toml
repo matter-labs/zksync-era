@@ -14,6 +14,7 @@ links = "zksync_dal_proto"
 
 [dependencies]
 vise.workspace = true
+zksync_multivm.workspace = true
 zksync_vm_interface.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true

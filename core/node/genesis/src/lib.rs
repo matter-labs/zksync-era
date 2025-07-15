@@ -256,7 +256,7 @@ fn get_zk_os_genesis_logs(
     HashMap<H256, Vec<u8>>,
     HashMap<Address, zksync_types::boojum_os::AccountProperties>,
 ) {
-    println!("{:#?}", contracts);
+    // println!("{:#?}", contracts);
 
     let mut logs = vec![];
     let mut factory_deps = HashMap::new();

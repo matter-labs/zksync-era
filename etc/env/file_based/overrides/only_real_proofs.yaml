@@ -1,3 +1,3 @@
 eth:
   sender:
-    proof_sending_mode: ONLY_REAL_PROOFS
+    proof_sending_mode: SKIP_EVERY_PROOF

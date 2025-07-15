@@ -1468,7 +1468,7 @@ dependencies = [
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_system",
@@ -1486,7 +1486,7 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "cfg-if",
@@ -2798,14 +2798,14 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.5.0",
  "ark-serialize 0.5.0",
- "ark-std 0.3.0",
+ "ark-std 0.5.0",
  "blake2 0.10.6",
  "cfg-if",
  "const_for",
@@ -2980,7 +2980,7 @@ dependencies = [
 [[package]]
 name = "cycle_marker"
 version = "0.0.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 
 [[package]]
 name = "darling"
@@ -3705,7 +3705,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -3966,7 +3966,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
@@ -5852,7 +5852,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6282,7 +6282,7 @@ dependencies = [
 [[package]]
 name = "modexp"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 
 [[package]]
 name = "multer"
@@ -6634,7 +6634,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2 1.0.95",
  "quote 1.0.37",
  "syn 2.0.101",
@@ -6648,7 +6648,7 @@ checksum = "b8ec7ab813848ba4522158d5517a6093db1ded27575b070f4177b8d12b41db5e"
 dependencies = [
  "flate2",
  "memchr",
- "ruzstd",
+ "ruzstd 0.6.0",
 ]
 
 [[package]]
@@ -6657,7 +6657,9 @@ version = "0.36.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedf0a2d09c573ed1d8d85b30c119153926a2b36dce0ab28322c09a117a4683e"
 dependencies = [
+ "flate2",
  "memchr",
+ "ruzstd 0.7.3",
 ]
 
 [[package]]
@@ -6872,7 +6874,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "ringbuffer",
  "risc_v_simulator",
@@ -7590,7 +7592,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.11.0",
  "log",
  "multimap",
@@ -7624,7 +7626,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "157c5a9d7ea5c2ed2d9fb8f495b64759f7816c7eaea54ba3978f0d63000162e3"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.11.0",
  "proc-macro2 1.0.95",
  "quote 1.0.37",
  "syn 2.0.101",
@@ -8426,7 +8428,7 @@ dependencies = [
  "field",
  "inferno",
  "memmap2",
- "object 0.35.0",
+ "object 0.36.5",
  "poseidon2",
  "rand 0.9.1",
  "ringbuffer",
@@ -8857,6 +8859,15 @@ checksum = "5174a470eeb535a721ae9fdd6e291c2411a906b96592182d05217591d5c5cf7b"
 dependencies = [
  "byteorder",
  "derive_more 0.99.18",
+ "twox-hash",
+]
+
+[[package]]
+name = "ruzstd"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fad02996bfc73da3e301efe90b1837be9ed8f4a462b6ed410aa35d00381de89f"
+dependencies = [
  "twox-hash",
 ]
 
@@ -9711,7 +9722,7 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03c3c6b7927ffe7ecaa769ee0e3994da3b8cafc8f444578982c83ecb161af917"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "proc-macro2 1.0.95",
  "quote 1.0.37",
  "syn 2.0.101",
@@ -10088,7 +10099,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -10426,7 +10437,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -11779,7 +11790,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -12263,7 +12274,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.6.0",
@@ -13107,6 +13118,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_db_connection",
  "zksync_l1_contract_interface",
+ "zksync_multivm",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
@@ -13934,7 +13946,7 @@ dependencies = [
 [[package]]
 name = "zksync_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-os?branch=sb-allow-force-deploy-for-complex-upgrader#dcf369f2feca8f9c434554d3939effd420704a8e"
+source = "git+https://github.com/matter-labs/zksync-os?branch=zk%2Finterop#9790cc2744056c8608eb0f229cfd1aa675755a32"
 dependencies = [
  "cycle_marker",
  "execution_utils",

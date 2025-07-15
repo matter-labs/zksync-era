@@ -31,6 +31,7 @@ pub struct AllContractsConfig {
     pub l1_multicall3_addr: Address,
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub l1_bytecode_supplier_addr: Option<Address>,
     // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
@@ -78,6 +79,7 @@ impl AllContractsConfig {
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
             l2_multicall3_addr: Some(Address::repeat_byte(0x1c)),
+            message_root_proxy_addr: Some(Address::repeat_byte(0x1d)),
         }
     }
 
@@ -115,6 +117,7 @@ impl AllContractsConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(self.bridgehub_proxy_addr),
                 state_transition_proxy_addr: self.state_transition_proxy_addr,
+                message_root_proxy_addr: self.message_root_proxy_addr,
                 multicall3: Some(self.l1_multicall3_addr),
                 validator_timelock_addr: Some(self.validator_timelock_addr),
             },

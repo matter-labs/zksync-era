@@ -19,11 +19,11 @@ use zksync_basic_types::bytecode::BytecodeHash;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm, *};
 pub use zksync_crypto_primitives::*;
 
+pub use crate::{interop_root::InteropRoot, Nonce, H256, U256, U64};
 use crate::{
     l2::{L2Tx, TransactionType},
     protocol_upgrade::ProtocolUpgradeTxCommonData,
 };
-pub use crate::{Nonce, H256, U256, U64};
 
 pub type SerialId = u64;
 
@@ -37,6 +37,7 @@ pub mod contract_verification;
 pub mod debug_flat_call;
 pub mod fee;
 pub mod fee_model;
+pub mod interop_root;
 pub mod l1;
 pub mod l2;
 pub mod l2_to_l1_log;

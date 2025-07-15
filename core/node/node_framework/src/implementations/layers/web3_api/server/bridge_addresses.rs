@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
-use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
+use zksync_types::{ethabi::Contract, Address, H160, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
@@ -70,8 +70,10 @@ impl L1UpdaterInner {
     }
 
     async fn loop_iteration(&self) {
+        let mut addr = H160::zero();
         match self.get_shared_bridge_info().await {
             Ok(info) => {
+                addr = info.l1_shared_bridge_addr;
                 self.bridge_address_updater
                     .update_l1_shared_bridge(info.l1_shared_bridge_addr)
                     .await;
@@ -85,7 +87,7 @@ impl L1UpdaterInner {
                 }
             }
             Err(err) => {
-                tracing::error!("Failed to query shared bridge address, error: {err:?}");
+                tracing::error!("Failed to query shared bridge address, error: {err:?}, {addr}");
             }
         }
     }

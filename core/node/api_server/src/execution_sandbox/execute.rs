@@ -312,6 +312,11 @@ impl SandboxExecutor {
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
     ) -> anyhow::Result<SandboxExecutionOutput> {
+        use zk_ee::{
+            system::metadata::{InteropRoot, InteropRoots},
+            utils::Bytes32,
+        };
+
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
@@ -332,6 +337,7 @@ impl SandboxExecutor {
             gas_limit: 100_000_000, // TODO: what value should be used?
             coinbase: Default::default(),
             block_hashes: Default::default(),
+            interop_roots: Default::default(),
         };
 
         let abi = tx_abi_encode(execution_args.transaction);

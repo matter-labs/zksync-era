@@ -1,3 +1,5 @@
+use std::{fmt::Display, str::FromStr};
+
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::SLChainId;
 
@@ -83,4 +85,35 @@ pub struct TxHistory {
     pub sent_at_block: Option<u32>,
     pub max_gas_per_pubdata: Option<u64>,
     pub sent_successfully: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum EthTxFinalityStatus {
+    Pending,
+    FastFinalized,
+    Finalized,
+}
+
+impl FromStr for EthTxFinalityStatus {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "fast_finalized" => Ok(Self::FastFinalized),
+            "finalized" => Ok(Self::Finalized),
+            "pending" => Ok(Self::Pending),
+            _ => Err("Incorrect finality status"),
+        }
+    }
+}
+
+impl Display for EthTxFinalityStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FastFinalized => write!(f, "fast_finalized"),
+            Self::Finalized => write!(f, "finalized"),
+            Self::Pending => write!(f, "pending"),
+        }
+    }
 }

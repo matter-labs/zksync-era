@@ -738,7 +738,7 @@ impl EthTxAggregator {
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
+        let mut args = vec![Token::Uint(U256::from(self.rollup_chain_id.inner()))];
         let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
@@ -806,6 +806,12 @@ impl EthTxAggregator {
         commit_payload: &[Token],
         l1_batch: Option<L1BatchWithMetadata>,
     ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
+        println!();
+        println!();
+        dbg!(&commit_payload);
+        dbg!(&commit_fn);
+        println!();
+        println!();
         let calldata = commit_fn
             .encode_input(commit_payload)
             .expect("Failed to encode commit transaction data");

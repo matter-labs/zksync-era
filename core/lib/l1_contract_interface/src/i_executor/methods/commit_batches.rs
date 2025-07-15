@@ -7,7 +7,10 @@ use zksync_types::{
 
 use crate::{
     i_executor::{
-        structures::{CommitBoojumOSBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+        structures::{
+            CommitBatchInfo, CommitBoojumOSBatchInfo, StoredBatchInfo,
+            PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
+        },
         zkos_commitment_to_vm_batch_output,
     },
     Tokenizable, Tokenize,
@@ -34,6 +37,7 @@ impl Tokenize for &CommitBatches<'_> {
         );
         let last_block_commitment: ZkosCommitment = self.last_committed_l1_batch.into();
         let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
+        dbg!(&batch_output);
         let stored_batch_info = StoredBatchInfo::new(&last_block_commitment, batch_output.hash());
 
         let l1_batch = self.l1_batches.first().unwrap();

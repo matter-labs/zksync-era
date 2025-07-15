@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
-    Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
+    L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -44,7 +44,7 @@ pub struct PendingBatchData {
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
-#[derive(Debug, Copy, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct L2BlockParams {
     /// The timestamp of the L2 block.
     pub timestamp: u64,
@@ -57,6 +57,7 @@ pub struct L2BlockParams {
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
     pub virtual_blocks: u32,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
@@ -156,16 +157,28 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         protocol_version: ProtocolVersionId,
         cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts>;
+
     /// Loads protocol version of the specified L1 batch, which is guaranteed to exist in the storage.
     async fn load_batch_version_id(
         &self,
         number: L1BatchNumber,
     ) -> anyhow::Result<ProtocolVersionId>;
+
     /// Loads protocol upgrade tx for given version.
     async fn load_upgrade_tx(
         &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
+
+    /// Loads the latest message root.
+    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>>;
+
+    /// Loads the latest message root.
+    async fn load_l2_block_interop_root(
+        &self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<InteropRoot>>;
+
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;

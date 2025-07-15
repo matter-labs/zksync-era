@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt,
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
     utils::pg_interval_from_duration,
 };
 use zksync_types::L2BlockNumber;

@@ -196,6 +196,7 @@ impl ZkosStateKeeper {
                 gas_limit,
                 coinbase: Default::default(),
                 block_hashes: Default::default(),
+                interop_roots: Default::default(),
             };
 
             tracing::info!(

@@ -14,7 +14,7 @@ use zksync_config::{
     },
     GenesisConfig,
 };
-use zksync_core_leftovers::Component;
+use zksync_core_leftovers::{Component, Component::ZkOsProverInputGenerator};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::TxSenderConfig,

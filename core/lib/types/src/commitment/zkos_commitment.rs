@@ -7,6 +7,11 @@ use crate::{
 
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
+pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
+]);
+
 #[derive(Debug)]
 // Only has a base set of values - others are computed - see `Impl`
 // Names are taken from IExecutor.sol - where possible
@@ -31,6 +36,7 @@ pub struct ZkosCommitment {
     pub l2_to_l1_logs_root_hash: H256,
     // not implemented - and currently ignored by smart contract
     // pub l2_da_validator: Address,
+    pub dependency_roots_rolling_hash: H256,
 
     // set by state keeper
     // todo: potentially large, double check
@@ -104,6 +110,18 @@ impl From<&L1BatchWithMetadata> for ZkosCommitment {
             number_of_layer1_txs: batch.header.l1_tx_count,
             number_of_layer2_txs: batch.header.l2_tx_count,
             priority_ops_onchain_data: batch.header.priority_ops_onchain_data.clone(),
+            dependency_roots_rolling_hash: if batch.header.system_logs.is_empty() {
+                H256::zero()
+            } else {
+                batch
+                    .header
+                    .system_logs
+                    .iter()
+                    .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
+                    .unwrap()
+                    .0
+                    .value
+            },
             l2_to_l1_logs_root_hash: batch.metadata.l2_l1_merkle_root,
             pubdata: batch.header.pubdata_input.clone().unwrap(),
             chain_id: 271,

@@ -10,9 +10,9 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
+    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, InteropRoot,
+    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -2111,6 +2111,40 @@ impl TransactionsDal<'_, '_> {
             .await
     }
 
+    pub async fn get_interop_roots(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> DalResult<Vec<InteropRoot>> {
+        let records = sqlx::query!(
+            r#"
+            SELECT *
+            FROM interop_roots
+            WHERE processed_block_number = $1
+            "#,
+            l2block_number.0 as i32
+        )
+        .instrument("get_interop_roots")
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|rec| {
+            let sides = rec
+                .interop_root_sides
+                .iter()
+                .map(|side| h256_to_u256(H256::from_slice(side)))
+                .collect::<Vec<_>>();
+
+            InteropRoot {
+                chain_id: rec.chain_id as u32,
+                block_number: rec.dependency_block_number as u32,
+                sides,
+                received_timestamp: rec.received_timestamp as u64,
+            }
+        })
+        .collect();
+        Ok(records)
+    }
+
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
@@ -2225,6 +2259,7 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
+            let interop_roots = self.get_interop_roots(number).await?;
 
             data.push(L2BlockExecutionData {
                 number,
@@ -2232,6 +2267,7 @@ impl TransactionsDal<'_, '_> {
                 prev_block_hash,
                 virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
+                interop_roots,
             });
         }
         Ok(data)

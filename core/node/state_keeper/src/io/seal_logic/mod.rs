@@ -273,6 +273,12 @@ impl UpdatesManager {
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
         tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
     }
+
+    pub fn clear_interop_roots(&mut self) {
+        println!("clearing for l2 block {:?}", self.l2_block.number);
+        println!("clearing interop roots {:?}", self.l2_block.interop_roots);
+        self.l2_block.interop_roots.clear();
+    }
 }
 
 #[derive(Debug)]
@@ -412,6 +418,10 @@ impl L2BlockSealCommand {
             anyhow::ensure!(
                 self.l2_block.executed_transactions.is_empty(),
                 "fictive L2 block must not have transactions"
+            );
+            anyhow::ensure!(
+                self.l2_block.interop_roots.is_empty(),
+                "fictive L2 block must not have interop roots"
             );
         } else {
             anyhow::ensure!(
