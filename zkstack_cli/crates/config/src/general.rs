@@ -211,6 +211,10 @@ impl GeneralConfigPatch {
             .get("proof_compressor.universal_setup_download_url")
     }
 
+    pub fn proof_compressor_setup_path(&self) -> anyhow::Result<PathBuf> {
+        self.0.base().get("proof_compressor.universal_setup_path")
+    }
+
     pub fn set_proof_compressor_setup_path(&mut self, path: &Path) -> anyhow::Result<()> {
         self.0
             .insert_path("proof_compressor.universal_setup_path", path)
