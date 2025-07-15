@@ -4,6 +4,7 @@ use bigdecimal::{BigDecimal, ToPrimitive};
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::commitment::L2DACommitmentScheme;
 use zksync_types::{
     api,
     block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
@@ -593,7 +594,8 @@ pub(crate) struct StorageL2BlockHeader {
     /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
     pub gas_limit: Option<i64>,
     pub logs_bloom: Option<Vec<u8>>,
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
 }
 
@@ -630,9 +632,10 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
             pubdata_params: PubdataParams {
-                l2_da_validator_address: Some(Address::from_slice(&row.l2_da_validator_address)),
-                // FIXME
-                l2_da_commitment_scheme: None,
+                l2_da_validator_address: row.l2_da_validator_address.map(Address::from_slice),
+                l2_da_commitment_scheme: row
+                    .l2_da_commitment_scheme
+                    .map(L2DACommitmentScheme::from),
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
         }
@@ -658,16 +661,16 @@ impl ResolvedL1BatchForL2Block {
 }
 
 pub(crate) struct StoragePubdataParams {
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
 }
 
 impl From<StoragePubdataParams> for PubdataParams {
     fn from(row: StoragePubdataParams) -> Self {
-        // FIXME: l2_da_commitment_scheme is not used in the current implementation, but it should be
         Self {
-            l2_da_validator_address: Some(Address::from_slice(&row.l2_da_validator_address)),
-            l2_da_commitment_scheme: None,
+            l2_da_validator_address: row.l2_da_validator_address.map(Address::from_slice),
+            l2_da_commitment_scheme: row.l2_da_commitment_scheme.map(L2DACommitmentScheme::from),
             pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
         }
     }
