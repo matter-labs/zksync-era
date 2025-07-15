@@ -50,8 +50,13 @@ async fn call_forge_tee_deploy(
         .link_to_code
         .join("contracts/tee-contracts");
 
-    let wallets = ecosystem_config.get_wallets()?;
-    let tee_dcap_operator_address = wallets.tee_dcap_operator.as_ref().unwrap().address;
+    let tee_dcap_operator_address = ecosystem_config
+        .load_current_chain()?
+        .get_wallets_config()?
+        .tee_dcap_operator
+        .unwrap()
+        .address;
+
     let input = DeployTeeInput::new(tee_dcap_operator_address);
     input.save(shell, DEPLOY_TEE_SCRIPT_PARAMS.input(&tee_contracts_path))?;
 
