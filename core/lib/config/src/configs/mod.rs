@@ -21,6 +21,7 @@ pub use self::{
     gateway_migrator::GatewayMigratorConfig,
     general::{full_config_schema, GeneralConfig},
     genesis::{GenesisConfig, GenesisConfigWrapper},
+    node_sync::NodeSyncConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
@@ -47,6 +48,7 @@ pub mod contracts;
 pub mod da_client;
 pub mod da_dispatcher;
 pub mod database;
+pub mod eth_proof_manager;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
@@ -61,6 +63,7 @@ mod general;
 pub mod genesis;
 pub mod house_keeper;
 pub mod networks;
+pub mod node_sync;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;

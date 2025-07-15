@@ -17,6 +17,7 @@
       "core/tests/upgrade-test",
       "core/tests/gateway-migration-test/",
       "core/tests/ts-integration",
+      "core/tests/highlevel-test-tools",
       "infrastructure/protocol-upgrade"
     ],
     "nohoist": [
@@ -35,7 +36,8 @@
     "ts-integration": "yarn workspace ts-integration",
     "utils": "yarn workspace utils",
     "fmt:check": "prettier --check \"**.{js,jsx,ts,tsx,vue,md}\" --cache",
-    "fmt": "prettier --write \"**.{js,jsx,ts,tsx,vue,md}\" --cache"
+    "fmt": "prettier --write \"**.{js,jsx,ts,tsx,vue,md}\" --cache",
+    "highlevel-test-tools": "yarn workspace highlevel-test-tools"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.7.4",
@@ -49,5 +51,6 @@
     "prettier-plugin-solidity": "=1.0.0-dev.22",
     "solhint": "^3.3.2",
     "sql-formatter": "^13.1.0"
-  }
+  },
+  "packageManager": "yarn@1.22.19"
 }

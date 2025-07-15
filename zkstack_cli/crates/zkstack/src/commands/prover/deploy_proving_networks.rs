@@ -2,13 +2,14 @@ use anyhow::Context as _;
 use ethers::utils::hex::ToHexExt;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 
 use crate::messages::MSG_DEPLOYING_PROVING_NETWORKS_SPINNER;
 
 pub(crate) async fn deploy_proving_networks(
     shell: &Shell,
     config: &EcosystemConfig,
+    chain_config: &ChainConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let dir_guard = shell.push_dir(config.path_to_proving_networks());
@@ -80,9 +81,26 @@ pub(crate) async fn deploy_proving_networks(
 
     let mut contracts_config = config.get_contracts_config()?;
 
-    contracts_config.set_proving_network_addresses(impl_addr, proxy_addr, proxy_admin_addr)?;
+    contracts_config.set_eth_proof_manager_addresses(
+        impl_addr.clone(),
+        proxy_addr.clone(),
+        proxy_admin_addr.clone(),
+    )?;
 
     contracts_config.save_with_base_path(shell, &config.config)?;
+
+    logger::info(format!(
+        "Saving chain contracts config to {:?}",
+        chain_config.configs
+    ));
+
+    let mut chain_contracts_config = chain_config.get_contracts_config()?;
+    chain_contracts_config.set_eth_proof_manager_addresses(
+        impl_addr,
+        proxy_addr,
+        proxy_admin_addr,
+    )?;
+    chain_contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     spinner.finish();
 
