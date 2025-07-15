@@ -1,5 +1,7 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256};
+use zksync_types::{
+    InteropRoot, L1BatchNumber, L1BlockNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
+};
 
 use crate::Core;
 
@@ -37,7 +39,7 @@ impl InteropRootDal<'_, '_> {
     pub async fn set_interop_root(
         &mut self,
         chain_id: SLChainId,
-        number: L1BatchNumber,
+        dependency_block_number: L1BlockNumber,
         interop_root: &[H256],
     ) -> DalResult<()> {
         let sides = interop_root
@@ -54,12 +56,12 @@ impl InteropRootDal<'_, '_> {
             DO UPDATE SET interop_root_sides = excluded.interop_root_sides;
             "#,
             chain_id.0 as i64,
-            i64::from(number.0),
+            i64::from(dependency_block_number.0),
             &sides,
         )
         .instrument("set_interop_root")
         .with_arg("chain_id", &chain_id)
-        .with_arg("number", &number)
+        .with_arg("dependency_block_number", &dependency_block_number)
         .with_arg("interop_root", &interop_root)
         .execute(self.storage)
         .await?;
