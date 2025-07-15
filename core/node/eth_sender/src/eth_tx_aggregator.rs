@@ -28,7 +28,7 @@ use zksync_types::{
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, CallRequest},
-    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::{
@@ -672,6 +672,17 @@ impl EthTxAggregator {
             if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
                 op_restrictions.prove_restriction = reason;
                 op_restrictions.execute_restriction = reason;
+            } else {
+                // For the migration from gateway to L1, we need to wait for all interop roots to be executed
+                let new_interop_roots = storage.interop_root_dal().get_new_interop_roots(1).await?;
+                // If the batch to be committed contains any interop roots, we need to wait for them to be executed
+                if new_interop_roots.len() != 0
+                    || (new_interop_roots.is_empty()
+                        && self.is_waiting_for_interop_roots(storage).await?)
+                {
+                    op_restrictions.commit_restriction = None;
+                    op_restrictions.precommit_restriction = None;
+                }
             }
         }
 
@@ -1146,6 +1157,32 @@ impl EthTxAggregator {
             .unwrap();
 
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
+    }
+
+    async fn is_waiting_for_interop_roots(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<bool, EthSenderError> {
+        let latest_processed_l1_batch_number = storage
+            .interop_root_dal()
+            .get_latest_processed_l1_batch_number()
+            .await?
+            .unwrap();
+
+        let last_sent_successfully_eth_tx = storage
+            .eth_sender_dal()
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(
+                L1BatchNumber::from(latest_processed_l1_batch_number),
+                L1BatchAggregatedActionType::Commit,
+            )
+            .await
+            .unwrap();
+
+        if last_sent_successfully_eth_tx.sent_successfully {
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 }
 
