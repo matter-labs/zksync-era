@@ -676,7 +676,7 @@ impl EthTxAggregator {
                 // For the migration from gateway to L1, we need to wait for all interop roots to be executed
                 let new_interop_roots = storage.interop_root_dal().get_new_interop_roots(1).await?;
                 // If the batch to be committed contains any interop roots, we need to wait for them to be executed
-                if new_interop_roots.len() != 0
+                if !new_interop_roots.is_empty()
                     || (new_interop_roots.is_empty()
                         && self.is_waiting_for_interop_roots(storage).await?)
                 {
