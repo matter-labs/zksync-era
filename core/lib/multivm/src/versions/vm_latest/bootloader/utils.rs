@@ -255,13 +255,29 @@ fn bootloader_memory_input(
     input: &PubdataInput,
     protocol_version: ProtocolVersionId,
 ) -> Vec<u8> {
-    let l2_da_validator_address = pubdata_builder.l2_da_validator();
     let operator_input = pubdata_builder.l1_messenger_operator_input(input, protocol_version);
 
-    ethabi::encode(&[
-        ethabi::Token::Address(l2_da_validator_address),
-        ethabi::Token::Bytes(operator_input),
-    ])
+    if protocol_version.is_pre_interop() {
+        ethabi::encode(&[
+            ethabi::Token::Address(
+                pubdata_builder
+                    .l2_da_validator()
+                    .expect("For pre-interop, L2 DA validator must be set"),
+            ),
+            ethabi::Token::Bytes(operator_input),
+        ])
+    } else {
+        ethabi::encode(&[
+            ethabi::Token::Uint(
+                (pubdata_builder
+                    .l2_da_commitment_scheme()
+                    .expect("For post-interop, L2 DA commitment scheme must be set")
+                    as u64)
+                    .into(),
+            ),
+            ethabi::Token::Bytes(operator_input),
+        ])
+    }
 }
 
 pub(crate) fn apply_pubdata_to_memory(

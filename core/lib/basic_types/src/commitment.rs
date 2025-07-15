@@ -108,8 +108,21 @@ pub enum L2DACommitmentScheme {
     BlobsAndPubdataKeccak256 = 3,
 }
 
+impl From<u8> for L2DACommitmentScheme {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => L2DACommitmentScheme::None,
+            1 => L2DACommitmentScheme::EmptyNoDA,
+            2 => L2DACommitmentScheme::PubdataKeccak256,
+            3 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+            _ => panic!("Invalid L2DACommitmentScheme value: {}", value),
+        }
+    }
+}
+
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
-    pub l2_da_validator_address: Address,
+    pub l2_da_validator_address: Option<Address>,
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
     pub pubdata_type: PubdataType,
 }

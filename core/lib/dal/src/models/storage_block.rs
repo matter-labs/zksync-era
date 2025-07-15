@@ -630,7 +630,9 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
             pubdata_params: PubdataParams {
-                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+                l2_da_validator_address: Some(Address::from_slice(&row.l2_da_validator_address)),
+                // FIXME
+                l2_da_commitment_scheme: None,
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
         }
@@ -662,8 +664,10 @@ pub(crate) struct StoragePubdataParams {
 
 impl From<StoragePubdataParams> for PubdataParams {
     fn from(row: StoragePubdataParams) -> Self {
+        // FIXME: l2_da_commitment_scheme is not used in the current implementation, but it should be
         Self {
-            l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+            l2_da_validator_address: Some(Address::from_slice(&row.l2_da_validator_address)),
+            l2_da_commitment_scheme: None,
             pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
         }
     }

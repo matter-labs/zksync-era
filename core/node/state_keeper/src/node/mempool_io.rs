@@ -13,7 +13,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_resources::contracts::L2ContractsResource;
+use zksync_shared_resources::contracts::{L2ContractsResource, ZkChainOnChainConfigResource};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 use zksync_vm_executor::node::ApiTransactionFilter;
 
@@ -51,6 +51,7 @@ pub struct Input {
     fee_input: SequencerFeeInputResource,
     master_pool: PoolResource<MasterPool>,
     l2_contracts: L2ContractsResource,
+    zk_chain_on_chain_config: ZkChainOnChainConfigResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -137,6 +138,7 @@ impl WiringLayer for MempoolIOLayer {
             self.mempool_config.delay_interval,
             self.zksync_network_id,
             input.l2_contracts.0.da_validator_addr,
+            input.zk_chain_on_chain_config.0.l2_da_commitment_scheme,
             self.pubdata_type,
         )?;
 

@@ -14,13 +14,17 @@ mod utils;
 
 pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder> {
     match params.pubdata_type {
-        PubdataType::NoDA => Rc::new(HashedPubdataBuilder::new(params.l2_da_validator_address)),
+        PubdataType::NoDA => Rc::new(HashedPubdataBuilder::new(
+            params.l2_da_validator_address,
+            params.l2_da_commitment_scheme,
+        )),
         PubdataType::Rollup
         | PubdataType::Avail
         | PubdataType::Celestia
         | PubdataType::Eigen
-        | PubdataType::ObjectStore => {
-            Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address))
-        }
+        | PubdataType::ObjectStore => Rc::new(FullPubdataBuilder::new(
+            params.l2_da_validator_address,
+            params.l2_da_commitment_scheme,
+        )),
     }
 }

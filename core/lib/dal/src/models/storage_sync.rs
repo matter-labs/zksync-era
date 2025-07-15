@@ -29,7 +29,9 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    // TODO fix
+    // pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
 }
 
@@ -99,8 +101,13 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
             pubdata_params: PubdataParams {
                 pubdata_type: PubdataType::from_str(&block.pubdata_type)
                     .decode_column("Invalid pubdata type")?,
-                l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
+                l2_da_validator_address: block
+                    .l2_da_validator_address
+                    .map(|a| parse_h160(&a))
+                    .transpose()
                     .decode_column("l2_da_validator_address")?,
+                // TODO Fix it
+                l2_da_commitment_scheme: None,
             },
         })
     }

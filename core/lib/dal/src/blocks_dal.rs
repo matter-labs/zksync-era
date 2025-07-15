@@ -1016,7 +1016,8 @@ impl BlocksDal<'_, '_> {
             l2_block_header
                 .pubdata_params
                 .l2_da_validator_address
-                .as_bytes(),
+                .as_ref()
+                .map(|addr| addr.as_bytes()),
             l2_block_header.pubdata_params.pubdata_type.to_string(),
         );
 
