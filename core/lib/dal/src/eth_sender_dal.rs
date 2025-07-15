@@ -7,7 +7,7 @@ use zksync_db_connection::{
     match_query_as,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{AggregatedActionType, AggregatedOperationType},
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
@@ -139,10 +139,10 @@ impl EthSenderDal<'_, '_> {
             confirmed: bool,
         }
 
-        const TX_TYPES: &[AggregatedActionType] = &[
-            AggregatedActionType::Commit,
-            AggregatedActionType::PublishProofOnchain,
-            AggregatedActionType::Execute,
+        const TX_TYPES: &[AggregatedOperationType] = &[
+            AggregatedOperationType::Commit,
+            AggregatedOperationType::PublishProofOnChain,
+            AggregatedOperationType::Execute,
         ];
 
         let mut stats = L1BatchEthSenderStats::default();
@@ -158,20 +158,18 @@ impl EthSenderDal<'_, '_> {
                         " ORDER BY number DESC LIMIT 1"
                     ],
                     match ((confirmed, tx_type)) {
-                        (false, AggregatedActionType::Commit) => ("false", "eth_commit_tx_id", "";),
-                        (true, AggregatedActionType::Commit) => (
+                        (false, AggregatedOperationType::Commit) => ("false", "eth_commit_tx_id", "";),
+                        (true, AggregatedOperationType::Commit) => (
                             "true", "eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false, AggregatedActionType::PublishProofOnchain) => ("false", "eth_prove_tx_id", "";),
-                        (true, AggregatedActionType::PublishProofOnchain) => (
+                        (false, AggregatedOperationType::PublishProofOnChain) => ("false", "eth_prove_tx_id", "";),
+                        (true, AggregatedOperationType::PublishProofOnChain) => (
                             "true", "eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false, AggregatedActionType::Execute) => ("false", "eth_execute_tx_id", "";),
-                        (true, AggregatedActionType::Execute) => (
+                        (false, AggregatedOperationType::Execute) => ("false", "eth_execute_tx_id", "";),
+                        (true, AggregatedOperationType::Execute) => (
                             "true", "eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        // FIXME: TEE
-                        (_, AggregatedActionType::Tee) => ( "true", "eth_commit_tx_id", ""; ),
                     }
                 );
                 tx_rows.extend(query.fetch_all(self.storage.conn()).await?);
@@ -573,7 +571,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn insert_bogus_confirmed_eth_tx(
         &mut self,
         l1_batch: L1BatchNumber,
-        tx_type: AggregatedActionType,
+        tx_type: AggregatedOperationType,
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
@@ -605,7 +603,7 @@ impl EthSenderDal<'_, '_> {
                 "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
                 VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
                 RETURNING id",
-                tx_type.to_string(),
+                tx_type.action_type().to_string(),
                 sl_chain_id.map(|chain_id| chain_id.0 as i64)
             )
             .fetch_one(transaction.conn())
@@ -807,7 +805,6 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<u64> {
-        // FIXME: TEE
         sqlx::query!(
             r#"
             SELECT
@@ -911,7 +908,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        op_type: AggregatedActionType,
+        op_type: AggregatedOperationType,
     ) -> Option<TxHistory> {
         let row = sqlx::query!(
             r#"
@@ -931,13 +928,9 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
         .unwrap();
         let eth_tx_id = match op_type {
-            AggregatedActionType::Commit => row.eth_commit_tx_id,
-            AggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
-            AggregatedActionType::Execute => row.eth_execute_tx_id,
-            AggregatedActionType::Tee => {
-                // FIXME: TEE
-                return None;
-            }
+            AggregatedOperationType::Commit => row.eth_commit_tx_id,
+            AggregatedOperationType::PublishProofOnChain => row.eth_prove_tx_id,
+            AggregatedOperationType::Execute => row.eth_execute_tx_id,
         }
         .unwrap() as u32;
         self.get_last_sent_successfully_eth_tx(eth_tx_id)

@@ -16,6 +16,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
+    aggregated_operations::AggregatedOperationType,
     commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
@@ -30,7 +31,6 @@ use zksync_types::{
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
-    aggregated_operations::AggregatedOperationType,
     aggregator::OperationSkippingRestrictions,
     health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
@@ -907,7 +907,7 @@ impl EthTxAggregator {
         eth_tx.chain_id = Some(self.sl_chain_id);
         transaction
             .blocks_dal()
-            .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type.action_type())
+            .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
             .await
             .unwrap();
         transaction.commit().await.unwrap();

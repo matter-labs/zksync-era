@@ -2,29 +2,11 @@ use std::ops;
 
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::AggregatedOperationType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     pubdata_da::PubdataSendingMode,
     L1BatchNumber, ProtocolVersionId,
 };
-
-#[derive(Debug, Copy, Clone)]
-pub enum AggregatedOperationType {
-    Commit,
-    PublishProofOnChain,
-    Execute,
-}
-impl AggregatedOperationType {
-    pub fn action_type(self) -> AggregatedActionType {
-        match self {
-            AggregatedOperationType::Commit => AggregatedActionType::Commit,
-            AggregatedOperationType::PublishProofOnChain => {
-                AggregatedActionType::PublishProofOnchain
-            }
-            AggregatedOperationType::Execute => AggregatedActionType::Execute,
-        }
-    }
-}
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]

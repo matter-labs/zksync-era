@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::L1BatchHeader,
+    aggregated_operations::AggregatedOperationType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
     SLChainId, H256,
@@ -70,7 +70,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                AggregatedOperationType::Commit,
                 true,
                 EthSenderTester::WAIT_CONFIRMATIONS,
             )
@@ -81,7 +81,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::PublishProofOnchain,
+                AggregatedOperationType::PublishProofOnChain,
                 true,
                 EthSenderTester::WAIT_CONFIRMATIONS,
             )
@@ -92,7 +92,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                AggregatedOperationType::Commit,
                 false,
                 EthSenderTester::WAIT_CONFIRMATIONS,
             )
@@ -101,7 +101,7 @@ impl TestL1Batch {
 
     pub async fn assert_commit_tx_just_sent(&self, tester: &mut EthSenderTester) {
         tester
-            .assert_tx_was_sent_in_last_iteration(self.number, AggregatedActionType::Commit)
+            .assert_tx_was_sent_in_last_iteration(self.number, AggregatedOperationType::Commit)
             .await;
     }
 
@@ -386,7 +386,7 @@ impl EthSenderTester {
     pub async fn execute_tx(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: AggregatedOperationType,
         success: bool,
         confirmations: u64,
     ) {
@@ -592,7 +592,7 @@ impl EthSenderTester {
     pub async fn assert_tx_was_sent_in_last_iteration(
         &self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: AggregatedOperationType,
     ) {
         let last_entry = self
             .conn

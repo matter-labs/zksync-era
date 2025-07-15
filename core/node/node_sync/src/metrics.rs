@@ -26,7 +26,7 @@ impl From<AggregatedActionType> for L1BatchStage {
     fn from(ty: AggregatedActionType) -> Self {
         match ty {
             AggregatedActionType::Commit => Self::Committed,
-            AggregatedActionType::PublishProofOnchain => Self::Proven,
+            AggregatedActionType::PublishProofOnChain => Self::Proven,
             AggregatedActionType::Execute => Self::Executed,
             AggregatedActionType::Tee => {
                 panic!("AggregatedActionType::Tee is not supported.")

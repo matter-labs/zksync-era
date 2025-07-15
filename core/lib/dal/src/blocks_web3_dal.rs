@@ -836,7 +836,7 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::AggregatedActionType,
+        aggregated_operations::{AggregatedActionType, AggregatedOperationType},
         block::{L2BlockHasher, L2BlockHeader},
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
@@ -1076,7 +1076,7 @@ mod tests {
             .set_eth_tx_id(
                 l1_batch_header.number..=l1_batch_header.number,
                 mocked_commit_eth_tx.id,
-                AggregatedActionType::Commit,
+                AggregatedOperationType::Commit,
             )
             .await
             .unwrap();

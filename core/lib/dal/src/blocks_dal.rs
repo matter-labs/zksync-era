@@ -14,7 +14,7 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::AggregatedOperationType,
     block::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
@@ -553,10 +553,10 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number_range: ops::RangeInclusive<L1BatchNumber>,
         eth_tx_id: u32,
-        aggregation_type: AggregatedActionType,
+        aggregation_type: AggregatedOperationType,
     ) -> DalResult<()> {
         match aggregation_type {
-            AggregatedActionType::Commit => {
+            AggregatedOperationType::Commit => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#commit")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -588,7 +588,7 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
-            AggregatedActionType::PublishProofOnchain => {
+            AggregatedOperationType::PublishProofOnChain => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#prove")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -620,7 +620,7 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
-            AggregatedActionType::Execute => {
+            AggregatedOperationType::Execute => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#execute")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -652,10 +652,6 @@ impl BlocksDal<'_, '_> {
                     ));
                     return Err(err);
                 }
-            }
-            AggregatedActionType::Tee => {
-                // FIXME: TEE
-                todo!("set_eth_tx_id#tee")
             }
         }
         Ok(())
@@ -3142,7 +3138,10 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{tx::IncludedTxLocation, Address, ProtocolVersion};
+    use zksync_types::{
+        aggregated_operations::AggregatedActionType, tx::IncludedTxLocation, Address,
+        ProtocolVersion,
+    };
 
     use super::*;
     use crate::{
@@ -3199,7 +3198,7 @@ mod tests {
         insert_mock_l1_batch_header(&mut conn, &header).await;
 
         save_mock_eth_tx(AggregatedActionType::Commit, &mut conn).await;
-        save_mock_eth_tx(AggregatedActionType::PublishProofOnchain, &mut conn).await;
+        save_mock_eth_tx(AggregatedActionType::PublishProofOnChain, &mut conn).await;
         save_mock_eth_tx(AggregatedActionType::Execute, &mut conn).await;
 
         assert!(conn
@@ -3207,7 +3206,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::Commit,
+                AggregatedOperationType::Commit,
             )
             .await
             .is_ok());
@@ -3217,7 +3216,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::Commit,
+                AggregatedOperationType::Commit,
             )
             .await
             .is_err());
@@ -3227,7 +3226,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::PublishProofOnchain,
+                AggregatedOperationType::PublishProofOnChain,
             )
             .await
             .is_ok());
@@ -3237,7 +3236,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::PublishProofOnchain,
+                AggregatedOperationType::PublishProofOnChain,
             )
             .await
             .is_err());
@@ -3247,7 +3246,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::Execute,
+                AggregatedOperationType::Execute,
             )
             .await
             .is_ok());
@@ -3257,7 +3256,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::Execute,
+                AggregatedOperationType::Execute,
             )
             .await
             .is_err());

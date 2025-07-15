@@ -43,7 +43,7 @@ impl L1BatchMetricsReporter {
         for (tx_type, l1_batch) in eth_stats.saved {
             let stage = BlockStage::L1 {
                 l1_stage: BlockL1Stage::Saved,
-                tx_type,
+                tx_type: tx_type.action_type(),
             };
             block_metrics.push((l1_batch, stage))
         }
@@ -51,7 +51,7 @@ impl L1BatchMetricsReporter {
         for (tx_type, l1_batch) in eth_stats.mined {
             let stage = BlockStage::L1 {
                 l1_stage: BlockL1Stage::Mined,
-                tx_type,
+                tx_type: tx_type.action_type(),
             };
             block_metrics.push((l1_batch, stage))
         }

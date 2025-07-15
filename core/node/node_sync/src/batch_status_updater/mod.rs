@@ -13,7 +13,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, L1BatchNumber, SLChainId, H256,
+    aggregated_operations::{AggregatedActionType, AggregatedOperationType},
+    api, L1BatchNumber, SLChainId, H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -29,7 +30,7 @@ mod tests;
 fn l1_batch_stage_to_action_str(stage: AggregatedActionType) -> &'static str {
     match stage {
         AggregatedActionType::Commit => "committed",
-        AggregatedActionType::PublishProofOnchain => "proven",
+        AggregatedActionType::PublishProofOnChain => "proven",
         AggregatedActionType::Execute => "executed",
         AggregatedActionType::Tee => {
             panic!("TEE is not supported")
@@ -149,7 +150,7 @@ impl UpdaterCursor {
                 batch_info.base.committed_at,
                 batch_info.base.commit_chain_id,
             ),
-            AggregatedActionType::PublishProofOnchain => (
+            AggregatedActionType::PublishProofOnChain => (
                 batch_info.base.prove_tx_hash,
                 batch_info.base.proven_at,
                 batch_info.base.prove_chain_id,
@@ -172,7 +173,7 @@ impl UpdaterCursor {
     ) -> anyhow::Result<()> {
         for stage in [
             AggregatedActionType::Commit,
-            AggregatedActionType::PublishProofOnchain,
+            AggregatedActionType::PublishProofOnChain,
             AggregatedActionType::Execute,
         ] {
             self.update_stage(status_changes, batch_info, stage)?;
@@ -192,7 +193,7 @@ impl UpdaterCursor {
                 &mut self.last_committed_l1_batch,
                 &mut status_changes.commit,
             ),
-            AggregatedActionType::PublishProofOnchain => {
+            AggregatedActionType::PublishProofOnChain => {
                 (&mut self.last_proven_l1_batch, &mut status_changes.prove)
             }
             AggregatedActionType::Execute => (
@@ -408,7 +409,7 @@ impl BatchStatusUpdater {
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
-                    AggregatedActionType::Commit,
+                    AggregatedOperationType::Commit,
                     change.l1_tx_hash,
                     change.happened_at,
                     change.sl_chain_id,
@@ -434,7 +435,7 @@ impl BatchStatusUpdater {
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
-                    AggregatedActionType::PublishProofOnchain,
+                    AggregatedOperationType::PublishProofOnChain,
                     change.l1_tx_hash,
                     change.happened_at,
                     change.sl_chain_id,
@@ -460,7 +461,7 @@ impl BatchStatusUpdater {
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
-                    AggregatedActionType::Execute,
+                    AggregatedOperationType::Execute,
                     change.l1_tx_hash,
                     change.happened_at,
                     change.sl_chain_id,

@@ -186,7 +186,7 @@ impl Aggregator {
         Ok(Self {
             commit_criteria,
             proof_criteria: vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::PublishProofOnchain,
+                op: AggregatedActionType::PublishProofOnChain,
                 limit: 1,
             })],
             execute_criteria,

@@ -566,7 +566,7 @@ impl BlockReverter {
     ) -> anyhow::Result<L1BatchNumber> {
         let function_name = match op {
             AggregatedActionType::Commit => "getTotalBatchesCommitted",
-            AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
+            AggregatedActionType::PublishProofOnChain => "getTotalBatchesVerified",
             AggregatedActionType::Execute => "getTotalBatchesExecuted",
             AggregatedActionType::Tee => {
                 return Err(anyhow::anyhow!(
@@ -604,7 +604,7 @@ impl BlockReverter {
         let last_verified_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::PublishProofOnchain,
+            AggregatedActionType::PublishProofOnChain,
         )
         .await?;
         let last_executed_l1_batch_number = Self::get_l1_batch_number_from_contract(

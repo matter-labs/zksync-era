@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::AggregatedOperationType,
     api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
@@ -386,7 +386,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
     tester
         .execute_tx(
             l1_batch.number,
-            AggregatedActionType::Commit,
+            AggregatedOperationType::Commit,
             true,
             // we use -2 as running eth_sender iteration implicitly advances block number by 1
             EthSenderTester::WAIT_CONFIRMATIONS - 2,
@@ -998,7 +998,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            AggregatedOperationType::Commit,
         )
         .await;
     assert!(tx.is_none());
@@ -1018,7 +1018,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            AggregatedOperationType::Commit,
         )
         .await
         .unwrap();
