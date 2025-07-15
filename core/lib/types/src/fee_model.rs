@@ -617,7 +617,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_baxtch_fee_model_input_v2_only_compute_overhead() {
+    fn test_compute_batch_fee_model_input_v2_only_compute_overhead() {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
             minimal_l2_gas_price: 100_000_000_000,
