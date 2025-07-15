@@ -1,8 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use intel_dcap_api::{
-    ApiClient, ApiVersion, CaType, CrlEncoding, EnclaveIdentityResponse, PckCrlResponse,
-    TcbInfoResponse,
-};
+use intel_dcap_api::{ApiClient, ApiVersion, EnclaveIdentityResponse, TcbInfoResponse};
 use serde_json::Value;
 use sha2::Digest;
 use teepot::quote::TEEType;
@@ -23,7 +20,7 @@ use zksync_dal::{
 
 use crate::{
     errors::{TeeProcessorContext, TeeProcessorError},
-    tee_contract::{EnclaveId, TeeFunctions, CA},
+    tee_contract::{EnclaveId, TeeFunctions},
 };
 
 const INTEL_ROOT_CA_CRL_URL: &str =
@@ -98,9 +95,6 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
         {
             match expiring_collateral {
                 ExpiringCollateral::Field(ExpiringFieldCollateral { kind, .. }) => match kind {
-                    TeeDcapCollateralKind::RootCa
-                    | TeeDcapCollateralKind::PckCa
-                    | TeeDcapCollateralKind::PckCrl => self.update_certs().await?,
                     TeeDcapCollateralKind::RootCrl => {
                         self.update_root_crl().await?;
                     }
@@ -177,147 +171,7 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
     }
 
     async fn update_certs(&mut self) -> Result<(), TeeProcessorError> {
-        let PckCrlResponse {
-            crl_data,
-            issuer_chain,
-        } = self
-            .api_client_v4
-            .get_pck_crl(CaType::Platform, Some(CrlEncoding::Der))
-            .await
-            .context("Failed to get PCK CRL")?;
-
-        let certs = x509_cert::certificate::CertificateInner::<
-        x509_cert::certificate::Rfc5280,
-    >::load_pem_chain(issuer_chain.as_bytes())
-        .map_err(|_| {
-            TeeProcessorError::GeneralError("Could not load a PEM chain".into())
-        })?;
-
-        if !certs.len() == 2 {
-            let msg = format!("Expected 2 certificates in the chain, got {}", certs.len());
-            tracing::error!(msg);
-            return Err(TeeProcessorError::GeneralError(msg));
-        }
-
-        let root_cert = certs
-            .iter()
-            .find(|cert| cert.tbs_certificate.subject.to_string().contains("Root CA"))
-            .unwrap();
-
-        let pck_cert = certs
-            .iter()
-            .find(|cert| {
-                cert.tbs_certificate
-                    .subject
-                    .to_string()
-                    .contains("Platform CA")
-            })
-            .unwrap();
-
-        let hash = root_cert.signature.raw_bytes().to_vec();
-
-        if !matches!(
-            self.dal
-                .field_is_current(
-                    TeeDcapCollateralKind::RootCa,
-                    &hash,
-                    TeeDcapCollateralDal::DEFAULT_TIMEOUT
-                )
-                .await?,
-            TeeDcapCollateralInfo::Matches
-        ) {
-            let not_after = root_cert
-                .tbs_certificate
-                .validity
-                .not_after
-                .to_system_time();
-            let cert_der = root_cert.to_der().expect("Failed to serialize root cert");
-            tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::RootCa);
-            tracing::info!("Updating collateral: cert_der = {}", hex::encode(&cert_der));
-            let calldata = self
-                .functions
-                .upsert_root_certificate(cert_der)
-                .expect("Failed to create calldata for root cert");
-            self.dal
-                .update_field(
-                    TeeDcapCollateralKind::RootCa,
-                    &hash,
-                    not_after.into(),
-                    &calldata,
-                )
-                .await?;
-        }
-
         self.update_root_crl().await?;
-
-        let hash = pck_cert.signature.raw_bytes().to_vec();
-
-        if !matches!(
-            self.dal
-                .field_is_current(
-                    TeeDcapCollateralKind::PckCa,
-                    &hash,
-                    TeeDcapCollateralDal::DEFAULT_TIMEOUT
-                )
-                .await?,
-            TeeDcapCollateralInfo::Matches
-        ) {
-            let not_after = pck_cert.tbs_certificate.validity.not_after.to_system_time();
-            let cert_der = pck_cert.to_der().unwrap();
-
-            tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::PckCa);
-            tracing::info!("Updating collateral: cert_der = {}", hex::encode(&cert_der));
-
-            let calldata = self
-                .functions
-                .upsert_platform_certificate(cert_der)
-                .unwrap();
-
-            self.dal
-                .update_field(
-                    TeeDcapCollateralKind::PckCa,
-                    &hash,
-                    not_after.into(),
-                    &calldata,
-                )
-                .await?;
-        }
-
-        let hash = sha2::Sha256::new()
-            .chain_update(&crl_data)
-            .finalize_reset()
-            .to_vec();
-
-        if !matches!(
-            self.dal
-                .field_is_current(
-                    TeeDcapCollateralKind::PckCrl,
-                    &hash,
-                    TeeDcapCollateralDal::DEFAULT_TIMEOUT
-                )
-                .await?,
-            TeeDcapCollateralInfo::Matches
-        ) {
-            let crl = CertificateList::from_der(&crl_data).context("Failed to parse CRL")?;
-            let not_after = crl
-                .tbs_cert_list
-                .next_update
-                .map(|t| t.to_system_time().into())
-                .unwrap_or_else(|| Utc::now() + Duration::days(30));
-
-            tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::PckCrl);
-            tracing::info!("Updating collateral: cert_der = {}", hex::encode(&crl_data));
-
-            let calldata = self
-                .functions
-                .upsert_pck_crl(CA::PLATFORM, crl_data)
-                .unwrap();
-
-            self.dal
-                .update_field(TeeDcapCollateralKind::PckCrl, &hash, not_after, &calldata)
-                .await?;
-        }
-
         Ok(())
     }
 
@@ -559,29 +413,32 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
 
         let hash = sign_cert.signature.raw_bytes().to_vec();
 
-        if !matches!(
-            self.dal
-                .field_is_current(
-                    TeeDcapCollateralKind::SignCa,
-                    &hash,
-                    TeeDcapCollateralDal::DEFAULT_TIMEOUT
-                )
-                .await?,
-            TeeDcapCollateralInfo::Matches
-        ) {
+        let state = self
+            .dal
+            .field_is_current(
+                TeeDcapCollateralKind::SignCa,
+                &hash,
+                TeeDcapCollateralDal::DEFAULT_TIMEOUT,
+            )
+            .await?;
+
+        tracing::debug!("field_is_current() state: {:?}", state);
+
+        if !matches!(state, TeeDcapCollateralInfo::Matches) {
             let not_after = sign_cert.tbs_certificate.validity.not_after;
 
             let cert_der = sign_cert.to_der().unwrap();
 
             tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::SignCa);
             tracing::info!("Updating collateral: cert_der = {}", hex::encode(&cert_der));
+            tracing::info!("Updating collateral: hash = {}", hex::encode(&hash));
 
             let calldata = self.functions.upsert_signing_certificate(cert_der).unwrap();
 
             self.dal
                 .update_field(
                     TeeDcapCollateralKind::SignCa,
-                    hash.as_slice(),
+                    &hash,
                     not_after.to_system_time().into(),
                     &calldata,
                 )

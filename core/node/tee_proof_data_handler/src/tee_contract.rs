@@ -34,21 +34,6 @@ impl TryFrom<&str> for EnclaveId {
     }
 }
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CA {
-    ROOT = 0,
-    PROCESSOR = 1,
-    PLATFORM = 2,
-    SIGNING = 3,
-}
-
-impl From<CA> for u8 {
-    fn from(ca: CA) -> Self {
-        ca as u8
-    }
-}
-
 pub(crate) fn get_function(contract: &Contract, name: &str) -> Function {
     contract
         .functions
@@ -67,7 +52,6 @@ pub struct TeeFunctions {
     f_upsert_signing_certificate: Function,
     f_upsert_platform_certificate: Function,
     f_upsert_root_ca_crl: Function,
-    f_upsert_pck_crl: Function,
     f_upsert_enclave_identity: Function,
     f_upsert_fmspc_tcb: Function,
 }
@@ -83,7 +67,6 @@ impl Default for TeeFunctions {
             f_upsert_signing_certificate: get_function(&contract, "upsertSigningCertificate"),
             f_upsert_platform_certificate: get_function(&contract, "upsertPlatformCertificate"),
             f_upsert_root_ca_crl: get_function(&contract, "upsertRootCACrl"),
-            f_upsert_pck_crl: get_function(&contract, "upsertPckCrl"),
             f_upsert_enclave_identity: get_function(&contract, "upsertEnclaveIdentity"),
             f_upsert_fmspc_tcb: get_function(&contract, "upsertFmspcTcb"),
         }
@@ -129,12 +112,6 @@ impl TeeFunctions {
     pub fn upsert_root_ca_crl(&self, root_ca_crl: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
         self.f_upsert_root_ca_crl
             .encode_input(&[root_ca_crl.into_token()])
-    }
-
-    /// function upsertPckCrl(CA ca, bytes calldata crl) external returns (bytes32 attestationId){
-    pub fn upsert_pck_crl(&self, ca: CA, crl: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
-        self.f_upsert_pck_crl
-            .encode_input(&[U256::from(ca as u8).into_token(), crl.into_token()])
     }
 
     /// function upsertEnclaveIdentity(uint256 id, uint256 quote_version, EnclaveIdentityJsonObj calldata identityJson) external {

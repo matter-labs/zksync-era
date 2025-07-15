@@ -5,6 +5,7 @@ use zksync_db_connection::{connection::Connection, error::DalResult, instrument:
 use crate::{Core, CoreDal};
 
 /// The status of a specific piece of collateral that is stored on chain
+#[derive(Debug)]
 pub enum TeeDcapCollateralInfo {
     /// The collateral provided matches what is present in the database and on chain
     Matches,
@@ -23,10 +24,7 @@ pub enum TeeDcapCollateralInfo {
 #[derive(sqlx::Type, Debug, Copy, Clone)]
 #[sqlx(type_name = "tee_dcap_collateral_kind", rename_all = "snake_case")]
 pub enum TeeDcapCollateralKind {
-    RootCa,
     RootCrl,
-    PckCa,
-    PckCrl,
     SignCa,
     SgxQeIdentityJson,
     TdxQeIdentityJson,
@@ -42,6 +40,7 @@ pub enum TeeDcapCollateralTcbInfoJsonKind {
     TdxTcbInfoJson,
 }
 
+#[derive(Debug)]
 struct CurrentFieldValidator {
     sha_matches: bool,
     not_after: bool,
