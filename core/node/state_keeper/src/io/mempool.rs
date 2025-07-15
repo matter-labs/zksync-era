@@ -9,7 +9,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::{AdvanceInput, L2TxFilter};
 use zksync_multivm::{
     interface::Halt,
@@ -21,6 +21,8 @@ use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx,
+    server_notification::GatewayMigrationState,
+    settlement::SettlementLayer,
     utils::display_timestamp,
     Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
     Transaction, H256, U256,
@@ -69,6 +71,7 @@ pub struct MempoolIO {
     pubdata_type: PubdataType,
     pubdata_limit: u64,
     last_batch_protocol_version: Option<ProtocolVersionId>,
+    settlement_layer: Option<SettlementLayer>,
 }
 
 #[async_trait]
@@ -223,10 +226,18 @@ impl StateKeeperIO for MempoolIO {
 
         let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        let interop_roots = storage
-            .interop_root_dal()
-            .get_new_interop_roots(limit)
-            .await?;
+
+        let gateway_migration_state: GatewayMigrationState =
+            self.gateway_status(&mut storage).await;
+        let interop_roots = if gateway_migration_state == GatewayMigrationState::InProgress {
+            vec![]
+        } else {
+            storage
+                .interop_root_dal()
+                .get_new_interop_roots(limit)
+                .await?
+        };
+
         Ok(Some(L2BlockParams::new_raw(
             timestamp_ms,
             // This value is effectively ignored by the protocol.
@@ -492,6 +503,7 @@ impl MempoolIO {
         chain_id: L2ChainId,
         l2_da_validator_address: Option<Address>,
         pubdata_type: PubdataType,
+        settlement_layer: Option<SettlementLayer>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
@@ -512,6 +524,7 @@ impl MempoolIO {
             pubdata_type,
             pubdata_limit: config.max_pubdata_per_batch.0,
             last_batch_protocol_version: None,
+            settlement_layer,
         })
     }
 
@@ -670,6 +683,16 @@ impl MempoolIO {
             }));
         }
         Ok(None)
+    }
+
+    async fn gateway_status(&self, storage: &mut Connection<'_, Core>) -> GatewayMigrationState {
+        let notification = storage
+            .server_notifications_dal()
+            .get_latest_gateway_migration_notification()
+            .await
+            .unwrap();
+
+        GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 
     #[cfg(test)]
