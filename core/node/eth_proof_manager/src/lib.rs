@@ -11,6 +11,8 @@ use crate::client::EthProofManagerClient;
 mod client;
 pub mod node;
 mod sender;
+#[cfg(test)]
+mod tests;
 mod types;
 mod watcher;
 

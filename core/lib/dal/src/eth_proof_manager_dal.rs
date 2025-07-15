@@ -20,7 +20,6 @@ pub enum EthProofManagerStatus {
     Sent,
     Acknowledged,
     Proven,
-    Fallbacked,
     Validated,
 }
 
@@ -31,7 +30,6 @@ impl EthProofManagerStatus {
             EthProofManagerStatus::Sent => "sent",
             EthProofManagerStatus::Acknowledged => "acknowledged",
             EthProofManagerStatus::Proven => "proven",
-            EthProofManagerStatus::Fallbacked => "fallbacked",
             EthProofManagerStatus::Validated => "validated",
         }
     }
@@ -260,7 +258,7 @@ impl EthProofManagerDal<'_, '_> {
                 OR (status = $6 AND proof_validation_result IS false)
             RETURNING l1_batch_number
             "#,
-            EthProofManagerStatus::Fallbacked.as_str(),
+            EthProofManagerStatus::Unpicked.as_str(),
             EthProofManagerStatus::Sent.as_str(),
             &acknowledgment_timeout,
             EthProofManagerStatus::Acknowledged.as_str(),
@@ -274,11 +272,12 @@ impl EthProofManagerDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
         let mut query_builder = QueryBuilder::new(
-            "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - $1::INTERVAL)"
+            "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - "
         );
 
         let timeout = pg_interval_from_duration(picking_timeout);
         query_builder.push_bind(timeout);
+        query_builder.push("::INTERVAL)");
 
         if !batches.is_empty() {
             query_builder.push(" OR l1_batch_number IN (");
@@ -313,7 +312,7 @@ impl EthProofManagerDal<'_, '_> {
             UPDATE eth_proof_manager SET status = $1, updated_at = NOW()
             WHERE l1_batch_number = $2
             "#,
-            EthProofManagerStatus::Fallbacked.as_str(),
+            EthProofManagerStatus::Unpicked.as_str(),
             i64::from(batch_number.0),
         )
         .instrument("fallback_certain_batch")

@@ -63,7 +63,7 @@ impl EthProofWatcher {
             }
 
             for event in &self.event_handlers {
-                let to_block = self.client.get_finalized_block().await?;
+                let to_block = self.client.get_latest_block().await?;
 
                 let from_block = self
                     .connection_pool

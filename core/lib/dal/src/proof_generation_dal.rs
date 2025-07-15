@@ -181,11 +181,7 @@ impl ProofGenerationDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         proving_mode: ProvingMode,
     ) -> DalResult<()> {
-        let status = if proving_mode == ProvingMode::ProverCluster {
-            "unpicked"
-        } else {
-            "fallbacked"
-        };
+        let status = "unpicked";
 
         let batch_number = i64::from(l1_batch_number.0);
         sqlx::query!(

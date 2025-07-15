@@ -44,7 +44,7 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
 
     async fn get_logs(&self, filter: Filter) -> Result<Vec<Log>, EnrichedClientError>;
 
-    async fn get_finalized_block(&self) -> Result<u64, ClientError>;
+    async fn get_latest_block(&self) -> Result<u64, ClientError>;
 
     // function submitProofRequest(
     //     ProofRequestIdentifier calldata id,
@@ -357,12 +357,12 @@ impl EthProofManagerClient for ProofManagerClient {
     }
 
     /// Get the finalized block number from the L1 network.
-    async fn get_finalized_block(&self) -> Result<u64, ClientError> {
+    async fn get_latest_block(&self) -> Result<u64, ClientError> {
         let block = self
             .client
             .deref()
             .as_ref()
-            .block(BlockId::Number(BlockNumber::Finalized))
+            .block(BlockId::Number(BlockNumber::Latest))
             .await?
             .ok_or_else(|| {
                 let err = jsonrpsee::core::ClientError::Custom(
