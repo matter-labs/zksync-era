@@ -27,10 +27,9 @@ use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, EcosystemConfig,
 };
 use zksync_basic_types::{H256, U256};
-use zksync_types::L1BatchNumber;
 use zksync_web3_decl::{
     client::{Client, L2},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::EthNamespaceClient,
 };
 
 use crate::{
@@ -117,26 +116,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let gw_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
-
-    // We prevent chains with uncommitted batches from initiating migration from gateway.
-    // As interop is only supported on top of gateway, an uncommited batch specifying some interop roots
-    // will not be able to settle on the L1.
-    let l1_batch_number = L1BatchNumber::from(
-        gateway_zk_client
-            .get_l1_batch_number()
-            .await
-            .expect("Failed to get l1 batch number")
-            .as_u32(),
-    );
-    let l1_batch_details = gateway_zk_client
-        .get_l1_batch_details(l1_batch_number)
-        .await
-        .expect("Failed to get l1 batch details");
-
-    if l1_batch_details.is_none() {
-        logger::error("Gateway chain has uncommitted batches. Please commit them first.");
-        anyhow::bail!("Gateway chain has uncommitted batches. Please commit them first.");
-    }
 
     if calldata.is_empty() {
         logger::info("Chain already migrated!");
