@@ -178,25 +178,25 @@ pub async fn init(
         .await
         .context("l1_da_validator_addr")?;
 
-    let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
-    set_da_validator_pair(
-        shell,
-        &init_args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
-        crate::admin_functions::AdminScriptMode::Broadcast(
-            chain_config.get_wallets_config()?.governor,
-        ),
-        chain_config.chain_id.as_u64(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        l1_da_validator_addr,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
+    // let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+    // set_da_validator_pair(
+    //     shell,
+    //     &init_args.forge_args,
+    //     &ecosystem_config.path_to_l1_foundry(),
+    //     crate::admin_functions::AdminScriptMode::Broadcast(
+    //         chain_config.get_wallets_config()?.governor,
+    //     ),
+    //     chain_config.chain_id.as_u64(),
+    //     contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+    //     l1_da_validator_addr,
+    //     contracts_config
+    //         .l2
+    //         .da_validator_addr
+    //         .context("da_validator_addr")?,
+    //     init_args.l1_rpc_url.clone(),
+    // )
+    // .await?;
+    // spinner.finish();
 
     if init_args.make_permanent_rollup {
         println!("Making permanent rollup!");

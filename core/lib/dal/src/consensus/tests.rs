@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use super::*;
+use crate::tests::mock_protocol_upgrade_transaction;
 use rand::Rng;
 use zksync_concurrency::{ctx, testonly::abort_on_panic};
 use zksync_protobuf::{
@@ -8,14 +10,12 @@ use zksync_protobuf::{
     ProtoRepr,
 };
 use zksync_test_contracts::Account;
+use zksync_types::commitment::L2DACommitmentScheme;
 use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
-
-use super::*;
-use crate::tests::mock_protocol_upgrade_transaction;
 
 fn execute(rng: &mut impl Rng) -> Execute {
     Execute {
@@ -66,6 +66,13 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     _ => PubdataType::ObjectStore,
                 },
                 l2_da_validator_address: rng.gen(),
+                l2_da_commitment_scheme: Some(match rng.gen_range(0..2) {
+                    0 => L2DACommitmentScheme::None,
+                    1 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                    2 => L2DACommitmentScheme::EmptyNoDA,
+                    3 => L2DACommitmentScheme::PubdataKeccak256,
+                    _ => unreachable!("Invalid L2DACommitmentScheme value"),
+                }),
             }
         },
     }

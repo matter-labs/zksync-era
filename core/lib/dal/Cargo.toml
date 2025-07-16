@@ -62,7 +62,7 @@ chrono = { workspace = true, default-features = false, features = ["now"] }
 rayon.workspace = true
 
 [dev-dependencies]
-#zksync_test_contracts.workspace = true
+zksync_test_contracts.workspace = true
 zksync_concurrency.workspace = true
 
 [build-dependencies]

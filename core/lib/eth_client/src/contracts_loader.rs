@@ -180,17 +180,26 @@ pub async fn get_zk_chain_on_chain_params(
     diamond_proxy_addr: Address,
 ) -> Result<ZkChainOnChainConfig, ContractCallError> {
     let abi = getters_facet_contract();
-    let l2_da_commitment_scheme: Option<U256> = CallFunctionArgs::new("l2DACommitmentScheme", ())
+    let l2_da_commitment_scheme: Result<Token, _> = CallFunctionArgs::new("getDAValidatorPair", ())
         .for_contract(diamond_proxy_addr, &abi)
         .call(eth_client)
-        .await
-        .ok();
+        .await;
 
-    let l2_da_commitment_scheme = l2_da_commitment_scheme.map(|v| {
-        L2DACommitmentScheme::try_from(v.as_u64() as u8)
-            .expect("Invalid L2DACommitmentScheme value")
-    });
+    let l2_da_commitment_scheme =
+        if let Token::Tuple(l2_da_commitment_scheme) = l2_da_commitment_scheme? {
+            if let Some(Token::Uint(l2_da_commitment_scheme)) = l2_da_commitment_scheme.get(1) {
+                Some(
+                    L2DACommitmentScheme::try_from(l2_da_commitment_scheme.as_u64() as u8)
+                        .expect("Invalid L2DACommitmentScheme value"),
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
     Ok(ZkChainOnChainConfig {
-        l2_da_commitment_scheme: l2_da_commitment_scheme,
+        l2_da_commitment_scheme,
     })
 }

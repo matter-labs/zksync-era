@@ -7,8 +7,8 @@ use crate::{
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
         deploy_l2_contracts::output::{
-            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, Multicall3Output,
+            TimestampAsserterOutput,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -136,14 +136,10 @@ impl ContractsConfig {
         self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
     }
 
-    pub fn set_l2_shared_bridge(
-        &mut self,
-        initialize_bridges_output: &InitializeBridgeOutput,
-    ) -> anyhow::Result<()> {
+    pub fn set_l2_shared_bridge(&mut self) -> anyhow::Result<()> {
         self.bridges.shared.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.bridges.erc20.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        self.l2.da_validator_addr = Some(initialize_bridges_output.l2_da_validator_address);
         Ok(())
     }
 
@@ -177,14 +173,6 @@ impl ContractsConfig {
         timestamp_asserter_output: &TimestampAsserterOutput,
     ) -> anyhow::Result<()> {
         self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
-        Ok(())
-    }
-
-    pub fn set_l2_da_validator_address(
-        &mut self,
-        output: &L2DAValidatorAddressOutput,
-    ) -> anyhow::Result<()> {
-        self.l2.da_validator_addr = Some(output.l2_da_validator_address);
         Ok(())
     }
 }

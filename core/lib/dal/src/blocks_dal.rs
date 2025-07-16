@@ -1092,7 +1092,7 @@ impl BlocksDal<'_, '_> {
                 fair_pubdata_price,
                 gas_limit,
                 logs_bloom,
-                l2_da_validator_address,
+                l2_da_validator_address as "l2_da_validator_address?",
                 l2_da_commitment_scheme,
                 pubdata_type
             FROM
