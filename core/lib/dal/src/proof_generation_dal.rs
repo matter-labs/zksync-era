@@ -72,7 +72,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.meta_parameters_hash IS NOT NULL
                             AND status = 'unpicked'
                             AND (
-                                $2 = 'proving_cluster'
+                                $2 = 'prover_cluster'
                                 OR (
                                     proving_mode = 'prover_cluster'
                                     OR (
