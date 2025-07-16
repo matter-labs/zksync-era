@@ -16,8 +16,9 @@ use std::{
 };
 
 use rocksdb::{
-    perf, properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor,
-    DBPinnableSlice, Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
+    checkpoint::Checkpoint, perf, properties, BlockBasedOptions, Cache, ColumnFamily,
+    ColumnFamilyDescriptor, DBPinnableSlice, Direction, IteratorMode, Options, PrefixRange,
+    ReadOptions, WriteOptions, DB,
 };
 use thread_local::ThreadLocal;
 use vise::MetricsFamily;
@@ -692,6 +693,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             block_read_size: AtomicU64::new(0),
             multiget_read_size: AtomicU64::new(0),
         }
+    }
+
+    /// Returns the checkpoint handle for the RocksDB instance.
+    pub fn checkpoint(&self) -> Result<Checkpoint, rocksdb::Error> {
+        Checkpoint::new(&self.inner.db)
     }
 }
 
