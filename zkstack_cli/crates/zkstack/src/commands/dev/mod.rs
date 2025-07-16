@@ -112,19 +112,19 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         #[cfg(feature = "upgrades")]
         DevCommands::GenerateEcosystemUpgradeCalldata(args) => {
-            commands::upgrades::ecosystem_upgrade::run(shell, args, false).await?
+            commands::upgrades::default_ecosystem_upgrade::run(shell, args, false).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::RunEcosystemUpgrade(args) => {
-            commands::upgrades::ecosystem_upgrade::run(shell, args, true).await?
+            commands::upgrades::default_ecosystem_upgrade::run(shell, args, true).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::GenerateChainUpgrade(args) => {
-            commands::upgrades::chain_upgrade::run(shell, args, false).await?
+            commands::upgrades::default_chain_upgrade::run(shell, args, false).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::RunChainUpgrade(args) => {
-            commands::chain_upgrade::run(shell, args, true).await?
+            commands::upgrades::default_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())
