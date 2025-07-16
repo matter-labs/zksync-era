@@ -1,7 +1,5 @@
 use std::fmt::Debug;
 
-use super::*;
-use crate::tests::mock_protocol_upgrade_transaction;
 use rand::Rng;
 use zksync_concurrency::{ctx, testonly::abort_on_panic};
 use zksync_protobuf::{
@@ -10,12 +8,14 @@ use zksync_protobuf::{
     ProtoRepr,
 };
 use zksync_test_contracts::Account;
-use zksync_types::commitment::L2DACommitmentScheme;
 use zksync_types::{
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
+
+use super::*;
+use crate::tests::mock_protocol_upgrade_transaction;
 
 fn execute(rng: &mut impl Rng) -> Execute {
     Execute {

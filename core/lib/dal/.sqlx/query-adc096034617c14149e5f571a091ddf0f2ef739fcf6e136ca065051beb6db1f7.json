@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit,\n                logs_bloom,\n                l2_da_validator_address as \"l2_da_validator_address?\",\n                l2_da_commitment_scheme,\n                pubdata_type\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit,\n                logs_bloom,\n                l2_da_validator_address,\n                l2_da_commitment_scheme,\n                pubdata_type\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -95,7 +95,7 @@
       },
       {
         "ordinal": 18,
-        "name": "l2_da_validator_address?",
+        "name": "l2_da_validator_address",
         "type_info": "Bytea"
       },
       {
@@ -138,5 +138,5 @@
       false
     ]
   },
-  "hash": "2000e51a73a027e05b66973c8cad54f47329e26daf9166135a5043fe8593fcca"
+  "hash": "adc096034617c14149e5f571a091ddf0f2ef739fcf6e136ca065051beb6db1f7"
 }

@@ -17,7 +17,7 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
@@ -42,7 +42,7 @@ use crate::{
 #[derive(Debug)]
 pub struct DAValidatorPair {
     l1_validator: Address,
-    l2_validator: Address,
+    l2_da_commitment_scheme: L2DACommitmentScheme,
 }
 
 /// Data queried from L1 using multicall contract.
@@ -482,7 +482,15 @@ impl EthTxAggregator {
 
         let pair = DAValidatorPair {
             l1_validator: Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]),
-            l2_validator: Address::from_slice(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]),
+            l2_da_commitment_scheme: L2DACommitmentScheme::try_from(
+                U256::from_big_endian(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]).as_u64() as u8,
+            )
+            .map_err(|_| {
+                EthSenderError::Parse(Web3ContractError::InvalidOutputType(format!(
+                    "Invalid L2DACommitmentScheme value in {name}: {:?}",
+                    multicall_data
+                )))
+            })?,
         };
 
         Ok(pair)
@@ -638,15 +646,16 @@ impl EthTxAggregator {
             .then_some("there is a pending gateway upgrade"),
         };
 
-        // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
-        // send new commit transactions before the da validator pair is updated
-        if da_validator_pair.l1_validator == Address::zero()
-            || da_validator_pair.l2_validator == Address::zero()
-        {
-            let reason = Some("DA validator pair is not set on the settlement layer");
-            op_restrictions.commit_restriction = reason;
-            // We only disable commit operations, the rest are allowed
-        }
+        // TODO shouldn't be the case anymore
+        // // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
+        // // send new commit transactions before the da validator pair is updated
+        // if da_validator_pair.l1_validator == Address::zero()
+        //     || da_validator_pair.l2_da_commitment_scheme == Address::zero()
+        // {
+        //     let reason = Some("DA validator pair is not set on the settlement layer");
+        //     op_restrictions.commit_restriction = reason;
+        //     // We only disable commit operations, the rest are allowed
+        // }
 
         if self.config.tx_aggregation_paused {
             let reason = Some("tx aggregation is paused");
