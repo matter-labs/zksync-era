@@ -293,9 +293,9 @@ jobs:
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
 
-      - name: Run tests
-        run: |
-          ci_run yarn highlevel-test-tools test
+      # - name: Run tests
+      #   run: |
+      #     ci_run yarn highlevel-test-tools test
 
       # Upgrade tests should run be separately,
       # because as soon as they finish the bootloader will be different

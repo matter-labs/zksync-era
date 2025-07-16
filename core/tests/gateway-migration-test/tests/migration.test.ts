@@ -236,6 +236,8 @@ describe('Migration From/To gateway test', function () {
         const chainId = (await tester.syncWallet.provider!.getNetwork()).chainId;
         const migrationNumberL1 = await ecosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
 
+        await utils.spawn(`zkstack dev init-test-wallet --chain gateway`);
+
         const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
         const gatewayEcosystemContracts = await getEcosystemContracts(
             new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!, tester.syncWallet.providerL1)
@@ -254,6 +256,7 @@ describe('Migration From/To gateway test', function () {
         // expect(gatewayAssetSettlementLayer === gatewayChain).to.be.true;
         expect(migrationNumberL1 === migrationNumberGateway).to.be.true;
         console.log('migrationNumberL1', migrationNumberL1);
+    });
 
     step('Execute transactions after simple restart', async () => {
         // Stop server.

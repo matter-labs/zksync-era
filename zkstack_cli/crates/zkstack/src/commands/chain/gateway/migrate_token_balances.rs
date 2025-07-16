@@ -30,7 +30,7 @@ use crate::{
 lazy_static! {
     static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function startTokenMigrationOnL2OrGateway(bool, uint256, string) public",
+            "function startTokenMigrationOnL2OrGateway(bool, uint256, string, string) public",
             // "function continueMigrationOnGateway(uint256, string) public",
             "function finishMigrationOnL1(address, uint256, string, bool) public",
             "function checkAllMigrated(uint256, string) public",
@@ -128,7 +128,7 @@ pub async fn migrate_token_balances_from_gateway(
     l1_bridgehub_addr: Address,
     l2_chain_id: u64,
     l1_rpc_url: String,
-    _gw_rpc_url: String,
+    gw_rpc_url: String,
     l2_rpc_url: String,
 ) -> anyhow::Result<()> {
     println!("l2_chain_id: {}", l2_chain_id);
@@ -148,7 +148,7 @@ pub async fn migrate_token_balances_from_gateway(
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "startTokenMigrationOnL2OrGateway",
-            (false, U256::from(l2_chain_id), l2_rpc_url.clone()),
+            (false, U256::from(l2_chain_id), l2_rpc_url.clone(), gw_rpc_url.clone()),
         )
         .unwrap();
 
