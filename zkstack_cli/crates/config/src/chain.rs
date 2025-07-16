@@ -229,6 +229,7 @@ impl ChainConfig {
             link_to_code,
             artifacts,
             evm_emulator: chain_internal.evm_emulator,
+            tight_ports: chain_internal.tight_ports,
             self_path: shell.current_dir(),
             shell: shell.into(),
         })

@@ -24,13 +24,17 @@ use crate::{
     commands::prover::deploy_proving_networks::deploy_proving_networks,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
-        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
+        MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let default_compressor_key_path = get_default_compressor_keys_path(&chain_config.link_to_code)?;
 

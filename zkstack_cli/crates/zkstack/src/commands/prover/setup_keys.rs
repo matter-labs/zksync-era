@@ -10,13 +10,13 @@ use crate::{
         args::setup_keys::{Mode, Region, SetupKeysArgs},
         compressor_keys::download_compressor_key,
     },
-    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
+    messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
 };
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let chain_config = ZkStackConfig::current_chain(shell)?;
-    let link_to_prover = get_link_to_prover(&link_to_code);
+    let link_to_prover = get_link_to_prover(&chain_config.link_to_code);
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);

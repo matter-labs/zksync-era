@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use ethers::utils::hex::ToHexExt;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 
 use crate::messages::MSG_DEPLOYING_PROVING_NETWORKS_SPINNER;
 
