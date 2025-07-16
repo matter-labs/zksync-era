@@ -29,7 +29,7 @@ pub(crate) async fn deploy_proving_network(
 
     let wallets = config.get_wallets()?;
 
-    if let Some(wallet) = wallets.deployer {
+    if let Some(wallet) = wallets.deployer.clone() {
         let private_key = wallet.private_key_h256();
         if private_key.is_none() {
             return Err(anyhow::anyhow!(
@@ -42,6 +42,86 @@ pub(crate) async fn deploy_proving_network(
         return Err(anyhow::anyhow!(
             "Deployer wallet not found(for proving networks)"
         ));
+    }
+
+    if args.top_up_server_wallets {
+        let rpc_url = args.l1_rpc_url.clone();
+        let l1_rpc_url = args.l1_rpc_url.clone();
+        let private_key = wallets
+            .deployer
+            .clone()
+            .unwrap()
+            .private_key_h256()
+            .unwrap()
+            .encode_hex();
+        let deployer_address = wallets.deployer.clone().unwrap().address.encode_hex();
+
+        let cmd = Cmd::new(cmd!(shell, "npx zksync-cli@1.11.0 bridge deposit --chain=dockerized-node --amount 1 --pk={private_key} --to {deployer_address} --l1-rpc {l1_rpc_url} --rpc {rpc_url}"));
+        let output = cmd
+            .with_force_run()
+            .run_with_output()
+            .context("Failed to top up wallets")?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to top up deployer wallet: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let proof_manager_owner_address = args.proof_manager_owner_address.clone();
+        let cmd = Cmd::new(cmd!(shell, "npx zksync-cli@1.11.0 bridge deposit --chain=dockerized-node --amount 1 --pk={private_key} --to {proof_manager_owner_address} --l1-rpc {l1_rpc_url} --rpc {rpc_url}"));
+        let output = cmd
+            .with_force_run()
+            .run_with_output()
+            .context("Failed to top up wallets")?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to top up proof manager owner wallet: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+
+    if args.top_up_network_wallets {
+        let rpc_url = args.l1_rpc_url.clone();
+        let l1_rpc_url = args.l1_rpc_url.clone();
+        let private_key = wallets
+            .deployer
+            .clone()
+            .unwrap()
+            .private_key_h256()
+            .unwrap()
+            .encode_hex();
+        let fermah_address = args.fermah_address.clone();
+        let lagrange_address = args.lagrange_address.clone();
+
+        let cmd = Cmd::new(cmd!(shell, "npx zksync-cli@1.11.0 bridge deposit --chain=dockerized-node --amount 1 --pk={private_key} --to {fermah_address} --l1-rpc {l1_rpc_url} --rpc {rpc_url}"));
+        let output = cmd
+            .with_force_run()
+            .run_with_output()
+            .context("Failed to top up wallets")?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to top up fermah wallet: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let cmd = Cmd::new(cmd!(shell, "npx zksync-cli@1.11.0 bridge deposit --chain=dockerized-node --amount 1 --pk={private_key} --to {lagrange_address} --l1-rpc {l1_rpc_url} --rpc {rpc_url}"));
+        let output = cmd
+            .with_force_run()
+            .run_with_output()
+            .context("Failed to top up wallets")?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to top up lagrange wallet: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
     }
 
     shell.set_var("RPC_URL", rpc_url);

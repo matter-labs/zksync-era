@@ -251,7 +251,7 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .unlock_batch(l1_batch_number, self.proving_mode.clone().into())
+            .unlock_batch(l1_batch_number)
             .await
             .map_err(Into::into)
     }

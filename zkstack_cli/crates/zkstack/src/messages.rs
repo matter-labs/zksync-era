@@ -76,6 +76,7 @@ pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_RPC_URL_PROMPT: &str =
     "What is the RPC URL of the network(defaults to local L2)?";
+pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
 pub(super) const MSG_FERMAH_ADDRESS_PROMPT: &str =
     "What is Fermah's Proving Network address (allows acknowledging/submitting proofs for Fermah)?";
 pub(super) const MSG_LAGRANGE_ADDRESS_PROMPT: &str =
@@ -84,6 +85,10 @@ pub(super) const MSG_USDC_ADDRESS_PROMPT: &str = "What is the address of the USD
 pub(super) const MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT: &str = "What is the address of the ProofManager owner(what address is allowed to submit Proof Requests?)?";
 pub(super) const MSG_PROXY_OWNER_ADDRESS_PROMPT: &str =
     "What is the address of the Proxy owner(who will be able to upgrade the contract)?";
+pub(super) const MSG_TOP_UP_SERVER_WALLETS_PROMPT: &str =
+    "Do you want to top up server wallets(on L2, by 1 ETH)?";
+pub(super) const MSG_TOP_UP_NETWORK_WALLETS_PROMPT: &str =
+    "Do you want to top up proving network wallets(on L2, by 1 ETH)?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
 pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
