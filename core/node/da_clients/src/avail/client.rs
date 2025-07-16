@@ -16,7 +16,7 @@ use zksync_da_client::{
 use zksync_types::{
     ethabi::{self, Token},
     web3::contract::Tokenize,
-    H256, U256,
+    SLChainId, H256, U256,
 };
 
 use crate::{
@@ -36,6 +36,7 @@ pub struct AvailClient {
     config: AvailConfig,
     sdk_client: Arc<AvailClientMode>,
     api_client: Arc<reqwest::Client>, // bridge API reqwest client
+    sl_chain_id: SLChainId,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -123,9 +124,13 @@ impl Tokenize for MerkleProofInput {
 }
 
 impl AvailClient {
-    pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
+    pub async fn new(
+        config: AvailConfig,
+        secrets: AvailSecrets,
+        sl_chain_id: SLChainId,
+    ) -> anyhow::Result<Self> {
         let api_client = Arc::new(reqwest::Client::new());
-        match config.config.clone() {
+        let sdk_client = match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets
                     .gas_relay_api_key
@@ -137,11 +142,8 @@ impl AvailClient {
                     Arc::clone(&api_client),
                 )
                 .await?;
-                Ok(Self {
-                    config,
-                    sdk_client: Arc::new(AvailClientMode::GasRelay(gas_relay_client)),
-                    api_client,
-                })
+
+                Arc::new(AvailClientMode::GasRelay(gas_relay_client))
             }
             AvailClientConfig::FullClient(conf) => {
                 let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
@@ -153,13 +155,16 @@ impl AvailClient {
                 )
                 .await?;
 
-                Ok(Self {
-                    config,
-                    sdk_client: Arc::new(AvailClientMode::Default(Box::new(sdk_client))),
-                    api_client,
-                })
+                Arc::new(AvailClientMode::Default(Box::new(sdk_client)))
             }
-        }
+        };
+
+        Ok(Self {
+            config,
+            sdk_client,
+            api_client,
+            sl_chain_id,
+        })
     }
 }
 
@@ -277,7 +282,13 @@ impl DataAvailabilityClient for AvailClient {
                 error: anyhow!("Invalid URL"),
                 is_retriable: false,
             })?
-            .join(format!("/eth/proof/{}?index={}", block_hash, tx_idx).as_str())
+            .join(
+                format!(
+                    "/v1/proof/{}?block_hash={}&index={}",
+                    self.sl_chain_id, block_hash, tx_idx
+                )
+                .as_str(),
+            )
             .map_err(|_| DAError {
                 error: anyhow!("Unable to join to URL"),
                 is_retriable: false,
