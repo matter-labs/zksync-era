@@ -12,6 +12,9 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --observability=false
 
 ## kl todo start chain here, turn it off.
+# this?
+zkstack server --chain era &> ../rollup.log &
+pkill -9 zksync_server
 
 cd .. && era-cacher/use-new-era.sh && cd zksync-working
 
@@ -40,7 +43,7 @@ cd contracts/l1-contracts
 UPGRADE_ECOSYSTEM_OUTPUT=script-out/v29-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v29.s.sol/9/run-latest.json  YAML_OUTPUT_FILE=script-out/v29-local-output.yaml yarn upgrade-yaml-output-generator
 cd ../../
 
-zkstack dev run-chain-upgrade
+zkstack dev run-chain-upgrade --upgrade-version v29-interop-a-ff
 
 zkstack  dev run-ecosystem-upgrade --upgrade-version v29-interop-a-ff --ecosystem-upgrade-stage governance-stage2
 
