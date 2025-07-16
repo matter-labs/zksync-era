@@ -45,7 +45,7 @@ pub(crate) async fn deploy_proving_network(
     }
 
     if args.top_up_server_wallets {
-        let rpc_url = args.l1_rpc_url.clone();
+        let rpc_url = args.rpc_url.clone();
         let l1_rpc_url = args.l1_rpc_url.clone();
         let private_key = wallets
             .deployer
@@ -85,7 +85,7 @@ pub(crate) async fn deploy_proving_network(
     }
 
     if args.top_up_network_wallets {
-        let rpc_url = args.l1_rpc_url.clone();
+        let rpc_url = args.rpc_url.clone();
         let l1_rpc_url = args.l1_rpc_url.clone();
         let private_key = wallets
             .deployer
