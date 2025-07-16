@@ -102,13 +102,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
     }
 
-    // Initialize chain(s)
-    // let mut chains: Vec<String> = vec![];
-    // if !final_ecosystem_args.ecosystem_only {
-    //     chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
-    // }
-    // logger::outro(msg_ecosystem_initialized(&chains.join(",")));
-
     Ok(())
 }
 
@@ -286,41 +279,83 @@ async fn deploy_ecosystem_inner(
     .await?;
     spinner.finish();
 
-    // accept_owner(
-    //     shell,
-    //     config,
-    //     contracts_config.l1.governance_addr,
-    //     &config.get_wallets()?.governor,
-    //     contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-    //     &forge_args,
-    //     l1_rpc_url.clone(),
-    // )
-    // .await?;
+    if bridgehub_address != H160::zero() {
+        // Note, that there is no admin in L1 asset router, so we do
+        // need to accept it
 
-    // accept_admin(
-    //     shell,
-    //     config,
-    //     contracts_config.l1.chain_admin_addr,
-    //     &config.get_wallets()?.governor,
-    //     contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-    //     &forge_args,
-    //     l1_rpc_url.clone(),
-    // )
-    // .await?;
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    // accept_owner(
-    //     shell,
-    //     config,
-    //     contracts_config.l1.governance_addr,
-    //     &config.get_wallets()?.governor,
-    //     contracts_config.bridges.shared.l1_address,
-    //     &forge_args,
-    //     l1_rpc_url.clone(),
-    // )
-    // .await?;
+        accept_admin(
+            shell,
+            config,
+            contracts_config.l1.chain_admin_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
 
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_admin(
+            shell,
+            config,
+            contracts_config.l1.chain_admin_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.bridges.shared.l1_address,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr
+                .context("stm_deployment_tracker_proxy_addr")?,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     accept_owner(
         shell,
@@ -348,75 +383,5 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    // accept_owner(
-    //     shell,
-    //     config,
-    //     contracts_config.l1.governance_addr,
-    //     &config.get_wallets()?.governor,
-    //     contracts_config
-    //         .ecosystem_contracts
-    //         .stm_deployment_tracker_proxy_addr
-    //         .context("stm_deployment_tracker_proxy_addr")?,
-    //     &forge_args,
-    //     l1_rpc_url.clone(),
-    // )
-    // .await?;
-
     Ok(contracts_config)
-}
-
-async fn init_chains(
-    init_args: &EcosystemInitArgs,
-    final_init_args: &EcosystemInitArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<Vec<String>> {
-    // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
-    let list_of_chains = if let Some(name) = global_config().chain_name.clone() {
-        vec![name]
-    } else {
-        ecosystem_config.list_of_chains()
-    };
-    // Set default values for dev mode
-    let mut deploy_paymaster = init_args.deploy_paymaster;
-    let mut genesis_args = init_args.get_genesis_args().clone();
-    if final_init_args.dev {
-        deploy_paymaster = Some(true);
-        genesis_args.dev = true;
-    }
-    // Can't initialize multiple chains with the same DB
-    if list_of_chains.len() > 1 {
-        genesis_args.reset_db_names();
-    }
-    // Initialize chains
-    for chain_name in &list_of_chains {
-        logger::info(msg_initializing_chain(chain_name));
-        let chain_config = ecosystem_config
-            .load_chain(Some(chain_name.clone()))
-            .context(msg_chain_load_err(chain_name))?;
-
-        let chain_init_args = chain::args::init::InitArgs {
-            forge_args: final_init_args.forge_args.clone(),
-            server_db_url: genesis_args.server_db_url.clone(),
-            server_db_name: genesis_args.server_db_name.clone(),
-            dont_drop: genesis_args.dont_drop,
-            deploy_paymaster,
-            l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
-            no_port_reallocation: final_init_args.no_port_reallocation,
-            update_submodules: init_args.update_submodules,
-            dev: final_init_args.dev,
-            validium_args: final_init_args.validium_args.clone(),
-            server_command: genesis_args.server_command.clone(),
-        };
-        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
-
-        chain::init::init(
-            &final_chain_init_args,
-            shell,
-            ecosystem_config,
-            &chain_config,
-        )
-        .await?;
-    }
-    Ok(list_of_chains)
 }

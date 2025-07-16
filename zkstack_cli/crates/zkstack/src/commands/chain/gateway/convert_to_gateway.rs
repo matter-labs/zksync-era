@@ -59,59 +59,59 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .deployer
         .context("deployer")?;
 
-    // let output = deploy_gateway_tx_filterer(
-    //     shell,
-    //     args.clone(),
-    //     &ecosystem_config,
-    //     &chain_config,
-    //     &chain_deployer_wallet,
-    //     GatewayTxFiltererInput::new(
-    //         &ecosystem_config.get_initial_deployment_config().unwrap(),
-    //         &chain_contracts_config,
-    //     )?,
-    //     l1_url.clone(),
-    // )
-    // .await?;
+    let output = deploy_gateway_tx_filterer(
+        shell,
+        args.clone(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_deployer_wallet,
+        GatewayTxFiltererInput::new(
+            &ecosystem_config.get_initial_deployment_config().unwrap(),
+            &chain_contracts_config,
+        )?,
+        l1_url.clone(),
+    )
+    .await?;
 
-    // set_transaction_filterer(
-    //     shell,
-    //     &args,
-    //     &chain_config.path_to_l1_foundry(),
-    //     AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
-    //     chain_config.chain_id.as_u64(),
-    //     chain_contracts_config
-    //         .ecosystem_contracts
-    //         .bridgehub_proxy_addr,
-    //     output.gateway_tx_filterer_proxy,
-    //     l1_url.clone(),
-    // )
-    // .await?;
+    set_transaction_filterer(
+        shell,
+        &args,
+        &chain_config.path_to_l1_foundry(),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+        chain_config.chain_id.as_u64(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        output.gateway_tx_filterer_proxy,
+        l1_url.clone(),
+    )
+    .await?;
 
-    // chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
-    // chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
+    chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    // let grantees = vec![
-    //     ecosystem_config.get_contracts_config()?.l1.governance_addr,
-    //     chain_deployer_wallet.address,
-    //     // chain_contracts_config
-    //     //     .ecosystem_contracts
-    //     //     .stm_deployment_tracker_proxy_addr
-    //     //     .context("No CTM deployment tracker")?,
-    // ];
+    let grantees = vec![
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
+        chain_deployer_wallet.address,
+        chain_contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr
+            .context("No CTM deployment tracker")?,
+    ];
 
-    // grant_gateway_whitelist(
-    //     shell,
-    //     &args,
-    //     &chain_config.path_to_l1_foundry(),
-    //     AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
-    //     chain_config.chain_id.as_u64(),
-    //     chain_contracts_config
-    //         .ecosystem_contracts
-    //         .bridgehub_proxy_addr,
-    //     grantees,
-    //     l1_url.clone(),
-    // )
-    // .await?;
+    grant_gateway_whitelist(
+        shell,
+        &args,
+        &chain_config.path_to_l1_foundry(),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+        chain_config.chain_id.as_u64(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        grantees,
+        l1_url.clone(),
+    )
+    .await?;
 
     let vote_preparation_output = gateway_vote_preparation(
         shell,
