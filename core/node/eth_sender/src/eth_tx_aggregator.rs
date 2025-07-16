@@ -1175,7 +1175,7 @@ impl EthTxAggregator {
         let last_sent_successfully_eth_tx = storage
             .eth_sender_dal()
             .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                L1BatchNumber::from(latest_processed_l1_batch_number),
+                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
                 L1BatchAggregatedActionType::Commit,
             )
             .await
