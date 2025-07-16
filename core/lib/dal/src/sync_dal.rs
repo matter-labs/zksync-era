@@ -65,7 +65,8 @@ impl SyncDal<'_, '_> {
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
-                miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
+                miniblocks.l2_da_validator_address,
+                miniblocks.l2_da_commitment_scheme,
                 miniblocks.pubdata_type AS "pubdata_type!",
                 l1_batches.pubdata_limit
             FROM
@@ -78,6 +79,7 @@ impl SyncDal<'_, '_> {
             i64::from(numbers.start.0),
             i64::from(numbers.end.0 - 1),
         );
+
         let instrumentation =
             Instrumented::new("sync_dal_sync_blocks").with_arg("numbers", &numbers);
         let blocks = instrumentation

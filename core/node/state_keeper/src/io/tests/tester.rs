@@ -154,6 +154,7 @@ impl Tester {
             Duration::from_secs(1),
             L2ChainId::from(270),
             Some(Default::default()),
+            Some(Default::default()),
             Default::default(),
         )
         .unwrap();

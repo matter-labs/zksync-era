@@ -12,8 +12,8 @@ use zkstack_cli_config::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
             output::{
-                ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-                L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
+                ConsensusRegistryOutput, DefaultL2UpgradeOutput, Multicall3Output,
+                TimestampAsserterOutput,
             },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
@@ -245,8 +245,8 @@ pub async fn deploy_l2_da_validator(
         forge_args,
         Some("runDeployL2DAValidator"),
         |shell, out| {
-            contracts_config
-                .set_l2_da_validator_address(&L2DAValidatorAddressOutput::read(shell, out)?)
+            // Check what it should looks like now
+            Ok(())
         },
         true,
     )
@@ -268,7 +268,7 @@ pub async fn deploy_l2_contracts(
         forge_args,
         None,
         |shell, out| {
-            contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)?;
+            contracts_config.set_l2_shared_bridge()?;
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;
             contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
             contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?)?;

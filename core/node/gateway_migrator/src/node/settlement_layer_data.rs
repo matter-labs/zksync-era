@@ -18,8 +18,8 @@ use zksync_dal::{
 };
 use zksync_eth_client::{
     contracts_loader::{
-        get_server_notifier_addr, get_settlement_layer_from_l1, is_settlement_layer,
-        load_settlement_layer_contracts,
+        get_server_notifier_addr, get_settlement_layer_from_l1, get_zk_chain_on_chain_params,
+        is_settlement_layer, load_settlement_layer_contracts,
     },
     node::SenderConfigResource,
     EthInterface,
@@ -31,7 +31,7 @@ use zksync_node_framework::{
 use zksync_shared_resources::{
     contracts::{
         L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-        SettlementLayerContractsResource,
+        SettlementLayerContractsResource, ZkChainOnChainConfigResource,
     },
     PubdataSendingModeResource,
 };
@@ -82,6 +82,7 @@ pub struct Output {
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
     l2_contracts: L2ContractsResource,
+    zk_chain_on_chain_config: Option<ZkChainOnChainConfigResource>,
     eth_sender_config: Option<SenderConfigResource>,
     pubdata_sending_mode: Option<PubdataSendingModeResource>,
 }
@@ -158,15 +159,23 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             }
         };
 
-        let sl_chain_contracts = match &sl_client {
-            SettlementLayerClient::L1(_) => sl_l1_contracts.clone(),
+        let (sl_chain_contracts, zkchain_on_chain_config) = match &sl_client {
+            SettlementLayerClient::L1(client) => {
+                let zkchain_on_chain_config = get_zk_chain_on_chain_params(
+                    client,
+                    sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
+                )
+                .await
+                .context("Chain config loading error")?;
+                (sl_l1_contracts.clone(), zkchain_on_chain_config)
+            }
             SettlementLayerClient::Gateway(client) => {
                 let l2_multicall3 = client
                     .get_l2_multicall3()
                     .await
                     .context("Failed to fecth multicall3")?;
 
-                load_settlement_layer_contracts(
+                let contracts = load_settlement_layer_contracts(
                     client,
                     L2_BRIDGEHUB_ADDRESS,
                     self.config.l2_chain_id,
@@ -175,7 +184,15 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
                 .await?
                 // This unwrap is safe we have already verified it. Or it is supposed to be gateway,
                 // but no gateway has been deployed
-                .unwrap()
+                .unwrap();
+
+                let zkchain_on_chain_config = get_zk_chain_on_chain_params(
+                    client,
+                    contracts.chain_contracts_config.diamond_proxy_addr,
+                )
+                .await
+                .context("Chain config loading error")?;
+                (contracts, zkchain_on_chain_config)
             }
         };
 
@@ -183,6 +200,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             self.config.eth_sender_config,
             final_settlement_mode.settlement_layer(),
         );
+
         Ok(Output {
             initial_settlement_mode: SettlementModeResource::new(final_settlement_mode.clone()),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
@@ -195,6 +213,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             eth_sender_config: Some(SenderConfigResource(eth_sender_config)),
             sl_client,
             gateway_client: l2_eth_client.map(GatewayClientResource),
+            zk_chain_on_chain_config: Some(ZkChainOnChainConfigResource(zkchain_on_chain_config)),
         })
     }
 }
@@ -320,6 +339,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             gateway_client: l2_eth_client.map(GatewayClientResource),
             eth_sender_config: None,
             pubdata_sending_mode: None,
+            zk_chain_on_chain_config: None,
         })
     }
 }

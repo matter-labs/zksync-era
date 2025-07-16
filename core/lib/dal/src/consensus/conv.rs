@@ -113,9 +113,13 @@ impl ProtoRepr for proto::PubdataParams {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            l2_da_validator_address: required(&self.l2_da_validator_address)
-                .and_then(|a| parse_h160(a))
+            l2_da_validator_address: self
+                .l2_da_validator_address
+                .as_ref()
+                .map(|a| parse_h160(a))
+                .transpose()
                 .context("l2_da_validator_address")?,
+            l2_da_commitment_scheme: None, // TODO: Fix it
             pubdata_type: required(&self.pubdata_info)
                 .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
                 .context("pubdata_type")?
@@ -125,7 +129,10 @@ impl ProtoRepr for proto::PubdataParams {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            l2_da_validator_address: Some(this.l2_da_validator_address.as_bytes().into()),
+            l2_da_validator_address: this
+                .l2_da_validator_address
+                .as_ref()
+                .map(|addr| addr.as_bytes().to_vec()),
             pubdata_info: Some(this.pubdata_type as i32),
         }
     }
