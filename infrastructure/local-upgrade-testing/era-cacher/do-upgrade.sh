@@ -15,11 +15,11 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 
 cd .. && era-cacher/use-new-era.sh && cd zksync-working
 
-zkstackup -g --local --cargo-features v29
+zkstackup -g --local --cargo-features upgrades
 zkstack dev contracts
 
 cd contracts
-git checkout vg/v29-upgrade-process-contracts
+git checkout vg/v29-upgrade-script-fixes
 cd ..
 
 zkstack dev database migrate --prover false --core true 
