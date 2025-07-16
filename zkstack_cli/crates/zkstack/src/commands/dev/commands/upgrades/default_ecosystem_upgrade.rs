@@ -8,7 +8,8 @@ use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS
+            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
+            ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
     },
@@ -172,7 +173,10 @@ async fn no_governance_prepare(
         &current_contracts_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
-        ecosystem_config.get_contracts_config()?.l1.diamond_proxy_addr,
+        ecosystem_config
+            .get_contracts_config()?
+            .l1
+            .diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );
 
@@ -531,6 +535,6 @@ async fn no_governance_stage_2(
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersions) -> ForgeScriptParams {
     match upgrade_version {
         UpgradeVersions::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersions::V29InteropAFf =>  V29_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersions::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
