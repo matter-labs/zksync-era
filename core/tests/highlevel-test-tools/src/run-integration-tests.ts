@@ -117,10 +117,10 @@ export async function enIntegrationTests(chainName: string): Promise<void> {
 
 export async function gatewayMigrationToGatewayTest(chainName: string): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('gateway-migration', chainName, undefined, ['--to-gateway', '--no-deps']);
+    await runTest('gateway-migration', chainName, undefined, ['--to-gateway']);
 }
 
 export async function gatewayMigrationFromGatewayTest(chainName: string): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('gateway-migration', chainName, undefined, ['--from-gateway', '--no-deps']);
+    await runTest('gateway-migration', chainName, undefined, ['--from-gateway']);
 }
