@@ -150,6 +150,25 @@ pub async fn fetch_chain_info(
     let chain_admin_addr = zkchain.get_admin().await?;
     let l1_asset_router_proxy = bridgehub.asset_router().await?;
 
+    // Repeat for GW
+
+    // let gw_client = get_ethers_provider(&args.gw_rpc_url)?;
+
+    // let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_client.clone());
+    // let gw_zkchain_addr = gw_bridgehub.get_zk_chain(chain_id).await?;
+
+    // if gw_zkchain_addr != Address::zero() {
+    //     let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
+    //     let gz_zkchain_admin = gw_zkchain.get_admin().await?;
+    //     if gz_zkchain_admin != apply_l1_to_l2_alias(chain_admin_addr) {
+    //         bail!(
+    //             "Provided gw_zkchain_addr ({:?}) does not match the expected aliased L1 chain_admin_addr ({:?})",
+    //             gz_zkchain_admin,
+    //             apply_l1_to_l2_alias(chain_admin_addr)
+    //         );
+    //     }
+    // }
+
     Ok(FetchedChainInfo {
         hyperchain_addr: zkchain_addr,
         chain_admin_addr,
