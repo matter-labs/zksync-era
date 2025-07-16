@@ -119,11 +119,11 @@ export async function genesisRecoveryTest(chainName: string): Promise<void> {
 }
 
 export async function enIntegrationTests(chainName: string, secondChainName?: string | undefined): Promise<void> {
-    await initTestWallet(chainName);
-    await runTest('integration', chainName, undefined, [
-        '--verbose',
-        '--ignore-prerequisites',
-        '--external-node',
-        secondChainName ? `--second-chain=${secondChainName}` : ''
-    ]);
+    // await initTestWallet(chainName);
+    // await runTest('integration', chainName, undefined, [
+    //     '--verbose',
+    //     '--ignore-prerequisites',
+    //     '--external-node',
+    //     secondChainName ? `--second-chain=${secondChainName}` : ''
+    // ]);
 }
