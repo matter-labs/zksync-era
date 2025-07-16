@@ -227,15 +227,15 @@ impl StateKeeperIO for MempoolIO {
         let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
-        let gateway_migration_state =
-            self.gateway_status(&mut storage).await;
-        let interop_roots = if gateway_migration_state == GatewayMigrationState::InProgress {
-            vec![]
-        } else {
-            storage
-                .interop_root_dal()
-                .get_new_interop_roots(limit)
-                .await?
+        let gateway_migration_state = self.gateway_status(&mut storage).await;
+        let interop_roots = match gateway_migration_state {
+            GatewayMigrationState::InProgress => vec![],
+            _ => {
+                storage
+                    .interop_root_dal()
+                    .get_new_interop_roots(limit)
+                    .await?
+            }
         };
 
         Ok(Some(L2BlockParams::new_raw(
