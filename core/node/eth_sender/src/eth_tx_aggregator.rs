@@ -1166,8 +1166,11 @@ impl EthTxAggregator {
         let latest_processed_l1_batch_number = storage
             .interop_root_dal()
             .get_latest_processed_interop_root_l1_batch_number()
-            .await?
-            .unwrap();
+            .await?;
+
+        if latest_processed_l1_batch_number.is_none() {
+            return Ok(true);
+        }
 
         let last_sent_successfully_eth_tx = storage
             .eth_sender_dal()
