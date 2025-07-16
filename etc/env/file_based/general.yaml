@@ -144,7 +144,7 @@ data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
   gateway_api_url: http://127.0.0.1:3322
-  proving_mode: PROVING_NETWORK
+  proving_mode: PROVER_CLUSTER
 tee_proof_data_handler:
   http_port: 4320
   proof_generation_timeout_in_secs: 60

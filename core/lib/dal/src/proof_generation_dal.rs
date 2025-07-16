@@ -74,14 +74,12 @@ impl ProofGenerationDal<'_, '_> {
                             AND (
                                 $2 = 'proving_cluster'
                                 OR (
-                                    $2 = 'proving_network'
-                                    AND proving_mode = 'prover_cluster'
-                                )
-                                OR (
-                                    $2 = 'proving_network'
-                                    AND proving_mode = 'proving_network'
-                                    AND proof_generation_details.updated_at
-                                    < NOW() - $1::INTERVAL
+                                    proving_mode = 'prover_cluster'
+                                    OR (
+                                        proving_mode = 'proving_network'
+                                        AND proof_generation_details.updated_at
+                                        < NOW() - $1::INTERVAL
+                                    )
                                 )
                             )
                         )
