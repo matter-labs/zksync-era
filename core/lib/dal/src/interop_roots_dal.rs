@@ -254,7 +254,9 @@ impl InteropRootDal<'_, '_> {
         Ok(roots)
     }
 
-    pub async fn get_latest_processed_l1_batch_number(&mut self) -> DalResult<Option<u32>> {
+    pub async fn get_latest_processed_interop_root_l1_batch_number(
+        &mut self,
+    ) -> DalResult<Option<u32>> {
         Ok(sqlx::query_scalar!(
             r#"
             SELECT
@@ -265,7 +267,7 @@ impl InteropRootDal<'_, '_> {
                 number = (SELECT MAX(processed_block_number) FROM interop_roots)
             "#
         )
-        .instrument("get_latest_processed_l1_batch_number")
+        .instrument("get_latest_processed_interop_root_l1_batch_number")
         .fetch_one(self.storage)
         .await?
         .map(|max| max as u32))

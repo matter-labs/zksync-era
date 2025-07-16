@@ -1165,7 +1165,7 @@ impl EthTxAggregator {
     ) -> Result<bool, EthSenderError> {
         let latest_processed_l1_batch_number = storage
             .interop_root_dal()
-            .get_latest_processed_l1_batch_number()
+            .get_latest_processed_interop_root_l1_batch_number()
             .await?
             .unwrap();
 
