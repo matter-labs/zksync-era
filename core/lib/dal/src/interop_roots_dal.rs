@@ -257,7 +257,7 @@ impl InteropRootDal<'_, '_> {
     pub async fn get_latest_processed_interop_root_l1_batch_number(
         &mut self,
     ) -> DalResult<Option<u32>> {
-        Ok(sqlx::query_scalar!(
+        let l1_batch_number = sqlx::query_scalar!(
             r#"
             SELECT
                 l1_batch_number
@@ -268,8 +268,9 @@ impl InteropRootDal<'_, '_> {
             "#
         )
         .instrument("get_latest_processed_interop_root_l1_batch_number")
-        .fetch_one(self.storage)
-        .await?
-        .map(|max| max as u32))
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(l1_batch_number.flatten().map(|number| number as u32))
     }
 }
