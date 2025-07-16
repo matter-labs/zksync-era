@@ -1176,10 +1176,11 @@ impl EthTxAggregator {
                 L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
                 L1BatchAggregatedActionType::Commit,
             )
-            .await
-            .unwrap();
+            .await;
 
-        if last_sent_successfully_eth_tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized {
+        if last_sent_successfully_eth_tx
+            .is_some_and(|tx| tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized)
+        {
             return Ok(false);
         }
 
