@@ -61,6 +61,8 @@ pub(crate) struct StorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+
+    pub pubdata_limit: Option<i64>,
 }
 
 impl StorageL1BatchHeader {
@@ -108,6 +110,7 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
+            pubdata_limit: self.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -179,6 +182,8 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+
+    pub pubdata_limit: Option<i64>,
 }
 
 impl StorageL1Batch {
@@ -226,6 +231,7 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
+            pubdata_limit: self.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -314,6 +320,7 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub pubdata_limit: Option<i64>,
 }
 
 impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
@@ -332,6 +339,7 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -346,6 +354,7 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub pubdata_limit: Option<i64>,
 }
 
 impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
@@ -365,6 +374,7 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
         }
     }
 }
@@ -389,6 +399,10 @@ pub(crate) struct StorageBlockDetails {
     pub execute_tx_finality_status: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
+    pub precommit_tx_hash: Option<String>,
+    pub precommit_tx_finality_status: Option<String>,
+    pub precommitted_at: Option<NaiveDateTime>,
+    pub precommit_chain_id: Option<i64>,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -410,10 +424,11 @@ impl From<StorageBlockDetails> for api::BlockDetails {
         let status =
             if details.number == 0 || execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
                 api::BlockStatus::Verified
+            } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
+                api::BlockStatus::FastFinalized
             } else {
                 api::BlockStatus::Sealed
             };
-
         let base = api::BlockDetailsBase {
             timestamp: details.timestamp as u64,
             l1_tx_count: details.l1_tx_count as usize,
@@ -451,6 +466,17 @@ impl From<StorageBlockDetails> for api::BlockDetails {
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             execute_chain_id: details.execute_chain_id.map(|id| SLChainId(id as u64)),
+            precommit_tx_hash: details
+                .precommit_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect precommit_tx hash")),
+            precommit_tx_finality: details
+                .precommit_tx_finality_status
+                .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok()),
+            precommitted_at: details.precommitted_at.map(|precommitted_at| {
+                DateTime::<Utc>::from_naive_utc_and_offset(precommitted_at, Utc)
+            }),
+            precommit_chain_id: details.precommit_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
@@ -491,6 +517,10 @@ pub(crate) struct StorageL1BatchDetails {
     pub execute_tx_finality_status: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
+    pub precommit_tx_hash: Option<String>,
+    pub precommit_tx_finality_status: Option<String>,
+    pub precommitted_at: Option<NaiveDateTime>,
+    pub precommit_chain_id: Option<i64>,
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
@@ -548,6 +578,17 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             execute_chain_id: details.execute_chain_id.map(|id| SLChainId(id as u64)),
+            precommit_tx_hash: details
+                .precommit_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect precommit_tx hash")),
+            precommitted_at: details.precommitted_at.map(|precommitted_at| {
+                DateTime::<Utc>::from_naive_utc_and_offset(precommitted_at, Utc)
+            }),
+            precommit_tx_finality: details
+                .precommit_tx_finality_status
+                .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok()),
+            precommit_chain_id: details.precommit_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
@@ -598,6 +639,7 @@ pub(crate) struct StorageL2BlockHeader {
     pub l2_da_validator_address: Option<Vec<u8>>,
     pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
+    pub rolling_txs_hash: Option<Vec<u8>>,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -641,6 +683,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                     .map(|a| L2DACommitmentScheme::from(a as u8)),
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
+            rolling_txs_hash: row.rolling_txs_hash.as_deref().map(H256::from_slice),
         }
     }
 }

@@ -148,6 +148,7 @@ pub(super) fn executor(
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size.0 as usize,
+        max_tx_size: cfg.max_transaction_size.0 as usize,
         view_timeout: cfg.view_timeout.try_into().context("view_timeout")?,
         node_key: node_key(secrets)
             .context("node_key")?

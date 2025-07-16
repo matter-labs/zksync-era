@@ -6,14 +6,12 @@ use zksync_types::{api::Log, H256};
 
 pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
-    appended_chain_batch_root_interop::BatchRootProcessorInterop,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     gateway_migration::GatewayMigrationProcessor, interop_root::InteropRootProcessor,
     priority_ops::PriorityOpsEventProcessor,
 };
 
 mod appended_chain_batch_root;
-mod appended_chain_batch_root_interop;
 mod decentralized_upgrades;
 mod gateway_migration;
 mod interop_root;
@@ -22,19 +20,31 @@ mod priority_ops;
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]
 pub(super) enum EventProcessorError {
+    #[error("Fatal: {0:?}")]
+    Fatal(#[from] FatalError),
+    #[error("Transient: {0:?}")]
+    Transient(#[from] TransientError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(super) enum FatalError {
     #[error("failed parsing a log into {log_kind}: {source:?}")]
     LogParse {
         log_kind: &'static str,
         #[source]
         source: anyhow::Error,
     },
+    /// Internal errors are considered fatal (i.e., they bubble up and lead to the watcher termination).
+    #[error("internal processing error: {0:?}")]
+    Internal(#[from] anyhow::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(super) enum TransientError {
     #[error("Eth client error: {0}")]
     Client(#[from] EnrichedClientError),
     #[error("Contract call error: {0}")]
     ContractCall(#[from] ContractCallError),
-    /// Internal errors are considered fatal (i.e., they bubble up and lead to the watcher termination).
-    #[error("internal processing error: {0:?}")]
-    Internal(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -45,10 +55,22 @@ pub(super) enum EventsSource {
 
 impl EventProcessorError {
     pub fn log_parse(source: impl Into<anyhow::Error>, log_kind: &'static str) -> Self {
-        Self::LogParse {
+        Self::Fatal(FatalError::LogParse {
             log_kind,
             source: source.into(),
-        }
+        })
+    }
+
+    pub fn internal(source: impl Into<anyhow::Error>) -> Self {
+        Self::Fatal(FatalError::Internal(source.into()))
+    }
+
+    pub fn client(source: impl Into<EnrichedClientError>) -> Self {
+        Self::Transient(TransientError::Client(source.into()))
+    }
+
+    pub fn contract_call(source: impl Into<ContractCallError>) -> Self {
+        Self::Transient(TransientError::ContractCall(source.into()))
     }
 }
 

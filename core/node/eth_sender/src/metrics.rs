@@ -7,10 +7,15 @@ use std::{
 
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
-use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
+use zksync_shared_metrics::{BlockStage, L1Stage, L2BlockStage, APP_METRICS};
+use zksync_types::{
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
+    eth_sender::{EthTx, L1BlockNumbers},
+};
 
-use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
+use crate::abstract_l1_interface::OperatorType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]
@@ -36,6 +41,38 @@ pub(super) enum BlockNumberVariant {
 pub(super) struct ActionTypeLabel(AggregatedActionType);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "type")]
+pub(super) struct L1BatchActionTypeLabel(L1BatchAggregatedActionType);
+
+impl From<L1BatchAggregatedActionType> for L1BatchActionTypeLabel {
+    fn from(action_type: L1BatchAggregatedActionType) -> Self {
+        Self(action_type)
+    }
+}
+
+impl fmt::Display for L1BatchActionTypeLabel {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.0.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "type")]
+pub(super) struct L2BlockActionTypeLabel(L2BlockAggregatedActionType);
+
+impl From<L2BlockAggregatedActionType> for L2BlockActionTypeLabel {
+    fn from(action_type: L2BlockAggregatedActionType) -> Self {
+        Self(action_type)
+    }
+}
+
+impl fmt::Display for L2BlockActionTypeLabel {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.0.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "transaction_type", rename_all = "snake_case")]
 pub(super) enum TransactionType {
     Blob,
@@ -45,6 +82,12 @@ pub(super) enum TransactionType {
 impl From<AggregatedActionType> for ActionTypeLabel {
     fn from(action_type: AggregatedActionType) -> Self {
         Self(action_type)
+    }
+}
+
+impl From<L1BatchAggregatedActionType> for ActionTypeLabel {
+    fn from(action_type: L1BatchAggregatedActionType) -> Self {
+        Self(AggregatedActionType::L1Batch(action_type))
     }
 }
 
@@ -60,8 +103,8 @@ pub(super) struct AggregationReasonLabels {
     op: ActionTypeLabel,
 }
 
-impl From<(AggregatedActionType, &'static str)> for AggregationReasonLabels {
-    fn from((op, r#type): (AggregatedActionType, &'static str)) -> Self {
+impl From<(L1BatchAggregatedActionType, &'static str)> for AggregationReasonLabels {
+    fn from((op, r#type): (L1BatchAggregatedActionType, &'static str)) -> Self {
         Self {
             r#type,
             op: op.into(),
@@ -88,7 +131,10 @@ pub(super) struct EthSenderMetrics {
     pub pubdata_size: Family<PubdataKind, Histogram<usize>>,
     /// Size of the L1 batch range for a certain Ethereum sender operation.
     #[metrics(buckets = Buckets::linear(1.0..=10.0, 1.0))]
-    pub block_range_size: Family<ActionTypeLabel, Histogram<u64>>,
+    pub block_range_size: Family<L1BatchActionTypeLabel, Histogram<u64>>,
+    /// Size of the L2 blocks range for a certain Ethereum sender operation.
+    #[metrics(buckets = Buckets::linear(1.0..=10.0, 1.0))]
+    pub l2_blocks_range_size: Family<L2BlockActionTypeLabel, Histogram<u64>>,
     /// Number of transactions resent by the Ethereum sender.
     pub transaction_resent: Counter,
     #[metrics(buckets = FEE_BUCKETS)]
@@ -127,39 +173,75 @@ impl EthSenderMetrics {
     pub async fn track_eth_tx_metrics(
         &self,
         connection: &mut Connection<'_, Core>,
-        l1_stage: BlockL1Stage,
+        l1_stage: L1Stage,
         tx: &EthTx,
     ) {
-        let metrics_latency = self.metrics_latency.start();
-        let stage = BlockStage::L1 {
-            l1_stage,
-            tx_type: tx.tx_type,
-        };
+        match tx.tx_type {
+            AggregatedActionType::L2Block(action_type) => {
+                let metrics_latency = self.metrics_latency.start();
+                let stage = L2BlockStage::L1 {
+                    l1_stage,
+                    tx_type: action_type,
+                };
 
-        let l1_batches_statistics = connection
-            .blocks_dal()
-            .get_l1_batches_statistics_for_eth_tx_id(tx.id)
-            .await
-            .unwrap();
+                let l2_blocks_statistics = connection
+                    .blocks_dal()
+                    .get_l2_blocks_statistics_for_eth_tx_id(tx.id)
+                    .await
+                    .unwrap();
 
-        // This should be only the case when some blocks were reverted.
-        if l1_batches_statistics.is_empty() {
-            tracing::warn!("No L1 batches were found for eth_tx with id = {}", tx.id);
-            return;
+                // This should be only the case when some blocks were reverted.
+                if l2_blocks_statistics.is_empty() {
+                    tracing::warn!("No L2 blocks were found for eth_tx with id = {}", tx.id);
+                    return;
+                }
+
+                let duration_since_epoch = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("incorrect system time");
+                for statistics in l2_blocks_statistics {
+                    let block_latency = duration_since_epoch
+                        .saturating_sub(Duration::from_secs(statistics.timestamp));
+                    APP_METRICS.miniblock_latency[&stage].observe(block_latency);
+                    APP_METRICS.processed_txs[&stage.into()]
+                        .inc_by(statistics.l2_tx_count as u64 + statistics.l1_tx_count as u64);
+                }
+                metrics_latency.observe();
+            }
+            AggregatedActionType::L1Batch(action_type) => {
+                let metrics_latency = self.metrics_latency.start();
+                let stage = BlockStage::L1 {
+                    l1_stage,
+                    tx_type: action_type,
+                };
+
+                let l1_batches_statistics = connection
+                    .blocks_dal()
+                    .get_l1_batches_statistics_for_eth_tx_id(tx.id)
+                    .await
+                    .unwrap();
+
+                // This should be only the case when some blocks were reverted.
+                if l1_batches_statistics.is_empty() {
+                    tracing::warn!("No L1 batches were found for eth_tx with id = {}", tx.id);
+                    return;
+                }
+
+                let duration_since_epoch = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("incorrect system time");
+                for statistics in l1_batches_statistics {
+                    let block_latency = duration_since_epoch
+                        .saturating_sub(Duration::from_secs(statistics.timestamp));
+                    APP_METRICS.block_latency[&stage].observe(block_latency);
+                    APP_METRICS.processed_txs[&stage.into()]
+                        .inc_by(statistics.l2_tx_count as u64 + statistics.l1_tx_count as u64);
+                    APP_METRICS.processed_l1_txs[&stage.into()]
+                        .inc_by(statistics.l1_tx_count as u64);
+                }
+                metrics_latency.observe();
+            }
         }
-
-        let duration_since_epoch = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("incorrect system time");
-        for statistics in l1_batches_statistics {
-            let block_latency =
-                duration_since_epoch.saturating_sub(Duration::from_secs(statistics.timestamp));
-            APP_METRICS.block_latency[&stage].observe(block_latency);
-            APP_METRICS.processed_txs[&stage.into()]
-                .inc_by(statistics.l2_tx_count as u64 + statistics.l1_tx_count as u64);
-            APP_METRICS.processed_l1_txs[&stage.into()].inc_by(statistics.l1_tx_count as u64);
-        }
-        metrics_latency.observe();
     }
 }
 

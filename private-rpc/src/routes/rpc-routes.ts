@@ -13,6 +13,11 @@ export function rpcRoutes(app: WebServer) {
             maybe.expect(new HttpError('Unauthorized', 401))
         );
 
+        // Check if user is still whitelisted before processing any RPC calls
+        if (!app.context.authorizer.isAddressWhitelisted(user.address)) {
+            throw new HttpError('Forbidden: Address not whitelisted', 403);
+        }
+
         const handler = new RpcCallHandler(allHandlers, {
             currentUser: user.address,
             targetRpcUrl: app.context.targetRpc,

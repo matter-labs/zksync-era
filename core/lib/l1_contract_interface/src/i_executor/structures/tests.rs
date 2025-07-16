@@ -27,7 +27,7 @@ fn test_encoding() {
     let rng = &mut rand::thread_rng();
     for _ in 0..10 {
         let want: StoredBatchInfo = rng.gen();
-        let got = StoredBatchInfo::decode(&want.encode()).unwrap();
+        let got = StoredBatchInfo::decode(&want.encode(), ProtocolVersionId::latest()).unwrap();
         assert_eq!(want, got);
     }
 }

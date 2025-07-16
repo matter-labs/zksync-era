@@ -104,7 +104,7 @@ impl L1BatchStagesMap {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
-                .get_l1_batch_details(L1BatchNumber(number.0))
+                .get_l1_batch_details_incl_unverified_transactions(L1BatchNumber(number.0))
                 .await
                 .unwrap()
                 .unwrap_or_else(|| panic!("no details for block #{number}"));
@@ -114,37 +114,40 @@ impl L1BatchStagesMap {
                 local_details.base.commit_tx_hash,
                 expected_details.base.commit_tx_hash
             );
-            assert_eq!(
-                local_details.base.committed_at,
-                expected_details.base.committed_at
-            );
+            assert_eq!(local_details.base.committed_at, None);
             assert_eq!(
                 local_details.base.commit_chain_id,
                 expected_details.base.commit_chain_id,
             );
             assert_eq!(
+                local_details.base.commit_tx_finality,
+                expected_details.base.commit_tx_finality,
+            );
+            assert_eq!(
                 local_details.base.prove_tx_hash,
                 expected_details.base.prove_tx_hash
             );
-            assert_eq!(
-                local_details.base.proven_at,
-                expected_details.base.proven_at
-            );
+            assert_eq!(local_details.base.proven_at, None);
             assert_eq!(
                 local_details.base.prove_chain_id,
                 expected_details.base.prove_chain_id,
             );
             assert_eq!(
+                local_details.base.prove_tx_finality,
+                expected_details.base.prove_tx_finality,
+            );
+            assert_eq!(
                 local_details.base.execute_tx_hash,
                 expected_details.base.execute_tx_hash
             );
-            assert_eq!(
-                local_details.base.executed_at,
-                expected_details.base.executed_at
-            );
+            assert_eq!(local_details.base.executed_at, None);
             assert_eq!(
                 local_details.base.execute_chain_id,
                 expected_details.base.execute_chain_id,
+            );
+            assert_eq!(
+                local_details.base.execute_tx_finality,
+                expected_details.base.execute_tx_finality,
             );
         }
     }
@@ -159,20 +162,45 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             l2_tx_count: 0,
             root_hash: Some(H256::zero()),
             status: api::BlockStatus::Sealed,
-            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
+            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| {
+                let mut h = [0u8; 32];
+                h[0] = 1;
+                h[28..].copy_from_slice(&number.to_be_bytes());
+                H256::from(h)
+            }),
             committed_at: (stage >= L1BatchStage::Committed)
-                .then(|| Utc.timestamp_opt(100, 0).unwrap()),
-            commit_tx_finality: Some(EthTxFinalityStatus::Finalized),
-            commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
-            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
-            prove_tx_finality: Some(EthTxFinalityStatus::Finalized),
-            proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
-            prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(22)),
-            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
-            execute_tx_finality: Some(EthTxFinalityStatus::Finalized),
+                .then_some(Utc.timestamp_opt(100, 0).unwrap()),
+            commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(1)),
+            commit_tx_finality: (stage >= L1BatchStage::Committed)
+                .then_some(EthTxFinalityStatus::Pending),
+            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| {
+                let mut h = [0u8; 32];
+                h[0] = 2;
+                h[28..].copy_from_slice(&number.to_be_bytes());
+                H256::from(h)
+            }),
+            proven_at: (stage >= L1BatchStage::Proven)
+                .then_some(Utc.timestamp_opt(200, 0).unwrap()),
+            prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(1)),
+            prove_tx_finality: (stage >= L1BatchStage::Proven)
+                .then_some(EthTxFinalityStatus::Pending),
+            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| {
+                let mut h = [0u8; 32];
+                h[0] = 3;
+                h[28..].copy_from_slice(&number.to_be_bytes());
+                H256::from(h)
+            }),
             executed_at: (stage >= L1BatchStage::Executed)
-                .then(|| Utc.timestamp_opt(300, 0).unwrap()),
-            execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(33)),
+                .then_some(Utc.timestamp_opt(300, 0).unwrap()),
+            execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(1)),
+            execute_tx_finality: (stage >= L1BatchStage::Executed)
+                .then_some(EthTxFinalityStatus::Pending),
+            precommit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(4)),
+            precommit_tx_finality: (stage >= L1BatchStage::Committed)
+                .then_some(EthTxFinalityStatus::Finalized),
+            precommitted_at: (stage >= L1BatchStage::Committed)
+                .then(|| Utc.timestamp_opt(100, 0).unwrap()),
+            precommit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             fair_pubdata_price: None,

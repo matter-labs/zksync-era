@@ -17,9 +17,9 @@ pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExten
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        BatchRootProcessor, BatchRootProcessorInterop, DecentralizedUpgradesEventProcessor,
-        EventProcessor, EventProcessorError, EventsSource, GatewayMigrationProcessor,
-        InteropRootProcessor, PriorityOpsEventProcessor,
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
     },
     metrics::METRICS,
 };
@@ -37,7 +37,6 @@ struct EthWatchState {
     next_expected_priority_id: PriorityOpId,
     chain_batch_root_number_lower_bound: L1BatchNumber,
     batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
-    batch_merkle_tree_interop: MiniMerkleTree<[u8; 96]>,
 }
 
 /// Ethereum watcher component.
@@ -81,14 +80,10 @@ impl EthWatch {
         );
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
-        let l1_interop_root_processor =
-            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
-
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
             Box::new(gateway_migration_processor),
-            Box::new(l1_interop_root_processor),
         ];
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {
@@ -98,15 +93,9 @@ impl EthWatch {
                 chain_id,
                 sl_client.clone(),
             );
-            let batch_root_processor_interop = BatchRootProcessorInterop::new(
-                state.batch_merkle_tree_interop,
-                chain_id,
-                sl_client.clone(),
-            );
             let sl_interop_root_processor =
                 InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
-            event_processors.push(Box::new(batch_root_processor_interop));
             event_processors.push(Box::new(sl_interop_root_processor));
         }
 
@@ -150,15 +139,13 @@ impl EthWatch {
         let tree_leaves = batch_hashes.into_iter().map(|(batch_number, batch_root)| {
             BatchRootProcessor::batch_leaf_preimage(batch_root, batch_number)
         });
-        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves.clone(), None);
-        let batch_merkle_tree_interop = MiniMerkleTree::new(tree_leaves, None);
+        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves, None);
 
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
             chain_batch_root_number_lower_bound,
             batch_merkle_tree,
-            batch_merkle_tree_interop,
         })
     }
 
@@ -178,13 +165,11 @@ impl EthWatch {
                     /* everything went fine */
                     METRICS.eth_poll.inc();
                 }
-                Err(EventProcessorError::Internal(err)) => {
-                    tracing::error!("Internal error processing new blocks: {err:?}");
-                    return Err(err);
+                Err(EventProcessorError::Fatal(err)) => {
+                    tracing::error!("Fatal error processing new blocks: {err:?}");
+                    return Err(err.into());
                 }
-                Err(err) => {
-                    // This is an error because otherwise we could potentially miss a priority operation
-                    // thus entering priority mode, which is not desired.
+                Err(EventProcessorError::Transient(err)) => {
                     tracing::error!("Failed to process new blocks: {err}");
                 }
             }
@@ -204,13 +189,17 @@ impl EthWatch {
                 EventsSource::L1 => self.l1_client.as_ref(),
                 EventsSource::SL => self.sl_client.as_ref(),
             };
-            let chain_id = client.chain_id().await?;
+            let chain_id = client
+                .chain_id()
+                .await
+                .map_err(EventProcessorError::client)?;
 
             let to_block = if processor.only_finalized_block() {
-                client.finalized_block_number().await?
+                client.finalized_block_number().await
             } else {
-                client.confirmed_block_number().await?
-            };
+                client.confirmed_block_number().await
+            }
+            .map_err(EventProcessorError::client)?;
 
             let from_block = storage
                 .eth_watcher_dal()
@@ -220,7 +209,8 @@ impl EthWatch {
                     to_block.saturating_sub(self.event_expiration_blocks),
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
 
             // There are no new blocks so there is nothing to be done
             if from_block > to_block {
@@ -235,7 +225,8 @@ impl EthWatch {
                     processor.topic2(),
                     RETRY_LIMIT,
                 )
-                .await?;
+                .await
+                .map_err(EventProcessorError::client)?;
             let processed_events_count = processor
                 .process_events(storage, processor_events.clone())
                 .await?;
@@ -261,7 +252,8 @@ impl EthWatch {
                     next_block_to_process,
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
         }
 
         Ok(())

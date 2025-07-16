@@ -1,4 +1,4 @@
-use std::cmp::{min, Ordering};
+use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
@@ -17,7 +17,7 @@ use crate::{
         bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
-            utils::{apply_l2_block, apply_tx_to_memory},
+            utils::{apply_l2_block, apply_tx_to_memory, L2BlockApplicationConfig, NewBlockConfig},
         },
         constants::get_tx_description_offset,
         types::TransactionData,
@@ -53,6 +53,8 @@ pub struct BootloaderState {
     free_tx_offset: usize,
     /// Information about the the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
+    /// The number of applied interop roots
+    number_of_applied_interop_roots: usize,
     /// Protocol version.
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
@@ -75,6 +77,7 @@ impl BootloaderState {
             execution_mode,
             free_tx_offset: 0,
             pubdata_information: Default::default(),
+            number_of_applied_interop_roots: 0,
             protocol_version,
             subversion: MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
         }
@@ -114,16 +117,16 @@ impl BootloaderState {
         self.subversion
     }
 
-    pub(crate) fn get_preexisting_interop_roots_number(&self) -> usize {
-        self.l2_blocks
-            .iter()
-            .take(self.l2_blocks.len() - 1)
-            .map(|block| block.interop_roots.len())
-            .sum()
+    /// Used for storing the number of interop roots in the current block
+    pub(crate) fn get_block_index_in_batch(&self) -> usize {
+        self.l2_blocks.len().checked_sub(1).unwrap()
     }
 
-    pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        min(self.l2_blocks.len(), 0)
+    pub(crate) fn get_new_block_config(&self) -> NewBlockConfig {
+        NewBlockConfig {
+            number_of_applied_interop_roots: self.number_of_applied_interop_roots,
+            block_index_in_batch: self.get_block_index_in_batch(),
+        }
     }
 
     pub(crate) fn push_tx(
@@ -147,22 +150,28 @@ impl BootloaderState {
         );
 
         let mut memory = vec![];
-        let compressed_bytecode_size = apply_tx_to_memory(
+        let new_block_config = if self.last_l2_block().txs.is_empty() {
+            Some(self.get_new_block_config())
+        } else {
+            None
+        };
+        let config = L2BlockApplicationConfig {
+            tx_index: self.free_tx_index(),
+            subversion: self.subversion,
+            new_block_config,
+        };
+        let (compressed_bytecode_size, number_of_applied_interop_roots) = apply_tx_to_memory(
             &mut memory,
             &bootloader_tx,
             self.last_l2_block(),
-            self.free_tx_index(),
             self.free_tx_offset(),
             self.compressed_bytecodes_encoding,
             self.execution_mode,
-            self.last_l2_block().txs.is_empty(),
-            self.subversion,
-            self.last_l2_block().txs.is_empty(),
-            self.get_preexisting_interop_roots_number(),
-            self.get_preexisting_blocks_number(),
+            config,
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
+        self.number_of_applied_interop_roots += number_of_applied_interop_roots;
         self.last_mut_l2_block().push_tx(bootloader_tx);
         (memory, ecrecover_call)
     }
@@ -199,36 +208,49 @@ impl BootloaderState {
         let mut offset = 0;
         let mut compressed_bytecodes_offset = 0;
         let mut tx_index = 0;
-        for l2_block in &self.l2_blocks {
+        let mut applied_interop_roots_offset = 0;
+        for (i, l2_block) in self.l2_blocks.iter().enumerate() {
             for (num, tx) in l2_block.txs.iter().enumerate() {
-                let compressed_bytecodes_size = apply_tx_to_memory(
-                    &mut initial_memory,
-                    tx,
-                    l2_block,
+                let new_block_config = if num == 0 {
+                    Some(NewBlockConfig {
+                        number_of_applied_interop_roots: applied_interop_roots_offset,
+                        block_index_in_batch: i,
+                    })
+                } else {
+                    None
+                };
+                let config = L2BlockApplicationConfig {
                     tx_index,
-                    offset,
-                    compressed_bytecodes_offset,
-                    self.execution_mode,
-                    num == 0,
-                    self.subversion,
-                    num == 0,
-                    self.get_preexisting_interop_roots_number(),
-                    self.get_preexisting_blocks_number(),
-                );
+                    subversion: self.subversion,
+                    new_block_config,
+                };
+                let (compressed_bytecodes_size, number_of_applied_interop_roots) =
+                    apply_tx_to_memory(
+                        &mut initial_memory,
+                        tx,
+                        l2_block,
+                        offset,
+                        compressed_bytecodes_offset,
+                        self.execution_mode,
+                        config,
+                    );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
                 tx_index += 1;
+                applied_interop_roots_offset += number_of_applied_interop_roots;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(
+                let new_block_config = Some(NewBlockConfig {
+                    number_of_applied_interop_roots: applied_interop_roots_offset,
+                    block_index_in_batch: self.get_block_index_in_batch(),
+                });
+                applied_interop_roots_offset += apply_l2_block(
                     &mut initial_memory,
                     l2_block,
                     tx_index,
                     self.subversion,
-                    true,
-                    self.get_preexisting_interop_roots_number(),
-                    self.get_preexisting_blocks_number(),
-                )
+                    new_block_config,
+                );
             }
         }
 
@@ -334,6 +356,7 @@ impl BootloaderState {
             compressed_bytecodes_encoding: self.compressed_bytecodes_encoding,
             free_tx_offset: self.free_tx_offset,
             is_pubdata_information_provided: self.pubdata_information.get().is_some(),
+            number_of_applied_interop_roots: self.number_of_applied_interop_roots,
         }
     }
 
@@ -341,6 +364,7 @@ impl BootloaderState {
         self.tx_to_execute = snapshot.tx_to_execute;
         self.compressed_bytecodes_encoding = snapshot.compressed_bytecodes_encoding;
         self.free_tx_offset = snapshot.free_tx_offset;
+        self.number_of_applied_interop_roots = snapshot.number_of_applied_interop_roots;
         match self.l2_blocks.len().cmp(&snapshot.l2_blocks_len) {
             Ordering::Greater => self.l2_blocks.truncate(snapshot.l2_blocks_len),
             Ordering::Less => panic!("Applying snapshot from future is not supported"),

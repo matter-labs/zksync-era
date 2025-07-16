@@ -5,7 +5,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, ContractsConfig},
@@ -25,7 +24,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{BlockNumber, BlockStatus, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
@@ -381,19 +380,12 @@ async fn seal_l1_batch(
 async fn save_eth_tx(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
-    tx_type: AggregatedActionType,
+    tx_type: L1BatchAggregatedActionType,
 ) -> H256 {
     let tx_hash = H256::random();
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
-            batch_number,
-            tx_type,
-            tx_hash,
-            Utc::now(),
-            None,
-            EthTxFinalityStatus::Pending,
-        )
+        .insert_pending_received_eth_tx(batch_number, tx_type, tx_hash, None)
         .await
         .unwrap();
     tx_hash
@@ -1324,8 +1316,12 @@ impl HttpTest for HttpServerBatchStatusTest {
         let tx_results = vec![mock_execute_transaction(tx1.clone().into())];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
         seal_l1_batch(&mut storage, l1_batch_number).await?;
-        let commit_eth_tx_hash =
-            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Commit).await;
+        let commit_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            L1BatchAggregatedActionType::Commit,
+        )
+        .await;
 
         // Block is not committed yet.
         let block = client
@@ -1333,11 +1329,8 @@ impl HttpTest for HttpServerBatchStatusTest {
             .await?
             .unwrap();
         assert_eq!(block.base.status, BlockStatus::Sealed);
-        assert_eq!(block.base.commit_tx_hash, Some(commit_eth_tx_hash));
-        assert_eq!(
-            block.base.commit_tx_finality,
-            Some(EthTxFinalityStatus::Pending)
-        );
+        assert_eq!(block.base.commit_tx_hash, None); // pending txs are not returned
+        assert_eq!(block.base.commit_tx_finality, None); // pending txs are not returned
 
         // Confirm commit transaction. But the block is still not finalized.
         storage
@@ -1371,9 +1364,10 @@ impl HttpTest for HttpServerBatchStatusTest {
         let prove_eth_tx_hash = save_eth_tx(
             &mut storage,
             l1_batch_number,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await;
+
         storage
             .eth_sender_dal()
             .confirm_tx(
@@ -1382,8 +1376,12 @@ impl HttpTest for HttpServerBatchStatusTest {
                 U256::zero(),
             )
             .await?;
-        let execute_eth_tx_hash =
-            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Execute).await;
+        let execute_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            L1BatchAggregatedActionType::Execute,
+        )
+        .await;
         let block = client
             .get_block_details(l2_block_number.0.into())
             .await?
@@ -1395,11 +1393,8 @@ impl HttpTest for HttpServerBatchStatusTest {
             block.base.prove_tx_finality,
             Some(EthTxFinalityStatus::Finalized)
         );
-        assert_eq!(block.base.execute_tx_hash, Some(execute_eth_tx_hash));
-        assert_eq!(
-            block.base.execute_tx_finality,
-            Some(EthTxFinalityStatus::Pending)
-        );
+        assert_eq!(block.base.execute_tx_hash, None);
+        assert_eq!(block.base.execute_tx_finality, None);
 
         // Fast finalize Execute transaction, block should be fast finalized.
         storage
@@ -1414,15 +1409,12 @@ impl HttpTest for HttpServerBatchStatusTest {
             .get_block_details(l2_block_number.0.into())
             .await?
             .unwrap();
-        assert_eq!(block.base.status, BlockStatus::Sealed);
-        // assert_eq!(block.base.status, BlockStatus::FastFinalized);
         assert_eq!(
             block.base.execute_tx_finality,
             Some(EthTxFinalityStatus::FastFinalized)
         );
         let tx = client.get_transaction_details(tx1.hash()).await?.unwrap();
-        assert_eq!(tx.status, TransactionStatus::Included);
-        // assert_eq!(tx.status, TransactionStatus::FastFinalized);
+        assert_eq!(tx.status, TransactionStatus::FastFinalized);
 
         // Confirm Execute transaction, block should be Verified.
         storage
@@ -1493,8 +1485,12 @@ async fn promote_l1_batch_to_the_state(
             if let Some(tx_hash) = details.base.commit_tx_hash {
                 return Ok(tx_hash);
             }
-            let commit_eth_tx_hash =
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Commit).await;
+            let commit_eth_tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                L1BatchAggregatedActionType::Commit,
+            )
+            .await;
             storage
                 .eth_sender_dal()
                 .confirm_tx(
@@ -1512,7 +1508,7 @@ async fn promote_l1_batch_to_the_state(
             let tx_hash = save_eth_tx(
                 storage,
                 l1_batch_number,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await;
             storage
@@ -1525,8 +1521,12 @@ async fn promote_l1_batch_to_the_state(
             if let Some(tx_hash) = details.base.execute_tx_hash {
                 return Ok(tx_hash);
             }
-            let tx_hash =
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await;
+            let tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                L1BatchAggregatedActionType::Execute,
+            )
+            .await;
             storage
                 .eth_sender_dal()
                 .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero())
@@ -1537,7 +1537,12 @@ async fn promote_l1_batch_to_the_state(
             let tx_hash = if let Some(tx_hash) = tx_hash {
                 tx_hash
             } else {
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await
+                save_eth_tx(
+                    storage,
+                    l1_batch_number,
+                    L1BatchAggregatedActionType::Execute,
+                )
+                .await
             };
             storage
                 .eth_sender_dal()

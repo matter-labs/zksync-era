@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
@@ -29,7 +29,7 @@ use zksync_web3_decl::client::MockClient;
 
 use crate::{
     abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tester::{
         EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
         STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
@@ -39,7 +39,7 @@ use crate::{
 };
 
 fn get_dummy_operation(number: u32) -> AggregatedOperation {
-    AggregatedOperation::Execute(ExecuteBatches {
+    AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(number),
             metadata: default_l1_batch_metadata(),
@@ -47,7 +47,7 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
         }],
         priority_ops_proofs: Vec::new(),
         dependency_roots: vec![vec![], vec![]],
-    })
+    }))
 }
 
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
@@ -390,7 +390,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
     tester
         .execute_tx(
             l1_batch.number,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
             true,
             EthTxFinalityStatus::Pending,
         )
@@ -1059,7 +1059,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await;
     assert!(tx.is_none());
@@ -1079,7 +1079,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await
         .unwrap();

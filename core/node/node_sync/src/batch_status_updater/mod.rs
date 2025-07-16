@@ -13,8 +13,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, eth_sender::EthTxFinalityStatus,
-    L1BatchNumber, SLChainId, H256,
+    aggregated_operations::L1BatchAggregatedActionType, api, L1BatchNumber, SLChainId, H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -27,11 +26,11 @@ use super::metrics::{FetchStage, FETCHER_METRICS};
 #[cfg(test)]
 mod tests;
 
-fn l1_batch_stage_to_action_str(stage: AggregatedActionType) -> &'static str {
+fn l1_batch_stage_to_action_str(stage: L1BatchAggregatedActionType) -> &'static str {
     match stage {
-        AggregatedActionType::Commit => "committed",
-        AggregatedActionType::PublishProofOnchain => "proven",
-        AggregatedActionType::Execute => "executed",
+        L1BatchAggregatedActionType::Commit => "committed",
+        L1BatchAggregatedActionType::PublishProofOnchain => "proven",
+        L1BatchAggregatedActionType::Execute => "executed",
     }
 }
 
@@ -116,17 +115,17 @@ impl UpdaterCursor {
 
         let last_executed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_executed_on_eth()
+            .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::Execute)
             .await?
             .unwrap_or(starting_l1_batch_number);
         let last_proven_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_proven_on_eth()
+            .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::PublishProofOnchain)
             .await?
             .unwrap_or(starting_l1_batch_number);
         let last_committed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
+            .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::Commit)
             .await?
             .unwrap_or(starting_l1_batch_number);
         Ok(Self {
@@ -139,20 +138,20 @@ impl UpdaterCursor {
     /// Extracts tx hash, timestamp and chain id of the operation.
     fn extract_op_data(
         batch_info: &api::L1BatchDetails,
-        stage: AggregatedActionType,
+        stage: L1BatchAggregatedActionType,
     ) -> (Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>) {
         match stage {
-            AggregatedActionType::Commit => (
+            L1BatchAggregatedActionType::Commit => (
                 batch_info.base.commit_tx_hash,
                 batch_info.base.committed_at,
                 batch_info.base.commit_chain_id,
             ),
-            AggregatedActionType::PublishProofOnchain => (
+            L1BatchAggregatedActionType::PublishProofOnchain => (
                 batch_info.base.prove_tx_hash,
                 batch_info.base.proven_at,
                 batch_info.base.prove_chain_id,
             ),
-            AggregatedActionType::Execute => (
+            L1BatchAggregatedActionType::Execute => (
                 batch_info.base.execute_tx_hash,
                 batch_info.base.executed_at,
                 batch_info.base.execute_chain_id,
@@ -166,9 +165,9 @@ impl UpdaterCursor {
         batch_info: &api::L1BatchDetails,
     ) -> anyhow::Result<()> {
         for stage in [
-            AggregatedActionType::Commit,
-            AggregatedActionType::PublishProofOnchain,
-            AggregatedActionType::Execute,
+            L1BatchAggregatedActionType::Commit,
+            L1BatchAggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::Execute,
         ] {
             self.update_stage(status_changes, batch_info, stage)?;
         }
@@ -179,18 +178,18 @@ impl UpdaterCursor {
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
-        stage: AggregatedActionType,
+        stage: L1BatchAggregatedActionType,
     ) -> anyhow::Result<()> {
         let (l1_tx_hash, happened_at, sl_chain_id) = Self::extract_op_data(batch_info, stage);
         let (last_l1_batch, changes_to_update) = match stage {
-            AggregatedActionType::Commit => (
+            L1BatchAggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
                 &mut status_changes.commit,
             ),
-            AggregatedActionType::PublishProofOnchain => {
+            L1BatchAggregatedActionType::PublishProofOnchain => {
                 (&mut self.last_proven_l1_batch, &mut status_changes.prove)
             }
-            AggregatedActionType::Execute => (
+            L1BatchAggregatedActionType::Execute => (
                 &mut self.last_executed_l1_batch,
                 &mut status_changes.execute,
             ),
@@ -395,16 +394,13 @@ impl BatchStatusUpdater {
                 change.number <= last_sealed_batch,
                 "Incorrect update state: unknown batch marked as committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
-                    AggregatedActionType::Commit,
+                    L1BatchAggregatedActionType::Commit,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_committed_l1_batch = change.number;
@@ -422,16 +418,13 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_committed_l1_batch,
                 "Incorrect update state: proven batch must be committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
-                    AggregatedActionType::PublishProofOnchain,
+                    L1BatchAggregatedActionType::PublishProofOnchain,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_proven_l1_batch = change.number;
@@ -449,16 +442,13 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_proven_l1_batch,
                 "Incorrect update state: executed batch must be proven"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
-                    AggregatedActionType::Execute,
+                    L1BatchAggregatedActionType::Execute,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_executed_l1_batch = change.number;
