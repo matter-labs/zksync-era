@@ -227,7 +227,7 @@ impl StateKeeperIO for MempoolIO {
         let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
-        let gateway_migration_state: GatewayMigrationState =
+        let gateway_migration_state =
             self.gateway_status(&mut storage).await;
         let interop_roots = if gateway_migration_state == GatewayMigrationState::InProgress {
             vec![]
