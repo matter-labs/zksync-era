@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_types::{
-    api::Log, ethabi, server_notification::GatewayMigrationNotification, L1BlockNumber, L2ChainId,
-    SLChainId, H256,
-};
+use zksync_types::{api::Log, ethabi, L1BlockNumber, L2ChainId, SLChainId, H256};
 
 use crate::{
     client::ZkSyncExtentionEthClient,
@@ -61,16 +58,6 @@ impl EventProcessor for InteropRootProcessor {
             .await
             .map_err(DalError::generalize)
             .map_err(EventProcessorError::internal)?;
-
-        // We stop processing interop roots after migration from Gateway to L1 is initiated, as these cannot be executed.
-        let gateway_migration_state = transaction
-            .server_notifications_dal()
-            .get_latest_gateway_migration_notification()
-            .await
-            .unwrap();
-        if gateway_migration_state == Some(GatewayMigrationNotification::FromGateway) {
-            return Ok(events_count);
-        }
 
         for event in events {
             let mut tokens = ethabi::decode(
