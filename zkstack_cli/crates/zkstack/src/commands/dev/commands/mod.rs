@@ -15,5 +15,4 @@ pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
 pub mod track_priority_txs;
-#[cfg(feature = "upgrades")]
 pub mod upgrades;

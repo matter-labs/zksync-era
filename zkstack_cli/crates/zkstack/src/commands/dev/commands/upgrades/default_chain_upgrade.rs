@@ -67,7 +67,7 @@ async fn verify_next_batch_new_version(
         )
     })?;
     match upgrade_versions {
-        UpgradeVersions::V28_1_Vk => {
+        UpgradeVersions::V28_1Vk => {
             ensure!(
                 protocol_version >= ProtocolVersionId::Version28,
                 "THe block does not yet contain the v28 upgrade"
@@ -202,8 +202,11 @@ pub(crate) async fn run(
     let mut args = args_input.clone().fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
         let path = match args_input.upgrade_version {
-            UpgradeVersions::V28_1_Vk => {
+            UpgradeVersions::V28_1Vk => {
                 "./contracts/l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
+            }
+            UpgradeVersions::V29InteropAFf => {
+                "./contracts/l1-contracts/script-out/v29-upgrade-ecosystem.toml"
             }
         };
 
@@ -262,7 +265,7 @@ pub(crate) async fn run(
         };
     }
 
-    let mut calldata;
+    let calldata;
     if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
@@ -296,6 +299,7 @@ pub(crate) async fn run(
         admin_calls_gw.display();
 
         let (gw_chain_admin_calldata, _) = admin_calls_gw.compile_full_calldata();
+        calldata = gw_chain_admin_calldata.clone();
 
         logger::info(format!(
             "Full calldata to call `ChainAdmin` with : {}",
@@ -314,6 +318,7 @@ pub(crate) async fn run(
         admin_calls_finalize.display();
 
         let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
+        calldata = chain_admin_calldata.clone();
 
         logger::info(format!(
             "Full calldata to call `ChainAdmin` with : {}",

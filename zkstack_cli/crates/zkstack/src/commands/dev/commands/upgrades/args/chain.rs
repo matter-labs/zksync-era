@@ -44,7 +44,7 @@ impl ChainUpgradeArgs {
         self.gw_rpc_url = if let Some(url) = self.gw_rpc_url {
             Some(url)
         } else {
-            chain_config.get_secrets_config().await?.gw_rpc_url().ok()
+            chain_config.get_secrets_config().await?.gateway_rpc_url().ok()
         };
 
         self.l1_rpc_url = if let Some(url) = self.l1_rpc_url {

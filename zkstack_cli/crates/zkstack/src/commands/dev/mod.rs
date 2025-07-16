@@ -65,10 +65,10 @@ pub enum DevCommands {
     TrackPriorityOps(TrackPriorityOpsArgs),
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
-    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
+    V27EvmInterpreterUpgradeCalldata(commands::upgrades::v27_evm_eq::V27EvmInterpreterCalldataArgs),
     #[cfg(feature = "v28_precompiles")]
     #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
-    GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
+    GenerateV28UpgradeCalldata(commands::upgrades::v28_precompiles::V28PrecompilesCalldataArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
     GenerateEcosystemUpgradeCalldata(commands::upgrades::args::ecosystem::EcosystemUpgradeArgs),
