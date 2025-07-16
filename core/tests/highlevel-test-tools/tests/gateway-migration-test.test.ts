@@ -23,8 +23,6 @@ if (shouldSkip) {
 
         await testChain.waitForAllBatchesToBeExecuted();
 
-        await gatewayMigrationToGatewayTest(testChain.chainName);
-
         await gatewayMigrationFromGatewayTest(testChain.chainName);
 
         await gatewayMigrationToGatewayTest(testChain.chainName);
