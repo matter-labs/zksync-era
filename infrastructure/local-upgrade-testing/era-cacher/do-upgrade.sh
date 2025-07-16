@@ -27,26 +27,26 @@ zkstack dev database migrate --prover false --core true
 # # zkstack chain gateway-upgrade -- adapt-config
 
 # Server should be started in a different window for consistency
-zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
+zkstack server --chain era &> ../rollup.log &
 echo "Server started"
 
-zkstack dev run-ecosystem-upgrade --upgrade-version v29_interopa_ff --ecosystem-upgrade-stage no-governance-prepare
+zkstack dev run-ecosystem-upgrade --upgrade-version v29-interop-a-ff --ecosystem-upgrade-stage no-governance-prepare
 
-zkstack dev run-ecosystem-upgrade --upgrade-version v29_interopa_ff --ecosystem-upgrade-stage governance-stage0
+zkstack dev run-ecosystem-upgrade --upgrade-version v29-interop-a-ff --ecosystem-upgrade-stage governance-stage0
 
-zkstack  dev run-ecosystem-upgrade --upgrade-version v29_interopa_ff --ecosystem-upgrade-stage governance-stage1
+zkstack  dev run-ecosystem-upgrade --upgrade-version v29-interop-a-ff --ecosystem-upgrade-stage governance-stage1
 
 cd contracts/l1-contracts
 UPGRADE_ECOSYSTEM_OUTPUT=script-out/v29-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v29.s.sol/9/run-latest.json  YAML_OUTPUT_FILE=script-out/v29-local-output.yaml yarn upgrade-yaml-output-generator
 cd ../../
 
-zkstack dev run-v29-chain-upgrade 
+zkstack dev run-chain-upgrade
 
-zkstack  dev run-ecosystem-upgrade --upgrade-version v29_interopa_ff --ecosystem-upgrade-stage governance-stage2
+zkstack  dev run-ecosystem-upgrade --upgrade-version v29-interop-a-ff --ecosystem-upgrade-stage governance-stage2
 
 pkill -9 zksync_server
-zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
+zkstack server --chain era &> ../rollup2.log &
 
 sleep 10
 
-zkstack dev test integration --no-deps --ignore-prerequisites --chain era
+zkstack dev test integration --chain era
