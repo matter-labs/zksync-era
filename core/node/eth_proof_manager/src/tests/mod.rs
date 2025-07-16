@@ -8,7 +8,9 @@ use zksync_config::{
     ObjectStoreConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{eth_proof_manager_dal::ProvingNetwork, Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    eth_proof_manager_dal::ProvingNetwork, Connection, ConnectionPool, Core, CoreDal,
+};
 use zksync_object_store::MockObjectStore;
 use zksync_proof_data_handler::{Locking, Processor};
 use zksync_types::{
@@ -163,7 +165,11 @@ async fn test_flow_acknowledgment_timeout() {
         .await
         .unwrap();
 
-    connection.eth_proof_manager_dal().mark_batch_as_sent(L1BatchNumber(1), H256::zero()).await.unwrap();
+    connection
+        .eth_proof_manager_dal()
+        .mark_batch_as_sent(L1BatchNumber(1), H256::zero())
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_secs(2)).await;
 
@@ -182,7 +188,10 @@ async fn test_flow_acknowledgment_timeout() {
     let batch = processor.lock_batch_for_proving_network().await.unwrap();
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving(config.proof_generation_timeout).await.unwrap();
+    let batch = processor
+        .lock_batch_for_proving(config.proof_generation_timeout)
+        .await
+        .unwrap();
 
     assert_eq!(batch, Some(L1BatchNumber(1)));
 }
@@ -250,7 +259,10 @@ async fn test_flow_proving_timeout() {
     let batch = processor.lock_batch_for_proving_network().await.unwrap();
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving(config.proof_generation_timeout).await.unwrap();
+    let batch = processor
+        .lock_batch_for_proving(config.proof_generation_timeout)
+        .await
+        .unwrap();
 
     assert_eq!(batch, Some(L1BatchNumber(1)));
 }
@@ -305,7 +317,10 @@ async fn test_flow_picking_timeout() {
     let batch = processor.lock_batch_for_proving_network().await.unwrap();
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving(config.proof_generation_timeout).await.unwrap();
+    let batch = processor
+        .lock_batch_for_proving(config.proof_generation_timeout)
+        .await
+        .unwrap();
 
     assert_eq!(batch, Some(L1BatchNumber(1)));
 }
