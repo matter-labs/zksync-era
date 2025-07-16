@@ -20,7 +20,7 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchWithMetadata, SerializeCommitment},
-    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxFinalityStatus, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -1178,7 +1178,7 @@ impl EthTxAggregator {
             .await
             .unwrap();
 
-        if last_sent_successfully_eth_tx.sent_successfully {
+        if last_sent_successfully_eth_tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized {
             return Ok(false);
         }
 
