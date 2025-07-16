@@ -29,8 +29,8 @@ use crate::{
             utils::{get_default_foundry_path, send_tx},
         },
         dev::commands::{
-            chain_upgrade_args::{ChainUpgradeArgs, ChainUpgradeArgsInner},
-            upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+            upgrades::args::chain::{ChainUpgradeArgs, ChainUpgradeArgsInner},
+            upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
         },
     },
     utils::addresses::apply_l1_to_l2_alias,
