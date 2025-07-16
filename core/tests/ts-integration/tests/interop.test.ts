@@ -126,19 +126,20 @@ describe('Interop behavior checks', () => {
         }
 
         // Setup Interop2 Provider and Wallet
-        interop2Provider = new RetryProvider(
-            { url: await getL2bUrl('validium'), timeout: 1200 * 1000 },
-            undefined,
-            testMaster.reporter
-        );
+        // interop2Provider = new RetryProvider(
+        //     { url: await getL2bUrl('validium'), timeout: 1200 * 1000 },
+        //     undefined,
+        //     testMaster.reporter
+        // );
+        interop2Provider = aliceSecondChain.provider;
         interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
 
-        gatewayProvider = new RetryProvider(
-            { url: await getL2bUrl('gateway'), timeout: 1200 * 1000 },
-            undefined,
-            testMaster.reporter
-        );
-        gatewayWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, gatewayProvider);
+        // gatewayProvider = new RetryProvider(
+        //     { url: await getL2bUrl('gateway'), timeout: 1200 * 1000 },
+        //     undefined,
+        //     testMaster.reporter
+        // );
+        // gatewayWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, gatewayProvider);
 
         // Initialize Contracts on Interop1
         interop1InteropCenter = new zksync.Contract(
