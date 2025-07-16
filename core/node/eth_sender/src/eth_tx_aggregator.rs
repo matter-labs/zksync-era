@@ -674,7 +674,10 @@ impl EthTxAggregator {
                 op_restrictions.execute_restriction = reason;
             } else {
                 // For the migration from gateway to L1, we need we need to ensure all batches containing interop roots get committed and executed.
-                if !self.is_waiting_for_interop_roots(storage).await? {
+                if !self
+                    .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
+                    .await?
+                {
                     op_restrictions.commit_restriction = None;
                     op_restrictions.precommit_restriction = None;
                 }
@@ -1154,7 +1157,7 @@ impl EthTxAggregator {
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 
-    async fn is_waiting_for_interop_roots(
+    async fn is_waiting_for_batches_with_interop_roots_to_be_committed(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<bool, EthSenderError> {
