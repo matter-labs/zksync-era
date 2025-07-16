@@ -1,6 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
+use ethers::types::H160;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
@@ -25,6 +26,7 @@ use zkstack_cli_types::L1Network;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    common::deploy_l1,
     setup_observability,
     utils::{build_da_contracts, install_yarn_dependencies},
 };
@@ -34,15 +36,12 @@ use crate::{
         chain::{self},
         ecosystem::{
             args::init::PromptPolicy,
-            common::deploy_l1_core_contracts,
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-            init_new_ecosystem::deploy_ecosystem as deploy_new_ecosystem,
-            register_ctm::register_ctm,
         },
     },
     messages::{
-        msg_chain_load_err, msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
-        msg_initializing_chain, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
+        msg_chain_load_err, msg_ecosystem_no_found_preexisting_contract, msg_initializing_chain,
+        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
@@ -64,8 +63,8 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let prompt_policy = PromptPolicy {
         deploy_erc20: true,
-        observability: true,
-        skip_ecosystem: false,
+        observability: false,
+        skip_ecosystem: true,
     };
 
     let mut final_ecosystem_args = args
@@ -103,13 +102,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
     }
 
-    // Initialize chain(s)
-    let mut chains: Vec<String> = vec![];
-    if !final_ecosystem_args.ecosystem_only {
-        chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
-    }
-    logger::outro(msg_ecosystem_initialized(&chains.join(",")));
-
     Ok(())
 }
 
@@ -129,17 +121,7 @@ async fn init_ecosystem(
     }
     spinner.finish();
 
-    deploy_ecosystem(
-        shell,
-        &mut init_args.ecosystem,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        initial_deployment_config,
-        init_args.support_l2_legacy_shared_bridge_test,
-    )
-    .await?;
-
-    let contracts = deploy_new_ecosystem(
+    let contracts = deploy_ecosystem(
         shell,
         &mut init_args.ecosystem,
         init_args.forge_args.clone(),
@@ -149,19 +131,7 @@ async fn init_ecosystem(
         init_args.bridgehub_address,
     )
     .await?;
-
-    let forge_args = init_args.forge_args.clone();
-
-    register_ctm(
-        init_args,
-        shell,
-        forge_args,
-        ecosystem_config,
-        initial_deployment_config,
-    )
-    .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-
     Ok(contracts)
 }
 
@@ -212,13 +182,14 @@ async fn deploy_erc20(
     Ok(result)
 }
 
-async fn deploy_ecosystem(
+pub async fn deploy_ecosystem(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
+    bridgehub_address: H160,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -228,6 +199,7 @@ async fn deploy_ecosystem(
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
             support_l2_legacy_shared_bridge_test,
+            bridgehub_address,
         )
         .await;
     }
@@ -290,9 +262,10 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
     support_l2_legacy_shared_bridge_test: bool,
+    bridgehub_address: H160,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1_core_contracts(
+    let contracts_config = deploy_l1(
         shell,
         &forge_args,
         config,
@@ -301,12 +274,88 @@ async fn deploy_ecosystem_inner(
         None,
         true,
         support_l2_legacy_shared_bridge_test,
+        bridgehub_address,
     )
     .await?;
     spinner.finish();
 
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
+    if bridgehub_address != H160::zero() {
+        // Note, that there is no admin in L1 asset router, so we do
+        // need to accept it
+
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_admin(
+            shell,
+            config,
+            contracts_config.l1.chain_admin_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_admin(
+            shell,
+            config,
+            contracts_config.l1.chain_admin_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config.bridges.shared.l1_address,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+
+        accept_owner(
+            shell,
+            config,
+            contracts_config.l1.governance_addr,
+            &config.get_wallets()?.governor,
+            contracts_config
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr
+                .context("stm_deployment_tracker_proxy_addr")?,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     accept_owner(
         shell,
@@ -329,113 +378,10 @@ async fn deploy_ecosystem_inner(
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr
-            .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
         l1_rpc_url.clone(),
     )
     .await?;
 
     Ok(contracts_config)
-}
-
-async fn init_chains(
-    init_args: &EcosystemInitArgs,
-    final_init_args: &EcosystemInitArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<Vec<String>> {
-    // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
-    let list_of_chains = if let Some(name) = global_config().chain_name.clone() {
-        vec![name]
-    } else {
-        ecosystem_config.list_of_chains()
-    };
-    // Set default values for dev mode
-    let mut deploy_paymaster = init_args.deploy_paymaster;
-    let mut genesis_args = init_args.get_genesis_args().clone();
-    if final_init_args.dev {
-        deploy_paymaster = Some(true);
-        genesis_args.dev = true;
-    }
-    // Can't initialize multiple chains with the same DB
-    if list_of_chains.len() > 1 {
-        genesis_args.reset_db_names();
-    }
-    // Initialize chains
-    for chain_name in &list_of_chains {
-        logger::info(msg_initializing_chain(chain_name));
-        let chain_config = ecosystem_config
-            .load_chain(Some(chain_name.clone()))
-            .context(msg_chain_load_err(chain_name))?;
-
-        let chain_init_args = chain::args::init::InitArgs {
-            forge_args: final_init_args.forge_args.clone(),
-            server_db_url: genesis_args.server_db_url.clone(),
-            server_db_name: genesis_args.server_db_name.clone(),
-            dont_drop: genesis_args.dont_drop,
-            deploy_paymaster,
-            l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
-            no_port_reallocation: final_init_args.no_port_reallocation,
-            update_submodules: init_args.update_submodules,
-            dev: final_init_args.dev,
-            validium_args: final_init_args.validium_args.clone(),
-            server_command: genesis_args.server_command.clone(),
-        };
-        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
-
-        chain::init::init(
-            &final_chain_init_args,
-            shell,
-            ecosystem_config,
-            &chain_config,
-        )
-        .await?;
-    }
-    Ok(list_of_chains)
 }

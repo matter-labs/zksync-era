@@ -1,4 +1,5 @@
 use anyhow::Context;
+use ethers::types::H160;
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
@@ -50,6 +51,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
         Some(args.sender),
         false,
         false,
+        H160::zero(),
     )
     .await?;
 
