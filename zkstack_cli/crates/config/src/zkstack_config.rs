@@ -15,10 +15,12 @@ pub enum ZkStackConfig {
 
 impl ZkStackConfig {
     pub fn from_file(shell: &Shell) -> anyhow::Result<ZkStackConfig> {
+        let current_dir = shell.current_dir();
         if let Ok(ecosystem) = EcosystemConfig::from_file(shell) {
             return Ok(ZkStackConfig::EcosystemConfig(ecosystem));
         }
 
+        shell.change_dir(current_dir);
         if let Ok(chain_internal) = ChainConfigInternal::from_file(shell) {
             if let Ok(chain) = ChainConfig::from_internal(chain_internal, shell.clone()) {
                 return Ok(ZkStackConfig::ChainConfig(chain));
