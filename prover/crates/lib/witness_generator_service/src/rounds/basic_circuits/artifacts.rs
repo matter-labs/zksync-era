@@ -9,7 +9,7 @@ use zksync_prover_interface::{inputs::WitnessInputData, Bincode};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchId};
 
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     rounds::basic_circuits::{
         utils::create_aggregation_jobs, BasicCircuitArtifacts, BasicCircuits,
         BasicWitnessGeneratorJob,

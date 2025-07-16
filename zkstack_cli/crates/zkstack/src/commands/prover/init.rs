@@ -55,7 +55,13 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         get_object_store_config(shell, Some(args.proof_store))?.unwrap();
 
     if args.deploy_proving_networks {
-        deploy_proving_networks(shell, &ecosystem_config, secrets.l1_rpc_url()?).await?;
+        deploy_proving_networks(
+            shell,
+            &ecosystem_config,
+            &chain_config,
+            secrets.l1_rpc_url()?,
+        )
+        .await?;
     }
 
     if let Some(args) = args.compressor_key_args {
