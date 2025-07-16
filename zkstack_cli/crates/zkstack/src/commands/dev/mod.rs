@@ -65,22 +65,22 @@ pub enum DevCommands {
     TrackPriorityOps(TrackPriorityOpsArgs),
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
-    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
+    V27EvmInterpreterUpgradeCalldata(commands::upgrades::v27_evm_eq::V27EvmInterpreterCalldataArgs),
     #[cfg(feature = "v28_precompiles")]
     #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
-    GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
+    GenerateV28UpgradeCalldata(commands::upgrades::v28_precompiles::V28PrecompilesCalldataArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
-    GenerateEcosystemUpgradeCalldata(commands::ecosystem_upgrade_args::EcosystemUpgradeArgs),
+    GenerateEcosystemUpgradeCalldata(commands::upgrades::args::ecosystem::EcosystemUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
-    RunEcosystemUpgrade(commands::ecosystem_upgrade_args::EcosystemUpgradeArgs),
+    RunEcosystemUpgrade(commands::upgrades::args::ecosystem::EcosystemUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
-    GenerateChainUpgrade(commands::chain_upgrade_args::ChainUpgradeArgs),
+    GenerateChainUpgrade(commands::upgrades::args::chain::ChainUpgradeArgs),
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
-    RunChainUpgrade(commands::chain_upgrade_args::ChainUpgradeArgs),
+    RunChainUpgrade(commands::upgrades::args::chain::ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -104,27 +104,27 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
-            commands::v27_evm_eq::run(shell, args).await?
+            commands::upgrades::v27_evm_eq::run(shell, args).await?
         }
         #[cfg(feature = "v28_precompiles")]
         DevCommands::GenerateV28UpgradeCalldata(args) => {
-            commands::v28_precompiles::run(shell, args).await?
+            commands::upgrades::v28_precompiles::run(shell, args).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::GenerateEcosystemUpgradeCalldata(args) => {
-            commands::ecosystem_upgrade::run(shell, args, false).await?
+            commands::upgrades::default_ecosystem_upgrade::run(shell, args, false).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::RunEcosystemUpgrade(args) => {
-            commands::ecosystem_upgrade::run(shell, args, true).await?
+            commands::upgrades::default_ecosystem_upgrade::run(shell, args, true).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::GenerateChainUpgrade(args) => {
-            commands::chain_upgrade::run(shell, args, false).await?
+            commands::upgrades::default_chain_upgrade::run(shell, args, false).await?
         }
         #[cfg(feature = "upgrades")]
         DevCommands::RunChainUpgrade(args) => {
-            commands::chain_upgrade::run(shell, args, true).await?
+            commands::upgrades::default_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())
