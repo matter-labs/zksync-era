@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use smart_config::{DescribeConfig, DeserializeConfig};
+use zksync_basic_types::Address;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -42,6 +43,10 @@ pub struct BaseTokenAdjusterConfig {
     /// Number of seconds to sleep between price fetching attempts
     #[config(default_t = Duration::from_secs(5))]
     pub price_fetching_sleep: Duration,
+    /// Override for address of the base token address used to calculate ZK<->BaseToken ratio on gateway using chains.
+    pub base_token_addr_override: Option<Address>,
+    /// Override for address of the gateway base token address used to calculate ZK<->BaseToken ratio on gateway using chains.
+    pub gateway_base_token_addr_override: Option<Address>,
     /// Defines whether base_token_adjuster should halt the process if there was an error while
     /// fetching or persisting the quote. Generally that should be set to false to not to halt
     /// the server process if an external api is not available or if L1 is congested.
@@ -54,6 +59,10 @@ mod tests {
     use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
+
+    fn addr(s: &str) -> Address {
+        s.parse().unwrap()
+    }
 
     fn expected_config() -> BaseTokenAdjusterConfig {
         BaseTokenAdjusterConfig {
@@ -69,6 +78,10 @@ mod tests {
             price_fetching_max_attempts: 20,
             price_fetching_sleep: Duration::from_secs(10),
             l1_update_deviation_percentage: 20,
+            base_token_addr_override: Some(addr("0x0000000000000000000000000000000000000001")),
+            gateway_base_token_addr_override: Some(addr(
+                "0x0000000000000000000000000000000000000002",
+            )),
             halt_on_error: true,
         }
     }
@@ -88,6 +101,8 @@ mod tests {
             BASE_TOKEN_ADJUSTER_L1_UPDATE_DEVIATION_PERCENTAGE=20
             BASE_TOKEN_ADJUSTER_PRICE_FETCHING_MAX_ATTEMPTS=20
             BASE_TOKEN_ADJUSTER_PRICE_FETCHING_SLEEP_MS=10000
+            BASE_TOKEN_ADJUSTER_BASE_TOKEN_ADDR_OVERRIDE=0x0000000000000000000000000000000000000001
+            BASE_TOKEN_ADJUSTER_GATEWAY_BASE_TOKEN_ADDR_OVERRIDE=0x0000000000000000000000000000000000000002
             BASE_TOKEN_ADJUSTER_HALT_ON_ERROR=true
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -114,6 +129,8 @@ mod tests {
           price_fetching_max_attempts: 20
           price_fetching_sleep_ms: 10000
           l1_update_deviation_percentage: 20
+          base_token_addr_override: "0x0000000000000000000000000000000000000001"
+          gateway_base_token_addr_override: "0x0000000000000000000000000000000000000002"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: BaseTokenAdjusterConfig = test_complete(yaml).unwrap();
