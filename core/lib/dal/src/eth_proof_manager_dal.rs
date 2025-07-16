@@ -16,6 +16,7 @@ pub struct EthProofManagerDal<'a, 'c> {
 
 #[derive(Debug, Clone)]
 pub enum EthProofManagerStatus {
+    Fallbacked,
     Unpicked,
     Sent,
     Acknowledged,
@@ -26,6 +27,7 @@ pub enum EthProofManagerStatus {
 impl EthProofManagerStatus {
     pub fn as_str(&self) -> &str {
         match self {
+            EthProofManagerStatus::Fallbacked => "fallbacked",
             EthProofManagerStatus::Unpicked => "unpicked",
             EthProofManagerStatus::Sent => "sent",
             EthProofManagerStatus::Acknowledged => "acknowledged",
@@ -238,6 +240,7 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<usize> {
         let acknowledgment_timeout = pg_interval_from_duration(acknowledgment_timeout);
         let proving_timeout = pg_interval_from_duration(proving_timeout);
+        let picking_timeout = pg_interval_from_duration(picking_timeout);
 
         let mut transaction = self.storage.start_transaction().await?;
 
@@ -256,14 +259,17 @@ impl EthProofManagerDal<'_, '_> {
                     AND validated_proof_request_tx_sent_at < NOW() - $5::INTERVAL
                 )
                 OR (status = $6 AND proof_validation_result IS false)
+                OR (status = $7 AND updated_at < NOW() - $8::INTERVAL)
             RETURNING l1_batch_number
             "#,
-            EthProofManagerStatus::Unpicked.as_str(),
+            EthProofManagerStatus::Fallbacked.as_str(),
             EthProofManagerStatus::Sent.as_str(),
             &acknowledgment_timeout,
             EthProofManagerStatus::Acknowledged.as_str(),
             &proving_timeout,
-            EthProofManagerStatus::Validated.as_str()
+            EthProofManagerStatus::Validated.as_str(),
+            EthProofManagerStatus::Unpicked.as_str(),
+            &picking_timeout,
         )
         .instrument("move_batches_to_fallback")
         .fetch_all(&mut transaction)
@@ -275,8 +281,7 @@ impl EthProofManagerDal<'_, '_> {
             "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - "
         );
 
-        let timeout = pg_interval_from_duration(picking_timeout);
-        query_builder.push_bind(timeout);
+        query_builder.push_bind(&picking_timeout);
         query_builder.push("::INTERVAL)");
 
         if !batches.is_empty() {
