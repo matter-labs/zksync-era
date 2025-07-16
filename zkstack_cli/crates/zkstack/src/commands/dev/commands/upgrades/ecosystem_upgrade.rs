@@ -37,6 +37,7 @@ use crate::{
         dev::commands::ecosystem_upgrade_args::{
             EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage, UpgradeVersions,
         },
+        dev::commands::upgrades::types::UpgradeVersions,
     },
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
     messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR, MSG_INTALLING_DEPS_SPINNER},

@@ -8,11 +8,10 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_types::L1Network;
 
 use crate::{
-    defaults::LOCAL_RPC_URL,
-    messages::{
+    commands::dev::commands::upgrades::types::UpgradeVersions, defaults::LOCAL_RPC_URL, messages::{
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
         MSG_SERVER_COMMAND_HELP,
-    },
+    }
 };
 
 #[derive(
@@ -32,14 +31,6 @@ pub enum EcosystemUpgradeStage {
     GovernanceStage2,
     // Finish finalizing tokens, chains, etc
     NoGovernanceStage2,
-}
-
-#[derive(
-    Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
-)]
-pub enum UpgradeVersions {
-    V29_InteropA_FF,
-    V28_1_VK,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
