@@ -114,17 +114,6 @@ impl StoredBatchInfo {
     }
 }
 
-// todo: this conversion is only used by legacy methods - it will not work correctly in zkos
-// commitment is not computed correctly here
-impl From<&L1BatchWithMetadata> for StoredBatchInfo {
-    fn from(x: &L1BatchWithMetadata) -> Self {
-        let last_block_commitment: ZkosCommitment = x.into();
-        let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
-        let stored_batch_info = StoredBatchInfo::new(&last_block_commitment, batch_output.hash());
-        stored_batch_info
-    }
-}
-
 impl Tokenizable for StoredBatchInfo {
     fn from_token(token: Token) -> Result<Self, ContractError> {
         (|| {

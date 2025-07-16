@@ -54,6 +54,7 @@ pub struct GatewayVotePreparationConfig {
     pub old_rollup_l2_da_validator: Address,
     pub gateway_chain_id: U256,
     pub force_deployments_data: String,
+    pub is_zk_sync_os: bool,
 }
 
 impl ZkStackConfig for GatewayVotePreparationConfig {}
@@ -138,6 +139,7 @@ impl GatewayVotePreparationConfig {
                 .force_deployments_data
                 .clone()
                 .unwrap_or_default(),
+            is_zk_sync_os: false,
         }
     }
 }

@@ -109,6 +109,8 @@ pub struct EcosystemInitArgs {
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub is_zksync_os: Option<bool>,
     #[clap(long, default_value_t = false)]
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
@@ -160,6 +162,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test: self
                 .support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
+            is_zk_sync_os: true,
         }
     }
 }
@@ -176,4 +179,5 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
+    pub is_zk_sync_os: bool,
 }

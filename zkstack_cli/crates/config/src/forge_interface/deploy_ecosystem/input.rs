@@ -142,6 +142,7 @@ pub struct DeployL1Config {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
+    pub is_zk_sync_os: bool,
 }
 
 impl ZkStackConfig for DeployL1Config {}
@@ -155,12 +156,14 @@ impl DeployL1Config {
         testnet_verifier: bool,
         l1_network: L1Network,
         support_l2_legacy_shared_bridge_test: bool,
+        is_zk_sync_os: bool,
     ) -> Self {
         Self {
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,
             support_l2_legacy_shared_bridge_test,
+            is_zk_sync_os,
             contracts: ContractsDeployL1Config {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,

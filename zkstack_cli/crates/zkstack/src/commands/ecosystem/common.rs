@@ -25,6 +25,7 @@ pub async fn deploy_l1(
     sender: Option<String>,
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
+    is_zk_sync_os: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
     let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
@@ -40,6 +41,7 @@ pub async fn deploy_l1(
         config.prover_version == ProverMode::NoProofs,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
+        is_zk_sync_os,
     );
 
     deploy_config.save(shell, deploy_config_path)?;

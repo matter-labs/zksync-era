@@ -763,7 +763,9 @@ impl MainNodeBuilder {
     }
 
     fn add_zkos_prover_input_generator(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(ZkOsProverInputGeneratorLayer);
+        self.node.add_layer(ZkOsProverInputGeneratorLayer::new(
+            self.genesis_config.l2_chain_id,
+        ));
         Ok(self)
     }
 

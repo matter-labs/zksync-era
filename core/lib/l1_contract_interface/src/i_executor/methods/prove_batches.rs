@@ -15,7 +15,7 @@ use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::{
     commitment::{L1BatchWithMetadata, ZkosCommitment},
     ethabi::{encode, Token},
-    U256,
+    L2ChainId, U256,
 };
 
 use crate::{
@@ -33,22 +33,23 @@ pub struct ProveBatches {
 }
 
 impl ProveBatches {
-    pub fn conditional_into_tokens(&self, is_verifier_pre_fflonk: bool) -> Vec<Token> {
-        let last_block_commitment: ZkosCommitment = ZkosCommitment::from(&self.prev_l1_batch);
-        let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
+    pub fn conditional_into_tokens(
+        &self,
+        is_verifier_pre_fflonk: bool,
+        l2chain_id: L2ChainId,
+    ) -> Vec<Token> {
+        let batch_commitment = ZkosCommitment::new(&self.prev_l1_batch, l2chain_id);
+        let batch_output = zkos_commitment_to_vm_batch_output(&batch_commitment);
         let prev_l1_batch_info =
-            StoredBatchInfo::new(&last_block_commitment, batch_output.hash()).into_token();
+            StoredBatchInfo::new(&batch_commitment, batch_output.hash()).into_token();
 
         let batches_arg = self
             .l1_batches
             .iter()
             .map(|batch| {
-                // StoredBatchInfo::from(batch).into_token()
-
-                let last_block_commitment: ZkosCommitment = ZkosCommitment::from(batch);
-                let batch_output: BatchOutput =
-                    zkos_commitment_to_vm_batch_output(&last_block_commitment);
-                StoredBatchInfo::new(&last_block_commitment, batch_output.hash()).into_token()
+                let batch_commitment = ZkosCommitment::new(batch, l2chain_id);
+                let batch_output = zkos_commitment_to_vm_batch_output(&batch_commitment);
+                StoredBatchInfo::new(&batch_commitment, batch_output.hash()).into_token()
             })
             .collect();
         let batches_arg = Token::Array(batches_arg);

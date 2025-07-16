@@ -11,7 +11,7 @@ use zk_ee::utils::Bytes32;
 use zk_os_basic_system::system_implementation::system::{BatchOutput, BatchPublicInput};
 use zksync_types::{
     commitment::{L1BatchWithMetadata, ZkosCommitment},
-    H256,
+    L2ChainId, H256,
 };
 
 pub mod commit;
@@ -24,9 +24,10 @@ pub mod structures;
 pub fn batch_public_input(
     prev_batch: &L1BatchWithMetadata,
     current_batch: &L1BatchWithMetadata,
+    l2chain_id: L2ChainId,
 ) -> BatchPublicInput {
-    let prev_commitment = ZkosCommitment::from(prev_batch);
-    let current_commitment = ZkosCommitment::from(current_batch);
+    let prev_commitment = ZkosCommitment::new(prev_batch, l2chain_id);
+    let current_commitment = ZkosCommitment::new(current_batch, l2chain_id);
 
     BatchPublicInput {
         state_before: h256_to_bytes32(prev_commitment.state_commitment()),

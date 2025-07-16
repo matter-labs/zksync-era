@@ -50,6 +50,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
         Some(args.sender),
         false,
         false,
+        true,
     )
     .await?;
 

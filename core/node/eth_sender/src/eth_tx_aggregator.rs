@@ -738,7 +738,7 @@ impl EthTxAggregator {
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let mut args = vec![Token::Uint(U256::from(self.rollup_chain_id.inner()))];
+        let mut args = vec![Token::Address(self.state_transition_chain_contract)];
         let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
@@ -753,6 +753,7 @@ impl EthTxAggregator {
                     l1_batches,
                     pubdata_da: *pubdata_da,
                     mode: *commitment_mode,
+                    chain_id: self.rollup_chain_id,
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
@@ -773,7 +774,10 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
+                args.extend(op.conditional_into_tokens(
+                    self.config.is_verifier_pre_fflonk,
+                    self.rollup_chain_id,
+                ));
                 let encoding_fn = if is_op_pre_gateway {
                     &self.functions.post_shared_bridge_prove
                 } else {
@@ -785,7 +789,7 @@ impl EthTxAggregator {
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                args.extend(op.encode_for_eth_tx(chain_protocol_version_id, self.rollup_chain_id));
                 let encoding_fn = if is_op_pre_gateway && chain_protocol_version_id.is_pre_gateway()
                 {
                     &self.functions.post_shared_bridge_execute

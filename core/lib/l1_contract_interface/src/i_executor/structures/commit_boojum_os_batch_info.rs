@@ -62,6 +62,10 @@ impl CommitBoojumOSBatchInfo {
             operator_da_input,
         }
     }
+
+    pub fn into_token(self) -> Token {
+        Token::Array(vec![Token::Tuple(self.into_tokens())])
+    }
 }
 
 impl Tokenize for CommitBoojumOSBatchInfo {
