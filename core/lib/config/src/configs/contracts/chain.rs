@@ -241,6 +241,10 @@ impl ContractsConfig {
         }
     }
 
+    pub fn eth_proof_manager_contracts(&self) -> ProofManagerContracts {
+        self.proof_manager_contracts.clone()
+    }
+
     pub(crate) fn insert_into_schema(schema: &mut ConfigSchema) {
         schema.insert(&Self::DESCRIPTION, "contracts").unwrap();
         schema
