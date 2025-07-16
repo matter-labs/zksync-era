@@ -18,6 +18,7 @@ import {
     ArtifactInteropCenter
 } from '../constants';
 import { RetryProvider } from '../retry-provider';
+import { getEcosystemContracts } from 'utils/build/tokens';
 // checkout whole file before merge
 
 /**
@@ -370,48 +371,6 @@ async function getChainBalance(
         balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
     }
     return balance;
-}
-
-interface EcosystemContracts {
-    bridgehub: ethers.Contract;
-    assetRouter: ethers.Contract;
-    assetTracker: ethers.Contract;
-    nativeTokenVault: ethers.Contract;
-}
-
-export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<EcosystemContracts> {
-    const bridgehub = new ethers.Contract(
-        await (await wallet.getBridgehubContract()).getAddress(),
-        ArtifactBridgeHub.abi,
-        wallet.providerL1!
-    );
-    // console.log('bridgehub', await bridgehub.getAddress());
-    // console.log('interface', bridgehub.interface);
-    const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
-    const interopCenter = new zksync.Contract(
-        await bridgehub.interopCenter(),
-        ArtifactInteropCenter.abi,
-        wallet.providerL1!
-    );
-    const assetTrackerAddress = await interopCenter.assetTracker();
-    // console.log('assetTrackerAddress', assetTrackerAddress);
-    const assetRouter = new zksync.Contract(
-        await bridgehub.assetRouter(),
-        ArtifactL1AssetRouter.abi,
-        wallet.providerL1!
-    );
-    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactAssetTracker.abi, wallet.providerL1!);
-    const nativeTokenVault = new zksync.Contract(
-        await assetRouter.nativeTokenVault(),
-        ArtifactNativeTokenVault.abi,
-        wallet.providerL1!
-    );
-    return {
-        bridgehub,
-        assetRouter,
-        assetTracker,
-        nativeTokenVault
-    };
 }
 
 async function isMinterChain(l1: boolean, wallet: zksync.Wallet, token: string): Promise<boolean> {

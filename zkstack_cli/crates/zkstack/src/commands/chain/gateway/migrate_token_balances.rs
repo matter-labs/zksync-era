@@ -23,13 +23,14 @@ use zksync_basic_types::U256;
 use crate::{
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    commands::dev::commands::rich_account,
+    commands::dev::commands::rich_account::args::RichAccountArgs,
 };
 
 lazy_static! {
     static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function fundL2Address(uint256, address, address, uint256) public",
-            "function startTokenMigrationOnL2(uint256, string) public",
+            "function startTokenMigrationOnL2OrGateway(bool, uint256, string) public",
             // "function continueMigrationOnGateway(uint256, string) public",
             "function finishMigrationOnL1(address, uint256, string, bool) public",
             "function checkAllMigrated(uint256, string) public",
@@ -96,6 +97,7 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
         shell,
         args.run_initial.unwrap_or(true),
         &args.forge_args.clone(),
+        args.to_gateway.unwrap_or(true),
         &ecosystem_config.path_to_l1_foundry(),
         ecosystem_config
             .get_wallets()?
@@ -120,6 +122,7 @@ pub async fn migrate_token_balances_from_gateway(
     shell: &Shell,
     run_initial: bool,
     forge_args: &ForgeScriptArgs,
+    to_gateway: bool,
     foundry_scripts_path: &Path,
     wallet: Wallet,
     l1_bridgehub_addr: Address,
@@ -131,41 +134,21 @@ pub async fn migrate_token_balances_from_gateway(
     println!("l2_chain_id: {}", l2_chain_id);
     println!("wallet.address: {}", wallet.address.to_string());
 
-    let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
-        .encode(
-            "fundL2Address",
-            (
-                U256::from(l2_chain_id),
-                l1_bridgehub_addr,
-                wallet.address,
-                U256::from(0),
-            ),
-        )
-        .unwrap();
-
-    let mut forge = Forge::new(foundry_scripts_path)
-        .script(
-            &PathBuf::from(GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH),
-            forge_args.clone(),
-        )
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url.clone())
-        .with_broadcast()
-        .with_slow()
-        .with_calldata(&calldata);
-
-    // Governor private key is required for this script
     if run_initial {
-        forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
-        check_the_balance(&forge).await?;
-        forge.run(shell)?;
+
+        rich_account::run(shell, RichAccountArgs{
+            l2_account: Some(wallet.address),
+            l1_account_private_key: Some("0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".to_string()),
+            l1_rpc_url: Some(l1_rpc_url.clone()),
+            amount: Some(U256::from(1_000_000_000_000_000_000u64)),
+        }).await?;
         println!("Account funded");
     }
 
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
-            "startTokenMigrationOnL2",
-            (U256::from(l2_chain_id), l2_rpc_url.clone()),
+            "startTokenMigrationOnL2OrGateway",
+            (false, U256::from(l2_chain_id), l2_rpc_url.clone()),
         )
         .unwrap();
 

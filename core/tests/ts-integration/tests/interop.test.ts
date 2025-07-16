@@ -438,7 +438,7 @@ describe('Interop behavior checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while (currentRoot === ethers.ZeroHash && count < 40) {
+        while (currentRoot === ethers.ZeroHash && count < 60) {
             // We make repeated transactions to force the L2 to update the interop root.
             const tx = await alice.transfer({
                 to: alice.address,

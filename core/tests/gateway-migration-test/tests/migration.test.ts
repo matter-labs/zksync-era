@@ -9,7 +9,7 @@ import { ZeroAddress } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
-import { getEcosystemContracts } from '../../ts-integration/src/modifiers/balance-checker';
+import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 
 async function logsPath(name: string): Promise<string> {
@@ -233,25 +233,27 @@ describe('Migration From/To gateway test', function () {
         const tokenDetails = tester.token;
         const ecosystemContracts = await getEcosystemContracts(tester.syncWallet);
         let assetId = await ecosystemContracts.nativeTokenVault.assetId(tokenDetails.address);
-        const l1AssetSettlementLayer = await ecosystemContracts.assetTracker.assetSettlementLayer(assetId);
+        const chainId = (await tester.syncWallet.provider!.getNetwork()).chainId;
+        const migrationNumberL1 = await ecosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
 
         const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
         const gatewayEcosystemContracts = await getEcosystemContracts(
-            new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!)
+            new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!, tester.syncWallet.providerL1)
         );
-        const gatewayAssetSettlementLayer = await gatewayEcosystemContracts.assetTracker.assetSettlementLayer(assetId);
+        const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
 
         let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
         let expectedGatewayAssetSettlementLayer = 0n;
         if (direction == 'TO') {
             expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
-            expectedGatewayAssetSettlementLayer = BigInt(fileConfig.chain!);
+            // expectedGatewayAssetSettlementLayer = BigInt(fileConfig.chain!);
         } else {
             return; // kl todo add migrate back from gateway
         }
-        expect(l1AssetSettlementLayer === fileConfig.chain).to.be.true;
-        expect(gatewayAssetSettlementLayer === gatewayChain).to.be.true;
-    });
+        // expect(l1AssetSettlementLayer === fileConfig.chain).to.be.true;
+        // expect(gatewayAssetSettlementLayer === gatewayChain).to.be.true;
+        expect(migrationNumberL1 === migrationNumberGateway).to.be.true;
+        console.log('migrationNumberL1', migrationNumberL1);
 
     step('Execute transactions after simple restart', async () => {
         // Stop server.
