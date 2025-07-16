@@ -673,9 +673,11 @@ impl EthTxAggregator {
                 op_restrictions.prove_restriction = reason;
                 op_restrictions.execute_restriction = reason;
             } else {
-                // For the migration from gateway to L1, we need to wait for all interop roots to be executed
+                // For the migration from gateway to L1, we need we need to ensure all interop roots are processed,
+                // and all batches containing interop roots get committed and executed.
                 let new_interop_roots = storage.interop_root_dal().get_new_interop_roots(1).await?;
-                // If the batch to be committed contains any interop roots, we need to wait for them to be executed
+                // If there are new interop roots, or if some batches containing interop roots have not been committed yet,
+                // we lift these restrictions to wait for all batches containing interop roots to be committed and executed.
                 if !new_interop_roots.is_empty()
                     || (new_interop_roots.is_empty()
                         && self.is_waiting_for_interop_roots(storage).await?)
