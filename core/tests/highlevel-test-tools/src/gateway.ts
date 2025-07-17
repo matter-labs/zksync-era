@@ -37,6 +37,16 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
             );
 
             console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
+
+
+            await executeCommand(
+                'zkstack',
+                ['chain', 'gateway', 'migrate-token-balances ','--to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
+                chainName,
+                'gateway_token_balance_migration'
+            );
+
+            console.log(`✅ Successfully migrated token balance of chain ${chainName} to gateway`);
         } finally {
             // Always release the mutex
             gatewayMutex.release();
