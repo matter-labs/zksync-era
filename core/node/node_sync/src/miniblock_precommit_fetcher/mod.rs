@@ -181,22 +181,47 @@ impl MiniblockPrecommitFetcher {
         Ok(())
     }
 
+    async fn get_latest_miniblock_number(&self) -> Result<L2BlockNumber, FetcherError> {
+        let miniblock_number = self
+            .pool
+            .connection_tagged("sync_layer")
+            .await
+            .context("Failed to get connection for miniblock_precommit_fetcher")?
+            .blocks_dal()
+            .get_last_sealed_l2_block_header()
+            .await
+            .context("Cannot get latest miniblock")?
+            .map(|header| header.number)
+            .unwrap_or(L2BlockNumber(0));
+        Ok(miniblock_number)
+    }
+
     /// Fetches precommits for blocks from the cursor up to the safe block
     /// Returns true if any precommits were fetched
     async fn fetch_precommits(&self, cursor: &mut FetcherCursor) -> Result<bool, FetcherError> {
         // Get the current safe block from the main node
         let safe_block = self.client.get_safe_block().await?;
+        let last_synced_miniblock = self.get_latest_miniblock_number().await?;
+
+        if safe_block > last_synced_miniblock {
+            tracing::debug!(
+                "Not all miniblocks up to safe block {} are synced, precommit fetch only up to synced block {}",
+                safe_block,
+                last_synced_miniblock
+            );
+        }
+        let processing_to = safe_block.min(last_synced_miniblock);
         let processing_from = cursor.last_processed_miniblock;
 
         // Check if there are new blocks to process
-        if safe_block <= cursor.last_processed_miniblock {
+        if processing_to <= cursor.last_processed_miniblock {
             return Ok(false);
         }
 
         tracing::debug!(
             "Processing blocks from {} to {}",
-            cursor.last_processed_miniblock.0 + 1,
-            safe_block.0
+            processing_from.0,
+            processing_to.0
         );
 
         let mut blocks_processed = 0;
@@ -204,7 +229,7 @@ impl MiniblockPrecommitFetcher {
         let mut fetched_any = false;
 
         // Process blocks from the next one after the last processed up to the calculated end block
-        for current_block in (cursor.last_processed_miniblock.0 + 1)..=safe_block.0 {
+        for current_block in processing_from.0 + 1..=processing_to.0 {
             let current_block = L2BlockNumber(current_block);
             let precommit = self
                 .client
@@ -251,7 +276,7 @@ impl MiniblockPrecommitFetcher {
                 "Processed successfully {} blocks ({} -> {}), found {} precommits",
                 blocks_processed,
                 processing_from.0,
-                safe_block.0,
+                processing_to.0,
                 precommits_found
             );
         }
