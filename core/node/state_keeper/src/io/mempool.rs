@@ -672,12 +672,33 @@ impl MempoolIO {
                 })
                 .await?;
 
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
+
+            let gateway_migration_state = self.gateway_status(&mut storage).await;
+            let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+
+            let interop_roots = match gateway_migration_state {
+                GatewayMigrationState::InProgress => vec![],
+                _ => {
+                    storage
+                        .interop_root_dal()
+                        .get_new_interop_roots(limit)
+                        .await?
+                }
+            };
+
+            println!(
+                "XXX Got {} interop roots from DB for new l1 batch",
+                interop_roots.len()
+            );
+
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                first_l2_block: L2BlockParams::new(timestamp_ms),
+                // HERE
+                first_l2_block: L2BlockParams::new_raw(timestamp_ms, 1, interop_roots),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,
             }));
