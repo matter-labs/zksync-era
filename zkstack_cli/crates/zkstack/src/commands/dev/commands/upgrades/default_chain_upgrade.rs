@@ -129,8 +129,8 @@ pub async fn fetch_chain_info(
     args: &UpgradeArgsInner,
 ) -> anyhow::Result<FetchedChainInfo> {
     // Connect to the L1 Ethereum network
-    let l1_provider = get_ethers_provider(&args.l1_rpc_url)?;
-    let chain_id = U256::from(args.chain_id);
+    let l1_provider = get_ethers_provider(&args._l1_rpc_url)?;
+    let chain_id = U256::from(args._chain_id);
 
     let bridgehub = BridgehubAbi::new(
         upgrade_info
@@ -218,7 +218,7 @@ pub(crate) async fn run(
     let foundry_contracts_path = get_default_foundry_path(shell)?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let mut args = args_input.clone().fill_if_empty(shell).await?;
+    let mut args = args_input.clone()._fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
         let path = match args_input.upgrade_version {
             UpgradeVersions::V28_1Vk => {
