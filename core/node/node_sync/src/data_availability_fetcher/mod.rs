@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{commitment::PubdataType, try_stoppable, L1BatchNumber};
+use zksync_types::{commitment::PubdataType, L1BatchNumber};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::UnstableNamespaceClient,
@@ -123,7 +123,7 @@ impl DataAvailabilityFetcher {
                 break number;
             }
             tracing::debug!(
-                "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"
+                "No L1 batches with metadata are present in DB; will retry after a sleep"
             );
 
             tokio::time::timeout(Duration::from_secs(2), stop_receiver.changed())
@@ -322,7 +322,7 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        self.last_scanned_batch = self.determine_first_batch_to_scan(stop_receiver).await?;
+        self.last_scanned_batch = self.determine_first_batch_to_scan(stop_receiver.clone()).await?;
         self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
