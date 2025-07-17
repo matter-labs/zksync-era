@@ -15,4 +15,3 @@ prover:
   fflonk_snark_wrapper_vk_hash: 0x17e8d7931f1314431359233e65c22657a32c335205e3c24ce292c5819becfaa7
   dummy_verifier: true
 custom_genesis_state_path: null
-
