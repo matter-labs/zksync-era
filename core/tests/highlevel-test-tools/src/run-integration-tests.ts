@@ -114,3 +114,13 @@ export async function enIntegrationTests(chainName: string): Promise<void> {
     await initTestWallet(chainName);
     await runTest('integration', chainName, undefined, ['--verbose', '--ignore-prerequisites', '--external-node']);
 }
+
+export async function gatewayMigrationToGatewayTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('gateway-migration', chainName, undefined, ['--to-gateway']);
+}
+
+export async function gatewayMigrationFromGatewayTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('gateway-migration', chainName, undefined, ['--from-gateway']);
+}
