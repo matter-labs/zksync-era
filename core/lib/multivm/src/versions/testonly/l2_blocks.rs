@@ -25,7 +25,10 @@ use crate::{
         TxExecutionMode, VmInterfaceExt,
     },
     vm_latest::{
-        constants::{get_tx_operator_l2_block_info_offset, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
+        constants::{
+            get_interop_blocks_begin_offset, get_tx_operator_l2_block_info_offset,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+        },
         utils::l2_blocks::get_l2_block_hash_key,
         MultiVmSubversion,
     },
@@ -89,6 +92,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
         timestamp: 0,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     });
     let l1_tx = get_l1_noop();
 
@@ -112,6 +116,7 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
         timestamp: l1_batch.timestamp,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
 
     let mut vm = VmTesterBuilder::new()
@@ -284,11 +289,12 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         timestamp: 1,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
 
     // Case 1: Block number increasing by more than 1
     test_new_l2_block::<VM>(
-        correct_first_block,
+        correct_first_block.clone(),
         Some(3),
         None,
         None,
@@ -303,11 +309,11 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
     );
 
     // Case 2: Timestamp not increasing
-    if default_system_env().version.is_pre_fast_blocks() {
+    if default_system_env().version.is_pre_interop_fast_blocks() {
         test_new_l2_block::<VM>(
-            correct_first_block,
+            correct_first_block.clone(),
             None,
-            Some(1),
+            Some(0),
             None,
             Some(Halt::FailedToSetL2Block(
                 encode_function_call(
@@ -322,7 +328,7 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
 
     // Case 3: Incorrect previous block hash
     test_new_l2_block::<VM>(
-        correct_first_block,
+        correct_first_block.clone(),
         None,
         None,
         Some(H256::zero()),
@@ -415,6 +421,7 @@ fn test_first_in_batch<VM: TestedVm>(
         timestamp: last_l2_block.timestamp + 1,
         prev_block_hash: vm.vm.last_l2_block_hash(),
         max_virtual_blocks_to_create: last_l2_block.max_virtual_blocks_to_create,
+        interop_roots: vec![],
     };
 
     vm.vm.push_l2_block_unchecked(new_l2_block);
@@ -445,6 +452,7 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             timestamp: 2,
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         None,
     );
@@ -464,6 +472,7 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             timestamp: 9,
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         Some(Halt::FailedToSetL2Block(
             encode_function_call(
@@ -480,6 +489,8 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
     let fictive_miniblock_position =
         get_tx_operator_l2_block_info_offset(MultiVmSubversion::latest())
             + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+    let interop_blocks_begin_offset = get_interop_blocks_begin_offset(MultiVmSubversion::latest());
+    let number_of_interop_roots_plus_one = block_info.interop_roots.len() + 1;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),
@@ -490,6 +501,10 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
         (
             fictive_miniblock_position + 3,
             block_info.max_virtual_blocks_to_create.into(),
+        ),
+        (
+            interop_blocks_begin_offset,
+            number_of_interop_roots_plus_one.into(),
         ),
     ])
 }

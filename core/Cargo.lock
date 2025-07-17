@@ -13316,6 +13316,7 @@ dependencies = [
  "chrono",
  "hex",
  "rand 0.8.5",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",
@@ -14106,6 +14107,7 @@ name = "zksync_external_price_api"
 version = "28.9.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "bigdecimal",
  "chrono",

@@ -20,8 +20,12 @@
                 "PriorityTransactions",
                 "ChainBatchRoot",
                 "ServerNotification",
+<<<<<<< HEAD
                 "ProofRequestAcknowledged",
                 "ProofRequestProven"
+=======
+                "InteropRoot"
+>>>>>>> main
               ]
             }
           }

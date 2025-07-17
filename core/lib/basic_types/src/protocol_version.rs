@@ -73,15 +73,16 @@ pub enum ProtocolVersionId {
     Version27,
     Version28,
     Version29,
+    Version30,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version28
+        Self::Version29
     }
 
     pub const fn next() -> Self {
-        Self::Version29
+        Self::Version30
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -128,8 +129,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
+
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version29 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }
     }
 
@@ -161,6 +164,10 @@ impl ProtocolVersionId {
 
     pub fn is_post_fflonk(&self) -> bool {
         self >= &Self::Version27
+    }
+
+    pub fn is_pre_interop_fast_blocks(&self) -> bool {
+        self < &Self::Version29
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -201,11 +208,6 @@ impl ProtocolVersionId {
 
     pub const fn gateway_upgrade() -> Self {
         ProtocolVersionId::Version26
-    }
-
-    pub fn is_pre_fast_blocks(&self) -> bool {
-        // TODO: change this to `self < ProtocolVersionId::Version29` when v29 contracts are merged.
-        true
     }
 }
 
@@ -314,8 +316,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version29 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }
     }
 }

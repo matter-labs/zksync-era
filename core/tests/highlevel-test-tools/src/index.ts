@@ -9,7 +9,9 @@ export {
     feesTest,
     revertTest,
     genesisRecoveryTest,
-    snapshotsRecoveryTest
+    snapshotsRecoveryTest,
+    gatewayMigrationToGatewayTest,
+    gatewayMigrationFromGatewayTest
 } from './run-integration-tests';
 export { generateLoad } from './generate-load';
 export { getRpcUrl, queryJsonRpc, getL1BatchNumber, getL1BatchDetails } from './rpc-utils';

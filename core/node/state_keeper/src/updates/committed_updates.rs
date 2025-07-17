@@ -1,6 +1,8 @@
+use std::collections::HashSet;
+
 use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
 use zksync_types::{
-    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, H256,
+    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot, H256,
 };
 
 use crate::updates::l2_block_updates::L2BlockUpdates;
@@ -13,6 +15,7 @@ pub struct CommittedUpdates {
     pub txs_encoding_size: usize,
     pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
+    pub interop_roots: HashSet<InteropRoot>,
 }
 
 impl CommittedUpdates {
@@ -24,6 +27,7 @@ impl CommittedUpdates {
             txs_encoding_size: 0,
             l1_tx_count: 0,
             finished: None,
+            interop_roots: HashSet::new(),
         }
     }
 
@@ -68,6 +72,7 @@ mod tests {
             H256::zero(),
             1,
             ProtocolVersionId::latest(),
+            vec![],
         );
         let tx = create_transaction(10, 100);
         let expected_tx_size = tx.bootloader_encoding_size();

@@ -16,6 +16,7 @@ pub enum EventType {
     ServerNotification,
     ProofRequestAcknowledged,
     ProofRequestProven,
+    InteropRoot,
 }
 
 impl EthWatcherDal<'_, '_> {
