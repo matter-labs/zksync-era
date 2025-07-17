@@ -680,7 +680,6 @@ async fn assert_precommit_transaction_status(
     }
 }
 
-#[tracing_test::traced_test]
 #[test_casing(3, [EthTxFinalityStatus::Finalized, EthTxFinalityStatus::FastFinalized, EthTxFinalityStatus::Pending])]
 #[tokio::test]
 async fn test_precommit_transaction_validation(

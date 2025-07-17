@@ -16,7 +16,6 @@ use super::*;
 
 const TEST_SL: SLChainId = SLChainId(1);
 
-/// Helper function to create an L2 block in the storage with optional precommit data
 async fn insert_l2_block(
     storage: &mut Connection<'_, Core>,
     number: u32,
@@ -27,8 +26,8 @@ async fn insert_l2_block(
     storage.blocks_dal().insert_l2_block(&block).await.unwrap();
 }
 
-async fn insert_l2_block_with_precommit(storage: &mut Connection<'_, Core>, number: u32) {
-    let hash = get_deterministic_hash(L2BlockNumber(number));
+async fn insert_l2_block_with_precommit_tx(storage: &mut Connection<'_, Core>, number: u32) {
+    let hash = rolling_tx_hash(L2BlockNumber(number));
     insert_l2_block(storage, number, Some(hash)).await;
     storage
         .eth_sender_dal()
@@ -41,14 +40,6 @@ async fn insert_l2_block_with_precommit(storage: &mut Connection<'_, Core>, numb
 struct MockMainNodeClient {
     precommit: Arc<Mutex<HashMap<L2BlockNumber, MiniblockPrecommitDetails>>>,
     safe_block: Arc<Mutex<L2BlockNumber>>,
-}
-
-impl std::ops::Deref for MockMainNodeClient {
-    type Target = Arc<Mutex<HashMap<L2BlockNumber, MiniblockPrecommitDetails>>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.precommit
-    }
 }
 
 impl MockMainNodeClient {
@@ -89,14 +80,14 @@ impl MainNodeClient for MockMainNodeClient {
 }
 
 /// Helper function to generate deterministic precommit hash for a block number
-fn get_deterministic_hash(block_number: L2BlockNumber) -> H256 {
+fn rolling_tx_hash(block_number: L2BlockNumber) -> H256 {
     H256::repeat_byte(block_number.0 as u8)
 }
 
 /// Helper function to generate MiniblockPrecommitDetails for a block number
 fn precommit_details_for_block(block_number: L2BlockNumber) -> MiniblockPrecommitDetails {
     MiniblockPrecommitDetails {
-        hash: get_deterministic_hash(block_number),
+        hash: rolling_tx_hash(block_number),
         chain_id: TEST_SL,
     }
 }
@@ -113,8 +104,8 @@ async fn fetcher_cursor_initialization() {
     assert_eq!(cursor.last_processed_miniblock, L2BlockNumber(0));
 
     insert_l2_block(&mut storage, 1, None).await;
-    insert_l2_block_with_precommit(&mut storage, 2).await;
-    insert_l2_block_with_precommit(&mut storage, 3).await;
+    insert_l2_block_with_precommit_tx(&mut storage, 2).await;
+    insert_l2_block_with_precommit_tx(&mut storage, 3).await;
     insert_l2_block(&mut storage, 4, None).await;
 
     // Cursor should now point to the block with a precommit
@@ -144,7 +135,7 @@ async fn assert_block_precommit(
 }
 
 /// Helper function to assert precommit states for a range of blocks
-/// It checks that blocks in `blocks_with_precommits` have precommits with deterministic hashes
+/// It checks that blocks in `blocks_with_precommits` have precommits with the test hashes
 /// and all other blocks in the range have no precommits
 async fn assert_blocks_in_range(
     storage: &mut Connection<'_, Core>,
@@ -243,32 +234,20 @@ async fn fetcher_with_incremental_safe_block() {
 
     // Add precommits for blocks 2 and 4
     client
-        .add_precommit(
-            L2BlockNumber(2),
-            get_deterministic_hash(L2BlockNumber(2)),
-            TEST_SL,
-        )
+        .add_precommit(L2BlockNumber(2), rolling_tx_hash(L2BlockNumber(2)), TEST_SL)
         .await;
     client
-        .add_precommit(
-            L2BlockNumber(4),
-            get_deterministic_hash(L2BlockNumber(4)),
-            TEST_SL,
-        )
+        .add_precommit(L2BlockNumber(4), rolling_tx_hash(L2BlockNumber(4)), TEST_SL)
         .await;
 
     // Add precommits that are not finalized, but will be synced when safe block is increased
     client
-        .add_precommit(
-            L2BlockNumber(8),
-            get_deterministic_hash(L2BlockNumber(8)),
-            TEST_SL,
-        )
+        .add_precommit(L2BlockNumber(8), rolling_tx_hash(L2BlockNumber(8)), TEST_SL)
         .await;
     client
         .add_precommit(
             L2BlockNumber(12),
-            get_deterministic_hash(L2BlockNumber(12)),
+            rolling_tx_hash(L2BlockNumber(12)),
             TEST_SL,
         )
         .await;
@@ -327,11 +306,7 @@ async fn fetcher_ignores_unsynced_blocks() {
 
     // Add precommits for blocks that exist in our database
     client
-        .add_precommit(
-            L2BlockNumber(5),
-            get_deterministic_hash(L2BlockNumber(5)),
-            TEST_SL,
-        )
+        .add_precommit(L2BlockNumber(5), rolling_tx_hash(L2BlockNumber(5)), TEST_SL)
         .await;
 
     // Add precommits for blocks beyond our last synced block (10)
@@ -339,7 +314,7 @@ async fn fetcher_ignores_unsynced_blocks() {
     client
         .add_precommit(
             L2BlockNumber(12),
-            get_deterministic_hash(L2BlockNumber(12)),
+            rolling_tx_hash(L2BlockNumber(12)),
             TEST_SL,
         )
         .await;
