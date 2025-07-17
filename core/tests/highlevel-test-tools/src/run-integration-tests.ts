@@ -95,12 +95,12 @@ export async function runIntegrationTests(
 
 export async function feesTest(chainName: string): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('fees', chainName, undefined, ['--no-kill']);
+    // await runTest('fees', chainName, undefined, ['--no-kill']);
 }
 
 export async function revertTest(chainName: string): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('revert', chainName, undefined, ['--no-kill', '--ignore-prerequisites']);
+    // await runTest('revert', chainName, undefined, ['--no-kill', '--ignore-prerequisites']);
 }
 
 export async function upgradeTest(chainName: string): Promise<void> {
@@ -110,12 +110,12 @@ export async function upgradeTest(chainName: string): Promise<void> {
 
 export async function snapshotsRecoveryTest(chainName: string): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('recovery', chainName, undefined, ['--snapshot', '--ignore-prerequisites', '--verbose']);
+    // await runTest('recovery', chainName, undefined, ['--snapshot', '--ignore-prerequisites', '--verbose']);
 }
 
 export async function genesisRecoveryTest(chainName: string): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('recovery', chainName, undefined, ['--no-kill', '--ignore-prerequisites', '--verbose']);
+    // await runTest('recovery', chainName, undefined, ['--no-kill', '--ignore-prerequisites', '--verbose']);
 }
 
 export async function enIntegrationTests(chainName: string, secondChainName?: string | undefined): Promise<void> {

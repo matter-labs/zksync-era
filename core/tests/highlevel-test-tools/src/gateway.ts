@@ -1,5 +1,6 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
+import { startServer } from './start-server';
 
 /**
  * Global mutex for gateway migration to prevent concurrent migrations
@@ -38,6 +39,7 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
 
             console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
 
+            let server = await startServer(chainName);
 
             await executeCommand(
                 'zkstack',
@@ -46,6 +48,8 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
                 'gateway_token_balance_migration'
             );
 
+
+            await server.kill();
             console.log(`✅ Successfully migrated token balance of chain ${chainName} to gateway`);
         } finally {
             // Always release the mutex
