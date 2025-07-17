@@ -8,10 +8,9 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::{keccak256, keccak256_concat},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
-/// Represents a successfully deployed smart contract.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeployedContract {
     pub account_id: AccountTreeId,
@@ -27,19 +26,30 @@ impl DeployedContract {
     }
 }
 
-/// Holder for l1 batches data.
+/// Holder for l1 batches or l2 blocks data.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct L1BatchStatistics {
-    pub number: L1BatchNumber,
+pub struct CommonBlockStatistics {
+    pub number: u32,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
 }
 
-impl From<L1BatchHeader> for L1BatchStatistics {
+impl From<L1BatchHeader> for CommonBlockStatistics {
     fn from(header: L1BatchHeader) -> Self {
         Self {
-            number: header.number,
+            number: header.number.0,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
+}
+
+impl From<L2BlockHeader> for CommonBlockStatistics {
+    fn from(header: L2BlockHeader) -> Self {
+        Self {
+            number: header.number.0,
             timestamp: header.timestamp,
             l1_tx_count: header.l1_tx_count.into(),
             l2_tx_count: header.l2_tx_count.into(),
@@ -139,6 +149,7 @@ pub struct L2BlockHeader {
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
     pub pubdata_params: PubdataParams,
+    pub rolling_txs_hash: Option<H256>,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -157,6 +168,7 @@ pub struct L2BlockExecutionData {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub txs: Vec<Transaction>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl L1BatchHeader {

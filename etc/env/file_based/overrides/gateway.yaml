@@ -1,5 +1,5 @@
 eth:
   sender:
     precommit_params:
-      deadline_sec: 10
+      deadline: 1 sec
       l2_blocks_to_aggregate: 5

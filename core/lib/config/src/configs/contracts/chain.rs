@@ -13,6 +13,7 @@ pub struct EcosystemContracts {
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
 }
 
 impl EcosystemContracts {
@@ -24,6 +25,7 @@ impl EcosystemContracts {
             l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
             l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
             server_notifier_addr: Some(Address::repeat_byte(0x18)),
+            message_root_proxy_addr: Some(Address::repeat_byte(0x19)),
         }
     }
 }
@@ -201,6 +203,7 @@ impl ContractsConfig {
             wrapped_base_token_store: self.ecosystem_contracts.l1_wrapped_base_token_store,
             bridge_hub: Some(self.ecosystem_contracts.bridgehub_proxy_addr),
             shared_bridge: self.bridges.shared.l1_address,
+            message_root: self.ecosystem_contracts.message_root_proxy_addr,
             erc_20_bridge: self.bridges.erc20.l1_address,
             base_token_address: self.l1.base_token_addr,
             chain_admin: Some(self.l1.chain_admin_addr),
@@ -232,6 +235,7 @@ impl ContractsConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
                 state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
+                message_root_proxy_addr: ecosystem.message_root_proxy_addr,
                 multicall3: Some(self.l1.multicall3_addr),
                 validator_timelock_addr: Some(self.l1.validator_timelock_addr),
             },
@@ -328,6 +332,7 @@ mod tests {
                     "0x35ea7f92f4c5f433efe15284e99c040110cf6297",
                 )),
                 server_notifier_addr: Some(addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a")),
+                message_root_proxy_addr: Some(addr("0x9a2cd573e8142a5435539f0688f106affcc1a8a6")),
             },
             proof_manager_contracts: ProofManagerContracts {
                 proof_manager_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
@@ -350,6 +355,7 @@ mod tests {
             CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
             CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_MESSAGE_ROOT_PROXY_ADDR="0x9a2cd573e8142a5435539f0688f106affcc1a8a6"
             CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
             CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
             CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
@@ -389,6 +395,7 @@ mod tests {
           contracts:
             ecosystem_contracts:
               bridgehub_proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              message_root_proxy_addr: 0x9a2cd573e8142a5435539f0688f106affcc1a8a6
               state_transition_proxy_addr: 0xd90f1c081c6117241624e97cb6147257c3cb2097
               transparent_proxy_admin_addr: 0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5
               l1_bytecodes_supplier_addr: F00B988a98Ca742e7958DeF9F7823b5908715f4a

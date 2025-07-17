@@ -20,18 +20,20 @@ pub(super) struct IntegrationTestRunner<'a> {
     test_timeout: Duration,
     test_suites: Vec<&'a str>,
     test_pattern: Option<&'a str>,
+    second_chain: Option<&'a str>,
 }
 
 impl<'a> IntegrationTestRunner<'a> {
-    pub fn new(shell: &'a Shell, no_deps: bool) -> anyhow::Result<Self> {
+    pub fn new(shell: &'a Shell, no_deps: bool, timeout: Option<u64>) -> anyhow::Result<Self> {
         let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
         Ok(Self {
             shell,
             no_deps,
             ecosystem_config,
-            test_timeout: Duration::from_secs(600), // See jest.config.json
+            test_timeout: Duration::from_secs(timeout.unwrap_or(600)), // See jest.config.json
             test_suites: vec![],
             test_pattern: None,
+            second_chain: None,
         })
     }
 
@@ -51,6 +53,11 @@ impl<'a> IntegrationTestRunner<'a> {
 
     pub fn with_test_pattern(mut self, pattern: Option<&'a str>) -> Self {
         self.test_pattern = pattern;
+        self
+    }
+
+    pub fn with_second_chain(mut self, second_chain: Option<&'a str>) -> Self {
+        self.second_chain = second_chain;
         self
     }
 
@@ -80,7 +87,8 @@ impl<'a> IntegrationTestRunner<'a> {
             self.shell,
             "yarn jest --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
         )
-        .env("CHAIN_NAME", ecosystem_config.current_chain());
+        .env("CHAIN_NAME", ecosystem_config.current_chain())
+        .env("SECOND_CHAIN_NAME", self.second_chain.unwrap_or(""));
 
         if global_config().verbose {
             command = command.env(
@@ -94,9 +102,10 @@ impl<'a> IntegrationTestRunner<'a> {
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     logger::info(msg_integration_tests_run(args.external_node));
-    let mut command = IntegrationTestRunner::new(shell, args.no_deps)?
+    let mut command = IntegrationTestRunner::new(shell, args.no_deps, args.timeout)?
         .with_test_suites(args.suite.iter().map(String::as_str))
         .with_test_pattern(args.test_pattern.as_deref())
+        .with_second_chain(args.second_chain.as_deref())
         .build_command()
         .await?;
     if args.external_node {

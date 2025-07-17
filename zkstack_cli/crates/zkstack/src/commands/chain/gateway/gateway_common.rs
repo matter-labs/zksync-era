@@ -5,17 +5,14 @@ use std::sync::Arc;
 use anyhow::Context;
 use chrono::Utc;
 use ethers::{
-    middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Filter, TransactionReceipt, TransactionRequest},
+    types::{Filter, TransactionReceipt},
 };
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
     forge::ForgeScriptArgs,
     logger,
-    spinner::Spinner,
 };
 use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::{Address, H256, U256, U64};
@@ -34,7 +31,7 @@ use super::{
 };
 use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
-    commands::chain::admin_call_builder::AdminCallBuilder,
+    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
 };
 
@@ -507,51 +504,6 @@ pub(crate) async fn notify_server(
     .await?;
 
     Ok(())
-}
-
-pub(crate) async fn send_tx(
-    to: Address,
-    data: Vec<u8>,
-    value: U256,
-    l1_rpc_url: String,
-    private_key: H256,
-    description: &str,
-) -> anyhow::Result<TransactionReceipt> {
-    // 1. Connect to provider
-    let provider = Provider::<Http>::try_from(&l1_rpc_url)?;
-
-    // 2. Set up wallet (signer)
-    let wallet: LocalWallet = LocalWallet::from_bytes(private_key.as_bytes())?;
-    let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
-
-    // 3. Create a transaction
-    let tx = TransactionRequest::new().to(to).data(data).value(value);
-
-    let spinner = Spinner::new(&format!("Sending transaction for {description}..."));
-
-    // 4. Sign the transaction
-    let client = SignerMiddleware::new(provider.clone(), wallet.clone());
-    let pending_tx = client.send_transaction(tx, None).await?;
-    spinner.finish();
-
-    logger::info(format!(
-        "Transaction sent! Hash: {:#?}",
-        pending_tx.tx_hash()
-    ));
-
-    let spinner = Spinner::new("Waiting for transaction to complete");
-
-    // 5. Await receipt
-    let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
-
-    spinner.finish();
-
-    logger::info(format!(
-        "Transaciton {:#?} completed!",
-        receipt.transaction_hash
-    ));
-
-    Ok(receipt)
 }
 
 pub(crate) async fn extract_and_wait_for_priority_ops(
