@@ -31,7 +31,8 @@ enum FetcherError {
     Internal(#[from] anyhow::Error),
 }
 
-struct MiniblockPrecommitDetails {
+#[derive(Debug, Clone)]
+pub struct MiniblockPrecommitDetails {
     hash: H256,
     chain_id: SLChainId,
 }
@@ -125,24 +126,12 @@ pub struct MiniblockPrecommitFetcher {
 impl MiniblockPrecommitFetcher {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
-        Self::from_parts(
-            Box::new(client.for_component("miniblock_precommit_fetcher")),
-            pool,
-            Self::DEFAULT_SLEEP_INTERVAL,
-        )
-    }
-
-    fn from_parts(
-        client: Box<dyn MainNodeClient>,
-        pool: ConnectionPool<Core>,
-        sleep_interval: Duration,
-    ) -> Self {
+    pub fn new(client: Box<dyn MainNodeClient>, pool: ConnectionPool<Core>) -> Self {
         Self {
             client,
             pool,
             health_updater: ReactiveHealthCheck::new("miniblock_precommit_fetcher").1,
-            sleep_interval,
+            sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
         }
     }
 
