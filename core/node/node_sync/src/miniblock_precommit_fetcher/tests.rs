@@ -315,7 +315,7 @@ async fn fetcher_ignores_unsynced_blocks() {
     let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
-        .unwrap();
+        .unwrap(); // Generate a transaction hash for precommit
 
     // Insert L2 blocks only up to block 10
     for i in 1..=10 {
