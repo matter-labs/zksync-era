@@ -6,7 +6,10 @@ use tokio::sync::Mutex;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::create_l2_block;
-use zksync_types::{L2BlockNumber, SLChainId, H256};
+use zksync_types::{
+    aggregated_operations::{AggregatedActionType, L2BlockAggregatedActionType},
+    L2BlockNumber, SLChainId, H256,
+};
 use zksync_web3_decl::error::EnrichedClientResult;
 
 use super::*;
@@ -346,22 +349,18 @@ async fn fetcher_ignores_unsynced_blocks() {
 
     // Fetching should succeed and not error out even with unsynced blocks
     fetcher.fetch_precommits(&mut cursor).await.unwrap();
-
+    assert_eq!(cursor.last_processed_miniblock, L2BlockNumber(10));
+    // only one transaction fetched
+    assert_eq!(
+        storage
+            .eth_sender_dal()
+            .count_eth_txs_by_type(AggregatedActionType::L2Block(
+                L2BlockAggregatedActionType::Precommit
+            ))
+            .await,
+        1
+    );
     // Only block 5 should have a precommit
     // Blocks 1-10 are synced, 11-15 are not synced
     assert_blocks_in_range(&mut storage, 1..=10, &[L2BlockNumber(5)]).await;
-
-    let block = storage
-        .blocks_web3_dal()
-        .get_block_details(L2BlockNumber(11))
-        .await
-        .unwrap();
-    assert!(block.is_none());
-
-    let block = storage
-        .blocks_web3_dal()
-        .get_block_details(L2BlockNumber(12))
-        .await
-        .unwrap();
-    assert!(block.is_none());
 }

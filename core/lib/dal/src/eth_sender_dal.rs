@@ -790,13 +790,14 @@ impl EthSenderDal<'_, '_> {
         .await?;
 
         // Update the miniblocks table with the precommit transaction hash
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             UPDATE miniblocks
             SET
                 eth_precommit_tx_id = $1
             WHERE
                 number = $2
+                AND eth_precommit_tx_id IS NULL
             "#,
             eth_tx_id as i32,
             i64::from(miniblock.0)
@@ -804,6 +805,12 @@ impl EthSenderDal<'_, '_> {
         .execute(transaction.conn())
         .await
         .context("Failed to update miniblock with precommit hash")?;
+
+        if result.rows_affected() == 0 {
+            anyhow::bail!(
+                "Update eth_precommit_tx_id that is is not null or for non existing miniblock is not allowed"
+            );
+        }
 
         transaction.commit().await.context("commit")
     }
@@ -1172,6 +1179,25 @@ impl EthSenderDal<'_, '_> {
         .max
         .unwrap()
         .try_into()
+        .unwrap()
+    }
+
+    pub async fn count_eth_txs_by_type(&mut self, op_type: AggregatedActionType) -> i64 {
+        sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                tx_type = $1
+            "#,
+            op_type.as_str(),
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .count
         .unwrap()
     }
 
