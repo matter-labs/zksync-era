@@ -21,7 +21,7 @@ use crate::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
             utils::get_default_foundry_path,
         },
-        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+        dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
     },
     utils::addresses::apply_l1_to_l2_alias,
 };
