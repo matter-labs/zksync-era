@@ -192,13 +192,14 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     depth: u16,
     object_store: &dyn ObjectStore,
     base_layer_circuit_id: Option<u8>,
-) -> Vec<(u8, String)> {
-    let mut ids_and_urls = Vec::with_capacity(recursive_circuits.len());
+) -> Vec<(u8, usize, String)> {
+    let mut ids_sequence_numbers_and_urls = Vec::with_capacity(recursive_circuits.len());
     for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
+        let sequence_number = sequence_number_offset + sequence_number;
         let circuit_key = FriCircuitKey {
             batch_id,
-            sequence_number: sequence_number_offset + sequence_number,
+            sequence_number,
             circuit_id,
             aggregation_round,
             depth,
@@ -207,9 +208,9 @@ pub async fn save_recursive_layer_prover_input_artifacts(
             .put(circuit_key, &CircuitWrapper::Recursive(circuit))
             .await
             .unwrap();
-        ids_and_urls.push((circuit_id, blob_url));
+        ids_sequence_numbers_and_urls.push((circuit_id, sequence_number, blob_url));
     }
-    ids_and_urls
+    ids_sequence_numbers_and_urls
 }
 
 #[tracing::instrument(skip_all)]

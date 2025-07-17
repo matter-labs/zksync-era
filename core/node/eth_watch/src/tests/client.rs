@@ -15,8 +15,8 @@ use zksync_types::{
     u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
-    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction,
+    H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
 use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
@@ -30,6 +30,7 @@ pub struct FakeEthClientData {
     chain_id: SLChainId,
     processed_priority_transactions_count: u64,
     chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
+    chain_log_proofs_until_msg_root: HashMap<L2BlockNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
     bytecode_preimages: HashMap<H256, Vec<u8>>,
@@ -45,6 +46,7 @@ impl FakeEthClientData {
             chain_id,
             processed_priority_transactions_count: 0,
             chain_log_proofs: Default::default(),
+            chain_log_proofs_until_msg_root: Default::default(),
             batch_roots: Default::default(),
             chain_roots: Default::default(),
             bytecode_preimages: Default::default(),
@@ -102,6 +104,15 @@ impl FakeEthClientData {
     fn add_chain_log_proofs(&mut self, chain_log_proofs: Vec<(L1BatchNumber, ChainAggProof)>) {
         for (batch, proof) in chain_log_proofs {
             self.chain_log_proofs.insert(batch, proof);
+        }
+    }
+
+    fn add_chain_log_proofs_until_msg_root(
+        &mut self,
+        chain_log_proofs_until_msg_root: Vec<(L2BlockNumber, ChainAggProof)>,
+    ) {
+        for (block, proof) in chain_log_proofs_until_msg_root {
+            self.chain_log_proofs_until_msg_root.insert(block, proof);
         }
     }
 
@@ -183,6 +194,16 @@ impl MockEthClient {
             .write()
             .await
             .add_chain_log_proofs(chain_log_proofs);
+    }
+
+    pub async fn add_chain_log_proofs_until_msg_root(
+        &mut self,
+        chain_log_proofs_until_msg_root: Vec<(L2BlockNumber, ChainAggProof)>,
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_chain_log_proofs_until_msg_root(chain_log_proofs_until_msg_root);
     }
 }
 
@@ -341,7 +362,7 @@ impl ZkSyncExtentionEthClient for MockEthClient {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         Ok(self
@@ -349,7 +370,21 @@ impl ZkSyncExtentionEthClient for MockEthClient {
             .read()
             .await
             .chain_log_proofs
-            .get(&l1_batch_number)
+            .get(&batch_number)
+            .cloned())
+    }
+
+    async fn get_chain_log_proof_until_msg_root(
+        &self,
+        block_number: L2BlockNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        Ok(self
+            .inner
+            .read()
+            .await
+            .chain_log_proofs_until_msg_root
+            .get(&block_number)
             .cloned())
     }
 
@@ -538,7 +573,7 @@ fn batch_root_to_log(sl_block_number: u64, l2_batch_number: u64, batch_root: H25
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(sl_block_number.into()),
-        l1_batch_number: Some(sl_block_number.into()),
+        l1_batch_number: Some(l2_batch_number.into()),
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),

@@ -63,7 +63,8 @@ impl ArtifactsManager for NodeAggregation {
 
         AggregationBlobUrls {
             aggregation_urls,
-            circuit_ids_and_urls: artifacts.recursive_circuit_ids_and_urls,
+            circuit_ids_sequence_numbers_and_urls: artifacts
+                .recursive_circuit_ids_sequence_numbers_and_urls,
         }
     }
 
@@ -80,7 +81,7 @@ impl ArtifactsManager for NodeAggregation {
     ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await.unwrap();
         let mut transaction = prover_connection.start_transaction().await.unwrap();
-        let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+        let dependent_jobs = blob_urls.circuit_ids_sequence_numbers_and_urls.len();
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.batch_id)
@@ -97,7 +98,7 @@ impl ArtifactsManager for NodeAggregation {
                     .fri_prover_jobs_dal()
                     .insert_prover_jobs(
                         artifacts.batch_id,
-                        blob_urls.circuit_ids_and_urls,
+                        blob_urls.circuit_ids_sequence_numbers_and_urls,
                         AggregationRound::NodeAggregation,
                         artifacts.depth,
                         protocol_version_id,
@@ -118,7 +119,7 @@ impl ArtifactsManager for NodeAggregation {
                     .await;
             }
             false => {
-                let (_, blob_url) = blob_urls.circuit_ids_and_urls[0].clone();
+                let (_, _, blob_url) = blob_urls.circuit_ids_sequence_numbers_and_urls[0].clone();
                 transaction
                     .fri_prover_jobs_dal()
                     .insert_prover_job(

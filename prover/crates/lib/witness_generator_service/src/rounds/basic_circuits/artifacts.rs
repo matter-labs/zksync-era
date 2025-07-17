@@ -87,7 +87,7 @@ impl ArtifactsManager for BasicCircuits {
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 job_id.into(),
-                artifacts.circuit_urls,
+                artifacts.circuit_ids_sequence_numbers_and_urls,
                 AggregationRound::BasicCircuits,
                 0,
                 protocol_version_id,

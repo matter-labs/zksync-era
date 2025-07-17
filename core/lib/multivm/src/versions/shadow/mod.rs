@@ -30,7 +30,7 @@ type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEna
 type ShadowedFastVm<S = InMemoryStorage, Tr = ()> =
     crate::vm_instance::ShadowedFastVm<S, Tr, FastValidationTracer>;
 
-fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
+fn hash_block(block_env: &L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(
         L2BlockNumber(block_env.number),
         block_env.timestamp,
@@ -74,7 +74,7 @@ impl Harness {
                 Self::STORAGE_CONTRACT_ADDRESS,
             ),
             storage_contract_abi: &TestContract::storage_test().abi,
-            current_block: l1_batch_env.first_l2_block,
+            current_block: l1_batch_env.first_l2_block.clone(),
         }
     }
 
@@ -114,10 +114,11 @@ impl Harness {
         self.current_block = L2BlockEnv {
             number: self.current_block.number + 1,
             timestamp: self.current_block.timestamp + 1,
-            prev_block_hash: hash_block(self.current_block, tx_hashes),
+            prev_block_hash: hash_block(&self.current_block, tx_hashes),
             max_virtual_blocks_to_create: self.current_block.max_virtual_blocks_to_create,
+            interop_roots: vec![],
         };
-        vm.start_new_l2_block(self.current_block);
+        vm.start_new_l2_block(self.current_block.clone());
     }
 
     fn execute_on_vm(&mut self, vm: &mut impl VmInterface) {

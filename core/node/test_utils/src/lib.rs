@@ -56,6 +56,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
             timestamp,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             fair_l2_gas_price: 1,
@@ -83,6 +84,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: Some(H256::zero()),
     }
 }
 
@@ -255,6 +257,7 @@ impl Snapshot {
             gas_limit: 0,
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
+            rolling_txs_hash: Some(H256::zero()),
         };
         Snapshot {
             l1_batch,

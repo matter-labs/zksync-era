@@ -22,7 +22,7 @@ chrono.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_eth_client.workspace = true
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_da_client = { workspace = true, features = ["node_framework"] }
 zksync_basic_types.workspace = true

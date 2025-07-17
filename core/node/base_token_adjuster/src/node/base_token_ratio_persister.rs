@@ -6,9 +6,12 @@ use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{
     clients::PKSigningClient,
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
-    web3_decl::client::{DynClient, L1},
+    web3_decl::{
+        client::{DynClient, L1},
+        node::SettlementModeResource,
+    },
 };
-use zksync_external_price_api::{NoOpPriceApiClient, PriceApiClient};
+use zksync_external_price_api::{APIToken, NoOpPriceApiClient, PriceApiClient};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -16,7 +19,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::L1ChainId;
+use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 
@@ -39,6 +42,7 @@ pub struct Input {
     tx_params: Arc<dyn TxParamsProvider>,
     l1_contracts: L1ChainContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
+    settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -76,7 +80,22 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let price_api_client = input
             .price_api_client
             .unwrap_or_else(|| Arc::new(NoOpPriceApiClient));
-        let base_token_addr = input.l1_ecosystem_contracts.0.base_token_address;
+        let base_token_addr = self
+            .config
+            .base_token_addr_override
+            .unwrap_or(input.l1_ecosystem_contracts.0.base_token_address);
+        let base_token = APIToken::from_config_address(base_token_addr);
+
+        let sl_token = match input.settlement_mode.settlement_layer() {
+            SettlementLayer::L1 { .. } => APIToken::Eth,
+            SettlementLayer::Gateway { .. } => {
+                if let Some(address) = self.config.gateway_base_token_addr_override {
+                    APIToken::ERC20(address)
+                } else {
+                    APIToken::ZK
+                }
+            }
+        };
 
         let l1_behaviour = self
             .wallets_config
@@ -116,7 +135,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let persister = BaseTokenRatioPersister::new(
             master_pool,
             self.config,
-            base_token_addr,
+            base_token,
+            sl_token,
             price_api_client,
             l1_behaviour,
         );

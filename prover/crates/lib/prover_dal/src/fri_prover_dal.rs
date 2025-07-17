@@ -70,21 +70,18 @@ impl FriProverDal<'_, '_> {
     pub async fn insert_prover_jobs(
         &mut self,
         batch_id: L1BatchId,
-        circuit_ids_and_urls: Vec<(u8, String)>,
+        circuit_ids_sequence_numbers_and_urls: Vec<(u8, usize, String)>,
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
-        if circuit_ids_and_urls.is_empty() {
+        if circuit_ids_sequence_numbers_and_urls.is_empty() {
             return;
         }
 
-        for (chunk_index, chunk) in circuit_ids_and_urls
-            .chunks(Self::INSERT_JOBS_CHUNK_SIZE)
-            .enumerate()
-        {
+        for chunk in circuit_ids_sequence_numbers_and_urls.chunks(Self::INSERT_JOBS_CHUNK_SIZE) {
             // Build multi-row INSERT for the current chunk
             let mut query_builder = QueryBuilder::new(
                 r#"
@@ -108,14 +105,14 @@ impl FriProverDal<'_, '_> {
             );
 
             query_builder.push_values(
-                chunk.iter().enumerate(),
-                |mut row, (i, (circuit_id, circuit_blob_url))| {
+                chunk.iter(),
+                |mut row, (circuit_id, sequence_number, circuit_blob_url)| {
                     row.push_bind(batch_id.batch_number().0 as i64)
                         .push_bind(batch_id.chain_id().inner() as i64)
                         .push_bind(*circuit_id as i16)
                         .push_bind(circuit_blob_url)
                         .push_bind(aggregation_round as i64)
-                        .push_bind((chunk_index * Self::INSERT_JOBS_CHUNK_SIZE + i) as i64) // sequence_number
+                        .push_bind(*sequence_number as i64) // sequence_number
                         .push_bind(depth as i32)
                         .push_bind(false) // is_node_final_proof
                         .push_bind(protocol_version_id.minor as i32)
@@ -1051,9 +1048,9 @@ mod tests {
     use super::*;
     use crate::ProverDal;
 
-    fn mock_circuit_ids_and_urls(num_circuits: usize) -> Vec<(u8, String)> {
+    fn mock_circuit_ids_and_urls(num_circuits: usize) -> Vec<(u8, usize, String)> {
         (0..num_circuits)
-            .map(|i| (i as u8, format!("circuit{}", i)))
+            .map(|i| (i as u8, i, format!("circuit{}", i)))
             .collect()
     }
 
