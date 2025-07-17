@@ -130,7 +130,7 @@ impl ZkosCommitment {
             },
             l2_to_l1_logs_root_hash: batch.metadata.l2_l1_merkle_root,
             pubdata: batch.header.pubdata_input.clone().unwrap(),
-            chain_id: 271,
+            chain_id: chain_id.as_u64() as u32,
         }
     }
 }

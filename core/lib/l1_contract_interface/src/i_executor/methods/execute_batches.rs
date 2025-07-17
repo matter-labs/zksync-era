@@ -47,6 +47,14 @@ impl ExecuteBatches {
                     .map(|proof| proof.into_token())
                     .collect(),
             ),
+            Token::Array(
+                self.dependency_roots
+                    .iter()
+                    .map(|roots| {
+                        Token::Array(roots.iter().map(|root| root.clone().into_token()).collect())
+                    })
+                    .collect(),
+            ),
         ]);
         let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
             .concat()

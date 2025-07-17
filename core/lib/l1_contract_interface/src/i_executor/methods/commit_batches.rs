@@ -39,6 +39,8 @@ impl Tokenize for &CommitBatches<'_> {
         );
         let last_block_commitment: ZkosCommitment =
             ZkosCommitment::new(self.last_committed_l1_batch, self.chain_id);
+
+        println!("Chain Id is: {}", self.chain_id);
         let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
         dbg!(&batch_output);
         let stored_batch_info = StoredBatchInfo::new(&last_block_commitment, batch_output.hash());
