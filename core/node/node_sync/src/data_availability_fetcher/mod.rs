@@ -322,12 +322,12 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        self.last_scanned_batch = L1BatchNumber(
-            self.determine_first_batch_to_scan(stop_receiver.clone())
-                .await?
-                .0
-                .saturating_sub(1), // set the last scanned batch to the one before the first one to scan
-        );
+        self.last_scanned_batch = self
+            .determine_first_batch_to_scan(stop_receiver.clone())
+            .await?
+            .0
+            .saturating_sub(1) // set the last scanned batch to the one before the first one to scan
+            .into();
 
         self.drop_entries_without_inclusion_data().await?;
 
