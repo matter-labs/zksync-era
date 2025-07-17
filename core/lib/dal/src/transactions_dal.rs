@@ -2232,6 +2232,7 @@ impl TransactionsDal<'_, '_> {
                 prev_block_hash,
                 virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
+                interop_roots: vec![],
             });
         }
         Ok(data)

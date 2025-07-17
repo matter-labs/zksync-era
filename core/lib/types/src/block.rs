@@ -8,10 +8,9 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::{keccak256, keccak256_concat},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
-/// Represents a successfully deployed smart contract.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeployedContract {
     pub account_id: AccountTreeId,
@@ -157,6 +156,7 @@ pub struct L2BlockExecutionData {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub txs: Vec<Transaction>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl L1BatchHeader {
