@@ -322,7 +322,9 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        self.last_scanned_batch = self.determine_first_batch_to_scan(stop_receiver.clone()).await?;
+        self.last_scanned_batch = self
+            .determine_first_batch_to_scan(stop_receiver.clone())
+            .await?;
         self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
