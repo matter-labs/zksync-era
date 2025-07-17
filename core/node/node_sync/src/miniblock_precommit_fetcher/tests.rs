@@ -2,13 +2,16 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use tokio::sync::{watch, Mutex};
+use tokio::sync::Mutex;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
-use zksync_types::{L1BatchNumber, L2BlockNumber, SLChainId, H256};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::create_l2_block;
+use zksync_types::{L2BlockNumber, SLChainId, H256};
 use zksync_web3_decl::error::EnrichedClientResult;
 
 use super::*;
+
+const TEST_SL: SLChainId = SLChainId(1);
 
 /// Helper function to create an L2 block in the storage with optional precommit data
 async fn insert_l2_block(
@@ -20,6 +23,17 @@ async fn insert_l2_block(
     block.rolling_txs_hash = rolling_txs_hash;
     storage.blocks_dal().insert_l2_block(&block).await.unwrap();
 }
+
+async fn insert_l2_block_with_precommit(storage: &mut Connection<'_, Core>, number: u32) {
+    let hash = get_deterministic_hash(L2BlockNumber(number));
+    insert_l2_block(storage, number, Some(hash)).await;
+    storage
+        .eth_sender_dal()
+        .insert_pending_received_precommit_eth_tx(L2BlockNumber(number), hash, Some(TEST_SL))
+        .await
+        .unwrap();
+}
+
 #[derive(Debug, Clone)]
 struct MockMainNodeClient {
     precommit: Arc<Mutex<HashMap<L2BlockNumber, MiniblockPrecommitDetails>>>,
@@ -71,24 +85,38 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
+/// Helper function to generate deterministic precommit hash for a block number
+fn get_deterministic_hash(block_number: L2BlockNumber) -> H256 {
+    H256::repeat_byte(block_number.0 as u8)
+}
+
+/// Helper function to generate MiniblockPrecommitDetails for a block number
+fn precommit_details_for_block(block_number: L2BlockNumber) -> MiniblockPrecommitDetails {
+    MiniblockPrecommitDetails {
+        hash: get_deterministic_hash(block_number),
+        chain_id: TEST_SL,
+    }
+}
+
 #[tokio::test]
 async fn fetcher_cursor_initialization() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     // Test with no precommits in storage
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.last_processed_miniblock, L2BlockNumber(0));
 
-    // Add a miniblock with a precommit
-    insert_l2_block(&mut storage, 0, None).await;
-    insert_l2_block(&mut storage, 1, Some(H256::repeat_byte(1))).await;
-    insert_l2_block(&mut storage, 2, Some(H256::repeat_byte(2))).await;
-    insert_l2_block(&mut storage, 3, None).await;
+    insert_l2_block(&mut storage, 1, None).await;
+    insert_l2_block_with_precommit(&mut storage, 2).await;
+    insert_l2_block_with_precommit(&mut storage, 3).await;
+    insert_l2_block(&mut storage, 4, None).await;
 
     // Cursor should now point to the block with a precommit
     let cursor = FetcherCursor::new(&mut storage).await.unwrap();
-    assert_eq!(cursor.last_processed_miniblock, L2BlockNumber(2));
+    assert_eq!(cursor.last_processed_miniblock, L2BlockNumber(3));
 }
 
 async fn assert_block_precommit(
@@ -98,7 +126,7 @@ async fn assert_block_precommit(
 ) {
     let block = storage
         .blocks_web3_dal()
-        .get_block_details(miniblock_number)
+        .get_block_details_incl_unverified_transactions(miniblock_number)
         .await
         .unwrap()
         .unwrap();
@@ -110,19 +138,6 @@ async fn assert_block_precommit(
         block.base.precommit_chain_id,
         expected_precommit.as_ref().map(|p| p.chain_id)
     );
-}
-
-/// Helper function to generate deterministic precommit hash for a block number
-fn get_deterministic_hash(block_number: L2BlockNumber) -> H256 {
-    H256::repeat_byte(block_number.0 as u8)
-}
-
-/// Helper function to generate MiniblockPrecommitDetails for a block number
-fn precommit_details_for_block(block_number: L2BlockNumber) -> MiniblockPrecommitDetails {
-    MiniblockPrecommitDetails {
-        hash: get_deterministic_hash(block_number),
-        chain_id: SLChainId(1),
-    }
 }
 
 /// Helper function to assert precommit states for a range of blocks
@@ -154,7 +169,9 @@ async fn assert_blocks_in_range(
 async fn normal_fetcher_operation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     // Insert some L2 blocks without precommits
     for i in 1..=10 {
         insert_l2_block(&mut storage, i, None).await;
@@ -163,13 +180,13 @@ async fn normal_fetcher_operation() {
     // Create mock client with safe block at 10 and precommits for blocks 3, 5, and 7
     let client = MockMainNodeClient::new(L2BlockNumber(10));
     client
-        .add_precommit(L2BlockNumber(3), H256::repeat_byte(3), SLChainId(1))
+        .add_precommit(L2BlockNumber(3), H256::repeat_byte(3), TEST_SL)
         .await;
     client
-        .add_precommit(L2BlockNumber(5), H256::repeat_byte(5), SLChainId(1))
+        .add_precommit(L2BlockNumber(5), H256::repeat_byte(5), TEST_SL)
         .await;
     client
-        .add_precommit(L2BlockNumber(7), H256::repeat_byte(7), SLChainId(1))
+        .add_precommit(L2BlockNumber(7), H256::repeat_byte(7), TEST_SL)
         .await;
 
     let fetcher = MiniblockPrecommitFetcher::new(Box::new(client), pool.clone());
@@ -182,7 +199,7 @@ async fn normal_fetcher_operation() {
         L2BlockNumber(3),
         &Some(MiniblockPrecommitDetails {
             hash: H256::repeat_byte(3),
-            chain_id: SLChainId(1),
+            chain_id: TEST_SL,
         }),
     )
     .await;
@@ -191,7 +208,7 @@ async fn normal_fetcher_operation() {
         L2BlockNumber(5),
         &Some(MiniblockPrecommitDetails {
             hash: H256::repeat_byte(5),
-            chain_id: SLChainId(1),
+            chain_id: TEST_SL,
         }),
     )
     .await;
@@ -200,7 +217,7 @@ async fn normal_fetcher_operation() {
         L2BlockNumber(7),
         &Some(MiniblockPrecommitDetails {
             hash: H256::repeat_byte(7),
-            chain_id: SLChainId(1),
+            chain_id: TEST_SL,
         }),
     )
     .await;
@@ -210,7 +227,9 @@ async fn normal_fetcher_operation() {
 async fn fetcher_with_incremental_safe_block() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     // Insert L2 blocks without precommits
     for i in 1..=15 {
         insert_l2_block(&mut storage, i, None).await;
@@ -220,28 +239,36 @@ async fn fetcher_with_incremental_safe_block() {
     let client = MockMainNodeClient::new(L2BlockNumber(5));
 
     // Add precommits for blocks 2 and 4
-    client.add_precommit(
-        L2BlockNumber(2),
-        get_deterministic_hash(L2BlockNumber(2)),
-        SLChainId(1),
-    );
-    client.add_precommit(
-        L2BlockNumber(4),
-        get_deterministic_hash(L2BlockNumber(4)),
-        SLChainId(1),
-    );
+    client
+        .add_precommit(
+            L2BlockNumber(2),
+            get_deterministic_hash(L2BlockNumber(2)),
+            TEST_SL,
+        )
+        .await;
+    client
+        .add_precommit(
+            L2BlockNumber(4),
+            get_deterministic_hash(L2BlockNumber(4)),
+            TEST_SL,
+        )
+        .await;
 
-    // Add precommits that will be discovered later
-    client.add_precommit(
-        L2BlockNumber(8),
-        get_deterministic_hash(L2BlockNumber(8)),
-        SLChainId(1),
-    );
-    client.add_precommit(
-        L2BlockNumber(12),
-        get_deterministic_hash(L2BlockNumber(12)),
-        SLChainId(1),
-    );
+    // Add precommits that are not finalized, but will be synced when safe block is increased
+    client
+        .add_precommit(
+            L2BlockNumber(8),
+            get_deterministic_hash(L2BlockNumber(8)),
+            TEST_SL,
+        )
+        .await;
+    client
+        .add_precommit(
+            L2BlockNumber(12),
+            get_deterministic_hash(L2BlockNumber(12)),
+            TEST_SL,
+        )
+        .await;
 
     let fetcher = MiniblockPrecommitFetcher::new(Box::new(client.clone()), pool);
     let mut cursor = FetcherCursor::new(&mut storage).await.unwrap();
@@ -250,7 +277,7 @@ async fn fetcher_with_incremental_safe_block() {
     // After first fetch, blocks 2 and 4 should have precommits (up to safe block 5)
     assert_blocks_in_range(&mut storage, 1..=15, &[L2BlockNumber(2), L2BlockNumber(4)]).await;
     // Increase safe block to 10
-    client.set_safe_block(L2BlockNumber(10));
+    client.set_safe_block(L2BlockNumber(10)).await;
     fetcher.fetch_precommits(&mut cursor).await.unwrap();
 
     // Now blocks 2, 4, and 8 should have precommits (up to safe block 10)
@@ -262,7 +289,7 @@ async fn fetcher_with_incremental_safe_block() {
     .await;
 
     // Increase safe block to 15
-    client.set_safe_block(L2BlockNumber(15));
+    client.set_safe_block(L2BlockNumber(15)).await;
     fetcher.fetch_precommits(&mut cursor).await.unwrap();
 
     // Now blocks 2, 4, 8, and 12 should have precommits (up to safe block 15)
@@ -283,6 +310,9 @@ async fn fetcher_with_incremental_safe_block() {
 async fn fetcher_ignores_unsynced_blocks() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
 
     // Insert L2 blocks only up to block 10
     for i in 1..=10 {
@@ -293,19 +323,23 @@ async fn fetcher_ignores_unsynced_blocks() {
     let client = MockMainNodeClient::new(L2BlockNumber(15));
 
     // Add precommits for blocks that exist in our database
-    client.add_precommit(
-        L2BlockNumber(5),
-        get_deterministic_hash(L2BlockNumber(5)),
-        SLChainId(1),
-    );
+    client
+        .add_precommit(
+            L2BlockNumber(5),
+            get_deterministic_hash(L2BlockNumber(5)),
+            TEST_SL,
+        )
+        .await;
 
     // Add precommits for blocks beyond our last synced block (10)
     // Block 12 is under safe block but doesn't exist in our DB
-    client.add_precommit(
-        L2BlockNumber(12),
-        get_deterministic_hash(L2BlockNumber(12)),
-        SLChainId(1),
-    );
+    client
+        .add_precommit(
+            L2BlockNumber(12),
+            get_deterministic_hash(L2BlockNumber(12)),
+            TEST_SL,
+        )
+        .await;
 
     let fetcher = MiniblockPrecommitFetcher::new(Box::new(client), pool);
     let mut cursor = FetcherCursor::new(&mut storage).await.unwrap();

@@ -46,7 +46,7 @@ impl WiringLayer for MiniblockPrecommitFetcherLayer {
             app_health,
         } = input;
 
-        let fetcher = MiniblockPrecommitFetcher::new(main_node_client, pool.get().await?);
+        let fetcher = MiniblockPrecommitFetcher::new(Box::new(main_node_client), pool.get().await?);
 
         // Insert healthcheck
         app_health

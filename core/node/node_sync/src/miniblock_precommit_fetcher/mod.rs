@@ -38,7 +38,7 @@ pub struct MiniblockPrecommitDetails {
 }
 
 #[async_trait]
-trait MainNodeClient: fmt::Debug + Send + Sync {
+pub trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn get_miniblock_precommit_hash(
         &self,
         number: L2BlockNumber,
