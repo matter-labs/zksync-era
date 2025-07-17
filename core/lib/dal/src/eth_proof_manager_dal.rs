@@ -248,6 +248,8 @@ impl EthProofManagerDal<'_, '_> {
         // 1. The batch was sent but the proof request was not accepted after timeout
         // 2. The batch was acknowledged but the proof wasn't generated on time
         // 3. The batch was proven but the proof was invalid
+        // 4. The batch was picked by prover network, but nothing happened after timeout
+        // 5. The batch was supposed to be picked by prover network, but it wasn't after timeout
         let batches: Vec<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE eth_proof_manager
@@ -267,7 +269,7 @@ impl EthProofManagerDal<'_, '_> {
             &acknowledgment_timeout,
             EthProofManagerStatus::Acknowledged.as_str(),
             &proving_timeout,
-            EthProofManagerStatus::Validated.as_str(),
+            EthProofManagerStatus::Proven.as_str(),
             EthProofManagerStatus::Unpicked.as_str(),
             &picking_timeout,
         )

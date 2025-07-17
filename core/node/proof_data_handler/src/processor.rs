@@ -227,7 +227,7 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving(proof_generation_timeout, self.proving_mode.clone().into())
+            .lock_batch_for_proving(proof_generation_timeout, self.proving_mode.clone())
             .await
             .map_err(Into::into)
     }
@@ -240,7 +240,7 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving_network()
+            .lock_batch_for_proving_network(self.proving_mode.clone())
             .await
             .map_err(Into::into)
     }

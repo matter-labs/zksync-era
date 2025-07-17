@@ -48,12 +48,12 @@ impl ProofGenerationDal<'_, '_> {
         // We are picking up the batch for proving by prover cluster if:
         // 1. Global proving mode is prover cluster(no matter what proving mode of batch is set to)
         // 2. Global proving mode is proving network, but proving mode of batch is set to prover cluster
-        // 3. Global proving mode is proving network, batch's proving mode is proving network, but it was not picked up after processing timeout
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
             SET
                 status = 'picked_by_prover',
+                proving_mode = 'prover_cluster',
                 updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
@@ -73,14 +73,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND status = 'unpicked'
                             AND (
                                 $2 = 'prover_cluster'
-                                OR (
-                                    proving_mode = 'prover_cluster'
-                                    OR (
-                                        proving_mode = 'proving_network'
-                                        AND proof_generation_details.updated_at
-                                        < NOW() - $1::INTERVAL
-                                    )
-                                )
+                                OR proving_mode = 'prover_cluster'
                             )
                         )
                         OR (
@@ -107,7 +100,10 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn lock_batch_for_proving_network(&mut self) -> DalResult<Option<L1BatchNumber>> {
+    pub async fn lock_batch_for_proving_network(
+        &mut self,
+        proving_mode: ProvingMode,
+    ) -> DalResult<Option<L1BatchNumber>> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
@@ -131,6 +127,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.meta_parameters_hash IS NOT NULL
                             AND status = 'unpicked'
                             AND proving_mode = 'proving_network'
+                            AND $1 = 'proving_network'
                         )
                     ORDER BY
                         l1_batch_number ASC
@@ -140,6 +137,7 @@ impl ProofGenerationDal<'_, '_> {
             RETURNING
             proof_generation_details.l1_batch_number
             "#,
+            &proving_mode.into_string(),
         )
         .instrument("lock_batch_for_proving_network")
         .fetch_optional(self.storage)
