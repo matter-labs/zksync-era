@@ -80,9 +80,17 @@ async function runTest(
     }
 }
 
-export async function runIntegrationTests(chainName: string, testPattern?: string): Promise<void> {
+export async function runIntegrationTests(
+    chainName: string,
+    secondChainName?: string | undefined,
+    testPattern?: string
+): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('integration', chainName, testPattern, ['--verbose', '--ignore-prerequisites']);
+    await runTest('integration', chainName, testPattern, [
+        '--verbose',
+        '--ignore-prerequisites',
+        secondChainName ? `--second-chain=${secondChainName}` : ''
+    ]);
 }
 
 export async function feesTest(chainName: string): Promise<void> {
@@ -110,9 +118,14 @@ export async function genesisRecoveryTest(chainName: string): Promise<void> {
     await runTest('recovery', chainName, undefined, ['--no-kill', '--ignore-prerequisites', '--verbose']);
 }
 
-export async function enIntegrationTests(chainName: string): Promise<void> {
+export async function enIntegrationTests(chainName: string, secondChainName?: string | undefined): Promise<void> {
     await initTestWallet(chainName);
-    await runTest('integration', chainName, undefined, ['--verbose', '--ignore-prerequisites', '--external-node']);
+    await runTest('integration', chainName, undefined, [
+        '--verbose',
+        '--ignore-prerequisites',
+        '--external-node',
+        secondChainName ? `--second-chain=${secondChainName}` : ''
+    ]);
 }
 
 export async function gatewayMigrationToGatewayTest(chainName: string): Promise<void> {

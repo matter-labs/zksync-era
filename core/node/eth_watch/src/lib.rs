@@ -16,12 +16,12 @@ use zksync_types::{
 pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
     client::RETRY_LIMIT,
-    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
+    event_processors::{
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
+    },
     metrics::METRICS,
-};
-use crate::event_processors::{
-    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
-    GatewayMigrationProcessor,
 };
 
 mod client;
@@ -78,7 +78,6 @@ impl EthWatch {
             sl_eth_client.clone(),
             l1_client.clone(),
         );
-
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
@@ -94,8 +93,12 @@ impl EthWatch {
                 chain_id,
                 sl_client.clone(),
             );
+            let sl_interop_root_processor =
+                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
+            event_processors.push(Box::new(sl_interop_root_processor));
         }
+
         Ok(Self {
             l1_client,
             sl_client: sl_eth_client,

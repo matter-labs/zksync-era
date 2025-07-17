@@ -23,6 +23,7 @@ zksync_shared_metrics.workspace = true
 zksync_config.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_contracts.workspace = true
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_protobuf.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
@@ -44,6 +45,7 @@ serde.workspace = true
 hex.workspace = true
 
 [dev-dependencies]
+zksync_multivm.workspace = true
 assert_matches.workspace = true
 rand.workspace = true
 tempfile.workspace = true

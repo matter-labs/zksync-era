@@ -112,7 +112,7 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version26 => &self.gateway,
             ProtocolVersionId::Version27 => &self.vm_evm_emulator,
             ProtocolVersionId::Version28 => &self.vm_precompiles,
-            ProtocolVersionId::Version29 => &self.vm_precompiles, // TODO: Switch to `interop` after contracts are finalized
+            ProtocolVersionId::Version29 => &self.interop,
             // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version30 => &self.interop,
         };
@@ -139,8 +139,7 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
             gateway: BaseSystemContracts::estimate_gas_gateway(),
             vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
             vm_precompiles: BaseSystemContracts::estimate_gas_precompiles(),
-            // TODO: Switch to `estimate_gas_interop` after contracts are finalized
-            interop: BaseSystemContracts::estimate_gas_precompiles(),
+            interop: BaseSystemContracts::estimate_gas_interop(),
             _contracts_kind: PhantomData,
         }
     }
@@ -165,8 +164,7 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             gateway: BaseSystemContracts::playground_gateway(),
             vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
             vm_precompiles: BaseSystemContracts::playground_precompiles(),
-            // TODO: Switch to `playground_interop` after contracts are finalized
-            interop: BaseSystemContracts::playground_precompiles(),
+            interop: BaseSystemContracts::playground_interop(),
             _contracts_kind: PhantomData,
         }
     }
