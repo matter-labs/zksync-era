@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{commitment::PubdataType, L1BatchNumber};
+use zksync_types::{commitment::PubdataType, try_stoppable, L1BatchNumber};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::UnstableNamespaceClient,
@@ -73,6 +73,7 @@ pub struct DataAvailabilityFetcher {
     health_updater: HealthUpdater,
     poll_interval: Duration,
     last_scanned_batch: L1BatchNumber,
+    max_batches_to_recheck: u32,
 }
 
 impl DataAvailabilityFetcher {
@@ -83,6 +84,7 @@ impl DataAvailabilityFetcher {
         client: Box<DynClient<L2>>,
         pool: ConnectionPool<Core>,
         da_client: Box<dyn DataAvailabilityClient>,
+        max_batches_to_recheck: u32,
     ) -> Self {
         Self {
             client: client.for_component("data_availability_fetcher"),
@@ -91,6 +93,7 @@ impl DataAvailabilityFetcher {
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
             last_scanned_batch: L1BatchNumber(0),
+            max_batches_to_recheck,
         }
     }
 
@@ -99,7 +102,49 @@ impl DataAvailabilityFetcher {
     /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
     /// So there is no point in scanning batches that were already checked by the consistency
     /// checker, or batches that will be skipped by it.
-    async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
+    async fn determine_first_batch_to_scan(
+        &self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<L1BatchNumber> {
+        let earliest_l1_batch_number = loop {
+            if *stop_receiver.borrow() {
+                return Err(anyhow::anyhow!("Data availability fetcher stopped"));
+            }
+
+            let sealed_l1_batch_number = self
+                .pool
+                .connection()
+                .await?
+                .blocks_dal()
+                .get_earliest_l1_batch_number_with_metadata()
+                .await?;
+
+            if let Some(number) = sealed_l1_batch_number {
+                break number;
+            }
+            tracing::debug!(
+                "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"
+            );
+
+            tokio::time::timeout(Duration::from_secs(2), stop_receiver.changed())
+                .await
+                .ok();
+        };
+
+        let last_committed_batch = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_on_eth()
+            .await?
+            .unwrap_or(earliest_l1_batch_number);
+
+        let first_batch_to_check: L1BatchNumber = last_committed_batch
+            .0
+            .saturating_sub(self.max_batches_to_recheck)
+            .into();
+
         let last_checked_by_consistency_checker = self
             .pool
             .connection()
@@ -108,7 +153,9 @@ impl DataAvailabilityFetcher {
             .get_consistency_checker_last_processed_l1_batch()
             .await?;
 
-        let first_batch_to_check = last_checked_by_consistency_checker + 1;
+        let first_batch_to_check = first_batch_to_check
+            .max(earliest_l1_batch_number)
+            .max(L1BatchNumber(last_checked_by_consistency_checker.0 + 1));
 
         tracing::debug!(
             "Determined first batch to scan: {} (last checked batch: {})",
@@ -275,7 +322,7 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        self.last_scanned_batch = self.determine_first_batch_to_scan().await?;
+        self.last_scanned_batch = self.determine_first_batch_to_scan(stop_receiver).await?;
         self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
