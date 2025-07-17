@@ -1,11 +1,15 @@
-use ethers::types::{Address, H256, U256};
+use ethers::{
+    addressbook::Contract,
+    types::{Address, H256, U256},
+};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
     forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+    gateway,
     traits::ZkStackConfig,
-    ContractsConfig,
+    ContractsConfig, GatewayConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -15,6 +19,7 @@ pub struct EcosystemUpgradeInput {
     pub testnet_verifier: bool,
     pub contracts: EcosystemUpgradeContractsConfig,
     pub tokens: GatewayUpgradeTokensConfig,
+    pub gateway: GatewayUpgradeContractsConfig,
     pub governance_upgrade_timer_initial_delay: u64,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub old_protocol_version: String,
@@ -28,6 +33,7 @@ impl EcosystemUpgradeInput {
     pub fn new(
         new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
+        gateway_upgrade_config: &GatewayUpgradeContractsConfig,
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
@@ -95,6 +101,7 @@ impl EcosystemUpgradeInput {
                 protocol_upgrade_handler_proxy_address: Address::zero(),
                 rollup_da_manager: Address::zero(),
             },
+            gateway: gateway_upgrade_config.clone(),
             tokens: GatewayUpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
@@ -149,4 +156,19 @@ pub struct EcosystemUpgradeContractsConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayUpgradeTokensConfig {
     pub token_weth_address: Address,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GatewayStateTransitionConfig {
+    pub chain_type_manager_proxy_addr: Address,
+    pub chain_type_manager_proxy_admin: Address,
+    pub rollup_da_manager: Address,
+    pub rollup_sl_da_validator: Address,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+
+pub struct GatewayUpgradeContractsConfig {
+    pub chain_id: u64,
+    pub gateway_state_transition: GatewayStateTransitionConfig,
 }

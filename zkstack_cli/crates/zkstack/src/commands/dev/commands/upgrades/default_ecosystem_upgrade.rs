@@ -1,9 +1,11 @@
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
+use ethers::{abi::parse_abi, contract::BaseContract, providers::Middleware, utils::hex};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{forge::Forge, git, logger, spinner::Spinner};
+use zkstack_cli_common::{
+    ethereum::get_ethers_provider, forge::Forge, git, logger, spinner::Spinner,
+};
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
@@ -11,14 +13,21 @@ use zkstack_cli_config::{
             ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
             ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         },
-        upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
+        upgrade_ecosystem::{
+            input::{
+                EcosystemUpgradeInput, GatewayStateTransitionConfig, GatewayUpgradeContractsConfig,
+            },
+            output::EcosystemUpgradeOutput,
+        },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::H160;
-use zksync_types::{L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use zksync_types::{
+    h256_to_address, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
+};
 
 use crate::{
     admin_functions::governance_execute_calls,
@@ -29,6 +38,9 @@ use crate::{
     messages::MSG_INTALLING_DEPS_SPINNER,
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
+
+// TODO: make it non-constant
+pub const LOCAL_GATEWAY_CHAIN_NAME: &str = "gateway";
 
 pub async fn run(
     shell: &Shell,
@@ -168,9 +180,13 @@ async fn no_governance_prepare(
     new_version.patch += 1;
     new_genesis.protocol_version = new_version;
 
+    let gateway_upgrade_config =
+        get_gateway_state_transition_config(shell, ecosystem_config).await?;
+
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
         &new_genesis,
         &current_contracts_config,
+        &gateway_upgrade_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
         ecosystem_config
@@ -539,4 +555,41 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersions) -> ForgeScrip
         UpgradeVersions::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersions::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
     }
+}
+
+const PROXY_ADMIN_SLOT: H256 = H256([
+    0xb5, 0x31, 0x27, 0x68, 0x4a, 0x56, 0x8b, 0x31, 0x73, 0xae, 0x13, 0xb9, 0xf8, 0xa6, 0x01, 0x6e,
+    0x24, 0x3e, 0x63, 0xb6, 0xe8, 0xee, 0x11, 0x78, 0xd6, 0xa7, 0x17, 0x85, 0x0b, 0x5d, 0x61, 0x03,
+]);
+
+async fn get_gateway_state_transition_config(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<GatewayUpgradeContractsConfig> {
+    // Firstly, we obtain the gateway config
+    let chain_config = ecosystem_config.load_chain(Some(LOCAL_GATEWAY_CHAIN_NAME.to_string()))?;
+    let gw_config = chain_config.get_gateway_config()?;
+    let general_config = chain_config.get_general_config().await?;
+
+    let provider = get_ethers_provider(&general_config.l2_http_url()?)?;
+    let proxy_admin_addr = provider
+        .get_storage_at(
+            gw_config.state_transition_proxy_addr,
+            PROXY_ADMIN_SLOT,
+            None,
+        )
+        .await?;
+    let proxy_admin_addr = h256_to_address(&proxy_admin_addr);
+
+    let chain_id = chain_config.chain_id.as_u64();
+
+    Ok(GatewayUpgradeContractsConfig {
+        gateway_state_transition: GatewayStateTransitionConfig {
+            chain_type_manager_proxy_addr: gw_config.state_transition_proxy_addr,
+            chain_type_manager_proxy_admin: proxy_admin_addr,
+            rollup_da_manager: gw_config.rollup_da_manager,
+            rollup_sl_da_validator: gw_config.relayed_sl_da_validator,
+        },
+        chain_id,
+    })
 }
