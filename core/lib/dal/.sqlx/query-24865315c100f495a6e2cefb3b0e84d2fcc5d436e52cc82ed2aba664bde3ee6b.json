@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                hashed_key,\n                index\n            FROM\n                initial_writes\n            WHERE\n                l1_batch_number = $1\n            ORDER BY\n                index\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashed_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "index",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "24865315c100f495a6e2cefb3b0e84d2fcc5d436e52cc82ed2aba664bde3ee6b"
+}

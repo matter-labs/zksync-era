@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT eth_txs.chain_id\n            FROM l1_batches\n            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chain_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "a0dce1ac6117680fe64a848c4f3efa4658926efb4444ff1b13c186d17847c5ad"
+}

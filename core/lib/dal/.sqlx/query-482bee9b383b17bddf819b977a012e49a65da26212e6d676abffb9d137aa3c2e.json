@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE miniblocks\n            SET\n                logs_bloom = NULL\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "482bee9b383b17bddf819b977a012e49a65da26212e6d676abffb9d137aa3c2e"
+}

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number,\n                hash\n            FROM\n                miniblocks\n            WHERE\n                number >= $1\n            ORDER BY\n                number ASC\n            LIMIT\n                $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "708b2b3e40887e6d8d2d7aa20448a58479487686d774e6b2b1391347bdafe06d"
+}

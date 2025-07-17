@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            protocol_versions (\n                id,\n                timestamp,\n                bootloader_code_hash,\n                default_account_code_hash,\n                evm_emulator_code_hash,\n                upgrade_tx_hash,\n                created_at\n            )\n            VALUES\n            ($1, $2, $3, $4, $5, $6, NOW())\n            ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b23f9879be394270a0985c082fd2e82c5aa84c85b9486e81261d17901a786917"
+}

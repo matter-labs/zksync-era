@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                status,\n                error,\n                compilation_errors\n            FROM\n                contract_verification_requests\n            WHERE\n                id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "compilation_errors",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "dd55e46dfa5ba3692d9620088a3550b8db817630d1a9341db4a1f453f12e64fb"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                verification_info\n            FROM\n                contract_verification_info_v2\n            WHERE\n                initial_contract_addr = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verification_info",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "daa2ad4ebde17808e059aa6bcf148743ffed494316750be3b0ffb10b2fc09e93"
+}
