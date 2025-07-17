@@ -23,7 +23,7 @@ pub struct ChainUpgradeArgs {
 }
 
 impl ChainUpgradeArgs {
-    pub async fn _fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
+    pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let chain_config = ecosystem_config.load_current_chain()?;
         self.chain_id = Some(self.chain_id.unwrap_or(chain_config.chain_id.as_u64()));
@@ -70,17 +70,17 @@ impl ChainUpgradeArgs {
 }
 
 pub struct UpgradeArgsInner {
-    pub _chain_id: u64,
-    pub _l1_rpc_url: String,
-    pub _gw_rpc_url: Option<String>,
+    pub chain_id: u64,
+    pub l1_rpc_url: String,
+    pub gw_rpc_url: Option<String>,
 }
 
 impl From<ChainUpgradeArgs> for UpgradeArgsInner {
     fn from(value: ChainUpgradeArgs) -> Self {
         Self {
-            _chain_id: value.chain_id.unwrap(),
-            _l1_rpc_url: value.l1_rpc_url.unwrap(),
-            _gw_rpc_url: value.gw_rpc_url,
+            chain_id: value.chain_id.unwrap(),
+            l1_rpc_url: value.l1_rpc_url.unwrap(),
+            gw_rpc_url: value.gw_rpc_url,
         }
     }
 }

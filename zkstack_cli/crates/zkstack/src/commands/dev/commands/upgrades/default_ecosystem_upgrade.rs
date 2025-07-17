@@ -214,7 +214,7 @@ async fn no_governance_prepare(
     let broadcast_file: BroadcastFile = {
         let file_content =
             std::fs::read_to_string(ecosystem_config.path_to_l1_foundry().join(format!(
-                "broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/{}/run-latest.json",
+                "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
                 l1_chain_id
             )))
             .context("Failed to read broadcast file")?;
@@ -327,9 +327,9 @@ async fn governance_stage_1(
     );
 
     // This value is meaningless for the ecosystem, but we'll populate it for consistency
-    contracts_config.l2.da_validator_addr = Some(H160::zero());
-    contracts_config.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-    contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
+    // contracts_config.l2.da_validator_addr = Some(H160::zero());
+    // contracts_config.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
+    // contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -340,23 +340,23 @@ fn update_contracts_config_from_output(
     contracts_config: &mut ContractsConfig,
     output: &EcosystemUpgradeOutput,
 ) {
-    contracts_config
-        .ecosystem_contracts
-        .stm_deployment_tracker_proxy_addr = Some(
-        output
-            .deployed_addresses
-            .bridgehub
-            .ctm_deployment_tracker_proxy_addr,
-    );
+    // contracts_config
+    //     .ecosystem_contracts
+    //     .stm_deployment_tracker_proxy_addr = Some(
+    //     output
+    //         .deployed_addresses
+    //         .bridgehub
+    //         .ctm_deployment_tracker_proxy_addr,
+    // );
     // This is force deployment data for creating new contracts, not really relevant here tbh,
     contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
         &output.contracts_config.force_deployments_data.0,
     ));
-    contracts_config.ecosystem_contracts.native_token_vault_addr =
-        Some(output.deployed_addresses.native_token_vault_addr);
-    contracts_config
-        .ecosystem_contracts
-        .l1_bytecodes_supplier_addr = Some(output.deployed_addresses.l1_bytecodes_supplier_addr);
+    // contracts_config.ecosystem_contracts.native_token_vault_addr =
+    //     Some(output.deployed_addresses.native_token_vault_addr);
+    // contracts_config
+    //     .ecosystem_contracts
+    //     .l1_bytecodes_supplier_addr = Some(output.deployed_addresses.l1_bytecodes_supplier_addr);
 
     contracts_config.l1.rollup_l1_da_validator_addr =
         Some(output.deployed_addresses.rollup_l1_da_validator_addr);
@@ -398,13 +398,14 @@ async fn governance_stage_2(
     )
     .await?;
 
-    let mut contracts_config = ecosystem_config.get_contracts_config()?;
-    contracts_config.bridges.shared.l1_address = previous_output
-        .deployed_addresses
-        .bridges
-        .shared_bridge_proxy_addr;
+    // TODO: why did we need this thing? I deleted it and it is fine.
+    // let mut contracts_config = ecosystem_config.get_contracts_config()?;
+    // contracts_config.bridges.shared.l1_address = previous_output
+    //     .deployed_addresses
+    //     .bridges
+    //     .shared_bridge_proxy_addr;
 
-    contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
+    // contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
     spinner.finish();
 
     Ok(())
@@ -421,6 +422,7 @@ lazy_static! {
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
+// TODO: maybe delete the file?
 async fn no_governance_stage_2(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
