@@ -278,12 +278,12 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
-    fn add_batch_status_updater_layer(mut self) -> anyhow::Result<Self> {
+    fn add_batch_transaction_fetcher_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(BatchStatusUpdaterLayer);
         Ok(self)
     }
 
-    fn add_batch_transaction_updater_layer(mut self) -> anyhow::Result<Self> {
+    fn add_transaction_finality_updater_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(BatchTransactionUpdaterLayer::new(
             self.config
                 .local
@@ -700,8 +700,8 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
-                        .add_batch_status_updater_layer()?
-                        .add_batch_transaction_updater_layer()?
+                        .add_batch_transaction_fetcher_layer()?
+                        .add_transaction_finality_updater_layer()?
                         .add_miniblock_precommit_fetcher_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }

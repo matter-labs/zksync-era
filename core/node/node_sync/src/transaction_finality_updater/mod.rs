@@ -18,7 +18,7 @@ use zksync_types::{
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
-use crate::batch_transaction_updater::l1_transaction_verifier::TransactionValidationError;
+use crate::transaction_finality_updater::l1_transaction_verifier::TransactionValidationError;
 
 mod l1_transaction_verifier;
 
@@ -61,7 +61,7 @@ impl BatchTransactionUpdater {
             sl_client,
             l1_transaction_verifier: L1TransactionVerifier::new(diamond_proxy_addr),
             pool,
-            health_updater: ReactiveHealthCheck::new("batch_transaction_updater").1,
+            health_updater: ReactiveHealthCheck::new("transaction_finality_updater").1,
             sleep_interval,
             processing_batch_size,
         }
@@ -94,7 +94,7 @@ impl BatchTransactionUpdater {
 
         let mut connection = self
             .pool
-            .connection_tagged("batch_transaction_updater")
+            .connection_tagged("transaction_finality_updater")
             .await?;
 
         let eth_history_tx = connection
@@ -323,7 +323,7 @@ impl BatchTransactionUpdater {
                             let sent_at_block: u32 = receipt.block_number.unwrap().as_u32();
                             eth_tx_history.sent_at_block = Some(sent_at_block);
                             self.pool
-                                .connection_tagged("batch_transaction_updater")
+                                .connection_tagged("transaction_finality_updater")
                                 .await?
                                 .eth_sender_dal()
                                 .set_sent_at_block(eth_tx_history.id, sent_at_block)
@@ -368,7 +368,7 @@ impl BatchTransactionUpdater {
                             sent_at_block
                         );
                 self.pool
-                    .connection_tagged("batch_transaction_updater")
+                    .connection_tagged("transaction_finality_updater")
                     .await?
                     .eth_sender_dal()
                     .unset_sent_at_block(eth_tx_history.id)
@@ -408,7 +408,7 @@ impl BatchTransactionUpdater {
     ) -> anyhow::Result<usize> {
         let mut connection = self
             .pool
-            .connection_tagged("batch_transaction_updater")
+            .connection_tagged("transaction_finality_updater")
             .await?;
         let to_process: Vec<TxHistory> = connection
             .eth_sender_dal()

@@ -16,8 +16,8 @@ use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
 use crate::{
-    batch_transaction_updater::l1_transaction_verifier::TransactionValidationError,
     metrics::L1BatchStage,
+    transaction_finality_updater::l1_transaction_verifier::TransactionValidationError,
 };
 
 const MOCK_DIAMOND_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
