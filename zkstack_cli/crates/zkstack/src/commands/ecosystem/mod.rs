@@ -6,7 +6,7 @@ use crate::commands::ecosystem::args::{
     change_default::ChangeDefaultChain, create::EcosystemCreateArgs, init::EcosystemInitArgs,
 };
 
-mod args;
+pub mod args;
 pub(crate) mod build_transactions;
 mod change_default;
 mod common;

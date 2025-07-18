@@ -74,6 +74,7 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
  * @param blockNumber Number of block.
  */
 export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number) {
+    // console.log('Waiting for block to be finalized...', blockNumber);
     while (true) {
         const block = await wallet.provider.getBlock('finalized');
         if (blockNumber <= block.number) {
@@ -84,12 +85,57 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     }
 }
 
+export async function waitUntilBlockCommitted(wallet: zksync.Wallet, blockNumber: number) {
+    console.log('Waiting for block to be committed...', blockNumber);
+    while (true) {
+        const block = await wallet.provider.getBlock('committed');
+        if (blockNumber <= block.number) {
+            break;
+        } else {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
+
+async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: number) {
+    const result = await provider.send('zks_getL1BatchDetails', [number]);
+
+    if (result == null) {
+        return null;
+    }
+    if (result.executedAt != null) {
+        return {
+            finalizedHash: result.executeTxHash,
+            finalizedAt: result.executedAt
+        };
+    }
+    return null;
+}
+
+export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, blockNumber: number) {
+    // Waiting for the block to be finalized on the immediate settlement layer.
+    await waitUntilBlockFinalized(wallet, blockNumber);
+
+    const provider = wallet.provider;
+
+    const batchNumber = (await provider.getBlockDetails(blockNumber)).l1BatchNumber;
+
+    let result = await getL1BatchFinalizationStatus(provider, batchNumber);
+
+    while (result == null) {
+        await zksync.utils.sleep(provider.pollingInterval);
+
+        result = await getL1BatchFinalizationStatus(provider, batchNumber);
+    }
+}
+
 export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
     // First, we wait for block to be finalized.
     await waitUntilBlockFinalized(wallet, blockNumber);
 
     // Second, we wait for the log proof.
     while ((await wallet.provider.getLogProof(txHash)) == null) {
+        // console.log('Waiting for log proof...');
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
 }
@@ -151,4 +197,22 @@ export function bigIntMax(...args: bigint[]) {
 
 export function isLocalHost(network: string): boolean {
     return network.toLowerCase() == 'localhost';
+}
+
+export function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
+    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
+    // using binary search.
+    const overhead = getOverheadForTransaction(
+        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
+        // will be greater than `overheadForLength` for a typical transacction
+        0n
+    );
+    return maxGasBodyLimit + overhead;
+}
+
+export function getOverheadForTransaction(encodingLength: bigint): bigint {
+    const TX_SLOT_OVERHEAD_GAS = 10_000n;
+    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
+
+    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
 }

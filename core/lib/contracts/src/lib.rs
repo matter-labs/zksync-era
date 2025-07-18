@@ -626,6 +626,13 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
+    pub fn playground_interop() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_interop/playground_batch.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -713,6 +720,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_precompiles() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_interop() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_interop/fee_estimate.yul/Bootloader.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
@@ -1559,5 +1573,104 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
       "stateMutability": "nonpayable",
       "type": "function"
     }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_GATEWAY_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+      "inputs": [
+          {
+              "internalType": "uint256",
+              "name": "_chainId",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processFrom",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processTo",
+              "type": "uint256"
+          },
+          {
+              "internalType": "bytes",
+              "name": "_commitData",
+              "type": "bytes"
+          }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function",
+      "name": "commitBatchesSharedBridge",
+      "outputs": []
+  }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_GATEWAY_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+      "inputs": [
+          {
+              "internalType": "uint256",
+              "name": "_chainId",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processBatchFrom",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processBatchTo",
+              "type": "uint256"
+          },
+          {
+              "internalType": "bytes",
+              "name": "_proofData",
+              "type": "bytes"
+          }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function",
+      "name": "proveBatchesSharedBridge",
+      "outputs": []
+  }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_GATEWAY_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+    "inputs": [
+        {
+            "internalType": "uint256",
+            "name": "_chainId",
+            "type": "uint256"
+        },
+        {
+            "internalType": "uint256",
+            "name": "_processFrom",
+            "type": "uint256"
+        },
+        {
+            "internalType": "uint256",
+            "name": "_processTo",
+            "type": "uint256"
+        },
+        {
+            "internalType": "bytes",
+            "name": "_executeData",
+            "type": "bytes"
+        }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "executeBatchesSharedBridge",
+    "outputs": []
+  }"#;
     serde_json::from_str(abi).unwrap()
 });

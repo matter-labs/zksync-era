@@ -29,3 +29,6 @@ chrono.workspace = true
 rand.workspace = true
 async-trait.workspace = true
 hex.workspace = true
+
+[dev-dependencies]
+test-casing.workspace = true
