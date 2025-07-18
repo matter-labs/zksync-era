@@ -125,6 +125,14 @@ impl BaseTokenRatioPersister {
             (sl_ratio.ratio.numerator.get() as f64) / (sl_ratio.ratio.denominator.get() as f64),
         );
 
+        tracing::info!(
+            "Base to SL ({:?}) ratio: {:?}, base ({:?}) to ETH ratio: {:?}",
+            self.sl_token,
+            sl_ratio.ratio,
+            self.base_token,
+            base_to_eth.ratio
+        );
+
         // In database we persist the ratio needed for calculating L2 gas price from SL (L1 or Gateway) gas price
         self.persist_ratio(
             BaseTokenConversionRatio::new(base_to_eth.ratio, sl_ratio.ratio),

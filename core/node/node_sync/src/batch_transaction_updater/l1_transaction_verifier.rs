@@ -16,6 +16,11 @@ pub struct L1TransactionVerifier {
 pub enum TransactionValidationError {
     #[error("Operator transaction {tx_hash} invalid: {reason}")]
     TransactionInvalid { tx_hash: H256, reason: String },
+    #[error("Operator transaction {tx_hash} does not have the {expected_log_type} log")]
+    MissingExpectedLog {
+        tx_hash: H256,
+        expected_log_type: String,
+    },
     #[error(transparent)]
     OtherValidationError(#[from] anyhow::Error),
 }
@@ -91,12 +96,9 @@ impl L1TransactionVerifier {
             });
 
         let (batch_hash, commitment) =
-            committed_batch_info.ok_or_else(|| TransactionValidationError::TransactionInvalid {
+            committed_batch_info.ok_or_else(|| TransactionValidationError::MissingExpectedLog {
                 tx_hash: receipt.transaction_hash,
-                reason: format!(
-                    "does not have `BlockCommit` event log for batch {}",
-                    batch_number
-                ),
+                expected_log_type: "BlockCommit".to_string(),
             })?;
 
         if db_batch.commitment != commitment {
@@ -174,9 +176,9 @@ impl L1TransactionVerifier {
             });
 
         let (from, to) =
-            proved_from_to.ok_or_else(|| TransactionValidationError::TransactionInvalid {
+            proved_from_to.ok_or_else(|| TransactionValidationError::MissingExpectedLog {
                 tx_hash: receipt.transaction_hash,
-                reason: "does not have `BlocksVerification` event log".to_string(),
+                expected_log_type: "BlocksVerification".to_string(),
             })?;
 
         if from >= batch_number.0 {
@@ -259,12 +261,9 @@ impl L1TransactionVerifier {
             });
 
         let (batch_hash, commitment) =
-            executed_batch_info.ok_or_else(|| TransactionValidationError::TransactionInvalid {
+            executed_batch_info.ok_or_else(|| TransactionValidationError::MissingExpectedLog {
                 tx_hash: receipt.transaction_hash,
-                reason: format!(
-                    "does not have `BlockExecution` event log for batch {}",
-                    batch_number,
-                ),
+                expected_log_type: "BlockExecution".to_string(),
             })?;
         if db_batch.commitment != commitment {
             return Err(TransactionValidationError::TransactionInvalid {
@@ -350,9 +349,9 @@ impl L1TransactionVerifier {
         });
 
         let precommitment =
-            precommitment.ok_or_else(|| TransactionValidationError::TransactionInvalid {
+            precommitment.ok_or_else(|| TransactionValidationError::MissingExpectedLog {
                 tx_hash: receipt.transaction_hash,
-                reason: "does not have `BatchPrecommitmentSet` event log".to_string(),
+                expected_log_type: "BatchPrecommitmentSet".to_string(),
             })?;
 
         let Some(rolling_txs_hash) = miniblock_header.rolling_txs_hash else {

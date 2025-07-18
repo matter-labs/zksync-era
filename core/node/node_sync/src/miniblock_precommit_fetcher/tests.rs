@@ -27,7 +27,7 @@ async fn insert_l2_block(
 }
 
 async fn insert_l2_block_with_precommit_tx(storage: &mut Connection<'_, Core>, number: u32) {
-    let hash = rolling_tx_hash(L2BlockNumber(number));
+    let hash = precommit_tx_hash(L2BlockNumber(number));
     insert_l2_block(storage, number, Some(hash)).await;
     storage
         .eth_sender_dal()
@@ -50,10 +50,20 @@ impl MockMainNodeClient {
         }
     }
 
-    async fn add_precommit(&self, number: L2BlockNumber, hash: H256, chain_id: SLChainId) {
-        let details = MiniblockPrecommitDetails { hash, chain_id };
+    async fn add_precommit(&self, number: L2BlockNumber, hash: H256) {
+        let details = MiniblockPrecommitDetails {
+            hash,
+            chain_id: TEST_SL,
+        };
         let mut precommits = self.precommit.lock().await;
         precommits.insert(number, details);
+    }
+
+    async fn add_precommit_for_range(&self, range: std::ops::RangeInclusive<u32>, hash: H256) {
+        for number in range {
+            let miniblock = L2BlockNumber(number);
+            self.add_precommit(miniblock, hash).await;
+        }
     }
 
     async fn set_safe_block(&self, number: L2BlockNumber) {
@@ -80,14 +90,14 @@ impl MainNodeClient for MockMainNodeClient {
 }
 
 /// Helper function to generate deterministic precommit hash for a block number
-fn rolling_tx_hash(block_number: L2BlockNumber) -> H256 {
+fn precommit_tx_hash(block_number: L2BlockNumber) -> H256 {
     H256::repeat_byte(block_number.0 as u8)
 }
 
 /// Helper function to generate MiniblockPrecommitDetails for a block number
 fn precommit_details_for_block(block_number: L2BlockNumber) -> MiniblockPrecommitDetails {
     MiniblockPrecommitDetails {
-        hash: rolling_tx_hash(block_number),
+        hash: precommit_tx_hash(block_number),
         chain_id: TEST_SL,
     }
 }
@@ -140,17 +150,21 @@ async fn assert_block_precommit(
 async fn assert_blocks_in_range(
     storage: &mut Connection<'_, Core>,
     range: std::ops::RangeInclusive<u32>,
-    blocks_with_precommits: &[L2BlockNumber],
+    precommits: &[Vec<u32>],
 ) {
     for block_number in range {
         let l2_block = L2BlockNumber(block_number);
-        let has_precommit = blocks_with_precommits.contains(&l2_block);
+        let has_precommit = precommits
+            .iter()
+            .find(|precommit| precommit.contains(&l2_block));
 
-        if has_precommit {
+        if let Some(blocks) = has_precommit {
             assert_block_precommit(
                 storage,
                 l2_block,
-                &Some(precommit_details_for_block(l2_block)),
+                &Some(precommit_details_for_block(L2BlockNumber(
+                    blocks[blocks.len() - 1],
+                ))),
             )
             .await;
         } else {
@@ -171,50 +185,24 @@ async fn normal_fetcher_operation() {
         insert_l2_block(&mut storage, i, None).await;
     }
 
-    // Create mock client with safe block at 10 and precommits for blocks 3, 5, and 7
+    // Create mock client with safe block at 10 and precommits for 2-3, 4-5, 7
     let client = MockMainNodeClient::new(L2BlockNumber(10));
     client
-        .add_precommit(L2BlockNumber(3), H256::repeat_byte(3), TEST_SL)
+        .add_precommit_for_range(2..=3, precommit_tx_hash(L2BlockNumber(3)))
         .await;
     client
-        .add_precommit(L2BlockNumber(5), H256::repeat_byte(5), TEST_SL)
+        .add_precommit_for_range(4..=5, precommit_tx_hash(L2BlockNumber(5)))
         .await;
+    // 6 has no precommitment, like e.g. last miniblock in bacth
     client
-        .add_precommit(L2BlockNumber(7), H256::repeat_byte(7), TEST_SL)
+        .add_precommit_for_range(7..=7, precommit_tx_hash(L2BlockNumber(7)))
         .await;
 
     let fetcher = MiniblockPrecommitFetcher::new(Box::new(client), pool.clone());
     let mut cursor = FetcherCursor::new(&mut storage).await.unwrap();
     fetcher.fetch_precommits(&mut cursor).await.unwrap();
 
-    // Check that all the precommits were stored in the database
-    assert_block_precommit(
-        &mut storage,
-        L2BlockNumber(3),
-        &Some(MiniblockPrecommitDetails {
-            hash: H256::repeat_byte(3),
-            chain_id: TEST_SL,
-        }),
-    )
-    .await;
-    assert_block_precommit(
-        &mut storage,
-        L2BlockNumber(5),
-        &Some(MiniblockPrecommitDetails {
-            hash: H256::repeat_byte(5),
-            chain_id: TEST_SL,
-        }),
-    )
-    .await;
-    assert_block_precommit(
-        &mut storage,
-        L2BlockNumber(7),
-        &Some(MiniblockPrecommitDetails {
-            hash: H256::repeat_byte(7),
-            chain_id: TEST_SL,
-        }),
-    )
-    .await;
+    assert_blocks_in_range(&mut storage, 1..=10, &[vec![2, 3], vec![4, 5], vec![7]]).await;
 }
 
 #[tokio::test]
@@ -232,24 +220,20 @@ async fn fetcher_with_incremental_safe_block() {
     // Create mock client with safe block initially at 5
     let client = MockMainNodeClient::new(L2BlockNumber(5));
 
-    // Add precommits for blocks 2 and 4
+    // Add precommits for blocks 1-1 and 2-4
     client
-        .add_precommit(L2BlockNumber(2), rolling_tx_hash(L2BlockNumber(2)), TEST_SL)
+        .add_precommit_for_range(1..=1, precommit_tx_hash(L2BlockNumber(1)))
         .await;
     client
-        .add_precommit(L2BlockNumber(4), rolling_tx_hash(L2BlockNumber(4)), TEST_SL)
+        .add_precommit_for_range(2..=4, precommit_tx_hash(L2BlockNumber(4)))
         .await;
 
     // Add precommits that are not finalized, but will be synced when safe block is increased
     client
-        .add_precommit(L2BlockNumber(8), rolling_tx_hash(L2BlockNumber(8)), TEST_SL)
+        .add_precommit_for_range(6..=8, precommit_tx_hash(L2BlockNumber(8)))
         .await;
     client
-        .add_precommit(
-            L2BlockNumber(12),
-            rolling_tx_hash(L2BlockNumber(12)),
-            TEST_SL,
-        )
+        .add_precommit_for_range(11..=12, precommit_tx_hash(L2BlockNumber(12)))
         .await;
 
     let fetcher = MiniblockPrecommitFetcher::new(Box::new(client.clone()), pool);
@@ -257,8 +241,8 @@ async fn fetcher_with_incremental_safe_block() {
     fetcher.fetch_precommits(&mut cursor).await.unwrap();
 
     // After first fetch, blocks 2 and 4 should have precommits (up to safe block 5)
-    assert_blocks_in_range(&mut storage, 1..=15, &[L2BlockNumber(2), L2BlockNumber(4)]).await;
-    // Increase safe block to 10
+    assert_blocks_in_range(&mut storage, 1..=15, &[vec![1], vec![2, 3, 4]]).await;
+    // Increase safe block to 10 (this can happen without precommit for 9, 10 if 9,10 are in a committed batch without precommits)
     client.set_safe_block(L2BlockNumber(10)).await;
     fetcher.fetch_precommits(&mut cursor).await.unwrap();
 
@@ -266,7 +250,7 @@ async fn fetcher_with_incremental_safe_block() {
     assert_blocks_in_range(
         &mut storage,
         1..=15,
-        &[L2BlockNumber(2), L2BlockNumber(4), L2BlockNumber(8)],
+        &[vec![1], vec![2, 3, 4], vec![6, 7, 8]],
     )
     .await;
 
@@ -278,12 +262,7 @@ async fn fetcher_with_incremental_safe_block() {
     assert_blocks_in_range(
         &mut storage,
         1..=15,
-        &[
-            L2BlockNumber(2),
-            L2BlockNumber(4),
-            L2BlockNumber(8),
-            L2BlockNumber(12),
-        ],
+        &[vec![1], vec![2, 3, 4], vec![6, 7, 8], vec![11, 12]],
     )
     .await;
 }
@@ -306,17 +285,13 @@ async fn fetcher_ignores_unsynced_blocks() {
 
     // Add precommits for blocks that exist in our database
     client
-        .add_precommit(L2BlockNumber(5), rolling_tx_hash(L2BlockNumber(5)), TEST_SL)
+        .add_precommit_for_range(4..=8, precommit_tx_hash(L2BlockNumber(8)))
         .await;
 
     // Add precommits for blocks beyond our last synced block (10)
     // Block 12 is under safe block but doesn't exist in our DB
     client
-        .add_precommit(
-            L2BlockNumber(12),
-            rolling_tx_hash(L2BlockNumber(12)),
-            TEST_SL,
-        )
+        .add_precommit_for_range(11..=12, precommit_tx_hash(L2BlockNumber(12)))
         .await;
 
     let fetcher = MiniblockPrecommitFetcher::new(Box::new(client), pool);
@@ -335,7 +310,6 @@ async fn fetcher_ignores_unsynced_blocks() {
             .await,
         1
     );
-    // Only block 5 should have a precommit
     // Blocks 1-10 are synced, 11-15 are not synced
-    assert_blocks_in_range(&mut storage, 1..=10, &[L2BlockNumber(5)]).await;
+    assert_blocks_in_range(&mut storage, 1..=10, &[vec![4, 5, 6, 7, 8]]).await;
 }

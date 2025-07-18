@@ -18,6 +18,7 @@ use zksync_types::{
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
+use crate::batch_transaction_updater::l1_transaction_verifier::TransactionValidationError;
 
 mod l1_transaction_verifier;
 
@@ -190,26 +191,71 @@ impl BatchTransactionUpdater {
                     );
                 }
 
-                //validate against db
-                for miniblock in &miniblocks {
-                    let miniblock_number = L2BlockNumber(miniblock.number);
+                // a precommit tx is associated with a consecutive series of txs. We validate this property.
 
-                    // miniblock must be in db due to how we perform fetching
-                    let Some(miniblock_header) = connection
-                        .blocks_dal()
-                        .get_l2_block_header(miniblock_number)
-                        .await?
-                    else {
-                        tracing::debug!(
+                let mut miniblock_numbers = miniblocks
+                    .iter()
+                    .map(|miniblock| miniblock.number)
+                    .collect::<Vec<_>>();
+                miniblock_numbers.sort();
+                for i in 1..miniblock_numbers.len() {
+                    if miniblock_numbers[i] != miniblock_numbers[i - 1] + 1 {
+                        anyhow::bail!(
+                            "Transaction {} is associated with non consecutive set of miniblocks: miniblock {} is not consecutive with miniblock {}",
+                            eth_history_tx.tx_hash,
+                            miniblock_numbers[i],
+                            miniblock_numbers[i - 1]
+                        );
+                    }
+                }
+
+                // Precommit tx emits commitment to the rolling_tx_hash of the highest miniblock
+                // So we validate against the highest miniblock
+                let highest_miniblock_number = L2BlockNumber(
+                    miniblocks
+                        .iter()
+                        .map(|miniblock| miniblock.number)
+                        .max()
+                        .unwrap(),
+                ); // safe because we just checked that miniblocks is not empty
+
+                // miniblock should be in db due to how we perform fetching
+                let Some(miniblock_header) = connection
+                    .blocks_dal()
+                    .get_l2_block_header(highest_miniblock_number)
+                    .await?
+                else {
+                    tracing::debug!(
                                 "Miniblock {} is not found in the database. Cannot verify transaction {} right now",
-                                miniblock_number,
+                                highest_miniblock_number,
                                 eth_history_tx.tx_hash
                             );
-                        return Ok(false);
-                    };
+                    return Ok(false);
+                };
 
-                    self.l1_transaction_verifier
-                        .validate_precommit_tx(&receipt, miniblock_header)?;
+                let result = self
+                    .l1_transaction_verifier
+                    .validate_precommit_tx(&receipt, miniblock_header);
+
+                if let Err(err) = result {
+                    match err {
+                        TransactionValidationError::MissingExpectedLog { .. } => {
+                            // allow retry in case of MissingExpectedLog error.
+                            // We might now have synced precommit tx for the last
+                            // miniblock in series. We can only validate when we
+                            // have all the miniblocks associations in db
+                            tracing::warn!(
+                                "Transaction {} cannot be validated, because it is missing expected log for miniblock {}. We may need to have a higher miniblock to validate it",
+                                eth_history_tx.tx_hash,
+                                highest_miniblock_number
+                            );
+                            return Ok(false);
+                        }
+                        _ => {
+                            // all other errors are critical
+                            return Err(err.into());
+                        }
+                    }
                 }
 
                 miniblocks

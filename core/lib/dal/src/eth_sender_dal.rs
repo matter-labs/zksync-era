@@ -630,66 +630,18 @@ impl EthSenderDal<'_, '_> {
         .await?)
     }
 
-    async fn insert_pending_eth_tx(
+    /// Inserts a pending eth_tx with hash or updates its status to pending if it exists.
+    /// Update to pending is meant when we associate an existing tx with new batch or miniblock.
+    /// We should make sure its revalidated in such case as we do not perform validation before inserting to db.
+    async fn insert_pending_eth_tx_or_update(
         transaction: &mut Connection<'_, Core>,
         tx_hash: &str,
         tx_type: AggregatedActionType,
         sl_chain_id: Option<SLChainId>,
     ) -> anyhow::Result<i32> {
-        let eth_tx_id = sqlx::query_scalar!(
-                r#"INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at)
-                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now())
-                RETURNING id"#,
-                tx_type.to_string(),
-                sl_chain_id.map(|chain_id| chain_id.0 as i64)
-            )
-            .fetch_one(transaction.conn())
-            .await?;
+        let eth_tx_id = EthSenderDal::get_eth_tx_id_by_tx_hash(transaction, tx_hash).await?;
 
-        // Insert a "sent transaction".
-        sqlx::query_scalar!(
-                r#"INSERT INTO eth_txs_history
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status)
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3)
-                RETURNING id"#,
-                eth_tx_id,
-                tx_hash,
-                EthTxFinalityStatus::Pending.to_string()
-            )
-            .fetch_one(transaction.conn())
-            .await?;
-        Ok(eth_tx_id)
-    }
-
-    /// This method inserts a pending transaction into eth_txs_history table.
-    /// It should be used only in external node context as most properties are not set.
-    /// Inserted transaction does not need to be validated as its set as pending.
-    /// Validation needs to be done before marking with one of the executed statuses.
-    pub async fn insert_pending_received_eth_tx(
-        &mut self,
-        l1_batch: L1BatchNumber,
-        tx_type: L1BatchAggregatedActionType,
-        tx_hash: H256,
-        sl_chain_id: Option<SLChainId>,
-    ) -> anyhow::Result<()> {
-        let mut transaction = self
-            .storage
-            .start_transaction()
-            .await
-            .context("start_transaction")?;
-        let tx_hash = format!("{:#x}", tx_hash);
-
-        let eth_tx_id = EthSenderDal::get_eth_tx_id_by_tx_hash(&mut transaction, &tx_hash).await?;
-
-        // Check if the transaction with the corresponding hash already exists.
-        let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
-            // insert_pending_received_eth_tx binds a tx to a batch however its
-            // called without checking if the tx is valid (is actually performing
-            // the assumed operation for a given batch). Thus we cannot add this
-            // binding unless the transaction is pending. Note that we normally
-            // don't batch multiple operations in one transaction so this path
-            // should be rarely exercised.
-
+        if let Some(eth_tx_id) = eth_tx_id {
             // mark transaction as pending
             sqlx::query_scalar!(
                 r#"
@@ -720,20 +672,58 @@ impl EthSenderDal<'_, '_> {
             .execute(transaction.conn())
             .await?;
 
-            eth_tx_id
+            Ok(eth_tx_id)
         } else {
-            // No such transaction in the database yet, we have to insert it.
-
-            // Insert general tx descriptor.
-            let eth_tx_id = EthSenderDal::insert_pending_eth_tx(
-                &mut transaction,
-                &tx_hash,
-                AggregatedActionType::L1Batch(tx_type),
-                sl_chain_id,
+            let eth_tx_id = sqlx::query_scalar!(
+                r#"INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at)
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now())
+                RETURNING id"#,
+                tx_type.to_string(),
+                sl_chain_id.map(|chain_id| chain_id.0 as i64)
             )
+            .fetch_one(transaction.conn())
             .await?;
-            eth_tx_id
-        };
+
+            // Insert a "sent transaction".
+            sqlx::query_scalar!(
+                r#"INSERT INTO eth_txs_history
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status)
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3)
+                RETURNING id"#,
+                eth_tx_id,
+                tx_hash,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+            Ok(eth_tx_id)
+        }
+    }
+
+    /// This method inserts a pending transaction into eth_txs_history table.
+    /// It should be used only in external node context as most properties are not set.
+    /// Inserted transaction does not need to be validated as its set as pending.
+    /// Validation needs to be done before marking with one of the executed statuses.
+    pub async fn insert_pending_received_eth_tx(
+        &mut self,
+        l1_batch: L1BatchNumber,
+        tx_type: L1BatchAggregatedActionType,
+        tx_hash: H256,
+        sl_chain_id: Option<SLChainId>,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let tx_hash = format!("{:#x}", tx_hash);
+        let eth_tx_id = EthSenderDal::insert_pending_eth_tx_or_update(
+            &mut transaction,
+            &tx_hash,
+            AggregatedActionType::L1Batch(tx_type),
+            sl_chain_id,
+        )
+        .await?;
 
         // Tie the ETH tx to the L1 batch.
         super::BlocksDal {
@@ -768,20 +758,7 @@ impl EthSenderDal<'_, '_> {
             .context("start_transaction")?;
         let tx_hash_str = format!("{:#x}", tx_hash);
 
-        let eth_tx_id =
-            EthSenderDal::get_eth_tx_id_by_tx_hash(&mut transaction, &tx_hash_str).await?;
-
-        if eth_tx_id.is_some() {
-            // We do not expect to have a pending precommit tx with the same hash.
-            anyhow::bail!(
-                "Pending precommit tx with hash {} already exists",
-                tx_hash_str
-            );
-        };
-
-        // No such transaction in the database yet, we insert it.
-
-        let eth_tx_id = EthSenderDal::insert_pending_eth_tx(
+        let eth_tx_id = EthSenderDal::insert_pending_eth_tx_or_update(
             &mut transaction,
             &tx_hash_str,
             AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
