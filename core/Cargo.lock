@@ -14626,6 +14626,7 @@ dependencies = [
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_roles",
+ "zksync_consistency_checker",
  "zksync_contracts",
  "zksync_da_client",
  "zksync_dal",

@@ -13,6 +13,8 @@ use zksync_web3_decl::{
     namespaces::UnstableNamespaceClient,
 };
 
+const INITIAL_SLEEP_DURATION: Duration = Duration::from_secs(2);
+
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum DataAvailabilityFetcherHealth {
@@ -102,69 +104,6 @@ impl DataAvailabilityFetcher {
     /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
     /// So there is no point in scanning batches that were already checked by the consistency
     /// checker, or batches that will be skipped by it.
-    async fn determine_first_batch_to_scan(
-        &self,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<L1BatchNumber> {
-        let earliest_l1_batch_number = loop {
-            if *stop_receiver.borrow() {
-                return Err(anyhow::anyhow!("Data availability fetcher stopped"));
-            }
-
-            let sealed_l1_batch_number = self
-                .pool
-                .connection()
-                .await?
-                .blocks_dal()
-                .get_earliest_l1_batch_number_with_metadata()
-                .await?;
-
-            if let Some(number) = sealed_l1_batch_number {
-                break number;
-            }
-            tracing::debug!(
-                "No L1 batches with metadata are present in DB; will retry after a sleep"
-            );
-
-            tokio::time::timeout(Duration::from_secs(2), stop_receiver.changed())
-                .await
-                .ok();
-        };
-
-        let last_committed_batch = self
-            .pool
-            .connection()
-            .await?
-            .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
-            .await?
-            .unwrap_or(earliest_l1_batch_number);
-
-        let first_batch_to_check: L1BatchNumber = last_committed_batch
-            .0
-            .saturating_sub(self.max_batches_to_recheck)
-            .into();
-
-        let last_checked_by_consistency_checker = self
-            .pool
-            .connection()
-            .await?
-            .blocks_dal()
-            .get_consistency_checker_last_processed_l1_batch()
-            .await?;
-
-        let first_batch_to_check = first_batch_to_check
-            .max(earliest_l1_batch_number)
-            .max(L1BatchNumber(last_checked_by_consistency_checker.0 + 1));
-
-        tracing::debug!(
-            "Determined first batch to scan: {} (last checked batch: {})",
-            first_batch_to_check,
-            last_checked_by_consistency_checker
-        );
-
-        Ok(first_batch_to_check)
-    }
 
     /// Returns a health check for this fetcher.
     pub fn health_check(&self) -> ReactiveHealthCheck {
@@ -322,11 +261,18 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        self.last_scanned_batch = self
-            .determine_first_batch_to_scan(stop_receiver.clone())
-            .await?
+        let (_, first_batch_to_check) =
+            zksync_consistency_checker::get_last_committed_batch_and_first_batch_to_check(
+                &self.pool,
+                INITIAL_SLEEP_DURATION,
+                self.max_batches_to_recheck,
+                &mut stop_receiver,
+            )
+            .await?;
+
+        self.last_scanned_batch = first_batch_to_check
             .0
-            .saturating_sub(1) // set the last scanned batch to the one before the first one to scan
+            .saturating_sub(1) // set the last scanned batch to the one before the first batch to check
             .into();
 
         self.drop_entries_without_inclusion_data().await?;
