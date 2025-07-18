@@ -164,6 +164,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
         vm.vm.push_transaction(tx);
 
         let result = vm.vm.execute(InspectExecutionMode::OneTx);
+        dbg!(&result.result);
         assert!(
             !result.result.is_failed(),
             "Transaction {i} wasn't successful",
@@ -244,7 +245,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
     // While this leaves some room for error, at the end of the test we require that the `BOOTLOADER_BATCH_TIP_OVERHEAD`
     // is sufficient with a very large margin, so it is okay to ignore 1% of possible pubdata.
     const MAX_EFFECTIVE_PUBDATA_PER_BATCH: usize =
-        (MAX_VM_PUBDATA_PER_BATCH as f64 * 0.80) as usize;
+        (MAX_VM_PUBDATA_PER_BATCH as f64 * 0.99) as usize;
     dbg!(MAX_EFFECTIVE_PUBDATA_PER_BATCH);
 
     // We are re-using the `ComplexUpgrade` contract as it already has the `mimicCall` functionality.

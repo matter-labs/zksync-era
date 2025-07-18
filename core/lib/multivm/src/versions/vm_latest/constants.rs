@@ -28,7 +28,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
-        MultiVmSubversion::Interop => 76_000_000,
+        MultiVmSubversion::Interop => 80_000_000,
     }
 }
 
