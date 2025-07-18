@@ -1681,8 +1681,11 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
+        let Some(batch) = batch else {
+            return Ok(None);
+        };
         // genesis batch is first generated without commitment, we should wait for the tree to set it.
         if batch.commitment.is_none() {
             return Ok(None);
