@@ -43,7 +43,7 @@ services:
       - /zksync-era/./prover/data/keys:/prover/data/keys
       - /zksync-era/./prover/artifacts:/artifacts
       - /zksync-era/./chains/era/configs/:/configs
-    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --light-wvg-count=16 --heavy-wvg-count=4 --max-allocation=25769803776
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --threads=32 --max-allocation=25769803776
     expose:
       - 3315 # metrics
 
