@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number\n            FROM\n                miniblocks\n            WHERE\n                eth_precommit_tx_id IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3d0d4928c44e4cf9c366a9a2e0e859914fe48edd6ca4ebb243a9616eccd7ecda"
+}

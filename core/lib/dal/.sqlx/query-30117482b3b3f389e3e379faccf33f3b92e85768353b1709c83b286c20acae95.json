@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE miniblocks\n            SET\n                eth_precommit_tx_id = $1\n            WHERE\n                number = $2\n                AND eth_precommit_tx_id IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "30117482b3b3f389e3e379faccf33f3b92e85768353b1709c83b286c20acae95"
+}

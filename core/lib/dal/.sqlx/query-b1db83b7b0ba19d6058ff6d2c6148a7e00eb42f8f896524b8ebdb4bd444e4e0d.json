@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO eth_txs_history\n                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status)\n                VALUES ($1, 0, 0, $2, '\\\\x00', now(), now(), NULL, TRUE, $3)\n                RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b1db83b7b0ba19d6058ff6d2c6148a7e00eb42f8f896524b8ebdb4bd444e4e0d"
+}
