@@ -29,6 +29,7 @@ zksync_vm_executor = { workspace = true, features = ["node_framework"] }
 zksync_da_client = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
 zksync_shared_resources.workspace = true
+zksync_consistency_checker.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

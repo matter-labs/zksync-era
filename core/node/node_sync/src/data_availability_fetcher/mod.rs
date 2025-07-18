@@ -13,6 +13,8 @@ use zksync_web3_decl::{
     namespaces::UnstableNamespaceClient,
 };
 
+const INITIAL_SLEEP_DURATION: Duration = Duration::from_secs(2);
+
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum DataAvailabilityFetcherHealth {
@@ -73,6 +75,7 @@ pub struct DataAvailabilityFetcher {
     health_updater: HealthUpdater,
     poll_interval: Duration,
     last_scanned_batch: L1BatchNumber,
+    max_batches_to_recheck: u32,
 }
 
 impl DataAvailabilityFetcher {
@@ -83,6 +86,7 @@ impl DataAvailabilityFetcher {
         client: Box<DynClient<L2>>,
         pool: ConnectionPool<Core>,
         da_client: Box<dyn DataAvailabilityClient>,
+        max_batches_to_recheck: u32,
     ) -> Self {
         Self {
             client: client.for_component("data_availability_fetcher"),
@@ -91,32 +95,8 @@ impl DataAvailabilityFetcher {
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
             last_scanned_batch: L1BatchNumber(0),
+            max_batches_to_recheck,
         }
-    }
-
-    /// Determines the first L1 batch to scan for Data Availability information.
-    /// It relies on the consistency checker's cursor because the purpose of the DA fetcher is
-    /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
-    /// So there is no point in scanning batches that were already checked by the consistency
-    /// checker, or batches that will be skipped by it.
-    async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
-        let last_checked_by_consistency_checker = self
-            .pool
-            .connection()
-            .await?
-            .blocks_dal()
-            .get_consistency_checker_last_processed_l1_batch()
-            .await?;
-
-        let first_batch_to_check = last_checked_by_consistency_checker + 1;
-
-        tracing::debug!(
-            "Determined first batch to scan: {} (last checked batch: {})",
-            first_batch_to_check,
-            last_checked_by_consistency_checker
-        );
-
-        Ok(first_batch_to_check)
     }
 
     /// Returns a health check for this fetcher.
@@ -275,7 +255,24 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        self.last_scanned_batch = self.determine_first_batch_to_scan().await?;
+        // It relies on the consistency checker's cursor because the purpose of the DA fetcher is
+        // to populate the necessary DA info for the consistency checker to verify L1 commitments.
+        // So there is no point in scanning batches that were already checked by the consistency
+        // checker, or batches that will be skipped by it.
+        let (_, first_batch_to_check) =
+            zksync_consistency_checker::get_last_committed_batch_and_first_batch_to_check(
+                &self.pool,
+                INITIAL_SLEEP_DURATION,
+                self.max_batches_to_recheck,
+                &mut stop_receiver,
+            )
+            .await?;
+
+        self.last_scanned_batch = first_batch_to_check
+            .0
+            .saturating_sub(1) // set the last scanned batch to the one before the first batch to check
+            .into();
+
         self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {

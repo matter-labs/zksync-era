@@ -339,7 +339,9 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(DataAvailabilityFetcherLayer);
+        self.node.add_layer(DataAvailabilityFetcherLayer::new(
+            self.config.local.consistency_checker.max_batches_to_recheck,
+        ));
         Ok(self)
     }
 
