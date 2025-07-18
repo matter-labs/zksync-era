@@ -255,10 +255,10 @@ impl DataAvailabilityFetcher {
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
 
-        /// It relies on the consistency checker's cursor because the purpose of the DA fetcher is
-        /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
-        /// So there is no point in scanning batches that were already checked by the consistency
-        /// checker, or batches that will be skipped by it.
+        // It relies on the consistency checker's cursor because the purpose of the DA fetcher is
+        // to populate the necessary DA info for the consistency checker to verify L1 commitments.
+        // So there is no point in scanning batches that were already checked by the consistency
+        // checker, or batches that will be skipped by it.
         let (_, first_batch_to_check) =
             zksync_consistency_checker::get_last_committed_batch_and_first_batch_to_check(
                 &self.pool,
