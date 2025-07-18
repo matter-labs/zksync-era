@@ -102,12 +102,20 @@ impl FetcherCursor {
             .blocks_dal()
             .get_last_miniblock_with_precommit()
             .await?;
+        let last_block_with_precommit = last_block_with_precommit.unwrap_or(L2BlockNumber(0));
+        // We don't want to sync excesive/not-usefull precommits. Batch commit is as good as precommit of miniblock. So we sync only for pending batch.
+        let oldest_pending_miniblock = storage
+            .blocks_dal()
+            .get_oldest_unsealed_l2_block_number()
+            .await?
+            .map(|number| number - 1) // get_oldest_unsealed_l2_block_number should be protest, but we set "last_processed"
+            .or(storage.blocks_dal().get_sealed_l2_block_number().await?)
+            .unwrap_or(L2BlockNumber(0));
 
         // If we have precommits, start from the last one, otherwise start from the beginning
-        let last_processed_miniblock = last_block_with_precommit.unwrap_or(L2BlockNumber(0));
 
         Ok(Self {
-            last_processed_miniblock,
+            last_processed_miniblock: last_block_with_precommit.max(oldest_pending_miniblock),
         })
     }
 }
