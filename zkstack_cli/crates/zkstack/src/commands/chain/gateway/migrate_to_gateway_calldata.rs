@@ -9,8 +9,8 @@ use ethers::{
     providers::{Middleware, Provider},
 };
 use xshell::Shell;
-use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
-use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
+use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, git, logger};
+use zkstack_cli_config::{traits::ReadConfig, EcosystemConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
@@ -79,6 +79,9 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     foundry_contracts_path: &Path,
     params: MigrateToGatewayParams,
 ) -> anyhow::Result<(Address, Vec<AdminCall>)> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+
     let refund_recipient = params.refund_recipient.unwrap_or(params.validator_1);
     let mut result = vec![];
 

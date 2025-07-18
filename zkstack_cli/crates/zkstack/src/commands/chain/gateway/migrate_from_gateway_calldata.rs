@@ -7,8 +7,8 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
-use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
+use zkstack_cli_common::{ethereum::get_ethers_provider, git, logger};
+use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, EcosystemConfig};
 
 use super::{
     gateway_common::{
@@ -63,6 +63,9 @@ pub struct MigrateFromGatewayCalldataArgs {
 /// Produces the calldata necessary to perform (or continue) a migration to Gateway.
 ///
 pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+
     let forge_args = Default::default();
     let contracts_foundry_path = get_default_foundry_path(shell)?;
 
