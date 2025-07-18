@@ -4,15 +4,16 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::{
-    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
+    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+    POST_V26_GATEWAY_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
-        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
+        get_encoding_version, CommitBatchInfo, EncodingVersion, StoredBatchInfo,
+        PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA, PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
     },
     Tokenizable,
 };
@@ -232,11 +233,25 @@ impl LocalL1BatchCommitData {
             .is_none_or(|version| version.is_pre_shared_bridge())
     }
 
-    fn is_pre_gateway(&self) -> bool {
+    fn is_pre_v26_gateway(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
             .is_none_or(|version| version.is_pre_gateway())
+    }
+
+    fn get_encoding_version(&self) -> u8 {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(EncodingVersion::PreInterop.value(), get_encoding_version)
+    }
+
+    fn is_pre_v29_interop(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .is_none_or(|version| version.is_pre_interop_fast_blocks())
     }
 
     /// All returned errors are validation errors.
@@ -503,8 +518,10 @@ impl ConsistencyChecker {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else if local.is_pre_shared_bridge() {
             &*POST_BOOJUM_COMMIT_FUNCTION
-        } else if local.is_pre_gateway() {
+        } else if local.is_pre_v26_gateway() {
             &*POST_SHARED_BRIDGE_COMMIT_FUNCTION
+        } else if local.is_pre_v29_interop() {
+            &*POST_V26_GATEWAY_COMMIT_FUNCTION
         } else {
             self.contract
                 .function("commitBatchesSharedBridge")
@@ -516,7 +533,9 @@ impl ConsistencyChecker {
             &commit_tx.input.0,
             commit_function,
             batch_number,
-            local.is_pre_gateway(),
+            local.is_pre_v26_gateway(),
+            local.is_pre_v29_interop(),
+            local.get_encoding_version(),
         )
         .with_context(|| {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
@@ -535,6 +554,8 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
         pre_gateway: bool,
+        pre_interop: bool,
+        encoding_version: u8,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -565,13 +586,18 @@ impl ConsistencyChecker {
             };
             let (version, encoded_data) = commitment_bytes.split_at(1);
             anyhow::ensure!(
-                version[0] == SUPPORTED_ENCODING_VERSION,
+                version[0] == encoding_version,
                 "Unexpected encoding version: {}",
                 version[0]
             );
+            let schema = if pre_interop {
+                StoredBatchInfo::schema_pre_interop()
+            } else {
+                StoredBatchInfo::schema_post_interop()
+            };
             let decoded_data = ethabi::decode(
                 &[
-                    StoredBatchInfo::schema(),
+                    schema,
                     ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,
@@ -787,7 +813,7 @@ pub async fn get_last_committed_batch_and_first_batch_to_check(
         .connection()
         .await?
         .blocks_dal()
-        .get_number_of_last_l1_batch_committed_on_eth()
+        .get_number_of_last_l1_batch_committed_finailized_on_eth()
         .await?
         .unwrap_or(earliest_l1_batch_number);
 

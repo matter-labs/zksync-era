@@ -55,7 +55,7 @@ pub struct LeafAggregationArtifacts {
     circuit_id: u8,
     batch_id: L1BatchId,
     pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
-    pub circuit_ids_and_urls: Vec<(u8, String)>,
+    pub circuit_ids_sequence_numbers_and_urls: Vec<(u8, usize, String)>,
     #[allow(dead_code)]
     closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
 }
@@ -167,8 +167,9 @@ impl JobManager for LeafAggregation {
             handles.push(handle);
         }
 
-        let circuit_ids_and_urls_results = futures::future::join_all(handles).await;
-        let circuit_ids_and_urls = circuit_ids_and_urls_results
+        let circuit_ids_sequence_numbers_and_urls_results =
+            futures::future::join_all(handles).await;
+        let circuit_ids_sequence_numbers_and_urls = circuit_ids_sequence_numbers_and_urls_results
             .into_iter()
             .flat_map(|x| x.unwrap())
             .collect();
@@ -184,7 +185,7 @@ impl JobManager for LeafAggregation {
             circuit_id,
             batch_id: job.batch_id,
             aggregations,
-            circuit_ids_and_urls,
+            circuit_ids_sequence_numbers_and_urls,
             closed_form_inputs: job.closed_form_inputs.0,
         })
     }

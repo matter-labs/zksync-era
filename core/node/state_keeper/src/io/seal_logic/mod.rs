@@ -276,6 +276,15 @@ impl UpdatesManager {
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
         tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch_number());
     }
+
+    pub fn clear_interop_roots(&mut self) {
+        tracing::debug!(
+            "Clearing interop roots for l2 block {:?}: {:?}",
+            self.last_pending_l2_block().number,
+            self.last_pending_l2_block().interop_roots
+        );
+        self.last_pending_l2_block_mut().interop_roots.clear();
+    }
 }
 
 #[derive(Debug)]
@@ -394,6 +403,7 @@ impl L2BlockSealCommand {
                 gas_limit: get_max_batch_gas_limit(definite_vm_version),
                 logs_bloom,
                 pubdata_params: self.pubdata_params,
+                rolling_txs_hash: Some(self.rolling_txs_hash),
             };
 
             let mut connection = strategy.connection().await?;
@@ -419,6 +429,10 @@ impl L2BlockSealCommand {
             anyhow::ensure!(
                 self.l2_block.executed_transactions.is_empty(),
                 "fictive L2 block must not have transactions"
+            );
+            anyhow::ensure!(
+                self.l2_block.interop_roots.is_empty(),
+                "fictive L2 block must not have interop roots"
             );
         } else {
             anyhow::ensure!(
@@ -499,7 +513,7 @@ impl L2BlockSealCommand {
     fn report_transaction_metrics(&self) {
         const SLOW_INCLUSION_DELAY: Duration = Duration::from_secs(600);
 
-        if self.pre_insert_txs {
+        if self.pre_insert_data {
             // This I/O logic is running on the EN. The reported metrics / logs would be meaningless:
             //
             // - If `received_timestamp_ms` are copied from the main node, they can be far in the past (especially during the initial EN sync).
