@@ -24,6 +24,13 @@ impl APIToken {
     pub fn from_config_address(address: Address) -> Self {
         if address == Address::zero() || address == Address::from_low_u64_be(1) {
             Self::Eth
+            // ZK needs special handling due to being not recognized by API clients
+        } else if address
+            == "0x66A5cFB2e9c529f14FE6364Ad1075dF3a649C0A5"
+                .parse::<Address>()
+                .unwrap()
+        {
+            Self::ZK
         } else {
             Self::ERC20(address)
         }
