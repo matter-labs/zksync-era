@@ -96,6 +96,27 @@ struct FetcherCursor {
 }
 
 impl FetcherCursor {
+    async fn latest_committed_miniblock(
+        storage: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<L2BlockNumber> {
+        let latest_committed_l1_batch = storage
+            .blocks_dal()
+            .get_last_committed_to_eth_l1_batch()
+            .await?
+            .map(|batch| batch.header.number);
+
+        let Some(latest_committed_l1_back) = latest_committed_l1_batch else {
+            return Ok(L2BlockNumber(0));
+        };
+
+        Ok(storage
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(latest_committed_l1_back)
+            .await?
+            .map(|range| range.1)
+            .unwrap_or(L2BlockNumber(0)))
+    }
+
     async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         // Check if we have any precommits already
         let last_block_with_precommit = storage
@@ -103,19 +124,15 @@ impl FetcherCursor {
             .get_last_miniblock_with_precommit()
             .await?;
         let last_block_with_precommit = last_block_with_precommit.unwrap_or(L2BlockNumber(0));
-        // We don't want to sync excesive/not-usefull precommits. Batch commit is as good as precommit of miniblock. So we sync only for pending batch.
-        let oldest_pending_miniblock = storage
-            .blocks_dal()
-            .get_oldest_unsealed_l2_block_number()
-            .await?
-            .map(|number| number - 1) // get_oldest_unsealed_l2_block_number should be protest, but we set "last_processed"
-            .or(storage.blocks_dal().get_sealed_l2_block_number().await?)
-            .unwrap_or(L2BlockNumber(0));
+
+        // We don't want to sync excessive/not-useful precommits. Batch commit
+        // is as good as precommit of miniblock. So we sync only for pending batch.
+        let last_committed_miniblock = Self::latest_committed_miniblock(storage).await?;
 
         // If we have precommits, start from the last one, otherwise start from the beginning
 
         Ok(Self {
-            last_processed_miniblock: last_block_with_precommit.max(oldest_pending_miniblock),
+            last_processed_miniblock: last_block_with_precommit.max(last_committed_miniblock),
         })
     }
 }

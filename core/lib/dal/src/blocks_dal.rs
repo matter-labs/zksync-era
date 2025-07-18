@@ -247,27 +247,6 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|number| L2BlockNumber(number as u32)))
     }
 
-    pub async fn get_oldest_unsealed_l2_block_number(
-        &mut self,
-    ) -> DalResult<Option<L2BlockNumber>> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                MIN(number) AS "number"
-            FROM
-                miniblocks
-            WHERE
-                l1_batch_number IS NULL
-            "#
-        )
-        .instrument("get_oldest_unsealed_l2_block_number")
-        .report_latency()
-        .fetch_one(self.storage)
-        .await?;
-
-        Ok(row.number.map(|number| L2BlockNumber(number as u32)))
-    }
-
     /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
     pub async fn get_earliest_l1_batch_number(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
