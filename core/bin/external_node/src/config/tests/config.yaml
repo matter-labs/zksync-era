@@ -74,6 +74,7 @@ api:
     initial_writes_cache_size_mb: 50
     extended_api_tracing: true
     estimate_gas_optimize_search: true
+    eth_call_gas_cap: null
     vm_concurrency_limit: 100
     latest_values_cache_size_mb: 200
     request_timeout_sec: 20

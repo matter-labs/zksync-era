@@ -461,6 +461,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBase {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l1_to_l2_txs_paused: false,
+            eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
         }
     }
 }
