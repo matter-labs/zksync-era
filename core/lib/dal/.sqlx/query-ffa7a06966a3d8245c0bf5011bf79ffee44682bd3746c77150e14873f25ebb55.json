@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MIN(number) AS \"number\"\n            FROM\n                miniblocks\n            WHERE\n                l1_batch_number IS NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ffa7a06966a3d8245c0bf5011bf79ffee44682bd3746c77150e14873f25ebb55"
+}

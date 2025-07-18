@@ -702,11 +702,8 @@ impl ExternalNodeBuilder {
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
                         .add_batch_transaction_updater_layer()?
+                        .add_miniblock_precommit_fetcher_layer()?
                         .add_logs_bloom_backfill_layer()?;
-
-                    if self.config.local.node_sync.precommits_sync_enabled {
-                        self = self.add_miniblock_precommit_fetcher_layer()?;
-                    }
                 }
             }
         }
