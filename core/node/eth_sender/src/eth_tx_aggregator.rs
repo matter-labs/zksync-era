@@ -684,7 +684,9 @@ impl EthTxAggregator {
             }
         }
 
-        let precommit_params = self.precommit_params(storage).await?;
+        let precommit_params = self
+            .precommit_params(storage, chain_protocol_version_id)
+            .await?;
 
         if let Some(agg_op) = self
             .aggregator
@@ -737,7 +739,12 @@ impl EthTxAggregator {
     async fn precommit_params(
         &mut self,
         storage: &mut Connection<'_, Core>,
+        chain_protocol_version_id: ProtocolVersionId,
     ) -> Result<Option<PrecommitParams>, EthSenderError> {
+        if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+            // If we are in the pre-interop fast blocks mode, we don't use precommit operations
+            return Ok(None);
+        }
         if let Some(params) = self.config.precommit_params.clone() {
             return Ok(Some(params));
         }
