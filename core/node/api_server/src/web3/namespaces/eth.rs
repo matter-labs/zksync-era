@@ -23,8 +23,8 @@ use crate::{
     tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{
-        backend_jsonrpsee::MethodTracer, metrics::API_METRICS, receipts::fill_transaction_receipts,
-        state::RpcState, TypedFilter,
+        backend_jsonrpsee::MethodTracer, receipts::fill_transaction_receipts, state::RpcState,
+        TypedFilter,
     },
 };
 
@@ -93,7 +93,8 @@ impl EthNamespace {
             .state
             .tx_sender
             .eth_call(block_args, call_overrides, tx, state_override)
-            .await?;
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(call_result.into())
     }
 
@@ -137,7 +138,7 @@ impl EthNamespace {
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        let gas_price = self.state.tx_sender.gas_price().await?;
+        let (gas_price, _) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
         tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
@@ -158,12 +159,13 @@ impl EthNamespace {
                 state_override,
                 search_kind,
             )
-            .await?;
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
-        let gas_price = self.state.tx_sender.gas_price().await?;
+        let (gas_price, _) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
         Ok(gas_price.into())
     }
 
@@ -672,11 +674,9 @@ impl EthNamespace {
         tx.set_input(tx_bytes.0, hash);
 
         let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
-        submit_result.map(|_| hash).map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}");
-            API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            err.into()
-        })
+        submit_result
+            .map(|_| hash)
+            .map_err(|err| self.current_method().map_submit_err(err))
     }
 
     pub fn accounts_impl(&self) -> Vec<Address> {

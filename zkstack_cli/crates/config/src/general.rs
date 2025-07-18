@@ -39,7 +39,6 @@ impl FileArtifacts {
 #[derive(Debug)]
 pub struct EthSenderLimits {
     pub max_aggregated_tx_gas: u64,
-    pub max_eth_tx_data_size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -212,6 +211,10 @@ impl GeneralConfigPatch {
             .get("proof_compressor.universal_setup_download_url")
     }
 
+    pub fn proof_compressor_setup_path(&self) -> anyhow::Result<PathBuf> {
+        self.0.base().get("proof_compressor.universal_setup_path")
+    }
+
     pub fn set_proof_compressor_setup_path(&mut self, path: &Path) -> anyhow::Result<()> {
         self.0
             .insert_path("proof_compressor.universal_setup_path", path)
@@ -243,10 +246,6 @@ impl GeneralConfigPatch {
         self.0.insert(
             "eth.sender.max_aggregated_tx_gas",
             limits.max_aggregated_tx_gas,
-        )?;
-        self.0.insert(
-            "eth.sender.max_eth_tx_data_size",
-            limits.max_eth_tx_data_size,
         )
     }
 

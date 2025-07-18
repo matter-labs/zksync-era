@@ -7,10 +7,11 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{
     configs,
     configs::{
-        chain::{OperationsManagerConfig, StateKeeperConfig},
+        chain::SharedStateKeeperConfig,
         consensus as config,
         consensus::RpcConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        snapshot_recovery::TreeRecoveryConfig,
     },
 };
 use zksync_consensus_crypto::TextFmt as _;
@@ -33,8 +34,8 @@ use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
-    AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
-    ZkSyncStateKeeper,
+    AsyncRocksdbCache, OutputHandler, StateKeeperBuilder, StateKeeperPersistence,
+    TreeWritesPersistence,
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
@@ -94,7 +95,9 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             .iter()
             .map(|k| (config::ValidatorPublicKey(k.public().encode()), 1))
             .collect(),
-        leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+        leader: Some(config::ValidatorPublicKey(
+            setup.validator_keys[0].public().encode(),
+        )),
         registry_address: None,
         seed_peers: net_cfgs[..seed_peers]
             .iter()
@@ -132,6 +135,7 @@ fn make_config(
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: u64::MAX.into(),
+        max_transaction_size: u64::MAX.into(),
         max_batch_size: u64::MAX.into(),
         view_timeout: Duration::from_secs(2),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -155,6 +159,7 @@ fn make_config(
         genesis_spec,
         rpc: RpcConfig::default(),
         debug_page_addr: None,
+        consensus_registry_read_rate: Duration::from_secs(1),
     }
 }
 
@@ -204,17 +209,14 @@ impl StateKeeper {
             mode: MerkleTreeMode::Lightweight,
             ..MerkleTreeConfig::for_tests(rocksdb_dir.path().join("merkle_tree"))
         };
-        let operation_manager_config = OperationsManagerConfig {
-            delay_interval: Duration::from_millis(100),
-        };
-        let state_keeper_config = StateKeeperConfig {
+        let state_keeper_config = SharedStateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..StateKeeperConfig::for_tests()
+            ..SharedStateKeeperConfig::default()
         };
-        let config = MetadataCalculatorConfig::for_main_node(
+        let config = MetadataCalculatorConfig::from_configs(
             &merkle_tree_config,
-            &operation_manager_config,
             &state_keeper_config,
+            &TreeRecoveryConfig::default(),
         );
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
@@ -258,11 +260,10 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
-                    first_l2_block: L2BlockParams {
-                        timestamp: self.last_timestamp,
-                        virtual_blocks: 1,
-                    },
+                    first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
+                    pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
+                        .then_some(100_000),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -271,10 +272,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::L2Block {
-                params: L2BlockParams {
-                    timestamp: self.last_timestamp,
-                    virtual_blocks: 0,
-                },
+                params: L2BlockParams::new(self.last_timestamp * 1000),
                 number: self.last_block,
             }
         }
@@ -373,21 +371,6 @@ impl StateKeeper {
                 }
             }
         }
-    }
-
-    /// Runs the centralized fetcher.
-    pub async fn run_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: Box<DynClient<L2>>,
-    ) -> anyhow::Result<()> {
-        en::EN {
-            pool: self.pool,
-            client,
-            sync_state: self.sync_state.clone(),
-        }
-        .run_fetcher(ctx, self.actions_sender)
-        .await
     }
 
     /// Runs consensus node for the external node.
@@ -538,6 +521,20 @@ impl StateKeeperRunner {
                 self.rocksdb_dir.path().join("cache"),
                 Default::default(),
             );
+            let executor_factory = MainBatchExecutorFactory::<()>::new(false);
+            let state_keeper = StateKeeperBuilder::new(
+                Box::new(io),
+                Box::new(executor_factory),
+                OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                    .with_handler(Box::new(self.sync_state.clone())),
+                Arc::new(NoopSealer),
+                Arc::new(async_cache),
+                None,
+            )
+            .build(&stop_recv)
+            .await
+            .unwrap();
+
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
@@ -555,21 +552,12 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
-                let executor_factory = MainBatchExecutorFactory::<()>::new(false);
                 let stop_recv = stop_recv.clone();
                 async {
-                    ZkSyncStateKeeper::new(
-                        Box::new(io),
-                        Box::new(executor_factory),
-                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
-                            .with_handler(Box::new(self.sync_state.clone())),
-                        Arc::new(NoopSealer),
-                        Arc::new(async_cache),
-                        None,
-                    )
-                    .run(stop_recv)
-                    .await
-                    .context("ZkSyncStateKeeper::run()")?;
+                    state_keeper
+                        .run(stop_recv)
+                        .await
+                        .context("StateKeeper::run()")?;
                     Ok(())
                 }
             });
@@ -626,6 +614,21 @@ impl StateKeeperRunner {
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
             )?;
+
+            let state_keeper = StateKeeperBuilder::new(
+                Box::new(io),
+                Box::new(MockBatchExecutor),
+                OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+                    .with_handler(Box::new(tree_writes_persistence))
+                    .with_handler(Box::new(self.sync_state.clone())),
+                Arc::new(NoopSealer),
+                Arc::new(MockReadStorageFactory),
+                None,
+            )
+            .build(&stop_recv)
+            .await
+            .unwrap();
+
             s.spawn_bg(async {
                 Ok(l2_block_sealer
                     .run()
@@ -644,19 +647,10 @@ impl StateKeeperRunner {
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
                 async {
-                    ZkSyncStateKeeper::new(
-                        Box::new(io),
-                        Box::new(MockBatchExecutor),
-                        OutputHandler::new(Box::new(persistence.with_tx_insertion()))
-                            .with_handler(Box::new(tree_writes_persistence))
-                            .with_handler(Box::new(self.sync_state.clone())),
-                        Arc::new(NoopSealer),
-                        Arc::new(MockReadStorageFactory),
-                        None,
-                    )
-                    .run(stop_recv)
-                    .await
-                    .context("ZkSyncStateKeeper::run()")?;
+                    state_keeper
+                        .run(stop_recv)
+                        .await
+                        .context("StateKeeper::run()")?;
                     Ok(())
                 }
             });

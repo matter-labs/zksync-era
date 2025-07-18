@@ -391,6 +391,15 @@ impl Log {
     }
 }
 
+impl From<Log> for ethabi::RawLog {
+    fn from(log: Log) -> Self {
+        ethabi::RawLog {
+            topics: log.topics,
+            data: log.data.0,
+        }
+    }
+}
+
 // `BlockHeader`, `BlockId`, `BlockNumber`: from `web3::types::block`
 
 /// The block header type returned from RPC calls.

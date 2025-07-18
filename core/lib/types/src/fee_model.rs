@@ -68,6 +68,17 @@ impl BatchFeeInput {
                 })
             })
     }
+
+    pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> BatchFeeInput {
+        match self {
+            BatchFeeInput::L1Pegged(input) => {
+                BatchFeeInput::L1Pegged(input.scale_fair_l2_gas_price(scale_factor))
+            }
+            BatchFeeInput::PubdataIndependent(input) => {
+                BatchFeeInput::PubdataIndependent(input.scale_fair_l2_gas_price(scale_factor))
+            }
+        }
+    }
 }
 
 impl Default for BatchFeeInput {
@@ -171,6 +182,15 @@ pub struct L1PeggedBatchFeeModelInput {
     pub l1_gas_price: u64,
 }
 
+impl L1PeggedBatchFeeModelInput {
+    pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> L1PeggedBatchFeeModelInput {
+        L1PeggedBatchFeeModelInput {
+            l1_gas_price: self.l1_gas_price,
+            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
+        }
+    }
+}
+
 /// Pubdata price may be independent from L1 gas price.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PubdataIndependentBatchFeeModelInput {
@@ -180,6 +200,20 @@ pub struct PubdataIndependentBatchFeeModelInput {
     pub fair_pubdata_price: u64,
     /// The L1 gas price to provide to the VM. Even if some of the VM versions may not use this value, it is still maintained for backward compatibility.
     pub l1_gas_price: u64,
+}
+
+impl PubdataIndependentBatchFeeModelInput {
+    /// Scales the fair L2 gas price. This method shouldn't be used anywhere outside API.
+    pub fn scale_fair_l2_gas_price(
+        self,
+        scale_factor: f64,
+    ) -> PubdataIndependentBatchFeeModelInput {
+        clip_batch_fee_model_input_v2(PubdataIndependentBatchFeeModelInput {
+            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
+            fair_pubdata_price: self.fair_pubdata_price,
+            l1_gas_price: self.l1_gas_price,
+        })
+    }
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
@@ -270,26 +304,33 @@ impl FeeParamsV2 {
     /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn config(&self) -> FeeModelConfigV2 {
         FeeModelConfigV2 {
-            minimal_l2_gas_price: self.convert_to_base_token(self.config.minimal_l2_gas_price),
+            minimal_l2_gas_price: self.convert_l1_to_base_token(
+                self.config.minimal_l2_gas_price,
+                self.conversion_ratio.l1,
+            ),
             ..self.config
         }
     }
 
     /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_gas_price(&self) -> u64 {
-        self.convert_to_base_token(self.l1_gas_price)
+        self.convert_l1_to_base_token(self.l1_gas_price, self.conversion_ratio.sl)
     }
 
     /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_pubdata_price(&self) -> u64 {
-        self.convert_to_base_token(self.l1_pubdata_price)
+        self.convert_l1_to_base_token(self.l1_pubdata_price, self.conversion_ratio.sl)
     }
 
     /// Converts the fee param to the base token.
-    fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
+    fn convert_l1_to_base_token(
+        &self,
+        price_in_wei: u64,
+        conversion_ratio: ConversionRatio,
+    ) -> u64 {
         let converted_price = u128::from(price_in_wei)
-            * u128::from(self.conversion_ratio.numerator.get())
-            / u128::from(self.conversion_ratio.denominator.get());
+            * u128::from(conversion_ratio.numerator.get())
+            / u128::from(conversion_ratio.denominator.get());
 
         // Match on the converted price to ensure it can be represented as a u64
         match converted_price.try_into() {
@@ -312,19 +353,60 @@ impl FeeParamsV2 {
     }
 }
 
-/// The struct that represents the BaseToken<->ETH conversion ratio.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BaseTokenConversionRatio {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct ConversionRatio {
     pub numerator: NonZeroU64,
     pub denominator: NonZeroU64,
 }
 
-impl Default for BaseTokenConversionRatio {
+impl ConversionRatio {
+    pub fn reciprocal(&self) -> Self {
+        Self {
+            numerator: self.denominator,
+            denominator: self.numerator,
+        }
+    }
+}
+
+impl Default for ConversionRatio {
     fn default() -> Self {
         Self {
             numerator: NonZeroU64::new(1).unwrap(),
             denominator: NonZeroU64::new(1).unwrap(),
         }
+    }
+}
+
+/// The struct that represents the BaseToken<->ETH conversion ratio.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct BaseTokenConversionRatio {
+    pub l1: ConversionRatio,
+    pub sl: ConversionRatio,
+    #[deprecated(note = "backwards compatibility for API")]
+    numerator: NonZeroU64,
+    #[deprecated(note = "backwards compatibility for API")]
+    denominator: NonZeroU64,
+}
+
+#[allow(deprecated)]
+impl BaseTokenConversionRatio {
+    pub fn new_simple(l1_sl: ConversionRatio) -> Self {
+        Self::new(l1_sl, l1_sl)
+    }
+
+    pub fn new(l1: ConversionRatio, sl: ConversionRatio) -> Self {
+        Self {
+            l1,
+            sl,
+            numerator: l1.numerator,
+            denominator: l1.denominator,
+        }
+    }
+}
+
+impl Default for BaseTokenConversionRatio {
+    fn default() -> Self {
+        Self::new_simple(ConversionRatio::default())
     }
 }
 
@@ -769,10 +851,10 @@ mod tests {
             config,
             GWEI,
             2 * GWEI,
-            BaseTokenConversionRatio {
+            BaseTokenConversionRatio::new_simple(ConversionRatio {
                 numerator: NonZeroU64::new(3_000_000).unwrap(),
                 denominator: NonZeroU64::new(1).unwrap(),
-            },
+            }),
         );
 
         let input =
@@ -799,10 +881,10 @@ mod tests {
             config,
             u64::MAX,
             u64::MAX - 1,
-            BaseTokenConversionRatio {
+            BaseTokenConversionRatio::new_simple(ConversionRatio {
                 numerator: NonZeroU64::new(u64::MAX).unwrap(),
                 denominator: NonZeroU64::new(u64::MAX).unwrap(),
-            },
+            }),
         );
         assert_eq!(params.l1_gas_price(), u64::MAX);
         assert_eq!(params.l1_pubdata_price(), u64::MAX - 1);

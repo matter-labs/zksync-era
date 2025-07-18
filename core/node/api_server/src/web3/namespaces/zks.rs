@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -7,25 +5,22 @@ use zksync_shared_resources::tree::TreeApiError;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
-    h256_to_u256,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION},
-    tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    utils::storage_key_for_standard_token_balance,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
     error::{ClientRpcContext, Web3Error},
     namespaces::ZksNamespaceClient,
-    types::{Address, Token, H256},
+    types::{Address, H256},
 };
 
 use crate::{
@@ -129,8 +124,7 @@ impl ZksNamespace {
             self.state.api_config.estimate_gas_acceptable_overestimation;
         let search_kind = BinarySearchKind::new(self.state.api_config.estimate_gas_optimize_search);
 
-        Ok(self
-            .state
+        self.state
             .tx_sender
             .get_txs_fee_in_wei(
                 tx,
@@ -140,7 +134,8 @@ impl ZksNamespace {
                 state_override,
                 search_kind,
             )
-            .await?)
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))
     }
 
     pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
@@ -174,81 +169,13 @@ impl ZksNamespace {
         U64::from(*self.state.api_config.l1_chain_id)
     }
 
-    pub async fn get_confirmed_tokens_impl(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> Result<Vec<Token>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        let tokens = storage
-            .tokens_web3_dal()
-            .get_well_known_tokens()
-            .await
-            .map_err(DalError::generalize)?;
-
-        let tokens = tokens
-            .into_iter()
-            .skip(from as usize)
-            .take(limit.into())
-            .map(|token_info| Token {
-                l1_address: token_info.l1_address,
-                l2_address: token_info.l2_address,
-                name: token_info.metadata.name,
-                symbol: token_info.metadata.symbol,
-                decimals: token_info.metadata.decimals,
-            })
-            .collect();
-        Ok(tokens)
-    }
-
-    pub async fn get_all_account_balances_impl(
-        &self,
-        address: Address,
-    ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        let tokens = storage
-            .tokens_dal()
-            .get_all_l2_token_addresses()
-            .await
-            .map_err(DalError::generalize)?;
-        let hashed_balance_keys = tokens.iter().map(|&token_address| {
-            let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
-                L2_BASE_TOKEN_ADDRESS
-            } else {
-                token_address
-            });
-            let hashed_key =
-                storage_key_for_standard_token_balance(token_account, &address).hashed_key();
-            (hashed_key, (hashed_key, token_address))
-        });
-        let (hashed_balance_keys, hashed_key_to_token_address): (Vec<_>, HashMap<_, _>) =
-            hashed_balance_keys.unzip();
-
-        let balance_values = storage
-            .storage_web3_dal()
-            .get_values(&hashed_balance_keys)
-            .await
-            .map_err(DalError::generalize)?;
-
-        let balances = balance_values
-            .into_iter()
-            .filter_map(|(hashed_key, balance)| {
-                let balance = h256_to_u256(balance);
-                if balance.is_zero() {
-                    return None;
-                }
-                Some((hashed_key_to_token_address[&hashed_key], balance))
-            })
-            .collect();
-        Ok(balances)
-    }
-
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
+        interop_mode: Option<InteropMode>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -281,7 +208,6 @@ impl ZksNamespace {
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
-
         let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
@@ -313,20 +239,31 @@ impl ZksNamespace {
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
-                let Some(batch_chain_proof) = storage
-                    .blocks_dal()
-                    .get_l1_batch_chain_merkle_path(l1_batch_number)
-                    .await
-                    .map_err(DalError::generalize)?
-                else {
-                    return Ok(None);
+                let batch_chain_proof = if interop_mode == Some(InteropMode::ProofBasedGateway) {
+                    // Serve a proof to Gateway's MessageRoot
+                    storage
+                        .blocks_dal()
+                        .get_batch_chain_merkle_path_until_msg_root(l1_batch_number)
+                        .await
+                        .map_err(DalError::generalize)
+                } else {
+                    // Serve a proof to Gateway's ChainBatchRoot, used for withdrawals
+                    storage
+                        .blocks_dal()
+                        .get_l1_batch_chain_merkle_path(l1_batch_number)
+                        .await
+                        .map_err(DalError::generalize)
                 };
 
-                (
-                    batch_chain_proof.batch_proof_len,
-                    batch_chain_proof.proof,
-                    false,
-                )
+                if let Ok(Some(batch_chain_proof)) = batch_chain_proof {
+                    (
+                        batch_chain_proof.batch_proof_len,
+                        batch_chain_proof.proof,
+                        false,
+                    )
+                } else {
+                    return Ok(None);
+                }
             } else {
                 (0, Vec::new(), true)
             };
@@ -357,16 +294,18 @@ impl ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        interop_mode: Option<InteropMode>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
             return handler
-                .get_l2_to_l1_log_proof(tx_hash, index)
+                .get_l2_to_l1_log_proof(tx_hash, index, interop_mode)
                 .rpc_context("get_l2_to_l1_log_proof")
                 .await
                 .map_err(Into::into);
         }
 
         let mut storage = self.state.acquire_connection().await?;
+        // kl todo for precommit based, we need it based on blocks.
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -387,6 +326,7 @@ impl ZksNamespace {
                 l1_batch_number,
                 index.unwrap_or(0),
                 |log| log.tx_number_in_block == l1_batch_tx_index,
+                interop_mode,
             )
             .await?;
         Ok(log_proof)
@@ -623,5 +563,13 @@ impl ZksNamespace {
             .scaled_batch_fee_input()
             .await?
             .into_pubdata_independent())
+    }
+
+    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
+        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        // We don't accept transactions with `gas_per_pubdata=0` so API should always return 1 at the
+        // bare minimum.
+        let gas_per_pubdata = gas_per_pubdata.max(1);
+        Ok(gas_per_pubdata.into())
     }
 }

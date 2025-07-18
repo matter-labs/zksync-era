@@ -118,6 +118,10 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for LegacyVmInstance<S, HistoryEn
     fn pop_snapshot_no_rollback(&mut self) {
         dispatch_legacy_vm!(self.pop_snapshot_no_rollback());
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_legacy_vm!(self.pop_front_snapshot_no_rollback());
+    }
 }
 
 impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
@@ -227,11 +231,20 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 Self::Vm1_5_2(vm)
             }
             VmVersion::VmEcPrecompiles => {
+                let vm = crate::vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    crate::vm_latest::MultiVmSubversion::EcPrecompiles,
+                );
+                Self::Vm1_5_2(vm)
+            }
+            VmVersion::VmInterop => {
                 let vm = vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::EcPrecompiles,
+                    vm_latest::MultiVmSubversion::Interop,
                 );
                 Self::Vm1_5_2(vm)
             }
@@ -339,6 +352,10 @@ where
 
     fn pop_snapshot_no_rollback(&mut self) {
         dispatch_fast_vm!(self.pop_snapshot_no_rollback());
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_fast_vm!(self.pop_front_snapshot_no_rollback());
     }
 }
 

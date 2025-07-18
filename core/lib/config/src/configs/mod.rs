@@ -3,6 +3,7 @@ pub use self::{
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
+    consistency_checker::ConsistencyCheckerConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::chain::ContractsConfig,
     da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
@@ -20,13 +21,14 @@ pub use self::{
     gateway_migrator::GatewayMigratorConfig,
     general::{full_config_schema, GeneralConfig},
     genesis::{GenesisConfig, GenesisConfigWrapper},
+    node_sync::NodeSyncConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{
-        ContractVerifierSecrets, DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets,
+        ContractVerifierSecrets, DataAvailabilitySecrets, L1Secrets, PostgresSecrets, Secrets,
     },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
@@ -40,12 +42,13 @@ pub mod base_token_adjuster;
 pub mod chain;
 mod commitment_generator;
 pub mod consensus;
+pub mod consistency_checker;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod da_client;
 pub mod da_dispatcher;
 pub mod database;
-pub mod en_config;
+pub mod eth_proof_manager;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
@@ -59,6 +62,8 @@ mod gateway_migrator;
 mod general;
 pub mod genesis;
 pub mod house_keeper;
+pub mod networks;
+pub mod node_sync;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;

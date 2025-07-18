@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de,
-    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
+    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata, SizeUnit, TypeDescription},
     value::SecretString,
     ByteSize, DescribeConfig, DeserializeConfig, ErrorWithOrigin,
@@ -27,6 +27,8 @@ impl WellKnown for ValidatorPublicKey {
     const DE: Self::Deserializer =
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
+
+impl WellKnownOption for ValidatorPublicKey {}
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -60,11 +62,11 @@ impl WellKnown for ProtocolVersion {
 
 /// Consensus genesis specification.
 /// It is a digest of the `validator::Genesis`,
-/// which allows to initialize genesis (if not present)
+/// which allows to initialize genesis (if not present) or
 /// decide whether a hard fork is necessary (if present).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisSpec {
-    /// Chain ID.
+    /// Chain ID for L2.
     #[config(with = Serde![int])]
     pub chain_id: L2ChainId,
     /// Consensus protocol version.
@@ -72,9 +74,8 @@ pub struct GenesisSpec {
     /// The validator committee. Represents `zksync_consensus_roles::validator::Committee`.
     #[config(default, with = Entries::WELL_KNOWN.named("key", "weight"))]
     pub validators: Vec<(ValidatorPublicKey, u64)>,
-    /// Leader of the committee. Represents
-    /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
-    pub leader: ValidatorPublicKey,
+    /// Leader of the committee.
+    pub leader: Option<ValidatorPublicKey>,
     /// Address of the registry contract.
     pub registry_address: Option<ethabi::Address>,
     /// Recommended list of peers to connect to.
@@ -85,8 +86,7 @@ pub struct GenesisSpec {
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct RpcConfig {
-    // FIXME: breaking change from `get_block_rate: Rate`, but it looks unused. (no mentions in configs)
-    /// Max number of blocks that can be sent from/to each peer. Defaults to 10 blocks/s/connection.
+    /// Max number of blocks that can be sent from/to each peer.
     #[config(default_t = NonZeroUsize::new(10).unwrap())]
     pub get_block_rps: NonZeroUsize,
 }
@@ -146,9 +146,14 @@ pub struct ConsensusConfig {
     /// that will be advertised to peers, so that they can connect to this
     /// node.
     pub public_addr: Host,
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: Option<std::net::SocketAddr>,
     /// Maximal allowed size of the payload in bytes.
     #[config(default_t = ByteSize(2_500_000), with = Fallback(SizeUnit::Bytes))]
     pub max_payload_size: ByteSize,
+    /// Maximal allowed size of transactions propagated through the p2p network, in bytes.
+    #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
+    pub max_transaction_size: ByteSize,
     /// View timeout duration.
     #[config(default_t = Duration::from_secs(2), with = Fallback(CustomDurationFormat))]
     pub view_timeout: Duration,
@@ -170,24 +175,65 @@ pub struct ConsensusConfig {
     /// establish and maintain.
     #[config(default, with = Entries::WELL_KNOWN.named("key", "addr"))]
     pub gossip_static_outbound: BTreeMap<NodePublicKey, Host>,
+    /// Rate limiting configuration for the p2p RPCs.
+    #[config(nest)]
+    pub rpc: RpcConfig,
+
+    /// Rate at which the node tries to read from the ConsensusRegistry contract, in milliseconds.
+    /// It should be set to a value that is much less than what we expect a validator epoch to be.
+    #[config(default_t = Duration::from_secs(30), with = Fallback(CustomDurationFormat))]
+    pub consensus_registry_read_rate: Duration,
 
     /// MAIN NODE ONLY: consensus genesis specification.
     /// Used to (re)initialize genesis if needed.
     /// External nodes fetch the genesis from the main node.
     #[config(nest)]
     pub genesis_spec: Option<GenesisSpec>,
-
-    /// Rate limiting configuration for the p2p RPCs.
-    #[config(nest)]
-    pub rpc: RpcConfig,
-
-    /// Local socket address to expose the node debug page.
-    pub debug_page_addr: Option<std::net::SocketAddr>,
 }
 
 impl ConsensusConfig {
     pub fn rpc(&self) -> RpcConfig {
         self.rpc.clone()
+    }
+
+    pub fn for_tests() -> Self {
+        const VALIDATOR: &str = "validator:public:bls12_381:80ee14e3a66e1324b9af2531054a823a1224b433\
+            6c6e46fa9491220bb94c887a66b14549060046537e17f831453d358d0b0662322437876622a2490246c0fe0a\
+            6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a";
+
+        ConsensusConfig {
+            port: Some(0),
+            server_addr: "127.0.0.1:0".parse().unwrap(),
+            public_addr: Host("127.0.0.1:0".into()),
+            max_payload_size: ByteSize(2000000),
+            max_transaction_size: ByteSize(1000000),
+            view_timeout: Duration::from_secs(3),
+            max_batch_size: ByteSize(125001024),
+            gossip_dynamic_inbound_limit: 10,
+            gossip_static_inbound: BTreeSet::from([
+                NodePublicKey("node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291".into())
+            ]),
+            gossip_static_outbound: BTreeMap::from([(
+                NodePublicKey("node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291".into()),
+                Host("127.0.0.1:3054".into())
+            )]),
+            genesis_spec: Some(GenesisSpec {
+                chain_id: L2ChainId::from(271),
+                protocol_version: ProtocolVersion(1),
+                validators: vec![(ValidatorPublicKey(VALIDATOR.into()), 1)],
+                leader: Some(ValidatorPublicKey(VALIDATOR.into())),
+                registry_address: Some("0x2469b58c37e02d53a65cdf248d4086beba17de85".parse().unwrap()),
+                seed_peers: BTreeMap::from([(
+                    NodePublicKey("node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a".into()),
+                    Host("example.com:3054".into())
+                )]),
+            }),
+            rpc: RpcConfig {
+                get_block_rps: NonZeroUsize::new(5).unwrap(),
+            },
+            debug_page_addr: Some("127.0.0.1:5000".parse().unwrap()),
+            consensus_registry_read_rate: Duration::from_secs(30),
+        }
     }
 }
 
@@ -217,6 +263,7 @@ mod tests {
             server_addr: "127.0.0.1:2954".parse().unwrap(),
             public_addr: Host("127.0.0.1:2954".into()),
             max_payload_size: ByteSize(2000000),
+            max_transaction_size: ByteSize(1000000),
             view_timeout: Duration::from_secs(3),
             max_batch_size: ByteSize(125001024),
             gossip_dynamic_inbound_limit: 10,
@@ -231,7 +278,7 @@ mod tests {
                 chain_id: L2ChainId::from(271),
                 protocol_version: ProtocolVersion(1),
                 validators: vec![(ValidatorPublicKey(VALIDATOR.into()), 1)],
-                leader: ValidatorPublicKey(VALIDATOR.into()),
+                leader: Some(ValidatorPublicKey(VALIDATOR.into())),
                 registry_address: Some("0x2469b58c37e02d53a65cdf248d4086beba17de85".parse().unwrap()),
                 seed_peers: BTreeMap::from([(
                     NodePublicKey("node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a".into()),
@@ -242,6 +289,7 @@ mod tests {
                 get_block_rps: NonZeroUsize::new(5).unwrap(),
             },
             debug_page_addr: Some("127.0.0.1:3000".parse().unwrap()),
+            consensus_registry_read_rate: Duration::from_secs(30),
         }
     }
 
@@ -252,6 +300,7 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000
+            max_transaction_size: 1000000
             view_timeout:
               seconds: 3
               nanos: 0
@@ -276,6 +325,9 @@ mod tests {
             port: 2954
             rpc:
               get_block_rps: 5
+            consensus_registry_read_rate:
+              seconds: 30
+              nanos: 0
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ConsensusConfig = test_complete(yaml).unwrap();
@@ -289,6 +341,7 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000 bytes
+            max_transaction_size: 1000000 bytes
             view_timeout: 3s
             gossip_dynamic_inbound_limit: 10
             gossip_static_inbound:
@@ -308,6 +361,9 @@ mod tests {
             port: 2954
             rpc:
               get_block_rps: 5
+            consensus_registry_read_rate:
+              seconds: 30
+              nanos: 0
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ConsensusConfig = test_complete(yaml).unwrap();

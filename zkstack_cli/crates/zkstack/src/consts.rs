@@ -1,6 +1,6 @@
-pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
+pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 2_000u128 * 1_000_000_000_000_000_000u128;
 
-pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
+pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5u128 * 1_000_000_000_000_000_000u128;
 /// The default block range within which we search for events within one query.
 pub const DEFAULT_EVENTS_BLOCK_RANGE: u64 = 50_000;
 pub const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
@@ -14,7 +14,12 @@ pub const L2_BASE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000008
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
-pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.73.1";
+/// Docker image for the explorer app
+pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app";
+/// Image tag for the explorer app
+pub const EXPLORER_APP_DOCKER_IMAGE_TAG: &str = "v2.73.1";
+/// Image tag for the explorer app for prividium
+pub const EXPLORER_APP_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "v2.75.0-prividium.1";
 /// Path to the JS runtime config for the dapp-portal docker container to be mounted to
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";

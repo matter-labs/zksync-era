@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::H160;
 use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{
@@ -21,6 +24,8 @@ pub struct ContractsConfig {
     pub create2_factory_salt: H256,
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof_manager_contracts: Option<EthProofManagerContracts>,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
     #[serde(flatten)]
@@ -49,6 +54,12 @@ impl ContractsConfig {
             .deployed_addresses
             .bridgehub
             .bridgehub_proxy_addr;
+        self.ecosystem_contracts.message_root_proxy_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridgehub
+                .message_root_proxy_addr,
+        );
         self.ecosystem_contracts.state_transition_proxy_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -132,6 +143,21 @@ impl ContractsConfig {
         self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
     }
 
+    pub fn set_eth_proof_manager_addresses(
+        &mut self,
+        impl_addr: String,
+        proxy_addr: String,
+        proxy_admin_addr: String,
+    ) -> anyhow::Result<()> {
+        self.proof_manager_contracts = Some(EthProofManagerContracts {
+            proof_manager_addr: H160::from_str(&impl_addr)?,
+            proxy_addr: H160::from_str(&proxy_addr)?,
+            proxy_admin_addr: H160::from_str(&proxy_admin_addr)?,
+        });
+
+        Ok(())
+    }
+
     pub fn set_l2_shared_bridge(
         &mut self,
         initialize_bridges_output: &InitializeBridgeOutput,
@@ -194,6 +220,8 @@ impl ZkStackConfig for ContractsConfig {}
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_root_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from pre-gateway protocol version.
@@ -270,6 +298,13 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct EthProofManagerContracts {
+    pub proof_manager_addr: Address,
+    pub proxy_addr: Address,
+    pub proxy_admin_addr: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

@@ -1,4 +1,5 @@
 pub mod batch_status_updater;
+pub mod batch_transaction_updater;
 mod client;
 pub mod data_availability_fetcher;
 pub mod external_io;

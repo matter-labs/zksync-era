@@ -32,7 +32,7 @@ static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 /// Implementation of VM related to rollbacks inside virtual machine
 impl<S: WriteStorage> Vm<S, crate::vm_latest::HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
-        self.snapshots.push(VmSnapshot {
+        self.snapshots.push_back(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
             // The only "expensive" copying here is copying of the call stack.
             // It will take `O(callstack_depth)` to copy it.

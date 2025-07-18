@@ -14,12 +14,18 @@ use tokio::fs;
 use zksync_circuit_prover_service::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     types::{
-        circuit_prover_payload::GpuCircuitProverPayload,
+        circuit_prover_payload::GpuCircuitProverPayload, setup_data::GoldilocksGpuProverSetupData,
         witness_vector_generator_payload::WitnessVectorGeneratorPayload,
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
-use zksync_config::{configs::ObservabilityConfig, ObjectStoreConfig};
+use zksync_config::{
+    configs::{
+        observability::{LogFormat, SentryConfig},
+        ObservabilityConfig,
+    },
+    ObjectStoreConfig,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::{
@@ -28,10 +34,7 @@ use zksync_prover_fri_types::{
     ProverServiceDataKey,
 };
 use zksync_prover_job_processor::Executor;
-use zksync_prover_keystore::{
-    keystore::{Keystore, ProverServiceDataType},
-    GoldilocksGpuProverSetupData,
-};
+use zksync_prover_keystore::keystore::{Keystore, ProverServiceDataType};
 use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchId, L1BatchNumber,
     L2ChainId,
@@ -209,9 +212,9 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config = ObservabilityConfig {
-        sentry: None,
+        sentry: SentryConfig::default(),
         opentelemetry: None,
-        log_format: "json".to_string(),
+        log_format: LogFormat::Json,
         ..ObservabilityConfig::default()
     };
     let _observability_guard = observability_config

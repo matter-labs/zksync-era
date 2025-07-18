@@ -1,7 +1,7 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, PriorityOpId, Transaction,
     TransactionTimeRangeConstraint, U256,
 };
 
@@ -9,7 +9,7 @@ use zksync_types::{
 #[derive(Debug)]
 pub(crate) struct AccountTransactions {
     /// transactions that belong to given account keyed by transaction nonce
-    transactions: HashMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
+    transactions: BTreeMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
     /// account nonce in mempool
     /// equals to committed nonce in db + number of transactions sent to state keeper
     nonce: Nonce,
@@ -18,7 +18,7 @@ pub(crate) struct AccountTransactions {
 impl AccountTransactions {
     pub fn new(nonce: Nonce) -> Self {
         Self {
-            transactions: HashMap::new(),
+            transactions: BTreeMap::new(),
             nonce,
         }
     }
@@ -46,6 +46,30 @@ impl AccountTransactions {
             metadata.previous_score = previous_score;
         }
         metadata
+    }
+
+    pub fn advance(&mut self, nonce: Nonce) -> AccountAdvanceMetadata {
+        if nonce <= self.nonce {
+            // Account nonce is already up-to-date.
+            return AccountAdvanceMetadata::default();
+        }
+
+        let new_score = self
+            .transactions
+            .get(&nonce)
+            .map(|x| Self::score_for_transaction(&x.0));
+        let previous_score = self
+            .transactions
+            .get(&self.nonce)
+            .map(|x| Self::score_for_transaction(&x.0));
+
+        self.transactions = self.transactions.split_off(&nonce);
+        self.nonce = nonce;
+
+        AccountAdvanceMetadata {
+            new_score,
+            previous_score,
+        }
     }
 
     /// Returns next transaction to be included in block, its time range constraint and optional
@@ -155,8 +179,22 @@ pub struct L2TxFilter {
     pub gas_per_pubdata: u32,
 }
 
+#[derive(Debug)]
+pub struct AdvanceInput {
+    pub next_priority_id: Option<PriorityOpId>,
+    pub next_account_nonces: Vec<(Address, Nonce)>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct AccountAdvanceMetadata {
+    pub new_score: Option<MempoolScore>,
+    pub previous_score: Option<MempoolScore>,
+}
+
 #[cfg(test)]
 mod tests {
+    use zksync_types::L2TxCommonData;
+
     use super::*;
 
     /// Checks the filter logic.
@@ -214,5 +252,58 @@ mod tests {
             !score.matches_filter(&decline_pubdata_filter),
             "Incorrect pubdata price should be rejected"
         );
+    }
+
+    // Helper to create L2Tx with given nonce and timestamp
+    fn l2_tx(nonce: u32, received_at_ms: u64) -> L2Tx {
+        L2Tx {
+            common_data: L2TxCommonData {
+                nonce: Nonce(nonce),
+                fee: Fee {
+                    gas_limit: 100u32.into(),
+                    max_fee_per_gas: 10u32.into(),
+                    max_priority_fee_per_gas: 1u32.into(),
+                    gas_per_pubdata_limit: 1u32.into(),
+                },
+                ..Default::default()
+            },
+            received_timestamp_ms: received_at_ms,
+            execute: Default::default(),
+            raw_bytes: None,
+        }
+    }
+
+    #[test]
+    fn advance_removes_old_transactions_and_returns_metadata() {
+        let mut account = AccountTransactions::new(Nonce(0));
+
+        // Insert txs with nonces 0, 1, 2
+        for i in 0..3 {
+            account.insert(
+                l2_tx(i, 1000 + i as u64),
+                TransactionTimeRangeConstraint::default(),
+            );
+        }
+
+        // Advance to nonce 2
+        let meta = account.advance(Nonce(2));
+        // Only tx with nonce 2 should remain
+        assert_eq!(account.transactions.len(), 1);
+        assert!(account.transactions.contains_key(&Nonce(2)));
+        // Metadata should reflect new_score for nonce 2, previous_score for nonce 0
+        assert_eq!(meta.new_score.as_ref().unwrap().received_at_ms, 1002);
+        assert_eq!(meta.previous_score.as_ref().unwrap().received_at_ms, 1000);
+
+        // Advancing to current nonce does nothing
+        let meta2 = account.advance(Nonce(2));
+        assert_eq!(meta2.new_score, None);
+        assert_eq!(meta2.previous_score, None);
+        assert_eq!(account.transactions.len(), 1);
+
+        // Advance past all transactions
+        let meta3 = account.advance(Nonce(3));
+        assert_eq!(account.transactions.len(), 0);
+        assert_eq!(meta3.new_score, None);
+        assert_eq!(meta3.previous_score.as_ref().unwrap().received_at_ms, 1002);
     }
 }

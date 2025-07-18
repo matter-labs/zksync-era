@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO interop_roots\n                (\n                    chain_id,\n                    dependency_block_number,\n                    interop_root_sides,\n                    processed_block_number\n                )\n                VALUES ($1, $2, $3, $4)\n                ON CONFLICT (chain_id, dependency_block_number)\n                DO UPDATE SET interop_root_sides = excluded.interop_root_sides,\n                processed_block_number = excluded.processed_block_number;\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "ByteaArray",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7cc37ba9885d4c5c0b01a312112c84a9119d2e08ef5318ada637627c9a97457e"
+}

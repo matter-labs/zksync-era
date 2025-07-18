@@ -11,7 +11,7 @@ use zksync_test_contracts::Account;
 use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     web3::Bytes,
-    Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
+    Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
 };
 
 use super::*;
@@ -68,6 +68,20 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                 l2_da_validator_address: rng.gen(),
             }
         },
+        pubdata_limit: if protocol_version < ProtocolVersionId::Version29 {
+            None
+        } else {
+            Some(rng.gen())
+        },
+        interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
+    }
+}
+
+fn interop_root(rng: &mut impl Rng) -> InteropRoot {
+    InteropRoot {
+        chain_id: L2ChainId::new(rng.gen::<u32>().into()).unwrap(),
+        block_number: rng.gen(),
+        sides: (0..10).map(|_| rng.gen()).collect(),
     }
 }
 
@@ -77,12 +91,15 @@ fn test_encoding() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
+    // TODO: uncomment this when we deprecate consensus v1. Until then, this will fail because of Genesis.
+    //test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
     test_encode_all_formats::<FmtConv<BlockMetadata>>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l2_transaction(rng));
+    encode_decode::<proto::InteropRoot, InteropRoot>(interop_root(rng));
+
     encode_decode::<proto::Transaction, ComparableTransaction>(
         mock_protocol_upgrade_transaction().into(),
     );

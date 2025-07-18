@@ -12,7 +12,7 @@ use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
 
 use super::{
     gateway_common::{
@@ -51,7 +51,7 @@ async fn precompute_chain_address_on_gateway(
 
     let result = gw_ctm
         .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(L2_BRIDGEHUB_ADDRESS)
+        .from(L2_CHAIN_ASSET_HANDLER_ADDRESS)
         .await?;
 
     Ok(result)
@@ -196,7 +196,11 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     // 4. If validators are not yet present, please include.
     for validator in [params.validator_1, params.validator_2] {
         if !gw_validator_timelock
-            .validators(params.l2_chain_id.into(), validator)
+            .has_role_for_chain_id(
+                params.l2_chain_id.into(),
+                gw_validator_timelock.committer_role().call().await?,
+                validator,
+            )
             .await?
         {
             let enable_validator_calls = enable_validator_via_gateway(
@@ -338,15 +342,23 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
                 );
                 // It is the expected case, it will be handled later in the file
             }
-            GatewayMigrationProgressState::PendingManualFinalization => {
+            GatewayMigrationProgressState::PendingManualFinalization
+            | GatewayMigrationProgressState::AwaitingFinalization => {
                 unreachable!("`GatewayMigrationProgressState::PendingManualFinalization` should not be returned for migration to Gateway")
             }
-            _ => {
-                let msg = message_for_gateway_migration_progress_state(
+            GatewayMigrationProgressState::NotStarted
+            | GatewayMigrationProgressState::NotificationSent
+            | GatewayMigrationProgressState::NotificationReceived(_) => {
+                anyhow::bail!(message_for_gateway_migration_progress_state(
                     state,
                     MigrationDirection::ToGateway,
-                );
-                logger::info(&msg);
+                ));
+            }
+            GatewayMigrationProgressState::Finished => {
+                logger::info(message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                ));
             }
         }
     }

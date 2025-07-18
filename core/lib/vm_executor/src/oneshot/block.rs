@@ -298,6 +298,7 @@ async fn load_l2_block_info(
             // For simplicity, we assume each L2 block create one virtual block.
             // This may be wrong only during transition period.
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         }
     } else if next_block.number == 0 {
         // Special case:
@@ -309,6 +310,7 @@ async fn load_l2_block_info(
             timestamp: 0,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         }
     } else {
         // We need to reset L2 block info in storage to process transaction in the current block context.
@@ -343,6 +345,7 @@ async fn load_l2_block_info(
                 format!("missing hash for previous L2 block #{prev_block_number}")
             })?,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         }
     };
 
