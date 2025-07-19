@@ -8,7 +8,7 @@ use zkstack_cli_config::ChainConfig;
 use crate::{
     defaults::{generate_external_node_db_name, DATABASE_SERVER_URL, LOCAL_RPC_URL},
     messages::{
-        msg_external_node_db_name_prompt, msg_external_node_db_url_prompt, MSG_L1_RPC_URL_PROMPT,
+        msg_external_node_db_name_prompt, msg_external_node_db_url_prompt, MSG_RPC_URL_PROMPT,
         MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
@@ -54,11 +54,9 @@ impl PrepareConfigArgs {
                 }),
                 separator = "_"
             );
-            let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-                Prompt::new(MSG_L1_RPC_URL_PROMPT)
-                    .default(LOCAL_RPC_URL)
-                    .ask()
-            });
+            let l1_rpc_url = self
+                .l1_rpc_url
+                .unwrap_or_else(|| Prompt::new(MSG_RPC_URL_PROMPT).default(LOCAL_RPC_URL).ask());
 
             PrepareConfigFinal {
                 db: DatabaseConfig::new(db_url, db_name),

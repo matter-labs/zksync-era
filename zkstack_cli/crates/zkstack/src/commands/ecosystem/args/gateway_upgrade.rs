@@ -10,7 +10,7 @@ use zkstack_cli_types::L1Network;
 use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_RPC_URL_PROMPT,
         MSG_SERVER_COMMAND_HELP,
     },
 };
@@ -59,7 +59,7 @@ impl GatewayUpgradeArgs {
         dev: bool,
     ) -> GatewayUpgradeArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
+            let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
             if dev {
                 return LOCAL_RPC_URL.to_string();
             }
