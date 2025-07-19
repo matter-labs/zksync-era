@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{traits::SaveConfig, EcosystemConfig};
+use zkstack_cli_config::{traits::SaveConfig, ZkStackConfig};
 
 use crate::commands::dev::{
     commands::test::utils::{TestWallets, TEST_WALLETS_PATH},
@@ -14,13 +14,12 @@ use crate::commands::dev::{
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
-    logger::info(MSG_INIT_TEST_WALLET_RUN_INFO);
-
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    logger::info(MSG_INIT_TEST_WALLET_RUN_INFO);
 
     // Load test wallets configuration
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
@@ -34,9 +33,6 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let raw_wallets = shell.read_file(&wallets_path)?;
     let wallets: TestWallets =
         serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     wallets
         .init_test_wallet(&ecosystem_config, &chain_config)

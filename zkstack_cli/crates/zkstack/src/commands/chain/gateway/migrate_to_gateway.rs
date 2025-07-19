@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger,
 };
-use zkstack_cli_config::{EcosystemConfig, GatewayChainConfigPatch};
+use zkstack_cli_config::{GatewayChainConfigPatch, ZkStackConfig};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::U256;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
@@ -33,7 +33,7 @@ pub struct MigrateToGatewayArgs {
 }
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
