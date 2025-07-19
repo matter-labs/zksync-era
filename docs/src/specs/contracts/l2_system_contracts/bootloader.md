@@ -126,6 +126,12 @@ Once read, these slots can be used for temporary data.
 - `[3183..7282]` – slots for storing L2 block info for each transaction. You can read more on the difference L2 blocks
   and batches
   [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20&%20L2%20blocks%20on%20zkSync.md).
+- `[7283..??]` – slots for the interop roots.
+  - `[7283]` – 1 slot for the current interop root in interop root array.
+  - `[7284..??]` – ?? slots for the interop blocks, i.e. the number of interop roots in each block.
+  - `[??..??]` – ?? slots for the interop roots.
+  - `[??..??]` – 1 slot for the interop root rolling hash.
+- `[??..??]` – 1 slot for the current settlement layer.
 - `[7283..40050]` – slots used for compressed bytecodes each in the following format:
   - 32 bytecode hash
   - 32 zeroes (but then it will be modified by the bootloader to contain 28 zeroes and then the 4-byte selector of the
