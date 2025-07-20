@@ -646,6 +646,43 @@ pub(crate) async fn enable_validator_via_gateway(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub(crate) async fn enable_validator(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    l1_bridgehub: Address,
+    l2_chain_id: u64,
+    validator_address: Address,
+    validator_timelock: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "enableValidator",
+            (
+                l1_bridgehub,
+                U256::from(l2_chain_id),
+                validator_address,
+                validator_timelock,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!("enabling validator {:#?} via gateway", validator_address),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_to_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,

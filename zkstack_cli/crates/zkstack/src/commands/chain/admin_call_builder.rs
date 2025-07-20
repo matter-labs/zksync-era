@@ -98,6 +98,10 @@ impl AdminCallBuilder {
         }
     }
 
+    pub fn extend_with_calls(&mut self, calls: Vec<AdminCall>) {
+        self.calls.extend(calls);
+    }
+
     #[cfg(any(feature = "v28_precompiles", feature = "upgrades"))]
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(

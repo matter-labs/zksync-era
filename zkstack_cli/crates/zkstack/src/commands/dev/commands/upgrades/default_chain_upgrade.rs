@@ -21,6 +21,7 @@ use zksync_web3_decl::{
 
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
+    admin_functions::{enable_validator, enable_validator_via_gateway},
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
@@ -185,6 +186,7 @@ pub struct UpgradeInfo {
     gateway_chain_id: u32,
     pub(crate) deployed_addresses: DeployedAddresses,
     pub(crate) contracts_config: ContractsConfig,
+    pub(crate) gateway: Gateway,
 
     // Information from upgrade
     chain_upgrade_diamond_cut: Bytes,
@@ -200,11 +202,22 @@ pub struct ContractsConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployedAddresses {
     pub(crate) bridgehub: BridgehubAddresses,
+    pub(crate) validator_timelock: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BridgehubAddresses {
     pub(crate) bridgehub_proxy_addr: Address,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Gateway {
+    pub(crate) gateway_state_transition: GatewayStateTransition,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GatewayStateTransition {
+    pub(crate) validator_timelock_addr: Address,
 }
 
 impl ZkStackConfig for UpgradeInfo {}
@@ -309,11 +322,41 @@ pub(crate) async fn run(
                 upgrade_info.contracts_config.old_protocol_version,
                 chain_info.gw_hyperchain_addr,
                 chain_info.l1_asset_router_proxy,
+                // TODO: the funds go to nowhere as this is not the aliased address.
                 chain_info.chain_admin_addr,
                 upgrade_info.gateway_diamond_cut.0.into(),
                 args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
             )
             .await;
+
+        // This is bad to unwrap, we'll have to split the command into two.
+        let validator_1 = args.validator_1.expect("validator_1 is required");
+        let validator_2 = args.validator_2.expect("validator_2 is required");
+
+        for validator in [validator_1, validator_2] {
+            let enable_validator_calls = enable_validator_via_gateway(
+                shell,
+                forge_args,
+                &foundry_contracts_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                upgrade_info
+                    .deployed_addresses
+                    .bridgehub
+                    .bridgehub_proxy_addr,
+                args.l1_gas_price.expect("l1_gas_price is required").into(),
+                args.chain_id.expect("chain_id is required"),
+                args.gw_chain_id.expect("gw_chain_id is required"),
+                validator,
+                upgrade_info
+                    .gateway
+                    .gateway_state_transition
+                    .validator_timelock_addr,
+                validator,
+                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+            )
+            .await?;
+            admin_calls_gw.extend_with_calls(enable_validator_calls.calls);
+        }
 
         admin_calls_gw.display();
 
@@ -333,6 +376,29 @@ pub(crate) async fn run(
             upgrade_info.contracts_config.old_protocol_version,
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
+
+        // This is bad to unwrap, we'll have to split the command into two.
+        let validator_1 = args.validator_1.expect("validator_1 is required");
+        let validator_2 = args.validator_2.expect("validator_2 is required");
+
+        for validator in [validator_1, validator_2] {
+            let enable_validator_calls = enable_validator(
+                shell,
+                forge_args,
+                &foundry_contracts_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                upgrade_info
+                    .deployed_addresses
+                    .bridgehub
+                    .bridgehub_proxy_addr,
+                args.chain_id.expect("chain_id is required"),
+                validator,
+                upgrade_info.deployed_addresses.validator_timelock,
+                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+            )
+            .await?;
+            admin_calls_finalize.extend_with_calls(enable_validator_calls.calls);
+        }
 
         admin_calls_finalize.display();
 

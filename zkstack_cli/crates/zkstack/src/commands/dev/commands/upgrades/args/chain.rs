@@ -1,6 +1,7 @@
 use clap::Parser;
 use xshell::Shell;
 use zkstack_cli_config::EcosystemConfig;
+use zksync_types::Address;
 
 use crate::commands::dev::commands::upgrades::types::UpgradeVersions;
 
@@ -14,6 +15,9 @@ pub struct ChainUpgradeArgs {
     pub l2_rpc_url: Option<String>,
     pub gw_rpc_url: Option<String>,
     pub server_upgrade_timestamp: Option<u64>,
+    // TODO: these are only needed for v29
+    pub validator_1: Option<Address>,
+    pub validator_2: Option<Address>,
     #[clap(long, default_missing_value = "false")]
     pub dangerous_no_cross_check: Option<bool>,
     #[clap(long, default_missing_value = "false")]
