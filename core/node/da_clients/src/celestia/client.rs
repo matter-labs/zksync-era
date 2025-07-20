@@ -97,6 +97,7 @@ impl CelestiaClient {
         let blob_id_struct = blob_id
             .parse::<BlobId>()
             .map_err(to_non_retriable_da_error)?;
+        tracing::debug!("blob_id_struct: {:?}", blob_id_struct);
 
         let response = self
             .eq_client
