@@ -83,7 +83,6 @@ pub struct EcosystemUpgradeBridges {
     pub erc20_bridge_implementation_addr: Address,
     pub l1_nullifier_implementation_addr: Address,
     pub shared_bridge_implementation_addr: Address,
-    pub shared_bridge_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

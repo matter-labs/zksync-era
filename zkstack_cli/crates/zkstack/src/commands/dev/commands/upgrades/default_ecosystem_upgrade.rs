@@ -1,5 +1,10 @@
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract, providers::Middleware, utils::hex};
+use ethers::{
+    abi::{encode, parse_abi, Token},
+    contract::BaseContract,
+    providers::Middleware,
+    utils::hex,
+};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::{cmd, Shell};
@@ -15,13 +20,14 @@ use zkstack_cli_config::{
         },
         upgrade_ecosystem::{
             input::{
-                EcosystemUpgradeInput, GatewayStateTransitionConfig, GatewayUpgradeContractsConfig,
+                EcosystemUpgradeInput, EcosystemUpgradeSpecificConfig,
+                GatewayStateTransitionConfig, GatewayUpgradeContractsConfig, V29UpgradeParams,
             },
             output::EcosystemUpgradeOutput,
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::H160;
@@ -177,11 +183,35 @@ async fn no_governance_prepare(
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
-    new_version.patch += 1;
+    // This part is needed for v28 upgrades, but harms v29.
+    // new_version.patch += 1;
     new_genesis.protocol_version = new_version;
 
     let gateway_upgrade_config =
         get_gateway_state_transition_config(shell, ecosystem_config).await?;
+
+    let upgrade_specific_config = match upgrade_version {
+        UpgradeVersions::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
+        UpgradeVersions::V29InteropAFf => {
+            let gateway_chain_config = get_local_gateway_chain_config(ecosystem_config)?;
+            let gateway_validator_timelock_addr = gateway_chain_config
+                .get_gateway_config()
+                .unwrap()
+                .validator_timelock_addr;
+            EcosystemUpgradeSpecificConfig::V29(V29UpgradeParams {
+                encoded_old_validator_timelocks: hex::encode(encode(&[Token::Array(vec![
+                    Token::Address(
+                        current_contracts_config
+                            .ecosystem_contracts
+                            .validator_timelock_addr,
+                    ),
+                ])])),
+                encoded_old_gateway_validator_timelocks: hex::encode(encode(&[Token::Array(
+                    vec![Token::Address(gateway_validator_timelock_addr)],
+                )])),
+            })
+        }
+    };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
         &new_genesis,
@@ -194,6 +224,7 @@ async fn no_governance_prepare(
             .l1
             .diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
+        upgrade_specific_config,
     );
 
     logger::info(format!("ecosystem_upgrade: {:?}", ecosystem_upgrade));
@@ -562,12 +593,19 @@ const PROXY_ADMIN_SLOT: H256 = H256([
     0x24, 0x3e, 0x63, 0xb6, 0xe8, 0xee, 0x11, 0x78, 0xd6, 0xa7, 0x17, 0x85, 0x0b, 0x5d, 0x61, 0x03,
 ]);
 
+fn get_local_gateway_chain_config(
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<ChainConfig> {
+    let chain_config = ecosystem_config.load_chain(Some(LOCAL_GATEWAY_CHAIN_NAME.to_string()))?;
+    Ok(chain_config)
+}
+
 async fn get_gateway_state_transition_config(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<GatewayUpgradeContractsConfig> {
     // Firstly, we obtain the gateway config
-    let chain_config = ecosystem_config.load_chain(Some(LOCAL_GATEWAY_CHAIN_NAME.to_string()))?;
+    let chain_config = get_local_gateway_chain_config(ecosystem_config)?;
     let gw_config = chain_config.get_gateway_config()?;
     let general_config = chain_config.get_general_config().await?;
 

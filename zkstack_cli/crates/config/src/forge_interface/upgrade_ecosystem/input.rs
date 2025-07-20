@@ -13,6 +13,18 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V29UpgradeParams {
+    pub encoded_old_validator_timelocks: String,
+    pub encoded_old_gateway_validator_timelocks: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum EcosystemUpgradeSpecificConfig {
+    V28,
+    V29(V29UpgradeParams),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EcosystemUpgradeInput {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
@@ -25,6 +37,8 @@ pub struct EcosystemUpgradeInput {
     pub old_protocol_version: String,
     pub priority_txs_l2_gas_limit: u64,
     pub max_expected_l1_gas_price: u64,
+    #[serde(flatten)]
+    pub specific_config: EcosystemUpgradeSpecificConfig,
 }
 
 impl ZkStackConfig for EcosystemUpgradeInput {}
@@ -39,6 +53,7 @@ impl EcosystemUpgradeInput {
         era_chain_id: L2ChainId,
         era_diamond_proxy: Address,
         testnet_verifier: bool,
+        specific_config: EcosystemUpgradeSpecificConfig,
     ) -> Self {
         Self {
             era_chain_id,
@@ -107,8 +122,9 @@ impl EcosystemUpgradeInput {
             },
             support_l2_legacy_shared_bridge_test: false,
             old_protocol_version: "0x1c00000000".to_string(),
-            priority_txs_l2_gas_limit: 800,
+            priority_txs_l2_gas_limit: 10_000_000,
             max_expected_l1_gas_price: 10000000000,
+            specific_config,
         }
     }
 }

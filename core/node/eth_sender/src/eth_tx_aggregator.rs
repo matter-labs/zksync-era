@@ -293,6 +293,21 @@ impl EthTxAggregator {
             calldata: get_da_validator_pair_input,
         };
 
+        let get_post_v29_upgradeable_validator_timelock_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("postV29UpgradeableValidatorTimelock")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+
+        let get_post_v29_upgradeable_validator_timelock_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            // Note, that this call is allowed to fail, as the corresponding function is not present in the pre-v29 protocol versions
+            allow_failure: true,
+            calldata: get_post_v29_upgradeable_validator_timelock_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
@@ -302,6 +317,7 @@ impl EthTxAggregator {
             get_stm_protocol_version_call.into_token(),
             get_stm_validator_timelock_call.into_token(),
             get_da_validator_pair_call.into_token(),
+            get_post_v29_upgradeable_validator_timelock_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -337,8 +353,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 9 } else { 8 };
-            // 8 or 9 calls are aggregated in multicall
+            let number_of_calls = if evm_emulator_hash_requested { 10 } else { 9 };
+            // 9 or 10 calls are aggregated in multicall
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -414,6 +430,24 @@ impl EthTxAggregator {
                 call_results_iterator.next().unwrap(),
                 "contract DA validator pair",
             )?;
+
+            let post_v29_upgradeable_validator_timelock_result =
+                Multicall3Result::from_token(call_results_iterator.next().unwrap())?;
+            let stm_validator_timelock_address =
+                if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+                    stm_validator_timelock_address
+                } else {
+                    assert!(
+                        post_v29_upgradeable_validator_timelock_result.success,
+                        "post-V29 upgradeable validator timelock call failed"
+                    );
+                    Self::parse_address(
+                        post_v29_upgradeable_validator_timelock_result
+                            .return_data
+                            .into_token(),
+                        "post-V29 upgradeable validator timelock",
+                    )?
+                };
 
             return Ok(MulticallData {
                 base_system_contracts_hashes,
