@@ -24,6 +24,7 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
+    settlement::SettlementLayer,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -1240,6 +1241,12 @@ impl BlocksDal<'_, '_> {
                 )
             })?;
 
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            match l2_block_header.settlement_layer {
+                SettlementLayer::L1(chain_id) => ("L1", chain_id.0 as i64),
+                SettlementLayer::Gateway(chain_id) => ("Gateway", chain_id.0 as i64),
+            };
+
         let query = sqlx::query!(
             r#"
             INSERT INTO
@@ -1266,7 +1273,9 @@ impl BlocksDal<'_, '_> {
                 pubdata_type,
                 rolling_txs_hash,
                 created_at,
-                updated_at
+                updated_at,
+                settlement_layer_type,
+                settlement_layer_chain_id
             )
             VALUES
             (
@@ -1292,7 +1301,9 @@ impl BlocksDal<'_, '_> {
                 $20,
                 $21,
                 NOW(),
-                NOW()
+                NOW(),
+                $22,
+                $23
             )
             "#,
             i64::from(l2_block_header.number.0),
@@ -1330,7 +1341,9 @@ impl BlocksDal<'_, '_> {
             l2_block_header.pubdata_params.pubdata_type.to_string(),
             l2_block_header
                 .rolling_txs_hash
-                .map(|h| h.as_bytes().to_vec())
+                .map(|h| h.as_bytes().to_vec()),
+            settlement_layer_type,
+            settlement_layer_chain_id
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1362,7 +1375,9 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 miniblocks
             ORDER BY
@@ -1406,7 +1421,9 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 miniblocks
             WHERE

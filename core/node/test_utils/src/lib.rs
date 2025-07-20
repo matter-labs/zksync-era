@@ -17,6 +17,7 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
+    settlement::SettlementLayer,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
     AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
@@ -63,6 +64,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
             fair_pubdata_price: 1,
             l1_gas_price: 1,
         }),
+        settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(79)),
     }
 }
 
@@ -85,6 +87,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
         rolling_txs_hash: Some(H256::zero()),
+        settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(89)),
     }
 }
 
@@ -258,6 +261,7 @@ impl Snapshot {
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
             rolling_txs_hash: Some(H256::zero()),
+            settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(99)),
         };
         Snapshot {
             l1_batch,

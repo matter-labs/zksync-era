@@ -202,6 +202,7 @@ prometheus:
 
 observability:
   log_format: plain
+  # zksync_multivm=trace,
   log_directives: "warn,zksync=info,zksync_config=debug,zksync_commitment_generator=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_eth_watch=debug,zksync_state=debug,zksync_utils=debug,zksync_mempool=debug,zksync_web3_decl=debug,zksync_health_check=debug,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
   # Uncomment only if needed
   # sentry:

@@ -10,8 +10,10 @@ use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    get_deployer_key, h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
-    StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    get_deployer_key, h256_to_u256,
+    settlement::SettlementLayer,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 
@@ -149,6 +151,7 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
+            settlement_layer: l2_block_header.settlement_layer,
         })
     }
 
@@ -189,6 +192,7 @@ pub struct ResolvedBlockInfo {
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     is_pending: bool,
+    settlement_layer: SettlementLayer,
 }
 
 impl ResolvedBlockInfo {
@@ -275,6 +279,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             fee_account: *operator_account.address(),
             enforced_base_fee,
             first_l2_block: next_block,
+            settlement_layer: resolved_block_info.settlement_layer,
         };
         Ok((system_env, l1_batch_env))
     }
