@@ -10,7 +10,7 @@ protection, which are available in higher-level interfaces.
 
 ### Setup chains
 
-Follow the instructions at: https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/launch.md
+Follow the instructions at: [launch doc](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/launch.md)
 
 This will help you set up the Era chain and the associated gateway. In this example, we will send and verify the message
 on Era. If you prefer to test on another chain (like era2), launch a new chain following the guide above and migrate it
@@ -37,7 +37,8 @@ cast send -r http://localhost:3050 0x0000000000000000000000000000000000008008 "s
 Here, `0x...8008` is the L1Messenger, a special system contract. Remember the transaction hash, as we'll use it in
 commands below.
 
-Next, retrieve the interop proof from the sequencer (replace the transaction hash with your own):
+Next, retrieve the interop proof from the sequencer (replace the transaction hash with your own). If you keep getting
+'null' answers, please wait a while, as the sequencer has to seal and commit the batch before this data can be returned.
 
 ```
 curl --request POST \
@@ -185,7 +186,7 @@ If you are certain the message was propagated, ensure the following:
 
 - You are using the correct indexes when there are multiple transactions in a batch or multiple messages within a
   transaction.
-- Use the helper tool available at: https://github.com/mm-zk/zksync_tools/tree/main/simple_interop#tool
+- Use the helper tool available at: [zksync tools](https://github.com/mm-zk/zksync_tools/tree/main/simple_interop#tool)
 
 This tool helps you view and prove interop messages with the following commands:
 
