@@ -96,7 +96,8 @@ The command returns a proof, that will look like this:
 }
 ```
 
-getL2toL1LogProof can return different proof types depending on the interop mode specified. Currently, only "proof_based_gw" is supported.
+getL2toL1LogProof can return different proof types depending on the interop mode specified. Currently, only
+"proof_based_gw" is supported.
 
 The second argument (0) is the index of the message - if your transaction created multiple interop messages, you have to
 select the correct one. You can figure out the correct one, by looking at the event logs from the transaction. In our
