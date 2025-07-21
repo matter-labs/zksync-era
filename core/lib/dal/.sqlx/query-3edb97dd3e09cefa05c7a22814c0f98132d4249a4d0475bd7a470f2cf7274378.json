@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE interop_roots\n            SET processed_block_number = NULL\n            WHERE processed_block_number > $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3edb97dd3e09cefa05c7a22814c0f98132d4249a4d0475bd7a470f2cf7274378"
+}

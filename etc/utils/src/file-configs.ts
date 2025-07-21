@@ -10,6 +10,11 @@ export function shouldLoadConfigFromFile(): FileConfig {
     return chain ? { loadFromFile: true, chain } : { loadFromFile: false };
 }
 
+export function getSecondChainConfig(): FileConfig | undefined {
+    const chain = process.env.SECOND_CHAIN_NAME;
+    return chain ? { loadFromFile: true, chain } : undefined;
+}
+
 export const configNames = [
     'contracts.yaml',
     'general.yaml',
