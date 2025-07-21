@@ -35,14 +35,17 @@ impl ProofCacheClient {
         }
     }
 
-    pub async fn get_fri(&self, block_number: &str) -> anyhow::Result<ProgramProof> {
+    pub async fn get_fri(&self, block_number: &str) -> anyhow::Result<Option<ProgramProof>> {
         let url = self.url.join(&format!("/fri_proofs/{block_number}")).context("Failed to create URL")?;
 
         let response = self.client.get(url).send().await.context("Request failed")?;
-        if response.status().is_success() {
-            response.json::<ProgramProof>().await.context("Failed to read response text")
-        } else {
-            Err(anyhow::anyhow!("Failed to get proof: {}", response.status()))
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let proof = response.json::<ProgramProof>().await.context("Failed to read response text")?;
+                Ok(Some(proof))
+            }
+            reqwest::StatusCode::NOT_FOUND => Ok(None),
+            e => Err(anyhow::anyhow!("Failed to get proof: {e}")),
         }
     }
 
