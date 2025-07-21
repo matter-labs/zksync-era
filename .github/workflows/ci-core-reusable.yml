@@ -19,6 +19,10 @@ jobs:
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [ "count:1/5", "count:2/5", "count:3/5", "count:4/5", "count:5/5" ]
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -84,7 +88,7 @@ jobs:
 
       - name: Rust unit tests
         run: |
-          ci_run zkstack dev test rust
+          ci_run zkstack dev test rust --options "--partition ${{ matrix.partition }}"
 
       - name: Rust benchmarks
         run: |
