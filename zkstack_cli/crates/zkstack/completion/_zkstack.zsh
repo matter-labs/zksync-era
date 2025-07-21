@@ -798,8 +798,7 @@ _arguments "${_arguments_options[@]}" : \
 '--gateway-config-path=[]:GATEWAY_CONFIG_PATH:_default' \
 '--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
 '--new-sl-da-validator=[]:NEW_SL_DA_VALIDATOR:_default' \
-'--validator-1=[]:VALIDATOR_1:_default' \
-'--validator-2=[]:VALIDATOR_2:_default' \
+'--validator=[]:VALIDATOR:_default' \
 '--min-validator-balance=[]:MIN_VALIDATOR_BALANCE:_default' \
 '--refund-recipient=[]:REFUND_RECIPIENT:_default' \
 '--l2-rpc-url=[RPC URL of the chain being migrated (L2)]:L2_RPC_URL:_default' \
