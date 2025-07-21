@@ -670,7 +670,9 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
-            // For the migration to and from gateway, we need to wait for all blocks to be executed
+            // For the migration to or from gateway, we need to wait for all blocks to be executed
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
         }
 
         let precommit_params = self.precommit_params(storage).await?;

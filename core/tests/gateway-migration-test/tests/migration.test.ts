@@ -212,6 +212,7 @@ describe('Migration From/To gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
+        await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();

@@ -19,12 +19,12 @@ use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, EcosystemConfig,
 };
 use zksync_basic_types::U256;
+use zksync_types::L2ChainId;
 
 use crate::{
+    commands::dev::commands::{rich_account, rich_account::args::RichAccountArgs},
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
-    commands::dev::commands::rich_account,
-    commands::dev::commands::rich_account::args::RichAccountArgs,
 };
 
 lazy_static! {
@@ -32,7 +32,7 @@ lazy_static! {
         parse_abi(&[
             "function startTokenMigrationOnL2OrGateway(bool, uint256, string, string) public",
             // "function continueMigrationOnGateway(uint256, string) public",
-            "function finishMigrationOnL1(address, uint256, string, bool) public",
+            "function finishMigrationOnL1(bool, address, uint256, uint256, string, string, bool) public",
             "function checkAllMigrated(uint256, string) public",
         ])
             .unwrap(),
@@ -82,16 +82,19 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
 
     // let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
-    logger::info("Migrating the chain to the Gateway...");
+    logger::info(&format!(
+        "Migrating the token balances {} the Gateway...",
+        if args.to_gateway.unwrap_or(true) {
+            "to"
+        } else {
+            "from"
+        }
+    ));
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let gw_rpc_url = general_config.l2_http_url()?;
 
     // let chain_secrets_config = chain_config.get_wallets_config().unwrap();
-
-    if !args.to_gateway.unwrap_or(true) {
-        return Ok(()); // add migrate back from gateway
-    }
 
     migrate_token_balances_from_gateway(
         shell,
@@ -108,6 +111,7 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
             .ecosystem_contracts
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
+        gateway_chain_config.chain_id.as_u64(),
         l1_url.clone(),
         gw_rpc_url.clone(),
         l2_url.clone(),
@@ -127,6 +131,7 @@ pub async fn migrate_token_balances_from_gateway(
     wallet: Wallet,
     l1_bridgehub_addr: Address,
     l2_chain_id: u64,
+    gw_chain_id: u64,
     l1_rpc_url: String,
     gw_rpc_url: String,
     l2_rpc_url: String,
@@ -135,20 +140,46 @@ pub async fn migrate_token_balances_from_gateway(
     println!("wallet.address: {}", wallet.address.to_string());
 
     if run_initial {
-
-        rich_account::run(shell, RichAccountArgs{
-            l2_account: Some(wallet.address),
-            l1_account_private_key: Some("0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".to_string()),
-            l1_rpc_url: Some(l1_rpc_url.clone()),
-            amount: Some(U256::from(1_000_000_000_000_000_000u64)),
-        }).await?;
+        rich_account::run(
+            shell,
+            RichAccountArgs {
+                l2_account: Some(wallet.address),
+                l1_account_private_key: Some(
+                    "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+                        .to_string(),
+                ),
+                l1_rpc_url: Some(l1_rpc_url.clone()),
+                amount: Some(U256::from(1_000_000_000_000_000_000u64)),
+            },
+            Some(L2ChainId::from(l2_chain_id as u32)),
+        )
+        .await?;
+        rich_account::run(
+            shell,
+            RichAccountArgs {
+                l2_account: Some(wallet.address),
+                l1_account_private_key: Some(
+                    "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+                        .to_string(),
+                ),
+                l1_rpc_url: Some(l1_rpc_url.clone()),
+                amount: Some(U256::from(1_000_000_000_000_000_000u64)),
+            },
+            Some(L2ChainId::from(gw_chain_id as u32)),
+        )
+        .await?;
         println!("Account funded");
     }
 
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "startTokenMigrationOnL2OrGateway",
-            (false, U256::from(l2_chain_id), l2_rpc_url.clone(), gw_rpc_url.clone()),
+            (
+                to_gateway,
+                U256::from(l2_chain_id),
+                l2_rpc_url.clone(),
+                gw_rpc_url.clone(),
+            ),
         )
         .unwrap();
 
@@ -158,7 +189,11 @@ pub async fn migrate_token_balances_from_gateway(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(l2_rpc_url.clone())
+        .with_rpc_url(if to_gateway {
+            l2_rpc_url.clone()
+        } else {
+            gw_rpc_url.clone()
+        })
         .with_broadcast()
         .with_zksync()
         .with_slow()
@@ -172,15 +207,17 @@ pub async fn migrate_token_balances_from_gateway(
         println!("Token migration started");
     }
 
-
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "finishMigrationOnL1",
             (
+                to_gateway,
                 l1_bridgehub_addr,
                 U256::from(l2_chain_id),
+                U256::from(gw_chain_id),
                 l2_rpc_url.clone(),
-                true
+                gw_rpc_url.clone(),
+                true,
             ),
         )
         .unwrap();
@@ -204,10 +241,13 @@ pub async fn migrate_token_balances_from_gateway(
         .encode(
             "finishMigrationOnL1",
             (
+                to_gateway,
                 l1_bridgehub_addr,
                 U256::from(l2_chain_id),
+                U256::from(gw_chain_id),
                 l2_rpc_url.clone(),
-                false
+                gw_rpc_url.clone(),
+                false,
             ),
         )
         .unwrap();
