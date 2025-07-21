@@ -56,6 +56,6 @@ pub async fn get_protocol_version_for_block(
 
         Ok(header
             .protocol_version
-            .unwrap_or_else(|| zksync_types::ProtocolVersionId::last_potentially_undefined()))
+            .unwrap_or_else(zksync_types::ProtocolVersionId::last_potentially_undefined))
     }
 }
