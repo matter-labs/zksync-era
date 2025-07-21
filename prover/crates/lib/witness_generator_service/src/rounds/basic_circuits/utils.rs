@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     hash::{DefaultHasher, Hash, Hasher},
     sync::Arc,
 };
@@ -155,15 +155,19 @@ pub(super) async fn generate_witness(
         // Ordering determines how we compose the circuit proofs in Leaf Aggregation Round.
         // Sequence is used to determine circuit ordering (the sequencing of instructions) .
         // If the order is tampered with, proving will fail (as the proof would be computed for a different sequence of instruction).
-        let mut circuit_sequence = 0;
+        let mut circuit_sequence_numbers = HashMap::new();
 
         while let Some(circuit) = circuit_receiver
             .recv()
             .instrument(tracing::info_span!("wait_for_circuit"))
             .await
         {
-            let sequence = circuit_sequence;
-            circuit_sequence += 1;
+            let circuit_id = circuit.numeric_circuit_type();
+            let sequence = circuit_sequence_numbers
+                .get(&circuit_id)
+                .cloned()
+                .unwrap_or(0);
+            circuit_sequence_numbers.insert(circuit_id, sequence + 1);
             let object_store = object_store.clone();
             let semaphore = semaphore.clone();
             let permit = semaphore
@@ -175,7 +179,7 @@ pub(super) async fn generate_witness(
                 let (circuit_id, circuit_url) =
                     save_circuit(batch_id, circuit, sequence, object_store).await;
                 drop(permit);
-                (circuit_id, circuit_url)
+                (circuit_id, sequence, circuit_url)
             }));
         }
     }
@@ -217,13 +221,14 @@ pub(super) async fn generate_witness(
     // `circuits_present` stores which circuits exist and is used to filter queues in `recursion_urls` later.
     let mut circuits_present = HashSet::<u8>::new();
 
-    let circuit_urls = futures::future::join_all(save_circuit_handles)
+    let circuit_ids_sequence_numbers_and_urls = futures::future::join_all(save_circuit_handles)
         .await
         .into_iter()
         .map(|result| {
-            let (circuit_id, circuit_url) = result.expect("failed to save circuit");
+            let (circuit_id, sequence_number, circuit_url) =
+                result.expect("failed to save circuit");
             circuits_present.insert(circuit_id);
-            (circuit_id, circuit_url)
+            (circuit_id, sequence_number, circuit_url)
         })
         .collect();
 
@@ -240,7 +245,7 @@ pub(super) async fn generate_witness(
     scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;
 
     (
-        circuit_urls,
+        circuit_ids_sequence_numbers_and_urls,
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

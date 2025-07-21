@@ -136,6 +136,7 @@ pub struct VerificationIncomingRequest {
     pub contract_name: String,
     #[serde(flatten)]
     pub compiler_versions: CompilerVersions,
+    #[serde(default)]
     pub optimization_used: bool,
     /// Optimization mode used for the contract. Semantics depends on the compiler used; e.g., for `vyper`,
     /// allowed values are `gas` (default), `codesize` or `none`.
@@ -201,7 +202,7 @@ pub struct VerificationEvmSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evm_version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub optimizer_runs: Option<u16>,
+    pub optimizer_runs: Option<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]

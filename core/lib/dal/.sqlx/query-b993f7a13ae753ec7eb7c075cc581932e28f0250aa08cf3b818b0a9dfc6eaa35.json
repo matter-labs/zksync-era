@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                interop_roots.chain_id,\n                interop_roots.dependency_block_number,\n                interop_roots.interop_root_sides\n            FROM interop_roots\n            WHERE processed_block_number = $1\n            ORDER BY chain_id, dependency_block_number DESC;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chain_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "dependency_block_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "interop_root_sides",
+        "type_info": "ByteaArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b993f7a13ae753ec7eb7c075cc581932e28f0250aa08cf3b818b0a9dfc6eaa35"
+}

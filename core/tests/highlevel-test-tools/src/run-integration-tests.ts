@@ -127,3 +127,13 @@ export async function enIntegrationTests(chainName: string, secondChainName?: st
         secondChainName ? `--second-chain=${secondChainName}` : ''
     ]);
 }
+
+export async function gatewayMigrationToGatewayTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('gateway-migration', chainName, undefined, ['--to-gateway']);
+}
+
+export async function gatewayMigrationFromGatewayTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('gateway-migration', chainName, undefined, ['--from-gateway']);
+}
