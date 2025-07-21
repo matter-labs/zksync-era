@@ -194,7 +194,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     result.extend(da_validator_encoding_result.calls.into_iter());
 
     // 4. If validators are not yet present, please include.
-    for validator in [params.validator_1, params.validator_2] {
+    for validator in [params.validator_1] {
         if !gw_validator_timelock
             .validators(params.l2_chain_id.into(), validator)
             .await?
