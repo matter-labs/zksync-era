@@ -372,6 +372,22 @@ impl BlockArgs {
         self.inner.historical_fee_input(connection).await
     }
 
+    /// Calculates the effective gas limit applying the gas cap if specified.
+    /// Returns the minimum of protocol default and gas cap (if cap is set and > 0).
+    pub fn calculate_effective_gas_limit(
+        protocol_version: ProtocolVersionId,
+        gas_cap: Option<u64>,
+    ) -> u64 {
+        let default_gas_limit = get_eth_call_gas_limit(protocol_version.into());
+
+        // Apply gas cap if specified (0 means no cap)
+        if let Some(cap) = gas_cap.filter(|&cap| cap > 0) {
+            std::cmp::min(default_gas_limit, cap)
+        } else {
+            default_gas_limit
+        }
+    }
+
     pub async fn default_eth_call_gas(
         &self,
         connection: &mut Connection<'_, Core>,
@@ -390,77 +406,53 @@ impl BlockArgs {
                 .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
         };
 
-        let default_gas_limit = get_eth_call_gas_limit(protocol_version.into());
-
-        // Apply gas cap if specified (0 means no cap)
-        let effective_gas_limit = if let Some(cap) = gas_cap.filter(|&cap| cap > 0) {
-            std::cmp::min(default_gas_limit, cap)
-        } else {
-            default_gas_limit
-        };
-
+        let effective_gas_limit = Self::calculate_effective_gas_limit(protocol_version, gas_cap);
         Ok(effective_gas_limit.into())
     }
 }
 
 #[cfg(test)]
 mod gas_cap_tests {
-    use zksync_multivm::utils::get_eth_call_gas_limit;
+    use super::BlockArgs;
     use zksync_types::ProtocolVersionId;
 
     #[test]
     fn test_gas_cap_logic() {
-        // Get a sample protocol version gas limit
+        // Get a sample protocol version
         let protocol_version = ProtocolVersionId::latest();
-        let default_gas_limit = get_eth_call_gas_limit(protocol_version.into());
 
         // Test 1: No gas cap (should use protocol default)
-        let result_no_cap = if let Some(_cap) = None::<u64>.filter(|&cap| cap > 0) {
-            unreachable!()
-        } else {
-            default_gas_limit
-        };
+        let result_no_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, None);
+        let expected_default = zksync_multivm::utils::get_eth_call_gas_limit(protocol_version.into());
         assert_eq!(
-            result_no_cap, default_gas_limit,
+            result_no_cap, expected_default,
             "No gas cap should use protocol default"
         );
 
         // Test 2: Gas cap of 0 (should use protocol default)
-        let result_zero_cap = if let Some(_cap) = Some(0u64).filter(|&cap| cap > 0) {
-            unreachable!()
-        } else {
-            default_gas_limit
-        };
+        let result_zero_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, Some(0));
         assert_eq!(
-            result_zero_cap, default_gas_limit,
+            result_zero_cap, expected_default,
             "Zero gas cap should use protocol default"
         );
 
         // Test 3: Gas cap larger than protocol default (should use protocol default)
-        let large_gas_cap = default_gas_limit + 1_000_000;
-        let result_large_cap = if let Some(cap) = Some(large_gas_cap).filter(|&cap| cap > 0) {
-            std::cmp::min(default_gas_limit, cap)
-        } else {
-            default_gas_limit
-        };
+        let large_gas_cap = expected_default + 1_000_000;
+        let result_large_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, Some(large_gas_cap));
         assert_eq!(
-            result_large_cap, default_gas_limit,
+            result_large_cap, expected_default,
             "Large gas cap should not exceed protocol default"
         );
 
         // Test 4: Gas cap smaller than protocol default (should use gas cap)
         let small_gas_cap = 100_000u64;
-        let result_small_cap = if let Some(cap) = Some(small_gas_cap).filter(|&cap| cap > 0) {
-            std::cmp::min(default_gas_limit, cap)
-        } else {
-            default_gas_limit
-        };
+        let result_small_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, Some(small_gas_cap));
         assert_eq!(
             result_small_cap, small_gas_cap,
             "Small gas cap should limit the gas"
         );
         assert!(
-            result_small_cap < default_gas_limit,
+            result_small_cap < expected_default,
             "Capped gas should be less than uncapped"
         );
     }

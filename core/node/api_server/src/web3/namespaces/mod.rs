@@ -7,6 +7,7 @@ pub(crate) mod eth;
 mod net;
 mod snapshots;
 mod unstable;
+mod utils;
 mod web3;
 mod zks;
 
@@ -15,3 +16,4 @@ pub(super) use self::{
     snapshots::SnapshotsNamespace, unstable::UnstableNamespace, web3::Web3Namespace,
     zks::ZksNamespace,
 };
+pub(crate) use utils::*;
