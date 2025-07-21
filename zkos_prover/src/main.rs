@@ -1,3 +1,4 @@
+use std::path::Path;
 use air_compiler_cli::{
     prover_utils::{
         create_proofs_internal, create_recursion_proofs, load_binary_from_path,
@@ -141,13 +142,18 @@ pub async fn main() {
 
     let client = ProofDataClient::new(args.base_url);
 
-    let binary_path = if args.enabled_logging {
-        "../execution_environment/app_logging_enabled.bin".to_string()
+    let manifest_path = if let Ok(manifest_path) = std::env::var("CARGO_MANIFEST_DIR") {
+        manifest_path
     } else {
-        "../execution_environment/app.bin".to_string()
+        ".".to_string()
+    };
+    let binary_path = if args.enabled_logging {
+        Path::new(&manifest_path).join("../execution_environment/app_logging_enabled.bin")
+    } else {
+        Path::new(&manifest_path).join("../execution_environment/app.bin")
     };
 
-    let binary = load_binary_from_path(&binary_path.to_string());
+    let binary = load_binary_from_path(&binary_path.to_str().unwrap().to_string());
     let mut gpu_state = GpuSharedState::new(&binary);
 
 
