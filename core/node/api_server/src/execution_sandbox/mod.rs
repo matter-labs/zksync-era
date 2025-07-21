@@ -413,8 +413,9 @@ impl BlockArgs {
 
 #[cfg(test)]
 mod gas_cap_tests {
-    use super::BlockArgs;
     use zksync_types::ProtocolVersionId;
+
+    use super::BlockArgs;
 
     #[test]
     fn test_gas_cap_logic() {
@@ -423,7 +424,8 @@ mod gas_cap_tests {
 
         // Test 1: No gas cap (should use protocol default)
         let result_no_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, None);
-        let expected_default = zksync_multivm::utils::get_eth_call_gas_limit(protocol_version.into());
+        let expected_default =
+            zksync_multivm::utils::get_eth_call_gas_limit(protocol_version.into());
         assert_eq!(
             result_no_cap, expected_default,
             "No gas cap should use protocol default"
@@ -438,7 +440,8 @@ mod gas_cap_tests {
 
         // Test 3: Gas cap larger than protocol default (should use protocol default)
         let large_gas_cap = expected_default + 1_000_000;
-        let result_large_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, Some(large_gas_cap));
+        let result_large_cap =
+            BlockArgs::calculate_effective_gas_limit(protocol_version, Some(large_gas_cap));
         assert_eq!(
             result_large_cap, expected_default,
             "Large gas cap should not exceed protocol default"
@@ -446,7 +449,8 @@ mod gas_cap_tests {
 
         // Test 4: Gas cap smaller than protocol default (should use gas cap)
         let small_gas_cap = 100_000u64;
-        let result_small_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, Some(small_gas_cap));
+        let result_small_cap =
+            BlockArgs::calculate_effective_gas_limit(protocol_version, Some(small_gas_cap));
         assert_eq!(
             result_small_cap, small_gas_cap,
             "Small gas cap should limit the gas"

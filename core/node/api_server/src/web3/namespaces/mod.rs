@@ -11,9 +11,10 @@ mod utils;
 mod web3;
 mod zks;
 
+pub(crate) use utils::*;
+
 pub(super) use self::{
     debug::DebugNamespace, en::EnNamespace, eth::EthNamespace, net::NetNamespace,
     snapshots::SnapshotsNamespace, unstable::UnstableNamespace, web3::Web3Namespace,
     zks::ZksNamespace,
 };
-pub(crate) use utils::*;

@@ -1,12 +1,13 @@
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_types::{api::BlockId, api::BlockNumber, transaction_request::CallRequest};
+use zksync_types::{
+    api::{BlockId, BlockNumber},
+    transaction_request::CallRequest,
+};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    execution_sandbox::BlockArgs,
-    tx_sender::SubmitTxError,
-    web3::backend_jsonrpsee::MethodTracer,
+    execution_sandbox::BlockArgs, tx_sender::SubmitTxError, web3::backend_jsonrpsee::MethodTracer,
 };
 
 /// Validates user-provided gas against the configured gas cap.
@@ -24,8 +25,9 @@ pub async fn validate_gas_cap(
     };
 
     let protocol_version = get_protocol_version_for_block(block_id, block_args, connection).await?;
-    let effective_gas_limit = BlockArgs::calculate_effective_gas_limit(protocol_version, eth_call_gas_cap);
-    
+    let effective_gas_limit =
+        BlockArgs::calculate_effective_gas_limit(protocol_version, eth_call_gas_cap);
+
     if user_gas > effective_gas_limit.into() {
         return Err(method_tracer.map_submit_err(SubmitTxError::GasLimitIsTooBig));
     }
@@ -40,7 +42,7 @@ pub async fn get_protocol_version_for_block(
     connection: &mut Connection<'_, Core>,
 ) -> Result<zksync_types::ProtocolVersionId, Web3Error> {
     let is_pending = matches!(block_id, BlockId::Number(BlockNumber::Pending));
-    
+
     if is_pending {
         Ok(connection.blocks_dal().pending_protocol_version().await?)
     } else {
@@ -51,8 +53,9 @@ pub async fn get_protocol_version_for_block(
             .await
             .map_err(DalError::generalize)?
             .with_context(|| format!("missing header for resolved block #{block_number}"))?;
-        
-        Ok(header.protocol_version
+
+        Ok(header
+            .protocol_version
             .unwrap_or_else(|| zksync_types::ProtocolVersionId::last_potentially_undefined()))
     }
-} 
+}
