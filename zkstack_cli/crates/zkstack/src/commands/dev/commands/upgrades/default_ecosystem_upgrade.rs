@@ -214,7 +214,7 @@ async fn no_governance_prepare(
     let broadcast_file: BroadcastFile = {
         let file_content =
             std::fs::read_to_string(ecosystem_config.path_to_l1_foundry().join(format!(
-                "broadcast/EcosystemUpgrade_v28_1_zk_os.s.sol/{}/run-latest.json",
+                "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
                 l1_chain_id
             )))
             .context("Failed to read broadcast file")?;
