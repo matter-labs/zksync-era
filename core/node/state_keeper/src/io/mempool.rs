@@ -672,33 +672,26 @@ impl MempoolIO {
                 })
                 .await?;
 
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
-
-            let gateway_migration_state = self.gateway_status(&mut storage).await;
-            let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
-
-            let interop_roots = match gateway_migration_state {
-                GatewayMigrationState::InProgress => vec![],
-                _ => {
-                    storage
-                        .interop_root_dal()
-                        .get_new_interop_roots(limit)
-                        .await?
-                }
+            // During v29 protocol upgrade, interop roots cannot be set as the L2InteropRootStorage contract is not yet deployed
+            // This is why interop roots for the first L2 block are not set on protocol upgrades, as this could cause the batch to fail
+            let first_l2_block = if batch_with_upgrade_tx {
+                L2BlockParams::new(timestamp_ms)
+            } else {
+                let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+                let mut storage = self.pool.connection_tagged("state_keeper").await?;
+                let interop_roots = storage
+                    .interop_root_dal()
+                    .get_new_interop_roots(limit)
+                    .await?;
+                L2BlockParams::new_raw(timestamp_ms, 1, interop_roots)
             };
-
-            println!(
-                "XXX Got {} interop roots from DB for new l1 batch",
-                interop_roots.len()
-            );
 
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                // HERE
-                first_l2_block: L2BlockParams::new_raw(timestamp_ms, 1, interop_roots),
+                first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,
             }));
