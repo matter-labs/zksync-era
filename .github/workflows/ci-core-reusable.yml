@@ -78,7 +78,7 @@ jobs:
 
       - name: Build code
         run: |
-          ci_run cargo nextest run --release --no-run --manifest-path core/Cargo.toml
+          ci_run cargo nextest run --release --no-run --manifest-path core/Cargo.toml --partition ${{ matrix.partition }}
 
       - name: Show sccache logs
         if: always()
