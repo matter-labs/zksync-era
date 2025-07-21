@@ -31,7 +31,7 @@ impl Tokenize for &CommitBatches<'_> {
     fn into_tokens(self) -> Vec<Token> {
         // other modes are not yet supported in ZK OS
         assert_eq!(self.mode, L1BatchCommitmentMode::Rollup);
-        assert_eq!(self.pubdata_da, PubdataSendingMode::Calldata);
+        // assert_eq!(self.pubdata_da, PubdataSendingMode::Calldata);
         assert_eq!(
             self.l1_batches.len(),
             1,
