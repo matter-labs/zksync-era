@@ -1,3 +1,5 @@
+#!/bin/bash
+
 zkstack dev clean containers && zkstack up -o false
 zkstack dev contracts
 
