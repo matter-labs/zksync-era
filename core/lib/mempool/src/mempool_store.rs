@@ -254,6 +254,10 @@ impl MempoolStore {
             return None;
         };
 
+        if filter.protocol_version < protocol_version {
+            return None;
+        }
+
         let mut removed = 0;
         // We want to fetch the next transaction that would match the fee requirements.
         let tx_pointer = self
