@@ -12,7 +12,7 @@ use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
 
 use super::{
     gateway_common::{
@@ -51,7 +51,7 @@ async fn precompute_chain_address_on_gateway(
 
     let result = gw_ctm
         .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(L2_BRIDGEHUB_ADDRESS)
+        .from(L2_CHAIN_ASSET_HANDLER_ADDRESS)
         .await?;
 
     Ok(result)
@@ -67,8 +67,7 @@ pub(crate) struct MigrateToGatewayParams {
     pub(crate) gateway_diamond_cut: Vec<u8>,
     pub(crate) gateway_rpc_url: String,
     pub(crate) new_sl_da_validator: Address,
-    pub(crate) validator_1: Address,
-    pub(crate) validator_2: Address,
+    pub(crate) validator: Address,
     pub(crate) min_validator_balance: U256,
     pub(crate) refund_recipient: Option<Address>,
 }
@@ -79,7 +78,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     foundry_contracts_path: &Path,
     params: MigrateToGatewayParams,
 ) -> anyhow::Result<(Address, Vec<AdminCall>)> {
-    let refund_recipient = params.refund_recipient.unwrap_or(params.validator_1);
+    let refund_recipient = params.refund_recipient.unwrap_or(params.validator);
     let mut result = vec![];
 
     let l1_provider = get_ethers_provider(&params.l1_rpc_url)?;
@@ -193,57 +192,59 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     result.extend(da_validator_encoding_result.calls.into_iter());
 
-    // 4. If validators are not yet present, please include.
-    for validator in [params.validator_1, params.validator_2] {
-        if !gw_validator_timelock
-            .validators(params.l2_chain_id.into(), validator)
-            .await?
-        {
-            let enable_validator_calls = enable_validator_via_gateway(
-                shell,
-                forge_args,
-                foundry_contracts_path,
-                crate::admin_functions::AdminScriptMode::OnlySave,
-                params.l1_bridgehub_addr,
-                params.max_l1_gas_price.into(),
-                params.l2_chain_id,
-                params.gateway_chain_id,
-                validator,
-                gw_validator_timelock_addr,
-                refund_recipient,
-                params.l1_rpc_url.clone(),
-            )
-            .await?;
-            result.extend(enable_validator_calls.calls);
-        }
+    // 4. If validator is not yet present, please include.
+    if !gw_validator_timelock
+        .has_role_for_chain_id(
+            params.l2_chain_id.into(),
+            gw_validator_timelock.committer_role().call().await?,
+            params.validator,
+        )
+        .await?
+    {
+        let enable_validator_calls = enable_validator_via_gateway(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l1_bridgehub_addr,
+            params.max_l1_gas_price.into(),
+            params.l2_chain_id,
+            params.gateway_chain_id,
+            params.validator,
+            gw_validator_timelock_addr,
+            refund_recipient,
+            params.l1_rpc_url.clone(),
+        )
+        .await?;
+        result.extend(enable_validator_calls.calls);
+    }
 
-        let current_validator_balance = gw_provider.get_balance(validator, None).await?;
+    let current_validator_balance = gw_provider.get_balance(params.validator, None).await?;
+    logger::info(format!(
+        "Current balance of {:#?} = {}",
+        params.validator, current_validator_balance
+    ));
+    if current_validator_balance < params.min_validator_balance {
         logger::info(format!(
-            "Current balance of {:#?} = {}",
-            validator, current_validator_balance
+            "Will send {} of the ZK Gateway base token",
+            params.min_validator_balance - current_validator_balance
         ));
-        if current_validator_balance < params.min_validator_balance {
-            logger::info(format!(
-                "Will send {} of the ZK Gateway base token",
-                params.min_validator_balance - current_validator_balance
-            ));
-            let supply_validator_balance_calls = admin_l1_l2_tx(
-                shell,
-                forge_args,
-                foundry_contracts_path,
-                crate::admin_functions::AdminScriptMode::OnlySave,
-                params.l1_bridgehub_addr,
-                params.max_l1_gas_price,
-                params.gateway_chain_id,
-                validator,
-                params.min_validator_balance - current_validator_balance,
-                Default::default(),
-                refund_recipient,
-                params.l1_rpc_url.clone(),
-            )
-            .await?;
-            result.extend(supply_validator_balance_calls.calls);
-        }
+        let supply_validator_balance_calls = admin_l1_l2_tx(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l1_bridgehub_addr,
+            params.max_l1_gas_price,
+            params.gateway_chain_id,
+            params.validator,
+            params.min_validator_balance - current_validator_balance,
+            Default::default(),
+            refund_recipient,
+            params.l1_rpc_url.clone(),
+        )
+        .await?;
+        result.extend(supply_validator_balance_calls.calls);
     }
 
     Ok((chain_admin_address, result))
@@ -268,9 +269,7 @@ pub struct MigrateToGatewayCalldataArgs {
     #[clap(long)]
     pub new_sl_da_validator: Address,
     #[clap(long)]
-    pub validator_1: Address,
-    #[clap(long)]
-    pub validator_2: Address,
+    pub validator: Address,
     #[clap(long)]
     pub min_validator_balance: u128,
     #[clap(long)]
@@ -301,8 +300,7 @@ impl MigrateToGatewayCalldataArgs {
             gateway_diamond_cut,
             gateway_rpc_url: self.gateway_rpc_url,
             new_sl_da_validator: self.new_sl_da_validator,
-            validator_1: self.validator_1,
-            validator_2: self.validator_2,
+            validator: self.validator,
             min_validator_balance: self.min_validator_balance.into(),
             refund_recipient: self.refund_recipient,
         }

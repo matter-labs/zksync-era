@@ -55,6 +55,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: PubdataParams::default(),
+        rolling_txs_hash: Some(H256::zero()),
     }
 }
 

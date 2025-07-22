@@ -40,6 +40,6 @@ export async function waitForAllBatchesToBeExecuted(chainName: string, timeoutMs
  */
 export async function generateRealisticLoad(chainName: string): Promise<void> {
     console.log(`🚀 Generating realistic load on chain: ${chainName}`);
-    await runIntegrationTests(chainName, 'ETH token checks');
+    await runIntegrationTests(chainName, undefined, 'ETH token checks');
     console.log(`✅ Realistic load generation completed for chain: ${chainName}`);
 }

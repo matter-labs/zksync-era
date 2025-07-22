@@ -20,7 +20,10 @@ use super::{
     io::{BatchInitParams, IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
-use crate::metrics::{L2BlockSealStage, L2_BLOCK_METRICS};
+use crate::{
+    metrics::{L2BlockSealStage, L2_BLOCK_METRICS},
+    updates::l2_block_updates::RollingTxHashUpdates,
+};
 
 pub mod committed_updates;
 pub mod l2_block_updates;
@@ -42,6 +45,7 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
+    rolling_tx_hash_updates: RollingTxHashUpdates,
     pubdata_params: PubdataParams,
     pubdata_limit: Option<u64>,
     previous_batch_protocol_version: ProtocolVersionId,
@@ -111,7 +115,15 @@ impl UpdatesManager {
                     .first_l2_block
                     .max_virtual_blocks_to_create,
                 protocol_version,
+                batch_init_params
+                    .l1_batch_env
+                    .first_l2_block
+                    .interop_roots
+                    .clone(),
             )]),
+            rolling_tx_hash_updates: RollingTxHashUpdates {
+                rolling_hash: H256::zero(),
+            },
             storage_writes_deduplicator,
             next_l2_block_params: None,
         }
@@ -124,7 +136,7 @@ impl UpdatesManager {
     }
 
     pub(crate) fn get_next_or_current_l2_block_timestamp(&mut self) -> u64 {
-        if let Some(next_l2_block_params) = self.next_l2_block_params {
+        if let Some(next_l2_block_params) = &self.next_l2_block_params {
             next_l2_block_params.timestamp()
         } else {
             self.last_pending_l2_block().timestamp()
@@ -158,7 +170,7 @@ impl UpdatesManager {
     pub(crate) fn seal_l2_block_command(
         &self,
         l2_legacy_shared_bridge_addr: Option<Address>,
-        pre_insert_txs: bool,
+        pre_insert_data: bool,
     ) -> L2BlockSealCommand {
         let l2_block = self.last_pending_l2_block().clone();
         let tx_count_in_last_block = l2_block.executed_transactions.len();
@@ -172,10 +184,11 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
             l2_legacy_shared_bridge_addr,
-            pre_insert_txs,
+            pre_insert_data,
             pubdata_params: self.pubdata_params,
             insert_header: self.sync_block_data_and_header_persistence
                 || (tx_count_in_last_block == 0),
+            rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
         }
     }
 
@@ -191,6 +204,9 @@ impl UpdatesManager {
             .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
+
+        self.rolling_tx_hash_updates
+            .append_rolling_hash(tx.hash(), !tx_execution_result.result.is_failed());
         self.last_pending_l2_block_mut()
             .extend_from_executed_transaction(
                 tx,
@@ -238,16 +254,33 @@ impl UpdatesManager {
             cursor.prev_l2_block_hash,
             next_l2_block_params.virtual_blocks(),
             self.protocol_version,
+            next_l2_block_params.interop_roots().to_vec(),
         );
         self.pending_l2_blocks.push_back(new_l2_block_updates);
         self.storage_writes_deduplicator.make_snapshot();
     }
 
-    pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
+    pub fn set_next_l2_block_params(&mut self, mut l2_block_params: L2BlockParams) {
         assert!(
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
+        // We need to filter already applied interop roots. Because we seal L2 blocks in async manner,
+        // it's possible that database returns already applied interop roots
+        let new_interop_roots: Vec<_> = l2_block_params
+            .interop_roots()
+            .iter()
+            .filter(|root| {
+                !self.committed_updates.interop_roots.contains(root)
+                    && self
+                        .pending_l2_blocks
+                        .iter()
+                        .all(|block| !block.interop_roots.contains(root))
+            })
+            .cloned()
+            .collect();
+
+        l2_block_params.set_interop_roots(new_interop_roots);
         self.next_l2_block_params = Some(l2_block_params);
     }
 
@@ -325,6 +358,7 @@ impl UpdatesManager {
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
             pubdata_params: self.pubdata_params,
+            rolling_txs_hash: Some(self.rolling_tx_hash_updates.rolling_hash),
         }
     }
 
@@ -374,6 +408,9 @@ impl UpdatesManager {
         self.last_committed_l2_block_number = block.number;
         self.last_committed_l2_block_hash = block.get_l2_block_hash();
         self.last_committed_l2_block_timestamp = Some(block.timestamp());
+        self.committed_updates
+            .interop_roots
+            .extend(block.interop_roots.iter().cloned());
         self.committed_updates.extend_from_sealed_l2_block(block);
         self.storage_writes_deduplicator
             .pop_front_snapshot_no_rollback();
@@ -447,12 +484,13 @@ pub struct L2BlockSealCommand {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_legacy_shared_bridge_addr: Option<Address>,
-    /// Whether transactions should be pre-inserted to DB.
-    /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
+    /// Whether transactions or interop roots should be pre-inserted to DB.
+    /// Should be set to `true` for EN's IO as EN doesn't store transactions and interop roots in DB
     /// before they are included into L2 blocks.
-    pub pre_insert_txs: bool,
+    pub pre_insert_data: bool,
     pub pubdata_params: PubdataParams,
     pub insert_header: bool,
+    pub rolling_txs_hash: H256,
 }
 
 #[cfg(test)]

@@ -63,6 +63,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
+    pub l1_message_root_proxy_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l2_multicall3: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -157,6 +158,9 @@ impl RemoteENConfig {
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
             l2_timestamp_asserter_addr: timestamp_asserter_address,
+            l1_message_root_proxy_addr: l1_ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.message_root_proxy_addr),
         })
     }
 
@@ -180,6 +184,7 @@ impl RemoteENConfig {
             l2_timestamp_asserter_addr: None,
             l1_server_notifier_addr: None,
             l2_multicall3: None,
+            l1_message_root_proxy_addr: None,
         }
     }
 }
@@ -498,6 +503,7 @@ impl ExternalNodeConfig {
             wrapped_base_token_store: self.remote.l1_wrapped_base_token_store,
             bridge_hub: self.remote.l1_bridgehub_proxy_addr,
             shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
+            message_root: self.remote.l1_message_root_proxy_addr,
             erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: self.remote.base_token_addr,
             server_notifier_addr: self.remote.l1_server_notifier_addr,
@@ -511,6 +517,7 @@ impl ExternalNodeConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
+                message_root_proxy_addr: self.remote.l1_message_root_proxy_addr,
                 // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,

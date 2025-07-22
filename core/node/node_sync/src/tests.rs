@@ -69,6 +69,7 @@ impl MockMainNodeClient {
             protocol_version: ProtocolVersionId::latest(),
             pubdata_params: Default::default(),
             pubdata_limit: Some(100_000),
+            interop_roots: vec![],
         };
 
         Self {

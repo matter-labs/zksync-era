@@ -2371,7 +2371,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__gateway__migrate__to__gateway__calldata)
-            opts="-v -h --l1-rpc-url --l1-bridgehub-addr --max-l1-gas-price --l2-chain-id --gateway-chain-id --gateway-config-path --gateway-rpc-url --new-sl-da-validator --validator-1 --validator-2 --min-validator-balance --refund-recipient --l2-rpc-url --no-cross-check --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --l1-rpc-url --l1-bridgehub-addr --max-l1-gas-price --l2-chain-id --gateway-chain-id --gateway-config-path --gateway-rpc-url --new-sl-da-validator --validator --min-validator-balance --refund-recipient --l2-rpc-url --no-cross-check --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2409,11 +2409,7 @@ _zkstack() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
-                --validator-1)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --validator-2)
+                --validator)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
