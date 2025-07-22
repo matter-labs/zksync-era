@@ -1,5 +1,5 @@
 use anyhow::{bail, ensure, Context};
-use ethers::utils::hex;
+use ethers::{providers::Middleware, utils::hex};
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -33,6 +33,7 @@ use crate::{
             utils::{print_error, set_upgrade_timestamp_calldata},
         },
     },
+    utils::addresses::apply_l1_to_l2_alias,
 };
 
 #[derive(Debug, Default)]
@@ -153,27 +154,34 @@ pub async fn fetch_chain_info(
 
     // Repeat for GW
 
-    // let gw_client = get_ethers_provider(&args.gw_rpc_url)?;
+    let gw_hyperchain_addr = if settlement_layer != l1_provider.get_chainid().await? {
+        let gw_client =
+            get_ethers_provider(args.gw_rpc_url.as_ref().expect("gw_rpc_url is required"))?;
 
-    // let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_client.clone());
-    // let gw_zkchain_addr = gw_bridgehub.get_zk_chain(chain_id).await?;
+        let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_client.clone());
+        let gw_zkchain_addr = gw_bridgehub.get_zk_chain(chain_id).await?;
 
-    // if gw_zkchain_addr != Address::zero() {
-    //     let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
-    //     let gz_zkchain_admin = gw_zkchain.get_admin().await?;
-    //     if gz_zkchain_admin != apply_l1_to_l2_alias(chain_admin_addr) {
-    //         bail!(
-    //             "Provided gw_zkchain_addr ({:?}) does not match the expected aliased L1 chain_admin_addr ({:?})",
-    //             gz_zkchain_admin,
-    //             apply_l1_to_l2_alias(chain_admin_addr)
-    //         );
-    //     }
-    // }
+        if gw_zkchain_addr != Address::zero() {
+            let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
+            let gz_zkchain_admin = gw_zkchain.get_admin().await?;
+            if gz_zkchain_admin != apply_l1_to_l2_alias(chain_admin_addr) {
+                bail!(
+                    "Provided gw_zkchain_addr ({:?}) does not match the expected aliased L1 chain_admin_addr ({:?})",
+                    gz_zkchain_admin,
+                    apply_l1_to_l2_alias(chain_admin_addr)
+                );
+            }
+        }
+
+        gw_zkchain_addr
+    } else {
+        Address::zero()
+    };
 
     Ok(FetchedChainInfo {
         hyperchain_addr: zkchain_addr,
         chain_admin_addr,
-        gw_hyperchain_addr: Address::zero(),
+        gw_hyperchain_addr,
         l1_asset_router_proxy,
         settlement_layer: settlement_layer.as_u64(),
     })
@@ -190,7 +198,6 @@ pub struct UpgradeInfo {
 
     // Information from upgrade
     chain_upgrade_diamond_cut: Bytes,
-    gateway_diamond_cut: Bytes,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -202,7 +209,7 @@ pub struct ContractsConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployedAddresses {
     pub(crate) bridgehub: BridgehubAddresses,
-    pub(crate) validator_timelock: Address,
+    pub(crate) validator_timelock_addr: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -213,6 +220,8 @@ pub struct BridgehubAddresses {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Gateway {
     pub(crate) gateway_state_transition: GatewayStateTransition,
+    pub(crate) diamond_cut_data: Bytes,
+    pub(crate) upgrade_cut_data: Bytes,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -324,7 +333,7 @@ pub(crate) async fn run(
                 chain_info.l1_asset_router_proxy,
                 // TODO: the funds go to nowhere as this is not the aliased address.
                 chain_info.chain_admin_addr,
-                upgrade_info.gateway_diamond_cut.0.into(),
+                upgrade_info.gateway.upgrade_cut_data.0.into(),
                 args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
             )
             .await;
@@ -360,12 +369,13 @@ pub(crate) async fn run(
 
         admin_calls_gw.display();
 
-        let (gw_chain_admin_calldata, _) = admin_calls_gw.compile_full_calldata();
+        let (gw_chain_admin_calldata, total_value) = admin_calls_gw.compile_full_calldata();
         calldata = gw_chain_admin_calldata.clone();
 
         logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}",
-            hex::encode(&gw_chain_admin_calldata)
+            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+            hex::encode(&gw_chain_admin_calldata),
+            total_value,
         ));
         gw_chain_admin_calldata
     } else {
@@ -393,7 +403,7 @@ pub(crate) async fn run(
                     .bridgehub_proxy_addr,
                 args.chain_id.expect("chain_id is required"),
                 validator,
-                upgrade_info.deployed_addresses.validator_timelock,
+                upgrade_info.deployed_addresses.validator_timelock_addr,
                 args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
             )
             .await?;
@@ -402,12 +412,13 @@ pub(crate) async fn run(
 
         admin_calls_finalize.display();
 
-        let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
+        let (chain_admin_calldata, total_value) = admin_calls_finalize.compile_full_calldata();
         calldata = chain_admin_calldata.clone();
 
         logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}",
-            hex::encode(&chain_admin_calldata)
+            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+            hex::encode(&chain_admin_calldata),
+            total_value,
         ));
         chain_admin_calldata
     };

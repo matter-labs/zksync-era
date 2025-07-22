@@ -431,20 +431,15 @@ impl EthTxAggregator {
                 "contract DA validator pair",
             )?;
 
-            let post_v29_upgradeable_validator_timelock_result =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?;
             let stm_validator_timelock_address =
                 if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+                    // We just skip the result for the pre-V29 upgradeable validator timelock
+                    call_results_iterator.next().unwrap();
+
                     stm_validator_timelock_address
                 } else {
-                    assert!(
-                        post_v29_upgradeable_validator_timelock_result.success,
-                        "post-V29 upgradeable validator timelock call failed"
-                    );
                     Self::parse_address(
-                        post_v29_upgradeable_validator_timelock_result
-                            .return_data
-                            .into_token(),
+                        call_results_iterator.next().unwrap(),
                         "post-V29 upgradeable validator timelock",
                     )?
                 };
@@ -488,7 +483,13 @@ impl EthTxAggregator {
     }
 
     fn parse_address(data: Token, name: &'static str) -> Result<Address, EthSenderError> {
-        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        let result = Multicall3Result::from_token(data)?;
+        if !result.success {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!("multicall3 {name} call failed"),
+            )));
+        }
+        let multicall_data = result.return_data;
         if multicall_data.len() != 32 {
             return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
                 format!(

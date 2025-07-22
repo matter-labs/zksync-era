@@ -49,7 +49,8 @@ lazy_static! {
             "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)",
-            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)"
+            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)",
+            "function enableValidator(address bridgehub,uint256 l2ChainId,address validatorAddress,address validatorTimelock,bool _shouldSend) public"
         ])
         .unwrap(),
     );
