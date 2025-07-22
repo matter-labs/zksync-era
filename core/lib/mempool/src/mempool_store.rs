@@ -180,7 +180,7 @@ impl MempoolStore {
         &mut self,
         filter: &L2TxFilter,
     ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
-        if let Some(transaction_data) = self.next_priority_transaction(filter) {
+        if let Some(transaction_data) = self.next_l2_transaction(filter, true) {
             return Some(transaction_data);
         }
 
@@ -193,75 +193,34 @@ impl MempoolStore {
             ));
         }
 
-        let mut removed = 0;
-        // We want to fetch the next transaction that would match the fee requirements.
-        let tx_pointer = self
-            .l2_priority_queue
-            .iter()
-            .rfind(|el| el.matches_filter(filter))?
-            .clone();
-
-        let initial_length = self.stashed_accounts.len();
-
-        // Stash all observed transactions that don't meet criteria
-        for stashed_pointer in self
-            .l2_priority_queue
-            .split_off(&tx_pointer)
-            .into_iter()
-            .skip(1)
-        {
-            removed += {
-                let account = self
-                    .l2_transactions_per_account
-                    .get_mut(&stashed_pointer.account)
-                    .expect("mempool: dangling pointer in priority queue");
-                let txs_len = account.len();
-                account.clear_txs();
-                txs_len
-            };
-
-            self.stashed_accounts.push(stashed_pointer.account);
-        }
-
-        tracing::trace!(
-            "Stashed {} accounts by filter: {:?}",
-            self.stashed_accounts.len() - initial_length,
-            filter
-        );
-
-        // insert pointer to the next transaction if it exists
-        let (transaction, constraint, score) = self
-            .l2_transactions_per_account
-            .get_mut(&tx_pointer.account)
-            .expect("mempool: dangling pointer in priority queue")
-            .next();
-
-        if let Some(score) = score {
-            self.l2_priority_queue.insert(score);
-        }
-        self.size = self
-            .size
-            .checked_sub((removed + 1) as u64)
-            .expect("mempool size can't be negative");
-        Some((transaction.into(), constraint))
+        self.next_l2_transaction(filter, false)
     }
 
-    fn next_priority_transaction(
+    fn next_l2_transaction(
         &mut self,
         filter: &L2TxFilter,
+        is_high_priority: bool,
     ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
-        let Some(protocol_version) = self.high_priority_l2_tx_protocol_version else {
-            return None;
+        let priority_queue = if is_high_priority {
+            &mut self.high_priority_l2_priority_queue
+        } else {
+            &mut self.l2_priority_queue
         };
 
-        if filter.protocol_version < protocol_version {
+        let txs_per_account = if is_high_priority {
+            &mut self.high_priority_l2_transactions_per_account
+        } else {
+            &mut self.l2_transactions_per_account
+        };
+
+        if is_high_priority && filter.protocol_version < self.high_priority_l2_tx_protocol_version?
+        {
             return None;
         }
 
         let mut removed = 0;
         // We want to fetch the next transaction that would match the fee requirements.
-        let tx_pointer = self
-            .high_priority_l2_priority_queue
+        let tx_pointer = priority_queue
             .iter()
             .rfind(|el| el.matches_filter(filter))?
             .clone();
@@ -269,15 +228,9 @@ impl MempoolStore {
         let initial_length = self.stashed_accounts.len();
 
         // Stash all observed transactions that don't meet criteria
-        for stashed_pointer in self
-            .high_priority_l2_priority_queue
-            .split_off(&tx_pointer)
-            .into_iter()
-            .skip(1)
-        {
+        for stashed_pointer in priority_queue.split_off(&tx_pointer).into_iter().skip(1) {
             removed += {
-                let account = self
-                    .high_priority_l2_transactions_per_account
+                let account = txs_per_account
                     .get_mut(&stashed_pointer.account)
                     .expect("mempool: dangling pointer in priority queue");
                 let txs_len = account.len();
@@ -295,14 +248,13 @@ impl MempoolStore {
         );
 
         // insert pointer to the next transaction if it exists
-        let (transaction, constraint, score) = self
-            .high_priority_l2_transactions_per_account
+        let (transaction, constraint, score) = txs_per_account
             .get_mut(&tx_pointer.account)
             .expect("mempool: dangling pointer in priority queue")
             .next();
 
         if let Some(score) = score {
-            self.high_priority_l2_priority_queue.insert(score);
+            priority_queue.insert(score);
         }
         self.size = self
             .size
