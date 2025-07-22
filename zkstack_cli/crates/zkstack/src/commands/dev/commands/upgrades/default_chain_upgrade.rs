@@ -242,25 +242,16 @@ pub(crate) async fn run(
 
     let mut args = args_input.clone().fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
-        let path = match args_input.upgrade_version {
-            UpgradeVersions::V28_1Vk => {
-                "./contracts/l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
-            }
-            UpgradeVersions::V29InteropAFf => {
-                "./contracts/l1-contracts/script-out/v29-upgrade-ecosystem.toml"
-            }
-        };
-
         args.upgrade_description_path = Some(
             ecosystem_config
                 .link_to_code
-                .join(path)
+                .join(args_input.upgrade_version.get_default_upgrade_description_path())
                 .to_string_lossy()
                 .to_string(),
         );
     }
-    // 0. Read the GatewayUpgradeInfo
 
+    // 0. Read the GatewayUpgradeInfo
     let upgrade_info = UpgradeInfo::read(
         shell,
         &args
@@ -269,10 +260,11 @@ pub(crate) async fn run(
             .expect("upgrade_description_path is required"),
     )?;
     logger::info("upgrade_info: ");
-    // 1. Update all the configs
 
+    // 1. Update all the configs
     let chain_info = fetch_chain_info(&upgrade_info, &args.clone().into()).await?;
     logger::info(format!("chain_info: {:?}", chain_info));
+
     // 2. Generate calldata
     let schedule_calldata = set_upgrade_timestamp_calldata(
         upgrade_info.contracts_config.new_protocol_version,
