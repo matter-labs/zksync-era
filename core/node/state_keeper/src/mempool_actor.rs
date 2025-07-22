@@ -276,7 +276,9 @@ mod tests {
             PriorityOpId(0),
             100,
             TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
-            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_protocol_version,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
         );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
@@ -344,7 +346,9 @@ mod tests {
             PriorityOpId(0),
             100,
             TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
-            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_protocol_version,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
         );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
@@ -395,7 +399,9 @@ mod tests {
             PriorityOpId(0),
             100,
             TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
-            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_protocol_version,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
         );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());

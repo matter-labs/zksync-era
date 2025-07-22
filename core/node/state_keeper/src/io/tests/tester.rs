@@ -140,7 +140,7 @@ impl Tester {
         );
 
         let chain_id = SLChainId(505);
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
