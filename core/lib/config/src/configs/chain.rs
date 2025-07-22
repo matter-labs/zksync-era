@@ -420,8 +420,8 @@ mod tests {
             remove_stuck_txs: true,
             delay_interval: Duration::from_millis(100),
             l1_to_l2_txs_paused: false,
-            high_priority_l2_tx_initiator: None,
-            high_priority_l2_tx_protocol_version: None,
+            high_priority_l2_tx_initiator: Some(Address::from_slice(&[0x01; 20])),
+            high_priority_l2_tx_protocol_version: Some(29),
         }
     }
 
