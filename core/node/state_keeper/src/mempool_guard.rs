@@ -6,7 +6,9 @@ use std::{
 use tokio::sync::{Mutex as TokioMutex, MutexGuard};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{AdvanceInput, L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_types::{Address, Nonce, PriorityOpId, ProtocolVersionId, Transaction, TransactionTimeRangeConstraint};
+use zksync_types::{
+    Address, Nonce, PriorityOpId, ProtocolVersionId, Transaction, TransactionTimeRangeConstraint,
+};
 
 use super::metrics::StateKeeperGauges;
 
