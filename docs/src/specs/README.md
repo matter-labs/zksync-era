@@ -4,7 +4,7 @@
   - [Overview](./overview.md)
   - [Blocks and Batches](./blocks_batches.md)
   - [L1 Smart Contracts](./l1_smart_contracts.md)
-<!-- - [Contracts](./contracts/overview.md)
+  <!-- - [Contracts](./contracts/overview.md)
   - [Chain Management](./contracts/chain_management/overview.md)
     - [Bridgehub](./contracts/chain_management/bridgehub.md)
     - [Chain type manager](./contracts/chain_management/chain_type_manager.md)
