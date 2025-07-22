@@ -108,7 +108,7 @@ fn prioritize_l1_txns() {
     let transactions = vec![
         gen_l2_tx(account, Nonce(0)),
         gen_l2_tx(account, Nonce(1)),
-        gen_l1_tx(PriorityOpId(0)),
+        gen_l1_tx(PriorityOpId(0), None),
     ];
     mempool.insert_without_constraints(transactions, HashMap::new());
     assert!(mempool
@@ -122,13 +122,13 @@ fn prioritize_l1_txns() {
 fn l1_txns_priority_id() {
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let transactions = vec![
-        gen_l1_tx(PriorityOpId(1)),
-        gen_l1_tx(PriorityOpId(2)),
-        gen_l1_tx(PriorityOpId(3)),
+        gen_l1_tx(PriorityOpId(1), None),
+        gen_l1_tx(PriorityOpId(2), None),
+        gen_l1_tx(PriorityOpId(3), None),
     ];
     mempool.insert_without_constraints(transactions, HashMap::new());
     assert!(mempool.next_transaction(&L2TxFilter::default()).is_none());
-    mempool.insert_without_constraints(vec![gen_l1_tx(PriorityOpId(0))], HashMap::new());
+    mempool.insert_without_constraints(vec![gen_l1_tx(PriorityOpId(0), None)], HashMap::new());
     for idx in 0..4 {
         let data = mempool
             .next_transaction(&L2TxFilter::default())
@@ -429,7 +429,10 @@ fn advance_after_block_removes_processed_txs_and_updates_nonce() {
 
     // Insert L1 transactions for priority_id = 0,1
     mempool.insert_without_constraints(
-        vec![gen_l1_tx(PriorityOpId(0)), gen_l1_tx(PriorityOpId(1))],
+        vec![
+            gen_l1_tx(PriorityOpId(0), None),
+            gen_l1_tx(PriorityOpId(1), None),
+        ],
         HashMap::new(),
     );
 
@@ -459,6 +462,157 @@ fn advance_after_block_removes_processed_txs_and_updates_nonce() {
     assert!(mempool.l2_priority_queue().is_empty());
 }
 
+#[test]
+fn high_priority_l2_txs_not_execute_before_protocol_version() {
+    let high_priority_l2_tx_initiator: zksync_types::H160 = Address::random();
+    let l2_account: zksync_types::H160 = Address::random();
+    let l1_account: zksync_types::H160 = Address::random();
+
+    let mut mempool = MempoolStore::new(
+        PriorityOpId(0),
+        100,
+        Some(high_priority_l2_tx_initiator),
+        Some(ProtocolVersionId::Version29),
+    );
+    let transactions = vec![
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(0)),
+        gen_l2_tx(l2_account, Nonce(0)),
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(1)),
+        gen_l1_tx(PriorityOpId(0), Some(l1_account)),
+        gen_l2_tx(l2_account, Nonce(1)),
+        gen_l1_tx(PriorityOpId(1), Some(l1_account)),
+    ];
+
+    mempool.insert_without_constraints(transactions, HashMap::new());
+
+    let filter = L2TxFilter {
+        protocol_version: ProtocolVersionId::Version28,
+        ..Default::default()
+    };
+
+    // First two transactions executed should be L1 txs
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l1_account
+    );
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l1_account
+    );
+
+    // Second two transactions executed should be L2 txs
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l2_account
+    );
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l2_account
+    );
+
+    // High priority txs are not executed because protocol version is not high enough
+    assert_eq!(mempool.next_transaction(&filter), None);
+}
+
+#[test]
+fn high_priority_l2_txs_execute_after_protocol_version() {
+    let high_priority_l2_tx_initiator: zksync_types::H160 = Address::random();
+    let l2_account: zksync_types::H160 = Address::random();
+    let l1_account: zksync_types::H160 = Address::random();
+
+    let mut mempool = MempoolStore::new(
+        PriorityOpId(0),
+        100,
+        Some(high_priority_l2_tx_initiator),
+        Some(ProtocolVersionId::Version28),
+    );
+    let transactions = vec![
+        gen_l2_tx(l2_account, Nonce(0)),
+        gen_l2_tx(l2_account, Nonce(1)),
+        gen_l1_tx(PriorityOpId(0), Some(l1_account)),
+        gen_l1_tx(PriorityOpId(1), Some(l1_account)),
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(0)),
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(1)),
+    ];
+
+    mempool.insert_without_constraints(transactions, HashMap::new());
+
+    let filter = L2TxFilter {
+        protocol_version: ProtocolVersionId::Version29,
+        ..Default::default()
+    };
+
+    // First two transactions executed should be high priority L2 txs
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        high_priority_l2_tx_initiator
+    );
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        high_priority_l2_tx_initiator
+    );
+
+    // Second two transactions executed should be L1 txs
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l1_account
+    );
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l1_account
+    );
+
+    // Third two transactions executed should be L2 txs
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l2_account
+    );
+    assert_eq!(
+        mempool
+            .next_transaction(&filter)
+            .unwrap()
+            .0
+            .initiator_account(),
+        l2_account
+    );
+}
+
 fn gen_l2_tx(address: Address, nonce: Nonce) -> Transaction {
     gen_l2_tx_with_timestamp(address, nonce, unix_timestamp_ms())
 }
@@ -478,7 +632,7 @@ fn gen_l2_tx_with_timestamp(address: Address, nonce: Nonce, received_at_ms: u64)
     txn.into()
 }
 
-fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
+fn gen_l1_tx(priority_id: PriorityOpId, address: Option<Address>) -> Transaction {
     let execute = Execute {
         contract_address: Some(Address::repeat_byte(0x11)),
         calldata: vec![1, 2, 3],
@@ -486,7 +640,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         value: U256::zero(),
     };
     let op_data = L1TxCommonData {
-        sender: Address::random(),
+        sender: address.unwrap_or(Address::random()),
         serial_id: priority_id,
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
