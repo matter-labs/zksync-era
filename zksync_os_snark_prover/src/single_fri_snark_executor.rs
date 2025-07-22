@@ -1,31 +1,31 @@
 use std::path::Path;
 use std::time::Instant;
-use zkos_wrapper::{SnarkWrapperProof, prove, serialize_to_file};
+use zkos_wrapper::{prove, serialize_to_file, SnarkWrapperProof};
 use zksync_airbender_cli::prover_utils::create_final_proofs_from_program_proof;
 use zksync_airbender_execution_utils::ProgramProof;
 use zksync_prover_job_processor::Executor;
 use zksync_types::L2BlockNumber;
 
-fn deserialize_from_file<T: serde::de::DeserializeOwned>(filename: &str) -> T {
+pub fn deserialize_from_file<T: serde::de::DeserializeOwned>(filename: &str) -> T {
     let src = std::fs::File::open(filename).unwrap();
     serde_json::from_reader(src).unwrap()
 }
 
-pub struct SnarkExecutor {
+pub struct SingleFriSnarkExecutor {
     pub binary_path: String,
     pub output_dir: String,
     pub trusted_setup_file: Option<String>,
 }
 
 #[derive(Clone, Debug)]
-pub struct SnarkExecutorMetadata {
+pub struct SingleFriSnarkExecutorMetadata {
     pub l2_block_number: L2BlockNumber,
 }
 
-impl Executor for SnarkExecutor {
+impl Executor for SingleFriSnarkExecutor {
     type Input = ProgramProof;
     type Output = SnarkWrapperProof;
-    type Metadata = SnarkExecutorMetadata;
+    type Metadata = SingleFriSnarkExecutorMetadata;
 
     fn execute(
         &self,

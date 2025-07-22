@@ -4,7 +4,7 @@ use zksync_prover_job_processor::JobSaver;
 
 use crate::{
     client::SequencerProofClient,
-    snark_executor::{SnarkExecutor, SnarkExecutorMetadata},
+    single_fri_snark_executor::{SingleFriSnarkExecutor, SingleFriSnarkExecutorMetadata},
 };
 
 pub struct SnarkJobSaver {
@@ -21,11 +21,11 @@ impl SnarkJobSaver {
 
 #[async_trait]
 impl JobSaver for SnarkJobSaver {
-    type ExecutorType = SnarkExecutor;
+    type ExecutorType = SingleFriSnarkExecutor;
 
     async fn save_job_result(
         &self,
-        data: (anyhow::Result<SnarkWrapperProof>, SnarkExecutorMetadata),
+        data: (anyhow::Result<SnarkWrapperProof>, SingleFriSnarkExecutorMetadata),
     ) -> anyhow::Result<()> {
         let (result, metadata) = data;
         match result {

@@ -1,3 +1,5 @@
-mod snark_job_picker;
+mod sequencer_single_fri_snark_job_picker;
+mod file_multiple_fri_snark_job_picker;
 
-pub use snark_job_picker::SnarkJobPicker;
+pub use file_multiple_fri_snark_job_picker::FileMultipleFriSnarkJobPicker;
+pub use sequencer_single_fri_snark_job_picker::SequencerSingleFriSnarkJobPicker;

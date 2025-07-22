@@ -1,0 +1,21 @@
+[package]
+name = "sequencer_proof_client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zkos_wrapper = { package = "zkos-wrapper", git = "https://github.com/matter-labs/zkos-wrapper.git", revision = "7abaadc4c3c4be680ecd246594f9163146574870" }
+zksync_airbender_execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.0.5" }
+zksync_types = { path = "../core/lib/types" }
+
+
+anyhow = "1.0"
+base64 = "0.22.1"
+bincode = "1"
+clap = { version = "4.5.40", features = ["derive"] }
+reqwest = { version = "0.12.19", features = ["json"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
