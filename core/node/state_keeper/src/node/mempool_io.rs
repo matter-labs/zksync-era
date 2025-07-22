@@ -93,7 +93,13 @@ impl MempoolIOLayer {
             .connection()
             .await
             .context("Access storage to build mempool")?;
-        let mempool = MempoolGuard::from_storage(&mut storage, self.mempool_config.capacity).await;
+        let mempool = MempoolGuard::from_storage(
+            &mut storage,
+            self.mempool_config.capacity,
+            self.mempool_config.high_priority_l2_tx_initiator,
+            self.mempool_config.high_priority_l2_tx_protocol_version,
+        )
+        .await;
         mempool.register_metrics();
         Ok(mempool)
     }

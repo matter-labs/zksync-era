@@ -218,6 +218,12 @@ pub struct MempoolConfig {
     /// Whether to pause inclusion of L1 (aka priority) transactions in the mempool. Should be used with care.
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,
+    /// Address of the initiator of high priority L2 transactions.
+    #[config(default)]
+    pub high_priority_l2_tx_initiator: Option<Address>,
+    /// Minor version from which the high priority L2 transactions are allowed and prioritized.
+    #[config(default)]
+    pub high_priority_l2_tx_protocol_version: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -414,6 +420,8 @@ mod tests {
             remove_stuck_txs: true,
             delay_interval: Duration::from_millis(100),
             l1_to_l2_txs_paused: false,
+            high_priority_l2_tx_initiator: None,
+            high_priority_l2_tx_protocol_version: None,
         }
     }
 
@@ -427,6 +435,8 @@ mod tests {
             CHAIN_MEMPOOL_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_CAPACITY="1000000"
             CHAIN_MEMPOOL_L1_TO_L2_TXS_PAUSED="false"
+            CHAIN_MEMPOOL_HIGH_PRIORITY_L2_TX_INITIATOR="0x0101010101010101010101010101010101010101"
+            CHAIN_MEMPOOL_HIGH_PRIORITY_L2_TX_PROTOCOL_VERSION="29"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -445,6 +455,8 @@ mod tests {
           remove_stuck_txs: true
           delay_interval: 100
           l1_to_l2_txs_paused: false
+          high_priority_l2_tx_initiator: "0x0101010101010101010101010101010101010101"
+          high_priority_l2_tx_protocol_version: 29
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -462,6 +474,8 @@ mod tests {
           remove_stuck_txs: true
           delay_interval: 100 millis
           l1_to_l2_txs_paused: false
+          high_priority_l2_tx_initiator: "0x0101010101010101010101010101010101010101"
+          high_priority_l2_tx_protocol_version: 29
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
