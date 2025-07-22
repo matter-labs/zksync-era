@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Gauge, Histogram, Info, LabeledFamily,
-    Metrics, Unit,
+    Metrics, MetricsFamily, Unit,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
@@ -49,29 +49,36 @@ pub(super) struct SequentialCacheConfig {
     pub capacity: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(super) struct CacheLabels {
+    name: &'static str,
+}
+
+impl From<&'static str> for CacheLabels {
+    fn from(name: &'static str) -> Self {
+        Self { name }
+    }
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_cache")]
 pub(super) struct CacheMetrics {
     /// Configuration of LRU caches.
-    #[metrics(labels = ["name"])]
-    pub lru_info: LabeledFamily<&'static str, Info<LruCacheConfig>>,
+    pub lru_info: Info<LruCacheConfig>,
     /// Configuration of sequential caches.
-    #[metrics(labels = ["name"])]
-    pub sequential_info: LabeledFamily<&'static str, Info<SequentialCacheConfig>>,
+    pub sequential_info: Info<SequentialCacheConfig>,
 
     /// Latency of calling a cache method.
-    #[metrics(buckets = SMALL_LATENCIES, labels = ["name", "method"])]
-    pub latency: LabeledFamily<(&'static str, Method), Histogram<Duration>, 2>,
+    #[metrics(buckets = SMALL_LATENCIES, labels = ["method"])]
+    pub latency: LabeledFamily<Method, Histogram<Duration>>,
     /// Counter for hits / misses for a cache.
-    #[metrics(labels = ["name", "kind"])]
-    pub requests: LabeledFamily<(&'static str, RequestOutcome), Counter, 2>,
+    #[metrics(labels = ["kind"])]
+    pub requests: LabeledFamily<RequestOutcome, Counter>,
     /// Number of entries in the cache.
-    #[metrics(labels = ["name"])]
-    pub len: LabeledFamily<&'static str, Gauge<u64>>,
+    pub len: Gauge<u64>,
     /// Approximate memory usage of the cache.
-    #[metrics(labels = ["name"])]
-    pub used_memory: LabeledFamily<&'static str, Gauge<u64>>,
+    pub used_memory: Gauge<u64>,
 }
 
 #[vise::register]
-pub(super) static METRICS: vise::Global<CacheMetrics> = vise::Global::new();
+pub(super) static METRICS: MetricsFamily<CacheLabels, CacheMetrics> = MetricsFamily::new();

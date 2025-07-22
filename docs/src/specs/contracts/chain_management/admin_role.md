@@ -1,3 +1,5 @@
+<!--- WIP --->
+
 # Safe ChainAdmin management
 
 While the ecosystem does a [decentralized trusted governance](https://blog.zknation.io/introducing-zk-nation/), each chain has its own Chain Admin. While the upgrade parameters are chosen by the governance, chain admin is still a powerful role and should be managed carefully.
@@ -20,13 +22,13 @@ Generally all the functionality of chain admin should be treated with maximal se
 
 The admin of a chain can call `ValidatorTimelock` on the settlement layer to add or remove validators, i.e. addresses that have the right to `commit`/`verify`/`execute` batches etc.
 
-The system is protected against malicious validators, they can never steal funds from users. However, this role is still relatively powerful: If the DA layer is not reliable, and a batch does get executed, the funds may be frozen. This is why the chains should be [cautious about DA layers that they use](#setting-da-layer). Note, that on L1 the `ValidatorTimelock` has 21h delay, while on Gateway this timelock will not be present.
+The system is protected against malicious validators, they can never steal funds from users. However, this role is still relatively powerful: If the DA layer is not reliable, and a batch does get executed, the funds may be frozen. This is why the chains should be [cautious about DA layers that they use](#setting-da-layer). Note, that on L1 the `ValidatorTimelock` has 3h delay, while on Gateway this timelock will not be present.
 
 In case the malicious block has not been executed yet, it can be reverted.
 
 ### Setting DA layer
 
-This is one of the most powerful settings that a chain can have: setting a custom DA layer. The dangers of doing this wrong are obvious: lack of proper data availability solution may lead to funds being frozen. (Note: that funds can never be _stolen_ due to ZKP checks of the VM execution).
+This is one of the most powerful settings that a chain can have: setting a custom DA layer. The dangers of doing this wrong are obvious: lack of proper data availability solution may lead to funds being frozen. Term "frozen funds" mainly refers to the inability to reconstruct the complete state since externally only the root hash is visible, thus preventing the chain from progressing. (Note: that funds can never be _stolen_ due to ZKP checks of the VM execution).
 
 Sometimes, users may need assurances that a chain will never become frozen even under a malicious chain admin. A general though unstable approach is discussed [here](#proposed-modular-chainadmin-implementation), however this release comes with a solution specially tailored for rollups: the `isPermanentRollup` setting.
 
@@ -34,7 +36,7 @@ Sometimes, users may need assurances that a chain will never become frozen even 
 
 Chain also exposes the `AdminFacet.makePermanentRollup` function. It will turn a chain into a permanent rollup, ensuring that DA validator pairs can be only set to values that are approved by decentralized governance to be used for rollups.
 
-This functionality is obviously dangerous in a sense that it is permanent and revokes the right of the chain to change its DA layer. On the other hand, it ensures perpetual safety for users. This is the option that ZKsync Era plans to use.
+This functionality is obviously dangerous in a sense that it is permanent and revokes the right of the chain to change its DA layer. On the other hand, it ensures perpetual safety for users. This is the option that ZKsync Era is using.
 
 This setting is preserved even when migrating to [gateway](../gateway/overview.md). If this setting was set while chain is on top of Gateway, and it migrates back to L1, it will keep this status, i.e. it is fully irrevocable.
 
@@ -109,4 +111,4 @@ The approach above does not only helps to protect the chain, but also provides c
 
 Due to specifics of [migration to another settlement layers](#migration-to-another-settlement-layer) (i.e. that migrations do not overwrite the admin), maintaining the same `PermanentRestriction` becomes hard in case a restriction has been added on top of the chain admin inside one chain, but not the other.
 
-While very flexible, this modular approach should still be polished enough before recommending it as a generic solution for everyone. However, the provided new [ChainAdmin](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/governance/ChainAdmin.sol) can still be helpful for new chains as with the `AccessControlRestriction` it provides a ready-to-use framework for role-based managing of the chain. Using `PermanentRestriction` for now is discouraged however.
+While very flexible, this modular approach should still be polished enough before recommending it as a generic solution for everyone. However, the provided new [ChainAdmin](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/governance/ChainAdmin.sol) can still be helpful for new chains as with the `AccessControlRestriction` it provides a ready-to-use framework for role-based managing of the chain. Using `PermanentRestriction` for now is discouraged however.

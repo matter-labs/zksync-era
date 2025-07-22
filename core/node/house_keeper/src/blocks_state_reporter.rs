@@ -1,34 +1,36 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_shared_metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
+use zksync_shared_metrics::{BlockStage, L1Stage, L1StageLatencyLabel, L2BlockStage, APP_METRICS};
+use zksync_types::{aggregated_operations::AggregatedActionType, L2BlockNumber};
 
 use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
+/// Reports l2 blocks and l1 batches metrics to the prometheus.
 #[derive(Debug)]
-pub struct L1BatchMetricsReporter {
-    reporting_interval_ms: u64,
+pub struct BlockMetricsReporter {
+    reporting_interval: Duration,
     connection_pool: ConnectionPool<Core>,
 }
 
-impl L1BatchMetricsReporter {
-    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool<Core>) -> Self {
+impl BlockMetricsReporter {
+    pub fn new(reporting_interval: Duration, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
-            reporting_interval_ms,
+            reporting_interval,
             connection_pool,
         }
     }
 
     async fn report_metrics(&self) -> anyhow::Result<()> {
-        let mut block_metrics = vec![];
+        let mut batch_metrics = vec![];
         let mut conn = self
             .connection_pool
             .connection_tagged("house_keeper")
             .await?;
         let last_l1_batch = conn.blocks_dal().get_sealed_l1_batch_number().await?;
         if let Some(number) = last_l1_batch {
-            block_metrics.push((number, BlockStage::Sealed));
+            batch_metrics.push((number, BlockStage::Sealed));
         }
 
         let last_l1_batch_with_tree_data = conn
@@ -36,30 +38,37 @@ impl L1BatchMetricsReporter {
             .get_last_l1_batch_number_with_tree_data()
             .await?;
         if let Some(number) = last_l1_batch_with_tree_data {
-            block_metrics.push((number, BlockStage::MetadataCalculated));
+            batch_metrics.push((number, BlockStage::MetadataCalculated));
         }
 
-        let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await?;
-        for (tx_type, l1_batch) in eth_stats.saved {
-            let stage = BlockStage::L1 {
-                l1_stage: BlockL1Stage::Saved,
-                tx_type,
-            };
-            block_metrics.push((l1_batch, stage))
-        }
+        let mut l2_block_metircs: Vec<(L2BlockNumber, L2BlockStage)> = vec![];
+        let eth_stats = conn.eth_sender_dal().get_eth_all_blocks_stat().await?;
 
-        for (tx_type, l1_batch) in eth_stats.mined {
-            let stage = BlockStage::L1 {
-                l1_stage: BlockL1Stage::Mined,
-                tx_type,
-            };
-            block_metrics.push((l1_batch, stage))
-        }
+        let mut add_metric = |l1_stage: L1Stage, list: Vec<(AggregatedActionType, u32)>| {
+            for (tx_type, block) in list {
+                match tx_type {
+                    AggregatedActionType::L2Block(tx_type) => {
+                        let stage = L2BlockStage::L1 { l1_stage, tx_type };
+                        l2_block_metircs.push((block.into(), stage))
+                    }
+                    AggregatedActionType::L1Batch(tx_type) => {
+                        let stage = BlockStage::L1 { l1_stage, tx_type };
+                        batch_metrics.push((block.into(), stage))
+                    }
+                }
+            }
+        };
+        add_metric(L1Stage::Saved, eth_stats.saved);
+        add_metric(L1Stage::Mined, eth_stats.mined);
 
         // TODO (PLA-335): Restore prover and witgen metrics
 
-        for (l1_batch_number, stage) in block_metrics {
+        for (l1_batch_number, stage) in batch_metrics {
             APP_METRICS.block_number[&stage].set(l1_batch_number.0.into());
+        }
+
+        for (l2_block, stage) in l2_block_metircs {
+            APP_METRICS.miniblock_number[&stage].set(l2_block.0.into());
         }
 
         let oldest_uncommitted_batch_timestamp = conn
@@ -127,7 +136,7 @@ impl L1BatchMetricsReporter {
 }
 
 #[async_trait]
-impl PeriodicJob for L1BatchMetricsReporter {
+impl PeriodicJob for BlockMetricsReporter {
     const SERVICE_NAME: &'static str = "L1BatchMetricsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
@@ -135,6 +144,6 @@ impl PeriodicJob for L1BatchMetricsReporter {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        self.reporting_interval_ms
+        self.reporting_interval.as_millis() as u64
     }
 }

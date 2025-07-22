@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, InteropRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -11,15 +11,33 @@ use crate::{
         bootloader::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
+            get_interop_blocks_begin_offset, get_interop_root_offset,
             get_operator_provided_l1_messenger_pubdata_offset, get_operator_refunds_offset,
             get_tx_description_offset, get_tx_operator_l2_block_info_offset,
             get_tx_overhead_offset, get_tx_trusted_gas_limit_offset,
-            BOOTLOADER_TX_DESCRIPTION_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
-            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+            BOOTLOADER_TX_DESCRIPTION_SIZE, INTEROP_ROOT_SLOTS_SIZE,
+            OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
     },
 };
+
+pub struct NewBlockConfig {
+    pub number_of_applied_interop_roots: usize,
+    pub block_index_in_batch: usize,
+}
+
+pub(super) struct L2BlockApplicationConfig {
+    pub tx_index: usize,
+    pub subversion: MultiVmSubversion,
+    pub new_block_config: Option<NewBlockConfig>,
+}
+
+impl L2BlockApplicationConfig {
+    pub fn should_start_new_l2_block(&self) -> bool {
+        self.new_block_config.is_some()
+    }
+}
 
 pub(super) fn get_memory_for_compressed_bytecodes(
     compressed_bytecodes: &[CompressedBytecodeInfo],
@@ -36,16 +54,14 @@ pub(super) fn apply_tx_to_memory(
     memory: &mut BootloaderMemory,
     bootloader_tx: &BootloaderTx,
     bootloader_l2_block: &BootloaderL2Block,
-    tx_index: usize,
     tx_offset: usize,
     compressed_bytecodes_size: usize,
     execution_mode: TxExecutionMode,
-    start_new_l2_block: bool,
-    subversion: MultiVmSubversion,
-) -> usize {
-    let bootloader_description_offset = get_bootloader_tx_description_offset(subversion)
-        + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
-    let tx_description_offset = get_tx_description_offset(subversion) + tx_offset;
+    config: L2BlockApplicationConfig,
+) -> (usize, usize) {
+    let bootloader_description_offset = get_bootloader_tx_description_offset(config.subversion)
+        + BOOTLOADER_TX_DESCRIPTION_SIZE * config.tx_index;
+    let tx_description_offset = get_tx_description_offset(config.subversion) + tx_offset;
 
     memory.push((
         bootloader_description_offset,
@@ -57,13 +73,14 @@ pub(super) fn apply_tx_to_memory(
         U256::from_big_endian(&(32 * tx_description_offset).to_be_bytes()),
     ));
 
-    let refund_offset = get_operator_refunds_offset(subversion) + tx_index;
+    let refund_offset = get_operator_refunds_offset(config.subversion) + config.tx_index;
     memory.push((refund_offset, bootloader_tx.refund.into()));
 
-    let overhead_offset = get_tx_overhead_offset(subversion) + tx_index;
+    let overhead_offset = get_tx_overhead_offset(config.subversion) + config.tx_index;
     memory.push((overhead_offset, bootloader_tx.gas_overhead.into()));
 
-    let trusted_gas_limit_offset = get_tx_trusted_gas_limit_offset(subversion) + tx_index;
+    let trusted_gas_limit_offset =
+        get_tx_trusted_gas_limit_offset(config.subversion) + config.tx_index;
     memory.push((trusted_gas_limit_offset, bootloader_tx.trusted_gas_limit));
 
     memory.extend(
@@ -71,17 +88,11 @@ pub(super) fn apply_tx_to_memory(
             .zip(bootloader_tx.encoded.clone()),
     );
 
-    apply_l2_block_inner(
-        memory,
-        bootloader_l2_block,
-        tx_index,
-        start_new_l2_block,
-        subversion,
-    );
-
     // Note, +1 is moving for pointer
     let compressed_bytecodes_offset =
-        get_compressed_bytecodes_offset(subversion) + 1 + compressed_bytecodes_size;
+        get_compressed_bytecodes_offset(config.subversion) + 1 + compressed_bytecodes_size;
+
+    let applied_interop_roots = apply_l2_block_inner(memory, bootloader_l2_block, config);
 
     let encoded_compressed_bytecodes =
         get_memory_for_compressed_bytecodes(&bootloader_tx.compressed_bytecodes);
@@ -92,48 +103,116 @@ pub(super) fn apply_tx_to_memory(
             ..compressed_bytecodes_offset + encoded_compressed_bytecodes.len())
             .zip(encoded_compressed_bytecodes),
     );
-    compressed_bytecodes_encoding
+
+    (compressed_bytecodes_encoding, applied_interop_roots)
 }
 
+// Returns the number of applied interop roots
 pub(crate) fn apply_l2_block(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
-    txs_index: usize,
+    tx_index: usize,
     subversion: MultiVmSubversion,
-) {
-    apply_l2_block_inner(memory, bootloader_l2_block, txs_index, true, subversion)
+    new_block_config: Option<NewBlockConfig>,
+) -> usize {
+    apply_l2_block_inner(
+        memory,
+        bootloader_l2_block,
+        L2BlockApplicationConfig {
+            tx_index,
+            subversion,
+            new_block_config,
+        },
+    )
 }
 
 fn apply_l2_block_inner(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
-    txs_index: usize,
-    start_new_l2_block: bool,
-    subversion: MultiVmSubversion,
-) {
+    config: L2BlockApplicationConfig,
+) -> usize {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
 
-    let block_position = get_tx_operator_l2_block_info_offset(subversion)
-        + txs_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
+    let block_position = get_tx_operator_l2_block_info_offset(config.subversion)
+        + config.tx_index * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-    memory.extend(vec![
-        (block_position, bootloader_l2_block.number.into()),
-        (block_position + 1, bootloader_l2_block.timestamp.into()),
-        (
-            block_position + 2,
-            h256_to_u256(bootloader_l2_block.prev_block_hash),
-        ),
-        (
-            block_position + 3,
-            if start_new_l2_block {
-                bootloader_l2_block.max_virtual_blocks_to_create.into()
-            } else {
-                U256::zero()
-            },
-        ),
-    ])
+    memory.push((block_position, bootloader_l2_block.number.into()));
+    memory.push((block_position + 1, bootloader_l2_block.timestamp.into()));
+    memory.push((
+        block_position + 2,
+        h256_to_u256(bootloader_l2_block.prev_block_hash),
+    ));
+    memory.push((
+        block_position + 3,
+        if config.should_start_new_l2_block() {
+            bootloader_l2_block.max_virtual_blocks_to_create.into()
+        } else {
+            U256::zero()
+        },
+    ));
+
+    if config.subversion < MultiVmSubversion::Interop || !config.should_start_new_l2_block() {
+        return 0;
+    }
+
+    let new_block_config = config.new_block_config.as_ref().unwrap();
+    for (offset, interop_root) in bootloader_l2_block.interop_roots.iter().enumerate() {
+        apply_interop_root(
+            memory,
+            new_block_config.number_of_applied_interop_roots + offset,
+            interop_root.clone(),
+            config.subversion,
+            bootloader_l2_block.number,
+        );
+    }
+
+    apply_interop_root_number_in_block_number(
+        memory,
+        config.subversion,
+        bootloader_l2_block.interop_roots.len(),
+        new_block_config.block_index_in_batch,
+    );
+
+    bootloader_l2_block.interop_roots.len()
+}
+
+fn apply_interop_root(
+    memory: &mut BootloaderMemory,
+    interop_root_offset: usize,
+    interop_root: InteropRoot,
+    subversion: MultiVmSubversion,
+    l2_block_number: u32,
+) {
+    let interop_root_slot = get_interop_root_offset(subversion);
+    // Convert the byte array into U256 words
+    let mut u256_words: Vec<U256> = vec![
+        U256::from(l2_block_number),
+        U256::from(interop_root.chain_id.as_u64()),
+        U256::from(interop_root.block_number),
+        U256::from(interop_root.sides.len()),
+    ];
+
+    u256_words.extend(
+        interop_root
+            .sides
+            .iter()
+            .map(|hash| U256::from(hash.as_bytes())),
+    );
+    let start_slot = interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE;
+    memory.extend((start_slot..).zip(u256_words));
+}
+
+fn apply_interop_root_number_in_block_number(
+    memory: &mut BootloaderMemory,
+    subversion: MultiVmSubversion,
+    number_of_interop_roots: usize,
+    block_index_in_batch: usize,
+) {
+    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + block_index_in_batch;
+    let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
+    memory.push((first_empty_slot, number_of_interop_roots_plus_one));
 }
 
 fn bootloader_memory_input(
@@ -179,7 +258,10 @@ pub(crate) fn apply_pubdata_to_memory(
 
             (l1_messenger_pubdata_start_slot, pubdata)
         }
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => {
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =
@@ -214,10 +296,10 @@ pub(crate) fn apply_pubdata_to_memory(
 /// # Current layout
 ///
 /// - 0 byte (MSB): server-side tx execution mode
-///     In the server, we may want to execute different parts of the transaction in the different context
-///     For example, when checking validity, we don't want to actually execute transaction and have side effects.
+///   In the server, we may want to execute different parts of the transaction in the different context
+///   For example, when checking validity, we don't want to actually execute transaction and have side effects.
 ///
-///     Possible values:
+///   Possible values:
 ///     - 0x00: validate & execute (normal mode)
 ///     - 0x02: execute but DO NOT validate
 ///

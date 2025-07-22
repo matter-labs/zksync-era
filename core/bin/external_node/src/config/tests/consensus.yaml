@@ -1,0 +1,15 @@
+port: 3055
+server_addr: 127.0.0.1:3055
+public_addr: 127.0.0.1:3055
+max_payload_size: 2500000
+gossip_dynamic_inbound_limit: 100
+genesis_spec:
+  chain_id: 272
+  protocol_version: 1
+  validators:
+  - key: validator:public:bls12_381:819acae9d40f95fd90b69fcdc962852a4b1a1b561177838e1f5308954dd22108a27f1352e62f0902b8152cc4666addfb0740e57fb0ccfd164aaf0321bddcfb4c8ad7d4d6d94e35d1263fa71230af81c91e92f5703808fb3b5c315a70e65f9b55
+    weight: 1
+  leader: validator:public:bls12_381:819acae9d40f95fd90b69fcdc962852a4b1a1b561177838e1f5308954dd22108a27f1352e62f0902b8152cc4666addfb0740e57fb0ccfd164aaf0321bddcfb4c8ad7d4d6d94e35d1263fa71230af81c91e92f5703808fb3b5c315a70e65f9b55
+gossip_static_outbound:
+- key: node:public:ed25519:b5d9b98d04ac51ac637a09ce5969126f7c6d133505adb32d923d6d0e07890937
+  addr: 127.0.0.1:3154

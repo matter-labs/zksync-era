@@ -13,10 +13,11 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 import * as zksync from 'zksync-ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
+import { RetryableWallet } from '../src/retry-provider';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let l2EthTokenAddressNonBase: string; // Used only for base token implementation
@@ -73,41 +74,42 @@ describe('ETH token checks', () => {
             gasPrice
         });
 
-        const depositOp = alice.deposit({
-            token: zksync.utils.ETH_ADDRESS,
-            amount,
-            gasPerPubdataByte,
-            l2GasLimit,
-            approveERC20: isETHBasedChain,
-            approveBaseOverrides: {
-                gasPrice
-            },
-            overrides: {
-                gasPrice
-            }
-        });
-        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
-
-        const depositFee = await depositOp
-            .then((op) => op.waitL1Commit())
-            .then(async (receipt) => {
-                const l1GasFee = receipt.gasUsed * receipt.gasPrice;
-                if (!isETHBasedChain) {
-                    return l1GasFee;
+        const depositFee = await alice.retryableDepositCheck(
+            {
+                token: zksync.utils.ETH_ADDRESS,
+                amount,
+                gasPerPubdataByte,
+                l2GasLimit,
+                approveERC20: isETHBasedChain,
+                approveBaseOverrides: {
+                    gasPrice
+                },
+                overrides: {
+                    gasPrice
                 }
-                return l1GasFee + expectedL2Costs;
-            });
+            },
+            async (deposit) => {
+                await expect(deposit).toBeAccepted([l2ethBalanceChange]);
+
+                return await deposit.waitL1Commit().then(async (receipt) => {
+                    const l1GasFee = receipt.gasUsed * receipt.gasPrice;
+                    if (!isETHBasedChain) {
+                        return l1GasFee;
+                    }
+                    return l1GasFee + expectedL2Costs;
+                });
+            }
+        );
 
         const l1EthBalanceAfter = await alice.getBalanceL1();
-        if (isETHBasedChain) {
-            expect(l1EthBalanceBefore - depositFee - l1EthBalanceAfter).toEqual(amount);
-        } else {
+        // It's not a strict equality since there could be a few deposits attempts.
+        expect(l1EthBalanceBefore).toBeGreaterThanOrEqual(l1EthBalanceAfter + depositFee + amount);
+        if (!isETHBasedChain) {
             // Base token checks
             const l1BaseTokenBalanceAfter = await alice.getBalanceL1(baseTokenAddress);
             expect(l1BaseTokenBalanceBefore).toEqual(l1BaseTokenBalanceAfter + expectedL2Costs);
 
             const l2BaseTokenBalanceAfter = await alice.getBalance();
-            expect(l1EthBalanceBefore).toEqual(l1EthBalanceAfter + depositFee + amount);
 
             // L2 balance for the base token increases do to some "overminting" of the base token
             // We verify that the amount reduced on L1 is greater than the amount increased on L2

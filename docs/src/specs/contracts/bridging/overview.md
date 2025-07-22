@@ -1,3 +1,6 @@
+<!--- WIP --->
+<!--- This document will be extended once interop docs come in place --->
+
 # Overview of bridging
 
 ## Introduction

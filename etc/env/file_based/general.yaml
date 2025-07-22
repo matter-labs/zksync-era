@@ -18,10 +18,6 @@ db:
     state_keeper_db_block_cache_capacity_mb: 128
 
 api:
-  prometheus:
-    listener_port: 3312
-    pushgateway_url: http://127.0.0.1:9091
-    push_interval_ms: 100
   healthcheck:
     port: 3071
   merkle_tree:
@@ -36,16 +32,16 @@ api:
     filters_limit: 10000
     subscriptions_limit: 10000
     pubsub_polling_interval: 200
-    max_nonce_ahead: 40
+    max_nonce_ahead: 200
     gas_price_scale_factor: 1.5
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [en, eth, net, web3, zks, pubsub, debug, unstable]
+    api_namespaces: [ en, eth, net, web3, zks, pubsub, debug, unstable ]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
-  block_commit_deadline_ms: 2500
+  block_commit_deadline_ms: 2000
   miniblock_commit_deadline_ms: 1000
   miniblock_seal_queue_capacity: 10
   miniblock_max_payload_size: 1000000
@@ -65,7 +61,7 @@ state_keeper:
   fee_model_version: V2
   validation_computational_gas_limit: 300000
   save_call_traces: true
-  max_circuits_per_batch: 31100
+  max_circuits_per_batch: 27000
   protective_reads_persistence_enabled: false
 mempool:
   delay_interval: 100
@@ -89,47 +85,50 @@ circuit_breaker:
   http_req_retry_interval_sec: 2
 eth:
   sender:
-    wait_confirmations: 1
-    tx_poll_period: 1
-    aggregate_tx_poll_period: 1
-    max_txs_in_flight: 30
+    tx_poll_period: 300 ms
+    aggregate_tx_poll_period: 300 ms
+    max_txs_in_flight: 190
     proof_sending_mode: SKIP_EVERY_PROOF
     max_aggregated_blocks_to_commit: 1
-    max_aggregated_blocks_to_execute: 45
+    max_aggregated_blocks_to_execute: 10
     aggregated_block_commit_deadline: 1
-    aggregated_block_prove_deadline: 10
-    aggregated_block_execute_deadline: 10
+    aggregated_block_prove_deadline: 5
+    aggregated_block_execute_deadline: 5
     timestamp_criteria_max_allowed_lag: 30
-    max_eth_tx_data_size: 120000
     max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000 # typo: value is in wei (100 gwei)
     pubdata_sending_mode: BLOBS
     is_verifier_pre_fflonk: true
+    gas_limit_mode: CALCULATED
+    max_acceptable_base_fee_in_wei: 100000000000
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
     pricing_formula_parameter_a: 1.5
-    pricing_formula_parameter_b: 1.001
+    pricing_formula_parameter_b: 1.01
     internal_l1_pricing_multiplier: 0.8
     num_samples_for_blob_base_fee_estimate: 10
     internal_pubdata_pricing_multiplier: 1.0
     poll_period: 5
+    time_in_mempool_multiplier_cap: 10
   watcher:
     confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
 
 snapshot_creator:
+  # CHANGE: switch to inner tagged enum in object store
   object_store:
-    file_backed:
-      file_backed_base_path: artifacts
+    mode: FileBacked
+    file_backed_base_path: artifacts
     max_retries: 10
   concurrent_queries_count: 25
   storage_logs_chunk_size: 1000000
 
 prover:
+  # CHANGE: switch to inner tagged enum in object store
   prover_object_store:
-    file_backed:
-      file_backed_base_path: artifacts
+    mode: FileBacked
+    file_backed_base_path: artifacts
     max_retries: 10
   setup_data_path: data/keys
   prometheus_port: 3315
@@ -143,15 +142,18 @@ witness_generator:
 data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
-  tee_proof_generation_timeout_in_secs: 60
-  tee_batch_permanently_ignored_timeout_in_hours: 240
-  tee_support: true
+  gateway_api_url: http://127.0.0.1:3322
+tee_proof_data_handler:
+  http_port: 4320
+  proof_generation_timeout_in_secs: 60
+  batch_permanently_ignored_timeout_in_hours: 240
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15
   prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
+  port: 3322
 proof_compressor:
   compression_mode: 5
   prometheus_listener_port: 3321
@@ -200,7 +202,7 @@ prometheus:
 
 observability:
   log_format: plain
-  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=debug,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug,zksync_external_proof_integration_api=info"
+  log_directives: "warn,zksync=info,zksync_config=debug,zksync_commitment_generator=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_eth_watch=debug,zksync_state=debug,zksync_utils=debug,zksync_mempool=debug,zksync_web3_decl=debug,zksync_health_check=debug,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
   # Uncomment only if needed
   # sentry:
   #   url: unset
@@ -231,10 +233,11 @@ experimental_vm:
 
 snapshot_recovery:
   enabled: false
+  # CHANGE: switch to inner tagged enum in object store
   object_store:
     max_retries: 100
-    file_backed:
-      file_backed_base_path: artifacts
+    mode: FileBacked
+    file_backed_base_path: artifacts
   postgres:
     max_concurrency: 10
   tree:
@@ -251,9 +254,10 @@ pruning:
 commitment_generator:
   max_parallelism: 10
 
+# CHANGE: switch to inner tagged enum in object store
 core_object_store:
-  file_backed:
-    file_backed_base_path: artifacts
+  mode: FileBacked
+  file_backed_base_path: artifacts
   max_retries: 10
 
 da_dispatcher:
@@ -273,3 +277,11 @@ consensus:
   public_addr: "127.0.0.1:3054"
   max_payload_size: 2500000
   gossip_dynamic_inbound_limit: 100
+
+gateway_migrator:
+  eth_node_poll_interval: 300 ms
+
+eth_proof_manager:
+  event_poll_interval: 10000 ms
+  event_expiration_blocks: 1000
+  

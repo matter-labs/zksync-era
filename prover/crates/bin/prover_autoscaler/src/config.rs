@@ -1,57 +1,70 @@
-use std::{collections::HashMap, hash::Hash, path::PathBuf, time::Duration};
+use std::{collections::HashMap, hash::Hash, time::Duration};
 
-use anyhow::Context;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use smart_config::{
+    de::{Serde, WellKnown, WellKnownOption},
+    metadata::TimeUnit,
+    DescribeConfig, DeserializeConfig,
+};
 use strum::Display;
 use strum_macros::EnumString;
-use zksync_config::configs::ObservabilityConfig;
 
 use crate::{
     cluster_types::{ClusterName, DeploymentName, NamespaceName},
     key::{GpuKey, NoKey},
 };
 
-/// Config used for running ProverAutoscaler (both Scaler and Agent).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct ProverAutoscalerConfig {
-    /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
-    #[serde(
-        with = "humantime_serde",
-        default = "ProverAutoscalerConfig::default_graceful_shutdown_timeout"
-    )]
-    pub graceful_shutdown_timeout: Duration,
-    pub agent_config: Option<ProverAutoscalerAgentConfig>,
-    pub scaler_config: Option<ProverAutoscalerScalerConfig>,
-    pub observability: Option<ObservabilityConfig>,
+impl WellKnown for NamespaceName {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+impl WellKnownOption for NamespaceName {}
+
+impl WellKnown for ClusterName {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
+
+/// Config used for running ProverAutoscaler (both Scaler and Agent).
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct ProverAutoscalerConfig {
+    /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
+    #[config(default_t = Duration::from_secs(5))]
+    pub graceful_shutdown_timeout: Duration,
+    #[config(nest)]
+    pub agent_config: Option<ProverAutoscalerAgentConfig>,
+    #[config(nest)]
+    pub scaler_config: Option<ProverAutoscalerScalerConfig>,
+}
+
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProverAutoscalerAgentConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
     /// HTTP port for global Scaler to connect to the Agent running in a cluster.
     pub http_port: u16,
     /// List of namespaces to watch.
-    #[serde(default = "ProverAutoscalerAgentConfig::default_namespaces")]
+    #[config(default_t = vec!["prover-blue".into(), "prover-red".into()])]
     pub namespaces: Vec<NamespaceName>,
     /// If dry-run enabled don't do any k8s updates, just report success.
-    #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
+    #[config(default_t = true)]
     pub dry_run: bool,
+    /// Interval for periodic pod checks against the K8s API to remove stale pods.
+    #[config(default_t = 1 * TimeUnit::Hours)]
+    pub pod_check_interval: Duration,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
     /// The interval between runs for global Scaler.
-    #[serde(
-        with = "humantime_serde",
-        default = "ProverAutoscalerScalerConfig::default_scaler_run_interval"
-    )]
+    #[config(default_t = Duration::from_secs(10))]
     pub scaler_run_interval: Duration,
     /// URL to get queue reports from.
     /// In production should be "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".
-    #[serde(default = "ProverAutoscalerScalerConfig::default_prover_job_monitor_url")]
+    #[config(default_t = "http://localhost:3074/queue_report".to_string())]
     pub prover_job_monitor_url: String,
     /// List of ProverAutoscaler Agent base URLs to get cluster data from.
     pub agents: Vec<String>,
@@ -62,21 +75,23 @@ pub struct ProverAutoscalerScalerConfig {
     /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
     pub apply_min_to_namespace: Option<NamespaceName>,
     /// Duration after which pending pod considered long pending.
-    #[serde(
-        with = "humantime_serde",
-        default = "ProverAutoscalerScalerConfig::default_long_pending_duration"
-    )]
+    #[config(default_t = 10 * TimeUnit::Minutes)]
     pub long_pending_duration: Duration,
+    /// Time window for including scale errors in Autoscaler calculations. Clusters will be sorted by number of the errors.
+    #[config(default_t = 1 * TimeUnit::Hours)]
+    pub scale_errors_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
-    #[serde(default)]
+    #[config(default)]
     pub dry_run: bool,
 }
 
 // TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
 // and remove allowing of non_camel_case_types by generating field name parser.
-#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Copy, Deserialize, EnumString, Default)]
+#[derive(
+    Debug, Display, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize, EnumString, Default,
+)]
 #[allow(non_camel_case_types)]
 pub enum QueueReportFields {
     #[strum(ascii_case_insensitive)]
@@ -96,7 +111,7 @@ pub enum QueueReportFields {
     prover_jobs,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ScalarOrMap {
     Scalar(usize),
@@ -118,7 +133,14 @@ impl ScalarOrMap {
     }
 }
 
-#[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PriorityConfig {
+    Gpu(Vec<(ClusterName, GpuKey)>),
+    Simple(Vec<ClusterName>),
+}
+
+#[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Serialize, Deserialize)]
 pub enum ScalerTargetType {
     #[default]
     #[serde(alias = "simple")]
@@ -129,7 +151,7 @@ pub enum ScalerTargetType {
 
 /// ScalerTarget can be configured to autoscale any of services for which queue is reported by
 /// prover-job-monitor.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScalerTarget {
     #[serde(default)]
     pub scaler_target_type: ScalerTargetType,
@@ -143,40 +165,22 @@ pub struct ScalerTarget {
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
     pub speed: ScalarOrMap,
+    /// Optional priority list that overrides global cluster_priorities.
+    /// For GPU targets, this is a list of (ClusterName, GpuKey) tuples.
+    /// For Simple targets, this is a list of ClusterName.
+    #[serde(default)]
+    pub priority: Option<PriorityConfig>,
+    /// Optional hysteresis value as percentage of the queue to avoid
+    /// oscillations in scaling.
+    /// Valid values are from 0 to 100.
+    /// Default is 0, which means no hysteresis.
+    #[serde(default)]
+    pub hysteresis: usize,
 }
 
-impl ProverAutoscalerConfig {
-    /// Default graceful shutdown timeout -- 5 seconds
-    pub fn default_graceful_shutdown_timeout() -> Duration {
-        Duration::from_secs(5)
-    }
-}
-
-impl ProverAutoscalerAgentConfig {
-    pub fn default_namespaces() -> Vec<NamespaceName> {
-        vec!["prover-blue".into(), "prover-red".into()]
-    }
-
-    pub fn default_dry_run() -> bool {
-        true
-    }
-}
-
-impl ProverAutoscalerScalerConfig {
-    /// Default scaler_run_interval -- 10s
-    pub fn default_scaler_run_interval() -> Duration {
-        Duration::from_secs(10)
-    }
-
-    /// Default prover_job_monitor_url -- cluster local URL
-    pub fn default_prover_job_monitor_url() -> String {
-        "http://localhost:3074/queue_report".to_string()
-    }
-
-    /// Default long_pending_duration -- 10m
-    pub fn default_long_pending_duration() -> Duration {
-        Duration::from_secs(600)
-    }
+impl WellKnown for ScalerTarget {
+    type Deserializer = Serde![object];
+    const DE: Self::Deserializer = Serde![object];
 }
 
 impl ScalerTarget {
@@ -185,8 +189,123 @@ impl ScalerTarget {
     }
 }
 
-pub fn config_from_yaml<T: serde::de::DeserializeOwned>(path: &PathBuf) -> anyhow::Result<T> {
-    let yaml = std::fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
-    Ok(serde_yaml::from_str(&yaml)?)
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Yaml};
+
+    use super::*;
+
+    #[test]
+    fn deserializing_config() {
+        let yaml = r#"
+            graceful_shutdown_timeout: 10s
+            agent_config:
+              prometheus_port: 8080
+              http_port: 8081
+              namespaces:
+                - prover-blue
+                - prover-red
+              pod_check_interval: 10m
+              dry_run: false
+            scaler_config:
+              dry_run: false
+              prometheus_port: 8080
+              prover_job_monitor_url: http://prover_job_monitor_url/queue_report
+              agents:
+                - http://prover-autoscaler/
+              scaler_run_interval: 60s
+              protocol_versions:
+                prover-blue: 0.26.0
+                prover-red: 0.27.0
+              cluster_priorities:
+                zksync-era-gateway-stage: 0
+              apply_min_to_namespace: prover-blue
+              long_pending_duration: 10m
+              scale_errors_duration: 2h
+              need_to_move_duration: 5m
+              scaler_targets:
+                - queue_report_field: prover_jobs
+                  scaler_target_type: gpu
+                  deployment: circuit-prover-gpu
+                  min_replicas: 0
+                  max_replicas:
+                    zksync-era-gateway-stage:
+                      # Quota: 254
+                      L4: 256
+                      # Quota: 256
+                      T4: 256
+                  speed:
+                    L4: 1500
+                    T4: 700
+                - queue_report_field: basic_witness_jobs
+                  deployment: witness-generator-basic-fri
+                  max_replicas:
+                    zksync-era-gateway-stage: 150
+                  speed: 4
+                - queue_report_field: leaf_witness_jobs
+                  deployment: witness-generator-leaf-fri
+                  max_replicas:
+                    zksync-era-gateway-stage: 150
+                  speed: 10
+                - queue_report_field: node_witness_jobs
+                  deployment: witness-generator-node-fri
+                  max_replicas:
+                    zksync-era-gateway-stage: 150
+                  speed: 10
+                - queue_report_field: recursion_tip_witness_jobs
+                  deployment: witness-generator-recursion-tip-fri
+                  max_replicas:
+                    zksync-era-gateway-stage: 150
+                  speed: 10
+                - queue_report_field: scheduler_witness_jobs
+                  deployment: witness-generator-scheduler-fri
+                  max_replicas:
+                    zksync-era-gateway-stage: 150
+                  speed: 10
+                - queue_report_field: proof_compressor_jobs
+                  deployment: proof-fri-gpu-compressor
+                  max_replicas:
+                    zksync-era-gateway-stage: 100
+                  speed: 5
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: ProverAutoscalerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config.graceful_shutdown_timeout, Duration::from_secs(10));
+
+        let agent_config = config.agent_config.unwrap();
+        assert_eq!(agent_config.prometheus_port, 8_080);
+        assert_eq!(agent_config.http_port, 8_081);
+        assert_eq!(
+            agent_config.namespaces,
+            ["prover-blue".into(), "prover-red".into()]
+        );
+        assert_eq!(agent_config.pod_check_interval, Duration::from_secs(600));
+        assert!(!agent_config.dry_run);
+
+        let scaler_config = config.scaler_config.unwrap();
+        assert_eq!(scaler_config.prometheus_port, 8_080);
+        assert_eq!(scaler_config.scaler_run_interval, Duration::from_secs(60));
+        assert_eq!(
+            scaler_config.scale_errors_duration,
+            Duration::from_secs(7_200)
+        );
+        assert_eq!(
+            scaler_config.protocol_versions,
+            HashMap::from([
+                ("prover-blue".into(), "0.26.0".into()),
+                ("prover-red".into(), "0.27.0".into())
+            ])
+        );
+        assert_eq!(
+            scaler_config.apply_min_to_namespace.unwrap(),
+            "prover-blue".into()
+        );
+        assert_eq!(
+            scaler_config.long_pending_duration,
+            Duration::from_secs(600)
+        );
+        assert_eq!(scaler_config.scaler_targets.len(), 7);
+    }
 }

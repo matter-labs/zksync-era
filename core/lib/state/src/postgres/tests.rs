@@ -7,6 +7,7 @@ use rand::{
     seq::{IteratorRandom, SliceRandom},
     Rng, SeedableRng,
 };
+use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
 use zksync_types::StorageLog;
 
@@ -46,7 +47,7 @@ fn test_postgres_storage_basics(
     storage.rt_handle.block_on(create_l2_block(
         &mut storage.connection,
         L2BlockNumber(1),
-        non_existing_logs.clone(),
+        &non_existing_logs,
     ));
 
     // Check that the L2 block is not seen by `PostgresStorage` (it's not a part of an L1 batch)
@@ -156,7 +157,7 @@ fn test_postgres_storage_after_sealing_l2_block(
     rt_handle.block_on(create_l2_block(
         &mut connection,
         L2BlockNumber(1),
-        new_logs.clone(),
+        &new_logs,
     ));
 
     let mut storage = PostgresStorage::new(
@@ -190,14 +191,12 @@ fn test_postgres_storage_after_sealing_l2_block(
     }
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn postgres_storage_after_sealing_l2_block() {
+async fn postgres_storage_after_sealing_l2_block(consider_new_batch: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     tokio::task::spawn_blocking(move || {
-        println!("Considering new L1 batch");
-        test_postgres_storage_after_sealing_l2_block(&pool, Handle::current(), true);
-        println!("Not considering new L1 batch");
-        test_postgres_storage_after_sealing_l2_block(&pool, Handle::current(), false);
+        test_postgres_storage_after_sealing_l2_block(&pool, Handle::current(), consider_new_batch);
     })
     .await
     .unwrap();
@@ -335,7 +334,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     storage.rt_handle.block_on(create_l2_block(
         &mut storage.connection,
         L2BlockNumber(1),
-        logs.clone(),
+        &logs,
     ));
     storage.rt_handle.block_on(create_l1_batch(
         &mut storage.connection,
@@ -501,7 +500,7 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     storage.rt_handle.block_on(create_l2_block(
         &mut storage.connection,
         L2BlockNumber(1),
-        logs,
+        &logs,
     ));
 
     let mut storage = PostgresStorage::new(
@@ -661,7 +660,7 @@ fn mini_fuzz_values_cache_inner(
 
         let next_block_number = L2BlockNumber(latest_block_number) + 1;
         // Choose logs so that there's a chance that some of them are new and some overwrite previous values.
-        let logs = queried_keys
+        let logs: Vec<_> = queried_keys
             .iter()
             .choose_multiple(rng, 20)
             .into_iter()
@@ -670,7 +669,7 @@ fn mini_fuzz_values_cache_inner(
                 StorageLog::new_write_log(key, new_value)
             })
             .collect();
-        rt_handle.block_on(create_l2_block(&mut connection, next_block_number, logs));
+        rt_handle.block_on(create_l2_block(&mut connection, next_block_number, &logs));
     }
 }
 

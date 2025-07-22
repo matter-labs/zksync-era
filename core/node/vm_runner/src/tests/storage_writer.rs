@@ -124,7 +124,7 @@ impl OutputHandler for StorageWriterIo {
             .collect();
         let l1_batch_number = *self.last_processed_batch.borrow() + 1;
         conn.storage_logs_dedup_dal()
-            .insert_initial_writes(l1_batch_number, &initial_writes)
+            .insert_initial_writes_non_sequential(l1_batch_number, &initial_writes)
             .await?;
 
         if self.insert_protective_reads {
@@ -186,12 +186,20 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protec
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });
 
-    processed_batch
+    let wait_result = processed_batch
         .wait_for(|&number| number >= sealed_batch)
-        .await
-        .unwrap();
-    stop_sender.send_replace(true);
-    vm_runner_handle.await.unwrap().unwrap();
+        .await;
+    if wait_result.is_err() {
+        // If vm runner finished with error then panic with it.
+        if vm_runner_handle.is_finished() {
+            vm_runner_handle.await.unwrap().unwrap();
+        }
+        // Otherwise panic with wait error.
+        wait_result.unwrap();
+    } else {
+        stop_sender.send_replace(true);
+        vm_runner_handle.await.unwrap().unwrap();
+    }
 }
 
 #[test_casing(2, [false, true])]

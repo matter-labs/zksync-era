@@ -2,7 +2,7 @@ version: '3.2'
 services:
   reth:
     restart: always
-    image: "ghcr.io/paradigmxyz/reth:v1.0.6"
+    image: "ghcr.io/paradigmxyz/reth:v1.3.7"
     volumes:
       - type: bind
         source: ./volumes/reth/data
@@ -29,15 +29,6 @@ services:
       - /usr/src/cache:/usr/src/cache
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/src/keys:/mnt/prover_setup_keys
-    environment:
-      - CACHE_DIR=/usr/src/cache
-      - SCCACHE_CACHE_SIZE=50g
-      - SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
-      - SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
-      - SCCACHE_ERROR_LOG=/tmp/sccache_log.txt
-      - SCCACHE_GCS_RW_MODE=READ_WRITE
-      - CI=1
-      - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
     extra_hosts:

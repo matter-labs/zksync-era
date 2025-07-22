@@ -5,7 +5,7 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
@@ -71,7 +71,6 @@ mod storage;
 mod tracing_execution_error;
 mod transfer;
 mod upgrade;
-mod v26_upgrade_utils;
 
 type TestedLatestVm = Vm<StorageView<InMemoryStorage>, HistoryEnabled>;
 
@@ -217,7 +216,7 @@ impl TestedVmForValidation for TestedLatestVm {
 
         let tracer = ValidationTracer::<HistoryEnabled>::new(
             validation_params,
-            VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            VmVersion::latest(),
             timestamp,
         );
         let mut failures = tracer.get_result();
@@ -303,7 +302,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: ReadStorage, H: crate::glue::history_mode::HistoryMode> Vm<StorageView<S>, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_0> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_2> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

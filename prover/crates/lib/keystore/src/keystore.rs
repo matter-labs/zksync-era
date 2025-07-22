@@ -29,12 +29,17 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
+use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
+use zksync_circuit_prover_service::types::setup_data::{
+    GoldilocksGpuProverSetupData, GpuProverSetupData,
+};
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage, MAX_COMPRESSION_CIRCUITS};
 use zksync_utils::env::Workspace;
 
-#[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
-use crate::{GoldilocksProverSetupData, VkCommitments};
+#[cfg(feature = "gpu")]
+use crate::compressor::CompressorSetupData;
+use crate::VkCommitments;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
@@ -51,12 +56,15 @@ pub enum ProverServiceDataType {
 /// There are 2 types:
 /// - small verification, finalization keys (used only during verification)
 /// - large setup keys, used during proving.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Keystore {
     /// Directory to store all the small keys.
     basedir: PathBuf,
     /// Directory to store large setup keys.
     setup_data_path: PathBuf,
+    /// Setup data cache for proof compressor
+    #[cfg(feature = "gpu")]
+    pub setup_data_cache_proof_compressor: Arc<CompressorSetupData>,
 }
 
 impl Keystore {
@@ -66,6 +74,8 @@ impl Keystore {
         Keystore {
             basedir: basedir.clone(),
             setup_data_path: basedir,
+            #[cfg(feature = "gpu")]
+            setup_data_cache_proof_compressor: Arc::new(CompressorSetupData::new()),
         }
     }
 
@@ -98,9 +108,14 @@ impl Keystore {
         };
         let base_path = data_dir_path.join("keys");
 
+        #[cfg(feature = "gpu")]
+        let setup_data_cache_proof_compressor = Arc::new(CompressorSetupData::new());
+
         Self {
             basedir: base_path.clone(),
             setup_data_path: base_path,
+            #[cfg(feature = "gpu")]
+            setup_data_cache_proof_compressor,
         }
     }
 
@@ -177,9 +192,9 @@ impl Keystore {
             .with_context(|| format!("Failed deserializing setup-data at path: {filepath:?}"))
     }
 
-    ///
-    ///   Verification keys
-    ///
+    //
+    //   Verification keys
+    //
 
     pub fn load_base_layer_verification_key(
         &self,
@@ -209,7 +224,7 @@ impl Keystore {
         ))
     }
 
-    pub fn load_compression_vk(
+    pub fn load_compression_verification_key(
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncCompressionLayerVerificationKey> {
@@ -312,9 +327,9 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
-    ///
-    /// Finalization hints
-    ///
+    //
+    // Finalization hints
+    //
 
     pub fn save_finalization_hints(
         &self,
@@ -344,9 +359,9 @@ impl Keystore {
         )
     }
 
-    ///
-    ///   Snark wrapper
-    ///
+    //
+    //   Snark wrapper
+    //
 
     /// Loads snark verification key
     // For snark wrapper - we're actually returning a raw serialized string, and the parsing happens
@@ -394,9 +409,9 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk)
     }
 
-    ///
-    /// Setup keys
-    ///
+    //
+    // Setup keys
+    //
 
     pub fn load_cpu_setup_data_for_circuit_type(
         &self,
@@ -436,7 +451,7 @@ impl Keystore {
     }
 
     #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-    pub fn load_compression_setup_data(
+    pub fn load_compression_layer_setup_data(
         &self,
         circuit: u8,
     ) -> anyhow::Result<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>> {
@@ -452,14 +467,14 @@ impl Keystore {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
         tracing::info!(
-            "loading compression wrapper setup data from path: {:?}",
+            "loading compression layer setup data from path: {:?}",
             filepath
         );
         bincode::deserialize::<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>>(
             &buffer,
         )
         .with_context(|| {
-            format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+            format!("Failed deserializing compression layer setup data at path: {filepath:?}")
         })
     }
 
@@ -569,7 +584,7 @@ impl Keystore {
 
         for circuit in 1..MAX_COMPRESSION_CIRCUITS {
             data_source
-                .set_compression_vk(self.load_compression_vk(circuit)?)
+                .set_compression_vk(self.load_compression_verification_key(circuit)?)
                 .unwrap();
         }
 

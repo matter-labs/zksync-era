@@ -19,12 +19,11 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     LegacyVmInstance,
 };
-use zksync_prover_interface::inputs::{
-    StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
-};
+use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
+use zksync_tee_prover_interface::inputs::V1TeeVerifierInput;
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
-    StorageLog, StorageValue, Transaction, H256,
+    ProtocolVersionId, StorageLog, StorageValue, Transaction, H256,
 };
 
 /// A structure to hold the result of verification.
@@ -88,8 +87,13 @@ impl Verify for V1TeeVerifierInput {
 
         let storage_snapshot = StorageSnapshot::new(storage, factory_deps);
         let storage_view = StorageView::new(storage_snapshot).to_rc_ptr();
-        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
-        let vm_out = execute_vm(self.l2_blocks_execution_data, vm, self.pubdata_params)?;
+        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env.clone(), storage_view);
+        let vm_out = execute_vm(
+            self.l2_blocks_execution_data,
+            vm,
+            self.pubdata_params,
+            self.system_env.version,
+        )?;
 
         let block_output_with_proofs = get_bowp(self.merkle_paths)?;
 
@@ -180,6 +184,7 @@ fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     mut vm: LegacyVmInstance<S, HistoryEnabled>,
     pubdata_params: PubdataParams,
+    protocol_version: ProtocolVersionId,
 ) -> anyhow::Result<FinishedL1Batch> {
     let next_l2_blocks_data = l2_blocks_execution_data.iter().skip(1);
 
@@ -208,7 +213,7 @@ fn execute_vm<S: ReadStorage>(
 
     tracing::trace!("about to vm.finish_batch()");
 
-    Ok(vm.finish_batch(pubdata_params_to_builder(pubdata_params)))
+    Ok(vm.finish_batch(pubdata_params_to_builder(pubdata_params, protocol_version)))
 }
 
 /// Map `LogQuery` and `TreeLogEntry` to a `TreeInstruction`
@@ -240,7 +245,7 @@ fn map_log_tree(
             }
             TreeInstruction::Read(key)
         }
-        (false, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
+        (false, TreeLogEntry::ReadMissingKey) => TreeInstruction::Read(key),
         (true, TreeLogEntry::Read { .. })
         | (true, TreeLogEntry::ReadMissingKey)
         | (false, TreeLogEntry::Inserted)
@@ -303,7 +308,8 @@ fn execute_tx<S: ReadStorage>(
 mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
-    use zksync_prover_interface::inputs::{TeeVerifierInput, VMRunWitnessInputData};
+    use zksync_prover_interface::inputs::VMRunWitnessInputData;
+    use zksync_tee_prover_interface::inputs::TeeVerifierInput;
 
     use super::*;
 
@@ -321,6 +327,7 @@ mod tests {
                 storage_refunds: vec![],
                 pubdata_costs: vec![],
                 witness_block_state: Default::default(),
+                _marker: std::marker::PhantomData,
             },
             WitnessInputMerklePaths::new(0),
             vec![],
@@ -336,6 +343,7 @@ mod tests {
                     timestamp: 0,
                     prev_block_hash: H256([1; 32]),
                     max_virtual_blocks_to_create: 0,
+                    interop_roots: vec![],
                 },
             },
             SystemEnv {

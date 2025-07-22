@@ -1,39 +1,34 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use clap::Parser;
+use clap::{Parser, Subcommand};
+use tokio::runtime::Runtime;
 use zksync_config::{
-    configs::{
-        api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
-        chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig, TimestampAsserterConfig,
-        },
-        house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
-        DatabaseSecrets, ExperimentalVmConfig, ExternalPriceApiClientConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
-    },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
-    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    cli::ConfigArgs,
+    configs::{wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper, Secrets},
+    full_config_schema,
+    sources::ConfigFilePaths,
 };
-use zksync_core_leftovers::{
-    temp_config_store::{read_yaml_repr, TempConfigStore},
-    Component, Components,
+use zksync_node_framework::service::ZkStackServiceBuilder;
+
+use crate::{
+    components::{Component, Components},
+    node_builder::MainNodeBuilder,
 };
-use zksync_env_config::FromEnv;
 
-use crate::node_builder::MainNodeBuilder;
-
-mod config;
+mod components;
 mod node_builder;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[derive(Debug, Subcommand)]
+enum CliCommand {
+    /// Configuration-related tools.
+    Config(ConfigArgs),
+}
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "ZKsync operator node", long_about = None)]
 struct Cli {
@@ -61,15 +56,14 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
-    /// Used to enable node framework.
-    /// Now the node framework is used by default and this argument is left for backward compatibility.
-    #[arg(long)]
-    use_node_framework: bool,
 
     /// Only compose the node with the provided list of the components and then exit.
     /// Can be used to catch issues with configuration.
     #[arg(long, conflicts_with = "genesis")]
     no_run: bool,
+
+    #[command(subcommand)]
+    cmd: Option<CliCommand>,
 }
 
 #[derive(Debug, Clone)]
@@ -90,75 +84,62 @@ impl FromStr for ComponentsToRun {
 
 fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+    let schema = full_config_schema();
 
-    // Load env config and use it if file config is not provided
-    let tmp_config = load_env_config()?;
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        contracts: opt.contracts_config_path,
+        genesis: opt.genesis_path,
+        wallets: opt.wallets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
-    let configs = match opt.config_path {
-        None => {
-            let mut configs = tmp_config.general();
-            configs.consensus_config =
-                config::read_consensus_config().context("read_consensus_config()")?;
-            configs
+    let runtime = Runtime::new().context("failed creating Tokio runtime")?;
+    let observability_guard = {
+        // Observability initialization should be performed within tokio context.
+        let _context_guard = runtime.enter();
+        config_sources.observability()?.install()?
+    };
+
+    let mut repo = config_sources.build_repository(&schema);
+    if let Some(command) = opt.cmd {
+        match command {
+            CliCommand::Config(config_args) => {
+                config_args.run(repo.into(), "ZKSYNC_")?;
+            }
         }
-        Some(path) => {
-            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
-                .context("failed decoding general YAML config")?
-        }
-    };
+        return Ok(());
+    }
 
-    let wallets = match opt.wallets_path {
-        None => tmp_config.wallets(),
-        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
-            .context("failed decoding wallets YAML config")?,
-    };
-
-    let secrets: Secrets = match opt.secrets_path {
-        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
-            .context("failed decoding secrets YAML config")?,
-        None => Secrets {
-            consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
-            database: DatabaseSecrets::from_env().ok(),
-            l1: L1Secrets::from_env().ok(),
-            data_availability: DataAvailabilitySecrets::from_env().ok(),
-            contract_verifier: ContractVerifierSecrets::from_env().ok(),
-        },
-    };
-
-    let contracts_config = match opt.contracts_config_path {
-        None => ContractsConfig::from_env().context("contracts_config")?,
-        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
-            .context("failed decoding contracts YAML config")?,
-    };
-
-    let genesis = match opt.genesis_path {
-        None => GenesisConfig::from_env().context("Genesis config")?,
-        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
-            .context("failed decoding genesis YAML config")?,
-    };
-    let observability_config = configs
-        .observability
-        .clone()
-        .context("observability config")?;
-
-    let node = MainNodeBuilder::new(
+    repo.capture_parsed_params();
+    let configs: GeneralConfig = repo.parse()?;
+    let wallets: Wallets = repo.parse()?;
+    let secrets: Secrets = repo.parse()?;
+    let contracts_config: ContractsConfig = repo.parse()?;
+    let genesis = repo
+        .parse::<GenesisConfigWrapper>()?
+        .genesis
+        .context("missing genesis config")?;
+    let consensus = repo.parse_opt()?;
+    let config_params = repo.into_captured_params();
+    let node = MainNodeBuilder {
+        node: ZkStackServiceBuilder::on_runtime(runtime),
+        config_params,
         configs,
         wallets,
-        genesis,
+        genesis_config: genesis,
+        consensus,
         secrets,
-        contracts_config.l1_specific_contracts(),
-        contracts_config.l2_contracts(),
+        l1_specific_contracts: contracts_config.l1_specific_contracts(),
+        l2_contracts: contracts_config.l2_contracts(),
         // Now we always pass the settlement layer contracts. After V27 upgrade,
         // it'd be possible to get rid of settlement_layer_specific_contracts in our configs.
         // For easier refactoring in the future. We can mark it as Optional
-        Some(contracts_config.settlement_layer_specific_contracts()),
-        Some(contracts_config.l1_multicall3_addr),
-    )?;
-
-    let observability_guard = {
-        // Observability initialization should be performed within tokio context.
-        let _context_guard = node.runtime_handle().enter();
-        observability_config.install()?
+        l1_sl_contracts: Some(contracts_config.settlement_layer_specific_contracts()),
+        eth_proof_manager_contracts: Some(contracts_config.eth_proof_manager_contracts()),
+        multicall3: Some(contracts_config.l1.multicall3_addr),
     };
 
     if opt.genesis {
@@ -176,47 +157,4 @@ fn main() -> anyhow::Result<()> {
 
     node.run(observability_guard)?;
     Ok(())
-}
-
-fn load_env_config() -> anyhow::Result<TempConfigStore> {
-    Ok(TempConfigStore {
-        postgres_config: PostgresConfig::from_env().ok(),
-        health_check_config: HealthCheckConfig::from_env().ok(),
-        merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
-        web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
-        circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
-        mempool_config: MempoolConfig::from_env().ok(),
-        network_config: NetworkConfig::from_env().ok(),
-        contract_verifier: ContractVerifierConfig::from_env().ok(),
-        operations_manager_config: OperationsManagerConfig::from_env().ok(),
-        state_keeper_config: StateKeeperConfig::from_env().ok(),
-        house_keeper_config: HouseKeeperConfig::from_env().ok(),
-        fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: FriProverConfig::from_env().ok(),
-        fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
-        fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
-        prometheus_config: PrometheusConfig::from_env().ok(),
-        proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-        api_config: ApiConfig::from_env().ok(),
-        db_config: DBConfig::from_env().ok(),
-        eth_sender_config: EthConfig::from_env().ok(),
-        eth_watch_config: EthWatchConfig::from_env().ok(),
-        gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        observability: ObservabilityConfig::from_env().ok(),
-        snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
-        da_client_config: DAClientConfig::from_env().ok(),
-        da_dispatcher_config: DADispatcherConfig::from_env().ok(),
-        protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
-        basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
-        core_object_store: ObjectStoreConfig::from_env().ok(),
-        base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
-        commitment_generator: None,
-        pruning: None,
-        snapshot_recovery: None,
-        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
-        external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
-        experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
-        prover_job_monitor_config: None,
-        timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
-    })
 }

@@ -10,13 +10,12 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-
 [dependencies]
 vise.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
-zksync_dal.workspace = true
-zksync_health_check.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_mempool.workspace = true
@@ -24,12 +23,15 @@ zksync_shared_metrics.workspace = true
 zksync_config.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_contracts.workspace = true
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_protobuf.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
-zksync_vm_executor.workspace = true
+zksync_vm_executor = { workspace = true, features = ["node_framework"] }
 zksync_system_constants.workspace = true
 zksync_base_token_adjuster.workspace = true
+zksync_node_framework.workspace = true
+zksync_shared_resources.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -43,6 +45,7 @@ serde.workspace = true
 hex.workspace = true
 
 [dev-dependencies]
+zksync_multivm.workspace = true
 assert_matches.workspace = true
 rand.workspace = true
 tempfile.workspace = true

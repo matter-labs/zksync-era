@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.24;
+pragma solidity ^0.8.24;
 
 import {Initializable} from "@openzeppelin/contracts-v4/proxy/utils/Initializable.sol";
 import {BeaconProxy} from "@openzeppelin/contracts-v4/proxy/beacon/BeaconProxy.sol";
@@ -8,9 +8,9 @@ import {UpgradeableBeacon} from "@openzeppelin/contracts-v4/proxy/beacon/Upgrade
 
 import {L2StandardERC20V25} from "./L2StandardERC20V25.sol";
 import {AddressAliasHelper} from "l1-contracts/vendor/AddressAliasHelper.sol";
-import {L2_DEPLOYER_SYSTEM_CONTRACT_ADDR} from "l1-contracts/common/L2ContractAddresses.sol";
-import {L2ContractHelper, IContractDeployer} from "l1-contracts/common/libraries/L2ContractHelper.sol";
-import {SystemContractsCaller} from "l1-contracts/common/libraries/SystemContractsCaller.sol";
+import {L2_DEPLOYER_SYSTEM_CONTRACT_ADDR} from "l1-contracts/common/l2-helpers/L2ContractAddresses.sol";
+import {L2ContractHelper, IContractDeployer} from "l1-contracts/common/l2-helpers/L2ContractHelper.sol";
+import {SystemContractsCaller} from "l1-contracts/common/l2-helpers/SystemContractsCaller.sol";
 
 import {ZeroAddress, EmptyBytes32, Unauthorized, AddressMismatch, AmountMustBeGreaterThanZero, DeployFailed} from "l1-contracts/common/L1ContractErrors.sol";
 

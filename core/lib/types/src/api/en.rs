@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::PubdataParams, Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
-use crate::ProtocolVersionId;
+use crate::{InteropRoot, ProtocolVersionId};
 
 /// Representation of the L2 block, as needed for the EN synchronization.
 ///
@@ -43,8 +43,12 @@ pub struct SyncBlock {
     pub hash: Option<H256>,
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
-    /// Pubdata params used for this batch
+    /// Pubdata params used for this batch.
     pub pubdata_params: Option<PubdataParams>,
+    /// Pubdata limit for the batch.
+    pub pubdata_limit: Option<u64>,
+    /// Interop roots for this block
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 /// Global configuration of the consensus served by the main node to the external nodes.
@@ -53,20 +57,6 @@ pub struct SyncBlock {
 /// The wrapped JSON value corresponds to `zksync_dal::consensus::GlobalConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusGlobalConfig(pub serde_json::Value);
-
-/// [DEPRECATED] Genesis served by the main node to the external nodes.
-/// This type is deprecated since ConsensusGlobalConfig also contains genesis and is extensible.
-///
-/// The wrapped JSON value corresponds to `zksync_consensus_roles::validator::Genesis`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsensusGenesis(pub serde_json::Value);
-
-/// AttestationStatus maintained by the main node.
-/// Used for testing L1 batch signing by consensus attesters.
-///
-/// The wrapped JSON value corresponds to `zksync_dal::consensus::AttestationStatus`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AttestationStatus(pub serde_json::Value);
 
 /// Block metadata that should have been committed to on L1, but it is not.
 ///

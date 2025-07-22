@@ -13,14 +13,14 @@ pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
 pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_UPGRADE_CALLDATA: &str =
-    "Gateway upgrade checker and calldata generator";
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 finalization";
 
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_REGISTER_L2_TOKENS: &str = "Gateway register legacy tokens on L2";
+#[cfg(feature = "v27_evm_interpreter")]
+pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
+    "EVM Interpreter (v27) upgrade checker and calldata generator";
+
+#[cfg(feature = "v28_precompiles")]
+pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
+    "Precompiles (v28) upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -99,8 +99,14 @@ pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
+pub(super) const MSG_EVM_TESTS_HELP: &str =
+    "Expect EVM contracts to be enabled for the chain; fail EVM tests if they are not";
+pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contracts' or 'erc20'";
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
+pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
+pub(super) const MSG_TEST_SECOND_CHAIN_HELP: &str =
+    "Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
@@ -141,23 +147,18 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
 
 // Revert tests related messages
-pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
-
-pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
-    let base = "Running integration tests";
-    if external_node {
-        format!("{} for external node", base)
-    } else {
-        format!("{} for main server", base)
-    }
-}
 
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
 
 // Recovery tests related messages
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
+// Init test wallet related messages
+pub(super) const MSG_INIT_TEST_WALLET_ABOUT: &str = "Initialize test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
 
 // Migration test related messages
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
@@ -187,24 +188,13 @@ pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
 pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
     format!("Running linter for files with extension: .{}", target)
 }
-
-pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
-    format!("Running prettier for: {target:?}")
-}
-
-pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
-    format!("Running rustfmt for: {dir:?}")
-}
-
-pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
-    format!("Running prettier for: {targets:?} and rustfmt")
+pub(super) fn msg_running_fmt_spinner(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!("{}", e)).collect();
+    format!("Running formatters for: {:?}", targets)
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
-pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
-
-pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
 
 pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
     format!("File {} is not formatted", file)
@@ -241,6 +231,12 @@ pub(super) const MSG_UNABLE_TO_WRITE_FILE_ERR: &str = "Unable to write data to f
 pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON";
 pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
 pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
+
+pub(super) const MSG_RICH_ACCOUNT_ABOUT: &str = "Make L2 account rich";
+
+pub(super) fn msg_rich_account_outro(account: &str) -> String {
+    format!("$$ You are rich $$: {:?}", account)
+}
 
 // Status related messages
 pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";

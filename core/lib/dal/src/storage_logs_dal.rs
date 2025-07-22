@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops, time::Instant};
+use std::{collections::HashMap, num::NonZeroU32, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
@@ -8,8 +8,9 @@ use zksync_db_connection::{
     write_str, writeln_str,
 };
 use zksync_types::{
-    get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
-    L2BlockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
+    get_code_key, h256_to_u256, snapshots::SnapshotStorageLog, u256_to_h256, AccountTreeId,
+    Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
@@ -243,34 +244,43 @@ impl StorageLogsDal<'_, '_> {
         // this value will equal `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`, so that they can be easily filtered.
         let rows = sqlx::query!(
             r#"
-            SELECT DISTINCT
-            ON (hashed_key)
-                hashed_key,
-                miniblock_number,
-                value
+            SELECT
+                sl.hashed_key,
+                lat.miniblock_number,
+                lat.value
             FROM
-                storage_logs
+                storage_logs sl
+            JOIN LATERAL (
+                SELECT
+                    miniblock_number,
+                    value
+                FROM
+                    storage_logs
+                WHERE
+                    hashed_key = sl.hashed_key
+                    AND miniblock_number <= $2
+                    AND miniblock_number <= COALESCE(
+                        (
+                            SELECT
+                                MAX(number)
+                            FROM
+                                miniblocks
+                        ),
+                        (
+                            SELECT
+                                miniblock_number
+                            FROM
+                                snapshot_recovery
+                        )
+                    )
+                ORDER BY
+                    miniblock_number DESC,
+                    operation_number DESC
+                LIMIT 1
+            ) lat
+                ON TRUE
             WHERE
                 hashed_key = ANY($1)
-                AND miniblock_number <= $2
-                AND miniblock_number <= COALESCE(
-                    (
-                        SELECT
-                            MAX(number)
-                        FROM
-                            miniblocks
-                    ),
-                    (
-                        SELECT
-                            miniblock_number
-                        FROM
-                            snapshot_recovery
-                    )
-                )
-            ORDER BY
-                hashed_key,
-                miniblock_number DESC,
-                operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
             i64::from(max_l2_block_number)
@@ -722,44 +732,93 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Fetches tree entries for the specified `l2_block_number` and `key_range`. This is used during
-    /// Merkle tree recovery.
+    /// Merkle tree and RocksDB cache recovery.
     pub async fn get_tree_entries_for_l2_block(
         &mut self,
         l2_block_number: L2BlockNumber,
-        key_range: ops::RangeInclusive<H256>,
+        mut key_range: ops::RangeInclusive<H256>,
     ) -> DalResult<Vec<StorageRecoveryLogEntry>> {
-        let rows = sqlx::query!(
+        const QUERY_LIMIT: usize = 10_000;
+
+        // Break fetching from the DB into smaller chunks to make DB load more uniform.
+        let mut entries = vec![];
+        loop {
+            let rows = sqlx::query!(
+                r#"
+                SELECT
+                    storage_logs.hashed_key,
+                    storage_logs.value,
+                    initial_writes.index
+                FROM
+                    storage_logs
+                INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
+                WHERE
+                    storage_logs.miniblock_number <= $1
+                    AND storage_logs.hashed_key >= $2::bytea
+                    AND storage_logs.hashed_key <= $3::bytea
+                ORDER BY
+                    storage_logs.hashed_key
+                LIMIT
+                    $4
+                "#,
+                i64::from(l2_block_number.0),
+                key_range.start().as_bytes(),
+                key_range.end().as_bytes(),
+                QUERY_LIMIT as i32
+            )
+            .instrument("get_tree_entries_for_l2_block")
+            .with_arg("l2_block_number", &l2_block_number)
+            .with_arg("key_range", &key_range)
+            .fetch_all(self.storage)
+            .await?;
+
+            let fetched_count = rows.len();
+            entries.extend(rows.into_iter().map(|row| StorageRecoveryLogEntry {
+                key: H256::from_slice(&row.hashed_key),
+                value: H256::from_slice(&row.value),
+                leaf_index: row.index as u64,
+            }));
+
+            if fetched_count < QUERY_LIMIT {
+                break;
+            }
+            // `unwrap()` is safe: `entries` contains >= QUERY_LIMIT items.
+            let Some(next_key) = h256_to_u256(entries.last().unwrap().key).checked_add(1.into())
+            else {
+                // A marginal case (likely not reproducible in practice): the last hashed key is `H256::repeat_byte(0xff)`.
+                break;
+            };
+            key_range = u256_to_h256(next_key)..=*key_range.end();
+        }
+
+        Ok(entries)
+    }
+
+    /// Returns `true` if the number of logs at the specified L2 block is greater or equal to `min_count`.
+    pub async fn check_storage_log_count(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        min_count: NonZeroU32,
+    ) -> DalResult<bool> {
+        let offset = min_count.get() - 1; // Cannot underflow
+
+        let row = sqlx::query_scalar!(
             r#"
-            SELECT
-                storage_logs.hashed_key,
-                storage_logs.value,
-                initial_writes.index
-            FROM
-                storage_logs
-            INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
-            WHERE
-                storage_logs.miniblock_number <= $1
-                AND storage_logs.hashed_key >= $2::bytea
-                AND storage_logs.hashed_key <= $3::bytea
-            ORDER BY
-                storage_logs.hashed_key
+                SELECT TRUE
+                FROM storage_logs
+                WHERE miniblock_number <= $1
+                LIMIT 1 OFFSET $2
             "#,
             i64::from(l2_block_number.0),
-            key_range.start().as_bytes(),
-            key_range.end().as_bytes()
+            i64::from(offset)
         )
-        .instrument("get_tree_entries_for_l2_block")
+        .instrument("check_storage_log_count")
         .with_arg("l2_block_number", &l2_block_number)
-        .with_arg("key_range", &key_range)
-        .fetch_all(self.storage)
+        .with_arg("offset", &offset)
+        .fetch_optional(self.storage)
         .await?;
 
-        let rows = rows.into_iter().map(|row| StorageRecoveryLogEntry {
-            key: H256::from_slice(&row.hashed_key),
-            value: H256::from_slice(&row.value),
-            leaf_index: row.index as u64,
-        });
-        Ok(rows.collect())
+        Ok(row.is_some())
     }
 }
 
@@ -814,6 +873,36 @@ mod tests {
         let log = StorageLog::new_write_log(first_key, H256::repeat_byte(1));
         let other_log = StorageLog::new_write_log(second_key, H256::repeat_byte(2));
         insert_l2_block(&mut conn, 1, vec![log, other_log]).await;
+
+        // Check for `L2BlockNumber(0)` at which no logs are inserted.
+        for count in [1, 2, 3, 4, 10, 100_000, u32::MAX] {
+            println!("count = {count}");
+            assert!(!conn
+                .storage_logs_dal()
+                .check_storage_log_count(L2BlockNumber(0), NonZeroU32::new(count).unwrap())
+                .await
+                .unwrap());
+        }
+
+        for satisfying_count in [1, 2] {
+            println!("count = {satisfying_count}");
+            assert!(conn
+                .storage_logs_dal()
+                .check_storage_log_count(
+                    L2BlockNumber(1),
+                    NonZeroU32::new(satisfying_count).unwrap()
+                )
+                .await
+                .unwrap());
+        }
+        for larger_count in [3, 4, 10, 100_000, u32::MAX] {
+            println!("count = {larger_count}");
+            assert!(!conn
+                .storage_logs_dal()
+                .check_storage_log_count(L2BlockNumber(1), NonZeroU32::new(larger_count).unwrap())
+                .await
+                .unwrap());
+        }
 
         let touched_slots = conn
             .storage_logs_dal()

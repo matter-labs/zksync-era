@@ -20,16 +20,22 @@ zksync_contracts.workspace = true
 zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
-zksync_consensus_storage.workspace = true
+zksync_consensus_engine.workspace = true
 zksync_consensus_crypto.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_db_connection.workspace = true
 zksync_l1_contract_interface.workspace = true
 
+# DI-specific dependencies
+zksync_node_framework = { workspace = true, optional = true }
+zksync_config = { workspace = true, optional = true }
+zksync_health_check = { workspace = true, optional = true }
+
 itertools.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
 prost.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -61,3 +67,7 @@ zksync_concurrency.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework", "dep:zksync_config", "zksync_health_check/node_framework"]

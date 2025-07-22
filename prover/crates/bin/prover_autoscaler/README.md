@@ -127,6 +127,7 @@ observability:
 - `http_port` is the main port for Scaler to connect to.
 - `namespaces` is list of namespaces to watch.
 - `dry_run` if enabled, Agent will not change number of replicas, just report success. Default: true.
+- `pod_check_interval` interval to find and remove stale pods from watcher status. Default: 1h.
 
 Example:
 
@@ -138,6 +139,7 @@ agent_config:
     - prover-old
     - prover-new
   dry_run: true
+  pod_check_interval: 60m
 ```
 
 ### Scaler configuration
@@ -155,6 +157,11 @@ agent_config:
 - `apply_min_to_namespace` specifies current primary namespace to run min number of provers in it.
 - `long_pending_duration` is time after a pending pod considered long pending and will be relocated to different
   cluster. Default: 10m.
+- `scale_errors_duration` defines the time window for including scale errors in Autoscaler calculations. Clusters will
+  be sorted by number of the errors. It should be between 20m and 2h. Default: 1h.
+- `need_to_move_duration` defines the time window for which Autoscaler forces pending pod migration due to scale errors.
+  This prevents pending pods from indefinitely waiting for nodes in a busy cluster. Should be at least x2 of
+  `scaler_run_interval`. Default: 4m.
 - `scaler_targets` subsection is a list of non-GPU targets:
   - `scaler_target_type` specifies the type, possible options: `Simple` (default) and `Gpu`.
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.
@@ -163,6 +170,9 @@ agent_config:
   - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types
     to a number.
   - `speed` is a divider for corresponding queue. Note: it can be a number of map of GPU types to a number.
+  - `hysteresis` is a percentage of queue over provisioning for smoother scaling. Meaningful range: 0 to 100.
+  - `priority` is an optional field to override global cluster priorities for this target. For GPU targets it's a sorted
+    list of `[cluster, gpu]` pairs, for simple targets it's just list of clusters.
 
 Example:
 
@@ -185,6 +195,8 @@ scaler_config:
     cluster3: 200
   apply_min_to_namespace: prover-new
   long_pending_duration: 10m
+  scale_errors_duration: 1h
+  need_to_move_duration: 4m
   scaler_targets:
     - queue_report_field: prover_jobs
       scaler_target_type: Gpu
@@ -203,6 +215,11 @@ scaler_config:
       speed:
         L4: 500
         T4: 400
+      priority:
+        - [cluster1, H100]
+        - [cluster2, H100]
+        - [cluster1, L4]
+        - [cluster3, T4]
     - queue_report_field: basic_witness_jobs
       deployment: witness-generator-basic-fri
       min_replicas: 1
@@ -210,6 +227,9 @@ scaler_config:
         cluster1: 10
         cluster2: 20
       speed: 4
+      priority:
+        - cluster2
+        - cluster1
     - queue_report_field: leaf_witness_jobs
       deployment: witness-generator-leaf-fri
       max_replicas:

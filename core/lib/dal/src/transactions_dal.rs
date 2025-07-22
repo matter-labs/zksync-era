@@ -524,10 +524,10 @@ impl TransactionsDal<'_, '_> {
     pub async fn mark_txs_as_executed_in_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        transactions: &[TransactionExecutionResult],
+        tx_hashes: &[H256],
     ) -> DalResult<()> {
-        let hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
-        let l1_batch_tx_indexes: Vec<_> = (0..transactions.len() as i32).collect();
+        let hashes: Vec<_> = tx_hashes.iter().map(H256::as_bytes).collect();
+        let l1_batch_tx_indexes: Vec<_> = (0..tx_hashes.len() as i32).collect();
         sqlx::query!(
             r#"
             UPDATE transactions
@@ -550,7 +550,7 @@ impl TransactionsDal<'_, '_> {
         )
         .instrument("mark_txs_as_executed_in_l1_batch")
         .with_arg("l1_batch_number", &l1_batch_number)
-        .with_arg("transactions.len", &transactions.len())
+        .with_arg("transactions.len", &tx_hashes.len())
         .execute(self.storage)
         .await?;
         Ok(())
@@ -2118,7 +2118,7 @@ impl TransactionsDal<'_, '_> {
     ) -> DalResult<Vec<L2BlockExecutionData>> {
         let mut transactions_by_l2_block: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
             .into_iter()
-            .group_by(|tx| tx.miniblock_number.unwrap())
+            .chunk_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
             .map(|(l2_block_number, txs)| {
                 (
@@ -2225,6 +2225,11 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(number)
+                .await?;
 
             data.push(L2BlockExecutionData {
                 number,
@@ -2232,6 +2237,7 @@ impl TransactionsDal<'_, '_> {
                 prev_block_hash,
                 virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
+                interop_roots,
             });
         }
         Ok(data)

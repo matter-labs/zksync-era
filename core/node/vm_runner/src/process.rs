@@ -65,6 +65,7 @@ impl VmRunner {
         }
     }
 
+    #[tracing::instrument(skip(self), err, fields(runner = self.io.name()))]
     async fn process_batch(self, number: L1BatchNumber) -> anyhow::Result<()> {
         let stage_started_at = Instant::now();
         let (batch_data, storage) = loop {
@@ -102,7 +103,7 @@ impl VmRunner {
             if i > 0 {
                 // First L2 block in every batch is already preloaded
                 batch_executor
-                    .start_next_l2_block(block_env)
+                    .start_next_l2_block(block_env.clone())
                     .await
                     .with_context(|| {
                         format!("failed starting L2 block with {block_env:?} in batch executor")

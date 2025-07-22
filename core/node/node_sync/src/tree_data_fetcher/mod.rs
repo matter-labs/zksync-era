@@ -47,7 +47,7 @@ impl From<DalError> for TreeDataFetcherError {
 impl TreeDataFetcherError {
     fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_retriable(),
+            Self::Rpc(err) => err.is_retryable(),
             Self::Internal(_) => false,
         }
     }
@@ -266,13 +266,19 @@ impl TreeDataFetcher {
         self.health_updater.update(health.into());
     }
 
-    /// Runs this component until a fatal error occurs or a stop signal is received. Retriable errors
+    /// Runs this component until a fatal error occurs or a stop request is received. Retriable errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.metrics.observe_info(&self);
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
-        let mut last_updated_l1_batch = None;
+        let mut last_updated_l1_batch = self
+            .pool
+            .connection_tagged("tree_data_fetcher")
+            .await?
+            .blocks_dal()
+            .get_last_l1_batch_number_with_tree_data()
+            .await?;
 
         while !*stop_receiver.borrow_and_update() {
             let step_outcome = self.step().await;
@@ -326,7 +332,7 @@ impl TreeDataFetcher {
                 break;
             }
         }
-        tracing::info!("Stop signal received; tree data fetcher is shutting down");
+        tracing::info!("Stop request received; tree data fetcher is shutting down");
         Ok(())
     }
 }

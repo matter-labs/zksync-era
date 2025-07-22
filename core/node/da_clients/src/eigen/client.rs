@@ -1,65 +1,55 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
-use rust_eigenda_client::{
-    client::BlobProvider,
-    config::{PrivateKey, SrsPointsSource},
-    EigenClient,
+use chrono::{DateTime, Utc};
+use rust_eigenda_signers::signers::private_key::Signer;
+use rust_eigenda_v2_client::{
+    core::BlobKey,
+    payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
+    utils::SecretUrl as SecretUrlV2,
 };
+use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
-use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PointsSource},
-    EigenConfig,
-};
+use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 
-use crate::utils::to_retriable_da_error;
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
-    client: EigenClient,
+    client: PayloadDisperser,
 }
 
 impl EigenDAClient {
-    pub async fn new(
-        config: EigenConfig,
-        secrets: EigenSecrets,
-        blob_provider: Arc<dyn BlobProvider>,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
                 .eigenda_eth_rpc
                 .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?
                 .expose_str(),
-        )
-        .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
-        let eth_rpc_url = rust_eigenda_client::config::SecretUrl::new(url);
+        )?;
 
-        let srs_points_source = match config.points_source {
-            PointsSource::Path(path) => SrsPointsSource::Path(path),
-            PointsSource::Url(url) => SrsPointsSource::Url(url),
+        let private_key = secrets.private_key.0.expose_secret();
+
+        let payload_disperser_config = PayloadDisperserConfig {
+            polynomial_form: PayloadForm::Coeff,
+            blob_version: config.blob_version,
+            cert_verifier_router_address: config.cert_verifier_router_addr,
+            eth_rpc_url: SecretUrlV2::new(url),
+            disperser_rpc: config.disperser_rpc,
+            use_secure_grpc_flag: true,
+            operator_state_retriever_addr: config.operator_state_retriever_addr,
+            registry_coordinator_addr: config.registry_coordinator_addr,
         };
 
-        let eigen_config = rust_eigenda_client::config::EigenConfig::new(
-            config.disperser_rpc,
-            eth_rpc_url,
-            config.settlement_layer_confirmation_depth,
-            config.eigenda_svc_manager_address,
-            config.wait_for_finalization,
-            config.authenticated,
-            srs_points_source,
-            config.custom_quorum_numbers,
-        )?;
-        let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
-            .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let eigen_secrets = rust_eigenda_client::config::EigenSecrets { private_key };
-        let client = EigenClient::new(eigen_config, eigen_secrets, blob_provider)
-            .await
-            .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
+        let private_key = private_key.parse()?;
+        let signer = Signer::new(private_key);
+        let client = PayloadDisperser::new(payload_disperser_config, signer).await?;
+
         Ok(Self { client })
     }
 }
@@ -71,22 +61,70 @@ impl DataAvailabilityClient for EigenDAClient {
         _: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
-        let blob_id = self
+        let payload = Payload::new(data);
+        let blob_key = self
             .client
-            .dispatch_blob(data)
+            .send_payload(payload)
             .await
             .map_err(to_retriable_da_error)?;
 
-        Ok(DispatchResponse::from(blob_id))
+        Ok(DispatchResponse::from(blob_key.to_hex()))
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+        _: DateTime<Utc>,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        let bytes = hex::decode(dispatch_request_id.clone()).map_err(|_| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to decode blob id: {}",
+                dispatch_request_id
+            ))
+        })?;
+        let blob_key = BlobKey::from_bytes(bytes.try_into().map_err(|_| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to convert bytes to a 32-byte array"
+            ))
+        })?);
+        let eigenda_cert = self
+            .client
+            .get_cert(&blob_key)
+            .await
+            .map_err(to_retriable_da_error)?;
+        if eigenda_cert.is_some() {
+            Ok(Some(FinalityResponse {
+                blob_id: dispatch_request_id,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let inclusion_data = self
+        let bytes = hex::decode(blob_id).map_err(|err| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to decode blob id: {}: {}",
+                blob_id,
+                err
+            ))
+        })?;
+        let blob_key = BlobKey::from_bytes(bytes.try_into().map_err(|_| {
+            to_non_retriable_da_error(anyhow::anyhow!(
+                "Failed to convert bytes to a 32-byte array"
+            ))
+        })?);
+        let eigenda_cert = self
             .client
-            .get_inclusion_data(blob_id)
+            .get_cert(&blob_key)
             .await
             .map_err(to_retriable_da_error)?;
-        if let Some(inclusion_data) = inclusion_data {
+        if let Some(eigenda_cert) = eigenda_cert {
+            let inclusion_data = eigenda_cert.to_bytes().map_err(|_| {
+                to_non_retriable_da_error(anyhow::anyhow!(
+                    "Failed to convert eigenda cert to bytes"
+                ))
+            })?;
             Ok(Some(InclusionData {
                 data: inclusion_data,
             }))
@@ -100,7 +138,7 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        self.client.blob_size_limit()
+        PayloadDisperser::<Signer>::blob_size_limit()
     }
 
     fn client_type(&self) -> ClientType {

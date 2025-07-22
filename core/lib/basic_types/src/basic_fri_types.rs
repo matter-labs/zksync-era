@@ -257,7 +257,7 @@ impl IntoIterator for ProtocolVersionedCircuitProverStats {
 }
 
 /// Wrapper for mapping between circuit/aggregation round to number of such jobs (queued and in progress)
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CircuitProverStats {
     circuits_prover_stats: HashMap<CircuitIdRoundTuple, JobCountStatistics>,
 }
@@ -283,23 +283,6 @@ impl CircuitProverStats {
             .or_default();
         stats.queued += job_count_statistics.queued;
         stats.in_progress += job_count_statistics.in_progress;
-    }
-}
-
-impl Default for CircuitProverStats {
-    fn default() -> Self {
-        let circuits_prover_stats = AggregationRound::ALL_ROUNDS
-            .into_iter()
-            .flat_map(|round| {
-                let circuit_ids = round.circuit_ids();
-                circuit_ids.into_iter().map(|circuit_id_round_tuple| {
-                    (circuit_id_round_tuple, JobCountStatistics::default())
-                })
-            })
-            .collect();
-        Self {
-            circuits_prover_stats,
-        }
     }
 }
 

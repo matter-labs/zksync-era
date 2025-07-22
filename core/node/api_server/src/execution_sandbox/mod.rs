@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use self::vm_metrics::SandboxStage;
-pub(super) use self::{
+pub(crate) use self::{
     error::SandboxExecutionError,
     execute::{SandboxAction, SandboxExecutionOutput, SandboxExecutor},
     validate::ValidationError,
@@ -286,7 +286,7 @@ pub enum BlockArgsError {
 
 /// Information about a block provided to VM.
 #[derive(Debug, Clone)]
-pub(crate) struct BlockArgs {
+pub struct BlockArgs {
     inner: BlockInfo,
     resolved: ResolvedBlockInfo,
     block_id: api::BlockId,

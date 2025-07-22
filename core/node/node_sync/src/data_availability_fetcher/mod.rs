@@ -2,13 +2,12 @@
 
 use std::time::Duration;
 
-use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{commitment::PubdataType, utils::client_type_to_pubdata_type, L1BatchNumber};
+use zksync_types::{commitment::PubdataType, L1BatchNumber};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::UnstableNamespaceClient,
@@ -73,6 +72,7 @@ pub struct DataAvailabilityFetcher {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     poll_interval: Duration,
+    last_scanned_batch: L1BatchNumber,
 }
 
 impl DataAvailabilityFetcher {
@@ -90,7 +90,33 @@ impl DataAvailabilityFetcher {
             pool,
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
+            last_scanned_batch: L1BatchNumber(0),
         }
+    }
+
+    /// Determines the first L1 batch to scan for Data Availability information.
+    /// It relies on the consistency checker's cursor because the purpose of the DA fetcher is
+    /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
+    /// So there is no point in scanning batches that were already checked by the consistency
+    /// checker, or batches that will be skipped by it.
+    async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
+        let last_checked_by_consistency_checker = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+
+        let first_batch_to_check = last_checked_by_consistency_checker + 1;
+
+        tracing::debug!(
+            "Determined first batch to scan: {} (last checked batch: {})",
+            first_batch_to_check,
+            last_checked_by_consistency_checker
+        );
+
+        Ok(first_batch_to_check)
     }
 
     /// Returns a health check for this fetcher.
@@ -98,7 +124,7 @@ impl DataAvailabilityFetcher {
         self.health_updater.subscribe()
     }
 
-    async fn get_batch_to_fetch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    async fn get_batch_to_fetch(&mut self) -> anyhow::Result<Option<L1BatchNumber>> {
         let mut storage = self
             .pool
             .connection_tagged("data_availability_fetcher")
@@ -114,28 +140,25 @@ impl DataAvailabilityFetcher {
 
         let last_l1_batch_with_da_info = storage
             .data_availability_dal()
-            .get_latest_batch_with_inclusion_data()
+            .get_latest_batch_with_inclusion_data(self.last_scanned_batch)
+            .await?
+            .unwrap_or(self.last_scanned_batch);
+
+        let l1_batch_to_fetch = storage
+            .blocks_dal()
+            .get_first_validium_l1_batch_number(last_l1_batch_with_da_info)
             .await?;
 
-        let l1_batch_to_fetch = if let Some(batch) = last_l1_batch_with_da_info {
-            batch + 1
-        } else {
-            let earliest_l1_batch = storage
-                .blocks_dal()
-                .get_earliest_l1_batch_number()
-                .await?
-                .context("all L1 batches disappeared from Postgres")?
-                .max(L1BatchNumber(1)); // if only the genesis batch is in the storage, we should start from the first one, skipping the genesis
+        let Some(l1_batch_to_fetch) = l1_batch_to_fetch else {
+            // if the batch is sealed but there are no Validium batches to process before it - we
+            // can skip all the batches including the last sealed one
+            self.last_scanned_batch = last_l1_batch;
 
-            tracing::debug!("No L1 batches with DA info present in the storage; will fetch the earliest batch #{earliest_l1_batch}");
-            earliest_l1_batch
+            tracing::debug!("No L1 batches to fetch DA info for");
+            return Ok(None);
         };
 
-        Ok(if l1_batch_to_fetch <= last_l1_batch {
-            Some(l1_batch_to_fetch)
-        } else {
-            None
-        })
+        Ok(Some(l1_batch_to_fetch))
     }
 
     async fn step(&mut self) -> Result<StepOutcome, DataAvailabilityFetcherError> {
@@ -163,7 +186,7 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoProgress);
         };
 
-        let config_pubdata_type = client_type_to_pubdata_type(self.da_client.client_type());
+        let config_pubdata_type = self.da_client.client_type().into_pubdata_type();
         // if pubdata type of the DA client is NoDA and pubdata type of the EN is not - it means
         // that the main node is planning to use the DA layer, so ENs were configured earlier
         if pubdata_type != config_pubdata_type && pubdata_type != PubdataType::NoDA {
@@ -226,13 +249,15 @@ impl DataAvailabilityFetcher {
                 da_details.l2_da_validator,
             )
             .await
-            .map_err(|err| to_fatal_error(err.generalize()))?;
+            .map_err(|err| to_retriable_error(err.generalize()))?;
 
         tracing::debug!(
             "Updated L1 batch #{} with DA blob id: {}",
             l1_batch_to_fetch,
             da_details.blob_id
         );
+        self.last_scanned_batch = l1_batch_to_fetch;
+
         Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
 
@@ -243,12 +268,15 @@ impl DataAvailabilityFetcher {
         self.health_updater.update(health.into());
     }
 
-    /// Runs this component until a fatal error occurs or a stop signal is received. Retriable errors
+    /// Runs this component until a fatal error occurs or a stop request is received. Retriable errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
+
+        self.last_scanned_batch = self.determine_first_batch_to_scan().await?;
+        self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
             let step_outcome = self.step().await;
@@ -296,7 +324,21 @@ impl DataAvailabilityFetcher {
                 break;
             }
         }
-        tracing::info!("Stop signal received; data availability fetcher is shutting down");
+        tracing::info!("Stop request received; data availability fetcher is shutting down");
+        Ok(())
+    }
+
+    /// Drops all entries from the database that do not have inclusion data.
+    /// This is necessary during snapshot recovery, otherwise the fetcher will try fetching the
+    /// batches that are already in the database.
+    pub async fn drop_entries_without_inclusion_data(&self) -> anyhow::Result<()> {
+        self.pool
+            .connection_tagged("data_availability_fetcher")
+            .await?
+            .data_availability_dal()
+            .remove_batches_without_inclusion_data()
+            .await?;
+
         Ok(())
     }
 }

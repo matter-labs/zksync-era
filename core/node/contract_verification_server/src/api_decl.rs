@@ -29,8 +29,9 @@ impl RestApi {
         axum::Router::new()
             .route(
                 "/contract_verification",
-                axum::routing::post(Self::verification),
+                axum::routing::get(Self::etherscan_get_action),
             )
+            .route("/contract_verification", axum::routing::post(Self::post))
             .route(
                 "/contract_verification/zksolc_versions",
                 axum::routing::get(Self::zksolc_versions),
@@ -48,11 +49,11 @@ impl RestApi {
                 axum::routing::get(Self::vyper_versions),
             )
             .route(
-                "/contract_verification/:id",
+                "/contract_verification/{id}",
                 axum::routing::get(Self::verification_request_status),
             )
             .route(
-                "/contract_verification/info/:address",
+                "/contract_verification/info/{address}",
                 axum::routing::get(Self::verification_info),
             )
             .layer(CorsLayer::permissive())

@@ -1,11 +1,12 @@
-ARG CIRCUIT_FILE="10330_48_1_BasicCircuits_0"
+ARG CIRCUIT_FILE="1286_48_1_BasicCircuits_0"
 
 FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 ARG CIRCUIT_FILE
-ARG CUDA_ARCH="75;80;89"
+# https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
+ARG CUDA_ARCH="75;80;89;90"
 ENV CUDAARCHS=${CUDA_ARCH}
 
 # set of args for use of sccache

@@ -19,7 +19,7 @@ use super::{result::ApiCallResult, SubmitTxError, TxSender};
 use crate::execution_sandbox::{BlockArgs, SandboxAction, VmPermit, SANDBOX_METRICS};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum BinarySearchKind {
+pub enum BinarySearchKind {
     /// Full binary search.
     Full,
     /// Binary search with an optimized initial pivot.
@@ -488,7 +488,8 @@ impl<'a> GasEstimator<'a> {
         let (result, tx_metrics) = self.step(suggested_gas_limit).await?;
         result.into_api_call_result()?;
         self.sender
-            .ensure_tx_executable(&self.transaction, tx_metrics, false)?;
+            .ensure_tx_executable(&self.transaction, tx_metrics, false)
+            .await?;
 
         // Now, we need to calculate the final overhead for the transaction.
         let overhead = derive_overhead(

@@ -1,13 +1,22 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_multivm::{
     interface::{
         tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
@@ -18,11 +27,8 @@ use zksync_multivm::{
     },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
+use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
-use zksync_state_keeper::{
-    seal_criteria::{ConditionalSealer, NoopSealer, SealData},
-    SequencerSealer,
-};
 use zksync_types::{
     api::state_override::StateOverride,
     fee_model::BatchFeeInput,
@@ -33,8 +39,9 @@ use zksync_types::{
     vm::FastVmMode,
     AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256, U256,
 };
-use zksync_vm_executor::oneshot::{
-    CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
+use zksync_vm_executor::{
+    interface::TransactionFilter,
+    oneshot::{CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters},
 };
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
@@ -51,30 +58,31 @@ mod result;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod tx_sink;
+pub mod whitelist;
 
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
-    state_keeper_config: &StateKeeperConfig,
     replica_pool: ConnectionPool<Core>,
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> anyhow::Result<(TxSender, VmConcurrencyBarrier)> {
-    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
     let master_pool_sink = MasterPoolSink::new(master_pool);
     let tx_sender_builder = TxSenderBuilder::new(
         tx_sender_config.clone(),
         replica_pool.clone(),
         Arc::new(master_pool_sink),
-    )
-    .with_sealer(Arc::new(sequencer_sealer));
+    );
 
-    let max_concurrency = web3_json_config.vm_concurrency_limit();
+    let max_concurrency = web3_json_config.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider =
-        ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
+    let batch_fee_input_provider = ApiFeeInputProvider::new(
+        batch_fee_model_input_provider,
+        replica_pool,
+        web3_json_config.gas_price_scale_factor_open_batch,
+    );
     let executor_options = SandboxExecutorOptions::new(
         tx_sender_config.chain_id,
         AccountTreeId::new(tx_sender_config.fee_account_addr),
@@ -94,10 +102,14 @@ pub async fn build_tx_sender(
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
+    pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
     pub(crate) eth_call: OneshotEnvParameters<CallOrExecute>,
+    pub(crate) interrupted_execution_latency_histogram: &'static vise::Histogram<Duration>,
+    #[cfg(test)]
+    pub(crate) storage_delay: Option<Duration>,
 }
 
 impl SandboxExecutorOptions {
@@ -120,6 +132,7 @@ impl SandboxExecutorOptions {
 
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
+            vm_dump_store: None,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -132,12 +145,20 @@ impl SandboxExecutorOptions {
                 operator_account,
                 validation_computational_gas_limit,
             ),
+            interrupted_execution_latency_histogram: &SANDBOX_METRICS
+                .sandbox_interrupted_execution_latency,
+            #[cfg(test)]
+            storage_delay: None,
         })
     }
 
     /// Sets the fast VM mode used by this executor.
     pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
         self.fast_vm_mode = fast_vm_mode;
+    }
+
+    pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
+        self.vm_dump_store = Some(store);
     }
 
     pub(crate) async fn mock() -> Self {
@@ -156,8 +177,8 @@ pub struct TxSenderBuilder {
     replica_connection_pool: ConnectionPool<Core>,
     /// Sink to be used to persist transactions.
     tx_sink: Arc<dyn TxSink>,
-    /// Batch sealer used to check whether transaction can be executed by the sequencer.
-    sealer: Option<Arc<dyn ConditionalSealer>>,
+    /// Transaction filter that can be used to reject transactions.
+    transaction_filter: Option<Arc<dyn TransactionFilter>>,
     /// Cache for tokens that are white-listed for AA.
     whitelisted_tokens_for_aa_cache: Option<Arc<RwLock<Vec<Address>>>>,
 }
@@ -172,13 +193,13 @@ impl TxSenderBuilder {
             config,
             replica_connection_pool,
             tx_sink,
-            sealer: None,
+            transaction_filter: None,
             whitelisted_tokens_for_aa_cache: None,
         }
     }
 
-    pub fn with_sealer(mut self, sealer: Arc<dyn ConditionalSealer>) -> Self {
-        self.sealer = Some(sealer);
+    pub fn with_transaction_filter(mut self, filter: Arc<dyn TransactionFilter>) -> Self {
+        self.transaction_filter = Some(filter);
         self
     }
 
@@ -195,7 +216,7 @@ impl TxSenderBuilder {
         storage_caches: PostgresStorageCaches,
     ) -> TxSender {
         // Use noop sealer if no sealer was explicitly provided.
-        let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
+        let transaction_filter = self.transaction_filter.unwrap_or_else(|| Arc::new(()));
         let whitelisted_tokens_for_aa_cache =
             self.whitelisted_tokens_for_aa_cache.unwrap_or_else(|| {
                 Arc::new(RwLock::new(self.config.whitelisted_tokens_for_aa.clone()))
@@ -223,7 +244,7 @@ impl TxSenderBuilder {
             batch_fee_input_provider,
             vm_concurrency_limiter,
             whitelisted_tokens_for_aa_cache,
-            sealer,
+            transaction_filter,
             executor,
         }))
     }
@@ -295,8 +316,55 @@ pub struct TxSenderInner {
     // Cache for white-listed tokens.
     pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
-    pub(super) sealer: Arc<dyn ConditionalSealer>,
+    pub(super) transaction_filter: Arc<dyn TransactionFilter>,
     pub(super) executor: SandboxExecutor,
+}
+
+/// Health check details for [`TxSender`].
+#[derive(Debug, Serialize)]
+struct TxSenderHealthDetails {
+    vm_mode: FastVmMode,
+    #[serde(skip_serializing_if = "TxSenderHealthDetails::is_zero")]
+    vm_divergences: usize,
+}
+
+impl TxSenderHealthDetails {
+    fn is_zero(value: &usize) -> bool {
+        *value == 0
+    }
+}
+
+impl From<TxSenderHealthDetails> for Health {
+    fn from(details: TxSenderHealthDetails) -> Self {
+        let status = if details.vm_divergences > 0 {
+            HealthStatus::Affected
+        } else {
+            HealthStatus::Ready
+        };
+        Health::from(status).with_details(details)
+    }
+}
+
+/// Health check for [`TxSender`].
+#[derive(Debug)]
+struct TxSenderHealthCheck {
+    vm_mode: FastVmMode,
+    vm_divergence_counter: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl CheckHealth for TxSenderHealthCheck {
+    fn name(&self) -> &'static str {
+        "tx_sender"
+    }
+
+    async fn check_health(&self) -> Health {
+        let details = TxSenderHealthDetails {
+            vm_mode: self.vm_mode,
+            vm_divergences: self.vm_divergence_counter.load(Ordering::Relaxed),
+        };
+        details.into()
+    }
 }
 
 #[derive(Clone)]
@@ -309,6 +377,13 @@ impl std::fmt::Debug for TxSender {
 }
 
 impl TxSender {
+    pub fn health_check(&self) -> impl CheckHealth {
+        TxSenderHealthCheck {
+            vm_mode: self.0.executor.vm_mode(),
+            vm_divergence_counter: self.0.executor.vm_divergence_counter(),
+        }
+    }
+
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
@@ -389,13 +464,14 @@ impl TxSender {
         }
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
-        self.ensure_tx_executable(&tx.clone().into(), execution_output.metrics, true)?;
+        self.ensure_tx_executable(&tx.clone().into(), execution_output.metrics, true)
+            .await?;
 
         let validation_traces = validation_result?;
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics, validation_traces)
+            .submit_tx(&tx, &execution_output, validation_traces)
             .await?;
 
         match submission_res_handle {
@@ -647,7 +723,7 @@ impl TxSender {
         result.result.into_api_call_result()
     }
 
-    pub async fn gas_price(&self) -> anyhow::Result<u64> {
+    pub async fn gas_price_and_gas_per_pubdata(&self) -> anyhow::Result<(u64, u64)> {
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_version = connection
             .blocks_dal()
@@ -656,14 +732,14 @@ impl TxSender {
             .context("failed obtaining pending protocol version")?;
         drop(connection);
 
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
             self.scaled_batch_fee_input().await?,
             protocol_version.into(),
         );
-        Ok(base_fee)
+        Ok((base_fee, gas_per_pubdata))
     }
 
-    fn ensure_tx_executable(
+    async fn ensure_tx_executable(
         &self,
         transaction: &Transaction,
         tx_metrics: TransactionExecutionMetrics,
@@ -677,18 +753,14 @@ impl TxSender {
             H256::zero()
         };
 
-        // Using `ProtocolVersionId::latest()` for a short period we might end up in a scenario where the StateKeeper is still pre-boojum
-        // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
-        // still reject them as it's not.
-        let protocol_version = ProtocolVersionId::latest();
-        let seal_data = SealData::for_transaction(transaction, tx_metrics);
-        if let Some(reason) = self
+        if let Err(reason) = self
             .0
-            .sealer
-            .find_unexecutable_reason(&seal_data, protocol_version)
+            .transaction_filter
+            .filter_transaction(transaction, &tx_metrics)
+            .await
         {
             let message = format!(
-                "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
+                "Tx is Unexecutable because of {reason}; inputs for decision: {tx_metrics:?}"
             );
             if log_message {
                 tracing::info!("{tx_hash:#?} {message}");

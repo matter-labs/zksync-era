@@ -16,14 +16,18 @@ tracing.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 flate2.workspace = true
+secrecy.workspace = true
 tokio.workspace = true
+chrono.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_object_store.workspace = true
-zksync_da_client.workspace = true
-zksync_env_config.workspace = true
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_object_store = { workspace = true, features = ["node_framework"] }
+zksync_da_client = { workspace = true, features = ["node_framework"] }
 zksync_basic_types.workspace = true
+zksync_node_framework.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 futures.workspace = true
 
 # Avail dependencies
@@ -55,5 +59,7 @@ ripemd.workspace = true
 tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
 
-# Eigen dependencies
-rust-eigenda-client.workspace = true
+# EigenDA dependencies
+rust-eigenda-v2-client.workspace = true
+rust-eigenda-v2-common.workspace = true
+rust-eigenda-signers.workspace = true

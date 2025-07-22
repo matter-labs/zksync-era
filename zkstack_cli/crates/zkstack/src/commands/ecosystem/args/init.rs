@@ -1,9 +1,12 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt, PromptConfirm};
+use zkstack_cli_common::{
+    ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt, PromptConfirm,
+};
 use zkstack_cli_types::L1Network;
 
 use crate::{
@@ -16,6 +19,15 @@ use crate::{
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
+
+/// Check if L1 RPC is healthy by calling eth_chainId
+async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
+    let l1_provider = get_ethers_provider(l1_rpc_url)?;
+    let l1_chain_id = l1_provider.get_chainid().await?.as_u64();
+
+    println!("✅ L1 RPC health check passed - chain ID: {}", l1_chain_id);
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {
@@ -30,7 +42,11 @@ pub struct EcosystemArgs {
 }
 
 impl EcosystemArgs {
-    pub fn fill_values_with_prompt(self, l1_network: L1Network, dev: bool) -> EcosystemArgsFinal {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+        dev: bool,
+    ) -> anyhow::Result<EcosystemArgsFinal> {
         let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
             if dev {
                 true
@@ -57,11 +73,16 @@ impl EcosystemArgs {
                 })
                 .ask()
         });
-        EcosystemArgsFinal {
+
+        // Check L1 RPC health after getting the URL
+        println!("🔍 Checking L1 RPC health...");
+        check_l1_rpc_health(&l1_rpc_url).await?;
+
+        Ok(EcosystemArgsFinal {
             deploy_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
             l1_rpc_url,
-        }
+        })
     }
 }
 
@@ -109,6 +130,8 @@ pub struct EcosystemInitArgs {
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
+    #[clap(long, default_value = "false", num_args = 0..=1)]
+    pub make_permanent_rollup: Option<bool>,
     #[clap(long, default_value_t = false)]
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
@@ -126,7 +149,10 @@ impl EcosystemInitArgs {
         }
     }
 
-    pub fn fill_values_with_prompt(self, l1_network: L1Network) -> EcosystemInitArgsFinal {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+    ) -> anyhow::Result<EcosystemInitArgsFinal> {
         let deploy_erc20 = if self.dev {
             true
         } else {
@@ -136,7 +162,10 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
-        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev);
+        let ecosystem = self
+            .ecosystem
+            .fill_values_with_prompt(l1_network, self.dev)
+            .await?;
         let observability = if self.dev {
             true
         } else {
@@ -147,7 +176,7 @@ impl EcosystemInitArgs {
             })
         };
 
-        EcosystemInitArgsFinal {
+        Ok(EcosystemInitArgsFinal {
             deploy_erc20,
             ecosystem,
             forge_args: self.forge_args.clone(),
@@ -160,7 +189,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test: self
                 .support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
-        }
+        })
     }
 }
 

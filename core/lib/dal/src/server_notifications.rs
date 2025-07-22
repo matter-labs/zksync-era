@@ -1,5 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{L1BlockNumber, H256};
+use zksync_types::{server_notification::GatewayMigrationNotification, L1BlockNumber, H256};
 
 use crate::{models::server_notification::ServerNotification, Core};
 
@@ -65,5 +65,22 @@ impl ServerNotificationsDal<'_, '_> {
         });
 
         Ok(rows)
+    }
+
+    pub async fn get_latest_gateway_migration_notification(
+        &mut self,
+    ) -> DalResult<Option<GatewayMigrationNotification>> {
+        let notification = self
+            .get_last_notification_by_topics(
+                &GatewayMigrationNotification::get_server_notifier_topics(),
+            )
+            .await?;
+
+        let notification = notification.map(|notification| {
+            GatewayMigrationNotification::from_topic(notification.main_topic)
+                .expect("Invalid topic")
+        });
+
+        Ok(notification)
     }
 }

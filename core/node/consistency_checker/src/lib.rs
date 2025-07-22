@@ -4,15 +4,16 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::{
-    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
+    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+    POST_V26_GATEWAY_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
-        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
+        get_encoding_version, CommitBatchInfo, EncodingVersion, StoredBatchInfo,
+        PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA, PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY,
     },
     Tokenizable,
 };
@@ -23,9 +24,10 @@ use zksync_types::{
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
+    try_stoppable, Address, L1BatchNumber, OrStopped, ProtocolVersionId, SLChainId, H256, U256,
 };
 
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -47,7 +49,7 @@ impl CheckError {
     fn is_retriable(&self) -> bool {
         match self {
             Self::Web3(err) | Self::ContractCall(ContractCallError::EthereumGateway(err)) => {
-                err.is_retriable()
+                err.is_retryable()
             }
             _ => false,
         }
@@ -135,6 +137,7 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
+    commit_chain_id: Option<SLChainId>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -144,8 +147,18 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
-        commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Option<Self>> {
+        if storage
+            .data_availability_dal()
+            .l1_batch_missing_data_availability(batch_number)
+            .await?
+        {
+            tracing::warn!(
+                "L1 batch #{batch_number} is missing DA information, da_fetcher might be not started"
+            );
+            return Ok(None);
+        }
+
         let Some(commit_tx_id) = storage
             .blocks_dal()
             .get_eth_commit_tx_id(batch_number)
@@ -154,13 +167,22 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
+        let Some(pubdata_params) = storage
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
-            .await?
-            .with_context(|| {
-                format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
-            })?;
+            .await?;
+
+        let Some(commit_tx_hash) = commit_tx_hash else {
+            return Ok(None);
+        };
 
         let Some(l1_batch) = storage
             .blocks_dal()
@@ -170,10 +192,16 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
+        let commit_chain_id = storage
+            .eth_sender_dal()
+            .get_batch_commit_chain_id(batch_number)
+            .await?;
+
         let this = Self {
             l1_batch,
             commit_tx_hash,
-            commitment_mode,
+            commitment_mode: pubdata_params.pubdata_type.into(),
+            commit_chain_id,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -195,21 +223,35 @@ impl LocalL1BatchCommitData {
         self.l1_batch
             .header
             .protocol_version
-            .map_or(true, |version| version.is_pre_boojum())
+            .is_none_or(|version| version.is_pre_boojum())
     }
 
     fn is_pre_shared_bridge(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
-            .map_or(true, |version| version.is_pre_shared_bridge())
+            .is_none_or(|version| version.is_pre_shared_bridge())
     }
 
-    fn is_pre_gateway(&self) -> bool {
+    fn is_pre_v26_gateway(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
-            .map_or(true, |version| version.is_pre_gateway())
+            .is_none_or(|version| version.is_pre_gateway())
+    }
+
+    fn get_encoding_version(&self) -> u8 {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(EncodingVersion::PreInterop.value(), get_encoding_version)
+    }
+
+    fn is_pre_v29_interop(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .is_none_or(|version| version.is_pre_interop_fast_blocks())
     }
 
     /// All returned errors are validation errors.
@@ -357,7 +399,6 @@ pub struct ConsistencyChecker {
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
-    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl ConsistencyChecker {
@@ -367,7 +408,6 @@ impl ConsistencyChecker {
         sl_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
-        commitment_mode: L1BatchCommitmentMode,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
@@ -387,11 +427,10 @@ impl ConsistencyChecker {
             event_handler: Box::new(health_updater),
             pool,
             health_check,
-            commitment_mode,
         })
     }
 
-    pub fn with_l1_diamond_proxy_addr(mut self, address: Address) -> Self {
+    pub fn with_sl_diamond_proxy_addr(mut self, address: Address) -> Self {
         self.chain_data.diamond_proxy_addr = Some(address);
         self
     }
@@ -479,8 +518,10 @@ impl ConsistencyChecker {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else if local.is_pre_shared_bridge() {
             &*POST_BOOJUM_COMMIT_FUNCTION
-        } else if local.is_pre_gateway() {
+        } else if local.is_pre_v26_gateway() {
             &*POST_SHARED_BRIDGE_COMMIT_FUNCTION
+        } else if local.is_pre_v29_interop() {
+            &*POST_V26_GATEWAY_COMMIT_FUNCTION
         } else {
             self.contract
                 .function("commitBatchesSharedBridge")
@@ -492,7 +533,9 @@ impl ConsistencyChecker {
             &commit_tx.input.0,
             commit_function,
             batch_number,
-            local.is_pre_gateway(),
+            local.is_pre_v26_gateway(),
+            local.is_pre_v29_interop(),
+            local.get_encoding_version(),
         )
         .with_context(|| {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
@@ -511,6 +554,8 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
         pre_gateway: bool,
+        pre_interop: bool,
+        encoding_version: u8,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -541,13 +586,18 @@ impl ConsistencyChecker {
             };
             let (version, encoded_data) = commitment_bytes.split_at(1);
             anyhow::ensure!(
-                version[0] == SUPPORTED_ENCODING_VERSION,
+                version[0] == encoding_version,
                 "Unexpected encoding version: {}",
                 version[0]
             );
+            let schema = if pre_interop {
+                StoredBatchInfo::schema_pre_interop()
+            } else {
+                StoredBatchInfo::schema_post_interop()
+            };
             let decoded_data = ethabi::decode(
                 &[
-                    StoredBatchInfo::schema(),
+                    schema,
                     ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,
@@ -601,7 +651,7 @@ impl ConsistencyChecker {
             .connection()
             .await?
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
             .await?)
     }
 
@@ -644,7 +694,7 @@ impl ConsistencyChecker {
                     .await
                     .is_ok()
                 {
-                    tracing::info!("Stop signal received, consistency_checker is shutting down");
+                    tracing::info!("Stop request received, consistency_checker is shutting down");
                     return Ok(());
                 }
             } else {
@@ -654,13 +704,10 @@ impl ConsistencyChecker {
         }
 
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
-        let earliest_l1_batch_number =
+        let earliest_l1_batch_number = try_stoppable!(
             wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &mut stop_receiver)
-                .await?;
-
-        let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
-            return Ok(()); // Stop signal received
-        };
+                .await
+        );
 
         let last_committed_batch = self
             .last_committed_batch()
@@ -696,9 +743,7 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let local =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, self.commitment_mode)
-                    .await?;
+            let local = LocalL1BatchCommitData::new(&mut storage, batch_number).await?;
             let Some(local) = local else {
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await
@@ -709,6 +754,29 @@ impl ConsistencyChecker {
                 continue;
             };
             drop(storage);
+
+            if let Some(commit_chain_id) = local.commit_chain_id {
+                if commit_chain_id != self.chain_data.chain_id {
+                    if batch_number < last_committed_batch {
+                        // It's ok to skip check for old batches.
+                        tracing::info!(
+                            "Skip checking batch #{batch_number}, it was committed to chain with id {commit_chain_id} \
+                            while node is configured to check on chain with id {}",
+                            self.chain_data.chain_id
+                        );
+                        batch_number += 1;
+                        continue;
+                    } else {
+                        // Chain migrated to different SL, throw error so it can restart and reload SL data.
+                        anyhow::bail!(
+                            "Batch #{batch_number} was committed to chain with id {commit_chain_id} \
+                            while node is configured to check chain with id {}. Error is thrown so node can restart and reload SL data. \
+                            If node doesn't make any progress after restart, then it's bug, please contact developers.",
+                            self.chain_data.chain_id
+                        );
+                    }
+                }
+            }
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(()) => {
@@ -746,7 +814,7 @@ impl ConsistencyChecker {
             }
         }
 
-        tracing::info!("Stop signal received, consistency_checker is shutting down");
+        tracing::info!("Stop request received, consistency_checker is shutting down");
         Ok(())
     }
 }
@@ -754,15 +822,15 @@ impl ConsistencyChecker {
 /// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
 /// if the DB is recovered from an application-level snapshot.
 ///
-/// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
+/// Returns the number of the *earliest* L1 batch with metadata, or `None` if a stop request is received.
 async fn wait_for_l1_batch_with_metadata(
     pool: &ConnectionPool<Core>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
-) -> anyhow::Result<Option<L1BatchNumber>> {
+) -> Result<L1BatchNumber, OrStopped> {
     loop {
         if *stop_receiver.borrow() {
-            return Ok(None);
+            return Err(OrStopped::Stopped);
         }
 
         let mut storage = pool.connection().await?;
@@ -773,7 +841,7 @@ async fn wait_for_l1_batch_with_metadata(
         drop(storage);
 
         if let Some(number) = sealed_l1_batch_number {
-            return Ok(Some(number));
+            return Ok(number);
         }
         tracing::debug!(
             "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"

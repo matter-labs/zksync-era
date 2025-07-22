@@ -4,7 +4,7 @@
 //!
 //! You can install the compilers to run these tests with the following command:
 //! ```
-//! zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only
+//! zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only
 //! ```
 
 use std::{env, sync::Arc, time::Duration};
@@ -29,7 +29,7 @@ impl Toolchain {
 // The tests may expect specific compiler versions (e.g. contracts won't compile with Vyper 0.4.0),
 // so we hardcode versions.
 const ZKSOLC_VERSION: &str = "v1.5.10";
-const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.1";
+const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.2";
 const SOLC_VERSION: &str = "0.8.26";
 const VYPER_VERSION: &str = "v0.3.10";
 const ZKVYPER_VERSION: &str = "v1.5.4";
@@ -226,7 +226,10 @@ async fn using_standalone_solc(specify_contract_file: bool) {
 
 #[test_casing(3, [(Some(100), None), (None, Some("shanghai")), (Some(200), Some("paris"))])]
 #[tokio::test]
-async fn using_standalone_solc_with_custom_settings(runs: Option<u16>, evm_version: Option<&str>) {
+async fn using_standalone_solc_with_custom_settings(
+    runs: Option<usize>,
+    evm_version: Option<&str>,
+) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.solc;

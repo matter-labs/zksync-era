@@ -1,11 +1,13 @@
 //! Handling outputs produced by the state keeper.
 
-use std::{fmt, sync::Arc};
+use std::{fmt, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use zksync_shared_resources::api::SyncState;
+use zksync_types::{block::L2BlockHeader, L2BlockNumber};
 
-use crate::{io::IoCursor, updates::UpdatesManager};
+use crate::{io::IoCursor, metrics::L1_BATCH_METRICS, updates::UpdatesManager};
 
 /// Handler for state keeper outputs (L2 blocks and L1 batches).
 #[async_trait]
@@ -16,14 +18,63 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
         Ok(())
     }
 
-    /// Handles an L2 block produced by the state keeper.
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
+    /// Handles an L2 block data (events, storage logs etc) produced by the state keeper.
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()>;
+
+    /// Handles an L2 block header.
+    async fn handle_l2_block_header(&mut self, _header: &L2BlockHeader) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// Handles an L2 block data rollback.
+    async fn rollback_pending_l2_block_data(
+        &mut self,
+        _l2_block_to_rollback: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     /// Handles an L1 batch produced by the state keeper.
     async fn handle_l1_batch(
         &mut self,
         _updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl StateKeeperOutputHandler for SyncState {
+    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+        let sealed_block_number = cursor.next_l2_block.saturating_sub(1);
+        self.set_local_block(L2BlockNumber(sealed_block_number));
+        Ok(())
+    }
+
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
+        if updates_manager.sync_block_data_and_header_persistence() {
+            self.set_local_block(updates_manager.last_pending_l2_block().number);
+        }
+        Ok(())
+    }
+
+    async fn handle_l2_block_header(&mut self, header: &L2BlockHeader) -> anyhow::Result<()> {
+        self.set_local_block(header.number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(
+        &mut self,
+        updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.last_pending_l2_block().number;
+        self.set_local_block(sealed_block_number);
         Ok(())
     }
 }
@@ -37,6 +88,7 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
 #[derive(Debug)]
 pub struct OutputHandler {
     inner: Vec<Box<dyn StateKeeperOutputHandler>>,
+    last_l1_batch_sealed_at: Option<Instant>,
 }
 
 impl OutputHandler {
@@ -44,6 +96,7 @@ impl OutputHandler {
     pub fn new(main_handler: Box<dyn StateKeeperOutputHandler>) -> Self {
         Self {
             inner: vec![main_handler],
+            last_l1_batch_sealed_at: None,
         }
     }
 
@@ -65,23 +118,62 @@ impl OutputHandler {
     }
 
     #[tracing::instrument(
-        name = "OutputHandler::handle_l2_block"
+        name = "OutputHandler::handle_l2_block_data"
         skip_all,
-        fields(l2_block = %updates_manager.l2_block.number)
+        fields(l2_block = %updates_manager.last_pending_l2_block().number)
     )]
-    pub(crate) async fn handle_l2_block(
+    pub(crate) async fn handle_l2_block_data(
         &mut self,
         updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .handle_l2_block(updates_manager)
+                .handle_l2_block_data(updates_manager)
                 .await
                 .with_context(|| {
                     format!(
-                        "failed handling L2 block {:?} on handler {handler:?}",
-                        updates_manager.l2_block
+                        "failed handling L2 block data {:?} on handler {handler:?}",
+                        updates_manager.last_pending_l2_block()
                     )
+                })?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(
+        name = "OutputHandler::handle_l2_block_header"
+        skip_all,
+        fields(l2_block = %header.number)
+    )]
+    pub(crate) async fn handle_l2_block_header(
+        &mut self,
+        header: &L2BlockHeader,
+    ) -> anyhow::Result<()> {
+        for handler in &mut self.inner {
+            handler
+                .handle_l2_block_header(header)
+                .await
+                .with_context(|| {
+                    format!("failed handling L2 block header {header:?} on handler {handler:?}")
+                })?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(
+        name = "OutputHandler::rollback_pending_l2_block_data"
+        skip(self)
+    )]
+    pub(crate) async fn rollback_pending_l2_block_data(
+        &mut self,
+        l2_block_to_rollback: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        for handler in &mut self.inner {
+            handler
+                .rollback_pending_l2_block_data(l2_block_to_rollback)
+                .await
+                .with_context(|| {
+                    format!("failed handling L2 block rollback {l2_block_to_rollback} on handler {handler:?}")
                 })?;
         }
         Ok(())
@@ -90,7 +182,7 @@ impl OutputHandler {
     #[tracing::instrument(
         name = "OutputHandler::handle_l1_batch"
         skip_all,
-        fields(l1_batch = %updates_manager.l1_batch.number)
+        fields(l1_batch = %updates_manager.l1_batch_number())
     )]
     pub(crate) async fn handle_l1_batch(
         &mut self,
@@ -103,10 +195,18 @@ impl OutputHandler {
                 .with_context(|| {
                     format!(
                         "failed handling L1 batch #{} on handler {handler:?}",
-                        updates_manager.l1_batch.number
+                        updates_manager.l1_batch_number()
                     )
                 })?;
         }
+
+        if let Some(last_l1_batch_sealed_at) = self.last_l1_batch_sealed_at {
+            L1_BATCH_METRICS
+                .seal_delta
+                .observe(last_l1_batch_sealed_at.elapsed());
+        }
+        self.last_l1_batch_sealed_at = Some(Instant::now());
+
         Ok(())
     }
 }

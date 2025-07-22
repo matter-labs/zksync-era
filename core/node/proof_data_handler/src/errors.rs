@@ -3,45 +3,52 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use zksync_dal::DalError;
-use zksync_object_store::ObjectStoreError;
+use zksync_object_store::{ObjectStoreError, _reexports::BoxedError};
+use zksync_types::L1BatchNumber;
 
-pub(crate) enum RequestProcessorError {
+#[derive(Debug, thiserror::Error)]
+pub enum ProcessorError {
+    #[error("General error: {0}")]
     GeneralError(String),
-    ObjectStore(ObjectStoreError),
-    Dal(DalError),
+    #[error("GCS error: {0}")]
+    ObjectStore(#[from] ObjectStoreError),
+    #[error("Failed to deserialize proof data")]
+    Serialization(#[from] BoxedError),
+    #[error("Invalid proof submitted")]
+    InvalidProof,
+    #[error("Batch {0} is not yet ready for proving. Most likely our proof for this batch is not generated yet, try again later")]
+    BatchNotReady(L1BatchNumber),
+    #[error("Internal error")]
+    Internal,
+    #[error("Proof verification not possible anymore, batch is too old")]
+    ProofIsGone,
 }
 
-impl From<DalError> for RequestProcessorError {
-    fn from(err: DalError) -> Self {
-        RequestProcessorError::Dal(err)
+impl ProcessorError {
+    pub fn status_code(&self) -> StatusCode {
+        match self {
+            Self::GeneralError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ObjectStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Serialization(_) => StatusCode::BAD_REQUEST,
+            Self::InvalidProof => StatusCode::BAD_REQUEST,
+            Self::BatchNotReady(_) => StatusCode::NOT_FOUND,
+            Self::ProofIsGone => StatusCode::GONE,
+        }
     }
 }
 
-impl IntoResponse for RequestProcessorError {
+impl IntoResponse for ProcessorError {
     fn into_response(self) -> Response {
-        let (status_code, message) = match self {
-            Self::GeneralError(err) => {
-                tracing::error!("Error: {:?}", err);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "An internal error occurred".to_owned(),
-                )
-            }
-            Self::ObjectStore(err) => {
-                tracing::error!("GCS error: {:?}", err);
-                (
-                    StatusCode::BAD_GATEWAY,
-                    "Failed fetching/saving from GCS".to_owned(),
-                )
-            }
-            Self::Dal(err) => {
-                tracing::error!("Sqlx error: {:?}", err);
-                (
-                    StatusCode::BAD_GATEWAY,
-                    "Failed fetching/saving from db".to_owned(),
-                )
-            }
-        };
-        (status_code, message).into_response()
+        (self.status_code(), self.to_string()).into_response()
+    }
+}
+
+impl From<DalError> for ProcessorError {
+    fn from(_err: DalError) -> Self {
+        // We don't want to check if the error is `RowNotFound`: we check that batch exists before
+        // processing a request, so it's handled separately.
+        // Thus, any unhandled error from DAL is an internal error.
+        Self::Internal
     }
 }

@@ -74,3 +74,8 @@ issue is resolved.
 The Node also exposes an additional server that returns HTTP 200 response when the Node is operating normally, and HTTP
 503 response when some of the health checks don't pass (e.g. when the Node is not fully initialized yet). This server
 can be used, for example, to implement the readiness probe in an orchestration solution you use.
+
+## Data Availability fetcher
+
+The Data Availability fetcher is responsible for fetching the DA-related information from the main node. It is only used
+in Validiums, where the pubdata is not stored on L1, but rather in a separate data availability layer.

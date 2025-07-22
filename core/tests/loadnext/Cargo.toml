@@ -17,9 +17,7 @@ zksync_utils.workspace = true
 zksync_eth_signer.workspace = true
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
-zksync_config.workspace = true
 zksync_test_contracts.workspace = true
-zksync_system_constants.workspace = true
 zksync_vlog.workspace = true
 
 async-trait.workspace = true
@@ -34,7 +32,7 @@ hex.workspace = true
 static_assertions.workspace = true
 once_cell.workspace = true
 thiserror.workspace = true
-reqwest = { workspace = true, features = ["blocking", "json"] }
+reqwest = { workspace = true, features = ["blocking"] }
 regex.workspace = true
 vise.workspace = true
 tracing.workspace = true

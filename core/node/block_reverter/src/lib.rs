@@ -1,4 +1,8 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -14,7 +18,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     ethabi::Token,
     settlement::SettlementLayer,
     snapshots::{
@@ -22,9 +26,10 @@ use zksync_types::{
         SnapshotStorageLogsStorageKey,
     },
     web3::BlockNumber,
-    Address, L1BatchNumber, L2ChainId, H160, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -40,7 +45,6 @@ pub struct BlockReverterEthConfig {
     sl_diamond_proxy_addr: H160,
     sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
-    hyperchain_id: L2ChainId,
     settlement_layer: SettlementLayer,
 }
 
@@ -49,18 +53,12 @@ impl BlockReverterEthConfig {
         eth_config: &EthConfig,
         sl_diamond_proxy_addr: Address,
         sl_validator_timelock_addr: Address,
-        hyperchain_id: L2ChainId,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             sl_diamond_proxy_addr,
             sl_validator_timelock_addr,
-            default_priority_fee_per_gas: eth_config
-                .gas_adjuster
-                .as_ref()
-                .context("gas adjuster")?
-                .default_priority_fee_per_gas,
-            hyperchain_id,
+            default_priority_fee_per_gas: eth_config.gas_adjuster.default_priority_fee_per_gas,
             settlement_layer,
         })
     }
@@ -100,8 +98,8 @@ pub struct BlockReverter {
     allow_rolling_back_executed_batches: bool,
     connection_pool: ConnectionPool<Core>,
     should_roll_back_postgres: bool,
-    storage_cache_paths: Vec<String>,
-    merkle_tree_path: Option<String>,
+    storage_cache_paths: Vec<PathBuf>,
+    merkle_tree_path: Option<PathBuf>,
     snapshots_object_store: Option<Arc<dyn ObjectStore>>,
 }
 
@@ -133,12 +131,12 @@ impl BlockReverter {
         self
     }
 
-    pub fn enable_rolling_back_merkle_tree(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_merkle_tree(&mut self, path: PathBuf) -> &mut Self {
         self.merkle_tree_path = Some(path);
         self
     }
 
-    pub fn add_rocksdb_storage_path_to_rollback(&mut self, path: String) -> &mut Self {
+    pub fn add_rocksdb_storage_path_to_rollback(&mut self, path: PathBuf) -> &mut Self {
         self.storage_cache_paths.push(path);
         self
     }
@@ -152,9 +150,13 @@ impl BlockReverter {
     }
 
     /// Rolls back previously enabled DBs (Postgres + RocksDB) and the snapshot object store to a previous state.
+    #[tracing::instrument(skip(self), err)]
     pub async fn roll_back(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         if !self.allow_rolling_back_executed_batches {
-            let mut storage = self.connection_pool.connection().await?;
+            let mut storage = self
+                .connection_pool
+                .connection_tagged("block_reverter")
+                .await?;
             let last_executed_l1_batch = storage
                 .blocks_dal()
                 .get_number_of_last_l1_batch_executed_on_eth()
@@ -191,14 +193,26 @@ impl BlockReverter {
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         if let Some(merkle_tree_path) = &self.merkle_tree_path {
-            let storage_root_hash = self
+            let mut connection = self
                 .connection_pool
-                .connection()
-                .await?
+                .connection_tagged("block_reverter")
+                .await?;
+            let storage_root_hash = connection
                 .blocks_dal()
                 .get_l1_batch_state_root(last_l1_batch_to_keep)
-                .await?
-                .context("no state root hash for target L1 batch")?;
+                .await?;
+            let Some(storage_root_hash) = storage_root_hash else {
+                let latest_l1_batch = connection.blocks_dal().get_sealed_l1_batch_number().await?;
+                let earliest_l1_batch = connection
+                    .blocks_dal()
+                    .get_earliest_l1_batch_number()
+                    .await?;
+                anyhow::bail!(
+                    "no state root hash for target L1 batch #{last_l1_batch_to_keep}; \
+                     Postgres contains batches from {earliest_l1_batch:?} to {latest_l1_batch:?} (both inclusive)"
+                );
+            };
+            drop(connection);
 
             let merkle_tree_path = Path::new(merkle_tree_path);
             let merkle_tree_exists = fs::try_exists(merkle_tree_path).await.with_context(|| {
@@ -232,12 +246,12 @@ impl BlockReverter {
 
         for storage_cache_path in &self.storage_cache_paths {
             let sk_cache_exists = fs::try_exists(storage_cache_path).await.with_context(|| {
-                format!("cannot check whether storage cache path `{storage_cache_path}` exists")
+                format!("cannot check whether storage cache path `{storage_cache_path:?}` exists")
             })?;
-            anyhow::ensure!(
-                sk_cache_exists,
-                "Path with storage cache DB doesn't exist at `{storage_cache_path}`"
-            );
+            if !sk_cache_exists {
+                tracing::info!("Storage cache doesn't exist at `{storage_cache_path:?}`; skipping");
+                continue;
+            }
             self.roll_back_storage_cache(last_l1_batch_to_keep, storage_cache_path)
                 .await?;
         }
@@ -275,15 +289,24 @@ impl BlockReverter {
     async fn roll_back_storage_cache(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
-        storage_cache_path: &str,
+        storage_cache_path: &Path,
     ) -> anyhow::Result<()> {
-        tracing::info!("Opening DB with storage cache at `{storage_cache_path}`");
-        let sk_cache = RocksdbStorage::builder(storage_cache_path.as_ref())
+        tracing::info!("Opening DB with storage cache at `{storage_cache_path:?}`");
+        let sk_cache = RocksdbStorage::builder(storage_cache_path)
             .await
             .context("failed initializing storage cache")?;
+        let Some(mut sk_cache) = sk_cache.get().await else {
+            tracing::info!(
+                "Storage cache at `{storage_cache_path:?}` is not initialized; nothing to do"
+            );
+            return Ok(());
+        };
 
-        if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
-            let mut storage = self.connection_pool.connection().await?;
+        if sk_cache.next_l1_batch_number().await > last_l1_batch_to_keep + 1 {
+            let mut storage = self
+                .connection_pool
+                .connection_tagged("block_reverter")
+                .await?;
             tracing::info!("Rolling back storage cache");
             sk_cache
                 .roll_back(&mut storage, last_l1_batch_to_keep)
@@ -302,7 +325,10 @@ impl BlockReverter {
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<Vec<SnapshotMetadata>> {
         tracing::info!("Rolling back Postgres data");
-        let mut storage = self.connection_pool.connection().await?;
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("block_reverter")
+            .await?;
         let mut transaction = storage.start_transaction().await?;
 
         let (_, last_l2_block_to_keep) = transaction
@@ -381,6 +407,14 @@ impl BlockReverter {
             .blocks_dal()
             .delete_l2_blocks(last_l2_block_to_keep)
             .await?;
+
+        if self.node_role == NodeRole::External {
+            tracing::info!("Rolling back consistency checker index");
+            transaction
+                .blocks_dal()
+                .set_consistency_checker_last_processed_l1_batch(last_l1_batch_to_keep)
+                .await?;
+        }
 
         if self.node_role == NodeRole::Main {
             tracing::info!("Performing consensus hard fork");
@@ -502,7 +536,7 @@ impl BlockReverter {
             .context("`revertBatchesSharedBridge` function must be present in contract")?;
         let data = revert_function
             .encode_input(&[
-                Token::Uint(eth_config.hyperchain_id.as_u64().into()),
+                Token::Address(eth_config.sl_diamond_proxy_addr),
                 Token::Uint(last_l1_batch_to_keep.0.into()),
             ])
             .context("failed encoding `revertBatchesSharedBridge` input")?;
@@ -555,12 +589,12 @@ impl BlockReverter {
     async fn get_l1_batch_number_from_contract(
         eth_client: &dyn EthInterface,
         contract_address: Address,
-        op: AggregatedActionType,
+        op: L1BatchAggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
         let function_name = match op {
-            AggregatedActionType::Commit => "getTotalBatchesCommitted",
-            AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
-            AggregatedActionType::Execute => "getTotalBatchesExecuted",
+            L1BatchAggregatedActionType::Commit => "getTotalBatchesCommitted",
+            L1BatchAggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
+            L1BatchAggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
             .for_contract(contract_address, &hyperchain_contract())
@@ -586,19 +620,19 @@ impl BlockReverter {
         let last_committed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await?;
         let last_verified_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await?;
         let last_executed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::Execute,
+            L1BatchAggregatedActionType::Execute,
         )
         .await?;
 
@@ -625,7 +659,7 @@ impl BlockReverter {
     pub async fn clear_failed_l1_transactions(&self) -> anyhow::Result<()> {
         tracing::info!("Clearing failed L1 transactions");
         self.connection_pool
-            .connection()
+            .connection_tagged("block_reverter")
             .await?
             .eth_sender_dal()
             .clear_failed_transactions()

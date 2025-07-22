@@ -2,14 +2,14 @@ use std::time::Duration;
 
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
-    Metrics,
+    Metrics, Unit,
 };
+use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_types::{
-    api::state_override::{OverrideState, StateOverride},
+    api::state_override::{BytecodeOverride, OverrideState, StateOverride},
+    bytecode::BytecodeMarker,
     H256,
 };
-
-use crate::utils::ReportFilter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -100,11 +100,39 @@ struct StateOverrideLabels {
     kind: OverrideKind,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum BytecodeMarkerLabel {
+    EraVm,
+    DetectedEraVm,
+    Evm,
+    DetectedEvm,
+}
+
+impl BytecodeMarkerLabel {
+    fn detected(kind: BytecodeMarker) -> Self {
+        match kind {
+            BytecodeMarker::EraVm => Self::DetectedEraVm,
+            BytecodeMarker::Evm => Self::DetectedEvm,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct BytecodeOverrideLabels {
+    method: &'static str,
+    kind: BytecodeMarkerLabel,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_web3")]
 pub(crate) struct SandboxMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub(super) sandbox: Family<SandboxStage, Histogram<Duration>>,
+    /// Latency of interrupted VM executions. VM execution is interrupted if the future containing it is dropped
+    /// (e.g., on a client-side or server-side request timeout).
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub(crate) sandbox_interrupted_execution_latency: Histogram<Duration>,
     #[metrics(buckets = Buckets::linear(0.0..=2_000.0, 200.0))]
     pub(super) sandbox_execution_permits: Histogram<usize>,
     #[metrics(buckets = Buckets::LATENCIES)]
@@ -123,6 +151,8 @@ pub(crate) struct SandboxMetrics {
     pub estimate_gas_optimistic_gas_limit_relative_diff: Histogram<f64>,
     /// Statistics on state overrides.
     state_overrides: Family<StateOverrideLabels, Counter>,
+    /// Statistics on bytecode kinds supplied in overrides.
+    bytecode_overrides: Family<BytecodeOverrideLabels, Counter>,
 }
 
 impl SandboxMetrics {
@@ -140,8 +170,23 @@ impl SandboxMetrics {
 
     pub fn observe_override_metrics(&self, method: &'static str, state_overrides: &StateOverride) {
         for (_, account_override) in state_overrides.iter() {
-            if account_override.code.is_some() {
+            if let Some(code_override) = &account_override.code {
                 self.state_overrides[&OverrideKind::Code.for_method(method)].inc();
+
+                let bytecode_kind = match code_override {
+                    BytecodeOverride::Evm(_) => BytecodeMarkerLabel::Evm,
+                    BytecodeOverride::EraVm(_) => BytecodeMarkerLabel::EraVm,
+                    BytecodeOverride::Unspecified(bytes) => {
+                        // Bytecode kind detection is very cheap, so it's permissible to do it here
+                        let kind = BytecodeMarker::detect(&bytes.0);
+                        BytecodeMarkerLabel::detected(kind)
+                    }
+                };
+                let labels = BytecodeOverrideLabels {
+                    method,
+                    kind: bytecode_kind,
+                };
+                self.bytecode_overrides[&labels].inc();
             }
             if account_override.nonce.is_some() {
                 self.state_overrides[&OverrideKind::Nonce.for_method(method)].inc();

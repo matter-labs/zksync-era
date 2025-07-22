@@ -1,6 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, result::Result, sync::Arc};
 
-use anyhow::{anyhow, Context, Ok, Result};
+use anyhow::{anyhow, Context, Ok};
 use futures::future;
 use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
@@ -8,30 +8,22 @@ use reqwest::{
 };
 use tokio::sync::Mutex;
 use url::Url;
+use zksync_prover_task::Task;
 
 use crate::{
     agent::{ScaleRequest, ScaleResponse},
     cluster_types::{Cluster, ClusterName, Clusters},
     http_client::HttpClient,
-    task_wiring::Task,
+    metrics::AUTOSCALER_METRICS,
 };
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WatchedData {
     pub clusters: Clusters,
     pub is_ready: Vec<bool>,
 }
 
-pub fn check_is_ready(v: &Vec<bool>) -> Result<()> {
-    for b in v {
-        if !b {
-            return Err(anyhow!("Clusters data is not ready"));
-        }
-    }
-    Ok(())
-}
-
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Watcher {
     http_client: HttpClient,
     /// List of base URLs of all agents.
@@ -60,6 +52,31 @@ impl Watcher {
                 is_ready: vec![false; size],
             })),
         }
+    }
+
+    pub fn check_is_ready(&self, watched_data: &WatchedData) -> anyhow::Result<()> {
+        let mut ready_count = 0;
+        for (id, is_agent_ready) in watched_data.is_ready.iter().enumerate() {
+            if *is_agent_ready {
+                ready_count += 1;
+            } else {
+                let agent_url_str = self.cluster_agents[id].to_string();
+                AUTOSCALER_METRICS.agent_not_ready[&agent_url_str].inc();
+                tracing::warn!("Agent at URL '{}' (id {}) is not ready.", agent_url_str, id);
+            }
+        }
+
+        if ready_count == 0 {
+            return Err(anyhow::anyhow!("All cluster agents are not ready"));
+        }
+        if ready_count < watched_data.is_ready.len() {
+            tracing::warn!(
+                "{} out of {} cluster agents are ready. Proceeding with available agents.",
+                ready_count,
+                watched_data.is_ready.len()
+            );
+        }
+        Ok(())
     }
 
     pub async fn send_scale(
@@ -153,61 +170,88 @@ impl Watcher {
 
         Ok(())
     }
+
+    pub fn create_poller_tasks(&self) -> impl Iterator<Item = AgentPoller> + '_ {
+        self.cluster_agents.iter().enumerate().map(|(id, url)| {
+            AgentPoller::new(id, url.clone(), self.http_client.clone(), self.data.clone())
+        })
+    }
+}
+
+pub struct AgentPoller {
+    agent_id: usize,
+    agent_url: Arc<Url>,
+    http_client: HttpClient,
+    data: Arc<Mutex<WatchedData>>,
+}
+
+impl AgentPoller {
+    pub fn new(
+        agent_id: usize,
+        agent_url: Arc<Url>,
+        http_client: HttpClient,
+        data: Arc<Mutex<WatchedData>>,
+    ) -> Self {
+        Self {
+            agent_id,
+            agent_url,
+            http_client,
+            data,
+        }
+    }
 }
 
 #[async_trait::async_trait]
-impl Task for Watcher {
+impl Task for AgentPoller {
     async fn invoke(&self) -> anyhow::Result<()> {
-        let handles: Vec<_> = self
-            .cluster_agents
-            .clone()
-            .into_iter()
-            .enumerate()
-            .map(|(i, a)| {
-                tracing::debug!("Getting cluster data from agent {}", a);
-                let http_client = self.http_client.clone();
-                tokio::spawn(async move {
-                    let url: String = a
-                        .clone()
-                        .join("/cluster")
-                        .context("Failed to join URL with /cluster")?
-                        .to_string();
-                    let response = http_client
-                        .send_request_with_retries(&url, Method::GET, None, None)
-                        .await;
+        let url = self
+            .agent_url
+            .join("/cluster")
+            .context("Failed to join URL with /cluster")?
+            .to_string();
+        let agent_url = self.agent_url.to_string();
 
-                    let response = response.map_err(|err| {
-                        anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
-                    })?;
-                    let response = response
-                        .json::<Cluster>()
-                        .await
-                        .context("Failed to read response as json");
-                    Ok((i, response))
-                })
-            })
-            .collect();
-
-        future::try_join_all(
-            future::join_all(handles)
-                .await
-                .into_iter()
-                .map(|h| async move {
-                    let (i, res) = h??;
-                    let cluster = res?;
+        tracing::debug!("AgentPoller: Getting cluster data from agent {}", url);
+        match self
+            .http_client
+            .send_request_with_retries(&url, Method::GET, None, None)
+            .await
+        {
+            Err(http_err) => {
+                tracing::error!(
+                    "AgentPoller: Failed fetching cluster data from agent {}: {:?}",
+                    agent_url,
+                    http_err
+                );
+                AUTOSCALER_METRICS.agent_not_ready[&agent_url].inc();
+                let mut guard = self.data.lock().await;
+                guard.is_ready[self.agent_id] = false;
+            }
+            Result::Ok(response) => match response.json::<Cluster>().await {
+                Err(json_err) => {
+                    tracing::error!(
+                        "AgentPoller: Failed to parse JSON cluster data from agent {}: {:?}",
+                        agent_url,
+                        json_err
+                    );
+                    AUTOSCALER_METRICS.agent_not_ready[&agent_url].inc();
                     let mut guard = self.data.lock().await;
-                    guard.clusters.agent_ids.insert(cluster.name.clone(), i);
+                    guard.is_ready[self.agent_id] = false;
+                }
+                Result::Ok(cluster) => {
+                    let mut guard = self.data.lock().await;
+                    guard
+                        .clusters
+                        .agent_ids
+                        .insert(cluster.name.clone(), self.agent_id);
                     guard
                         .clusters
                         .clusters
                         .insert(cluster.name.clone(), cluster);
-                    guard.is_ready[i] = true;
-                    Ok(())
-                })
-                .collect::<Vec<_>>(),
-        )
-        .await?;
-
+                    guard.is_ready[self.agent_id] = true;
+                }
+            },
+        }
         Ok(())
     }
 }

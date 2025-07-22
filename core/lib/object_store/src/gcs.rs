@@ -1,6 +1,6 @@
 //! GCS-based [`ObjectStore`] implementation.
 
-use std::{error::Error as StdError, fmt, io};
+use std::{error::Error as StdError, fmt, io, path::PathBuf};
 
 use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error as AuthError};
@@ -50,7 +50,7 @@ impl fmt::Debug for GoogleCloudStore {
 #[non_exhaustive]
 pub enum GoogleCloudStoreAuthMode {
     /// Authentication via a credentials file at the specified path.
-    AuthenticatedWithCredentialFile(String),
+    AuthenticatedWithCredentialFile(PathBuf),
     /// Ambient authentication (works if the binary runs on Google Cloud).
     Authenticated,
     /// Anonymous access (only works for public GCS buckets for read operations).
@@ -89,6 +89,8 @@ impl GoogleCloudStore {
     ) -> Result<ClientConfig, AuthError> {
         match auth_mode {
             GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(path) => {
+                // The `google_cloud_auth` API requests a string here (an owned one at that!), but converts it to a `Path` internally. Welp.
+                let path = path.into_os_string().into_string().expect("non-UTF8 path");
                 let cred_file = CredentialsFile::new_from_file(path).await?;
                 ClientConfig::default().with_credentials(cred_file).await
             }
@@ -158,7 +160,7 @@ impl From<HttpError> for ObjectStoreError {
         let is_not_found = match &err {
             HttpError::HttpClient(err) => err
                 .status()
-                .map_or(false, |status| matches!(status, StatusCode::NOT_FOUND)),
+                .is_some_and(|status| matches!(status, StatusCode::NOT_FOUND)),
             HttpError::Response(response) => response.code == StatusCode::NOT_FOUND.as_u16(),
             _ => false,
         };

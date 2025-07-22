@@ -6,9 +6,10 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
 use tokio::sync::watch;
-use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
-use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
+use zksync_types::{
+    api, settlement::SettlementLayer, Address, Bloom, L1BatchNumber, H160, H256, U64,
+};
 use zksync_web3_decl::{
     client::{WsClient, L2},
     jsonrpsee::{
@@ -109,10 +110,9 @@ async fn notifiers_start_after_snapshot_recovery() {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
-    let mut subscribe_logic = EthSubscribe::new();
+    let mut subscribe_logic = EthSubscribe::new(POLL_INTERVAL);
     subscribe_logic.set_events_sender(events_sender);
-    let notifier_handles =
-        subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, stop_receiver);
+    let notifier_handles = subscribe_logic.spawn_notifiers(pool.clone(), &stop_receiver);
     assert!(!notifier_handles.is_empty());
 
     // Wait a little doing nothing and check that notifier tasks are still active (i.e., have not panicked).
@@ -164,7 +164,6 @@ trait WsTest: Send + Sync {
 
 async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let network_config = NetworkConfig::for_tests();
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis_config = GenesisConfig::for_tests();
@@ -175,10 +174,11 @@ async fn test_ws_server(test: impl WsTest) {
         &contracts_config.l2_contracts(),
         &genesis_config,
         false,
+        SettlementLayer::for_tests(),
     );
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
-        .prepare_storage(&network_config, &mut storage)
+        .prepare_storage(&mut storage)
         .await
         .expect("Failed preparing storage for test");
     drop(storage);

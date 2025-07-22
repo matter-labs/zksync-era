@@ -4,7 +4,7 @@
   - [Overview](./overview.md)
   - [Blocks and Batches](./blocks_batches.md)
   - [L1 Smart Contracts](./l1_smart_contracts.md)
-- [Contracts](./contracts/overview.md)
+<!-- - [Contracts](./contracts/overview.md)
   - [Chain Management](./contracts/chain_management/overview.md)
     - [Bridgehub](./contracts/chain_management/bridgehub.md)
     - [Chain type manager](./contracts/chain_management/chain_type_manager.md)
@@ -40,7 +40,7 @@
     - [Precompiles](./contracts/l2_system_contracts/elliptic_curve_precompiles.md)
 - [Upgrade history](./upgrade_history/gateway_upgrade/README.md)
   - [Gateway upgrade diff](./upgrade_history/gateway_upgrade/gateway_diff_review.md)
-  - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md)
+  - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md) -->
 - [Prover](./prover/overview.md)
   - [Getting Started](./prover/getting_started.md)
   - [ZK Terminology](./prover/zk_terminology.md)

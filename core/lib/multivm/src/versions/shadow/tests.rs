@@ -125,8 +125,8 @@ where
 
     fn push_l2_block_unchecked(&mut self, block: L2BlockEnv) {
         self.get_mut("push_l2_block_unchecked", |r| match r {
-            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block),
-            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block),
+            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block.clone()),
+            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block.clone()),
         });
     }
 
@@ -582,6 +582,31 @@ mod precompiles {
     #[test]
     fn ecrecover() {
         test_ecrecover::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecadd() {
+        test_ecadd::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecmul() {
+        test_ecmul::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecpairing() {
+        test_ecpairing::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn modexp() {
+        test_modexp::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn v28_precompiles_disabled() {
+        test_v28_precompiles_disabled::<super::ShadowedFastVm>();
     }
 }
 

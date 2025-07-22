@@ -1,30 +1,35 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::{anyhow, Context as _};
-use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use structopt::StructOpt;
-use tokio::sync::watch;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
+use zksync_config::{
+    configs::{GeneralConfig, PostgresSecrets},
+    full_config_schema,
+    sources::ConfigFilePaths,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-use zksync_vlog::prometheus::PrometheusExporterConfig;
-use zksync_witness_generator::{
-    metrics::SERVER_METRICS,
-    rounds::{
-        BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler, WitnessGenerator,
-    },
+use zksync_witness_generator::metrics::SERVER_METRICS;
+use zksync_witness_generator_service::{
+    rounds::{BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler},
+    witness_generator_runner,
 };
+
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(20);
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -92,62 +97,77 @@ async fn ensure_protocol_alignment(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
+
+    let cancellation_token = CancellationToken::new();
+    let mut managed_tasks = ManagedTasks::new(vec![]);
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+
+    tokio::select! {
+        res = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {
+            res.context("Failed to run witness generator")?;
+        },
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
+        }
+    }
+    let shutdown_time = Instant::now();
+    cancellation_token.cancel();
+    metrics_stop_sender
+        .send(true)
+        .context("failed to stop metrics")?;
+    managed_tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
+    Ok(())
+}
+
+async fn run_inner(
+    cancellation_token: CancellationToken,
+    metrics_stop_receiver: tokio::sync::watch::Receiver<bool>,
+    managed_tasks: &mut ManagedTasks,
+) -> anyhow::Result<()> {
     let opt = Opt::from_args();
+    let schema = full_config_schema();
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
-
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
-
+    let mut repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
     let started_at = Instant::now();
 
     let prover_config = general_config.prover_config.context("prover config")?;
-    let object_store_config = ProverObjectStoreConfig(
-        prover_config
-            .prover_object_store
-            .context("object store")?
-            .clone(),
-    );
-    let store_factory = ObjectStoreFactory::new(object_store_config.0);
+    let object_store_config = prover_config.prover_object_store;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
     let config = general_config
         .witness_generator_config
         .context("witness generator config")?
         .clone();
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
-    let prometheus_config = general_config
+    let prometheus_exporter_config = general_config
         .prometheus_config
-        .context("missing prometheus config")?;
-
-    let prometheus_exporter_config = if prometheus_config.pushgateway_url.is_some() {
-        let url = prometheus_config
-            .gateway_endpoint()
-            .context("missing prometheus gateway endpoint")?;
-        tracing::info!("Using Prometheus push gateway: {}", url);
-        PrometheusExporterConfig::push(url, prometheus_config.push_interval())
-    } else {
-        let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
-            port
-        } else {
-            prometheus_config.listener_port
-        };
-        tracing::info!(
-            "Using Prometheus pull on port: {}",
-            prometheus_listener_port
-        );
-        PrometheusExporterConfig::pull(prometheus_listener_port)
-    };
+        .build_exporter_config(config.prometheus_listener_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
     let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;
-    let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
@@ -176,10 +196,11 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let prometheus_task = prometheus_exporter_config.run(stop_receiver.clone());
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(metrics_stop_receiver),
+    )];
 
-    let mut tasks = Vec::new();
-    tasks.push(tokio::spawn(prometheus_task));
+    let keystore = Arc::new(keystore);
 
     for round in rounds {
         tracing::info!(
@@ -189,60 +210,65 @@ async fn main() -> anyhow::Result<()> {
             &protocol_version
         );
 
-        let witness_generator_task = match round {
+        let witness_generator_tasks = match round {
             AggregationRound::BasicCircuits => {
-                let generator = WitnessGenerator::<BasicCircuits>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<BasicCircuits>(
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::LeafAggregation => {
-                let generator = WitnessGenerator::<LeafAggregation>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<LeafAggregation>(
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::NodeAggregation => {
-                let generator = WitnessGenerator::<NodeAggregation>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<NodeAggregation>(
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::RecursionTip => {
-                let generator = WitnessGenerator::<RecursionTip>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<RecursionTip>(
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::Scheduler => {
-                let generator = WitnessGenerator::<Scheduler>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<Scheduler>(
+                    config.max_circuits_in_flight,
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
         };
 
-        tasks.push(tokio::spawn(witness_generator_task));
+        tasks.extend(witness_generator_tasks);
 
         tracing::info!(
             "initialized {:?} witness generator in {:?}",
@@ -252,21 +278,7 @@ async fn main() -> anyhow::Result<()> {
         SERVER_METRICS.init_latency[&round.into()].set(started_at.elapsed());
     }
 
-    let (mut stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
-    ctrlc::set_handler(move || {
-        block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
-    })
-    .expect("Error setting Ctrl+C handler");
-    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
-    tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = stop_signal_receiver.next() => {
-            tracing::info!("Stop signal received, shutting down");
-        }
-    }
-
-    stop_sender.send_replace(true);
-    tasks.complete(Duration::from_secs(5)).await;
-    tracing::info!("Finished witness generation");
+    *managed_tasks = ManagedTasks::new(tasks);
+    managed_tasks.wait_single().await;
     Ok(())
 }

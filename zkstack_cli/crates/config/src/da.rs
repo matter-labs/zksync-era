@@ -6,7 +6,6 @@ use serde::Serialize;
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
-    pub finality_state: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -16,7 +15,7 @@ pub struct AvailGasRelayConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "avail_client_type")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),

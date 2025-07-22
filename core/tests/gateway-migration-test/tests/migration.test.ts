@@ -11,7 +11,7 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 
 async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
+    return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
 }
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -38,6 +38,7 @@ describe('Migration From/To gateway test', function () {
 
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
+    let gwMainContract: ethers.Contract;
 
     let gatewayChain: string;
     let logs: fs.FileHandle;
@@ -48,8 +49,8 @@ describe('Migration From/To gateway test', function () {
     let mainNodeSpawner: utils.NodeSpawner;
 
     before('Create test wallet', async () => {
-        logs = await fs.open(await logsPath('migration.log'), 'a');
         direction = process.env.DIRECTION || 'TO';
+        logs = await fs.open(await logsPath(`migration_${direction}.log`), 'a');
         console.log(`Start Migration ${direction} gateway`);
         gatewayChain = process.env.GATEWAY_CHAIN || 'gateway';
 
@@ -76,7 +77,7 @@ describe('Migration From/To gateway test', function () {
         web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
-            enableConsensus: false,
+            enableConsensus: true,
             ethClientWeb3Url: ethProviderAddress!,
             apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
             baseTokenAddress: contractsConfig.l1.base_token_addr
@@ -141,9 +142,9 @@ describe('Migration From/To gateway test', function () {
 
     step('Migrate to/from gateway', async () => {
         if (direction == 'TO') {
-            await utils.spawn(`zkstack chain notify-about-to-gateway-update --chain ${fileConfig.chain}`);
+            await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`);
         } else {
-            await utils.spawn(`zkstack chain notify-about-from-gateway-update --chain ${fileConfig.chain}`);
+            await utils.spawn(`zkstack chain gateway notify-about-from-gateway-update --chain ${fileConfig.chain}`);
         }
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
@@ -155,11 +156,11 @@ describe('Migration From/To gateway test', function () {
 
         if (direction == 'TO') {
             await utils.spawn(
-                `zkstack chain migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         } else {
             await utils.spawn(
-                `zkstack chain migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         }
         await mainNodeSpawner.mainNode?.waitForShutdown();
@@ -174,13 +175,16 @@ describe('Migration From/To gateway test', function () {
             ZK_CHAIN_INTERFACE,
             gatewayInfo?.gatewayProvider
         );
+
+        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
+        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
+
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
             expect(slAddressl1 != ZeroAddress);
             expect(slAddressGW == ZeroAddress);
         } else {
-            let slAddressl1 = await l1MainContract.getSettlementLayer();
             expect(slAddressl1 == ZeroAddress);
             expect(slAddressGW != ZeroAddress);
         }
@@ -198,6 +202,24 @@ describe('Migration From/To gateway test', function () {
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
+    });
+
+    /// Verify that the precommits are enabled on the gateway. This check is enough for making sure
+    // precommits are working correctly. The rest of the checks are done by contract.
+    step('Verify precommits', async () => {
+        let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
+        while (gwCommittedBatches === 1) {
+            console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
+            await utils.sleep(1);
+        }
+
+        // Now we sure that we have at least one batch was committed from the gateway
+
+        const currentBlock = await tester.ethProvider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 50000);
+        const filter = gwMainContract.filters.BatchPrecommitmentSet();
+        const events = await gwMainContract.queryFilter(filter, fromBlock, 'latest');
+        expect(events.length > 0, 'No precommitment events found on the gateway').to.be.true;
     });
 
     after('Try killing server', async () => {

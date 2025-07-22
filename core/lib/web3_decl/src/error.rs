@@ -63,7 +63,7 @@ pub struct EnrichedClientError {
 }
 
 /// Whether the error should be considered retriable.
-pub fn is_retriable(err: &ClientError) -> bool {
+pub fn is_retryable(err: &ClientError) -> bool {
     match err {
         ClientError::Transport(_) | ClientError::RequestTimeout => true,
         ClientError::Call(err) => {
@@ -101,9 +101,13 @@ impl EnrichedClientError {
         self
     }
 
-    /// Whether the error should be considered retriable.
-    pub fn is_retriable(&self) -> bool {
-        is_retriable(&self.inner_error)
+    /// Whether the error should be considered retryable.
+    pub fn is_retryable(&self) -> bool {
+        is_retryable(&self.inner_error)
+    }
+
+    pub fn is_timeout(&self) -> bool {
+        matches!(self.inner_error, ClientError::RequestTimeout)
     }
 }
 
@@ -204,14 +208,14 @@ where
 /// Extension trait allowing to add context to client RPC calls. Can be used on any future resolving to `Result<_, ClientError>`.
 pub trait ClientRpcContext: Sized {
     /// Adds basic context information: the name of the invoked RPC method.
-    fn rpc_context(self, method: &'static str) -> ClientCallWrapper<Self>;
+    fn rpc_context(self, method: &'static str) -> ClientCallWrapper<'static, Self>;
 }
 
 impl<T, F> ClientRpcContext for F
 where
     F: Future<Output = Result<T, ClientError>>,
 {
-    fn rpc_context(self, method: &'static str) -> ClientCallWrapper<Self> {
+    fn rpc_context(self, method: &'static str) -> ClientCallWrapper<'static, Self> {
         ClientCallWrapper {
             inner: self,
             method,

@@ -6,8 +6,8 @@ use std::{
 };
 
 use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
-    Metrics,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    LatencyObserver, Metrics, Unit,
 };
 use zksync_mempool::MempoolStore;
 use zksync_multivm::interface::{DeduplicatedWritesMetrics, VmRevertReason};
@@ -94,9 +94,9 @@ pub struct StateKeeperMetrics {
     /// The time it takes for state keeper to wait for tx execution result from batch executor.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub execute_tx_outer_time: Histogram<Duration>,
-    /// The time it takes for one iteration of the main loop in `process_l1_batch`.
+    /// The time it takes for one iteration of the main loop in `process_block`.
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub process_l1_batch_loop_iteration: Histogram<Duration>,
+    pub process_block_loop_iteration: Histogram<Duration>,
     /// The time it takes to wait for new L2 block parameters
     #[metrics(buckets = Buckets::LATENCIES)]
     pub wait_for_l2_block_params: Histogram<Duration>,
@@ -220,6 +220,8 @@ struct TxAggregationLabels {
 pub(super) struct TxAggregationMetrics {
     reason: Family<TxAggregationLabels, Counter>,
     l2_block_reason: Family<L2BlockSealReason, Counter>,
+    #[metrics(labels = ["criterion"], buckets = Buckets::ZERO_TO_ONE, unit = Unit::Ratios)]
+    criterion_capacity_filled: LabeledFamily<&'static str, Histogram>,
 }
 
 impl TxAggregationMetrics {
@@ -241,6 +243,10 @@ impl TxAggregationMetrics {
 
     pub fn l2_block_reason_inc(&self, reason: &L2BlockSealReason) {
         self.l2_block_reason[reason].inc();
+    }
+
+    pub fn record_criterion_capacity(&self, criterion: &'static str, value: f64) {
+        self.criterion_capacity_filled[&criterion].observe(value)
     }
 }
 
@@ -343,6 +349,7 @@ pub(super) enum L2BlockSealStage {
     InsertL2ToL1Logs,
     ReportTxMetrics,
     CalculateLogsBloom,
+    MarkInteropRootsAsSealed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]

@@ -18,11 +18,11 @@ List of contracts and abbreviations:
 - Chain Manager Contracts
   - Bridgehub
 
-    Main ecosystem contract. Tracks all the chains and their types (i.e. CTMs), based on their chain ID and addresses. This is where new chains register. In previous versions had some features of the InteropCenter, so it has some legacy functions (only available on L1). 
+    Main ecosystem contract. Tracks all the chains and their types (i.e. CTMs), based on their chain ID and addresses. This is where new chains register. 
 
-  - ChainTypManager (CTM) Contract: 
+  - ChainTypeManager (CTM) Contract:
   
-    used to coordinate upgrades for a certain chain classes. Chains of different CTMs can still interoperate. We only support a single CTM currently. 
+    used to coordinate upgrades for a certain chain classes. We only support a single CTM currently. 
   
   - CTMDeploymentTracker: 
 

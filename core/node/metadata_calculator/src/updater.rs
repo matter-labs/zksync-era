@@ -11,8 +11,8 @@ use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
-    block::{L1BatchStatistics, L1BatchTreeData},
-    L1BatchNumber,
+    block::{CommonBlockStatistics, L1BatchTreeData},
+    L1BatchNumber, OrStopped,
 };
 
 use super::helpers::{AsyncTree, Delayer, L1BatchWithLogs};
@@ -40,10 +40,11 @@ impl TreeUpdater {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(l1_batch.number = l1_batch.stats.number))]
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
-    ) -> anyhow::Result<(L1BatchStatistics, TreeMetadata, Option<String>)> {
+    ) -> anyhow::Result<(CommonBlockStatistics, TreeMetadata, Option<String>)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
         let l1_batch_stats = l1_batch.stats;
         let l1_batch_number = l1_batch_stats.number;
@@ -56,7 +57,7 @@ impl TreeUpdater {
                 witness_input.context("no witness input provided by tree; this is a bug")?;
             let save_witnesses_latency = METRICS.start_stage(TreeUpdateStage::SaveGcs);
             let object_key = object_store
-                .put(l1_batch_number, &witness_input)
+                .put(l1_batch_number.into(), &witness_input)
                 .await
                 .context("cannot save witness input to object store")?;
             save_witnesses_latency.observe();
@@ -83,6 +84,7 @@ impl TreeUpdater {
     /// the first L1 batch data beforehand.) This allows saving some time if we actually process
     /// multiple L1 batches at once (e.g., during the initial tree syncing), and if loading data from Postgres
     /// is slow for whatever reason.
+    #[tracing::instrument(skip(self, pool), err)]
     async fn process_multiple_batches(
         &mut self,
         pool: &ConnectionPool<Core>,
@@ -183,7 +185,7 @@ impl TreeUpdater {
     ) -> anyhow::Result<()> {
         let pruning_info = storage.pruning_dal().get_pruning_info().await?;
         anyhow::ensure!(
-            pruning_info.last_soft_pruned.map_or(true, |info| info.l1_batch < l1_batch_number),
+            pruning_info.last_soft_pruned.is_none_or(|info| info.l1_batch < l1_batch_number),
             "L1 batch #{l1_batch_number}, next to be processed by the tree, is pruned; the tree cannot continue operating"
         );
         Ok(())
@@ -254,7 +256,7 @@ impl TreeUpdater {
 
         loop {
             if *stop_receiver.borrow_and_update() {
-                tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                tracing::info!("Stop request received, metadata_calculator is shutting down");
                 break;
             }
 
@@ -277,7 +279,7 @@ impl TreeUpdater {
             // and the stop receiver still allows to be more responsive during shutdown.
             tokio::select! {
                 _ = stop_receiver.changed() => {
-                    tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                    tracing::info!("Stop request received, metadata_calculator is shutting down");
                     break;
                 }
                 () = delay => { /* The delay has passed */ }
@@ -409,12 +411,9 @@ impl AsyncTree {
         delayer: &Delayer,
         pool: &ConnectionPool<Core>,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        let Some(earliest_l1_batch) =
-            wait_for_l1_batch(pool, delayer.delay_interval(), stop_receiver).await?
-        else {
-            return Ok(()); // Stop signal received
-        };
+    ) -> Result<(), OrStopped> {
+        let earliest_l1_batch =
+            wait_for_l1_batch(pool, delayer.delay_interval(), stop_receiver).await?;
         let mut storage = pool.connection_tagged("metadata_calculator").await?;
 
         self.ensure_genesis(&mut storage, earliest_l1_batch).await?;

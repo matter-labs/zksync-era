@@ -1,12 +1,12 @@
-use zksync_config::GenesisConfig;
 use zksync_types::{
-    api::{en, EcosystemContracts},
+    api::{en, ProtocolVersionInfo},
     tokens::TokenInfo,
     Address, L2BlockNumber,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::EnNamespaceServer,
+    types::{EcosystemContractsDto, GenesisConfigDto},
 };
 
 use crate::web3::namespaces::EnNamespace;
@@ -29,18 +29,6 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>> {
-        self.consensus_genesis_impl()
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>> {
-        self.attestation_status_impl()
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
     async fn block_metadata(
         &self,
         block_number: L2BlockNumber,
@@ -56,7 +44,7 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn genesis_config(&self) -> RpcResult<GenesisConfig> {
+    async fn genesis_config(&self) -> RpcResult<GenesisConfigDto> {
         self.genesis_config_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -68,8 +56,17 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts> {
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContractsDto> {
         self.get_l1_ecosystem_contracts_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_protocol_version_info(
+        &self,
+        version_id: Option<u16>,
+    ) -> RpcResult<Option<ProtocolVersionInfo>> {
+        self.get_protocol_version_info_impl(version_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

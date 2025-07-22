@@ -1,11 +1,15 @@
-use std::{fmt, path::Path, time::Duration};
+use std::{
+    fmt,
+    path::{Display, Path},
+    time::Duration,
+};
 
 use ethers::{
     types::{Address, H160, U256},
     utils::format_ether,
 };
 use url::Url;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::utils::forge::WalletOwner;
 
@@ -96,13 +100,25 @@ pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
+pub(super) const MSG_DEPLOYING_PROVING_NETWORKS_SPINNER: &str =
+    "Deploying proving networks contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
+pub(super) const MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER: &str = "Updating da validator pair...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
     "Token multiplier setter updated to";
+pub(super) const MSG_DA_VALIDATOR_PAIR_UPDATED_TO: &str = "DA validator pair updated to";
+pub(super) const MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW: &str =
+    "Got the settlement layer address from gateway";
+pub(super) const MSG_USE_GATEWAY_HELP: &str = "Use the Gateway to set the DA validator pair";
+pub(super) const MSG_GATEWAY_URL_MUST_BE_PRESET: &str =
+    "Gateway RPC URL must be provided when using the `--gateway` flag";
+pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
+    "Updating pubdata pricing mode...";
+pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
@@ -265,7 +281,6 @@ pub(super) const MSG_CHAIN_TRANSACTIONS_BUILT: &str = "Chain transactions succes
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
-pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
@@ -295,8 +310,8 @@ pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
 pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
 pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
 
-pub(super) fn msg_waiting_for_server_success(health_check_port: u16) -> String {
-    format!("Server is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_server_success(health_check_url: &str) -> String {
+    format!("Server is alive with health check server on {health_check_url}")
 }
 
 /// Portal related messages
@@ -312,7 +327,42 @@ pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
 
+/// Private proxy related messages
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run private proxy container";
+
+pub(super) fn msg_private_rpc_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database url for chain {chain_name}")
+}
+
+pub(super) fn msg_private_rpc_initializing_database_for(chain: &str) -> String {
+    format!("Initializing private proxy database for {chain} chain")
+}
+
+pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
+    "Building private-proxy docker image, it may take a while...".to_string()
+}
+pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
+    format!("Generated private proxy docker-compose file and stored it at {path}")
+}
+pub(super) fn msg_private_rpc_permissions_file_generated(path: Display) -> String {
+    format!("Created example permissions config and stored it at {path}")
+}
+
+pub(super) fn msg_private_rpc_chain_not_initialized(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for private-proxy: run `zkstack private-proxy init --chain {chain}` first")
+}
+
+pub(super) fn msg_private_proxy_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database name for chain {chain_name}")
+}
+
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop private proxy database";
+
 /// Explorer related messages
+pub(super) const MSG_EXPLORER_PRIVIDIUM_HELP: &str =
+    "Enable Prividium mode for this Block Explorer";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
 pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
@@ -339,6 +389,15 @@ pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer: run `zkstack explorer init --chain {chain}` first")
 }
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_MODE_PROMPT: &str =
+    "Do you want to enable Prividium mode for this Block Explorer?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_MAX_AGE_PROMPT: &str =
+    "What session max age configuration do you want to use for Prividium mode?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_SAME_SITE_PROMPT: &str =
+    "What session same site configuration do you want to use for Prividium mode?";
 
 /// Forge utils related messages
 pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
@@ -375,8 +434,8 @@ pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external no
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
 
-pub(super) fn msg_waiting_for_en_success(health_check_port: u16) -> String {
-    format!("External node is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_en_success(health_check_url: &str) -> String {
+    format!("External node is alive with health check server on {health_check_url}")
 }
 
 /// Prover related messages
@@ -479,7 +538,7 @@ pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> Strin
     format!("Downloading {} {} binary", name, version)
 }
 
-/// Update related messages
+// Update related messages
 
 pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
 pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZKsync";
@@ -553,16 +612,14 @@ pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
 pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
-pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
-    "consensus.genesis_spec.attesters missing in general.yaml";
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_attester_committee_failed(
-    got: &attester::Committee,
-    want: &attester::Committee,
+pub(super) fn msg_setting_validator_schedule_failed(
+    got: &validator::Schedule,
+    want: &validator::Schedule,
 ) -> String {
-    format!("setting attester committee failed: got {got:?}, want {want:?}")
+    format!("setting validator schedule failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
@@ -578,7 +635,6 @@ pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
 pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
 pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
 pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
-pub(super) const MSG_AVAIL_FINALITY_STATE_PROMPT: &str = "Avail finality state";
 pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
 pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
 pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";

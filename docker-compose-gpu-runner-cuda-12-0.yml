@@ -2,7 +2,7 @@ version: '3.2'
 services:
   reth:
     restart: always
-    image: "ghcr.io/paradigmxyz/reth:v1.0.6"
+    image: "ghcr.io/paradigmxyz/reth:v1.3.7"
     ports:
       - 127.0.0.1:8545:8545
     volumes:
@@ -28,16 +28,8 @@ services:
       - /usr/src/cache:/usr/src/cache
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/src/keys:/mnt/prover_setup_keys
-    environment:
-      - CACHE_DIR=/usr/src/cache
-      - SCCACHE_CACHE_SIZE=50g
-      - SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
-      - SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
-      - SCCACHE_ERROR_LOG=/tmp/sccache_log.txt
-      - SCCACHE_GCS_RW_MODE=READ_WRITE
-      - CI=1
-      - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
       # We set CUDAARCHS for l4 gpu's
+    environment:
       - CUDAARCHS=89
     # We need to forward all nvidia-devices, as due to bug with cgroups and nvidia-container-runtime (https://github.com/NVIDIA/libnvidia-container/issues/176#issuecomment-1159454366), cgroups are disabled and thou GPU isn't properly forwarded to dind
     devices:

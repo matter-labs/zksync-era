@@ -1,5 +1,7 @@
+use std::{fmt::Display, str::FromStr};
+
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::SLChainId;
+use zksync_basic_types::{L1BlockNumber, SLChainId};
 
 use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
@@ -67,6 +69,7 @@ impl std::fmt::Debug for EthTx {
             .field("created_at_timestamp", &self.created_at_timestamp)
             .field("predicted_gas_cost", &self.predicted_gas_cost)
             .field("chain_id", &self.chain_id)
+            .field("is_gateway", &self.is_gateway)
             .finish()
     }
 }
@@ -75,21 +78,78 @@ impl std::fmt::Debug for EthTx {
 pub struct TxHistory {
     pub id: u32,
     pub eth_tx_id: u32,
+    pub chain_id: Option<SLChainId>,
+    pub tx_type: AggregatedActionType,
     pub base_fee_per_gas: u64,
     pub priority_fee_per_gas: u64,
     pub blob_base_fee_per_gas: Option<u64>,
     pub tx_hash: H256,
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,
+    pub max_gas_per_pubdata: Option<u64>,
+    pub eth_tx_finality_status: EthTxFinalityStatus,
+    pub sent_successfully: bool,
 }
 
-#[derive(Clone, Debug)]
-pub struct TxHistoryToSend {
-    pub id: u32,
-    pub eth_tx_id: u32,
-    pub base_fee_per_gas: u64,
-    pub priority_fee_per_gas: u64,
-    pub tx_hash: H256,
-    pub signed_raw_tx: Vec<u8>,
-    pub nonce: Nonce,
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum EthTxFinalityStatus {
+    Pending,
+    FastFinalized,
+    Finalized,
+}
+
+impl FromStr for EthTxFinalityStatus {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "fast_finalized" => Ok(Self::FastFinalized),
+            "finalized" => Ok(Self::Finalized),
+            "pending" => Ok(Self::Pending),
+            _ => Err("Incorrect finality status"),
+        }
+    }
+}
+
+impl Display for EthTxFinalityStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FastFinalized => write!(f, "fast_finalized"),
+            Self::Finalized => write!(f, "finalized"),
+            Self::Pending => write!(f, "pending"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct L1BlockNumbers {
+    pub fast_finality: L1BlockNumber,
+    pub finalized: L1BlockNumber,
+    pub latest: L1BlockNumber,
+}
+
+impl L1BlockNumbers {
+    pub fn get_finality_status_for_block(&self, block_number: u32) -> EthTxFinalityStatus {
+        if block_number <= self.finalized.0 {
+            EthTxFinalityStatus::Finalized
+        } else if block_number <= self.fast_finality.0 {
+            EthTxFinalityStatus::FastFinalized
+        } else {
+            EthTxFinalityStatus::Pending
+        }
+    }
+
+    /// returns new finality status if finality status changed
+    pub fn get_finality_update(
+        &self,
+        current_status: EthTxFinalityStatus,
+        included_at_block: u32,
+    ) -> Option<EthTxFinalityStatus> {
+        let finality_status = self.get_finality_status_for_block(included_at_block);
+        if finality_status == current_status {
+            return None;
+        }
+        Some(finality_status)
+    }
 }

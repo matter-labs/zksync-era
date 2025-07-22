@@ -1,7 +1,7 @@
 //! Storage test helpers.
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
@@ -12,44 +12,6 @@ use zksync_types::{
 };
 
 use super::{Connection, ConnectionPool};
-use crate::registry;
-
-impl Connection<'_> {
-    /// Wrapper for `consensus_dal().batch_of_block()`.
-    #[allow(dead_code)]
-    pub async fn batch_of_block(
-        &mut self,
-        ctx: &ctx::Ctx,
-        block: validator::BlockNumber,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().batch_of_block(block))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().last_batch_certificate_number()`.
-    #[allow(dead_code)]
-    pub async fn last_batch_certificate_number(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().last_batch_certificate_number())
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().batch_certificate()`.
-    #[allow(dead_code)]
-    pub async fn batch_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::BatchQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().batch_certificate(number))
-            .await??)
-    }
-}
 
 pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParams {
     let mut cfg = mock_genesis_config();
@@ -161,7 +123,7 @@ impl ConnectionPool {
         let mut blocks: Vec<validator::Block> = vec![];
         for i in state.first.0..state.next().0 {
             let i = validator::BlockNumber(i);
-            let block = conn.block(ctx, i).await.context("block()")?.unwrap();
+            let block = conn.block(ctx, i).await.wrap("block()")?.unwrap();
             blocks.push(block);
         }
         Ok(blocks)
@@ -185,10 +147,23 @@ impl ConnectionPool {
         for block in &blocks {
             match block {
                 validator::Block::FinalV1(block) => {
-                    block.verify(&cfg.genesis).context(block.number())?;
+                    block
+                        .verify(
+                            cfg.genesis.hash(),
+                            &cfg.genesis.validators_schedule.clone().unwrap(),
+                        )
+                        .context(block.number())?;
                 }
                 validator::Block::FinalV2(block) => {
-                    block.verify(&cfg.genesis).context(block.number())?;
+                    // Here we are assuming that we are using a static validators schedule. Hence
+                    // getting the epoch number from the genesis config and using epoch 0.
+                    block
+                        .verify(
+                            cfg.genesis.hash(),
+                            validator::EpochNumber(0),
+                            &cfg.genesis.validators_schedule.clone().unwrap(),
+                        )
+                        .context(block.number())?;
                 }
                 validator::Block::PreGenesis(_) => {}
             }
@@ -196,74 +171,24 @@ impl ConnectionPool {
         Ok(blocks)
     }
 
-    #[allow(dead_code)]
-    pub async fn wait_for_batch_certificates_and_verify(
-        &self,
-        ctx: &ctx::Ctx,
-        want_last: attester::BatchNumber,
-        registry_addr: Option<registry::Address>,
-    ) -> ctx::Result<()> {
-        // Wait for the last batch to be attested.
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        while self
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
-            .last_batch_certificate_number(ctx)
-            .await
-            .wrap("last_batch_certificate_number()")?
-            .map_or(true, |got| got < want_last)
-        {
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
-        let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let cfg = conn
-            .global_config(ctx)
-            .await
-            .wrap("global_config()")?
-            .context("global config is missing")?;
-        let first = conn
-            .batch_of_block(ctx, cfg.genesis.first_block)
-            .await
-            .wrap("batch_of_block()")?
-            .context("batch of first_block is missing")?;
-        let registry = registry::Registry::new(self.clone()).await;
-        for i in first.0..want_last.0 {
-            let i = attester::BatchNumber(i);
-            let cert = conn
-                .batch_certificate(ctx, i)
-                .await
-                .wrap("batch_certificate")?
-                .context("cert missing")?;
-            let committee = registry
-                .attester_committee_for(ctx, registry_addr, i)
-                .await
-                .context("attester_committee_for()")?
-                .context("committee not specified")?;
-            cert.verify(cfg.genesis.hash(), &committee)
-                .with_context(|| format!("cert[{i:?}].verify()"))?;
-        }
-        Ok(())
-    }
-
     pub async fn prune_batches(
         &self,
         ctx: &ctx::Ctx,
-        last_batch: attester::BatchNumber,
+        last_batch: L1BatchNumber,
     ) -> ctx::Result<()> {
-        let mut conn = self.connection(ctx).await.context("connection()")?;
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
+
         let (_, last_block) = conn
             .get_l2_block_range_of_l1_batch(ctx, last_batch)
             .await
             .wrap("get_l2_block_range_of_l1_batch()")?
             .context("batch not found")?;
-        let last_batch = L1BatchNumber(last_batch.0.try_into().context("overflow")?);
         let last_batch_root_hash = ctx
             .wait(conn.0.blocks_dal().get_l1_batch_state_root(last_batch))
             .await?
             .context("get_l1_batch_state_root()")?
             .unwrap_or_default();
-        let last_block = L2BlockNumber(last_block.0.try_into().context("overflow")?);
+
         ctx.wait(
             conn.0
                 .pruning_dal()
@@ -271,6 +196,7 @@ impl ConnectionPool {
         )
         .await?
         .context("insert_soft_pruning_log()")?;
+
         ctx.wait(
             conn.0
                 .pruning_dal()
@@ -278,6 +204,7 @@ impl ConnectionPool {
         )
         .await?
         .context("hard_prune_batches_range()")?;
+
         ctx.wait(conn.0.pruning_dal().insert_hard_pruning_log(
             last_batch,
             last_block,
@@ -285,6 +212,55 @@ impl ConnectionPool {
         ))
         .await?
         .context("insert_hard_pruning_log()")?;
+
         Ok(())
+    }
+
+    /// Waits for the `number` L1 batch to be stored.
+    #[tracing::instrument(skip_all)]
+    pub async fn wait_for_batch(
+        &self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+        interval: time::Duration,
+    ) -> ctx::Result<bool> {
+        loop {
+            if self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .is_batch_stored(ctx, number)
+                .await
+                .with_wrap(|| format!("is_batch_stored({number})"))?
+            {
+                return Ok(true);
+            }
+            ctx.sleep(interval).await?;
+        }
+    }
+}
+
+impl<'a> Connection<'a> {
+    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
+    pub async fn get_l2_block_range_of_l1_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<Option<(L2BlockNumber, L2BlockNumber)>> {
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?)
+    }
+
+    /// Wrapper for `consensus_dal().is_batch_stored()`.
+    pub async fn is_batch_stored(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<bool> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().is_batch_stored(number))
+            .await??)
     }
 }

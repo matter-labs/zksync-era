@@ -14,7 +14,6 @@ vise.workspace = true
 zksync_prover_dal.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_interface.workspace = true
-zksync_env_config.workspace = true
 zksync_system_constants.workspace = true
 zksync_vlog.workspace = true
 zksync_queued_job_processor.workspace = true
@@ -25,7 +24,8 @@ zksync_task_management.workspace = true
 zksync_prover_keystore.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_fri_utils.workspace = true
-zksync_core_leftovers.workspace = true
+zksync_circuit_prover_service.workspace = true
+zksync_witness_generator_service.workspace = true
 
 zkevm_test_harness = { workspace = true }
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
@@ -33,11 +33,11 @@ circuit_definitions = { workspace = true, features = ["log_tracing"] }
 anyhow.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
+tokio-util.workspace = true
 futures = { workspace = true, features = ["compat"] }
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 bincode.workspace = true
-rand.workspace = true
 structopt.workspace = true
 ctrlc = { workspace = true, features = ["termination"] }
 once_cell.workspace = true

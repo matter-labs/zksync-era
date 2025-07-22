@@ -34,7 +34,7 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     /// Makes the task exit after the commitment mode was successfully verified. By default, the task
-    /// will only exit on error or after getting a stop signal.
+    /// will only exit on error or after getting a stop request.
     pub fn exit_on_success(mut self) -> Self {
         self.exit_on_success = true;
         self
@@ -71,7 +71,7 @@ impl L1BatchCommitmentModeValidationTask {
                     return Ok(());
                 }
 
-                Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
+                Err(ContractCallError::EthereumGateway(err)) if err.is_retryable() => {
                     tracing::warn!(
                         "Transient error validating commitment mode, will retry after {:?}: {err}",
                         self.retry_interval
@@ -101,7 +101,7 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     /// Runs this task. The task will exit on error (and on success if `exit_on_success` is set),
-    /// or when a stop signal is received.
+    /// or when a stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let exit_on_success = self.exit_on_success;
         let validation = self.validate_commitment_mode();

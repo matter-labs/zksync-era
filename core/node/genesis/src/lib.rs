@@ -14,7 +14,6 @@ use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, Core
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     bytecode::BytecodeHash,
@@ -504,6 +503,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: Some(H256::zero()),
     };
 
     let mut transaction = storage.start_transaction().await?;
@@ -586,9 +586,10 @@ pub async fn save_set_chain_id_tx(
     storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
+    event_expiration_blocks: u64,
 ) -> anyhow::Result<()> {
     let to = query_client.block_number().await?.as_u64();
-    let from = to.saturating_sub(PRIORITY_EXPIRATION);
+    let from = to.saturating_sub(event_expiration_blocks);
 
     let filter = FilterBuilder::default()
         .address(vec![diamond_proxy_address])

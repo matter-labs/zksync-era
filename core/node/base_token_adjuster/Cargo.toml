@@ -10,18 +10,18 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-
 [dependencies]
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_external_price_api.workspace = true
+zksync_external_price_api = { workspace = true, features = ["node_framework"] }
 zksync_contracts.workspace = true
-zksync_eth_client.workspace = true
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_node_fee_model.workspace = true
+zksync_node_framework.workspace = true
 vise.workspace = true
-bigdecimal.workspace = true
 
+bigdecimal.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 tracing.workspace = true
@@ -29,3 +29,6 @@ chrono.workspace = true
 rand.workspace = true
 async-trait.workspace = true
 hex.workspace = true
+
+[dev-dependencies]
+test-casing.workspace = true

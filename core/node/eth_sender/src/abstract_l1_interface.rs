@@ -9,9 +9,8 @@ use zksync_eth_client::{
 #[cfg(test)]
 use zksync_types::web3;
 use zksync_types::{
-    eth_sender::{EthTx, EthTxBlobSidecar},
-    web3::{BlockId, BlockNumber},
-    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H256, U256,
+    eth_sender::{EthTx, EthTxBlobSidecar, L1BlockNumbers},
+    Address, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H256, U256,
 };
 
 use crate::EthSenderError;
@@ -22,13 +21,8 @@ pub(crate) struct OperatorNonce {
     pub finalized: Nonce,
     // Nonce on latest block
     pub latest: Nonce,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct L1BlockNumbers {
-    pub safe: L1BlockNumber,
-    pub finalized: L1BlockNumber,
-    pub latest: L1BlockNumber,
+    // Nonce on block we consider fast finality.
+    pub fast_finality: Nonce,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
@@ -68,7 +62,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
         operator_type: OperatorType,
     ) -> EnrichedClientResult<H256>;
 
-    fn get_blobs_operator_account(&self) -> Option<Address>;
+    fn get_operator_account(&self, operator_type: OperatorType) -> Address;
 
     async fn get_operator_nonce(
         &self,
@@ -123,10 +117,11 @@ impl RealL1Interface {
 #[async_trait]
 impl AbstractL1Interface for RealL1Interface {
     fn supported_operator_types(&self) -> Vec<OperatorType> {
-        let mut result = vec![];
         if self.sl_client.is_some() {
-            result.push(OperatorType::Gateway);
+            return vec![OperatorType::Gateway];
         }
+
+        let mut result = vec![];
         if self.ethereum_client_blobs.is_some() {
             result.push(OperatorType::Blob)
         }
@@ -177,11 +172,8 @@ impl AbstractL1Interface for RealL1Interface {
         self.query_client(operator_type).send_raw_tx(tx_bytes).await
     }
 
-    fn get_blobs_operator_account(&self) -> Option<Address> {
-        self.ethereum_client_blobs
-            .as_deref()
-            .as_ref()
-            .map(|s| s.sender_account())
+    fn get_operator_account(&self, operator_type: OperatorType) -> Address {
+        self.bound_query_client(operator_type).sender_account()
     }
 
     async fn get_operator_nonce(
@@ -202,7 +194,19 @@ impl AbstractL1Interface for RealL1Interface {
             .await?
             .as_u32()
             .into();
-        Ok(Some(OperatorNonce { finalized, latest }))
+
+        let fast_finality = self
+            .bound_query_client(operator_type)
+            .nonce_at(block_numbers.fast_finality.0.into())
+            .await?
+            .as_u32()
+            .into();
+
+        Ok(Some(OperatorNonce {
+            finalized,
+            latest,
+            fast_finality,
+        }))
     }
 
     async fn sign_tx(
@@ -255,49 +259,9 @@ impl AbstractL1Interface for RealL1Interface {
         &self,
         operator_type: OperatorType,
     ) -> Result<L1BlockNumbers, EthSenderError> {
-        let (finalized, safe) = if let Some(confirmations) = self.wait_confirmations {
-            let latest_block_number: u64 = self
-                .query_client(operator_type)
-                .block_number()
-                .await?
-                .as_u64();
-
-            let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
-            (finalized, finalized)
-        } else {
-            let finalized = self
-                .query_client(operator_type)
-                .block(BlockId::Number(BlockNumber::Finalized))
-                .await?
-                .expect("Finalized block must be present on L1")
-                .number
-                .expect("Finalized block must contain number")
-                .as_u32()
-                .into();
-
-            let safe = self
-                .query_client(operator_type)
-                .block(BlockId::Number(BlockNumber::Safe))
-                .await?
-                .expect("Safe block must be present on L1")
-                .number
-                .expect("Safe block must contain number")
-                .as_u32()
-                .into();
-            (finalized, safe)
-        };
-
-        let latest = self
-            .query_client(operator_type)
-            .block_number()
-            .await?
-            .as_u32()
-            .into();
-
-        Ok(L1BlockNumbers {
-            finalized,
-            latest,
-            safe,
-        })
+        self.query_client(operator_type)
+            .get_block_numbers(self.wait_confirmations)
+            .await
+            .map_err(Into::into)
     }
 }

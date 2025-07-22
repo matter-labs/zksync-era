@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-use zk_evm_1_5_0::aux_structures::Timestamp;
+use zk_evm_1_5_2::aux_structures::Timestamp;
 
 use crate::{
     interface::storage::WriteStorage,
@@ -36,7 +36,7 @@ static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 /// Implementation of VM related to rollbacks inside virtual machine
 impl<S: WriteStorage> Vm<S, HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
-        self.snapshots.push(VmSnapshot {
+        self.snapshots.push_back(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
             // The only "expensive" copying here is copying of the call stack.
             // It will take `O(callstack_depth)` to copy it.

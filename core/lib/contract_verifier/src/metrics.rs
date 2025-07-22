@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
+use vise::{Buckets, Counter, Gauge, Histogram, LabeledFamily, Metrics};
 
 // Starting bucket from 5 sec as there is a 5 second pause between
 // the verification request and the time verification status is checked for the first time.
@@ -21,6 +21,17 @@ pub(crate) struct ApiContractVerifierMetrics {
     pub successful_verifications: LabeledFamily<&'static str, Counter, 1>,
 }
 
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "contract_verifier")]
+pub(crate) struct ContractVerifierMetrics {
+    #[metrics(labels = ["service_name"])]
+    pub number_of_queued_requests: LabeledFamily<&'static str, Gauge<u64>>,
+}
+
 #[vise::register]
 pub(crate) static API_CONTRACT_VERIFIER_METRICS: vise::Global<ApiContractVerifierMetrics> =
+    vise::Global::new();
+
+#[vise::register]
+pub(crate) static CONTRACT_VERIFIER_METRICS: vise::Global<ContractVerifierMetrics> =
     vise::Global::new();

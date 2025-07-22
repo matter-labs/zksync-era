@@ -80,7 +80,7 @@ impl MainNodeFeeParamsFetcher {
             }
         }
 
-        tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
+        tracing::info!("Stop request received, MainNodeFeeParamsFetcher is shutting down");
         Ok(())
     }
 }

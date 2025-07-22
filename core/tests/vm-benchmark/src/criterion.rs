@@ -65,7 +65,7 @@ pub struct PrometheusRuntime {
 impl Drop for PrometheusRuntime {
     fn drop(&mut self) {
         self.stop_sender.send_replace(true);
-        // Metrics are pushed automatically on exit, so we wait *after* sending a stop signal
+        // Metrics are pushed automatically on exit, so we wait *after* sending a stop request
         println!("Waiting for Prometheus metrics to be pushed");
         thread::sleep(Duration::from_secs(1));
     }
@@ -420,7 +420,11 @@ mod tests {
             .with_measurement(metered_time);
         test_benchmark(&mut criterion, metrics);
 
-        let timing_labels: HashSet<_> = metrics.mean_timing.to_entries().into_keys().collect();
+        let timing_labels: HashSet<_> = metrics
+            .mean_timing
+            .to_entries()
+            .map(|(labels, _)| labels)
+            .collect();
         // Check that labels are as expected.
         for bytecode in BYTECODES {
             assert!(timing_labels.contains(&BenchLabels {

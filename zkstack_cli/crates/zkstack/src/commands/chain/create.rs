@@ -4,11 +4,10 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
-    create_local_configs_dir, create_wallets, raw::RawConfig, traits::SaveConfigWithBasePath,
-    ChainConfig, EcosystemConfig, GENESIS_FILE,
+    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
+    EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
-use zksync_types::H256;
 
 use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
@@ -67,6 +66,21 @@ pub(crate) async fn create_chain_inner(
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
     let default_chain_name = args.chain_name.clone();
+    println!(
+        "ecosystem_config.list_of_chains() before: {:?}",
+        ecosystem_config.list_of_chains()
+    );
+    let internal_id = if ecosystem_config.list_of_chains().contains(&args.chain_name) {
+        ecosystem_config
+            .list_of_chains()
+            .iter()
+            .position(|x| *x == args.chain_name)
+            .unwrap() as u32
+            + 1
+    } else {
+        ecosystem_config.list_of_chains().len() as u32 + 1
+    };
+    println!("internal_id: {}", internal_id);
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
@@ -75,7 +89,10 @@ pub(crate) async fn create_chain_inner(
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
-    let internal_id = ecosystem_config.list_of_chains().len() as u32;
+    println!(
+        "ecosystem_config.list_of_chains() after: {:?}",
+        ecosystem_config.list_of_chains()
+    );
     let link_to_code = resolve_link_to_code(
         shell,
         chain_path.clone(),
@@ -84,10 +101,8 @@ pub(crate) async fn create_chain_inner(
     )?;
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
-    let has_evm_emulation_support = default_genesis_config
-        .get_opt::<H256>("evm_emulator_hash")?
-        .is_some();
+    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
     }
@@ -109,6 +124,7 @@ pub(crate) async fn create_chain_inner(
         shell: OnceCell::from(shell.clone()),
         legacy_bridge,
         evm_emulator: args.evm_emulator,
+        tight_ports: args.tight_ports,
     };
 
     create_wallets(

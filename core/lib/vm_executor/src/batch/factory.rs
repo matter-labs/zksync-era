@@ -3,6 +3,7 @@ use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -26,7 +27,7 @@ use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
-use crate::shared::{InteractionType, Sealed, STORAGE_METRICS};
+use crate::shared::{InteractionType, RuntimeContextStorageMetrics, Sealed};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
@@ -162,18 +163,21 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             _tracer: PhantomData::<Tr>,
         };
 
+        let span = tracing::Span::current();
         let handle = tokio::task::spawn_blocking(move || {
+            let _span_guard = span.entered();
             executor.run(
                 storage,
                 l1_batch_params,
-                system_env,
-                pubdata_params_to_builder(pubdata_params),
+                system_env.clone(),
+                pubdata_params_to_builder(pubdata_params, system_env.version),
             )
         });
         Box::new(MainBatchExecutor::new(handle, commands_sender))
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
@@ -233,6 +237,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 
     fn pop_snapshot_no_rollback(&mut self) {
         dispatch_batch_vm!(self.pop_snapshot_no_rollback());
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_batch_vm!(self.pop_front_snapshot_no_rollback());
     }
 
     fn inspect_transaction(
@@ -322,7 +330,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
-        tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
+        tracing::info!(
+            fast_vm_mode = ?self.fast_vm_mode,
+            optional_bytecode_compression = self.optional_bytecode_compression,
+            skip_signature_verification = self.skip_signature_verification,
+            "Starting executing L1 batch #{}",
+            &l1_batch_params.number,
+        );
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let mut vm = BatchVm::<S, Tr>::new(
@@ -346,18 +360,28 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             }
         }
 
+        let mut has_snapshot_before_tx = false;
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
+                    if has_snapshot_before_tx {
+                        vm.pop_snapshot_no_rollback();
+                    }
                     let tx_hash = tx.hash();
                     let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
+                    has_snapshot_before_tx = true;
 
                     if self.observe_storage_metrics {
                         let storage_stats = storage_view.borrow().stats();
                         let stats_diff = storage_stats.saturating_sub(&prev_storage_stats);
-                        STORAGE_METRICS.observe(&format!("Tx {tx_hash:?}"), latency, &stats_diff);
+                        RuntimeContextStorageMetrics::observe(
+                            &format!("Tx {tx_hash:?}"),
+                            false,
+                            latency,
+                            &stats_diff,
+                        );
                         prev_storage_stats = storage_stats;
                     }
                     if resp.send(result).is_err() {
@@ -366,11 +390,22 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::RollbackLastTx(resp) => {
                     self.rollback_last_tx(&mut vm);
+                    // Snapshot was popped.
+                    has_snapshot_before_tx = false;
                     if resp.send(()).is_err() {
                         break;
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        if has_snapshot_before_tx {
+                            // Pop snapshot that was made before the previous tx.
+                            vm.pop_snapshot_no_rollback();
+                            has_snapshot_before_tx = false;
+                        }
+                        vm.make_snapshot();
+                    }
+
                     vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
                         break;
@@ -383,6 +418,33 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                     batch_finished = true;
                     break;
+                }
+                Command::RollbackL2Block(resp) => {
+                    if self.fast_vm_mode != FastVmMode::Old {
+                        panic!(
+                            "RollbackL2Block is only supported for `FastVmMode::Old`, used: {:?}",
+                            self.fast_vm_mode
+                        );
+                    }
+
+                    if has_snapshot_before_tx {
+                        vm.pop_snapshot_no_rollback();
+                        has_snapshot_before_tx = false;
+                    }
+                    vm.rollback_to_the_latest_snapshot();
+
+                    if resp.send(()).is_err() {
+                        break;
+                    }
+                }
+                Command::CommitL2Block(resp) => {
+                    // Only `FastVmMode::Old` keeps snapshots for block rollback.
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        vm.pop_front_snapshot_no_rollback();
+                    }
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
             }
         }
@@ -398,20 +460,19 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
                 .observe(stats.time_spent_on_set_value);
         } else {
-            // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
+            // State keeper can exit because of a stop request, so it's OK to exit mid-batch.
             tracing::info!("State keeper exited with an unfinished L1 batch");
         }
         Ok(storage_view)
     }
 
+    #[tracing::instrument(level = "trace", skip_all, fields(tx.hash = ?transaction.hash()))]
     fn execute_tx(
         &self,
         transaction: Transaction,
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
-        // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
-        // was already removed), or that we build on top of it (in which case, it can be removed now).
-        vm.pop_snapshot_no_rollback();
+        let _guard = AllocationGuard::for_operation("batch_vm#execute_tx");
         // Save pre-execution VM snapshot.
         vm.make_snapshot();
 
@@ -423,30 +484,43 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             self.execute_tx_in_vm(&transaction, vm)?
         };
 
-        Ok((result, latency.observe()))
+        let latency = latency.observe();
+        tracing::trace!(
+            ?latency,
+            result.tx_result = ?result.tx_result.result,
+            result.compression_result = ?result.compression_result,
+            "Executed transaction"
+        );
+        Ok((result, latency))
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn rollback_last_tx(&self, vm: &mut BatchVm<S, Tr>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
-        latency.observe();
+        let latency = latency.observe();
+        tracing::trace!(?latency, "Rolled back transaction");
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn finish_batch(
         &self,
         vm: &mut BatchVm<S, Tr>,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<FinishedL1Batch> {
+        let guard = AllocationGuard::for_operation("batch_vm#finish_batch");
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch(pubdata_builder);
+        drop(guard);
+
         anyhow::ensure!(
             !result.block_tip_execution_result.result.is_failed(),
             "VM must not fail when finalizing block: {:#?}",
             result.block_tip_execution_result.result
         );
-
         BATCH_TIP_METRICS.observe(&result.block_tip_execution_result);
+        tracing::trace!("Executed batch tip");
         Ok(result)
     }
 

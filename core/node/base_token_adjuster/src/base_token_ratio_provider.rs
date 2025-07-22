@@ -1,6 +1,5 @@
 use std::{
     fmt::Debug,
-    num::NonZeroU64,
     sync::{Arc, RwLock},
 };
 
@@ -45,7 +44,7 @@ impl DBBaseTokenRatioProvider {
     }
 
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut timer = tokio::time::interval(self.config.price_cache_update_interval());
+        let mut timer = tokio::time::interval(self.config.price_cache_update_interval);
 
         while !*stop_receiver.borrow_and_update() {
             tokio::select! {
@@ -57,7 +56,7 @@ impl DBBaseTokenRatioProvider {
             self.update_latest_price().await?;
         }
 
-        tracing::info!("Stop signal received, base_token_ratio_provider is shutting down");
+        tracing::info!("Stop request received, base_token_ratio_provider is shutting down");
         Ok(())
     }
 
@@ -72,16 +71,13 @@ impl DBBaseTokenRatioProvider {
             .await;
 
         let ratio = match latest_storage_ratio {
-            Ok(Some(latest_storage_price)) => BaseTokenConversionRatio {
-                numerator: latest_storage_price.numerator,
-                denominator: latest_storage_price.denominator,
-            },
+            Ok(Some(latest_storage_price)) => latest_storage_price.ratio,
             Ok(None) => {
                 // TODO(PE-136): Insert initial ratio from genesis.
                 // Though the DB should be populated very soon after the server starts, it is possible
                 // to have no ratios in the DB right after genesis. Having initial ratios in the DB
                 // from the genesis stage will eliminate this possibility.
-                tracing::warn!("No latest price found in the database. Using default ratio.");
+                tracing::info!("No latest price found in the database. Using default ratio. This is normal on non-gateway chains.");
                 BaseTokenConversionRatio::default()
             }
             Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
@@ -96,35 +92,5 @@ impl DBBaseTokenRatioProvider {
 impl BaseTokenRatioProvider for DBBaseTokenRatioProvider {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
         self.get_latest_ratio()
-    }
-}
-
-// Struct for a no-op BaseTokenRatioProvider (conversion ratio is either always 1:1 or a forced ratio).
-#[derive(Debug, Clone)]
-pub struct NoOpRatioProvider {
-    pub latest_ratio: BaseTokenConversionRatio,
-}
-
-impl NoOpRatioProvider {
-    pub fn new(latest_ratio: BaseTokenConversionRatio) -> Self {
-        Self { latest_ratio }
-    }
-}
-
-impl Default for NoOpRatioProvider {
-    fn default() -> Self {
-        Self {
-            latest_ratio: BaseTokenConversionRatio {
-                numerator: NonZeroU64::new(1).unwrap(),
-                denominator: NonZeroU64::new(1).unwrap(),
-            },
-        }
-    }
-}
-
-#[async_trait]
-impl BaseTokenRatioProvider for NoOpRatioProvider {
-    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
-        self.latest_ratio
     }
 }

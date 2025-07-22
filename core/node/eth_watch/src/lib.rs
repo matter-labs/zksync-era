@@ -8,7 +8,6 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
@@ -17,17 +16,18 @@ use zksync_types::{
 pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
     client::RETRY_LIMIT,
-    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
+    event_processors::{
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
+        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
+        PriorityOpsEventProcessor,
+    },
     metrics::METRICS,
-};
-use crate::event_processors::{
-    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
-    GatewayMigrationProcessor,
 };
 
 mod client;
 mod event_processors;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -45,6 +45,7 @@ pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
     poll_interval: Duration,
+    event_expiration_blocks: u64,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
 }
@@ -54,10 +55,11 @@ impl EthWatch {
     pub async fn new(
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn ZkSyncExtentionEthClient>,
-        sl_layer: SettlementLayer,
+        sl_layer: Option<SettlementLayer>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
+        event_expiration_blocks: u64,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
@@ -76,7 +78,6 @@ impl EthWatch {
             sl_eth_client.clone(),
             l1_client.clone(),
         );
-
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
@@ -85,19 +86,24 @@ impl EthWatch {
             Box::new(gateway_migration_processor),
         ];
 
-        if sl_layer.is_gateway() {
+        if let Some(SettlementLayer::Gateway(_)) = sl_layer {
             let batch_root_processor = BatchRootProcessor::new(
                 state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,
                 chain_id,
                 sl_client.clone(),
             );
+            let sl_interop_root_processor =
+                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
+            event_processors.push(Box::new(sl_interop_root_processor));
         }
+
         Ok(Self {
             l1_client,
             sl_client: sl_eth_client,
             poll_interval,
+            event_expiration_blocks,
             event_processors,
             pool,
         })
@@ -159,19 +165,17 @@ impl EthWatch {
                     /* everything went fine */
                     METRICS.eth_poll.inc();
                 }
-                Err(EventProcessorError::Internal(err)) => {
-                    tracing::error!("Internal error processing new blocks: {err:?}");
-                    return Err(err);
+                Err(EventProcessorError::Fatal(err)) => {
+                    tracing::error!("Fatal error processing new blocks: {err:?}");
+                    return Err(err.into());
                 }
-                Err(err) => {
-                    // This is an error because otherwise we could potentially miss a priority operation
-                    // thus entering priority mode, which is not desired.
+                Err(EventProcessorError::Transient(err)) => {
                     tracing::error!("Failed to process new blocks: {err}");
                 }
             }
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop request received, eth_watch is shutting down");
         Ok(())
     }
 
@@ -185,23 +189,28 @@ impl EthWatch {
                 EventsSource::L1 => self.l1_client.as_ref(),
                 EventsSource::SL => self.sl_client.as_ref(),
             };
-            let chain_id = client.chain_id().await?;
+            let chain_id = client
+                .chain_id()
+                .await
+                .map_err(EventProcessorError::client)?;
 
             let to_block = if processor.only_finalized_block() {
-                client.finalized_block_number().await?
+                client.finalized_block_number().await
             } else {
-                client.confirmed_block_number().await?
-            };
+                client.confirmed_block_number().await
+            }
+            .map_err(EventProcessorError::client)?;
 
             let from_block = storage
                 .eth_watcher_dal()
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
-                    to_block.saturating_sub(PRIORITY_EXPIRATION),
+                    to_block.saturating_sub(self.event_expiration_blocks),
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
 
             // There are no new blocks so there is nothing to be done
             if from_block > to_block {
@@ -216,7 +225,8 @@ impl EthWatch {
                     processor.topic2(),
                     RETRY_LIMIT,
                 )
-                .await?;
+                .await
+                .map_err(EventProcessorError::client)?;
             let processed_events_count = processor
                 .process_events(storage, processor_events.clone())
                 .await?;
@@ -242,7 +252,8 @@ impl EthWatch {
                     next_block_to_process,
                 )
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
         }
 
         Ok(())

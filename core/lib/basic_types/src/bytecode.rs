@@ -166,6 +166,22 @@ impl BytecodeMarker {
             _ => return None,
         })
     }
+
+    /// Performs the best guess as to which kind of bytecode the provided `raw_bytecode` is.
+    pub fn detect(raw_bytecode: &[u8]) -> Self {
+        if validate_bytecode(raw_bytecode).is_err() {
+            // Certainly not an EraVM bytecode
+            Self::Evm
+        } else if raw_bytecode.first() == Some(&0) {
+            // The vast majority of EraVM bytecodes observed in practice start with the 0 byte.
+            // (This is the upper byte of the second immediate in the first instruction.)
+            // OTOH, EVM bytecodes don't usually start with the 0 byte (i.e., STOP opcode). In particular,
+            // using such a bytecode in state overrides is useless.
+            Self::EraVm
+        } else {
+            Self::Evm
+        }
+    }
 }
 
 /// Removes padding from the bytecode, if necessary.
@@ -207,7 +223,7 @@ pub fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
 
     // Pad to the 32-byte word boundary.
     if padded.len() % 32 != 0 {
-        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
+        padded.extend(iter::repeat_n(0, 32 - padded.len() % 32));
     }
     assert_eq!(padded.len() % 32, 0);
 

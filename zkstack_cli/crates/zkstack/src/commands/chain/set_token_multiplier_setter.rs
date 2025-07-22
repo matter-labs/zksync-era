@@ -37,10 +37,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let token_multiplier_setter_address = chain_config
         .get_wallets_config()
         .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?

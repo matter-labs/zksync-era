@@ -8,8 +8,9 @@ use std::{
 use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
     api::FeeHistory,
+    eth_sender::EthTxFinalityStatus,
     ethabi,
-    web3::{self, contract::Tokenize, BlockId},
+    web3::{self, contract::Tokenize, BlockId, BlockNumber},
     Address, L2ChainId, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{MockClient, MockClientBuilder, Network, L1, L2};
@@ -85,14 +86,36 @@ struct MockExecutedTx {
 }
 
 /// Mutable part of [`MockSettlementLayer`] that needs to be synchronized via an `RwLock`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct MockSettlementLayerInner {
-    block_number: u64,
+    pending_block_number: u64,
+    final_block_number: u64,
+    safe_block_number: u64,
     executed_txs: HashMap<H256, MockExecutedTx>,
-    sent_txs: HashMap<H256, MockTx>,
+    // TxHash to (Tx, block_number)
+    sent_txs: HashMap<H256, (MockTx, u64)>,
     current_nonce: u64,
     pending_nonce: u64,
     nonces: BTreeMap<u64, u64>,
+    pub sender: Address,
+    pub return_error_on_tx_request: bool,
+}
+
+impl Default for MockSettlementLayerInner {
+    fn default() -> Self {
+        Self {
+            pending_block_number: 0,
+            safe_block_number: 0,
+            final_block_number: 0,
+            executed_txs: Default::default(),
+            sent_txs: Default::default(),
+            current_nonce: 0,
+            pending_nonce: 0,
+            nonces: Default::default(),
+            sender: MOCK_SENDER_ACCOUNT,
+            return_error_on_tx_request: false,
+        }
+    }
 }
 
 impl MockSettlementLayerInner {
@@ -100,15 +123,44 @@ impl MockSettlementLayerInner {
         &mut self,
         tx_hash: H256,
         success: bool,
-        confirmations: u64,
         non_ordering_confirmations: bool,
+        finality_status: EthTxFinalityStatus,
     ) {
-        let block_number = self.block_number;
-        self.block_number += confirmations;
+        let (tx, block_number) = &self.sent_txs[&tx_hash];
+        let block_number = { *block_number };
         let nonce = self.current_nonce;
-        self.current_nonce += 1;
-        tracing::info!("Executing tx with hash {tx_hash:?} at block {}, success: {success}, current nonce: {}, confirmations: {confirmations}", self.block_number - confirmations, self.current_nonce);
-        let tx_nonce = self.sent_txs[&tx_hash].nonce;
+        if self.current_nonce <= tx.nonce {
+            self.current_nonce = tx.nonce + 1;
+        }
+        if self.pending_block_number <= block_number {
+            self.pending_block_number = block_number + 1;
+        }
+        match finality_status {
+            EthTxFinalityStatus::Pending => {}
+            EthTxFinalityStatus::FastFinalized => {
+                if self.safe_block_number <= block_number {
+                    self.safe_block_number = block_number + 1;
+                }
+                if self.pending_block_number <= self.safe_block_number {
+                    self.pending_block_number = self.safe_block_number;
+                }
+            }
+            EthTxFinalityStatus::Finalized => {
+                if self.final_block_number <= block_number {
+                    self.final_block_number = block_number + 1;
+                }
+                if self.safe_block_number <= self.final_block_number {
+                    self.safe_block_number = self.final_block_number;
+                }
+                if self.pending_block_number <= self.safe_block_number {
+                    self.pending_block_number = self.safe_block_number;
+                }
+            }
+        };
+
+        tracing::info!("Executing tx with hash {tx_hash:?} at block {}, with finality: {} success: {success}, current nonce: {}",block_number,  finality_status, nonce);
+
+        let tx_nonce = tx.nonce;
 
         if non_ordering_confirmations {
             if tx_nonce >= nonce {
@@ -117,7 +169,7 @@ impl MockSettlementLayerInner {
         } else {
             assert_eq!(tx_nonce, nonce, "nonce mismatch");
         }
-        self.nonces.insert(block_number, nonce + 1);
+        self.nonces.insert(self.pending_block_number, nonce + 1);
 
         let status = MockExecutedTx {
             success,
@@ -133,7 +185,7 @@ impl MockSettlementLayerInner {
     }
 
     fn get_transaction_count(&self, address: Address, block: web3::BlockNumber) -> U256 {
-        if address != MOCK_SENDER_ACCOUNT {
+        if address != self.sender {
             unimplemented!("Getting nonce for custom account is not supported");
         }
 
@@ -168,8 +220,14 @@ impl MockSettlementLayerInner {
         if mock_tx.nonce == self.pending_nonce {
             self.pending_nonce += 1;
         }
-        self.sent_txs.insert(mock_tx_hash, mock_tx);
-        Ok(mock_tx_hash)
+        self.sent_txs
+            .insert(mock_tx_hash, (mock_tx, self.pending_block_number));
+
+        if self.return_error_on_tx_request {
+            Err(ClientError::Custom("transport error".to_owned()))
+        } else {
+            Ok(mock_tx_hash)
+        }
     }
 
     /// Processes a transaction-like `eth_call` which is used in `EthInterface::failure_reason()`.
@@ -184,7 +242,7 @@ impl MockSettlementLayerInner {
         let data = request.data.as_ref()?;
 
         // Check if any of sent transactions match the request parameters
-        let executed_tx = self.sent_txs.iter().find_map(|(hash, tx)| {
+        let executed_tx = self.sent_txs.iter().find_map(|(hash, (tx, _))| {
             if request.to != Some(tx.recipient) || data.0 != tx.input {
                 return None;
             }
@@ -290,6 +348,11 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
         }
     }
 
+    pub fn with_sender(self, sender: Address) -> Self {
+        self.inner.write().unwrap().sender = sender;
+        self
+    }
+
     /// Sets the `eth_call` handler. There are "standard" calls that will not be routed to the handler
     /// (e.g., calls to determine transaction failure reason).
     pub fn with_call_handler<F>(self, call_handler: F) -> Self
@@ -321,13 +384,7 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
         Self { chain_id, ..self }
     }
 
-    fn get_block_by_number(
-        fee_history: &[BaseFees],
-        block: web3::BlockNumber,
-    ) -> Option<web3::Block<H256>> {
-        let web3::BlockNumber::Number(number) = block else {
-            panic!("Non-numeric block requested");
-        };
+    fn get_block_by_number(fee_history: &[BaseFees], number: U64) -> Option<web3::Block<H256>> {
         let excess_blob_gas = Some(0.into()); // Not relevant for tests.
         let base_fee_per_gas = fee_history
             .get(number.as_usize())
@@ -348,14 +405,29 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
             .method("eth_chainId", move || Ok(U64::from(chaind_id)))
             .method("eth_blockNumber", {
                 let inner = self.inner.clone();
-                move || Ok(U64::from(inner.read().unwrap().block_number))
+                move || Ok(U64::from(inner.read().unwrap().pending_block_number))
             })
             .method("eth_getBlockByNumber", {
-                move |number, full_transactions: bool| {
+                let inner = self.inner.clone();
+                move |block_number, full_transactions: bool| {
                     assert!(
                         !full_transactions,
                         "getting blocks with transactions is not mocked"
                     );
+                    let number = match block_number {
+                        BlockNumber::Pending => {
+                            panic!("`eth_getBlockByNumber` called with `pending` block number")
+                        }
+                        BlockNumber::Latest => {
+                            panic!("`eth_getBlockByNumber` called with `latest` block number")
+                        }
+                        BlockNumber::Earliest => {
+                            panic!("`eth_getBlockByNumber` called with `earliest` block number")
+                        }
+                        BlockNumber::Number(number) => number,
+                        BlockNumber::Finalized => inner.read().unwrap().final_block_number.into(),
+                        BlockNumber::Safe => inner.read().unwrap().safe_block_number.into(),
+                    };
                     Ok(Self::get_block_by_number(&self.base_fee_history, number))
                 }
             })
@@ -386,7 +458,7 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
                     let Some(tx) = txs.get(&hash) else {
                         return Ok(None);
                     };
-                    Ok(Some(web3::Transaction::from(tx.clone())))
+                    Ok(Some(web3::Transaction::from(tx.0.clone())))
                 }
             })
             .method("eth_getTransactionReceipt", {
@@ -578,28 +650,92 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
         &self,
         tx_hash: H256,
         success: bool,
-        confirmations: u64,
+        finality_status: EthTxFinalityStatus,
     ) -> MockExecutedTxHandle<'_> {
         let mut inner = self.inner.write().unwrap();
         inner.execute_tx(
             tx_hash,
             success,
-            confirmations,
             self.non_ordering_confirmations,
+            finality_status,
         );
         MockExecutedTxHandle { inner, tx_hash }
     }
 
-    /// Increases the block number in the network by the specified value.
-    pub fn advance_block_number(&self, val: u64) -> u64 {
+    /// Revert the block. It will set proper block numbers and
+    /// remove all executed transactions in reverted blocks.
+    pub fn revert_block_by_number(&self, val: u64) -> u64 {
         let mut inner = self.inner.write().unwrap();
-        inner.block_number += val;
-        inner.block_number
+        let pending_block_number = inner.pending_block_number;
+        let final_block_number = inner.final_block_number;
+        let allowed_blocks_to_revert = pending_block_number - final_block_number;
+        if allowed_blocks_to_revert < val {
+            panic!(
+                "Cannot revert block number by {val}, only {allowed_blocks_to_revert} blocks left"
+            );
+        };
+
+        let desired_pending_block_number = pending_block_number - val;
+        inner.pending_block_number = desired_pending_block_number;
+        inner.safe_block_number =
+            std::cmp::min(inner.safe_block_number, desired_pending_block_number);
+        inner
+            .nonces
+            .retain(|&block_number, _| block_number <= desired_pending_block_number);
+
+        let current_nonce = inner.nonces.values().max().cloned().unwrap_or_default();
+
+        inner.current_nonce = current_nonce;
+
+        let txs: Vec<_> = inner
+            .sent_txs
+            .iter()
+            .filter_map(|(hash, (_, block_number))| {
+                if *block_number >= desired_pending_block_number {
+                    Some(*hash)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for tx_hash in txs.iter() {
+            inner.executed_txs.remove(tx_hash);
+            inner.sent_txs.remove(tx_hash);
+        }
+
+        desired_pending_block_number
+    }
+
+    /// Increases the block number in the network by the specified value.
+    pub fn advance_block_number(&self, val: u64, finality_status: EthTxFinalityStatus) -> u64 {
+        let mut inner = self.inner.write().unwrap();
+
+        match finality_status {
+            EthTxFinalityStatus::Pending => {
+                inner.pending_block_number += val;
+                inner.pending_block_number
+            }
+            EthTxFinalityStatus::FastFinalized => {
+                inner.safe_block_number += val;
+                inner.safe_block_number
+            }
+            EthTxFinalityStatus::Finalized => {
+                inner.pending_block_number += val;
+                inner.safe_block_number = inner.pending_block_number;
+                inner.final_block_number = inner.safe_block_number;
+                inner.final_block_number
+            }
+        }
     }
 
     /// Converts this client into an immutable / contract-agnostic client.
     pub fn into_client(self) -> MockClient<Net> {
         self.client
+    }
+
+    pub fn set_return_error_on_tx_request(&self, value: bool) {
+        self.inner.write().unwrap().return_error_on_tx_request = value;
     }
 }
 
@@ -634,7 +770,7 @@ impl<Net: SupportedMockSLNetwork + SupportedMockSLNetwork> BoundEthInterface
     }
 
     fn sender_account(&self) -> Address {
-        MOCK_SENDER_ACCOUNT
+        self.inner.read().unwrap().sender
     }
 
     async fn sign_prepared_tx_for_addr(
@@ -686,7 +822,7 @@ mod tests {
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 0.into());
 
-        mock.advance_block_number(5);
+        mock.advance_block_number(5, EthTxFinalityStatus::Finalized);
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 5.into());
 
@@ -722,7 +858,7 @@ mod tests {
         let client = MockSettlementLayer::<L1>::builder()
             .with_fee_history(initial_fee_history.clone())
             .build();
-        client.advance_block_number(4);
+        client.advance_block_number(4, EthTxFinalityStatus::Finalized);
 
         let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
         assert_eq!(fee_history, initial_fee_history[1..=4]);
@@ -744,7 +880,7 @@ mod tests {
         let client = MockSettlementLayer::<L2>::builder()
             .with_fee_history(initial_fee_history.clone())
             .build();
-        client.advance_block_number(4);
+        client.advance_block_number(4, EthTxFinalityStatus::Finalized);
 
         let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
         assert_eq!(fee_history, initial_fee_history[1..=4]);
@@ -759,7 +895,7 @@ mod tests {
         let client = MockSettlementLayer::<L1>::builder()
             .with_non_ordering_confirmation(true)
             .build();
-        client.advance_block_number(2);
+        client.advance_block_number(2, EthTxFinalityStatus::Finalized);
 
         let signed_tx = client
             .sign_prepared_tx(
@@ -782,7 +918,7 @@ mod tests {
             .unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
-        client.execute_tx(tx_hash, true, 3);
+        client.execute_tx(tx_hash, true, EthTxFinalityStatus::Finalized);
         let returned_tx = client
             .as_ref()
             .get_tx(tx_hash)
@@ -872,7 +1008,7 @@ mod tests {
         let tx_hash = client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
-        client.execute_tx(tx_hash, true, 1);
+        client.execute_tx(tx_hash, true, EthTxFinalityStatus::Finalized);
         let failure = client.as_ref().failure_reason(tx_hash).await.unwrap();
         assert!(failure.is_none(), "{failure:?}");
 
@@ -889,7 +1025,7 @@ mod tests {
         let failed_tx_hash = client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         assert_ne!(failed_tx_hash, tx_hash);
 
-        client.execute_tx(failed_tx_hash, false, 1);
+        client.execute_tx(failed_tx_hash, false, EthTxFinalityStatus::Finalized);
         let failure = client
             .as_ref()
             .failure_reason(failed_tx_hash)

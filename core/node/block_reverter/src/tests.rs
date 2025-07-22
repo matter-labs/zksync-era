@@ -69,6 +69,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             gas_limit: 0,
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
+            rolling_txs_hash: Some(H256::zero()),
         };
         storage
             .blocks_dal()
@@ -91,6 +92,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             pubdata_input: None,
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            pubdata_limit: Some(100_000),
         };
         storage
             .blocks_dal()
@@ -143,6 +145,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     let sk_cache_path = temp_dir.path().join("sk_cache");
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
+    let (sk_cache, _) = sk_cache.ensure_ready(&pool, &stop_receiver).await.unwrap();
     sk_cache
         .synchronize(&mut storage, &stop_receiver, None)
         .await
@@ -150,8 +153,8 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
 
     BlockReverter::new(NodeRole::External, pool.clone())
         .enable_rolling_back_postgres()
-        .enable_rolling_back_merkle_tree(merkle_tree_path.to_str().unwrap().to_owned())
-        .add_rocksdb_storage_path_to_rollback(sk_cache_path.to_str().unwrap().to_owned())
+        .enable_rolling_back_merkle_tree(merkle_tree_path.clone())
+        .add_rocksdb_storage_path_to_rollback(sk_cache_path.clone())
         .roll_back(L1BatchNumber(5))
         .await
         .unwrap();
@@ -195,11 +198,11 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(6));
 
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
+    let sk_cache = sk_cache.get().await.unwrap();
     let mut sk_cache = sk_cache
         .synchronize(&mut storage, &stop_receiver, None)
         .await
-        .unwrap()
-        .expect("sk_cache syncing unexpectedly stopped");
+        .unwrap();
     for (i, log) in storage_logs.iter().enumerate() {
         let expected_value = if i <= 5 { log.value } else { H256::zero() };
         assert_eq!(sk_cache.read_value(&log.key), expected_value);

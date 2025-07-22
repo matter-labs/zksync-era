@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: checkout base branch
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -34,26 +34,15 @@ jobs:
 
       - name: setup-env
         run: |
-          touch .env
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
           # Set the minimum reported instruction count difference to reduce noise
           echo "BENCHMARK_DIFF_THRESHOLD_PERCENT=2" >> .env
 
-      - name: init
-        run: |
-          run_retried docker compose pull zk
-          docker compose up -d zk
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          ci_run zkstackup -g --local
           ci_run zkstack dev contracts
           ci_run cargo bench --manifest-path ./core/Cargo.toml \
             --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
@@ -69,7 +58,6 @@ jobs:
         shell: bash
         id: comparison
         run: |
-          ci_run zkstackup -g --local
           ci_run zkstack dev contracts
           ci_run cargo bench --manifest-path ./core/Cargo.toml --package vm-benchmark --bench instructions -- --verbose
 

@@ -10,7 +10,6 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
-    utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
@@ -22,12 +21,14 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::{fill_transaction_receipts, open_readonly_transaction},
-    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
+    utils::open_readonly_transaction,
+    web3::{
+        backend_jsonrpsee::MethodTracer, receipts::fill_transaction_receipts, state::RpcState,
+        TypedFilter,
+    },
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
-pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
 pub(crate) struct EthNamespace {
@@ -92,7 +93,8 @@ impl EthNamespace {
             .state
             .tx_sender
             .eth_call(block_args, call_overrides, tx, state_override)
-            .await?;
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(call_result.into())
     }
 
@@ -136,7 +138,7 @@ impl EthNamespace {
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        let gas_price = self.state.tx_sender.gas_price().await?;
+        let (gas_price, _) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
         tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
@@ -157,12 +159,13 @@ impl EthNamespace {
                 state_override,
                 search_kind,
             )
-            .await?;
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
-        let gas_price = self.state.tx_sender.gas_price().await?;
+        let (gas_price, _) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
         Ok(gas_price.into())
     }
 
@@ -469,21 +472,17 @@ impl EthNamespace {
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
-        let full_nonce = connection
-            .storage_web3_dal()
-            .get_address_historical_nonce(address, block_number)
-            .await
-            .map_err(DalError::generalize)?;
+        let (account_type, mut nonce) = self
+            .state
+            .account_types_cache
+            .get_with_nonce(&mut connection, address, block_number)
+            .await?;
 
-        // TODO (SMA-1612): currently account nonce is returning always, but later we will
-        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
-        //  Strip off deployer nonce part.
-        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
-
-        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
-            let account_nonce_u64 = u64::try_from(account_nonce)
+        // There's no need to try updating the nonce for contracts because they cannot initiate transactions.
+        if account_type.is_external() && matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            let account_nonce_u64 = u64::try_from(nonce)
                 .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
-            account_nonce = if let Some(account_nonce) = self
+            nonce = if let Some(account_nonce) = self
                 .state
                 .tx_sink()
                 .lookup_pending_nonce(address, account_nonce_u64 as u32)
@@ -499,7 +498,7 @@ impl EthNamespace {
                     .map_err(DalError::generalize)?
             };
         }
-        Ok(account_nonce)
+        Ok(nonce)
     }
 
     pub async fn get_transaction_impl(
@@ -654,9 +653,15 @@ impl EthNamespace {
         Ok(installed_filters.lock().await.remove(idx))
     }
 
-    pub fn protocol_version(&self) -> String {
-        // TODO (SMA-838): Versioning of our protocol
-        PROTOCOL_VERSION.to_string()
+    pub async fn protocol_version_impl(&self) -> Result<String, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        let protocol_version = storage
+            .protocol_versions_dal()
+            .latest_semantic_version()
+            .await
+            .map_err(DalError::generalize)?
+            .context("expected some version to be present in DB")?;
+        Ok(format!("zks/{protocol_version}"))
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
@@ -669,11 +674,9 @@ impl EthNamespace {
         tx.set_input(tx_bytes.0, hash);
 
         let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
-        submit_result.map(|_| hash).map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}");
-            API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            err.into()
-        })
+        submit_result
+            .map(|_| hash)
+            .map_err(|err| self.current_method().map_submit_err(err))
     }
 
     pub fn accounts_impl(&self) -> Vec<Address> {
@@ -682,14 +685,15 @@ impl EthNamespace {
 
     pub fn syncing_impl(&self) -> SyncState {
         if let Some(state) = &self.state.sync_state {
+            let state = state.borrow();
             // Node supports syncing process (i.e. not the main node).
             if state.is_synced() {
                 SyncState::NotSyncing
             } else {
                 SyncState::Syncing(SyncInfo {
-                    starting_block: 0u64.into(), // We always start syncing from genesis right now.
-                    current_block: state.get_local_block().0.into(),
-                    highest_block: state.get_main_node_block().0.into(),
+                    starting_block: 0_u64.into(), // We always start syncing from genesis right now.
+                    current_block: state.local_block().unwrap_or_default().0.into(),
+                    highest_block: state.main_node_block().unwrap_or_default().0.into(),
                 })
             }
         } else {

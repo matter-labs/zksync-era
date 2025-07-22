@@ -30,12 +30,13 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "75;80;89"
+        default: "75;80;89;90"
         required: false
         # Details: https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
         # L4: 89
         # T4: 75
         # A100: 80
+        # H100: 90
     outputs:
       protocol_version:
         description: "Protocol version of the binary"
@@ -48,31 +49,17 @@ jobs:
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: setup rust
-        uses: actions-rust-lang/setup-rust-toolchain@1fbea72663f6d4c03efaab13560c8a24cfd2a7cc # v1.9.0
+        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
         with:
           toolchain: nightly-2024-09-01
-
-      - name: Prepare sccache-cache env vars
-        shell: bash
-        run: |
-          echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
-          echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
-          echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-          echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
-          echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
 
       - name: protocol-version
         id: protocolversion
@@ -104,20 +91,15 @@ jobs:
           - prover-autoscaler
           - circuit-prover-gpu
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Set env vars
         shell: bash
@@ -155,7 +137,7 @@ jobs:
           gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         with:
           registry: ghcr.io
@@ -163,7 +145,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           load: true

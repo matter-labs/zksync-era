@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::tracing::{
+use zk_evm_1_5_2::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 
@@ -7,7 +7,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
         bootloader::BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer,
         ZkSyncVmState,

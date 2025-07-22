@@ -51,7 +51,8 @@ impl DivergenceHandler {
         Self(Arc::new(f))
     }
 
-    fn handle(&self, err: DivergenceErrors, dump: VmDump) {
+    /// Handles a VM divergence.
+    pub fn handle(&self, err: DivergenceErrors, dump: VmDump) {
         self.0(err, dump);
     }
 }
@@ -551,7 +552,7 @@ where
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        self.main.start_new_l2_block(l2_block_env);
+        self.main.start_new_l2_block(l2_block_env.clone());
         if let Some(shadow) = self.shadow.get_mut() {
             shadow.vm.start_new_l2_block(l2_block_env);
         }
@@ -735,5 +736,12 @@ where
             shadow.vm.pop_snapshot_no_rollback();
         }
         self.main.pop_snapshot_no_rollback();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.pop_front_snapshot_no_rollback();
+        }
+        self.main.pop_front_snapshot_no_rollback();
     }
 }

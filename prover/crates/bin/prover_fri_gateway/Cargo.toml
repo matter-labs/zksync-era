@@ -14,20 +14,19 @@ vise.workspace = true
 zksync_types.workspace = true
 zksync_prover_dal.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_env_config.workspace = true
-zksync_core_leftovers.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 zksync_task_management.workspace = true
 zksync_vlog.workspace = true
 
+axum.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+tower-http = { workspace = true, features = ["trace"] }
 reqwest = { workspace = true, features = ["blocking"] }
 tokio = { workspace = true, features = ["time", "macros"] }
+thiserror.workspace = true
 ctrlc = { workspace = true, features = ["termination"] }
 async-trait.workspace = true
-futures = { workspace = true, features = ["compat"] }
 serde = { workspace = true, features = ["derive"] }
-log.workspace = true
 clap = { workspace = true, features = ["derive"] }

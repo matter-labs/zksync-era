@@ -19,10 +19,21 @@ pub async fn get_diamond_proxy_contract(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
 ) -> Result<Address, ContractCallError> {
-    CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
+    CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
         .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await
+}
+
+pub async fn get_server_notifier_addr(
+    sl_client: &dyn EthInterface,
+    ctm_address: Address,
+) -> Result<Option<Address>, ContractCallError> {
+    CallFunctionArgs::new("serverNotifierAddress", ())
+        .for_contract(ctm_address, &state_transition_manager_contract())
+        .call(sl_client)
+        .await
+        .map(|a: Address| if a.is_zero() { None } else { Some(a) })
 }
 
 /// Load contacts specific for each settlement layer, using bridgehub contract
@@ -55,34 +66,26 @@ pub async fn load_settlement_layer_contracts(
             .call(sl_client)
             .await?;
 
-    let server_notifier_addr = CallFunctionArgs::new("serverNotifierAddress", ())
-        .for_contract(ctm_address, &state_transition_manager_contract())
+    let message_root_proxy_addr = CallFunctionArgs::new("messageRoot", ())
+        .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
-        .await
-        .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
+        .await?;
 
     let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
         .for_contract(ctm_address, &state_transition_manager_contract())
         .call(sl_client)
         .await?;
 
-    let chain_admin =
-        CallFunctionArgs::new("getChainAdmin", Token::Uint(l2_chain_id.as_u64().into()))
-            .for_contract(ctm_address, &state_transition_manager_contract())
-            .call(sl_client)
-            .await?;
-
     Ok(Some(SettlementLayerSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
-            server_notifier_addr,
+            message_root_proxy_addr: Some(message_root_proxy_addr),
             validator_timelock_addr: Some(validator_timelock_addr),
             multicall3,
         },
         chain_contracts_config: ChainContracts {
             diamond_proxy_addr: diamond_proxy,
-            chain_admin: Some(chain_admin),
         },
     }))
 }
@@ -152,4 +155,19 @@ async fn get_protocol_version(
         .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)
         .await
+}
+
+pub async fn is_settlement_layer(
+    eth_client: &dyn EthInterface,
+    bridgehub_address: Address,
+    l2_chain_id: L2ChainId,
+) -> Result<bool, ContractCallError> {
+    let is_settlement_layer: bool = CallFunctionArgs::new(
+        "whitelistedSettlementLayers",
+        Token::Uint(l2_chain_id.as_u64().into()),
+    )
+    .for_contract(bridgehub_address, &bridgehub_contract())
+    .call(eth_client)
+    .await?;
+    Ok(is_settlement_layer)
 }

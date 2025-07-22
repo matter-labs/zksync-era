@@ -1,6 +1,8 @@
+<!--- WIP --->
+
 # Contracts
 
-Contracts are used throughout the codebase. The core or the L2 system is coded in smart contracts, these can be found in [l2_system_contracts](./l2_system_contracts/README.md)
+Contracts are used throughout the codebase. The core or the L2 system is coded in smart contracts, these can be found in [zkEVM documentation](./zkevm/overview.md)
 
 The chain uses contracts to [settle](./settlement_contracts/zkchain_basics.md). 
 

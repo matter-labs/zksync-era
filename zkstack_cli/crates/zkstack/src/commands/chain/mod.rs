@@ -3,37 +3,38 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use set_da_validator_pair::SetDAValidatorPairArgs;
+use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
+use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
-#[cfg(feature = "gateway")]
-use crate::commands::chain::gateway_migration::MigrationDirection;
 use crate::commands::chain::{
-    args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
-    genesis::GenesisCommand, init::ChainInitCommand,
+    args::{create::ChainCreateArgs, set_pubdata_pricing_mode::SetPubdataPricingModeArgs},
+    deploy_l2_contracts::Deploy2ContractsOption,
+    genesis::GenesisCommand,
+    init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;
+pub(crate) mod admin_call_builder;
 pub(crate) mod args;
 mod build_transactions;
 pub(crate) mod common;
-#[cfg(feature = "gateway")]
-pub(crate) mod convert_to_gateway;
 pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
-#[cfg(feature = "gateway")]
-mod gateway_migration;
-#[cfg(feature = "gateway")]
-mod gateway_upgrade;
+mod gateway;
 pub mod genesis;
 pub mod init;
-#[cfg(feature = "gateway")]
-mod migrate_from_gateway;
 pub mod register_chain;
+mod set_da_validator_pair;
+mod set_da_validator_pair_calldata;
+mod set_pubdata_pricing_mode;
 mod set_token_multiplier_setter;
+pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
-mod utils;
+pub mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -68,6 +69,9 @@ pub enum ChainCommands {
     /// Deploy L2 TimestampAsserter
     #[command(alias = "timestamp-asserter")]
     DeployTimestampAsserter(ForgeScriptArgs),
+    /// Deploy L2 DA Validator
+    #[command(alias = "da-validator")]
+    DeployL2DAValidator(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -76,24 +80,18 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
-    /// Prepare chain to be an eligible gateway
-    #[cfg(feature = "gateway")]
-    ConvertToGateway(ForgeScriptArgs),
-    /// Migrate chain to gateway
-    #[cfg(feature = "gateway")]
-    MigrateToGateway(gateway_migration::MigrateToGatewayArgs),
-    /// Migrate chain from gateway
-    #[cfg(feature = "gateway")]
-    MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
-    /// Upgrade to the protocol version that supports Gateway
-    #[cfg(feature = "gateway")]
-    GatewayUpgrade(gateway_upgrade::GatewayUpgradeArgs),
+    /// Provides calldata to set transaction filterer for a chain
+    SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
+    /// Provides calldata to set DA validator pair for a chain
+    SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
-    #[cfg(feature = "gateway")]
-    NotifyAboutToGatewayUpdate(ForgeScriptArgs),
-    #[cfg(feature = "gateway")]
-    NotifyAboutFromGatewayUpdate(ForgeScriptArgs),
+    /// Update pubdata pricing mode (used for Rollup -> Validium migration)
+    SetPubdataPricingMode(SetPubdataPricingModeArgs),
+    /// Update da validator pair (used for Rollup -> Validium migration)
+    SetDAValidatorPair(SetDAValidatorPairArgs),
+    #[command(subcommand, alias = "gw")]
+    Gateway(gateway::GatewayComamnds),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -116,6 +114,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployTimestampAsserter(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
         }
+        ChainCommands::DeployL2DAValidator(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::L2DAValidator).await
+        }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
@@ -123,22 +124,17 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        #[cfg(feature = "gateway")]
-        ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
-        #[cfg(feature = "gateway")]
-        ChainCommands::MigrateToGateway(args) => gateway_migration::run(args, shell).await,
-        #[cfg(feature = "gateway")]
-        ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
-        #[cfg(feature = "gateway")]
-        ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
-        #[cfg(feature = "gateway")]
-        ChainCommands::NotifyAboutToGatewayUpdate(args) => {
-            gateway_migration::notify_server(args, shell, MigrationDirection::ToGateway).await
+        ChainCommands::SetTransactionFiltererCalldata(args) => {
+            set_transaction_filterer::run(shell, args).await
         }
-        #[cfg(feature = "gateway")]
-        ChainCommands::NotifyAboutFromGatewayUpdate(args) => {
-            gateway_migration::notify_server(args, shell, MigrationDirection::FromGateway).await
+        ChainCommands::SetDAValidatorPairCalldata(args) => {
+            set_da_validator_pair_calldata::run(shell, args).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
+        ChainCommands::SetPubdataPricingMode(args) => {
+            set_pubdata_pricing_mode::run(args, shell).await
+        }
+        ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
+        ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }

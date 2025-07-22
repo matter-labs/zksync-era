@@ -1,10 +1,11 @@
 use std::{str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::ProtocolSemanticVersion,
     prover_dal::{RecursionTipWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
-    L1BatchNumber,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -19,21 +20,24 @@ pub struct FriRecursionTipWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
-    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
+    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<L1BatchId> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
-                l1_batch_number IN (
+                (l1_batch_number, chain_id) IN (
                     SELECT
-                        prover_jobs_fri.l1_batch_number
+                        prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.chain_id
                     FROM
                         prover_jobs_fri
                     JOIN
                         recursion_tip_witness_jobs_fri rtwj
-                        ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
+                        ON
+                            prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
+                            AND prover_jobs_fri.chain_id = rtwj.chain_id
                     WHERE
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -41,12 +45,14 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                         AND prover_jobs_fri.is_node_final_proof = TRUE
                     GROUP BY
                         prover_jobs_fri.l1_batch_number,
+                        prover_jobs_fri.chain_id,
                         rtwj.number_of_final_node_jobs
                     HAVING
                         COUNT(*) = rtwj.number_of_final_node_jobs
                 )
             RETURNING
-            l1_batch_number;
+            l1_batch_number,
+            chain_id;
             "#,
             AggregationRound::NodeAggregation as i64,
         )
@@ -54,7 +60,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (row.l1_batch_number as u64))
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
         .collect()
     }
 
@@ -83,6 +89,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 )
             RETURNING
             l1_batch_number,
+            chain_id,
             status,
             attempts,
             error,
@@ -97,6 +104,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .into_iter()
         .map(|row| StuckJobs {
             id: row.l1_batch_number as u64,
+            chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
@@ -110,7 +118,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         &mut self,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<(L1BatchNumber, i32)> {
+    ) -> Option<(L1BatchId, i32)> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -121,9 +129,10 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 processing_started_at = NOW(),
                 picked_by = $3
             WHERE
-                l1_batch_number = (
+                (l1_batch_number, chain_id) = (
                     SELECT
-                        l1_batch_number
+                        l1_batch_number,
+                        chain_id
                     FROM
                         recursion_tip_witness_jobs_fri
                     WHERE
@@ -131,7 +140,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -139,6 +149,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 )
             RETURNING
             recursion_tip_witness_jobs_fri.l1_batch_number,
+            recursion_tip_witness_jobs_fri.chain_id,
             recursion_tip_witness_jobs_fri.number_of_final_node_jobs
             "#,
             protocol_version.minor as i32,
@@ -150,7 +161,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .unwrap()
         .map(|row| {
             (
-                L1BatchNumber(row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 row.number_of_final_node_jobs,
             )
         })
@@ -158,7 +169,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn mark_recursion_tip_job_as_successful(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        batch_id: L1BatchId,
         time_taken: Duration,
     ) {
         sqlx::query!(
@@ -169,10 +180,14 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 time_taken = $1
             WHERE
-                l1_batch_number = $2
+                (l1_batch_number, chain_id) = (
+                    $2,
+                    $3
+                )
             "#,
             duration_to_naive_time(time_taken),
-            l1_batch_number.0 as i64
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -181,7 +196,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_recursion_tip_witness_generator_jobs_for_batch(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -191,14 +206,16 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 recursion_tip_witness_jobs_fri
             WHERE
                 l1_batch_number = $1
+                AND chain_id = $2
             "#,
-            i64::from(l1_batch_number.0)
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| RecursionTipWitnessGeneratorJobInfo {
-            l1_batch_number,
+            batch_id,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             attempts: row.attempts as u32,
             processing_started_at: row.processing_started_at,
@@ -214,7 +231,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_recursion_tip_jobs_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         sqlx::query!(
@@ -226,19 +243,22 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
-                AND attempts >= $2
+                AND chain_id = $2
+                AND attempts >= $3
                 AND (
                     status = 'in_progress'
                     OR status = 'failed'
                 )
             RETURNING
             l1_batch_number,
+            chain_id,
             status,
             attempts,
             error,
             picked_by
             "#,
-            i64::from(block_number.0),
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             max_attempts as i64
         )
         .fetch_all(self.storage.conn())
@@ -247,6 +267,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .into_iter()
         .map(|row| StuckJobs {
             id: row.l1_batch_number as u64,
+            chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
@@ -258,33 +279,38 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_recursion_tip_aggregation_jobs(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
         closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
             INSERT INTO
             recursion_tip_witness_jobs_fri (
                 l1_batch_number,
+                chain_id,
                 status,
                 number_of_final_node_jobs,
                 protocol_version,
                 created_at,
                 updated_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
-            ON CONFLICT (l1_batch_number) DO
+            ($1, $2, 'waiting_for_proofs', $3, $4, NOW(), NOW(), $5, $6)
+            ON CONFLICT (l1_batch_number, chain_id) DO
             UPDATE
             SET
             updated_at = NOW()
             "#,
-            block_number.0 as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             closed_form_inputs_and_urls.len() as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await

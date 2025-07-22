@@ -4,10 +4,11 @@ use std::{
 };
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use zksync_config::ObjectStoreConfig;
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_object_store::{
@@ -50,8 +51,18 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
         }
 
         Ok(DispatchResponse {
-            blob_id: batch_number.to_string(),
+            request_id: batch_number.to_string(),
         })
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+        _: DateTime<Utc>,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        Ok(Some(FinalityResponse {
+            blob_id: dispatch_request_id,
+        }))
     }
 
     async fn get_inclusion_data(&self, key: &str) -> Result<Option<InclusionData>, DAError> {

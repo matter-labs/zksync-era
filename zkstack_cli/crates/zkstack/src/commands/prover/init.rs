@@ -10,9 +10,8 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
+    copy_configs, get_link_to_prover, EcosystemConfig, ObjectStoreConfig, ObjectStoreMode,
 };
-use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
     args::init::{ProofStorageConfig, ProofStorageFileBacked, ProverInitArgs},
@@ -22,6 +21,7 @@ use super::{
     setup_keys,
 };
 use crate::{
+    commands::prover::deploy_proving_networks::deploy_proving_networks,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
@@ -42,14 +42,27 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     if chain_config.get_general_config().await.is_err()
         || chain_config.get_secrets_config().await.is_err()
+        || chain_config.get_wallets_config().is_err()
+        || chain_config.get_contracts_config().is_err()
     {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 
     let mut general_config = chain_config.get_general_config().await?.patched();
+    let secrets = chain_config.get_secrets_config().await?;
 
     let proof_object_store_config =
         get_object_store_config(shell, Some(args.proof_store))?.unwrap();
+
+    if args.deploy_proving_networks {
+        deploy_proving_networks(
+            shell,
+            &ecosystem_config,
+            &chain_config,
+            secrets.l1_rpc_url()?,
+        )
+        .await?;
+    }
 
     if let Some(args) = args.compressor_key_args {
         let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
@@ -61,11 +74,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         setup_keys::run(args, shell).await?;
     }
 
-    set_object_store(
-        &mut general_config,
-        "prover.prover_object_store",
-        &proof_object_store_config,
-    )?;
+    general_config.set_prover_object_store(&proof_object_store_config)?;
     general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {
@@ -76,7 +85,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
         let mut secrets = chain_config.get_secrets_config().await?.patched();
-        set_prover_database(&mut secrets, &prover_db.database_config)?;
+        secrets.set_prover_database(&prover_db.database_config)?;
         secrets.save().await?;
         initialize_prover_database(
             shell,
@@ -109,7 +118,6 @@ fn get_object_store_config(
                 gcs_credential_file_path: config.credentials_file,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
         }),
         Some(ProofStorageConfig::GCSCreateBucket(config)) => {
             Some(create_gcs_bucket(shell, config)?)
@@ -118,99 +126,6 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
-}
-
-fn set_object_store(
-    patch: &mut PatchedConfig,
-    prefix: &str,
-    config: &ObjectStoreConfig,
-) -> anyhow::Result<()> {
-    patch.insert(&format!("{prefix}.max_retries"), config.max_retries)?;
-    match &config.mode {
-        ObjectStoreMode::FileBacked {
-            file_backed_base_path,
-        } => {
-            patch.insert_yaml(
-                &format!("{prefix}.file_backed.file_backed_base_path"),
-                file_backed_base_path,
-            )?;
-        }
-        ObjectStoreMode::GCS { bucket_base_url } => {
-            patch.insert(
-                &format!("{prefix}.gcs.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-        }
-        ObjectStoreMode::GCSWithCredentialFile {
-            bucket_base_url,
-            gcs_credential_file_path,
-        } => {
-            patch.insert(
-                &format!("{prefix}.gcs_with_credential_file.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-            patch.insert(
-                &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
-                gcs_credential_file_path.clone(),
-            )?;
-        }
-        ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
-            patch.insert(
-                &format!("{prefix}.gcs_anonymous_read_only.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-        }
-        ObjectStoreMode::S3WithCredentialFile {
-            bucket_base_url,
-            s3_credential_file_path,
-            endpoint,
-            region,
-        } => {
-            patch.insert(
-                &format!("{prefix}.s3_with_credential_file.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-            patch.insert(
-                &format!("{prefix}.s3_with_credential_file.s3_credential_file_path"),
-                s3_credential_file_path.clone(),
-            )?;
-            if let Some(endpoint) = endpoint {
-                patch.insert(
-                    &format!("{prefix}.s3_with_credential_file.endpoint"),
-                    endpoint.clone(),
-                )?;
-            }
-            if let Some(region) = region {
-                patch.insert(
-                    &format!("{prefix}.s3_with_credential_file.region"),
-                    region.clone(),
-                )?;
-            }
-        }
-        ObjectStoreMode::S3AnonymousReadOnly {
-            bucket_base_url,
-            endpoint,
-            region,
-        } => {
-            patch.insert(
-                &format!("{prefix}.s3_anonymous_read_only.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-            if let Some(endpoint) = endpoint {
-                patch.insert(
-                    &format!("{prefix}.s3_anonymous_read_only.endpoint"),
-                    endpoint.clone(),
-                )?;
-            }
-            if let Some(region) = region {
-                patch.insert(
-                    &format!("{prefix}.s3_anonymous_read_only.region"),
-                    region.clone(),
-                )?;
-            }
-        }
-    }
-    Ok(())
 }
 
 async fn initialize_prover_database(
@@ -257,7 +172,6 @@ fn init_file_backed_proof_storage(
             file_backed_base_path: config.proof_store_dir,
         },
         max_retries: PROVER_STORE_MAX_RETRIES,
-        local_mirror_path: None,
     };
 
     Ok(object_store_config)

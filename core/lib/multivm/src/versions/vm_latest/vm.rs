@@ -1,4 +1,7 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
@@ -34,7 +37,7 @@ use crate::{
 /// In the first version of the v1.5.0 release, the bootloader memory was too small, so a new
 /// version was released with increased bootloader memory. The version with the small bootloader memory
 /// is available only on internal staging environments.
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd)]
 pub(crate) enum MultiVmSubversion {
     /// The initial version of v1.5.0, available only on staging environments.
     SmallBootloaderMemory,
@@ -43,12 +46,14 @@ pub(crate) enum MultiVmSubversion {
     /// VM for post-gateway versions.
     Gateway,
     EvmEmulator,
+    EcPrecompiles,
+    Interop,
 }
 
+#[cfg(test)]
 impl MultiVmSubversion {
-    #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::EvmEmulator
+        Self::Interop
     }
 }
 
@@ -64,6 +69,8 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             VmVersion::VmGateway => Ok(Self::Gateway),
             VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
+            VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
+            VmVersion::VmInterop => Ok(Self::Interop),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -75,12 +82,12 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_2>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
-    pub(crate) snapshots: Vec<VmSnapshot>,
+    pub(crate) snapshots: VecDeque<VmSnapshot>,
     pub(crate) subversion: MultiVmSubversion,
     _phantom: std::marker::PhantomData<H>,
 }
@@ -149,7 +156,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_2>;
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_with_compression(tx, true);
@@ -262,7 +269,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             system_env,
             batch_env,
             subversion,
-            snapshots: vec![],
+            snapshots: VecDeque::new(),
             _phantom: Default::default(),
         }
     }
@@ -276,13 +283,17 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
     fn rollback_to_the_latest_snapshot(&mut self) {
         let snapshot = self
             .snapshots
-            .pop()
+            .pop_back()
             .expect("Snapshot should be created before rolling it back");
         self.rollback_to_snapshot(snapshot);
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop();
+        self.snapshots.pop_back();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        self.snapshots.pop_front();
     }
 }
 

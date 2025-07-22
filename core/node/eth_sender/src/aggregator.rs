@@ -1,14 +1,18 @@
 use std::sync::Arc;
 
-use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
+use chrono::Utc;
+use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::{
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
+};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
@@ -16,7 +20,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersionId,
+    transaction_status_commitment::TransactionStatusCommitment,
+    InteropRoot, L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -26,7 +31,10 @@ use super::{
         TimestampDeadlineCriterion,
     },
 };
-use crate::EthSenderError;
+use crate::{
+    aggregated_operations::{L1BatchAggregatedOperation, L2BlockAggregatedOperation},
+    EthSenderError,
+};
 
 #[derive(Debug)]
 pub struct Aggregator {
@@ -45,6 +53,7 @@ pub struct Aggregator {
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
+    settlement_layer: SettlementLayer,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -55,12 +64,13 @@ pub(crate) struct OperationSkippingRestrictions {
     pub(crate) commit_restriction: Option<&'static str>,
     pub(crate) prove_restriction: Option<&'static str>,
     pub(crate) execute_restriction: Option<&'static str>,
+    pub(crate) precommit_restriction: Option<&'static str>,
 }
 
 impl OperationSkippingRestrictions {
     fn check_for_continuation(
         &self,
-        agg_op: &AggregatedOperation,
+        agg_op: &L1BatchAggregatedOperation,
         reason: Option<&'static str>,
     ) -> bool {
         if let Some(reason) = reason {
@@ -81,23 +91,42 @@ impl OperationSkippingRestrictions {
     // easier compatibility with other interfaces in the file.
     fn filter_commit_op(
         &self,
-        commit_op: Option<AggregatedOperation>,
+        commit_op: Option<L1BatchAggregatedOperation>,
     ) -> Option<AggregatedOperation> {
         let commit_op = commit_op?;
         self.check_for_continuation(&commit_op, self.commit_restriction)
-            .then_some(commit_op)
+            .then_some(AggregatedOperation::L1Batch(commit_op))
     }
 
     fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
-        let op = AggregatedOperation::PublishProofOnchain(prove_op?);
+        let op = L1BatchAggregatedOperation::PublishProofOnchain(prove_op?);
         self.check_for_continuation(&op, self.prove_restriction)
-            .then_some(op)
+            .then_some(AggregatedOperation::L1Batch(op))
     }
 
     fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
-        let op = AggregatedOperation::Execute(execute_op?);
+        let op = L1BatchAggregatedOperation::Execute(execute_op?);
         self.check_for_continuation(&op, self.execute_restriction)
-            .then_some(op)
+            .then_some(AggregatedOperation::L1Batch(op))
+    }
+
+    fn filter_precommit_op(
+        &self,
+        precommit_op: Option<L2BlockAggregatedOperation>,
+    ) -> Option<AggregatedOperation> {
+        let precommit_op = precommit_op?;
+        if let Some(reason) = self.precommit_restriction {
+            tracing::info!(
+                "Skipping sending operation of type {} for blocks {}-{} since {}",
+                precommit_op.get_action_type(),
+                precommit_op.l2_blocks_range().start(),
+                precommit_op.l2_blocks_range().end(),
+                reason
+            );
+            None
+        } else {
+            Some(AggregatedOperation::L2Block(precommit_op))
+        }
     }
 }
 
@@ -105,13 +134,12 @@ impl Aggregator {
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
-        custom_commit_sender_addr: Option<Address>,
+        custom_commit_sender_addr: bool,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
-        let operate_4844_mode: bool =
-            custom_commit_sender_addr.is_some() && !settlement_layer.is_gateway();
+        let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
         let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_layer
@@ -126,18 +154,18 @@ impl Aggregator {
             }
 
             vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::Execute,
+                op: L1BatchAggregatedActionType::Execute,
                 limit: 1,
             })]
         } else {
             vec![
                 Box::from(NumberCriterion {
-                    op: AggregatedActionType::Execute,
+                    op: L1BatchAggregatedActionType::Execute,
                     limit: config.max_aggregated_blocks_to_execute,
                 }),
                 Box::from(TimestampDeadlineCriterion {
-                    op: AggregatedActionType::Execute,
-                    deadline_seconds: config.aggregated_block_execute_deadline,
+                    op: L1BatchAggregatedActionType::Execute,
+                    deadline: config.aggregated_block_execute_deadline,
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
                 Box::from(L1GasCriterion::new(
@@ -153,12 +181,12 @@ impl Aggregator {
             {
                 vec![
                     Box::from(NumberCriterion {
-                        op: AggregatedActionType::Commit,
+                        op: L1BatchAggregatedActionType::Commit,
                         limit: config.max_aggregated_blocks_to_commit,
                     }),
                     Box::from(TimestampDeadlineCriterion {
-                        op: AggregatedActionType::Commit,
-                        deadline_seconds: config.aggregated_block_commit_deadline,
+                        op: L1BatchAggregatedActionType::Commit,
+                        deadline: config.aggregated_block_commit_deadline,
                         max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                     }),
                     Box::from(L1GasCriterion::new(
@@ -175,7 +203,7 @@ impl Aggregator {
                     );
                 }
                 vec![Box::from(NumberCriterion {
-                    op: AggregatedActionType::Commit,
+                    op: L1BatchAggregatedActionType::Commit,
                     limit: 1,
                 })]
             };
@@ -183,7 +211,7 @@ impl Aggregator {
         Ok(Self {
             commit_criteria,
             proof_criteria: vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::PublishProofOnchain,
+                op: L1BatchAggregatedActionType::PublishProofOnchain,
                 limit: 1,
             })],
             execute_criteria,
@@ -194,9 +222,11 @@ impl Aggregator {
             commitment_mode,
             priority_merkle_tree: None,
             pool,
+            settlement_layer,
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn get_next_ready_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -205,6 +235,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         restrictions: OperationSkippingRestrictions,
         priority_tree_start_index: Option<usize>,
+        precommit_params: Option<&PrecommitParams>,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -230,17 +261,23 @@ impl Aggregator {
                 .await,
         ) {
             Ok(Some(op))
+        } else if let Some(op) = restrictions.filter_commit_op(
+            self.get_commit_operation(
+                storage,
+                self.config.max_aggregated_blocks_to_commit as usize,
+                last_sealed_l1_batch_number,
+                base_system_contracts_hashes,
+                protocol_version_id,
+                precommit_params.is_some(),
+            )
+            .await,
+        ) {
+            Ok(Some(op))
+        } else if let Some(params) = precommit_params {
+            Ok(restrictions
+                .filter_precommit_op(self.get_precommit_operation(storage, params).await?))
         } else {
-            Ok(restrictions.filter_commit_op(
-                self.get_commit_operation(
-                    storage,
-                    self.config.max_aggregated_blocks_to_commit as usize,
-                    last_sealed_l1_batch_number,
-                    base_system_contracts_hashes,
-                    protocol_version_id,
-                )
-                .await,
-            ))
+            Ok(None)
         }
     }
 
@@ -271,6 +308,94 @@ impl Aggregator {
         self.priority_merkle_tree.as_mut().unwrap()
     }
 
+    async fn get_precommit_operation(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        precommit_params: &PrecommitParams,
+    ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
+        // The first l1 batch needs to be commited is 1, so it's safe to start precommits from batch 1.
+        let last_committed_l1_batch = storage
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_on_eth()
+            .await?;
+
+        let last_committed_finalized_l1_batch = storage
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
+            .await?;
+
+        if last_committed_l1_batch != last_committed_finalized_l1_batch {
+            // Last committed L1 batch is not finalized yet, skipping precommit operation. During the transition from not using
+            // to using precommit we have to wait for the last committed batch to be finalized.
+            // Otherwise we can have a race condition and either precommit or commit operation would fail.
+            return Ok(None);
+        }
+
+        let l1_batch_for_precommit = last_committed_l1_batch.unwrap_or(L1BatchNumber(0)) + 1;
+        let txs = storage
+            .blocks_dal()
+            .get_ready_for_precommit_txs(l1_batch_for_precommit)
+            .await?;
+
+        if txs.is_empty() {
+            return Ok(None);
+        }
+
+        // Vec of txs is not empty, so we can unwrap it
+        let first_tx = txs.first().cloned().unwrap();
+
+        let blocks_range_for_potential_precommits = storage
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_for_precommit)
+            .await?;
+
+        // If the potential batch has not been sealed, we just send precommit
+        // If it was sealed we check that the first block we want to precommit is from the potential batch.
+        if let Some((_, last_block)) = blocks_range_for_potential_precommits {
+            if last_block < first_tx.l2block_number {
+                return Ok(None);
+            }
+        }
+
+        let l1_batch_number = first_tx.l1_batch_number;
+
+        // Filter out transactions that are not in the same batch as the first transaction. If we need to precommit more than one batch,
+        // we will do it in the next iteration.
+        let filtered_txs: Vec<_> = txs
+            .into_iter()
+            .filter(|tx| tx.l1_batch_number == l1_batch_number)
+            .collect();
+
+        let last_tx = filtered_txs.last().unwrap();
+
+        // We can skip precommit if we are sending the precommit for not sealed batch and do some batching.
+        // If the batch already sealed we have to send it as soon as possible
+        if l1_batch_number.is_none() {
+            // We need to check that the first and last L2 blocks are in the same batch
+
+            let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
+            if first_l2_block_age < precommit_params.deadline.as_secs() as i64
+                && (first_tx.l2block_number.0 - last_tx.l2block_number.0
+                    < precommit_params.l2_blocks_to_aggregate)
+            {
+                return Ok(None);
+            }
+        }
+
+        Ok(Some(L2BlockAggregatedOperation::Precommit {
+            l1_batch: l1_batch_for_precommit,
+            first_l2_block: first_tx.l2block_number,
+            last_l2_block: last_tx.l2block_number,
+            txs: filtered_txs
+                .into_iter()
+                .map(|tx| TransactionStatusCommitment {
+                    tx_hash: tx.tx_hash,
+                    is_success: tx.is_success,
+                })
+                .collect(),
+        }))
+    }
+
     async fn get_execute_operations(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -280,8 +405,8 @@ impl Aggregator {
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let max_l1_batch_timestamp_millis = self
             .config
-            .l1_batch_min_age_before_execute_seconds
-            .map(|age| unix_timestamp_ms() - age * 1_000);
+            .l1_batch_min_age_before_execute
+            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
@@ -292,11 +417,23 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await
         else {
             return Ok(None);
         };
+
+        let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
+        for batch in &l1_batches {
+            let interop_roots = storage
+                .interop_root_dal()
+                .get_interop_roots_batch(batch.header.number)
+                .await
+                .unwrap();
+
+            dependency_roots.push(interop_roots);
+        }
 
         let Some(priority_tree_start_index) = priority_tree_start_index else {
             // The index is not yet applicable to the current system, so we
@@ -305,6 +442,7 @@ impl Aggregator {
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
+                dependency_roots,
             }));
         };
 
@@ -355,6 +493,7 @@ impl Aggregator {
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
+            dependency_roots,
         }))
     }
 
@@ -365,7 +504,18 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<AggregatedOperation> {
+        send_precommit_tx: bool,
+    ) -> Option<L1BatchAggregatedOperation> {
+        // The commit operation is not aggregated at the moment. The code below relies on `limit`
+        // being set to 1 when defining the pubdata commitment mode.
+        if limit != 1 {
+            tracing::error!(
+                "Commit operation is not aggregated anymore. \
+                The limit of commit operation is set to 1."
+            );
+            return None;
+        }
+
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -390,6 +540,7 @@ impl Aggregator {
                     base_system_contracts_hashes.default_aa,
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
+                    send_precommit_tx,
                 )
                 .await
                 .unwrap()
@@ -411,12 +562,66 @@ impl Aggregator {
             &mut self.commit_criteria,
             ready_for_commit_l1_batches,
             last_sealed_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await;
 
-        batches.map(|batches| {
-            AggregatedOperation::Commit(last_committed_l1_batch, batches, self.pubdata_da)
-        })
+        let batches = batches?;
+
+        // Note: the line below only works correctly during rollup <-> validium transitions
+        // if the limit of commit operation is set to 1.
+        let (pubdata_sending_mode, commitment_mode) =
+            self.get_commitment_modes(batches.first()?, storage).await;
+
+        Some(L1BatchAggregatedOperation::Commit(
+            last_committed_l1_batch,
+            batches,
+            pubdata_sending_mode,
+            commitment_mode,
+        ))
+    }
+
+    async fn get_commitment_modes(
+        &self,
+        batch: &L1BatchWithMetadata,
+        storage: &mut Connection<'_, Core>,
+    ) -> (PubdataSendingMode, L1BatchCommitmentMode) {
+        let pubdata_params = storage
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(batch.header.number)
+            .await
+            .unwrap();
+
+        match pubdata_params {
+            Some(p) => {
+                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type);
+
+                if commitment_mode == L1BatchCommitmentMode::Rollup
+                    && self.pubdata_da == PubdataSendingMode::Custom
+                {
+                    if storage
+                        .eth_sender_dal()
+                        .is_using_blobs_in_latest_batch()
+                        .await
+                        .unwrap_or_default()
+                    {
+                        tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Blobs, commitment_mode)
+                    } else {
+                        tracing::warn!("Overriding pubdata sending mode to Calldata, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Calldata, commitment_mode)
+                    }
+                } else if commitment_mode == L1BatchCommitmentMode::Validium
+                    && self.pubdata_da != PubdataSendingMode::Custom
+                {
+                    tracing::warn!("Overriding pubdata sending mode to Custom, most likely validium -> rollup migration is in place");
+                    (PubdataSendingMode::Custom, commitment_mode)
+                } else {
+                    (self.pubdata_da, self.commitment_mode)
+                }
+            }
+            None => (self.pubdata_da, self.commitment_mode),
+        }
     }
 
     async fn load_dummy_proof_operations(
@@ -573,6 +778,7 @@ impl Aggregator {
             &mut self.proof_criteria,
             ready_for_proof_l1_batches,
             last_sealed_l1_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await?;
 
@@ -646,14 +852,6 @@ impl Aggregator {
             }
         }
     }
-
-    pub fn pubdata_da(&self) -> PubdataSendingMode {
-        self.pubdata_da
-    }
-
-    pub fn mode(&self) -> L1BatchCommitmentMode {
-        self.commitment_mode
-    }
 }
 
 async fn extract_ready_subrange(
@@ -661,11 +859,17 @@ async fn extract_ready_subrange(
     publish_criteria: &mut [Box<dyn L1BatchPublishCriterion>],
     unpublished_l1_batches: Vec<L1BatchWithMetadata>,
     last_sealed_l1_batch: L1BatchNumber,
+    is_gateway: bool,
 ) -> Option<Vec<L1BatchWithMetadata>> {
     let mut last_l1_batch: Option<L1BatchNumber> = None;
     for criterion in publish_criteria {
         let l1_batch_by_criterion = criterion
-            .last_l1_batch_to_publish(storage, &unpublished_l1_batches, last_sealed_l1_batch)
+            .last_l1_batch_to_publish(
+                storage,
+                &unpublished_l1_batches,
+                last_sealed_l1_batch,
+                is_gateway,
+            )
             .await;
         if let Some(l1_batch) = l1_batch_by_criterion {
             last_l1_batch = Some(last_l1_batch.map_or(l1_batch, |number| number.min(l1_batch)));
@@ -688,11 +892,26 @@ pub async fn load_wrapped_fri_proofs_for_range(
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>(L1BatchProofForL1Key::Core((l1_batch_number, *version)))
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(ObjectStoreError::KeyNotFound(_)) => {
+                match blob_store
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
+                        l1_batch_number,
+                        *version,
+                    )))
+                    .await
+                {
+                    Ok(proof) => return Some(proof.into()),
+                    Err(ObjectStoreError::KeyNotFound(_)) => continue, // proof is not ready yet, continue
+                    Err(err) => panic!(
+                        "Failed to load proof for batch {}: {}",
+                        l1_batch_number.0, err
+                    ),
+                }
+            }
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

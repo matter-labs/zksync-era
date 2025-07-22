@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
     - name: gpu-checker
-      image: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.1.0
+      image: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.3.0
       imagePullPolicy: IfNotPresent
       resources:
         limits:
