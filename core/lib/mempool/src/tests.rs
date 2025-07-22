@@ -8,15 +8,15 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, Nonce, PriorityOpId, Transaction,
-    TransactionTimeRangeConstraint, H256, U256,
+    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, Nonce, PriorityOpId,
+    ProtocolVersionId, Transaction, TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{mempool_store::MempoolStore, types::L2TxFilter, AdvanceInput};
 
 #[test]
 fn basic_flow() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![
@@ -63,7 +63,7 @@ fn basic_flow() {
 
 #[test]
 fn missing_txns() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account = Address::random();
     let transactions = vec![
         gen_l2_tx(account, Nonce(6)),
@@ -103,7 +103,7 @@ fn missing_txns() {
 
 #[test]
 fn prioritize_l1_txns() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account = Address::random();
     let transactions = vec![
         gen_l2_tx(account, Nonce(0)),
@@ -120,7 +120,7 @@ fn prioritize_l1_txns() {
 
 #[test]
 fn l1_txns_priority_id() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let transactions = vec![
         gen_l1_tx(PriorityOpId(1)),
         gen_l1_tx(PriorityOpId(2)),
@@ -146,7 +146,7 @@ fn l1_txns_priority_id() {
 
 #[test]
 fn rejected_tx() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account = Address::random();
     let transactions = vec![
         gen_l2_tx(account, Nonce(0)),
@@ -186,7 +186,7 @@ fn rejected_tx() {
 
 #[test]
 fn replace_tx() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account = Address::random();
     mempool.insert_without_constraints(vec![gen_l2_tx(account, Nonce(0))], HashMap::new());
     // replace it
@@ -204,7 +204,7 @@ fn replace_tx() {
 
 #[test]
 fn two_ready_txs() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![gen_l2_tx(account0, Nonce(0)), gen_l2_tx(account1, Nonce(0))];
@@ -220,7 +220,7 @@ fn two_ready_txs() {
 
 #[test]
 fn mempool_size() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![
@@ -249,15 +249,17 @@ fn filtering() {
         fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
         fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
 
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
 
@@ -293,14 +295,16 @@ fn stashed_accounts() {
         fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 1u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     // No-op filter that fetches any transaction.
     let filter_zero = L2TxFilter {
         fee_input: Default::default(),
         fee_per_gas: 0u64,
         gas_per_pubdata: 0u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
 
@@ -339,7 +343,7 @@ fn stashed_accounts() {
 
 #[test]
 fn mempool_capacity() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 4);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 4, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
     let account2 = Address::random();
@@ -382,7 +386,7 @@ fn mempool_capacity() {
 
 #[test]
 fn mempool_does_not_purge_all_accounts() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 1);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 1, None, None);
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![
@@ -410,7 +414,7 @@ fn mempool_does_not_purge_all_accounts() {
 
 #[test]
 fn advance_after_block_removes_processed_txs_and_updates_nonce() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let account = Address::random();
 
     // Insert txs with nonces 0, 1, 2
