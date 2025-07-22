@@ -97,7 +97,9 @@ impl MempoolIOLayer {
             &mut storage,
             self.mempool_config.capacity,
             self.mempool_config.high_priority_l2_tx_initiator,
-            self.mempool_config.high_priority_l2_tx_protocol_version,
+            self.mempool_config
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
         )
         .await;
         mempool.register_metrics();

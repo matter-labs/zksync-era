@@ -11,7 +11,7 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, ProtocolVersionId};
+use zksync_types::{get_nonce_key, Address, Nonce, ProtocolVersionId};
 
 use super::{mempool_guard::MempoolGuard, metrics::KEEPER_METRICS};
 
