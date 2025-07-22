@@ -114,7 +114,7 @@ What happens if a token is not migrated to Gateway, the chain migrates back to L
 It might happen that a legacy (i.e. for a previous migration) L2->L1 message or GW->L1 message is used for withdrawals. In order to avoid this, we include the migration number in each token migration.
 
 
-## How full ZK IP could look like with the same user interface (+ migration) could look like
+<!-- ## How full ZK IP could look like with the same user interface (+ migration) could look like
 
 Processing and updating all the logs on L1 or GW does not scale. Full ZK IP would be a zk validium running in parallel to the main chain, storing the balance of the chain and processing the logs. Instead of passing in all logs on the SL, we would only pass in a zk proof.  
 
@@ -164,4 +164,4 @@ When a user wants to withdraw funds, it needs to provide a proof for the corresp
 
 ### Migration to full ZK IP
 
-When we are ready to move to the full ZK IP, we could add a operation available to everyone called: “consume bulkhead”, it would append an `add` operation to the `MessageRoot`. The chain can then consume this operation into its local tree later on.
+When we are ready to move to the full ZK IP, we could add a operation available to everyone called: “consume bulkhead”, it would append an `add` operation to the `MessageRoot`. The chain can then consume this operation into its local tree later on. -->
