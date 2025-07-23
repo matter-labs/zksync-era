@@ -53,3 +53,5 @@ contracts/.git
 !app.bin
 !app_logging_enabled.bin
 !zksync_os_snark_prover/*
+!proof_cache/*
+!sequencer_proof_client/*
