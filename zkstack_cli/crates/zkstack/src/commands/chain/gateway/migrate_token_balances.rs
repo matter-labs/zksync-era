@@ -185,6 +185,9 @@ pub async fn migrate_token_balances_from_gateway(
         )
         .unwrap();
 
+    // Ensure the broadcast directory exists before proceeding
+    std::fs::create_dir_all("/usr/src/zksync/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/")?;
+
     let mut forge = Forge::new(foundry_scripts_path)
         .script(
             &PathBuf::from(GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH),
