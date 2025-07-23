@@ -210,6 +210,7 @@ pub async fn migrate_token_balances_from_gateway(
     }
 
 
+    let broadcast_dir2 = "/usr/src/zksync/contracts/l1-contracts/broadcast/";
     let broadcast_dir = "/usr/src/zksync/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/";
 
 
@@ -217,6 +218,13 @@ pub async fn migrate_token_balances_from_gateway(
     let files = list_files_recursively(broadcast_dir);
     println!("Files in {}:", broadcast_dir);
     for file in files {
+        println!("{}", file.display());
+    }
+
+
+    let files2 = list_files_recursively(broadcast_dir2);
+    println!("Files in {}:", broadcast_dir2);
+    for file in files2 {
         println!("{}", file.display());
     }
 
