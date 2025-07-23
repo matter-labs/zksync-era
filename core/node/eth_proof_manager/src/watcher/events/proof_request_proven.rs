@@ -12,7 +12,7 @@ use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::outputs::{
     L1BatchProofForL1, L1BatchProofForL1Key, TypedL1BatchProofForL1,
 };
-use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
+use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256, ProtocolVersionId, commitment::serialize_commitments, web3::keccak256};
 
 use crate::{
     types::{FflonkFinalVerificationKey, ProvingNetwork},
@@ -118,24 +118,18 @@ impl EventHandler for ProofRequestProvenHandler {
         let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
             .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
 
-        let verification_result = match proof.inner() {
-            TypedL1BatchProofForL1::Fflonk(proof) => {
-                let proof = proof.scheduler_proof;
-                fflonk::verify::<
-                    _,
-                    ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
-                    RollingKeccakTranscript<Fr>,
-                >(&self.fflonk_vk, &proof, None)
-                .map_err(|e| anyhow::anyhow!("Failed to verify fflonk proof: {}", e))?
-            }
-            TypedL1BatchProofForL1::Plonk(_) => {
-                return Err(anyhow::anyhow!(
-                    "Plonk proofs are not supported by proving networks"
-                ));
+        let batch_number = L1BatchNumber(event.block_number.as_u32());
+
+        let verification_result = match verify_proof(self.connection_pool, batch_number, proof, self.fflonk_vk).await {
+            Ok(_) => {
+                tracing::info!("Proof for batch {} verified successfully", batch_number);
+                true
+            },
+            Err(e) => {
+                tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
+                false
             }
         };
-
-        let batch_number = L1BatchNumber(block_number.as_u32());
 
         if verification_result {
             let proof_blob_url = self
@@ -171,4 +165,97 @@ impl EventHandler for ProofRequestProvenHandler {
 
         Ok(())
     }
+}
+
+async fn verify_proof(connection_pool: ConnectionPool<Core>, batch_number: L1BatchNumber, proof: L1BatchProofForL1, verification_key: FflonkFinalVerificationKey) -> anyhow::Result<()> {
+    let verification_result = match proof.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => {
+            let proof = proof.scheduler_proof;
+            fflonk::verify::<
+                _,
+                ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+                RollingKeccakTranscript<Fr>,
+            >(&verification_key, &proof, None)
+            .map_err(|e| anyhow::anyhow!("Failed to verify fflonk proof: {}", e))?
+        }
+        TypedL1BatchProofForL1::Plonk(_) => {
+            return Err(anyhow::anyhow!(
+                "Plonk proofs are not supported by proving networks"
+            ));
+        }
+    };
+
+    let aggregation_coords = proof.aggregation_result_coords();
+
+    let system_logs_hash_from_prover = H256::from_slice(&aggregation_coords[0]);
+    let state_diff_hash_from_prover = H256::from_slice(&aggregation_coords[1]);
+    let bootloader_heap_initial_content_from_prover = H256::from_slice(&aggregation_coords[2]);
+    let events_queue_state_from_prover = H256::from_slice(&aggregation_coords[3]);
+
+    let mut storage = connection_pool.connection().await?;
+
+    let l1_batch = storage
+        .blocks_dal()
+        .get_l1_batch_metadata(block_number.as_u32())
+        .await?
+        .ok_or(anyhow::anyhow!("Proved block without metadata"))?;
+
+    let protocol_version = l1_batch
+        .header
+        .protocol_version
+        .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+
+    let events_queue_state = l1_batch
+        .metadata
+        .events_queue_commitment
+        .ok_or(anyhow::anyhow!("No events_queue_commitment"))?;
+    let bootloader_heap_initial_content = l1_batch
+        .metadata
+        .bootloader_initial_content_commitment
+        .ok_or(anyhow::anyhow!("No bootloader_initial_content_commitment"))?;
+
+    if events_queue_state != events_queue_state_from_prover
+        || bootloader_heap_initial_content != bootloader_heap_initial_content_from_prover
+    {
+        return Err(anyhow::anyhow!(
+                    "Auxilary output doesn't match\n\
+                    server values: events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}\n\
+                    prover values: events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}",
+                ));
+    }
+
+    let system_logs = serialize_commitments(&l1_batch.header.system_logs);
+    let system_logs_hash = H256(keccak256(&system_logs));
+
+    let state_diff_hash = if protocol_version.is_pre_gateway() {
+        l1_batch
+            .header
+            .system_logs
+            .iter()
+            .find_map(|log| {
+                (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
+                    .then_some(log.0.value)
+            })
+            .ok_or(anyhow::anyhow!("Failed to get state_diff_hash from system logs"))?
+    } else {
+        l1_batch
+            .metadata
+            .state_diff_hash
+            .ok_or(anyhow::anyhow!("Failed to get state_diff_hash from metadata"))?
+    };
+
+    if state_diff_hash != state_diff_hash_from_prover
+        || system_logs_hash != system_logs_hash_from_prover
+    {
+        let server_values = format!(
+            "system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}"
+        );
+        let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
+        return Err(anyhow::anyhow!(
+            "Auxilary output doesn't match, server values: {} prover values: {}",
+            server_values, prover_values
+        ));
+    }
+
+    Ok(())
 }
