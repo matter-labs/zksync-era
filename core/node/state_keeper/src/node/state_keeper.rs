@@ -2,6 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
+use zksync_eth_client::web3_decl::node::SettlementModeResource;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ShutdownHook, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -11,7 +12,6 @@ use zksync_state::{AsyncCatchupTask, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::try_stoppable;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
-use zksync_eth_client::web3_decl::node::SettlementModeResource;
 
 use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
 use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperBuilder};

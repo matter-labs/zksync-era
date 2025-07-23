@@ -56,7 +56,6 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
     };
 }
 
-
 interface TokensDict {
     [key: string]: L1Token;
 }

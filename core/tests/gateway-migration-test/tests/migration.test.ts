@@ -242,7 +242,10 @@ describe('Migration From/To gateway test', function () {
         const gatewayEcosystemContracts = await getEcosystemContracts(
             new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!, tester.syncWallet.providerL1)
         );
-        const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
+        const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(
+            chainId,
+            assetId
+        );
 
         let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
         let expectedGatewayAssetSettlementLayer = 0n;

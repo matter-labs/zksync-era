@@ -21,10 +21,9 @@ use zkstack_cli_config::{
 use zksync_basic_types::U256;
 
 use crate::{
+    commands::dev::commands::{rich_account, rich_account::args::RichAccountArgs},
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
-    commands::dev::commands::rich_account,
-    commands::dev::commands::rich_account::args::RichAccountArgs,
 };
 
 lazy_static! {
@@ -135,20 +134,31 @@ pub async fn migrate_token_balances_from_gateway(
     println!("wallet.address: {}", wallet.address.to_string());
 
     if run_initial {
-
-        rich_account::run(shell, RichAccountArgs{
-            l2_account: Some(wallet.address),
-            l1_account_private_key: Some("0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".to_string()),
-            l1_rpc_url: Some(l1_rpc_url.clone()),
-            amount: Some(U256::from(1_000_000_000_000_000_000u64)),
-        }).await?;
+        rich_account::run(
+            shell,
+            RichAccountArgs {
+                l2_account: Some(wallet.address),
+                l1_account_private_key: Some(
+                    "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+                        .to_string(),
+                ),
+                l1_rpc_url: Some(l1_rpc_url.clone()),
+                amount: Some(U256::from(1_000_000_000_000_000_000u64)),
+            },
+        )
+        .await?;
         println!("Account funded");
     }
 
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "startTokenMigrationOnL2OrGateway",
-            (false, U256::from(l2_chain_id), l2_rpc_url.clone(), gw_rpc_url.clone()),
+            (
+                false,
+                U256::from(l2_chain_id),
+                l2_rpc_url.clone(),
+                gw_rpc_url.clone(),
+            ),
         )
         .unwrap();
 
@@ -172,7 +182,6 @@ pub async fn migrate_token_balances_from_gateway(
         println!("Token migration started");
     }
 
-
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "finishMigrationOnL1",
@@ -180,7 +189,7 @@ pub async fn migrate_token_balances_from_gateway(
                 l1_bridgehub_addr,
                 U256::from(l2_chain_id),
                 l2_rpc_url.clone(),
-                true
+                true,
             ),
         )
         .unwrap();
@@ -207,7 +216,7 @@ pub async fn migrate_token_balances_from_gateway(
                 l1_bridgehub_addr,
                 U256::from(l2_chain_id),
                 l2_rpc_url.clone(),
-                false
+                false,
             ),
         )
         .unwrap();

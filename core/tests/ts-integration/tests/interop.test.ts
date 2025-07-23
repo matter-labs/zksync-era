@@ -319,7 +319,7 @@ describe('Interop behavior checks', () => {
             // Fee payment call starters
             [
                 {
-                    nextContract: ethers.ZeroAddress,
+                    to: ethers.ZeroAddress,
                     data: '0x',
                     callAttributes: [
                         await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
@@ -329,7 +329,7 @@ describe('Interop behavior checks', () => {
             // Execution call starters for token transfer
             [
                 {
-                    nextContract: L2_ASSET_ROUTER_ADDRESS,
+                    to: L2_ASSET_ROUTER_ADDRESS,
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
                     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])]
                 }
@@ -356,7 +356,7 @@ describe('Interop behavior checks', () => {
 
     // Types for interop call starters and gas fields.
     interface InteropCallStarter {
-        nextContract: string;
+        to: string;
         data: string;
         callAttributes: string[];
     }
@@ -512,12 +512,15 @@ describe('Interop behavior checks', () => {
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
         await sleep(25000);
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
+        await sleep(25000);
         await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
+        await sleep(25000);
 
         // Get interop trigger and bundle data from the sender chain.
         // const triggerDataBundle = await getInteropTriggerData(senderProvider, txHash, 2);
         // const feeBundle = await getInteropBundleData(senderProvider, txHash, 0);
         const executionBundle = await getInteropBundleData(senderProvider, txHash, 0);
+        await sleep(25000);
         if (executionBundle.output == null) return;
 
         // ABI-encode execution data along with its proof.
@@ -529,6 +532,7 @@ describe('Interop behavior checks', () => {
         // Construct the interop transaction for the receiver chain.
         // const nonce = await receiverProvider.getTransactionCount(L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS);
         const feeData = await receiverProvider.getFeeData();
+        await sleep(25000);
         // let interopTx = {
         //     from: L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
         //     to: L2_INTEROP_HANDLER_ADDRESS,
