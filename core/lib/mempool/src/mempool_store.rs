@@ -296,22 +296,22 @@ impl MempoolStore {
             }
             ExecuteTransactionCommon::L2(_) => {
                 if let Some((score, constraint)) = self
-                    .high_priority_l2_transactions_per_account
-                    .get_mut(&tx.initiator_account())
-                    .expect("account is not available in mempool")
-                    .reset(tx)
-                {
-                    self.high_priority_l2_priority_queue.remove(&score);
-                    return constraint;
-                }
-
-                if let Some((score, constraint)) = self
                     .l2_transactions_per_account
                     .get_mut(&tx.initiator_account())
                     .expect("account is not available in mempool")
                     .reset(tx)
                 {
                     self.l2_priority_queue.remove(&score);
+                    return constraint;
+                }
+
+                if let Some((score, constraint)) = self
+                    .high_priority_l2_transactions_per_account
+                    .get_mut(&tx.initiator_account())
+                    .expect("account is not available in mempool")
+                    .reset(tx)
+                {
+                    self.high_priority_l2_priority_queue.remove(&score);
                     return constraint;
                 }
 
@@ -373,6 +373,7 @@ impl MempoolStore {
             ];
 
             let mut all_drained = vec![];
+            self.size = 0;
             for (priority_queue, txs_per_account) in priority_queue_and_txs_per_account {
                 let mut transactions = std::mem::take(txs_per_account);
                 let mut possibly_kept: Vec<_> = priority_queue
@@ -418,7 +419,7 @@ impl MempoolStore {
                     .take(number_of_accounts_kept)
                     .collect();
                 *txs_per_account = kept.into_iter().collect();
-                self.size = txs_per_account
+                self.size += txs_per_account
                     .iter()
                     .fold(0, |agg, (_, txs)| agg + txs.len() as u64);
 
