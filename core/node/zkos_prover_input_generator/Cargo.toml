@@ -24,6 +24,7 @@ zksync_node_fee_model.workspace = true
 zksync_protobuf.workspace = true
 # todo: maybe this dependency should be avoided
 zksync_l1_contract_interface.workspace = true
+proof_cache.workspace = true
 
 zk_os_forward_system.workspace = true
 zk_ee.workspace = true

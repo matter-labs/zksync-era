@@ -1,0 +1,19 @@
+[package]
+name = "proof_cache"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zksync_airbender_execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "v0.3.3" }
+
+anyhow = "1.0.98"
+async-trait = "0.1.88"
+axum = { version = "0.8.4" }
+chrono = "0.4.41"
+reqwest = { version = "0.12.20", features = ["json"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "macros"] }
+tower-http = { version = "0.5", features = ["trace"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"

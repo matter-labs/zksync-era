@@ -8,6 +8,7 @@ use axum::{
     serve, Json, Router,
 };
 use execution_utils::ProgramProof;
+use proof_cache::client::ProofCacheClient;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -116,7 +117,7 @@ async fn submit_fri_proof(
         )
     })?;
 
-    verify_fri_proof(prev_l1_batch, current_l1_batch, program_proof).map_err(|err| {
+    verify_fri_proof(prev_l1_batch, current_l1_batch, program_proof.clone()).map_err(|err| {
         error!("FRI proof verification failed: {}", err);
         (
             StatusCode::BAD_REQUEST,
@@ -124,6 +125,24 @@ async fn submit_fri_proof(
         )
     })?;
 
+    // TODO: inject client in State and reuse it
+    // TODO: address needs to be configurable, not hardcoded
+    let proof_cache_client = ProofCacheClient::new("http://localhost:3815".to_string()).map_err(|err| {
+        error!("Failed to create proof cache client: {:?}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create proof cache client: {}", err),
+        )
+    })?;
+    proof_cache_client.put_fri(&payload.block_number.to_string(), program_proof)
+        .await
+        .map_err(|err| {
+            error!("Failed to submit FRI proof to cache: {:?}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to submit FRI proof to cache: {}", err),
+            )
+        })?;
     conn.zkos_prover_dal()
         .save_fri_proof(L2BlockNumber(payload.block_number), proof_bytes)
         .await
