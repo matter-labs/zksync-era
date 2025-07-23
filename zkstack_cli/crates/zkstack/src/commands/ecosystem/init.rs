@@ -141,14 +141,7 @@ async fn init_ecosystem(
 
     let forge_args = init_args.forge_args.clone();
 
-    register_ctm(
-        init_args,
-        shell,
-        forge_args,
-        ecosystem_config,
-        initial_deployment_config,
-    )
-    .await?;
+    register_ctm(init_args, shell, forge_args, ecosystem_config).await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
     Ok(contracts)

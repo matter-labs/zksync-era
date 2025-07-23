@@ -238,7 +238,7 @@ pub async fn gateway_vote_preparation(
     )?;
 
     let calldata = GATEWAY_VOTE_PREPARATION_ABI
-        .encode("prepareForGWVoting", (ctm_chain_id))
+        .encode("prepareForGWVoting", ctm_chain_id)
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =

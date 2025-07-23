@@ -1,8 +1,6 @@
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, git, logger};
-use zkstack_cli_config::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, EcosystemConfig,
-};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::init::{EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -10,9 +8,7 @@ use super::{
     setup_observability,
 };
 use crate::{
-    commands::ecosystem::{
-        args::init::PromptPolicy, create_configs::create_initial_deployments_config,
-    },
+    commands::ecosystem::args::init::PromptPolicy,
     messages::{msg_ecosystem_initialized, MSG_INITIALIZING_ECOSYSTEM},
 };
 
@@ -22,11 +18,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
         git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
     }
-
-    let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
-        Ok(config) => config,
-        Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
-    };
 
     let prompt_policy = PromptPolicy {
         deploy_erc20: false,
@@ -51,7 +42,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         forge_args,
         &ecosystem_config,
-        &initial_deployment_config,
     )
     .await?;
 
@@ -70,13 +60,11 @@ pub async fn register_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<()> {
     register_ctm_inner_inner(
         shell,
         forge_args,
         ecosystem_config,
-        initial_deployment_config,
         init_args.ecosystem.l1_rpc_url.clone(),
     )
     .await?;
@@ -88,19 +76,9 @@ async fn register_ctm_inner_inner(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    register_ctm_on_existing_bh(
-        shell,
-        &forge_args,
-        config,
-        initial_deployment_config,
-        &l1_rpc_url,
-        None,
-        true,
-    )
-    .await?;
+    register_ctm_on_existing_bh(shell, &forge_args, config, &l1_rpc_url, None, true).await?;
 
     Ok(())
 }

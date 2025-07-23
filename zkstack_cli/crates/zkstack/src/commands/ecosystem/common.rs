@@ -187,7 +187,6 @@ pub async fn register_ctm_on_existing_bh(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
     config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: &str,
     sender: Option<String>,
     broadcast: bool,
