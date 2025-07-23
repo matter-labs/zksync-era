@@ -228,14 +228,16 @@ impl StateKeeperIO for MempoolIO {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
         let gateway_migration_state = self.gateway_status(&mut storage).await;
-        let interop_roots = match gateway_migration_state {
-            GatewayMigrationState::InProgress => vec![],
-            _ => {
-                storage
-                    .interop_root_dal()
-                    .get_new_interop_roots(limit)
-                    .await?
-            }
+        // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
+        let interop_roots = if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
+            && gateway_migration_state == GatewayMigrationState::NotInProgress
+        {
+            storage
+                .interop_root_dal()
+                .get_new_interop_roots(limit)
+                .await?
+        } else {
+            vec![]
         };
 
         Ok(Some(L2BlockParams::new_raw(
@@ -677,12 +679,22 @@ impl MempoolIO {
             let first_l2_block = if batch_with_upgrade_tx {
                 L2BlockParams::new(timestamp_ms)
             } else {
-                let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
                 let mut storage = self.pool.connection_tagged("state_keeper").await?;
-                let interop_roots = storage
-                    .interop_root_dal()
-                    .get_new_interop_roots(limit)
-                    .await?;
+                let gateway_migration_state = self.gateway_status(&mut storage).await;
+                let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+                // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.!
+                let interop_roots =
+                    if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
+                        && gateway_migration_state == GatewayMigrationState::NotInProgress
+                    {
+                        storage
+                            .interop_root_dal()
+                            .get_new_interop_roots(limit)
+                            .await?
+                    } else {
+                        vec![]
+                    };
+
                 L2BlockParams::new_raw(timestamp_ms, 1, interop_roots)
             };
 
