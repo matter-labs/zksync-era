@@ -15,6 +15,7 @@ pub struct EcosystemUpgradeOutput {
     pub chain_upgrade_diamond_cut: Bytes,
     pub governance_calls: GovernanceCalls,
 
+    pub ecosystem_admin_calls: Bytes,
     pub contracts_config: EcosystemUpgradeContractsOutput,
     pub deployed_addresses: EcosystemUpgradeDeployedAddresses,
     /// List of transactions that were executed during the upgrade.

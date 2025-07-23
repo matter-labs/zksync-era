@@ -36,7 +36,7 @@ use zksync_types::{
 };
 
 use crate::{
-    admin_functions::governance_execute_calls,
+    admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
         types::UpgradeVersions,
@@ -65,6 +65,15 @@ pub async fn run(
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                &upgrade_version,
+            )
+            .await?;
+        }
+        EcosystemUpgradeStage::EcosystemAdmin => {
+            ecosystem_admin(
                 &mut final_ecosystem_args,
                 shell,
                 &ecosystem_config,
@@ -183,8 +192,10 @@ async fn no_governance_prepare(
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
-    // This part is needed for v28 upgrades, but harms v29.
-    // new_version.patch += 1;
+    // This part is needed for v28 upgrades only.
+    if upgrade_version == &UpgradeVersions::V28_1Vk {
+        new_version.patch += 1;
+    }
     new_genesis.protocol_version = new_version;
 
     let gateway_upgrade_config =
@@ -280,6 +291,49 @@ async fn no_governance_prepare(
     }
 
     output.save_with_base_path(shell, &ecosystem_config.config)?;
+
+    Ok(())
+}
+
+
+async fn ecosystem_admin(
+    init_args: &mut EcosystemUpgradeArgsFinal,
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    upgrade_version: &UpgradeVersions,
+) -> anyhow::Result<()> {
+    let spinner = Spinner::new("Executing ecosystem admin!");
+
+    let previous_output = EcosystemUpgradeOutput::read(
+        shell,
+        get_ecosystem_upgrade_params(&upgrade_version)
+            .output(&ecosystem_config.path_to_l1_foundry()),
+    )?;
+    previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
+    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+        url
+    } else {
+        ecosystem_config
+            .load_current_chain()?
+            .get_secrets_config()
+            .await?
+            .l1_rpc_url()?
+    };
+
+    // These are ABI-encoded
+    let ecosystem_admin_calls = previous_output.ecosystem_admin_calls;
+
+    ecosystem_admin_execute_calls(
+        shell,
+        ecosystem_config,
+        // Note, that ecosystem admin and governor use the same wallet.
+        &ecosystem_config.get_wallets()?.governor,
+        ecosystem_admin_calls.0,
+        &init_args.forge_args.clone(),
+        l1_rpc_url,
+    )
+    .await?;
+    spinner.finish();
 
     Ok(())
 }

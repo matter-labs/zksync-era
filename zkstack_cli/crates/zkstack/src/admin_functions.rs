@@ -50,7 +50,8 @@ lazy_static! {
             "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)",
             "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)",
-            "function enableValidator(address bridgehub,uint256 l2ChainId,address validatorAddress,address validatorTimelock,bool _shouldSend) public"
+            "function enableValidator(address bridgehub,uint256 l2ChainId,address validatorAddress,address validatorTimelock,bool _shouldSend) public",
+            "function ecosystemAdminExecuteCalls(bytes memory callsToExecute, address ecosystemAdminAddr)"
         ])
         .unwrap(),
     );
@@ -182,6 +183,40 @@ pub async fn governance_execute_calls(
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
 }
+
+#[allow(clippy::too_many_arguments)]
+pub async fn ecosystem_admin_execute_calls(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    ecosystem_admin: &Wallet,
+    encoded_calls: Vec<u8>,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let ecosystem_admin_addr = ecosystem_config.get_contracts_config()?.l1.chain_admin_addr;
+
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "ecosystemAdminExecuteCalls",
+            (Token::Bytes(encoded_calls), ecosystem_admin_addr),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, ecosystem_admin, forge).await
+}   
 
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_execute_upgrade(

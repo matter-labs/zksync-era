@@ -14,6 +14,8 @@ use crate::{
 pub enum EcosystemUpgradeStage {
     // Deploy contracts + init everything the governance will need to approve the upgrade
     NoGovernancePrepare,
+    // Ecosystem admin will execute its calls (typically only server notifier upgrade)
+    EcosystemAdmin,
     /// Pause migration to/from Gateway
     GovernanceStage0,
     // Governance will execute stage 1 of the upgrade, which appends
