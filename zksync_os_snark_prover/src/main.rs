@@ -10,7 +10,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use zkos_wrapper::{prove, serialize_to_file, SnarkWrapperProof};
 use zksync_airbender_cli::prover_utils::{create_final_proofs_from_program_proof, create_proofs_internal, generate_oracle_data_from_metadata_and_proof_list, load_binary_from_path, program_proof_from_proof_list_and_metadata, proof_list_and_metadata_from_program_proof, GpuSharedState, VerifierCircuitsIdentifiers};
 use zksync_airbender_cli::Machine;
-use zksync_airbender_execution_utils::ProgramProof;
+use zksync_airbender_execution_utils::{get_padded_binary, ProgramProof, UNIVERSAL_CIRCUIT_VERIFIER};
 // use zksync_os_snark_prover::client::SequencerProofClient;
 // use zksync_os_snark_prover::single_fri_snark_executor::{deserialize_from_file, SingleFriSnarkExecutor};
 // use zksync_os_snark_prover::snark_job_pickers::SequencerSingleFriSnarkJobPicker;
@@ -257,7 +257,7 @@ async fn run_linking_fri_snark(
     tracing::info!(
         "Starting zksync_os_snark_prover"
     );
-    let verifier_binary = load_binary_from_path(&"/home/evl/code/zksync-airbender/tools/verifier/universal.bin".to_string());
+    let verifier_binary = get_padded_binary(UNIVERSAL_CIRCUIT_VERIFIER);
     let mut gpu_state = GpuSharedState::new(&verifier_binary);
 
     loop {
