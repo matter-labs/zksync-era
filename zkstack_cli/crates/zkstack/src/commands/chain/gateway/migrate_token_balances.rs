@@ -168,6 +168,8 @@ pub async fn migrate_token_balances_from_gateway(
             Some(L2ChainId::from(gw_chain_id as u32)),
         )
         .await?;
+        std::thread::sleep(std::time::Duration::from_secs(20));
+
         println!("Account funded");
     }
 
