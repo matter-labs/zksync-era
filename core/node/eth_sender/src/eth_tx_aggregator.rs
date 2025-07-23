@@ -296,7 +296,7 @@ impl EthTxAggregator {
         let get_post_v29_upgradeable_validator_timelock_input = self
             .functions
             .state_transition_manager_contract
-            .function("postV29UpgradeableValidatorTimelock")
+            .function("validatorTimelockPostV29")
             .unwrap()
             .encode_input(&[])
             .unwrap();
