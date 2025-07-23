@@ -137,13 +137,18 @@ impl MempoolStore {
     ) {
         let account = transaction.initiator_account();
 
-        let mut txs_per_account = &mut self.l2_transactions_per_account;
-        let mut priority_queue = &mut self.l2_priority_queue;
-
-        if Some(transaction.initiator_account()) == self.high_priority_l2_tx_initiator {
-            priority_queue = &mut self.high_priority_l2_priority_queue;
-            txs_per_account = &mut self.high_priority_l2_transactions_per_account;
-        }
+        let (txs_per_account, priority_queue) =
+            if Some(account) == self.high_priority_l2_tx_initiator {
+                (
+                    &mut self.high_priority_l2_transactions_per_account,
+                    &mut self.high_priority_l2_priority_queue,
+                )
+            } else {
+                (
+                    &mut self.l2_transactions_per_account,
+                    &mut self.l2_priority_queue,
+                )
+            };
 
         let metadata = match txs_per_account.entry(account) {
             hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction, constraint),
@@ -154,6 +159,7 @@ impl MempoolStore {
                     .insert(transaction, constraint)
             }
         };
+
         if let Some(score) = metadata.previous_score {
             priority_queue.remove(&score);
         }
@@ -167,12 +173,25 @@ impl MempoolStore {
 
     /// Returns `true` if there is a transaction in the mempool satisfying the filter.
     pub fn has_next(&self, filter: &L2TxFilter) -> bool {
+        let has_priority_tx =
+            if let Some(protocol_version) = self.high_priority_l2_tx_protocol_version {
+                filter.protocol_version >= protocol_version
+                    && self
+                        .high_priority_l2_priority_queue
+                        .iter()
+                        .rfind(|el| el.matches_filter(filter))
+                        .is_some()
+            } else {
+                false
+            };
+
         self.l1_transactions.contains_key(&self.next_priority_id)
             || self
                 .l2_priority_queue
                 .iter()
                 .rfind(|el| el.matches_filter(filter))
                 .is_some()
+            || has_priority_tx
     }
 
     /// Returns next transaction for execution from mempool
@@ -201,22 +220,22 @@ impl MempoolStore {
         filter: &L2TxFilter,
         is_high_priority: bool,
     ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
-        let priority_queue = if is_high_priority {
-            &mut self.high_priority_l2_priority_queue
-        } else {
-            &mut self.l2_priority_queue
-        };
-
-        let txs_per_account = if is_high_priority {
-            &mut self.high_priority_l2_transactions_per_account
-        } else {
-            &mut self.l2_transactions_per_account
-        };
-
         if is_high_priority && filter.protocol_version < self.high_priority_l2_tx_protocol_version?
         {
             return None;
         }
+
+        let (txs_per_account, priority_queue) = if is_high_priority {
+            (
+                &mut self.high_priority_l2_transactions_per_account,
+                &mut self.high_priority_l2_priority_queue,
+            )
+        } else {
+            (
+                &mut self.l2_transactions_per_account,
+                &mut self.l2_priority_queue,
+            )
+        };
 
         let mut removed = 0;
         // We want to fetch the next transaction that would match the fee requirements.
@@ -277,6 +296,16 @@ impl MempoolStore {
             }
             ExecuteTransactionCommon::L2(_) => {
                 if let Some((score, constraint)) = self
+                    .high_priority_l2_transactions_per_account
+                    .get_mut(&tx.initiator_account())
+                    .expect("account is not available in mempool")
+                    .reset(tx)
+                {
+                    self.high_priority_l2_priority_queue.remove(&score);
+                    return constraint;
+                }
+
+                if let Some((score, constraint)) = self
                     .l2_transactions_per_account
                     .get_mut(&tx.initiator_account())
                     .expect("account is not available in mempool")
@@ -285,6 +314,7 @@ impl MempoolStore {
                     self.l2_priority_queue.remove(&score);
                     return constraint;
                 }
+
                 TransactionTimeRangeConstraint::default()
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
@@ -331,56 +361,71 @@ impl MempoolStore {
 
     fn gc(&mut self) -> Vec<Address> {
         if self.size > self.capacity {
-            let mut transactions = std::mem::take(&mut self.l2_transactions_per_account);
-            let mut possibly_kept: Vec<_> = self
-                .l2_priority_queue
-                .iter()
-                .rev()
-                .filter_map(|pointer| {
-                    transactions
-                        .remove(&pointer.account)
-                        .map(|txs| (pointer.account, txs))
-                })
-                .collect();
+            let priority_queue_and_txs_per_account = vec![
+                (
+                    &mut self.l2_priority_queue,
+                    &mut self.l2_transactions_per_account,
+                ),
+                (
+                    &mut self.high_priority_l2_priority_queue,
+                    &mut self.high_priority_l2_transactions_per_account,
+                ),
+            ];
 
-            let mut sum = 0;
-            let mut number_of_accounts_kept = 0;
-            for (_, txs) in &possibly_kept {
-                sum += txs.len();
-                if sum <= self.capacity as usize {
-                    number_of_accounts_kept += 1;
-                } else {
-                    break;
+            let mut all_drained = vec![];
+            for (priority_queue, txs_per_account) in priority_queue_and_txs_per_account {
+                let mut transactions = std::mem::take(txs_per_account);
+                let mut possibly_kept: Vec<_> = priority_queue
+                    .iter()
+                    .rev()
+                    .filter_map(|pointer| {
+                        transactions
+                            .remove(&pointer.account)
+                            .map(|txs| (pointer.account, txs))
+                    })
+                    .collect();
+
+                let mut sum = 0;
+                let mut number_of_accounts_kept = 0;
+                for (_, txs) in &possibly_kept {
+                    sum += txs.len();
+                    if sum <= self.capacity as usize {
+                        number_of_accounts_kept += 1;
+                    } else {
+                        break;
+                    }
                 }
-            }
-            if number_of_accounts_kept == 0 && !possibly_kept.is_empty() {
-                tracing::warn!("mempool capacity is too low to handle txs from single account, consider increasing capacity");
-                // Keep at least one entry, otherwise mempool won't return any new L2 tx to process.
-                number_of_accounts_kept = 1;
-            }
-            let (kept, drained) = {
-                let mut drained: Vec<_> = transactions.into_keys().collect();
-                let also_drained = possibly_kept
-                    .split_off(number_of_accounts_kept)
+                if number_of_accounts_kept == 0 && !possibly_kept.is_empty() {
+                    tracing::warn!("mempool capacity is too low to handle txs from single account, consider increasing capacity");
+                    // Keep at least one entry, otherwise mempool won't return any new L2 tx to process.
+                    number_of_accounts_kept = 1;
+                }
+                let (kept, drained) = {
+                    let mut drained: Vec<_> = transactions.into_keys().collect();
+                    let also_drained = possibly_kept
+                        .split_off(number_of_accounts_kept)
+                        .into_iter()
+                        .map(|(address, _)| address);
+                    drained.extend(also_drained);
+
+                    (possibly_kept, drained)
+                };
+
+                let new_priority_queue = std::mem::take(priority_queue);
+                *priority_queue = new_priority_queue
                     .into_iter()
-                    .map(|(address, _)| address);
-                drained.extend(also_drained);
+                    .rev()
+                    .take(number_of_accounts_kept)
+                    .collect();
+                *txs_per_account = kept.into_iter().collect();
+                self.size = txs_per_account
+                    .iter()
+                    .fold(0, |agg, (_, txs)| agg + txs.len() as u64);
 
-                (possibly_kept, drained)
-            };
+                all_drained.extend(drained);
+            }
 
-            let l2_priority_queue = std::mem::take(&mut self.l2_priority_queue);
-            self.l2_priority_queue = l2_priority_queue
-                .into_iter()
-                .rev()
-                .take(number_of_accounts_kept)
-                .collect();
-            self.l2_transactions_per_account = kept.into_iter().collect();
-            self.size = self
-                .l2_transactions_per_account
-                .iter()
-                .fold(0, |agg, (_, txs)| agg + txs.len() as u64);
-            return drained;
+            return all_drained;
         }
         vec![]
     }
