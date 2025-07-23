@@ -191,7 +191,6 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         bootloader_initial_memory,
         first_l2_block,
         system_env.version,
-        l1_batch_env.settlement_layer,
     );
 
     (vm, bootloader_state)

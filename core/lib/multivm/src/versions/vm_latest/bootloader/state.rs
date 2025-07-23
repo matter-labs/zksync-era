@@ -61,8 +61,6 @@ pub struct BootloaderState {
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
     subversion: MultiVmSubversion,
-    /// Settlement layer
-    settlement_layer: SettlementLayer,
 }
 
 impl BootloaderState {
@@ -71,7 +69,6 @@ impl BootloaderState {
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
         protocol_version: ProtocolVersionId,
-        settlement_layer: SettlementLayer,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
@@ -85,7 +82,6 @@ impl BootloaderState {
             number_of_applied_interop_roots: 0,
             protocol_version,
             subversion: MultiVmSubversion::try_from(VmVersion::from(protocol_version)).unwrap(),
-            settlement_layer,
         }
     }
 

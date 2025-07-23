@@ -158,7 +158,6 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
                 bootloader_memory.clone(),
                 batch_env.first_l2_block.clone(),
                 system_env.version,
-                batch_env.settlement_layer,
             ),
             system_env,
             batch_env,

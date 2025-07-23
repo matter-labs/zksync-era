@@ -167,7 +167,7 @@ impl ExecuteBatches {
                 Token::Array(
                     self.message_roots
                         .iter()
-                        .map(|root| Token::FixedBytes(root.0.as_slice().try_into().unwrap()))
+                        .map(|root| Token::FixedBytes(root.0.as_slice().into()))
                         .collect(),
                 ),
             ]);
