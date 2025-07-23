@@ -33,6 +33,8 @@
   - [Prover Keys](guides/advanced/15_prover_keys.md)
   - [Decentralization](guides/advanced/16_decentralization.md)
   - [L1 Batch Reversion](guides/advanced/17_batch_reverter.md)
+  - [Allowlist](guides/advanced/18_allowlist.md)
+  - [Interop basics](guides/advanced/19_interop_basics.md)
   - [Advanced Debugging](guides/advanced/90_advanced_debugging.md)
   - [Docker and CI](guides/advanced/91_docker_and_ci.md)
 
