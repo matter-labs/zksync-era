@@ -305,14 +305,16 @@ impl MempoolStore {
                     return constraint;
                 }
 
-                if let Some((score, constraint)) = self
-                    .high_priority_l2_transactions_per_account
-                    .get_mut(&tx.initiator_account())
-                    .expect("account is not available in mempool")
-                    .reset(tx)
-                {
-                    self.high_priority_l2_priority_queue.remove(&score);
-                    return constraint;
+                if Some(tx.initiator_account()) == self.high_priority_l2_tx_initiator {
+                    if let Some((score, constraint)) = self
+                        .high_priority_l2_transactions_per_account
+                        .get_mut(&tx.initiator_account())
+                        .expect("account is not available in mempool")
+                        .reset(tx)
+                    {
+                        self.high_priority_l2_priority_queue.remove(&score);
+                        return constraint;
+                    }
                 }
 
                 TransactionTimeRangeConstraint::default()
