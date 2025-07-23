@@ -111,9 +111,13 @@ On Gateway all withdrawals are processed in the `processLogsAndMessages` functio
 
 #### Security Assumptions
 
-What happens if a token is not migrated to Gateway, the chain migrates back to L1, and then back to Gateway? This is not an issue, since the source of truth for this direction is the totalSupply of the token on the chain.
+What happens if a token is not migrated to or from Gateway?
 
-It might happen that a legacy (i.e. for a previous migration) L2->L1 message or GW->L1 message is used for withdrawals. In order to avoid this, we include the migration number in each token migration.
+As the first security assumptin, on L1 `receiveMigrationOnL1` function, we check that the assetMigration number and the chainMigration number coincide, so legacy token migrations are not possible.
+
+Secondly, the L1 chainBalance and Gw chainBalance added together always match the totalSupply of the token plus the outstanding withdrawals on L1 (i.e. withdrawals that not have been finalized yet). An invalid migration could only move the token balance between L1 and Gateway incorrectly.
+
+This is not possible however. For GW -> L1 token balance migrations, we always migrate all the funds, reducing the Gateway chainBalance to zero, independently of how many migrations we missed. For L1->GW migrations the distribution could become incorrect if we missed the preceding GW-> L1 migration, since here we don't directly know the sum of the outstanding withdrawals on L1. If we miss the GW->L1 migration, we could transfer the totalSupply to GW mulitple times, without transferring back to L1. In order to avoid this, we always check that we have migrated back to L1. In this case the Gateway chainBalance is 0, so migration is safe.
 
 
 <!-- ## How full ZK IP could look like with the same user interface (+ migration) could look like
