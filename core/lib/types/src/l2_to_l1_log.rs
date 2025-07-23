@@ -63,7 +63,7 @@ impl L2ToL1Log {
     pub fn into_token(self) -> Token {
         Token::Tuple(vec![
             Token::Uint(self.shard_id.into()),
-            Token::Bool(self.is_service.into()),
+            Token::Bool(self.is_service),
             Token::Uint(self.tx_number_in_block.into()),
             Token::Address(self.sender),
             Token::FixedBytes(self.key.as_bytes().to_vec()),
