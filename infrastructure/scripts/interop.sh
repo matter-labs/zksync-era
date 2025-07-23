@@ -94,6 +94,7 @@ zkstack dev init-test-wallet --chain era
 zkstack dev init-test-wallet --chain validium
 # Runs interop integration test between era-validium in parallel
 mkdir -p zlogs
-./bin/run_on_all_chains.sh "zkstack dev test integration -t 'Interop' --verbose" \
-            "era,validium" zlogs/ \
-            'era:--evm' 'validium:--evm'
+zkstack dev test integration -t "Interop"  --chain era --no-deps --second-chain validium &> zlogs/era.logs
+# ./bin/run_on_all_chains.sh "zkstack dev test integration -t 'Interop' --verbose" \
+#             "era,validium" zlogs/ \
+#             'era:--evm' 'validium:--evm'

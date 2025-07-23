@@ -267,6 +267,8 @@ pub async fn migrate_token_balances_from_gateway(
     forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
     forge.run(shell)?;
 
+    std::thread::sleep(std::time::Duration::from_secs(20));
+
     println!("Token migration finished");
 
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
