@@ -277,8 +277,8 @@ async fn run_linking_fri_snark(
                 tokio::time::sleep(Duration::from_secs(5)).await;
                 continue;
             }
-            Err(_) => {
-                tracing::error!("Failed to pick SNARK job, retrying in 30s");
+            Err(e) => {
+                tracing::error!("Failed to pick SNARK job due to {e:?}, retrying in 30s");
                 tokio::time::sleep(Duration::from_secs(30)).await;
                 continue;
             }
@@ -323,7 +323,14 @@ async fn run_linking_fri_snark(
                 .to_str()
                 .unwrap(),
         );
-        sequencer_client.submit_snark_proof(start_block, end_block, snark_proof).await?
+        match sequencer_client.submit_snark_proof(start_block, end_block, snark_proof).await {
+            Ok(()) => {
+                tracing::info!("Successfully submitted SNARK proof for blocks {} to {}", start_block, end_block);
+            }
+            Err(e) => {
+                tracing::error!("Failed to submit SNARK job due to {e:?}, skipping");
+            }
+        };
     }
 }
 
