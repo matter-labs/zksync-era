@@ -10,3 +10,4 @@ CREATE INDEX IF NOT EXISTS prover_jobs_fri_get_next_job_index
     ) 
     INCLUDE ( chain_id ) 
     WHERE ( status = 'queued'::text );
+    
