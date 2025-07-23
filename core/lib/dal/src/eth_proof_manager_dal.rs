@@ -5,9 +5,12 @@ use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt,
     utils::pg_interval_from_duration,
 };
-use zksync_types::{L1BatchNumber, H256};
+use zksync_types::{
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    L1BatchNumber, H256,
+};
 
-use crate::Core;
+use crate::{Core, CoreDal};
 
 #[derive(Debug)]
 pub struct EthProofManagerDal<'a, 'c> {
@@ -204,15 +207,37 @@ impl EthProofManagerDal<'_, '_> {
     pub async fn get_batch_to_send_validation_result(
         &mut self,
     ) -> anyhow::Result<Option<(L1BatchNumber, bool)>> {
+        let batch_stats = self
+            .storage
+            .eth_sender_dal()
+            .get_eth_all_blocks_stat()
+            .await?;
+
+        let latest_proven_batch = batch_stats
+            .mined
+            .iter()
+            .find(|(op_type, _)| {
+                op_type
+                    == &AggregatedActionType::L1Batch(
+                        L1BatchAggregatedActionType::PublishProofOnchain,
+                    )
+            })
+            .map(|(_, block_number)| L1BatchNumber(*block_number))
+            .ok_or(anyhow::anyhow!("No proven batch found"))?;
+
         let result: Option<(L1BatchNumber, Option<bool>)> = sqlx::query!(
             r#"
             SELECT l1_batch_number, proof_validation_result
             FROM eth_proof_manager
-            WHERE status = $1
+            WHERE
+                (status = $1 AND l1_batch_number <= $2)
+                OR (status = $3 AND proof_validation_result = false)
             ORDER BY l1_batch_number ASC
             LIMIT 1
             "#,
-            EthProofManagerStatus::Proven.as_str()
+            EthProofManagerStatus::Proven.as_str(),
+            i64::from(latest_proven_batch.0),
+            EthProofManagerStatus::Fallbacked.as_str(),
         )
         .instrument("get_batch_to_validate")
         .fetch_optional(self.storage)

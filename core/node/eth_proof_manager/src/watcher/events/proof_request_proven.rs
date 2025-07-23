@@ -12,7 +12,10 @@ use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::outputs::{
     L1BatchProofForL1, L1BatchProofForL1Key, TypedL1BatchProofForL1,
 };
-use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256, ProtocolVersionId, commitment::serialize_commitments, web3::keccak256};
+use zksync_types::{
+    api::Log, commitment::serialize_commitments, ethabi, h256_to_u256, web3::keccak256,
+    L1BatchNumber, ProtocolVersionId, H256, U256,
+};
 
 use crate::{
     types::{FflonkFinalVerificationKey, ProvingNetwork},
@@ -120,16 +123,17 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let batch_number = L1BatchNumber(event.block_number.as_u32());
 
-        let verification_result = match verify_proof(self.connection_pool, batch_number, proof, self.fflonk_vk).await {
-            Ok(_) => {
-                tracing::info!("Proof for batch {} verified successfully", batch_number);
-                true
-            },
-            Err(e) => {
-                tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
-                false
-            }
-        };
+        let verification_result =
+            match verify_proof(self.connection_pool, batch_number, proof, self.fflonk_vk).await {
+                Ok(_) => {
+                    tracing::info!("Proof for batch {} verified successfully", batch_number);
+                    true
+                }
+                Err(e) => {
+                    tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
+                    false
+                }
+            };
 
         if verification_result {
             let proof_blob_url = self
@@ -167,7 +171,12 @@ impl EventHandler for ProofRequestProvenHandler {
     }
 }
 
-async fn verify_proof(connection_pool: ConnectionPool<Core>, batch_number: L1BatchNumber, proof: L1BatchProofForL1, verification_key: FflonkFinalVerificationKey) -> anyhow::Result<()> {
+async fn verify_proof(
+    connection_pool: ConnectionPool<Core>,
+    batch_number: L1BatchNumber,
+    proof: L1BatchProofForL1,
+    verification_key: FflonkFinalVerificationKey,
+) -> anyhow::Result<()> {
     let verification_result = match proof.inner() {
         TypedL1BatchProofForL1::Fflonk(proof) => {
             let proof = proof.scheduler_proof;
@@ -209,10 +218,11 @@ async fn verify_proof(connection_pool: ConnectionPool<Core>, batch_number: L1Bat
         .metadata
         .events_queue_commitment
         .ok_or(anyhow::anyhow!("No events_queue_commitment"))?;
-    let bootloader_heap_initial_content = l1_batch
-        .metadata
-        .bootloader_initial_content_commitment
-        .ok_or(anyhow::anyhow!("No bootloader_initial_content_commitment"))?;
+    let bootloader_heap_initial_content =
+        l1_batch
+            .metadata
+            .bootloader_initial_content_commitment
+            .ok_or(anyhow::anyhow!("No bootloader_initial_content_commitment"))?;
 
     if events_queue_state != events_queue_state_from_prover
         || bootloader_heap_initial_content != bootloader_heap_initial_content_from_prover
@@ -236,24 +246,25 @@ async fn verify_proof(connection_pool: ConnectionPool<Core>, batch_number: L1Bat
                 (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
                     .then_some(log.0.value)
             })
-            .ok_or(anyhow::anyhow!("Failed to get state_diff_hash from system logs"))?
+            .ok_or(anyhow::anyhow!(
+                "Failed to get state_diff_hash from system logs"
+            ))?
     } else {
-        l1_batch
-            .metadata
-            .state_diff_hash
-            .ok_or(anyhow::anyhow!("Failed to get state_diff_hash from metadata"))?
+        l1_batch.metadata.state_diff_hash.ok_or(anyhow::anyhow!(
+            "Failed to get state_diff_hash from metadata"
+        ))?
     };
 
     if state_diff_hash != state_diff_hash_from_prover
         || system_logs_hash != system_logs_hash_from_prover
     {
-        let server_values = format!(
-            "system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}"
-        );
+        let server_values =
+            format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
         let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
         return Err(anyhow::anyhow!(
             "Auxilary output doesn't match, server values: {} prover values: {}",
-            server_values, prover_values
+            server_values,
+            prover_values
         ));
     }
 
