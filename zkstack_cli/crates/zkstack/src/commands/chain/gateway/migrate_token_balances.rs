@@ -209,6 +209,17 @@ pub async fn migrate_token_balances_from_gateway(
         println!("Token migration started");
     }
 
+
+    let broadcast_dir = "/usr/src/zksync/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/";
+
+
+
+    let files = list_files_recursively(broadcast_dir);
+    println!("Files in {}:", broadcast_dir);
+    for file in files {
+        println!("{}", file.display());
+    }
+
     let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
         .encode(
             "finishMigrationOnL1",
@@ -301,4 +312,21 @@ pub async fn migrate_token_balances_from_gateway(
     println!("Token migration checked");
 
     Ok(())
+}
+
+fn list_files_recursively<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
+    use std::fs;
+    let mut files = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                files.extend(list_files_recursively(&path));
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
 }
