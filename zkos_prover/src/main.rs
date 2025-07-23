@@ -139,13 +139,16 @@ fn create_proof(
 pub async fn main() {
     let args = Args::parse();
 
+    println!("running without logging, disregarding enabled_logging flag = {}", args.enabled_logging);
+
     let client = ProofDataClient::new(args.base_url);
 
-    let binary_path = if args.enabled_logging {
-        "../execution_environment/app_logging_enabled.bin".to_string()
-    } else {
-        "../execution_environment/app.bin".to_string()
-    };
+    let binary_path = "../execution_environment/app.bin".to_string();
+    // let binary_path = if args.enabled_logging {
+    //     "../execution_environment/app_logging_enabled.bin".to_string()
+    // } else {
+    //     "../execution_environment/app.bin".to_string()
+    // };
 
     let binary = load_binary_from_path(&binary_path.to_string());
     let mut gpu_state = GpuSharedState::new(&binary);

@@ -241,7 +241,7 @@ fn merge_fris(snark_proof_input: SnarkProofInputs, verifier_binary: &Vec<u32>, g
         tracing::info!("Finished linking proofs up to block {}", up_to_block);
     }
     // TODO: We can do a recursion step here as well, IIUC
-    tracing::info!("Finishing linking all proofs from {} to {}", snark_proof_input.to_block_number, snark_proof_input.from_block_number);
+    tracing::info!("Finishing linking all proofs from {} to {}", snark_proof_input.from_block_number, snark_proof_input.to_block_number);
     proof
 }
 
