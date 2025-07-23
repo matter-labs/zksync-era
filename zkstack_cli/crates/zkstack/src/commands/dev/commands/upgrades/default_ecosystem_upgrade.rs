@@ -295,7 +295,6 @@ async fn no_governance_prepare(
     Ok(())
 }
 
-
 async fn ecosystem_admin(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
@@ -328,7 +327,7 @@ async fn ecosystem_admin(
         ecosystem_config,
         // Note, that ecosystem admin and governor use the same wallet.
         &ecosystem_config.get_wallets()?.governor,
-        ecosystem_admin_calls.0,
+        ecosystem_admin_calls.server_notifier_upgrade.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
     )

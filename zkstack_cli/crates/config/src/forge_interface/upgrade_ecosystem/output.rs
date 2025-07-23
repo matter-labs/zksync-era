@@ -15,7 +15,7 @@ pub struct EcosystemUpgradeOutput {
     pub chain_upgrade_diamond_cut: Bytes,
     pub governance_calls: GovernanceCalls,
 
-    pub ecosystem_admin_calls: Bytes,
+    pub ecosystem_admin_calls: EcosystemAdminCalls,
     pub contracts_config: EcosystemUpgradeContractsOutput,
     pub deployed_addresses: EcosystemUpgradeDeployedAddresses,
     /// List of transactions that were executed during the upgrade.
@@ -26,6 +26,11 @@ pub struct EcosystemUpgradeOutput {
 
 impl FileConfigWithDefaultName for EcosystemUpgradeOutput {
     const FILE_NAME: &'static str = "../contracts/l1-contracts/script-out/v29_local_output.yaml";
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct EcosystemAdminCalls {
+    pub server_notifier_upgrade: Bytes,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

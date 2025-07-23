@@ -216,7 +216,7 @@ pub async fn ecosystem_admin_execute_calls(
         .with_broadcast()
         .with_calldata(&calldata);
     accept_ownership(shell, ecosystem_admin, forge).await
-}   
+}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_execute_upgrade(
