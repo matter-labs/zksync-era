@@ -6,7 +6,7 @@ use zksync_types::Address;
 use crate::commands::dev::commands::upgrades::types::UpgradeVersions;
 
 #[derive(Parser, Debug, Clone)]
-pub struct ChainUpgradeArgs {
+pub struct V29ChainUpgradeArgs {
     pub upgrade_description_path: Option<String>,
     pub chain_id: Option<u64>,
     pub gw_chain_id: Option<u64>,
@@ -15,6 +15,8 @@ pub struct ChainUpgradeArgs {
     pub l2_rpc_url: Option<String>,
     pub gw_rpc_url: Option<String>,
     pub server_upgrade_timestamp: Option<u64>,
+    pub validator_1: Address,
+    pub validator_2: Address,
     #[clap(long, default_missing_value = "false")]
     pub dangerous_no_cross_check: Option<bool>,
     #[clap(long, default_missing_value = "false")]
@@ -23,7 +25,7 @@ pub struct ChainUpgradeArgs {
     pub upgrade_version: UpgradeVersions,
 }
 
-impl ChainUpgradeArgs {
+impl V29ChainUpgradeArgs {
     pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let chain_config = ecosystem_config.load_current_chain()?;
@@ -70,18 +72,14 @@ impl ChainUpgradeArgs {
     }
 }
 
-pub struct UpgradeArgsInner {
-    pub chain_id: u64,
-    pub l1_rpc_url: String,
-    pub gw_rpc_url: Option<String>,
-}
+use super::chain::UpgradeArgsInner;
 
-impl From<ChainUpgradeArgs> for UpgradeArgsInner {
-    fn from(value: ChainUpgradeArgs) -> Self {
+impl From<V29ChainUpgradeArgs> for UpgradeArgsInner {
+    fn from(value: V29ChainUpgradeArgs) -> Self {
         Self {
             chain_id: value.chain_id.unwrap(),
-            l1_rpc_url: value.l1_rpc_url.unwrap(),
-            gw_rpc_url: value.gw_rpc_url,
+            l1_rpc_url: value.l1_rpc_url.clone().unwrap(),
+            gw_rpc_url: value.gw_rpc_url.clone(),
         }
     }
 }

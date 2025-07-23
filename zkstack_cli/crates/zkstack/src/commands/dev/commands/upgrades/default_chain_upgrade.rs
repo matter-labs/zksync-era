@@ -38,11 +38,11 @@ use crate::{
 
 #[derive(Debug, Default)]
 pub struct FetchedChainInfo {
-    hyperchain_addr: Address,
-    chain_admin_addr: Address,
-    gw_hyperchain_addr: Address,
-    l1_asset_router_proxy: Address,
-    settlement_layer: u64,
+    pub hyperchain_addr: Address,
+    pub chain_admin_addr: Address,
+    pub gw_hyperchain_addr: Address,
+    pub l1_asset_router_proxy: Address,
+    pub settlement_layer: u64,
 }
 
 async fn verify_next_batch_new_version(
@@ -190,14 +190,14 @@ pub async fn fetch_chain_info(
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpgradeInfo {
     // Information about pre-upgrade contracts.
-    l1_chain_id: u32,
-    gateway_chain_id: u32,
+    pub(crate) l1_chain_id: u32,
+    pub(crate) gateway_chain_id: u32,
     pub(crate) deployed_addresses: DeployedAddresses,
     pub(crate) contracts_config: ContractsConfig,
     pub(crate) gateway: Gateway,
 
     // Information from upgrade
-    chain_upgrade_diamond_cut: Bytes,
+    pub(crate) chain_upgrade_diamond_cut: Bytes,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -245,7 +245,11 @@ pub(crate) async fn run(
         args.upgrade_description_path = Some(
             ecosystem_config
                 .link_to_code
-                .join(args_input.upgrade_version.get_default_upgrade_description_path())
+                .join(
+                    args_input
+                        .upgrade_version
+                        .get_default_upgrade_description_path(),
+                )
                 .to_string_lossy()
                 .to_string(),
         );
@@ -298,8 +302,7 @@ pub(crate) async fn run(
         };
     }
 
-    let calldata;
-    if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
+    let calldata = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
         admin_calls_gw.append_execute_upgrade(
@@ -330,39 +333,9 @@ pub(crate) async fn run(
             )
             .await;
 
-        // This is bad to unwrap, we'll have to split the command into two.
-        let validator_1 = args.validator_1.expect("validator_1 is required");
-        let validator_2 = args.validator_2.expect("validator_2 is required");
-
-        for validator in [validator_1, validator_2] {
-            let enable_validator_calls = enable_validator_via_gateway(
-                shell,
-                forge_args,
-                &foundry_contracts_path,
-                crate::admin_functions::AdminScriptMode::OnlySave,
-                upgrade_info
-                    .deployed_addresses
-                    .bridgehub
-                    .bridgehub_proxy_addr,
-                args.l1_gas_price.expect("l1_gas_price is required").into(),
-                args.chain_id.expect("chain_id is required"),
-                args.gw_chain_id.expect("gw_chain_id is required"),
-                validator,
-                upgrade_info
-                    .gateway
-                    .gateway_state_transition
-                    .validator_timelock_addr,
-                validator,
-                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
-            )
-            .await?;
-            admin_calls_gw.extend_with_calls(enable_validator_calls.calls);
-        }
-
         admin_calls_gw.display();
 
         let (gw_chain_admin_calldata, total_value) = admin_calls_gw.compile_full_calldata();
-        calldata = gw_chain_admin_calldata.clone();
 
         logger::info(format!(
             "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
@@ -379,33 +352,9 @@ pub(crate) async fn run(
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
 
-        // This is bad to unwrap, we'll have to split the command into two.
-        let validator_1 = args.validator_1.expect("validator_1 is required");
-        let validator_2 = args.validator_2.expect("validator_2 is required");
-
-        for validator in [validator_1, validator_2] {
-            let enable_validator_calls = enable_validator(
-                shell,
-                forge_args,
-                &foundry_contracts_path,
-                crate::admin_functions::AdminScriptMode::OnlySave,
-                upgrade_info
-                    .deployed_addresses
-                    .bridgehub
-                    .bridgehub_proxy_addr,
-                args.chain_id.expect("chain_id is required"),
-                validator,
-                upgrade_info.deployed_addresses.validator_timelock_addr,
-                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
-            )
-            .await?;
-            admin_calls_finalize.extend_with_calls(enable_validator_calls.calls);
-        }
-
         admin_calls_finalize.display();
 
         let (chain_admin_calldata, total_value) = admin_calls_finalize.compile_full_calldata();
-        calldata = chain_admin_calldata.clone();
 
         logger::info(format!(
             "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",

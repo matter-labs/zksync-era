@@ -30,6 +30,9 @@ pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
 pub(super) const GENERAL_CHAIN_UPGRADE: &str =
     "General chain upgrade checker and calldata generator";
 
+#[cfg(feature = "upgrades")]
+pub(super) const V29_CHAIN_UPGRADE: &str = "V29 chain upgrade checker and calldata generator";
+
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";

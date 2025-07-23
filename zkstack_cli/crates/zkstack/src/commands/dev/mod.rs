@@ -23,6 +23,7 @@ use crate::commands::dev::messages::{
     MSG_INIT_TEST_WALLET_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
     MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
     MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    V29_CHAIN_UPGRADE,
 };
 
 pub(crate) mod commands;
@@ -81,6 +82,12 @@ pub enum DevCommands {
     #[cfg(feature = "upgrades")]
     #[command(about = GENERAL_CHAIN_UPGRADE)]
     RunChainUpgrade(commands::upgrades::args::chain::ChainUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = V29_CHAIN_UPGRADE)]
+    RunV29ChainUpgrade(commands::upgrades::args::v29_chain::V29ChainUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = V29_CHAIN_UPGRADE)]
+    GenerateV29ChainUpgrade(commands::upgrades::args::v29_chain::V29ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -125,6 +132,14 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "upgrades")]
         DevCommands::RunChainUpgrade(args) => {
             commands::upgrades::default_chain_upgrade::run(shell, args, true).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::GenerateV29ChainUpgrade(args) => {
+            commands::upgrades::v29_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::RunV29ChainUpgrade(args) => {
+            commands::upgrades::v29_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())

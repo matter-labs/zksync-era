@@ -14,3 +14,5 @@ pub mod utils;
 pub mod v27_evm_eq;
 #[cfg(feature = "v28_precompiles")]
 pub mod v28_precompiles;
+#[cfg(feature = "upgrades")]
+pub mod v29_upgrade;
