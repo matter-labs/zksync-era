@@ -1,13 +1,17 @@
 use anyhow::Context;
+use clap::Parser;
 use ethers::{
     abi::{parse_abi, Address},
     contract::BaseContract,
+    types::U256,
     utils::hex,
 };
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
+    ethereum::get_ethers_provider,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
 };
@@ -28,6 +32,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::ProverMode;
 
 use crate::{
+    abi::BridgehubAbi,
     admin_functions::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         set_transaction_filterer, AdminScriptMode,
@@ -39,11 +44,38 @@ use crate::{
 lazy_static! {
     static ref DEPLOY_GATEWAY_TX_FILTERER_ABI: BaseContract =
         BaseContract::from(parse_abi(&["function runWithInputFromFile() public"]).unwrap(),);
-    static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract =
-        BaseContract::from(parse_abi(&["function run() public"]).unwrap(),);
+    static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract = BaseContract::from(
+        parse_abi(&["function prepareForGWVoting(uint256 ctmChainId) public"]).unwrap(),
+    );
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct ConvertToGatewayArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    /// Pass the bridgehub, if existing ecosystem is being used
+    #[clap(long)]
+    pub bridgehub_addr: Option<Address>,
+
+    /// Pass the chain id, for which we want to deploy ctm on GW
+    #[clap(long, value_parser = parse_decimal_u256)]
+    pub ctm_chain_id: Option<U256>,
+}
+
+fn parse_decimal_u256(s: &str) -> Result<U256, String> {
+    if s.starts_with("0x") || s.starts_with("0X") {
+        return Err("Hexadecimal format not allowed for ctm_chain_id. Use a decimal value.".into());
+    }
+    U256::from_dec_str(s).map_err(|e| format!("Invalid decimal U256: {e}"))
+}
+
+pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+    let args = convert_to_gw_args.forge_args;
+    let bridgehub_address = convert_to_gw_args.bridgehub_addr.unwrap_or(Address::zero());
+
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
@@ -59,45 +91,59 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .deployer
         .context("deployer")?;
 
-    let output = deploy_gateway_tx_filterer(
-        shell,
-        args.clone(),
-        &ecosystem_config,
-        &chain_config,
-        &chain_deployer_wallet,
-        GatewayTxFiltererInput::new(
-            &ecosystem_config.get_initial_deployment_config().unwrap(),
-            &chain_contracts_config,
-        )?,
-        l1_url.clone(),
-    )
-    .await?;
+    let grantees;
 
-    set_transaction_filterer(
-        shell,
-        &args,
-        &chain_config.path_to_l1_foundry(),
-        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
-        chain_config.chain_id.as_u64(),
-        chain_contracts_config
-            .ecosystem_contracts
-            .bridgehub_proxy_addr,
-        output.gateway_tx_filterer_proxy,
-        l1_url.clone(),
-    )
-    .await?;
+    let bridgehub_governance_addr = if bridgehub_address.is_zero() {
+        let output: GatewayTxFiltererOutput = deploy_gateway_tx_filterer(
+            shell,
+            args.clone(),
+            &ecosystem_config,
+            &chain_config,
+            &chain_deployer_wallet,
+            GatewayTxFiltererInput::new(
+                &ecosystem_config.get_initial_deployment_config().unwrap(),
+                &chain_contracts_config,
+            )?,
+            l1_url.clone(),
+        )
+        .await?;
 
-    chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
-    chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
+        set_transaction_filterer(
+            shell,
+            &args,
+            &chain_config.path_to_l1_foundry(),
+            AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+            chain_config.chain_id.as_u64(),
+            chain_contracts_config
+                .ecosystem_contracts
+                .bridgehub_proxy_addr,
+            output.gateway_tx_filterer_proxy,
+            l1_url.clone(),
+        )
+        .await?;
 
-    let grantees = vec![
-        ecosystem_config.get_contracts_config()?.l1.governance_addr,
-        chain_deployer_wallet.address,
-        chain_contracts_config
-            .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr
-            .context("No CTM deployment tracker")?,
-    ];
+        chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
+        chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
+        grantees = vec![
+            ecosystem_config.get_contracts_config()?.l1.governance_addr,
+            chain_deployer_wallet.address,
+            chain_contracts_config
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr
+                .context("No CTM deployment tracker")?,
+        ];
+
+        Address::zero()
+    } else {
+        let l1_provider = get_ethers_provider(&l1_url)?;
+        let l1_bridgehub = BridgehubAbi::new(bridgehub_address, l1_provider);
+        let bridgehub_governance_addr = l1_bridgehub.owner().await?;
+
+        grantees = vec![bridgehub_governance_addr, chain_deployer_wallet.address];
+
+        bridgehub_governance_addr
+    };
 
     grant_gateway_whitelist(
         shell,
@@ -137,6 +183,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             Address::zero(),
         ),
         l1_url.clone(),
+        convert_to_gw_args.ctm_chain_id.unwrap_or_default(),
     )
     .await?;
 
@@ -149,6 +196,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,
         l1_url.clone(),
+        bridgehub_governance_addr,
     )
     .await?;
 
@@ -182,18 +230,24 @@ pub async fn gateway_vote_preparation(
     deployer: &Wallet,
     input: GatewayVotePreparationConfig,
     l1_rpc_url: String,
+    ctm_chain_id: U256,
 ) -> anyhow::Result<DeployGatewayCTMOutput> {
     input.save(
         shell,
         GATEWAY_VOTE_PREPARATION.input(&chain_config.path_to_l1_foundry()),
     )?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
-        .script(&GATEWAY_VOTE_PREPARATION.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url)
-        .with_calldata(&GATEWAY_VOTE_PREPARATION_ABI.encode("run", ()).unwrap())
-        .with_broadcast();
+    let calldata = GATEWAY_VOTE_PREPARATION_ABI
+        .encode("prepareForGWVoting", (ctm_chain_id))
+        .unwrap();
+
+    let mut forge: zkstack_cli_common::forge::ForgeScript =
+        Forge::new(&config.path_to_l1_foundry())
+            .script(&GATEWAY_VOTE_PREPARATION.script(), forge_args.clone())
+            .with_ffi()
+            .with_rpc_url(l1_rpc_url)
+            .with_calldata(&calldata)
+            .with_broadcast();
 
     // Governor private key is required for this script
     forge = fill_forge_private_key(forge, Some(deployer), WalletOwner::Deployer)?;

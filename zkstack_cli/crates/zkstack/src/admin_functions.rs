@@ -156,12 +156,17 @@ pub async fn governance_execute_calls(
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
+    governance_address: Address,
 ) -> anyhow::Result<()> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let governance_address = ecosystem_config.get_contracts_config()?.l1.governance_addr;
+    let governance_address = if governance_address.is_zero() {
+        ecosystem_config.get_contracts_config()?.l1.governance_addr
+    } else {
+        governance_address
+    };
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -170,7 +175,7 @@ pub async fn governance_execute_calls(
         )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge: ForgeScript = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),

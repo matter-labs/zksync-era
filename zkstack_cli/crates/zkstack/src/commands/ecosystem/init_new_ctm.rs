@@ -4,49 +4,37 @@ use anyhow::Context;
 use ethers::types::H160;
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config,
     contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
-    forge::{Forge, ForgeScriptArgs},
+    forge::ForgeScriptArgs,
     git, logger,
     spinner::Spinner,
     Prompt,
 };
 use zkstack_cli_config::{
-    forge_interface::{
-        deploy_ecosystem::{
-            input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
-            output::ERC20Tokens,
-        },
-        script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
-    },
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
     ContractsConfig, EcosystemConfig,
 };
 use zkstack_cli_types::L1Network;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
-    common::deploy_l1,
+    common::{deploy_erc20, deploy_l1},
     setup_observability,
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
     admin_functions::{accept_admin, accept_owner},
-    commands::{
-        chain::{self},
-        ecosystem::{
-            args::init::PromptPolicy,
-            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        },
+    commands::ecosystem::{
+        args::init::PromptPolicy,
+        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
     },
     messages::{
-        msg_chain_load_err, msg_ecosystem_no_found_preexisting_contract, msg_initializing_chain,
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
-        MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
+        msg_ecosystem_no_found_preexisting_contract, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER,
+        MSG_DEPLOYING_ERC20, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -133,53 +121,6 @@ async fn init_ecosystem(
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(contracts)
-}
-
-async fn deploy_erc20(
-    shell: &Shell,
-    erc20_deployment_config: &Erc20DeploymentConfig,
-    ecosystem_config: &EcosystemConfig,
-    contracts_config: &ContractsConfig,
-    forge_args: ForgeScriptArgs,
-    l1_rpc_url: String,
-) -> anyhow::Result<ERC20Tokens> {
-    let deploy_config_path =
-        DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.path_to_l1_foundry());
-    let wallets = ecosystem_config.get_wallets()?;
-    DeployErc20Config::new(
-        erc20_deployment_config,
-        contracts_config,
-        vec![
-            wallets.governor.address,
-            wallets.operator.address,
-            wallets.blob_operator.address,
-        ],
-    )
-    .save(shell, deploy_config_path)?;
-
-    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
-        .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url)
-        .with_broadcast();
-
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.deployer.as_ref(),
-        WalletOwner::Deployer,
-    )?;
-
-    let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-    spinner.finish();
-
-    let result = ERC20Tokens::read(
-        shell,
-        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
-    )?;
-    result.save_with_base_path(shell, &ecosystem_config.config)?;
-    Ok(result)
 }
 
 pub async fn deploy_ecosystem(
@@ -279,7 +220,7 @@ async fn deploy_ecosystem_inner(
     .await?;
     spinner.finish();
 
-    if bridgehub_address != H160::zero() {
+    if bridgehub_address == H160::zero() {
         // Note, that there is no admin in L1 asset router, so we do
         // need to accept it
 

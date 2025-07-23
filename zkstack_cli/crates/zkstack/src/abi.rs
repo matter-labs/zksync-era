@@ -10,6 +10,7 @@ abigen!(
     function ctmAssetIdFromChainId(uint256)(bytes32)
     function baseTokenAssetId(uint256)(bytes32)
     function chainTypeManager(uint256)(address)
+    function owner()(address)
 ]"
 );
 

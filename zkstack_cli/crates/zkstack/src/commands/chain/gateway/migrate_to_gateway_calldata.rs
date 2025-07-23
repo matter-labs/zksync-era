@@ -1,5 +1,3 @@
-// src/commands/chain/migrate_to_gateway_calldata.rs
-
 use std::path::Path;
 
 use anyhow::Context;
@@ -93,7 +91,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .await?;
 
     let zk_chain_l1_address = l1_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
-
     if zk_chain_l1_address == Address::zero() {
         anyhow::bail!("Chain with id {} does not exist!", params.l2_chain_id);
     }
@@ -110,7 +107,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .ctm_asset_id_from_chain_id(params.l2_chain_id.into())
         .await?;
     let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
-
     if ctm_gw_address == Address::zero() {
         anyhow::bail!("{} does not have a CTM deployed!", params.gateway_chain_id);
     }

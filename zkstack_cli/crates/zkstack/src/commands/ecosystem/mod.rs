@@ -14,7 +14,7 @@ mod create;
 pub mod create_configs;
 pub(crate) mod init;
 pub(crate) mod init_core_contracts;
-pub(crate) mod init_new_ecosystem;
+pub(crate) mod init_new_ctm;
 pub(crate) mod register_ctm;
 pub(crate) mod setup_observability;
 mod utils;
@@ -31,7 +31,7 @@ pub enum EcosystemCommands {
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
     /// Initialize new ecosystem on existing bridgehub
-    InitNewEcosystem(EcosystemInitArgs),
+    InitNewCTM(EcosystemInitArgs),
     /// Initialize ecosystem core contracts
     InitCoreContracts(EcosystemInitArgs),
     /// Change the default chain
@@ -50,7 +50,7 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Create(args) => create::run(args, shell).await,
         EcosystemCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         EcosystemCommands::Init(args) => init::run(args, shell).await,
-        EcosystemCommands::InitNewEcosystem(args) => init_new_ecosystem::run(args, shell).await,
+        EcosystemCommands::InitNewCTM(args) => init_new_ctm::run(args, shell).await,
         EcosystemCommands::InitCoreContracts(args) => init_core_contracts::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
