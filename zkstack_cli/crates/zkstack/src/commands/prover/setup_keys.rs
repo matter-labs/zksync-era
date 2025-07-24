@@ -43,10 +43,12 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         }
 
         let bellman_cuda_dir = ecosystem_config.bellman_cuda_dir.clone();
-        if bellman_cuda_dir.is_none() {
-            return Err(anyhow::anyhow!("Bellman CUDA is not initialized. Run `zkstack prover init-bellman-cuda` command to set it."));
+        if let Some(bellman_cuda_dir) = bellman_cuda_dir {
+            std::env::set_var("BELLMAN_CUDA_DIR", bellman_cuda_dir);
         } else {
-            std::env::set_var("BELLMAN_CUDA_DIR", bellman_cuda_dir.unwrap());
+            return Err(anyhow::anyhow!(
+                "Bellman CUDA directory is not set. Please run `zkstack prover init-bellman-cuda` to set it."
+            ));
         }
 
         let link_to_prover = get_link_to_prover(&ecosystem_config);
