@@ -333,15 +333,3 @@ impl Tokenize for CelestiaZKStackInput {
         ]
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[tokio::test]
-    async fn get_data_root() {
-        let client = TendermintRPCClient::new("http://public-celestia-mocha4-consensus.numia.xyz:26657".to_string());
-        let data_root = client.get_data_root(5682865).await.unwrap();
-        println!("data_root: {:?}", data_root);
-    }
-}

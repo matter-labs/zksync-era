@@ -147,10 +147,6 @@ impl CelestiaClient {
         };
         tracing::debug!("Got proof data from eq-service: {:?}", proof_data);
 
-        /*let data_root = proof_data[0..32].to_vec();
-        let keccak_hash = proof_data[32..64].to_vec();
-        let proof = proof_data[64..].to_vec();*/
-
         let proof = proof_data.proof_data;
         let public_values = proof_data.public_values;
         Ok(Some((public_values, proof)))
@@ -377,6 +373,9 @@ impl DataAvailabilityClient for CelestiaClient {
             Some(p) => p,
             None => return Ok(None),
         };
+
+        tracing::info!("public_values: {:?}", hex::encode(&proof_data.0));
+        tracing::info!("proof: {:?}", hex::encode(&proof_data.1));
 
         // Step 5: Combine everything into inclusion data
         self.create_inclusion_data(attestation_proof, proof_data)
