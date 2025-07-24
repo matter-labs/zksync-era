@@ -55,7 +55,7 @@ export function usersRoutes(app: WebServer) {
 
     app.get('/:address', getUserSchema, (req, reply) => {
         const { authorizer, createTokenSecret } = app.context;
-        const { secret } = req.query;
+        const secret = req.headers['x-secret'];
 
         if (secret !== createTokenSecret) {
             throw new HttpError('forbidden', 403);
