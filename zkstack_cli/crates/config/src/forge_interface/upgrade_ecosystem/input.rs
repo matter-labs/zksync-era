@@ -1,15 +1,11 @@
-use ethers::{
-    addressbook::Contract,
-    types::{Address, H256, U256},
-};
+use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
     forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
-    gateway,
     traits::ZkStackConfig,
-    ContractsConfig, GatewayConfig,
+    ContractsConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

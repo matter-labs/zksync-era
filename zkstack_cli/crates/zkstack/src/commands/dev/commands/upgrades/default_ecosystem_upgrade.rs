@@ -30,10 +30,7 @@ use zkstack_cli_config::{
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_basic_types::H160;
-use zksync_types::{
-    h256_to_address, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-};
+use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
     admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls},
@@ -187,8 +184,8 @@ async fn no_governance_prepare(
 
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
-    let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(&upgrade_version)
-        .input(&ecosystem_config.path_to_l1_foundry());
+    let ecosystem_upgrade_config_path =
+        get_ecosystem_upgrade_params(upgrade_version).input(&ecosystem_config.path_to_l1_foundry());
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
@@ -246,7 +243,7 @@ async fn no_governance_prepare(
     ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(
-            &get_ecosystem_upgrade_params(&upgrade_version).script(),
+            &get_ecosystem_upgrade_params(upgrade_version).script(),
             forge_args.clone(),
         )
         .with_ffi()
@@ -261,7 +258,7 @@ async fn no_governance_prepare(
         WalletOwner::Deployer,
     )?;
 
-    logger::info(format!("Preparing the ecosystem for the upgrade!"));
+    logger::info("Preparing the ecosystem for the upgrade!".to_string());
 
     forge.run(shell)?;
 
@@ -281,7 +278,7 @@ async fn no_governance_prepare(
 
     let mut output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version)
+        get_ecosystem_upgrade_params(upgrade_version)
             .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
 
@@ -305,7 +302,7 @@ async fn ecosystem_admin(
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version)
+        get_ecosystem_upgrade_params(upgrade_version)
             .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -347,7 +344,7 @@ async fn governance_stage_0(
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version)
+        get_ecosystem_upgrade_params(upgrade_version)
             .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -389,7 +386,7 @@ async fn governance_stage_1(
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
-        get_ecosystem_upgrade_params(&upgrade_version)
+        get_ecosystem_upgrade_params(upgrade_version)
             .output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;

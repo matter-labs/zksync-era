@@ -46,8 +46,7 @@ pub(crate) async fn run(
     // 0. Read the GatewayUpgradeInfo
     let upgrade_info = UpgradeInfo::read(
         shell,
-        &args
-            .clone()
+        args.clone()
             .upgrade_description_path
             .expect("upgrade_description_path is required"),
     )?;

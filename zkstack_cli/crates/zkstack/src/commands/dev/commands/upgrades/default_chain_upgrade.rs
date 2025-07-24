@@ -21,7 +21,6 @@ use zksync_web3_decl::{
 
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
-    admin_functions::{enable_validator, enable_validator_via_gateway},
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
@@ -258,8 +257,7 @@ pub(crate) async fn run(
     // 0. Read the GatewayUpgradeInfo
     let upgrade_info = UpgradeInfo::read(
         shell,
-        &args
-            .clone()
+        args.clone()
             .upgrade_description_path
             .expect("upgrade_description_path is required"),
     )?;

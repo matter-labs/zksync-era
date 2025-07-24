@@ -1,7 +1,6 @@
 use clap::Parser;
 use xshell::Shell;
 use zkstack_cli_config::EcosystemConfig;
-use zksync_types::Address;
 
 use crate::commands::dev::commands::upgrades::types::UpgradeVersions;
 

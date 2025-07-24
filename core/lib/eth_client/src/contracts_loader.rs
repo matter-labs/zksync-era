@@ -7,7 +7,6 @@ use zksync_contracts::{
 };
 use zksync_types::{
     ethabi::{Contract, Token},
-    protocol_upgrade,
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
     Address, L2ChainId, SLChainId, U256,
