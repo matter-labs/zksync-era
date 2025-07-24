@@ -131,6 +131,9 @@ describe('Interop behavior checks', () => {
         //     undefined,
         //     testMaster.reporter
         // );
+        if (skipInteropTests) {
+            return;
+        }
         interop2Provider = aliceSecondChain.provider;
         interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
 
@@ -237,6 +240,9 @@ describe('Interop behavior checks', () => {
     });
 
     test('Can perform an ETH deposit', async () => {
+        if (skipInteropTests) {
+            return;
+        }
         const gasPrice = await scaledGasPrice(interop1RichWallet);
 
         await (
@@ -274,6 +280,9 @@ describe('Interop behavior checks', () => {
     });
 
     test('Can deploy token contracts', async () => {
+        if (skipInteropTests) {
+            return;
+        }
         // Deploy Token A on Interop1
         const tokenADeploy = await deployContract(interop1Wallet, ArtifactMintableERC20, [
             tokenA.name,
@@ -290,6 +299,9 @@ describe('Interop behavior checks', () => {
     });
 
     test('Can perform cross chain transfer', async () => {
+        if (skipInteropTests) {
+            return;
+        }
         const transferAmount = 100n;
         // let interop1TokenAVeryRichWallet = new zksync.Contract(
         //     tokenA.l2Address,
