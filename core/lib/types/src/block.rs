@@ -7,6 +7,7 @@ use crate::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
+    settlement::SettlementLayer,
     web3::{keccak256, keccak256_concat},
     AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
@@ -150,6 +151,7 @@ pub struct L2BlockHeader {
     pub logs_bloom: Bloom,
     pub pubdata_params: PubdataParams,
     pub rolling_txs_hash: Option<H256>,
+    pub settlement_layer: SettlementLayer,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.

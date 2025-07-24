@@ -24,6 +24,7 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
+    settlement::SettlementLayer,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -48,6 +49,10 @@ use crate::{
 pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
+
+pub struct L2ToL1Messages {
+    l2_to_l1_messages: Vec<Vec<u8>>,
+} //
 
 #[derive(Debug, Clone)]
 pub struct TxForPrecommit {
@@ -1236,6 +1241,12 @@ impl BlocksDal<'_, '_> {
                 )
             })?;
 
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            match l2_block_header.settlement_layer {
+                SettlementLayer::L1(chain_id) => ("L1", chain_id.0 as i64),
+                SettlementLayer::Gateway(chain_id) => ("Gateway", chain_id.0 as i64),
+            };
+
         let query = sqlx::query!(
             r#"
             INSERT INTO
@@ -1262,7 +1273,9 @@ impl BlocksDal<'_, '_> {
                 pubdata_type,
                 rolling_txs_hash,
                 created_at,
-                updated_at
+                updated_at,
+                settlement_layer_type,
+                settlement_layer_chain_id
             )
             VALUES
             (
@@ -1288,7 +1301,9 @@ impl BlocksDal<'_, '_> {
                 $20,
                 $21,
                 NOW(),
-                NOW()
+                NOW(),
+                $22,
+                $23
             )
             "#,
             i64::from(l2_block_header.number.0),
@@ -1326,7 +1341,9 @@ impl BlocksDal<'_, '_> {
             l2_block_header.pubdata_params.pubdata_type.to_string(),
             l2_block_header
                 .rolling_txs_hash
-                .map(|h| h.as_bytes().to_vec())
+                .map(|h| h.as_bytes().to_vec()),
+            settlement_layer_type,
+            settlement_layer_chain_id
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1358,7 +1375,9 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 miniblocks
             ORDER BY
@@ -1402,7 +1421,9 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 miniblocks
             WHERE
@@ -3407,6 +3428,58 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(results.into_iter().map(L::from).collect())
+    }
+
+    pub(crate) async fn get_l2_to_l1_messages_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<Vec<u8>>> {
+        let results = sqlx::query_as!(
+            L2ToL1Messages,
+            r#"
+            SELECT
+                l2_to_l1_messages
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l2_to_l1_messages_by_number")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        let messages = results
+            .into_iter()
+            .flat_map(|record| record.l2_to_l1_messages)
+            .collect::<Vec<Vec<u8>>>();
+
+        Ok(messages)
+    } //
+
+    pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                aggregation_root
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_aggregation_root")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row
+            .and_then(|row| row.aggregation_root)
+            .map(|root| H256::from_slice(&root))
+            .unwrap_or_default())
     }
 
     pub async fn has_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<bool> {

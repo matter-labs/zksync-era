@@ -12,6 +12,7 @@ use zksync_types::{
     block::{build_bloom, L2BlockHeader},
     commitment::PubdataParams,
     fee_model::BatchFeeInput,
+    settlement::SettlementLayer,
     Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
@@ -51,6 +52,7 @@ pub struct UpdatesManager {
     previous_batch_protocol_version: ProtocolVersionId,
     previous_batch_timestamp: u64,
     sync_block_data_and_header_persistence: bool,
+    settlement_layer: SettlementLayer,
 
     // committed state
     committed_updates: CommittedUpdates,
@@ -94,6 +96,7 @@ impl UpdatesManager {
             previous_batch_protocol_version,
             previous_batch_timestamp,
             sync_block_data_and_header_persistence,
+            settlement_layer: batch_init_params.l1_batch_env.settlement_layer,
             committed_updates: CommittedUpdates::new(),
             last_committed_l2_block_number: L2BlockNumber(
                 batch_init_params.l1_batch_env.first_l2_block.number,
@@ -189,6 +192,7 @@ impl UpdatesManager {
             insert_header: self.sync_block_data_and_header_persistence
                 || (tx_count_in_last_block == 0),
             rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
+            settlement_layer: self.settlement_layer,
         }
     }
 
@@ -359,6 +363,7 @@ impl UpdatesManager {
             logs_bloom,
             pubdata_params: self.pubdata_params,
             rolling_txs_hash: Some(self.rolling_tx_hash_updates.rolling_hash),
+            settlement_layer: self.settlement_layer,
         }
     }
 
@@ -491,6 +496,7 @@ pub struct L2BlockSealCommand {
     pub pubdata_params: PubdataParams,
     pub insert_header: bool,
     pub rolling_txs_hash: H256,
+    pub settlement_layer: SettlementLayer,
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ use zksync_types::{
     eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    settlement::SettlementLayer,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
 };
 
@@ -637,6 +638,8 @@ pub(crate) struct StorageL2BlockHeader {
     pub l2_da_validator_address: Vec<u8>,
     pub pubdata_type: String,
     pub rolling_txs_hash: Option<Vec<u8>>,
+    pub settlement_layer_type: Option<String>,
+    pub settlement_layer_chain_id: Option<i64>,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -649,6 +652,15 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
             row.fair_pubdata_price.map(|p| p as u64),
         );
 
+        let settlement_layer = match row.settlement_layer_type.as_deref() {
+            Some("L1") => {
+                SettlementLayer::L1(SLChainId(row.settlement_layer_chain_id.unwrap_or(29) as u64))
+            }
+            Some("Gateway") => SettlementLayer::Gateway(SLChainId(
+                row.settlement_layer_chain_id.unwrap_or(506) as u64,
+            )),
+            _ => SettlementLayer::L1(SLChainId(row.settlement_layer_chain_id.unwrap_or(19) as u64)),
+        };
         L2BlockHeader {
             number: L2BlockNumber(row.number as u32),
             timestamp: row.timestamp as u64,
@@ -676,6 +688,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
             rolling_txs_hash: row.rolling_txs_hash.as_deref().map(H256::from_slice),
+            settlement_layer,
         }
     }
 }
