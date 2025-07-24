@@ -72,14 +72,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     };
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
-    let broadcast_dir = "/usr/src/zksync/contracts/l1-contracts/broadcast/";
-
-    let files = list_files_recursively(broadcast_dir);
-    println!("Files in {}:", broadcast_dir);
-    for file in files {
-        println!("{}", file.display());
-    }
-
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
@@ -103,12 +95,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    let files = list_files_recursively(broadcast_dir);
-    println!("Files in {}:", broadcast_dir);
-    for file in files {
-        println!("{}", file.display());
-    }
-
     if calls.is_empty() {
         logger::info("Chain already migrated!");
         return Ok(());
@@ -129,12 +115,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         "migrating to gateway",
     )
     .await?;
-
-    let files = list_files_recursively(broadcast_dir);
-    println!("Files in {}:", broadcast_dir);
-    for file in files {
-        println!("{}", file.display());
-    }
 
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     extract_and_wait_for_priority_ops(
@@ -163,25 +143,3 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     Ok(())
 }
-
-use std::path::{Path, PathBuf};
-
-
-fn list_files_recursively<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
-    use std::fs;
-    let mut files = Vec::new();
-
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                files.extend(list_files_recursively(&path));
-                files.push(path);
-            } else {
-                files.push(path);
-            }
-        }
-    }
-    files
-}
-
