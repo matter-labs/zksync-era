@@ -1,5 +1,9 @@
 # Decentralization
 
+In the default setup, the Node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce the
+reliance on this centralized endpoint we have developed a decentralized p2p networking stack (aka gossipnet) which will
+eventually be used instead of ZKsync API for synchronizing data.
+
 On the gossipnet, the data integrity will be protected by the BFT (byzantine fault-tolerant) consensus algorithm
 (currently data is signed just by the main node though).
 
@@ -65,3 +69,12 @@ EN_CONSENSUS_SECRETS_PATH=...
 
 These variables should point to your consensus config and secrets files that we have just created. Tweak the paths to
 the files if you have placed them differently.
+
+### Add `--enable-consensus` flag to your entry point command
+
+For the consensus configuration to take effect you have to add `--enable-consensus` flag to the command line when
+running the node, for example:
+
+```
+docker run "matterlabs/external-node:2.0-v24.12.0" <all the other flags> --enable-consensus
+```
