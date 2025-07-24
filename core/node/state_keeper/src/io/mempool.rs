@@ -164,6 +164,7 @@ impl StateKeeperIO for MempoolIO {
             fee_input: pending_batch_data.l1_batch_env.fee_input,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
+            protocol_version: pending_batch_data.system_env.version,
         };
 
         storage
@@ -640,12 +641,9 @@ impl MempoolIO {
 
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(
-                self.batch_fee_input_provider.as_ref(),
-                protocol_version.into(),
-            )
-            .await
-            .context("failed creating L2 transaction filter")?;
+            self.filter = l2_tx_filter(self.batch_fee_input_provider.as_ref(), protocol_version)
+                .await
+                .context("failed creating L2 transaction filter")?;
 
             // We do not populate mempool with upgrade tx so it should be checked separately.
             if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
