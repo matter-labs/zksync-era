@@ -40,6 +40,7 @@ pub struct EcosystemUpgradeInput {
 impl ZkStackConfig for EcosystemUpgradeInput {}
 
 impl EcosystemUpgradeInput {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
