@@ -47,9 +47,6 @@ export function usersRoutes(app: WebServer) {
             params: z.object({
                 address: addressSchema
             }),
-            querystring: z.object({
-                secret: z.string()
-            })
         }
     };
 
@@ -58,6 +55,7 @@ export function usersRoutes(app: WebServer) {
         const secret = req.headers['x-secret'];
 
         if (secret !== createTokenSecret) {
+            console.warn(`Invalid secret sent: ${secret}`)
             throw new HttpError('forbidden', 403);
         }
 
