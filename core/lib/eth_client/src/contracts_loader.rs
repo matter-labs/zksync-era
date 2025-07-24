@@ -6,10 +6,7 @@ use zksync_contracts::{
     state_transition_manager_contract,
 };
 use zksync_types::{
-    ethabi::{Contract, Token},
-    protocol_version::ProtocolSemanticVersion,
-    settlement::SettlementLayer,
-    Address, L2ChainId, SLChainId, U256,
+    ethabi::{Contract, Token}, protocol_upgrade, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer, Address, L2ChainId, SLChainId, U256
 };
 
 use crate::{CallFunctionArgs, ContractCallError, EthInterface};
@@ -50,17 +47,16 @@ pub async fn load_settlement_layer_contracts(
         return Ok(None);
     }
 
-    if !ProtocolSemanticVersion::try_from_packed(
-        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?,
-    )
-    .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?
-    .minor
-    .is_post_fflonk()
+    let protocol_version = get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?;
+    let protocol_version = ProtocolSemanticVersion::try_from_packed(protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
+
+    if !protocol_version.minor.is_post_fflonk()
     {
         return Ok(None);
     }
 
-    let ctm_address =
+    let ctm_address: zksync_types::H160 =
         CallFunctionArgs::new("chainTypeManager", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
             .call(sl_client)
@@ -71,10 +67,17 @@ pub async fn load_settlement_layer_contracts(
         .call(sl_client)
         .await?;
 
-    let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
-        .for_contract(ctm_address, &state_transition_manager_contract())
-        .call(sl_client)
-        .await?;
+    let validator_timelock_addr = if protocol_version.minor.is_pre_interop_fast_blocks() {
+        CallFunctionArgs::new("validatorTimelock", ())
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?
+    } else {
+        CallFunctionArgs::new("validatorTimelockPostV29", ())
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?
+    };
 
     Ok(Some(SettlementLayerSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {

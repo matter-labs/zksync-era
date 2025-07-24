@@ -115,7 +115,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     }
 
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
-    let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
+    let gw_validator_timelock_addr = gw_ctm.validator_timelock_post_v29().await?;
     let gw_validator_timelock =
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 

@@ -90,7 +90,7 @@ pub(crate) async fn run(
         };
     }
 
-    let calldata = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
+    let (calldata, total_value) = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
         admin_calls_gw.append_execute_upgrade(
@@ -155,7 +155,7 @@ pub(crate) async fn run(
             hex::encode(&gw_chain_admin_calldata),
             total_value,
         ));
-        gw_chain_admin_calldata
+        (gw_chain_admin_calldata, total_value)
     } else {
         let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
 
@@ -193,7 +193,7 @@ pub(crate) async fn run(
             hex::encode(&chain_admin_calldata),
             total_value,
         ));
-        chain_admin_calldata
+        (chain_admin_calldata, total_value)
     };
 
     if run_upgrade {
@@ -223,7 +223,7 @@ pub(crate) async fn run(
         let receipt = send_tx(
             chain_info.chain_admin_addr,
             calldata,
-            U256::from(0),
+            total_value,
             args.l1_rpc_url.clone().unwrap(),
             chain_config
                 .get_wallets_config()?

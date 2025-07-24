@@ -268,17 +268,17 @@ impl EthTxAggregator {
             calldata: get_stm_protocol_version_input,
         };
 
-        let get_stm_validator_timelock_input = self
+        let get_stm_pre_v29_validator_timelock_input = self
             .functions
             .state_transition_manager_contract
             .function("validatorTimelock")
             .unwrap()
             .encode_input(&[])
             .unwrap();
-        let get_stm_validator_timelock_call = Multicall3Call {
+        let get_stm_pre_v29_validator_timelock_call = Multicall3Call {
             target: self.state_transition_manager_address,
             allow_failure: ALLOW_FAILURE,
-            calldata: get_stm_validator_timelock_input,
+            calldata: get_stm_pre_v29_validator_timelock_input,
         };
 
         let get_da_validator_pair_input = self
@@ -315,7 +315,7 @@ impl EthTxAggregator {
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
             get_stm_protocol_version_call.into_token(),
-            get_stm_validator_timelock_call.into_token(),
+            get_stm_pre_v29_validator_timelock_call.into_token(),
             get_da_validator_pair_call.into_token(),
             get_post_v29_upgradeable_validator_timelock_call.into_token(),
         ];
