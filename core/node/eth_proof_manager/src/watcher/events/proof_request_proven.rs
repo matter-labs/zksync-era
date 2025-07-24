@@ -14,7 +14,7 @@ use zksync_prover_interface::outputs::{
 };
 use zksync_types::{
     api::Log, commitment::serialize_commitments, ethabi, h256_to_u256, web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, U256,
+    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY, U256,
 };
 
 use crate::{
@@ -22,9 +22,6 @@ use crate::{
     watcher::events::EventHandler,
 };
 
-// event ProofRequestProven(
-//    uint256 indexed chainId, uint256 indexed blockNumber, bytes proof, ProvingNetwork assignedTo
-//);
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct ProofRequestProven {
@@ -123,17 +120,23 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let batch_number = L1BatchNumber(event.block_number.as_u32());
 
-        let verification_result =
-            match verify_proof(self.connection_pool, batch_number, proof, self.fflonk_vk).await {
-                Ok(_) => {
-                    tracing::info!("Proof for batch {} verified successfully", batch_number);
-                    true
-                }
-                Err(e) => {
-                    tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
-                    false
-                }
-            };
+        let verification_result = match verify_proof(
+            self.connection_pool.clone(),
+            batch_number,
+            proof.clone(),
+            self.fflonk_vk.clone(),
+        )
+        .await
+        {
+            Ok(_) => {
+                tracing::info!("Proof for batch {} verified successfully", batch_number);
+                true
+            }
+            Err(e) => {
+                tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
+                false
+            }
+        };
 
         if verification_result {
             let proof_blob_url = self
@@ -194,6 +197,10 @@ async fn verify_proof(
         }
     };
 
+    if !verification_result {
+        return Err(anyhow::anyhow!("Verify function returned false"));
+    }
+
     let aggregation_coords = proof.aggregation_result_coords();
 
     let system_logs_hash_from_prover = H256::from_slice(&aggregation_coords[0]);
@@ -205,7 +212,7 @@ async fn verify_proof(
 
     let l1_batch = storage
         .blocks_dal()
-        .get_l1_batch_metadata(block_number.as_u32())
+        .get_l1_batch_metadata(batch_number)
         .await?
         .ok_or(anyhow::anyhow!("Proved block without metadata"))?;
 
