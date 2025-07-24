@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use tokio::sync::watch;
 use zksync_config::configs::{
     eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
@@ -9,7 +8,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{Locking, Processor};
 use zksync_prover_interface::inputs::PublicWitnessInputData;
-use zksync_types::{L1BatchId, L2ChainId};
+use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::{
     client::EthProofManagerClient,
