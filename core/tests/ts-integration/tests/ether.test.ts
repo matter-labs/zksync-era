@@ -118,130 +118,129 @@ describe('ETH token checks', () => {
             const l2BaseTokenBalanceDiff = l2BaseTokenBalanceAfter - l2BaseTokenBalanceBefore;
             expect(l1BaseTokenBalanceDiff).toBeGreaterThan(l2BaseTokenBalanceDiff);
         }
-        console.log('deposit done');
     });
 
-    // test('Can perform a transfer (legacy pre EIP-155)', async () => {
-    //     const LEGACY_TX_TYPE = 0;
-    //     const value = 200n;
+    test('Can perform a transfer (legacy pre EIP-155)', async () => {
+        const LEGACY_TX_TYPE = 0;
+        const value = 200n;
 
-    //     const ethBalanceChange = await shouldChangeETHBalances([
-    //         { wallet: alice, change: -value },
-    //         { wallet: bob, change: value }
-    //     ]);
-    //     const correctReceiptType = checkReceipt(
-    //         (receipt) => receipt.type == LEGACY_TX_TYPE,
-    //         'Incorrect tx type in receipt'
-    //     );
+        const ethBalanceChange = await shouldChangeETHBalances([
+            { wallet: alice, change: -value },
+            { wallet: bob, change: value }
+        ]);
+        const correctReceiptType = checkReceipt(
+            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            'Incorrect tx type in receipt'
+        );
 
-    //     // ethers doesn't support sending pre EIP-155 transactions, so we create one manually.
-    //     const transaction = await alice.populateTransaction({ type: LEGACY_TX_TYPE, to: bob.address, value });
-    //     // Remove chainId and sign the transaction without it.
-    //     transaction.chainId = undefined;
-    //     const signedTransaction = await alice.signTransaction(transaction);
-    //     await expect(alice.provider.broadcastTransaction(signedTransaction)).toBeAccepted([
-    //         ethBalanceChange,
-    //         correctReceiptType
-    //     ]);
-    // });
+        // ethers doesn't support sending pre EIP-155 transactions, so we create one manually.
+        const transaction = await alice.populateTransaction({ type: LEGACY_TX_TYPE, to: bob.address, value });
+        // Remove chainId and sign the transaction without it.
+        transaction.chainId = undefined;
+        const signedTransaction = await alice.signTransaction(transaction);
+        await expect(alice.provider.broadcastTransaction(signedTransaction)).toBeAccepted([
+            ethBalanceChange,
+            correctReceiptType
+        ]);
+    });
 
-    // test('Can perform a transfer (legacy EIP-155)', async () => {
-    //     const LEGACY_TX_TYPE = 0;
-    //     const value = 200n;
+    test('Can perform a transfer (legacy EIP-155)', async () => {
+        const LEGACY_TX_TYPE = 0;
+        const value = 200n;
 
-    //     const ethBalanceChange = await shouldChangeETHBalances([
-    //         { wallet: alice, change: -value },
-    //         { wallet: bob, change: value }
-    //     ]);
-    //     const correctReceiptType = checkReceipt(
-    //         (receipt) => receipt.type == LEGACY_TX_TYPE,
-    //         'Incorrect tx type in receipt'
-    //     );
+        const ethBalanceChange = await shouldChangeETHBalances([
+            { wallet: alice, change: -value },
+            { wallet: bob, change: value }
+        ]);
+        const correctReceiptType = checkReceipt(
+            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            'Incorrect tx type in receipt'
+        );
 
-    //     await expect(alice.sendTransaction({ type: LEGACY_TX_TYPE, to: bob.address, value })).toBeAccepted([
-    //         ethBalanceChange,
-    //         correctReceiptType
-    //     ]);
-    // });
+        await expect(alice.sendTransaction({ type: LEGACY_TX_TYPE, to: bob.address, value })).toBeAccepted([
+            ethBalanceChange,
+            correctReceiptType
+        ]);
+    });
 
-    // test('Can perform a transfer (EIP712)', async () => {
-    //     const value = 200n;
+    test('Can perform a transfer (EIP712)', async () => {
+        const value = 200n;
 
-    //     const ethBalanceChange = await shouldChangeETHBalances([
-    //         { wallet: alice, change: -value },
-    //         { wallet: bob, change: value }
-    //     ]);
-    //     const correctReceiptType = checkReceipt(
-    //         (receipt) => receipt.type == zksync.utils.EIP712_TX_TYPE,
-    //         'Incorrect tx type in receipt'
-    //     );
+        const ethBalanceChange = await shouldChangeETHBalances([
+            { wallet: alice, change: -value },
+            { wallet: bob, change: value }
+        ]);
+        const correctReceiptType = checkReceipt(
+            (receipt) => receipt.type == zksync.utils.EIP712_TX_TYPE,
+            'Incorrect tx type in receipt'
+        );
 
-    //     await expect(alice.sendTransaction({ type: zksync.utils.EIP712_TX_TYPE, to: bob.address, value })).toBeAccepted(
-    //         [ethBalanceChange, correctReceiptType]
-    //     );
-    // });
+        await expect(alice.sendTransaction({ type: zksync.utils.EIP712_TX_TYPE, to: bob.address, value })).toBeAccepted(
+            [ethBalanceChange, correctReceiptType]
+        );
+    });
 
-    // test('Can perform a transfer (EIP1559)', async () => {
-    //     const EIP1559_TX_TYPE = 2;
-    //     const value = 200n;
+    test('Can perform a transfer (EIP1559)', async () => {
+        const EIP1559_TX_TYPE = 2;
+        const value = 200n;
 
-    //     const ethBalanceChange = await shouldChangeETHBalances([
-    //         { wallet: alice, change: -value },
-    //         { wallet: bob, change: value }
-    //     ]);
-    //     const correctReceiptType = checkReceipt(
-    //         (receipt) => receipt.type == EIP1559_TX_TYPE,
-    //         'Incorrect tx type in receipt'
-    //     );
+        const ethBalanceChange = await shouldChangeETHBalances([
+            { wallet: alice, change: -value },
+            { wallet: bob, change: value }
+        ]);
+        const correctReceiptType = checkReceipt(
+            (receipt) => receipt.type == EIP1559_TX_TYPE,
+            'Incorrect tx type in receipt'
+        );
 
-    //     await expect(alice.sendTransaction({ type: EIP1559_TX_TYPE, to: bob.address, value })).toBeAccepted([
-    //         ethBalanceChange,
-    //         correctReceiptType
-    //     ]);
-    // });
+        await expect(alice.sendTransaction({ type: EIP1559_TX_TYPE, to: bob.address, value })).toBeAccepted([
+            ethBalanceChange,
+            correctReceiptType
+        ]);
+    });
 
-    // test('Should reject transactions with access lists', async () => {
-    //     const EIP_2930_TX_TYPE = 0x01;
-    //     const EIP_1559_TX_TYPE = 0x02;
-    //     const value = 200n;
+    test('Should reject transactions with access lists', async () => {
+        const EIP_2930_TX_TYPE = 0x01;
+        const EIP_1559_TX_TYPE = 0x02;
+        const value = 200n;
 
-    //     // SDK sets maxFeePerGas to the type 1 transactions, causing issues on the SDK level
-    //     const gasPrice = await scaledGasPrice(alice);
+        // SDK sets maxFeePerGas to the type 1 transactions, causing issues on the SDK level
+        const gasPrice = await scaledGasPrice(alice);
 
-    //     await expect(alice.sendTransaction({ type: EIP_2930_TX_TYPE, to: bob.address, value, gasPrice })).toBeRejected(
-    //         'access lists are not supported'
-    //     );
+        await expect(alice.sendTransaction({ type: EIP_2930_TX_TYPE, to: bob.address, value, gasPrice })).toBeRejected(
+            'access lists are not supported'
+        );
 
-    //     await expect(
-    //         alice.sendTransaction({
-    //             type: EIP_1559_TX_TYPE,
-    //             to: bob.address,
-    //             value,
-    //             accessList: [{ address: '0x0000000000000000000000000000000000000000', storageKeys: [] }]
-    //         })
-    //     ).toBeRejected('access lists are not supported');
-    // });
+        await expect(
+            alice.sendTransaction({
+                type: EIP_1559_TX_TYPE,
+                to: bob.address,
+                value,
+                accessList: [{ address: '0x0000000000000000000000000000000000000000', storageKeys: [] }]
+            })
+        ).toBeRejected('access lists are not supported');
+    });
 
-    // test('Can perform a transfer to self', async () => {
-    //     const value = 200n;
+    test('Can perform a transfer to self', async () => {
+        const value = 200n;
 
-    //     // Balance should not change, only fee should be taken.
-    //     const ethBalanceChange = await shouldOnlyTakeFee(alice);
-    //     await expect(alice.sendTransaction({ to: alice.address, value })).toBeAccepted([ethBalanceChange]);
-    // });
+        // Balance should not change, only fee should be taken.
+        const ethBalanceChange = await shouldOnlyTakeFee(alice);
+        await expect(alice.sendTransaction({ to: alice.address, value })).toBeAccepted([ethBalanceChange]);
+    });
 
-    // test('Incorrect transfer should revert', async () => {
-    //     // Attempt to transfer the whole Alice balance: there would be no enough balance to cover the fee.
-    //     const value = await alice.getBalance();
+    test('Incorrect transfer should revert', async () => {
+        // Attempt to transfer the whole Alice balance: there would be no enough balance to cover the fee.
+        const value = await alice.getBalance();
 
-    //     // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
-    //     const gasLimit = await alice.estimateGas({ to: bob.address, value: 1 });
+        // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
+        const gasLimit = await alice.estimateGas({ to: bob.address, value: 1 });
 
-    //     // Send transfer, it should be rejected due to lack of balance.
-    //     await expect(alice.sendTransaction({ to: bob.address, value, gasLimit })).toBeRejected(
-    //         'insufficient funds for gas + value.'
-    //     );
-    // });
+        // Send transfer, it should be rejected due to lack of balance.
+        await expect(alice.sendTransaction({ to: bob.address, value, gasLimit })).toBeRejected(
+            'insufficient funds for gas + value.'
+        );
+    });
 
     test('Can perform a withdrawal', async () => {
         if (!isETHBasedChain) {
@@ -251,7 +250,6 @@ describe('ETH token checks', () => {
         if (testMaster.isFastMode()) {
             return;
         }
-        console.log('trying to withdraw');
         const amount = 1n;
 
         const l2ethBalanceChange = isETHBasedChain
@@ -274,43 +272,43 @@ describe('ETH token checks', () => {
         expect(tx!.l2ToL1Logs[0].transactionIndex).toEqual(expect.anything());
     });
 
-    // test('Can perform a deposit with precalculated max value', async () => {
-    //     if (!isETHBasedChain) {
-    //         const baseTokenDetails = testMaster.environment().baseToken;
-    //         const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
-    //         await (await alice.approveERC20(baseTokenAddress, baseTokenMaxAmount)).wait();
-    //     }
-    //     const depositFee = await alice.getFullRequiredDepositFee({
-    //         token: zksync.utils.ETH_ADDRESS
-    //     });
-    //     const l1Fee = depositFee.l1GasLimit * (depositFee.maxFeePerGas! || depositFee.gasPrice!);
-    //     const l2Fee = depositFee.baseCost;
-    //     const maxAmount = isETHBasedChain
-    //         ? (await alice.getBalanceL1()) - l1Fee - l2Fee
-    //         : (await alice.getBalanceL1()) - l1Fee; // l2Fee is paid in base token
-    //     // Approving the needed allowance to ensure that the user has enough funds.
-    //     const l2ethBalanceChange = isETHBasedChain
-    //         ? await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
-    //               l1ToL2: true
-    //           })
-    //         : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: maxAmount }]);
-    //     const overrides: ethers.Overrides = depositFee.gasPrice
-    //         ? { gasPrice: depositFee.gasPrice }
-    //         : {
-    //               maxFeePerGas: depositFee.maxFeePerGas,
-    //               maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
-    //           };
-    //     overrides.gasLimit = depositFee.l1GasLimit;
-    //     const depositOp = await alice.deposit({
-    //         token: zksync.utils.ETH_ADDRESS,
-    //         amount: maxAmount,
-    //         l2GasLimit: depositFee.l2GasLimit,
-    //         approveBaseERC20: true,
-    //         approveERC20: true,
-    //         overrides
-    //     });
-    //     await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
-    // });
+    test('Can perform a deposit with precalculated max value', async () => {
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenAddress, baseTokenMaxAmount)).wait();
+        }
+        const depositFee = await alice.getFullRequiredDepositFee({
+            token: zksync.utils.ETH_ADDRESS
+        });
+        const l1Fee = depositFee.l1GasLimit * (depositFee.maxFeePerGas! || depositFee.gasPrice!);
+        const l2Fee = depositFee.baseCost;
+        const maxAmount = isETHBasedChain
+            ? (await alice.getBalanceL1()) - l1Fee - l2Fee
+            : (await alice.getBalanceL1()) - l1Fee; // l2Fee is paid in base token
+        // Approving the needed allowance to ensure that the user has enough funds.
+        const l2ethBalanceChange = isETHBasedChain
+            ? await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
+                  l1ToL2: true
+              })
+            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: maxAmount }]);
+        const overrides: ethers.Overrides = depositFee.gasPrice
+            ? { gasPrice: depositFee.gasPrice }
+            : {
+                  maxFeePerGas: depositFee.maxFeePerGas,
+                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
+              };
+        overrides.gasLimit = depositFee.l1GasLimit;
+        const depositOp = await alice.deposit({
+            token: zksync.utils.ETH_ADDRESS,
+            amount: maxAmount,
+            l2GasLimit: depositFee.l2GasLimit,
+            approveBaseERC20: true,
+            approveERC20: true,
+            overrides
+        });
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+    });
 
     afterAll(async () => {
         await testMaster.deinitialize();

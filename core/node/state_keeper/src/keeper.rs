@@ -318,12 +318,6 @@ impl StateKeeperInner {
 
         let version_changed =
             batch_init_params.system_env.version != previous_batch_protocol_version;
-        println!("\n\n\nversion_changed: {}", version_changed);
-        println!(
-            "\n\n\nfirst_batch_in_shared_bridge: {}",
-            first_batch_in_shared_bridge
-        );
-
         let protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
             self.load_upgrade_tx(batch_init_params.system_env.version)
                 .await?

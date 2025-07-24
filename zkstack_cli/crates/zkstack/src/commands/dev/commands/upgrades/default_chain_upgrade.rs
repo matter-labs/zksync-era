@@ -28,7 +28,7 @@ use crate::{
         },
         dev::commands::upgrades::{
             args::chain::{ChainUpgradeArgs, UpgradeArgsInner},
-            types::UpgradeVersions,
+            types::UpgradeVersion,
             utils::{print_error, set_upgrade_timestamp_calldata},
         },
     },
@@ -47,7 +47,7 @@ pub struct FetchedChainInfo {
 async fn verify_next_batch_new_version(
     batch_number: u32,
     main_node_client: &DynClient<L2>,
-    upgrade_versions: UpgradeVersions,
+    upgrade_versions: UpgradeVersion,
 ) -> anyhow::Result<()> {
     let (_, right_bound) = main_node_client
         .get_l2_block_range(L1BatchNumber(batch_number))
@@ -68,7 +68,7 @@ async fn verify_next_batch_new_version(
         )
     })?;
     match upgrade_versions {
-        UpgradeVersions::V28_1Vk => {
+        UpgradeVersion::V28_1Vk => {
             ensure!(
                 protocol_version >= ProtocolVersionId::Version28,
                 "THe block does not yet contain the v28 upgrade"
@@ -90,7 +90,7 @@ pub async fn check_chain_readiness(
     l2_chain_id: u64,
     gw_chain_id: Option<u64>,
     settlement_layer: u64,
-    upgrade_versions: UpgradeVersions,
+    upgrade_versions: UpgradeVersion,
 ) -> anyhow::Result<()> {
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
 

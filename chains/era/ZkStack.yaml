@@ -1,6 +1,6 @@
 id: 1
 name: era
-chain_id: 270
+chain_id: 271
 prover_version: NoProofs
 configs: ./chains/era/configs/
 rocks_db_path: ./chains/era/db/

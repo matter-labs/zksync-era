@@ -36,7 +36,7 @@ use crate::{
     admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
-        types::UpgradeVersions,
+        types::UpgradeVersion,
     },
     messages::MSG_INTALLING_DEPS_SPINNER,
     utils::forge::{fill_forge_private_key, WalletOwner},
@@ -120,7 +120,7 @@ async fn no_governance_prepare(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    upgrade_version: &UpgradeVersions,
+    upgrade_version: &UpgradeVersion,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
@@ -190,7 +190,7 @@ async fn no_governance_prepare(
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
     // This part is needed for v28 upgrades only.
-    if upgrade_version == &UpgradeVersions::V28_1Vk {
+    if upgrade_version == &UpgradeVersion::V28_1Vk {
         new_version.patch += 1;
     }
     new_genesis.protocol_version = new_version;
@@ -199,8 +199,8 @@ async fn no_governance_prepare(
         get_gateway_state_transition_config(shell, ecosystem_config).await?;
 
     let upgrade_specific_config = match upgrade_version {
-        UpgradeVersions::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
-        UpgradeVersions::V29InteropAFf => {
+        UpgradeVersion::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
+        UpgradeVersion::V29InteropAFf => {
             let gateway_chain_config = get_local_gateway_chain_config(ecosystem_config)?;
             let gateway_validator_timelock_addr = gateway_chain_config
                 .get_gateway_config()
@@ -296,7 +296,7 @@ async fn ecosystem_admin(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    upgrade_version: &UpgradeVersions,
+    upgrade_version: &UpgradeVersion,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing ecosystem admin!");
 
@@ -338,7 +338,7 @@ async fn governance_stage_0(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    upgrade_version: &UpgradeVersions,
+    upgrade_version: &UpgradeVersion,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 0!");
 
@@ -380,7 +380,7 @@ async fn governance_stage_1(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    upgrade_version: &UpgradeVersions,
+    upgrade_version: &UpgradeVersion,
 ) -> anyhow::Result<()> {
     println!("Executing governance stage 1!");
 
@@ -631,10 +631,10 @@ async fn no_governance_stage_2(
     Ok(())
 }
 
-fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersions) -> ForgeScriptParams {
+fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
     match upgrade_version {
-        UpgradeVersions::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersions::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
 

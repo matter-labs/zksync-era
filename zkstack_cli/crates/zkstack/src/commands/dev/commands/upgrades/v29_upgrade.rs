@@ -14,6 +14,7 @@ use crate::{
         dev::commands::upgrades::{
             args::{chain::UpgradeArgsInner, v29_chain::V29ChainUpgradeArgs},
             default_chain_upgrade::{check_chain_readiness, fetch_chain_info, UpgradeInfo},
+            types::UpgradeVersion,
             utils::{print_error, set_upgrade_timestamp_calldata},
         },
     },
@@ -33,11 +34,7 @@ pub(crate) async fn run(
         args.upgrade_description_path = Some(
             ecosystem_config
                 .link_to_code
-                .join(
-                    args_input
-                        .upgrade_version
-                        .get_default_upgrade_description_path(),
-                )
+                .join(UpgradeVersion::V29InteropAFf.get_default_upgrade_description_path())
                 .to_string_lossy()
                 .to_string(),
         );
@@ -79,7 +76,7 @@ pub(crate) async fn run(
             args.chain_id.expect("chain_id is required"),
             args.gw_chain_id,
             chain_info.settlement_layer,
-            args.upgrade_version,
+            UpgradeVersion::V29InteropAFf,
         )
         .await;
 
@@ -120,7 +117,7 @@ pub(crate) async fn run(
             )
             .await;
 
-        for validator in [args.validator_1, args.validator_2] {
+        for validator in [args.operator.unwrap()] {
             let enable_validator_calls = enable_validator_via_gateway(
                 shell,
                 forge_args,
@@ -164,7 +161,7 @@ pub(crate) async fn run(
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
 
-        for validator in [args.validator_1, args.validator_2] {
+        for validator in [args.operator.unwrap(), args.blob_operator.unwrap()] {
             let enable_validator_calls = enable_validator(
                 shell,
                 forge_args,
