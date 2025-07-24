@@ -186,7 +186,7 @@ pub async fn migrate_token_balances_from_gateway(
         .unwrap();
 
     // Ensure the broadcast directory exists before proceeding
-    std::fs::create_dir_all("/usr/src/zksync/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/")?;
+    // std::fs::create_dir_all("/usr/src/zksync/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/")?;
 
     let mut forge = Forge::new(foundry_scripts_path)
         .script(
@@ -215,6 +215,7 @@ pub async fn migrate_token_balances_from_gateway(
 
     let broadcast_dir2 = "/usr/src/zksync/contracts/l1-contracts/broadcast/";
     let broadcast_dir = "/usr/src/zksync/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/";
+    // let broadcast_dir2 = "/Users/kalmanlajko/programming/zksync/zksync-era2/contracts/l1-contracts/broadcast/GatewayMigrateTokenBalances.s.sol/";
 
 
 
@@ -334,6 +335,7 @@ fn list_files_recursively<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
             let path = entry.path();
             if path.is_dir() {
                 files.extend(list_files_recursively(&path));
+                files.push(path);
             } else {
                 files.push(path);
             }
