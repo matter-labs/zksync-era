@@ -256,7 +256,7 @@ impl TeeDcapCollateralDal<'_, '_> {
                 .fetch_one(&mut tx)
                 .await?;
                 tx.commit().await?;
-                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                Ok(TeeDcapCollateralInfo::UpdateChainBy(
                     record.update_guard_expires,
                 ))
             }
@@ -421,7 +421,7 @@ impl TeeDcapCollateralDal<'_, '_> {
                 .fetch_one(&mut tx)
                 .await?;
                 tx.commit().await?;
-                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                Ok(TeeDcapCollateralInfo::UpdateChainBy(
                     record.update_guard_expires,
                 ))
             }
