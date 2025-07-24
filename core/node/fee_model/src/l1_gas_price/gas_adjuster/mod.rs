@@ -210,19 +210,22 @@ impl GasAdjuster {
         gas_price
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, gas_adjuster is shutting down");
-                break;
-            }
-
+    pub async fn run(
+        self: Arc<Self>,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        while !*stop_receiver.borrow() {
             if let Err(err) = self.keep_updated().await {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
-            tokio::time::sleep(self.config.poll_period).await;
+            // The stop receiver status will be checked immediately in the loop condition.
+            tokio::time::timeout(self.config.poll_period, stop_receiver.changed())
+                .await
+                .ok();
         }
+
+        tracing::info!("Stop request received, gas_adjuster is shutting down");
         Ok(())
     }
 

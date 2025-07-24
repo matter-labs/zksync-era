@@ -737,4 +737,11 @@ where
         }
         self.main.pop_snapshot_no_rollback();
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.pop_front_snapshot_no_rollback();
+        }
+        self.main.pop_front_snapshot_no_rollback();
+    }
 }

@@ -198,7 +198,7 @@ pub struct V28UpgradeInfo {
     new_protocol_version: u64,
     old_protocol_version: u64,
 
-    gateway_diamond_cut: Bytes,
+    gateway_upgrade_diamond_cut: Bytes,
 }
 
 impl ZkStackConfig for V28UpgradeInfo {}
@@ -269,7 +269,7 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
                 chain_info.gw_hyperchain_addr,
                 chain_info.l1_asset_router_proxy,
                 chain_info.chain_admin_addr,
-                upgrade_info.gateway_diamond_cut.0.into(),
+                upgrade_info.gateway_upgrade_diamond_cut.0.into(),
                 args.l1_rpc_url.clone(),
             )
             .await;

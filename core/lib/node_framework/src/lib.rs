@@ -10,6 +10,7 @@
 //!   and shutting down.
 //! - [`ZkStackServiceBuilder`](service::ZkStackServiceBuilder) - a builder for the service.
 
+mod metrics;
 pub mod resource;
 pub mod service;
 pub mod task;
