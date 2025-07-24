@@ -845,6 +845,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
