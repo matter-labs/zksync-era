@@ -98,6 +98,7 @@ impl AdminCallBuilder {
         }
     }
 
+    #[cfg(feature = "upgrades")]
     pub fn extend_with_calls(&mut self, calls: Vec<AdminCall>) {
         self.calls.extend(calls);
     }

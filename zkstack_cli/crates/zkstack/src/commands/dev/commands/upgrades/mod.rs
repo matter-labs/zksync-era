@@ -1,8 +1,10 @@
+#[cfg(feature = "upgrades")]
 pub mod args;
 #[cfg(feature = "upgrades")]
 pub mod default_chain_upgrade;
 #[cfg(feature = "upgrades")]
 pub mod default_ecosystem_upgrade;
+#[cfg(feature = "upgrades")]
 mod types;
 #[cfg(any(
     feature = "v27_evm_interpreter",

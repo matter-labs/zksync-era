@@ -682,6 +682,7 @@ pub(crate) async fn enable_validator_via_gateway(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(feature = "upgrades")]
 pub(crate) async fn enable_validator(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
