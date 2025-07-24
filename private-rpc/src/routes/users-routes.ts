@@ -46,7 +46,7 @@ export function usersRoutes(app: WebServer) {
         schema: {
             params: z.object({
                 address: addressSchema
-            }),
+            })
         }
     };
 
@@ -55,7 +55,7 @@ export function usersRoutes(app: WebServer) {
         const secret = req.headers['x-secret'];
 
         if (secret !== createTokenSecret) {
-            console.warn(`Invalid secret sent: ${secret}`)
+            console.warn(`Invalid secret sent: ${secret}`);
             throw new HttpError('forbidden', 403);
         }
 
