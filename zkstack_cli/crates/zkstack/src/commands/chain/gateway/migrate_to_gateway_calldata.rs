@@ -33,6 +33,8 @@ use crate::{
     utils::addresses::apply_l1_to_l2_alias,
 };
 
+const PROTOCOL_VERSION_V29: U256 = U256([124554051584, 0, 0, 0]); // 0x1d00000000 which is v29
+
 // The most reliable way to precompute the address is to simulate `createNewChain` function
 async fn precompute_chain_address_on_gateway(
     l2_chain_id: u64,
@@ -49,9 +51,14 @@ async fn precompute_chain_address_on_gateway(
         Token::Bytes(gateway_diamond_cut),
     ]);
 
+    let caller = if protocol_version >= PROTOCOL_VERSION_V29 {
+        L2_CHAIN_ASSET_HANDLER_ADDRESS
+    } else {
+        L2_BRIDGEHUB_ADDRESS
+    };
     let result = gw_ctm
         .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(L2_CHAIN_ASSET_HANDLER_ADDRESS)
+        .from(caller)
         .await?;
 
     Ok(result)
@@ -120,6 +127,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
+    let protocol_version = l1_zk_chain.get_protocol_version().await?;
     let chain_admin_address = l1_zk_chain.get_admin().await?;
     let zk_chain_gw_address = {
         let recorded_zk_chain_gw_address =
@@ -133,7 +141,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                         .await?,
                 ),
                 apply_l1_to_l2_alias(l1_zk_chain.get_admin().await?),
-                l1_zk_chain.get_protocol_version().await?,
+                protocol_version,
                 params.gateway_diamond_cut.clone(),
                 gw_ctm,
             )
@@ -192,15 +200,23 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     result.extend(da_validator_encoding_result.calls.into_iter());
 
+    let is_validator_enabled = if protocol_version >= PROTOCOL_VERSION_V29 {
+        gw_validator_timelock
+            .has_role_for_chain_id(
+                params.l2_chain_id.into(),
+                gw_validator_timelock.committer_role().call().await?,
+                params.validator,
+            )
+            .await?
+    } else {
+        // In previous versions, we need to check if the validator is enabled
+        gw_validator_timelock
+            .validators(params.l2_chain_id.into(), params.validator)
+            .await?
+    };
+
     // 4. If validator is not yet present, please include.
-    if !gw_validator_timelock
-        .has_role_for_chain_id(
-            params.l2_chain_id.into(),
-            gw_validator_timelock.committer_role().call().await?,
-            params.validator,
-        )
-        .await?
-    {
+    if !is_validator_enabled {
         let enable_validator_calls = enable_validator_via_gateway(
             shell,
             forge_args,

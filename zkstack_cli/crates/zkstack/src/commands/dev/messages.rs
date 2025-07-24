@@ -147,6 +147,7 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
 
 // Revert tests related messages
+pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
