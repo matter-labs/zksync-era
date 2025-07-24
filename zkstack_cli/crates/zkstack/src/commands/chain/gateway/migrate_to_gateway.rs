@@ -72,6 +72,14 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     };
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
+    let broadcast_dir2 = "/usr/src/zksync/contracts/l1-contracts/broadcast/";
+
+    let files = list_files_recursively(broadcast_dir);
+    println!("Files in {}:", broadcast_dir);
+    for file in files {
+        println!("{}", file.display());
+    }
+
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
@@ -95,6 +103,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
+    let files = list_files_recursively(broadcast_dir);
+    println!("Files in {}:", broadcast_dir);
+    for file in files {
+        println!("{}", file.display());
+    }
+
     if calls.is_empty() {
         logger::info("Chain already migrated!");
         return Ok(());
@@ -115,6 +129,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         "migrating to gateway",
     )
     .await?;
+
+    let files = list_files_recursively(broadcast_dir);
+    println!("Files in {}:", broadcast_dir);
+    for file in files {
+        println!("{}", file.display());
+    }
 
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     extract_and_wait_for_priority_ops(
