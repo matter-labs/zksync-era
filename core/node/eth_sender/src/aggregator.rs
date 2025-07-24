@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::Utc;
 use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
@@ -236,6 +237,7 @@ impl Aggregator {
         restrictions: OperationSkippingRestrictions,
         priority_tree_start_index: Option<usize>,
         precommit_params: Option<&PrecommitParams>,
+        execution_delay: Duration,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -252,6 +254,7 @@ impl Aggregator {
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
                 priority_tree_start_index,
+                execution_delay,
             )
             .await?,
         ) {
@@ -402,11 +405,9 @@ impl Aggregator {
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         priority_tree_start_index: Option<usize>,
+        execution_delay: Duration,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
-        let max_l1_batch_timestamp_millis = self
-            .config
-            .l1_batch_min_age_before_execute
-            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
+        let max_l1_batch_timestamp_millis = Some(unix_timestamp_ms() - execution_delay.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
