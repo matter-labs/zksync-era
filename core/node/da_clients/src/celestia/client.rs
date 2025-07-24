@@ -8,7 +8,6 @@ use std::{
 
 use async_trait::async_trait;
 use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
-
 use chrono::{DateTime, Utc};
 use eq_sdk::{
     get_zk_stack_response::{

@@ -7,8 +7,6 @@ use hex;
 use lazy_static::lazy_static;
 use reqwest::{Client, Error as ReqwestError};
 use serde::Deserialize;
-
-use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 use zksync_da_client::types::DAError;
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -22,6 +20,8 @@ use zksync_types::{
     web3::{contract::Tokenize, BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
     H160, H256, U256,
 };
+
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 lazy_static! {
     pub static ref BLOBSTREAM_UPDATE_EVENT: Event = Event {
