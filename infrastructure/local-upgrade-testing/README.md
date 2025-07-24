@@ -11,7 +11,8 @@ We clone the two repos. We switch between them by copying them into zksync-worki
 
 ## Disclaimer on running the scripts locally
 
-Currently, the state of commands is WIP. They may not work as-is and serve more as demonstration of how to test an upgrade locally than a command that fully works out of the box.
+Currently, the state of commands is WIP. They may not work as-is and serve more as demonstration of how to test an
+upgrade locally than a command that fully works out of the box.
 
 The commands contain comments with the instructions and tips on running those locally.
 
