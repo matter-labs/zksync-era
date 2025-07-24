@@ -149,7 +149,7 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
                     TeeDcapCollateralDal::DEFAULT_TIMEOUT
                 )
                 .await?,
-            TeeDcapCollateralInfo::Matches
+            TeeDcapCollateralInfo::Matches | TeeDcapCollateralInfo::PendingUpdateBy(_)
         ) {
             let crl = CertificateList::from_der(&crl_data).context("Failed to parse CRL")?;
             let not_after = crl
@@ -195,7 +195,7 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
                     TeeDcapCollateralDal::DEFAULT_TIMEOUT
                 )
                 .await?,
-            TeeDcapCollateralInfo::Matches
+            TeeDcapCollateralInfo::Matches | TeeDcapCollateralInfo::PendingUpdateBy(_)
         ) {
             let enclave_identity_val = serde_json::from_str::<serde_json::Value>(
                 qe_identity.enclave_identity_json.as_str(),
@@ -219,7 +219,6 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
 
             tracing::info!("Updating collateral: {}", qe_identity.enclave_identity_json);
             let body = extract_json_body(&qe_identity.enclave_identity_json, "enclaveIdentity")?;
-            tracing::info!("body: {}", body);
 
             let calldata = self
                 .functions
@@ -263,7 +262,7 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
                     TeeDcapCollateralDal::DEFAULT_TIMEOUT
                 )
                 .await?,
-            TeeDcapCollateralInfo::Matches
+            TeeDcapCollateralInfo::Matches | TeeDcapCollateralInfo::PendingUpdateBy(_)
         ) {
             self.update_signing_ca(issuer_chain).await?;
 
@@ -288,7 +287,6 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
 
             tracing::info!("Updating collateral: {}", enclave_identity_json);
             let body = extract_json_body(&enclave_identity_json, "enclaveIdentity")?;
-            tracing::info!("body: {}", body);
 
             let calldata = self
                 .functions
@@ -357,7 +355,7 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
                     TeeDcapCollateralDal::DEFAULT_TIMEOUT
                 )
                 .await?,
-            TeeDcapCollateralInfo::Matches
+            TeeDcapCollateralInfo::Matches | TeeDcapCollateralInfo::PendingUpdateBy(_)
         ) {
             self.update_signing_ca(issuer_chain).await?;
 
@@ -375,7 +373,6 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
 
             tracing::info!("Updating collateral: {}", tcb_info_json);
             let body = extract_json_body(&tcb_info_json, "tcbInfo")?;
-            tracing::info!("body: {}", body);
 
             let calldata = self.functions.upsert_fmspc_tcb(body, signature).unwrap();
             self.dal
@@ -422,16 +419,16 @@ impl<'a, 'b, 'c> CollateralUpdater<'a, 'b, 'c> {
             )
             .await?;
 
-        tracing::debug!("field_is_current() state: {:?}", state);
-
-        if !matches!(state, TeeDcapCollateralInfo::Matches) {
+        if !matches!(
+            state,
+            TeeDcapCollateralInfo::Matches | TeeDcapCollateralInfo::PendingUpdateBy(_)
+        ) {
             let not_after = sign_cert.tbs_certificate.validity.not_after;
 
             let cert_der = sign_cert.to_der().unwrap();
 
             tracing::info!("Updating collateral: {:?}", TeeDcapCollateralKind::SignCa);
             tracing::info!("Updating collateral: cert_der = {}", hex::encode(&cert_der));
-            tracing::info!("Updating collateral: hash = {}", hex::encode(&hash));
 
             let calldata = self.functions.upsert_signing_certificate(cert_der).unwrap();
 
