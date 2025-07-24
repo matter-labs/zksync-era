@@ -682,7 +682,7 @@ impl MempoolIO {
                 let mut storage = self.pool.connection_tagged("state_keeper").await?;
                 let gateway_migration_state = self.gateway_status(&mut storage).await;
                 let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
-                // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.!
+                // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
                 let interop_roots =
                     if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
                         && gateway_migration_state == GatewayMigrationState::NotInProgress
