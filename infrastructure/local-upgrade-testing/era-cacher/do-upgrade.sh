@@ -78,8 +78,8 @@ cd contracts/l1-contracts
 UPGRADE_ECOSYSTEM_OUTPUT=script-out/v29-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v29.s.sol/9/run-latest.json  YAML_OUTPUT_FILE=script-out/v29-local-output.yaml yarn upgrade-yaml-output-generator
 cd ../../
 
-zkstack dev run-v29-chain-upgrade --upgrade-version v29-interop-a-ff ./contracts/l1-contracts/script-out/v29-upgrade-ecosystem.toml  --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain era 
-zkstack dev run-v29-chain-upgrade --upgrade-version v29-interop-a-ff ./contracts/l1-contracts/script-out/v29-upgrade-ecosystem.toml  --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain gateway
+zkstack dev run-v29-chain-upgrade  --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain era 
+zkstack dev run-v29-chain-upgrade  --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain gateway
 zkstack dev run-ecosystem-upgrade --upgrade-version v29-interop-a-ff --ecosystem-upgrade-stage governance-stage2
 
 pkill -9 zksync_server

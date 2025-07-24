@@ -5,7 +5,15 @@ use zkstack_cli_config::EcosystemConfig;
 use crate::commands::dev::commands::upgrades::types::UpgradeVersion;
 
 #[derive(Parser, Debug, Clone)]
-pub struct ChainUpgradeArgs {
+pub struct DefaultChainUpgradeArgs {
+    #[clap(flatten)]
+    pub params: ChainUpgradeParams,
+    #[clap(long, value_enum)]
+    pub upgrade_version: UpgradeVersion,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ChainUpgradeParams {
     pub upgrade_description_path: Option<String>,
     pub chain_id: Option<u64>,
     pub gw_chain_id: Option<u64>,
@@ -16,17 +24,20 @@ pub struct ChainUpgradeArgs {
     pub server_upgrade_timestamp: Option<u64>,
     #[clap(long, default_missing_value = "false")]
     pub dangerous_no_cross_check: Option<bool>,
-    // Note, that this flag is dangerous as it potentially enables to override missed valuess
-    // with local parameters that are usually not suitable for non-local environment.
     #[clap(long, default_missing_value = "false")]
     pub dangerous_local_default_overrides: Option<bool>,
     #[clap(long, default_missing_value = "false")]
     pub force_display_finalization_params: Option<bool>,
-    #[clap(long, value_enum)]
-    pub upgrade_version: UpgradeVersion,
 }
 
-impl ChainUpgradeArgs {
+impl DefaultChainUpgradeArgs {
+    pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
+        self.params = self.params.fill_if_empty(shell).await?;
+        Ok(self)
+    }
+}
+
+impl ChainUpgradeParams {
     pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         if !self.dangerous_local_default_overrides.unwrap_or_default() {
             return Ok(self);
@@ -83,12 +94,22 @@ pub struct UpgradeArgsInner {
     pub gw_rpc_url: Option<String>,
 }
 
-impl From<ChainUpgradeArgs> for UpgradeArgsInner {
-    fn from(value: ChainUpgradeArgs) -> Self {
+impl From<DefaultChainUpgradeArgs> for UpgradeArgsInner {
+    fn from(value: DefaultChainUpgradeArgs) -> Self {
+        Self {
+            chain_id: value.params.chain_id.unwrap(),
+            l1_rpc_url: value.params.l1_rpc_url.clone().unwrap(),
+            gw_rpc_url: value.params.gw_rpc_url.clone(),
+        }
+    }
+}
+
+impl From<ChainUpgradeParams> for UpgradeArgsInner {
+    fn from(value: ChainUpgradeParams) -> Self {
         Self {
             chain_id: value.chain_id.unwrap(),
-            l1_rpc_url: value.l1_rpc_url.unwrap(),
-            gw_rpc_url: value.gw_rpc_url,
+            l1_rpc_url: value.l1_rpc_url.clone().unwrap(),
+            gw_rpc_url: value.gw_rpc_url.clone(),
         }
     }
 }

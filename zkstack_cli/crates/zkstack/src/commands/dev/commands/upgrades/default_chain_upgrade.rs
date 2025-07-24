@@ -27,7 +27,7 @@ use crate::{
             utils::{get_default_foundry_path, send_tx},
         },
         dev::commands::upgrades::{
-            args::chain::{ChainUpgradeArgs, UpgradeArgsInner},
+            args::chain::{ChainUpgradeParams, DefaultChainUpgradeArgs, UpgradeArgsInner},
             types::UpgradeVersion,
             utils::{print_error, set_upgrade_timestamp_calldata},
         },
@@ -230,10 +230,29 @@ pub struct GatewayStateTransition {
 
 impl ZkStackConfig for UpgradeInfo {}
 
-pub(crate) async fn run(
+pub struct UpdatedValidators {
+    pub operator: Option<Address>,
+    pub blob_operator: Option<Address>,
+}
+
+pub struct AdditionalUpgradeParams {
+    pub updated_validators: Option<UpdatedValidators>,
+}
+
+impl Default for AdditionalUpgradeParams {
+    fn default() -> Self {
+        Self {
+            updated_validators: None,
+        }
+    }
+}
+
+pub(crate) async fn run_chain_upgrade(
     shell: &Shell,
-    args_input: ChainUpgradeArgs,
+    args_input: ChainUpgradeParams,
+    additional: AdditionalUpgradeParams,
     run_upgrade: bool,
+    upgrade_version: UpgradeVersion,
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
     let foundry_contracts_path = get_default_foundry_path(shell)?;
@@ -244,11 +263,7 @@ pub(crate) async fn run(
         args.upgrade_description_path = Some(
             ecosystem_config
                 .link_to_code
-                .join(
-                    args_input
-                        .upgrade_version
-                        .get_default_upgrade_description_path(),
-                )
+                .join(upgrade_version.get_default_upgrade_description_path())
                 .to_string_lossy()
                 .to_string(),
         );
@@ -290,7 +305,7 @@ pub(crate) async fn run(
             args.chain_id.expect("chain_id is required"),
             args.gw_chain_id,
             chain_info.settlement_layer,
-            args.upgrade_version,
+            upgrade_version,
         )
         .await;
 
@@ -300,7 +315,7 @@ pub(crate) async fn run(
         };
     }
 
-    let calldata = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
+    let (calldata, total_value) = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
         admin_calls_gw.append_execute_upgrade(
@@ -331,6 +346,33 @@ pub(crate) async fn run(
             )
             .await;
 
+        // v29: enable_validator_via_gateway for operator
+        if let Some(validators) = &additional.updated_validators {
+            let operator = validators.operator.context("operator is required")?;
+            let enable_validator_calls = crate::admin_functions::enable_validator_via_gateway(
+                shell,
+                forge_args,
+                &foundry_contracts_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                upgrade_info
+                    .deployed_addresses
+                    .bridgehub
+                    .bridgehub_proxy_addr,
+                args.l1_gas_price.expect("l1_gas_price is required").into(),
+                args.chain_id.expect("chain_id is required"),
+                args.gw_chain_id.expect("gw_chain_id is required"),
+                operator,
+                upgrade_info
+                    .gateway
+                    .gateway_state_transition
+                    .validator_timelock_addr,
+                operator,
+                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+            )
+            .await?;
+            admin_calls_gw.extend_with_calls(enable_validator_calls.calls);
+        }
+
         admin_calls_gw.display();
 
         let (gw_chain_admin_calldata, total_value) = admin_calls_gw.compile_full_calldata();
@@ -340,7 +382,7 @@ pub(crate) async fn run(
             hex::encode(&gw_chain_admin_calldata),
             total_value,
         ));
-        gw_chain_admin_calldata
+        (gw_chain_admin_calldata, total_value)
     } else {
         let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
 
@@ -349,6 +391,33 @@ pub(crate) async fn run(
             upgrade_info.contracts_config.old_protocol_version,
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
+
+        // v29: enable_validator for operator and blob_operator
+        if let Some(validators) = &additional.updated_validators {
+            for validator in [
+                validators.operator.context("operator is required")?,
+                validators
+                    .blob_operator
+                    .context("blob_operator is required")?,
+            ] {
+                let enable_validator_calls = crate::admin_functions::enable_validator(
+                    shell,
+                    forge_args,
+                    &foundry_contracts_path,
+                    crate::admin_functions::AdminScriptMode::OnlySave,
+                    upgrade_info
+                        .deployed_addresses
+                        .bridgehub
+                        .bridgehub_proxy_addr,
+                    args.chain_id.expect("chain_id is required"),
+                    validator,
+                    upgrade_info.deployed_addresses.validator_timelock_addr,
+                    args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+                )
+                .await?;
+                admin_calls_finalize.extend_with_calls(enable_validator_calls.calls);
+            }
+        }
 
         admin_calls_finalize.display();
 
@@ -359,7 +428,7 @@ pub(crate) async fn run(
             hex::encode(&chain_admin_calldata),
             total_value,
         ));
-        chain_admin_calldata
+        (chain_admin_calldata, total_value)
     };
 
     if run_upgrade {
@@ -389,7 +458,7 @@ pub(crate) async fn run(
         let receipt = send_tx(
             chain_info.chain_admin_addr,
             calldata,
-            U256::from(0),
+            total_value,
             args.l1_rpc_url.clone().unwrap(),
             chain_config
                 .get_wallets_config()?
@@ -404,4 +473,19 @@ pub(crate) async fn run(
     }
 
     Ok(())
+}
+
+pub(crate) async fn run(
+    shell: &Shell,
+    args_input: DefaultChainUpgradeArgs,
+    run_upgrade: bool,
+) -> anyhow::Result<()> {
+    run_chain_upgrade(
+        shell,
+        args_input.params.clone(),
+        AdditionalUpgradeParams::default(),
+        run_upgrade,
+        args_input.upgrade_version,
+    )
+    .await
 }
