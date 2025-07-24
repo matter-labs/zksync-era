@@ -15,7 +15,7 @@ use zkstack_cli_config::{
 
 use super::{
     args::init::{ProofStorageConfig, ProofStorageFileBacked, ProverInitArgs},
-    compressor_keys::{download_compressor_key, get_default_compressor_keys_path},
+    compressor_keys::{get_default_compressor_keys_path, run as compressor_keys},
     gcs::create_gcs_bucket,
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
@@ -26,7 +26,7 @@ use crate::{
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
-        MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_PROVER_INITIALIZED,
     },
 };
 
@@ -64,21 +64,19 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .await?;
     }
 
-    if let Some(args) = args.compressor_key_args {
-        let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-
-        download_compressor_key(shell, &mut general_config, &path)?;
+    if let Some(args) = args.bellman_cuda_config {
+        init_bellman_cuda(shell, args).await?;
     }
 
-    if let Some(args) = args.setup_keys {
-        setup_keys::run(args, shell).await?;
+    if let Some(args) = args.compressor_key_args {
+        compressor_keys(shell, args).await?;
     }
 
     general_config.set_prover_object_store(&proof_object_store_config)?;
     general_config.save().await?;
 
-    if let Some(args) = args.bellman_cuda_config {
-        init_bellman_cuda(shell, args).await?;
+    if let Some(args) = args.setup_keys {
+        setup_keys::run(args, shell).await?;
     }
 
     if let Some(prover_db) = &args.database_config {
