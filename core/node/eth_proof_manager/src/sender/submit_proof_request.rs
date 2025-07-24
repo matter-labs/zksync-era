@@ -69,73 +69,20 @@ impl ProofRequestSubmitter {
 
     pub async fn loop_iteration(&self) -> anyhow::Result<()> {
         let batch_id = self.processor.lock_batch_for_proving_network().await?;
-
         if let Some(batch_id) = batch_id {
-            let proof_generation_data = self
-                .processor
-                .proof_generation_data_for_existing_batch(batch_id)
-                .await?;
-
-            tracing::info!("Need to send proof request for batch {}", batch_id);
-
-            let witness_input_data =
-                PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
-
-            let url = self
-                .blob_store
-                .put(
-                    L1BatchId::new(self.processor.chain_id(), batch_id),
-                    &witness_input_data,
-                )
-                .await
-                .context("Failed to put proof generation data into blob store")?;
-
-            self.connection_pool
-                .connection()
-                .await?
-                .eth_proof_manager_dal()
-                .insert_batch(batch_id, &url)
-                .await?;
-
-            let proof_request_identifier = ProofRequestIdentifier {
-                chain_id: proof_generation_data.chain_id.as_u64(),
-                block_number: proof_generation_data.l1_batch_number.0 as u64,
-            };
-
-            let proof_request_parameters = ProofRequestParams {
-                protocol_major: 0,
-                protocol_minor: proof_generation_data.protocol_version.minor as u32,
-                protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
-                proof_inputs_url: url,
-                timeout_after: self.config.proof_generation_timeout.as_secs() as u64,
-                max_reward: self.config.max_reward,
-            };
-
-            match self
-                .client
-                .submit_proof_request(proof_request_identifier, proof_request_parameters)
-                .await
-            {
-                Ok(tx_hash) => {
+            match self.submit_request(batch_id).await {
+                Ok(_) => {
                     self.connection_pool
                         .connection()
                         .await?
                         .eth_proof_manager_dal()
-                        .mark_batch_as_sent(batch_id, tx_hash)
+                        .fallback_batch(batch_id)
                         .await?;
-                    tracing::info!(
-                        "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
-                        proof_generation_data.l1_batch_number,
-                        proof_generation_data.chain_id,
-                        tx_hash
-                    );
-                    return Ok(());
                 }
                 Err(e) => {
                     tracing::error!(
-                        "Failed to submit proof request for batch {}, chain_id: {}, moving to prover cluster: {}",
-                        proof_generation_data.l1_batch_number,
-                        proof_generation_data.chain_id,
+                        "Failed to submit proof request for batch {}, moving to prover cluster, error: {}",
+                        batch_id,
                         e
                     );
                     self.connection_pool
@@ -151,5 +98,76 @@ impl ProofRequestSubmitter {
         }
 
         Ok(())
+    }
+
+    pub async fn submit_request(&self, batch_id: L1BatchNumber) -> anyhow::Result<()> {
+        let proof_generation_data = self
+            .processor
+            .proof_generation_data_for_existing_batch(batch_id)
+            .await?;
+
+        tracing::info!("Need to send proof request for batch {}", batch_id);
+
+        let witness_input_data =
+            PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
+
+        let url = self
+            .blob_store
+            .put(
+                L1BatchId::new(self.processor.chain_id(), batch_id),
+                &witness_input_data,
+            )
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to put proof generation data into blob store: {}", e)
+            })?;
+
+        self.connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .insert_batch(batch_id, &url)
+            .await?;
+
+        let proof_request_identifier = ProofRequestIdentifier {
+            chain_id: proof_generation_data.chain_id.as_u64(),
+            block_number: proof_generation_data.l1_batch_number.0 as u64,
+        };
+
+        let proof_request_parameters = ProofRequestParams {
+            protocol_major: 0,
+            protocol_minor: proof_generation_data.protocol_version.minor as u32,
+            protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
+            proof_inputs_url: url,
+            timeout_after: self.config.proof_generation_timeout.as_secs() as u64,
+            max_reward: self.config.max_reward,
+        };
+
+        let tx_hash = self
+            .client
+            .submit_proof_request(proof_request_identifier, proof_request_parameters)
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to submit proof request for batch {}, error: {}",
+                    batch_id,
+                    e
+                )
+            })?;
+
+        self.connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .mark_batch_as_sent(batch_id, tx_hash)
+            .await?;
+
+        tracing::info!(
+            "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
+            proof_generation_data.l1_batch_number,
+            proof_generation_data.chain_id,
+            tx_hash
+        );
+        return Ok(());
     }
 }

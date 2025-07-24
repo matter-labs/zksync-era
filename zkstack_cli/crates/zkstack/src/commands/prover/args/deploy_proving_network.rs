@@ -4,8 +4,9 @@ use zkstack_cli_common::{Prompt, PromptConfirm};
 
 use crate::messages::{
     MSG_FERMAH_ADDRESS_PROMPT, MSG_L1_RPC_URL_PROMPT, MSG_LAGRANGE_ADDRESS_PROMPT,
-    MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT, MSG_PROXY_OWNER_ADDRESS_PROMPT, MSG_RPC_URL_PROMPT,
-    MSG_TOP_UP_NETWORK_WALLETS_PROMPT, MSG_TOP_UP_SERVER_WALLETS_PROMPT, MSG_USDC_ADDRESS_PROMPT,
+    MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT, MSG_PROXY_OWNER_ADDRESS_PROMPT,
+    MSG_RPC_URL_PROMPT_PROVING_NETWORK, MSG_TOP_UP_NETWORK_WALLETS_PROMPT,
+    MSG_TOP_UP_SERVER_WALLETS_PROMPT, MSG_USDC_ADDRESS_PROMPT,
 };
 
 #[derive(Debug, Clone, Parser, Default, Serialize, Deserialize)]
@@ -46,7 +47,7 @@ pub struct DeployProvingNetworkArgsFinal {
 impl DeployProvingNetworkArgs {
     pub fn fill_values_with_prompt(self, default_rpc_url: &str) -> DeployProvingNetworkArgsFinal {
         let rpc_url = self.rpc_url.unwrap_or_else(|| {
-            Prompt::new(MSG_RPC_URL_PROMPT)
+            Prompt::new(MSG_RPC_URL_PROMPT_PROVING_NETWORK)
                 .default(default_rpc_url)
                 .ask()
         });
