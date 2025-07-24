@@ -83,6 +83,11 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .function("validatorTimelock")
         .unwrap()
         .short_signature();
+    let valdaitor_timelock_post_v29_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelockPostV29")
+        .unwrap()
+        .short_signature();
     let prototol_version_short_selector = functions
         .state_transition_manager_contract
         .function("protocolVersion")
@@ -136,6 +141,10 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 let non_zero_address = vec![6u8; 32];
 
                 [non_zero_address.clone(), non_zero_address].concat()
+            }
+            selector if selector == valdaitor_timelock_post_v29_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![7u8; 32]
             }
             _ => panic!("unexpected call: {call:?}"),
         };
