@@ -6,7 +6,11 @@ use zksync_contracts::{
     state_transition_manager_contract,
 };
 use zksync_types::{
-    ethabi::{Contract, Token}, protocol_upgrade, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer, Address, L2ChainId, SLChainId, U256
+    ethabi::{Contract, Token},
+    protocol_upgrade,
+    protocol_version::ProtocolSemanticVersion,
+    settlement::SettlementLayer,
+    Address, L2ChainId, SLChainId, U256,
 };
 
 use crate::{CallFunctionArgs, ContractCallError, EthInterface};
@@ -47,12 +51,12 @@ pub async fn load_settlement_layer_contracts(
         return Ok(None);
     }
 
-    let protocol_version = get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?;
+    let protocol_version =
+        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?;
     let protocol_version = ProtocolSemanticVersion::try_from_packed(protocol_version)
         .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
 
-    if !protocol_version.minor.is_post_fflonk()
-    {
+    if !protocol_version.minor.is_post_fflonk() {
         return Ok(None);
     }
 
