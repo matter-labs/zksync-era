@@ -20,6 +20,7 @@ use eq_sdk::{
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
+use zksync_basic_types::L2ChainId;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
@@ -35,7 +36,6 @@ use zksync_types::{
     web3::{contract::Tokenize, BlockNumber},
     H160, U256, U64,
 };
-use zksync_basic_types::L2ChainId;
 
 use crate::{
     celestia::{
@@ -56,7 +56,7 @@ pub struct CelestiaClient {
     eq_client: Arc<EqClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
-    l2_chain_id: L2ChainId
+    l2_chain_id: L2ChainId,
 }
 
 impl CelestiaClient {
@@ -64,9 +64,8 @@ impl CelestiaClient {
         config: CelestiaConfig,
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
-        l2_chain_id: L2ChainId
+        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(config.timeout)
             .connect()
@@ -88,7 +87,7 @@ impl CelestiaClient {
             celestia_client: Arc::new(client),
             eq_client: Arc::new(eq_client),
             eth_client,
-            l2_chain_id
+            l2_chain_id,
         })
     }
 
@@ -269,7 +268,10 @@ impl CelestiaClient {
                 error: anyhow::anyhow!("Failed to get data root inclusion proof: {}", e),
                 is_retriable: false,
             })?;
-        tracing::debug!("data_root_inclusion_proof_string: {}", data_root_inclusion_proof_string);
+        tracing::debug!(
+            "data_root_inclusion_proof_string: {}",
+            data_root_inclusion_proof_string
+        );
         let data_root_inclusion_proof_response: DataRootInclusionProofResponse =
             serde_json::from_str(&data_root_inclusion_proof_string).unwrap();
 

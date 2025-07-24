@@ -3,22 +3,25 @@
     It is used to get the data root inclusion proof for a given height.
 */
 #![allow(dead_code)]
-use reqwest::{Client, Error as ReqwestError};
-use serde::Deserialize;
 use hex;
 use lazy_static::lazy_static;
+use reqwest::{Client, Error as ReqwestError};
+use serde::Deserialize;
 
-use zksync_types::{
-    ethabi::{decode, Contract, Event, EventParam, ParamType, Param, FixedBytes, Token, Function, StateMutability},
-    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log, contract::Tokenize},
-    H160, H256, U256,
-};
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
+use zksync_da_client::types::DAError;
 use zksync_eth_client::{
     clients::{DynClient, L1},
     EthInterface,
 };
-use zksync_da_client::types::DAError;
-use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
+use zksync_types::{
+    ethabi::{
+        decode, Contract, Event, EventParam, FixedBytes, Function, Param, ParamType,
+        StateMutability, Token,
+    },
+    web3::{contract::Tokenize, BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
+    H160, H256, U256,
+};
 
 lazy_static! {
     pub static ref BLOBSTREAM_UPDATE_EVENT: Event = Event {
@@ -47,7 +50,6 @@ lazy_static! {
         ],
         anonymous: false
     };
-
     pub static ref BLOBSTREAM_LATEST_BLOCK_FUNCTION: Function = Function {
         name: "latestBlock".to_string(),
         inputs: vec![],
@@ -68,8 +70,8 @@ pub struct TendermintRPCClient {
 
 impl TendermintRPCClient {
     pub fn new(url: String) -> Self {
-        TendermintRPCClient { 
-            url, 
+        TendermintRPCClient {
+            url,
             client: Client::new(),
         }
     }
@@ -82,7 +84,8 @@ impl TendermintRPCClient {
     ) -> Result<String, ReqwestError> {
         let url = format!("{}/data_root_inclusion_proof", self.url);
 
-        let request = self.client
+        let request = self
+            .client
             .get(url.clone())
             .query(&[("height", height), ("start", start), ("end", end)])
             .build()
@@ -101,7 +104,8 @@ impl TendermintRPCClient {
 
     pub async fn get_data_root(&self, height: u64) -> Result<[u8; 32], ReqwestError> {
         let url = format!("{}/header", self.url);
-        let response = self.client
+        let response = self
+            .client
             .get(url)
             .query(&[("height", height)])
             .send()
@@ -111,17 +115,16 @@ impl TendermintRPCClient {
             .await?;
 
         // Parse response JSON to extract data root
-        let response_json: serde_json::Value = serde_json::from_str(&response)
-            .expect("Failed to parse response JSON");
-        
+        let response_json: serde_json::Value =
+            serde_json::from_str(&response).expect("Failed to parse response JSON");
+
         let data_root_hex = response_json["result"]["header"]["data_hash"]
             .as_str()
             .expect("Failed to get data_hash")
             .trim_start_matches("0x");
 
         let mut data_root = [0u8; 32];
-        hex::decode_to_slice(data_root_hex, &mut data_root)
-            .expect("Failed to decode hex string");
+        hex::decode_to_slice(data_root_hex, &mut data_root).expect("Failed to decode hex string");
 
         Ok(data_root)
     }
@@ -142,10 +145,7 @@ pub async fn get_latest_blobstream_relayed_height(
         ),
         ..Default::default()
     };
-    let block_num = client
-        .block_number()
-        .await
-        .map_err(to_retriable_da_error)?;
+    let block_num = client.block_number().await.map_err(to_retriable_da_error)?;
     let result = client
         .call_contract_function(request, Some(BlockId::Number(block_num.into())))
         .await
@@ -195,18 +195,15 @@ pub async fn find_block_range(
 
         if let Some(log) = logs.iter().find_map(|log| {
             let commitment = DataCommitmentStored::from_log(log);
-            if commitment.start_block.as_u64() <= target_height 
-                && commitment.end_block.as_u64() > target_height {
+            if commitment.start_block.as_u64() <= target_height
+                && commitment.end_block.as_u64() > target_height
+            {
                 Some(commitment)
             } else {
                 None
             }
         }) {
-            return Ok(Some((
-                log.start_block,
-                log.end_block,
-                log.proof_nonce,
-            )));
+            return Ok(Some((log.start_block, log.end_block, log.proof_nonce)));
         }
 
         page_start = page_end;
@@ -277,10 +274,7 @@ pub struct DataRootTuple {
 
 impl Tokenize for DataRootTuple {
     fn into_tokens(self) -> Vec<Token> {
-        vec![
-            Token::Uint(self.height),
-            Token::FixedBytes(self.data_root),
-        ]
+        vec![Token::Uint(self.height), Token::FixedBytes(self.data_root)]
     }
 }
 
@@ -309,9 +303,14 @@ pub struct BinaryMerkleProof {
 }
 
 impl Tokenize for BinaryMerkleProof {
-    fn into_tokens(self) -> Vec<Token> {    
+    fn into_tokens(self) -> Vec<Token> {
         vec![
-            Token::Array(self.side_nodes.into_iter().map(|s| Token::FixedBytes(s)).collect()),
+            Token::Array(
+                self.side_nodes
+                    .into_iter()
+                    .map(|s| Token::FixedBytes(s))
+                    .collect(),
+            ),
             Token::Uint(self.key),
             Token::Uint(self.num_leaves),
         ]
