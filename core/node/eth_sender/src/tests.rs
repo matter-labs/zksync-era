@@ -90,7 +90,6 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .short_signature();
 
     let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
-    
     let execution_delay_selector = functions
         .validator_timelock_contract
         .function("executionDelay")
@@ -850,6 +849,16 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes({
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }),
+        ]),
     ];
     if with_evm_emulator {
         mock_response.insert(
