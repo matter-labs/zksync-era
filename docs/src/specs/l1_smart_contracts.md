@@ -255,7 +255,8 @@ and again the same calldata (related to the `proveBatches` function) will be pro
 the `delay` is elapsed, the validator is allowed to call `executeBatches` to propagate the same calldata to ZKsync
 contract.
 
-The execution delay is dynamically read from the contract's `executionDelay()` function by the node, eliminating the need for manual configuration management.
+The execution delay is dynamically read from the contract's `executionDelay()` function by the node, eliminating the
+need for manual configuration management.
 
 The owner of the ValidatorTimelock contract is the same as the owner of the Governance contract - Matter Labs multisig.
 

@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
@@ -518,10 +517,7 @@ impl EthTxAggregator {
         Ok(pair)
     }
 
-    fn parse_execution_delay(
-        data: Token,
-        name: &'static str,
-    ) -> Result<Duration, EthSenderError> {
+    fn parse_execution_delay(data: Token, name: &'static str) -> Result<Duration, EthSenderError> {
         let multicall_data = Multicall3Result::from_token(data)?.return_data;
         if multicall_data.len() != 32 {
             return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(

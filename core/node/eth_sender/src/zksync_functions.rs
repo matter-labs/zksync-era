@@ -1,9 +1,9 @@
 use zksync_contracts::{
     getters_facet_contract, hyperchain_contract, multicall_contract,
-    state_transition_manager_contract, validator_timelock_contract, verifier_contract, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
-    POST_SHARED_BRIDGE_EXECUTE_FUNCTION, POST_SHARED_BRIDGE_PROVE_FUNCTION,
-    POST_V26_GATEWAY_COMMIT_FUNCTION, POST_V26_GATEWAY_EXECUTE_FUNCTION,
-    POST_V26_GATEWAY_PROVE_FUNCTION,
+    state_transition_manager_contract, validator_timelock_contract, verifier_contract,
+    POST_SHARED_BRIDGE_COMMIT_FUNCTION, POST_SHARED_BRIDGE_EXECUTE_FUNCTION,
+    POST_SHARED_BRIDGE_PROVE_FUNCTION, POST_V26_GATEWAY_COMMIT_FUNCTION,
+    POST_V26_GATEWAY_EXECUTE_FUNCTION, POST_V26_GATEWAY_PROVE_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 

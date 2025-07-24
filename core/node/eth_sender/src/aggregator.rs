@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use chrono::Utc;
 use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
@@ -407,7 +406,8 @@ impl Aggregator {
         priority_tree_start_index: Option<usize>,
         execution_delay: Duration,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
-        let max_l1_batch_timestamp_millis = Some(unix_timestamp_ms() - execution_delay.as_millis() as u64);
+        let max_l1_batch_timestamp_millis =
+            Some(unix_timestamp_ms() - execution_delay.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)

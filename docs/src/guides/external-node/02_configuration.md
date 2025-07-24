@@ -11,10 +11,10 @@ default settings.**
 ## Important Configuration Notes
 
 ### Execution Delay
-The execution delay (the time L1 batches must wait before being executed) is now
-dynamically read from the ValidatorTimelock contract via multicall. The system
-automatically queries the contract to determine the current execution delay
-setting.
+
+The execution delay (the time L1 batches must wait before being executed) is now dynamically read from the
+ValidatorTimelock contract via multicall. The system automatically queries the contract to determine the current
+execution delay setting.
 
 ## Database
 

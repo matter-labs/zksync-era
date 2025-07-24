@@ -178,7 +178,8 @@ chain initialization (`zkstack chain init`) processes. They control various aspe
 - Database settings
 - Application/Service-specific parameters
 
-**Note:** The execution delay (time L1 batches must wait before execution) is now dynamically read from the ValidatorTimelock contract and is no longer configurable through these files.
+**Note:** The execution delay (time L1 batches must wait before execution) is now dynamically read from the
+ValidatorTimelock contract and is no longer configurable through these files.
 
 It's important to note that while these files can be manually edited, any changes may be overwritten if the ecosystem or
 chain is reinitialized. Always back up your modifications and exercise caution when making direct changes to these
