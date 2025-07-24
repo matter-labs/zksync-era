@@ -29,7 +29,7 @@ async fn run_test(
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     let cmd = cmd!(shell, "yarn mocha tests/revert-and-restart-en.test.ts");
-    let cmd = Cmd::new(cmd)
+    let mut cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("NO_KILL", args.no_kill.to_string());
     cmd.with_force_run().run()?;

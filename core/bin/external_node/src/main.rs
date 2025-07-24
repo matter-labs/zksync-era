@@ -45,7 +45,8 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Consensus is enabled unconditionally. This var is unused and kept for compatibility.
+    /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
+    /// do not use unless you know what you're doing.
     #[arg(long)]
     enable_consensus: bool,
 
@@ -66,7 +67,8 @@ struct Cli {
         long,
         requires = "config_path",
         requires = "secrets_path",
-        requires = "external_node_config_path"
+        requires = "external_node_config_path",
+        requires = "enable_consensus"
     )]
     consensus_path: Option<std::path::PathBuf>,
 }
@@ -185,7 +187,7 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let config = ExternalNodeConfig::new(repo)?;
+    let config = ExternalNodeConfig::new(repo, opt.enable_consensus)?;
 
     if let Some(l1_batch) = revert_to_l1_batch {
         let node = ExternalNodeBuilder::on_runtime(runtime, config).build_for_revert(l1_batch)?;

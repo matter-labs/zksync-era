@@ -41,7 +41,12 @@ impl RunExternalNode {
         })
     }
 
-    pub fn run(&self, shell: &Shell, additional_args: Vec<String>) -> anyhow::Result<()> {
+    pub fn run(
+        &self,
+        shell: &Shell,
+        enable_consensus: bool,
+        additional_args: Vec<String>,
+    ) -> anyhow::Result<()> {
         let code_path = self.code_path.to_str().unwrap();
         let config_general_config = &self.general_config.to_str().unwrap();
         let en_config = &self.en_config.to_str().unwrap();
@@ -52,7 +57,10 @@ impl RunExternalNode {
         if let Some(components) = self.components() {
             passed_args.push(format!("--components={}", components))
         }
-        passed_args.push(format!("--consensus-path={consensus_config}"));
+        if enable_consensus {
+            passed_args.push("--enable-consensus".to_string());
+            passed_args.push(format!("--consensus-path={consensus_config}"))
+        }
         // Need to insert the additional args at the end, since they may include positional ones
         passed_args.extend(additional_args);
 

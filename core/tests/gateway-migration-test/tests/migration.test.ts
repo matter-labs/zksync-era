@@ -76,7 +76,7 @@ describe('Migration From/To gateway test', function () {
         web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
-            enableConsensus: true,
+            enableConsensus: false,
             ethClientWeb3Url: ethProviderAddress!,
             apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
             baseTokenAddress: contractsConfig.l1.base_token_addr

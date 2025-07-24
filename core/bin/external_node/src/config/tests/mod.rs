@@ -717,7 +717,7 @@ fn parsing_consensus_from_env_vars() {
     let config_sources = cli.config_sources(None).unwrap();
     let schema = LocalConfig::schema().unwrap();
     let repo = config_sources.build_repository(&schema);
-    let config = ExternalNodeConfig::new(repo).unwrap();
+    let config = ExternalNodeConfig::new(repo, true).unwrap();
 
     assert_consensus_config(config.consensus.unwrap());
     let node_key = config.local.secrets.consensus.node_key.unwrap();
