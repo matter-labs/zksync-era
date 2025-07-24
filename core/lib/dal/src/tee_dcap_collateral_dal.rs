@@ -115,7 +115,7 @@ impl TeeDcapCollateralDal<'_, '_> {
         timeout: PgInterval,
     ) -> DalResult<TeeDcapCollateralInfo> {
         let mut tx = self.storage.start_transaction().await?;
-        match sqlx::query_as!(
+        let query = sqlx::query_as!(
             CurrentFieldValidator,
             r#"
             SELECT
@@ -142,8 +142,11 @@ impl TeeDcapCollateralDal<'_, '_> {
         .instrument("tee_dcap_collateral_field_is_current")
         .with_arg("field", &kind)
         .fetch_optional(&mut tx)
-        .await?
-        {
+        .await?;
+
+        tracing::debug!("Field query result: {:?}", query);
+
+        match query {
             Some(CurrentFieldValidator {
                 sha_matches: true,
                 not_after: true,
@@ -268,7 +271,7 @@ impl TeeDcapCollateralDal<'_, '_> {
         timeout: PgInterval,
     ) -> DalResult<TeeDcapCollateralInfo> {
         let mut tx = self.storage.start_transaction().await?;
-        match sqlx::query_as!(
+        let query = sqlx::query_as!(
             CurrentFieldValidator,
             r#"
             SELECT
@@ -297,8 +300,11 @@ impl TeeDcapCollateralDal<'_, '_> {
         .with_arg("field", &kind)
         .with_arg("fmspc", &fmspc)
         .fetch_optional(&mut tx)
-        .await?
-        {
+        .await?;
+
+        tracing::debug!("TCB info query result: {:?}", query);
+
+        match query {
             Some(CurrentFieldValidator {
                 sha_matches: true,
                 not_after: true,
