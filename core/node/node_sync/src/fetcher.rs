@@ -109,7 +109,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .collect(),
             pubdata_params,
             pubdata_limit: block.pubdata_limit,
-            interop_roots: block.interop_roots.clone(),
+            interop_roots: block.interop_roots.clone().unwrap_or_default(),
         })
     }
 }
