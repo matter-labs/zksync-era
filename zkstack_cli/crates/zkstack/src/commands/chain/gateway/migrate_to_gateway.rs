@@ -72,7 +72,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     };
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
-    let broadcast_dir2 = "/usr/src/zksync/contracts/l1-contracts/broadcast/";
+    let broadcast_dir = "/usr/src/zksync/contracts/l1-contracts/broadcast/";
 
     let files = list_files_recursively(broadcast_dir);
     println!("Files in {}:", broadcast_dir);
@@ -163,3 +163,25 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     Ok(())
 }
+
+use std::path::{Path, PathBuf};
+
+
+fn list_files_recursively<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
+    use std::fs;
+    let mut files = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                files.extend(list_files_recursively(&path));
+                files.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
+}
+
