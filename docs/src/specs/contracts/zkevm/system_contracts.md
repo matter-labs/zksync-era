@@ -121,6 +121,8 @@ Whenever anyone wants to do a non-zero value call, they need to call `MsgValueSi
 
 More information on the extraAbiParams can be read
 [here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
+<<<<<<<< HEAD:docs/src/specs/contracts/l2_system_contracts/system_contracts.md
+========
 
 ## Support for `.send/.transfer`
 
@@ -144,6 +146,7 @@ The system does not guarantee the following:
 - That callees with bytecode size larger than `100000` will work. Note, that a malicious operator can fail any call to a callee with large bytecode even if it has been decommitted before.
 
 As a conclusion, using `.send/.transfer` should be generally avoided, but when avoiding is not possible it should be used with small callees, e.g. EOAs, which implement `DefaultAccount`.
+>>>>>>>> 255f6e8866a4ba25376eed9a57421d0f29bb2ee8:docs/src/specs/contracts/zkevm/system_contracts.md
 
 ## KnownCodeStorage
 
@@ -224,8 +227,13 @@ returned by the constructor.
 On Ethereum, the constructor is only part of the initCode that gets executed during the deployment of the contract and
 returns the deployment code of the contract. On ZKsync, there is no separation between deployed code and constructor
 code. The constructor is always a part of the deployment code of the contract. In order to protect it from being called,
+<<<<<<<< HEAD:docs/src/specs/contracts/l2_system_contracts/system_contracts.md
+the compiler-generated contracts invoke constructor only if the `isConstructor` flag provided (it is only available for
+the system contracts). You can read more about flags
+========
 the compiler-generated contracts invoke the constructor only if the `isConstructor` flag is provided (it is only
 available for the system contracts). You can read more about flags
+>>>>>>>> 255f6e8866a4ba25376eed9a57421d0f29bb2ee8:docs/src/specs/contracts/zkevm/system_contracts.md
 [here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
 
 After execution, the constructor must return an array of:
@@ -247,7 +255,11 @@ address.
 
 Whenever a contract needs to access a value of some immutable, they call the
 `ImmutableSimulator.getImmutable(getCodeAddress(), index)`. Note that on ZKsync it is possible to get the current
+<<<<<<<< HEAD:docs/src/specs/contracts/l2_system_contracts/system_contracts.md
+execution address you can read more about `getCodeAddress()`
+========
 execution address. You can read more about `getCodeAddress()`
+>>>>>>>> 255f6e8866a4ba25376eed9a57421d0f29bb2ee8:docs/src/specs/contracts/zkevm/system_contracts.md
 [here](../../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
 
 ### **Return value of the deployment methods**
