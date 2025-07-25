@@ -136,7 +136,7 @@ impl ProofRequestSubmitter {
         let proof_request_parameters = ProofRequestParams {
             protocol_major: 0,
             protocol_minor: proof_generation_data.protocol_version.minor as u32,
-            protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
+            protocol_patch: proof_generation_data.protocol_version.patch.0,
             proof_inputs_url: url,
             timeout_after: self.config.proof_generation_timeout.as_secs(),
             max_reward: self.config.max_reward,
