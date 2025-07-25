@@ -268,17 +268,17 @@ impl EthTxAggregator {
             calldata: get_stm_protocol_version_input,
         };
 
-        let get_stm_validator_timelock_input = self
+        let get_stm_pre_v29_validator_timelock_input = self
             .functions
             .state_transition_manager_contract
             .function("validatorTimelock")
             .unwrap()
             .encode_input(&[])
             .unwrap();
-        let get_stm_validator_timelock_call = Multicall3Call {
+        let get_stm_pre_v29_validator_timelock_call = Multicall3Call {
             target: self.state_transition_manager_address,
             allow_failure: ALLOW_FAILURE,
-            calldata: get_stm_validator_timelock_input,
+            calldata: get_stm_pre_v29_validator_timelock_input,
         };
 
         let get_da_validator_pair_input = self
@@ -293,6 +293,21 @@ impl EthTxAggregator {
             calldata: get_da_validator_pair_input,
         };
 
+        let get_post_v29_upgradeable_validator_timelock_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("validatorTimelockPostV29")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+
+        let get_post_v29_upgradeable_validator_timelock_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            // Note, that this call is allowed to fail, as the corresponding function is not present in the pre-v29 protocol versions
+            allow_failure: true,
+            calldata: get_post_v29_upgradeable_validator_timelock_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
@@ -300,8 +315,9 @@ impl EthTxAggregator {
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
             get_stm_protocol_version_call.into_token(),
-            get_stm_validator_timelock_call.into_token(),
+            get_stm_pre_v29_validator_timelock_call.into_token(),
             get_da_validator_pair_call.into_token(),
+            get_post_v29_upgradeable_validator_timelock_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -337,8 +353,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 9 } else { 8 };
-            // 8 or 9 calls are aggregated in multicall
+            let number_of_calls = if evm_emulator_hash_requested { 10 } else { 9 };
+            // 9 or 10 calls are aggregated in multicall
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -415,6 +431,19 @@ impl EthTxAggregator {
                 "contract DA validator pair",
             )?;
 
+            let stm_validator_timelock_address =
+                if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+                    // We just skip the result for the pre-V29 upgradeable validator timelock
+                    call_results_iterator.next().unwrap();
+
+                    stm_validator_timelock_address
+                } else {
+                    Self::parse_address(
+                        call_results_iterator.next().unwrap(),
+                        "post-V29 upgradeable validator timelock",
+                    )?
+                };
+
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
@@ -454,7 +483,13 @@ impl EthTxAggregator {
     }
 
     fn parse_address(data: Token, name: &'static str) -> Result<Address, EthSenderError> {
-        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        let result = Multicall3Result::from_token(data)?;
+        if !result.success {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!("multicall3 {name} call failed"),
+            )));
+        }
+        let multicall_data = result.return_data;
         if multicall_data.len() != 32 {
             return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
                 format!(

@@ -17,7 +17,7 @@ use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     commands::{
         chain::admin_call_builder::{AdminCall, AdminCallBuilder},
-        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+        dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
     },
 };
 

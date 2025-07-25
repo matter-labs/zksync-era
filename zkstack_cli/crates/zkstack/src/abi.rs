@@ -29,8 +29,10 @@ abigen!(
     ChainTypeManagerAbi,
     r"[
     function validatorTimelock()(address)
+    function validatorTimelockPostV29()(address)
     function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
     function serverNotifierAddress()(address)
+    function protocolVersion()(uint256)
 ]"
 );
 
