@@ -308,7 +308,7 @@ impl EthProofManagerDal<'_, '_> {
             "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - "
         );
 
-        query_builder.push_bind(&picking_timeout);
+        query_builder.push_bind(picking_timeout);
         query_builder.push("::INTERVAL)");
 
         if !batches.is_empty() {

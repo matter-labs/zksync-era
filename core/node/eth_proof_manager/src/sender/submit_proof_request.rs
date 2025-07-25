@@ -138,7 +138,7 @@ impl ProofRequestSubmitter {
             protocol_minor: proof_generation_data.protocol_version.minor as u32,
             protocol_patch: proof_generation_data.protocol_version.patch.0 as u32,
             proof_inputs_url: url,
-            timeout_after: self.config.proof_generation_timeout.as_secs() as u64,
+            timeout_after: self.config.proof_generation_timeout.as_secs(),
             max_reward: self.config.max_reward,
         };
 
@@ -167,6 +167,6 @@ impl ProofRequestSubmitter {
             proof_generation_data.chain_id,
             tx_hash
         );
-        return Ok(());
+        Ok(())
     }
 }

@@ -45,9 +45,7 @@ fn test_config() -> EthProofManagerConfig {
         tx_receipt_checking_sleep: Duration::from_secs(1),
         max_tx_gas: 1000000000,
         path_to_fflonk_verification_key:
-            "./core/node/eth_proof_manager/src/tests/fflonk_verification_key.json"
-                .to_string()
-                .into(),
+            "./core/node/eth_proof_manager/src/tests/fflonk_verification_key.json".to_string(),
     }
 }
 

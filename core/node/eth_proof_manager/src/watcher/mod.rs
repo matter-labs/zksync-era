@@ -29,10 +29,12 @@ impl EthProofWatcher {
         config: EthProofManagerConfig,
     ) -> Self {
         let fflonk_vk = serde_json::from_slice::<FflonkFinalVerificationKey>(
-            &std::fs::read(config.path_to_fflonk_verification_key.clone()).expect(&format!(
-                "Failed to read fflonk verification key at path: {}",
-                config.path_to_fflonk_verification_key
-            )),
+            &std::fs::read(config.path_to_fflonk_verification_key.clone()).unwrap_or_else(|_| {
+                panic!(
+                    "Failed to read fflonk verification key at path: {}",
+                    config.path_to_fflonk_verification_key
+                )
+            }),
         )
         .expect("Failed to read fflonk verification key");
 

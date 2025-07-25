@@ -110,7 +110,7 @@ impl EthProofManagerLayer {
             self.eth_proof_manager_config
                 .default_priority_fee_per_gas
                 .into(),
-            self.sl_chain_id.into(),
+            self.sl_chain_id,
         );
 
         ProofManagerClient::new(
