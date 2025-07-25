@@ -4525,12 +4525,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
-name = "fixedbitset"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
-
-[[package]]
 name = "flate2"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6322,7 +6316,7 @@ dependencies = [
  "ena",
  "itertools 0.11.0",
  "lalrpop-util",
- "petgraph 0.6.5",
+ "petgraph",
  "pico-args",
  "regex",
  "regex-syntax 0.8.5",
@@ -8123,10 +8117,30 @@ dependencies = [
  "log",
  "multimap",
  "once_cell",
- "petgraph 0.6.5",
+ "petgraph",
  "prettyplease",
  "prost 0.12.6",
  "prost-types 0.12.6",
+ "regex",
+ "syn 2.0.104",
+ "tempfile",
+]
+
+[[package]]
+name = "prost-build"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
+dependencies = [
+ "heck 0.4.1",
+ "itertools 0.10.5",
+ "log",
+ "multimap",
+ "once_cell",
+ "petgraph",
+ "prettyplease",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
  "regex",
  "syn 2.0.104",
  "tempfile",
@@ -8228,10 +8242,10 @@ checksum = "6f352af331bf637b8ecc720f7c87bf903d2571fa2e14a66e9b2558846864b54a"
 dependencies = [
  "bytes",
  "miette 7.6.0",
- "prost 0.12.6",
- "prost-reflect 0.13.1",
- "prost-types",
- "protox-parse 0.6.1",
+ "prost 0.13.5",
+ "prost-reflect 0.14.7",
+ "prost-types 0.13.5",
+ "protox-parse 0.7.0",
  "thiserror 1.0.69",
 ]
 
@@ -8255,7 +8269,7 @@ checksum = "a3a462d115462c080ae000c29a47f0b3985737e5d3a995fcdbcaa5c782068dde"
 dependencies = [
  "logos 0.14.4",
  "miette 7.6.0",
- "prost-types",
+ "prost-types 0.13.5",
  "thiserror 1.0.69",
 ]
 
@@ -11591,7 +11605,7 @@ dependencies = [
  "proc-macro2 1.0.95",
  "prost-build 0.12.6",
  "quote 1.0.40",
- "syn 2.0.101",
+ "syn 2.0.104",
 ]
 
 [[package]]
