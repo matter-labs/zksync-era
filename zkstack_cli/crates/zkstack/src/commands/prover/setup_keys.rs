@@ -6,11 +6,11 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{get_link_to_prover, EcosystemConfig};
 
 use crate::{
-    commands::prover::{
-        args::setup_keys::{Mode, Region, SetupKeysArgs},
-        compressor_keys::download_compressor_key,
+    commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
+    messages::{
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_SK_GENERATED,
     },
-    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
 };
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -22,23 +22,34 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         let chain_config = ecosystem_config
             .load_current_chain()
             .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-        let mut general_config = chain_config.get_general_config().await?.patched();
+        let general_config = chain_config.get_general_config().await?.patched();
         let proof_compressor_setup_path = general_config
             .proof_compressor_setup_path()
-            .context("proof_compressor_setup_path")?;
+            .context(MSG_SETUP_KEY_PATH_ERROR)?;
+        let prover_path = get_link_to_prover(&ecosystem_config);
+        let proof_compressor_setup_path = prover_path.join(proof_compressor_setup_path);
+
         if proof_compressor_setup_path.exists() {
             logger::info(format!(
-                "Initial proof compressor setup already present at {}",
+                "Proof compressor setup key is available at {}",
                 proof_compressor_setup_path.display()
             ));
+            std::env::set_var("COMPACT_CRS_FILE", &proof_compressor_setup_path);
         } else {
-            logger::info(format!(
-                "Initial proof compressor setup not found at {}, downloading",
-                proof_compressor_setup_path.display()
+            return Err(anyhow::anyhow!(
+                "Proof compressor key not found at {}, run `zkstack prover compressor-keys` command to download it",
+                proof_compressor_setup_path.display(),
             ));
-            download_compressor_key(shell, &mut general_config, &proof_compressor_setup_path)?;
         }
-        std::env::set_var("COMPACT_CRS_FILE", &proof_compressor_setup_path);
+
+        let bellman_cuda_dir = ecosystem_config.bellman_cuda_dir.clone();
+        if let Some(bellman_cuda_dir) = bellman_cuda_dir {
+            std::env::set_var("BELLMAN_CUDA_DIR", bellman_cuda_dir);
+        } else {
+            return Err(anyhow::anyhow!(
+                "Bellman CUDA directory is not set. Please run `zkstack prover init-bellman-cuda` to set it."
+            ));
+        }
 
         let link_to_prover = get_link_to_prover(&ecosystem_config);
         shell.change_dir(&link_to_prover);
