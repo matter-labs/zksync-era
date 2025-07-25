@@ -80,7 +80,7 @@ pub(crate) fn print_debug_log<H: HistoryMode>(
         data.to_string()
     };
     let tx_id = state.vm_local_state.tx_number_in_block;
-    tracing::trace!("Bootloader transaction {tx_id}: {msg}: {data_str}");
+    println!("Bootloader transaction {tx_id}: {msg}: {data_str}");
 }
 
 /// Reads the memory slice represented by the fat pointer.
@@ -119,7 +119,7 @@ pub(crate) fn print_debug_returndata<H: HistoryMode>(
         vec![]
     };
 
-    tracing::trace!("0x{}", hex::encode(returndata));
+    println!("RETURN DATA: 0x{}", hex::encode(returndata));
 }
 
 pub(crate) fn computational_gas_price(

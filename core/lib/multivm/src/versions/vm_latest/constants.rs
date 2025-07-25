@@ -28,7 +28,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
-        MultiVmSubversion::Interop => 80_000_000,
+        MultiVmSubversion::Interop => 120_000_000,
     }
 }
 
@@ -157,7 +157,7 @@ pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversio
     }
 }
 
-pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
+pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 294912;
 
 pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVmSubversion) -> usize {
     get_compressed_bytecodes_offset(subversion) + COMPRESSED_BYTECODES_SLOTS
