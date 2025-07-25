@@ -13,6 +13,7 @@ use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, 
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
+use zksync_types::ProtocolVersionId;
 
 use super::{
     gateway_common::{
@@ -33,7 +34,10 @@ use crate::{
     utils::addresses::apply_l1_to_l2_alias,
 };
 
-const PROTOCOL_VERSION_V29: U256 = U256([124554051584, 0, 0, 0]); // 0x1d00000000 which is v29
+fn get_minor_protocol_version(protocol_version: U256) -> anyhow::Result<ProtocolVersionId> {
+    ProtocolVersionId::try_from_packed_semver(protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver for protocol version: {err}"))
+}
 
 // The most reliable way to precompute the address is to simulate `createNewChain` function
 async fn precompute_chain_address_on_gateway(
@@ -51,10 +55,10 @@ async fn precompute_chain_address_on_gateway(
         Token::Bytes(gateway_diamond_cut),
     ]);
 
-    let caller = if protocol_version >= PROTOCOL_VERSION_V29 {
-        L2_CHAIN_ASSET_HANDLER_ADDRESS
-    } else {
+    let caller = if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
         L2_BRIDGEHUB_ADDRESS
+    } else {
+        L2_CHAIN_ASSET_HANDLER_ADDRESS
     };
     let result = gw_ctm
         .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
@@ -121,13 +125,25 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         anyhow::bail!("{} does not have a CTM deployed!", params.gateway_chain_id);
     }
 
+    let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
+    let protocol_version = l1_zk_chain.get_protocol_version().await?;
+
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
-    let gw_validator_timelock_addr = gw_ctm.validator_timelock_post_v29().await?;
+    let gw_ctm_protocol_version = gw_ctm.protocol_version().await?;
+    if gw_ctm_protocol_version != protocol_version {
+        // The migration would fail anyway since CTM has checks to ensure that the protocol version is the same
+        anyhow::bail!("The protocol version of the CTM on Gateway ({gw_ctm_protocol_version}) does not match the protocol version of the chain ({protocol_version})");
+    }
+
+    let gw_validator_timelock_addr =
+        if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
+            gw_ctm.validator_timelock().await?
+        } else {
+            gw_ctm.validator_timelock_post_v29().await?
+        };
     let gw_validator_timelock =
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
-    let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
-    let protocol_version = l1_zk_chain.get_protocol_version().await?;
     let chain_admin_address = l1_zk_chain.get_admin().await?;
     let zk_chain_gw_address = {
         let recorded_zk_chain_gw_address =
@@ -200,20 +216,21 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     result.extend(da_validator_encoding_result.calls.into_iter());
 
-    let is_validator_enabled = if protocol_version >= PROTOCOL_VERSION_V29 {
-        gw_validator_timelock
-            .has_role_for_chain_id(
-                params.l2_chain_id.into(),
-                gw_validator_timelock.committer_role().call().await?,
-                params.validator,
-            )
-            .await?
-    } else {
-        // In previous versions, we need to check if the validator is enabled
-        gw_validator_timelock
-            .validators(params.l2_chain_id.into(), params.validator)
-            .await?
-    };
+    let is_validator_enabled =
+        if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
+            gw_validator_timelock
+                .has_role_for_chain_id(
+                    params.l2_chain_id.into(),
+                    gw_validator_timelock.committer_role().call().await?,
+                    params.validator,
+                )
+                .await?
+        } else {
+            // In previous versions, we need to check if the validator is enabled
+            gw_validator_timelock
+                .validators(params.l2_chain_id.into(), params.validator)
+                .await?
+        };
 
     // 4. If validator is not yet present, please include.
     if !is_validator_enabled {
