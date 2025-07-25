@@ -218,17 +218,17 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let is_validator_enabled =
         if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
+            // In previous versions, we need to check if the validator is enabled
+            gw_validator_timelock
+                .validators(params.l2_chain_id.into(), params.validator)
+                .await?
+        } else {
             gw_validator_timelock
                 .has_role_for_chain_id(
                     params.l2_chain_id.into(),
                     gw_validator_timelock.committer_role().call().await?,
                     params.validator,
                 )
-                .await?
-        } else {
-            // In previous versions, we need to check if the validator is enabled
-            gw_validator_timelock
-                .validators(params.l2_chain_id.into(), params.validator)
                 .await?
         };
 
