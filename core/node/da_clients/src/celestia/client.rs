@@ -66,14 +66,21 @@ impl CelestiaClient {
         eth_client: Box<DynClient<L1>>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-
         let verify_inclusion = config.inclusion_verification.is_some();
 
         let eq_client = if verify_inclusion {
-            let eq_service_grpc_channel = Endpoint::from_str(config.inclusion_verification.as_ref().unwrap().eq_service_grpc_url.clone().as_str())?
-                .timeout(config.timeout)
-                .connect()
-                .await?;
+            let eq_service_grpc_channel = Endpoint::from_str(
+                config
+                    .inclusion_verification
+                    .as_ref()
+                    .unwrap()
+                    .eq_service_grpc_url
+                    .clone()
+                    .as_str(),
+            )?
+            .timeout(config.timeout)
+            .connect()
+            .await?;
             let eq_client = EqClient::new(eq_service_grpc_channel);
             Some(Arc::new(eq_client))
         } else {
@@ -173,8 +180,15 @@ impl CelestiaClient {
             .map_err(to_retriable_da_error)?;
 
         // unwrap should be safe on these config fields because we checked verify_inclusion before get_inclusion_data calls this function
-        let blobstream_addr = H160::from_str(self.config.inclusion_verification.as_ref().unwrap().blobstream_contract_address.as_str())
-            .map_err(to_non_retriable_da_error)?;
+        let blobstream_addr = H160::from_str(
+            self.config
+                .inclusion_verification
+                .as_ref()
+                .unwrap()
+                .blobstream_contract_address
+                .as_str(),
+        )
+        .map_err(to_non_retriable_da_error)?;
 
         let latest_blobstream_height =
             get_latest_blobstream_relayed_height(&self.eth_client, blobstream_addr).await?;
@@ -195,8 +209,15 @@ impl CelestiaClient {
         eth_current_height: U64,
     ) -> Result<Option<(U256, U256, U256)>, DAError> {
         // unwrap should be safe on these config fields because we checked verify_inclusion before get_inclusion_data calls this function
-        let blobstream_addr = H160::from_str(self.config.inclusion_verification.as_ref().unwrap().blobstream_contract_address.as_str())
-            .map_err(to_non_retriable_da_error)?;
+        let blobstream_addr = H160::from_str(
+            self.config
+                .inclusion_verification
+                .as_ref()
+                .unwrap()
+                .blobstream_contract_address
+                .as_str(),
+        )
+        .map_err(to_non_retriable_da_error)?;
 
         find_block_range(
             &self.eth_client,
@@ -204,8 +225,16 @@ impl CelestiaClient {
             latest_blobstream_height,
             BlockNumber::Number(eth_current_height),
             blobstream_addr,
-            self.config.inclusion_verification.as_ref().unwrap().blobstream_events_num_pages,
-            self.config.inclusion_verification.as_ref().unwrap().blobstream_events_page_size,
+            self.config
+                .inclusion_verification
+                .as_ref()
+                .unwrap()
+                .blobstream_events_num_pages,
+            self.config
+                .inclusion_verification
+                .as_ref()
+                .unwrap()
+                .blobstream_events_page_size,
         )
         .await
         .map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))
@@ -403,7 +432,6 @@ impl DataAvailabilityClient for CelestiaClient {
         dispatch_request_id: String,
         _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
-
         if !self.verify_inclusion {
             return Ok(None);
         }
@@ -414,7 +442,13 @@ impl DataAvailabilityClient for CelestiaClient {
 
         tracing::debug!("Calling eq-service...");
         // unwrap should be safe because we checked that verify_inclusion is true in the beginning
-        if let Err(tonic_status) = self.eq_client.as_ref().unwrap().get_zk_stack(&blob_id).await {
+        if let Err(tonic_status) = self
+            .eq_client
+            .as_ref()
+            .unwrap()
+            .get_zk_stack(&blob_id)
+            .await
+        {
             // gRPC error, should be retriable, could be something on the eq-service side
             return Err(DAError {
                 error: tonic_status.into(),

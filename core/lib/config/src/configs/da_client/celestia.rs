@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use smart_config::{de::{FromSecretString}, DescribeConfig, DeserializeConfig};
+use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::PrivateKey;
 
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -34,5 +34,3 @@ pub struct CelestiaSecrets {
     #[config(with = FromSecretString)]
     pub private_key: PrivateKey,
 }
-
-

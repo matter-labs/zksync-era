@@ -101,7 +101,6 @@ impl TendermintRPCClient {
             .text()
             .await
             .map_err(to_retriable_da_error)
-
     }
 
     pub async fn get_data_root(&self, height: u64) -> Result<[u8; 32], DAError> {
@@ -121,7 +120,8 @@ impl TendermintRPCClient {
         let response_json: serde_json::Value =
             serde_json::from_str(&response).map_err(to_retriable_da_error)?;
 
-        let data_root_hex = response_json.get("result")
+        let data_root_hex = response_json
+            .get("result")
             .and_then(|result| result.get("header"))
             .and_then(|header| header.get("data_hash"))
             .and_then(|hash| hash.as_str())
