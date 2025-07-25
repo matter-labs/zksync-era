@@ -100,6 +100,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
