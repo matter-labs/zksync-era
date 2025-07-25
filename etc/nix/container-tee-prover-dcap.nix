@@ -1,7 +1,7 @@
 { lib
 , container-tee-prover-azure
 , ...
-}: container-tee-prover-azure.overrideAttrs
+}: container-tee-prover-azure.override
   {
     isAzure = false;
     container-name = "zksync-tee-prover-dcap";
