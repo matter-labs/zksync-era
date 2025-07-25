@@ -18,7 +18,6 @@ use zkstack_cli_types::L1Network;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
-    common::{deploy_erc20, init_chains},
     setup_observability,
     utils::{build_da_contracts, install_yarn_dependencies},
 };
@@ -26,16 +25,14 @@ use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::ecosystem::{
         args::init::PromptPolicy,
-        common::deploy_l1_core_contracts,
+        common::{deploy_erc20, deploy_l1_core_contracts},
         create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        init_new_ctm::deploy_ecosystem as deploy_new_ecosystem,
-        register_ctm::register_ctm,
     },
     messages::{
-        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
-        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
+        msg_ecosystem_no_found_preexisting_contract, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER,
+        MSG_DEPLOYING_ERC20, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
+        MSG_INTALLING_DEPS_SPINNER,
     },
 };
 
@@ -52,9 +49,9 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     let prompt_policy = PromptPolicy {
-        deploy_erc20: true,
-        observability: true,
-        skip_ecosystem: false,
+        deploy_erc20: false,
+        observability: false,
+        skip_ecosystem: true,
     };
 
     let mut final_ecosystem_args = args
@@ -92,13 +89,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
     }
 
-    // Initialize chain(s)
-    let mut chains: Vec<String> = vec![];
-    if !final_ecosystem_args.ecosystem_only {
-        chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
-    }
-    logger::outro(msg_ecosystem_initialized(&chains.join(",")));
-
     Ok(())
 }
 
@@ -118,7 +108,7 @@ async fn init_ecosystem(
     }
     spinner.finish();
 
-    deploy_ecosystem(
+    let contracts = deploy_ecosystem(
         shell,
         &mut init_args.ecosystem,
         init_args.forge_args.clone(),
@@ -127,23 +117,7 @@ async fn init_ecosystem(
         init_args.support_l2_legacy_shared_bridge_test,
     )
     .await?;
-
-    let contracts = deploy_new_ecosystem(
-        shell,
-        &mut init_args.ecosystem,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        initial_deployment_config,
-        init_args.support_l2_legacy_shared_bridge_test,
-        init_args.bridgehub_address,
-    )
-    .await?;
-
-    let forge_args = init_args.forge_args.clone();
-
-    register_ctm(init_args, shell, forge_args, ecosystem_config).await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-
     Ok(contracts)
 }
 
@@ -239,35 +213,6 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
     spinner.finish();
-
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
-
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
 
     accept_owner(
         shell,
