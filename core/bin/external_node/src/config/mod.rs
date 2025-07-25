@@ -63,6 +63,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
+    pub l1_message_root_proxy_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l2_multicall3: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -157,6 +158,9 @@ impl RemoteENConfig {
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
             l2_timestamp_asserter_addr: timestamp_asserter_address,
+            l1_message_root_proxy_addr: l1_ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.message_root_proxy_addr),
         })
     }
 
@@ -180,6 +184,7 @@ impl RemoteENConfig {
             l2_timestamp_asserter_addr: None,
             l1_server_notifier_addr: None,
             l2_multicall3: None,
+            l1_message_root_proxy_addr: None,
         }
     }
 }
@@ -321,10 +326,7 @@ impl LocalConfig {
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
             secrets: Secrets {
-                consensus: ConsensusSecrets {
-                    validator_key: None,
-                    node_key: Some("node:secret:ed25519:9a40791b5a6b1627fc538b1ddecfa843bd7c4cd01fc0a4d0da186f9d3e740d7c".into())
-                },
+                consensus: ConsensusSecrets::default(),
                 postgres: PostgresSecrets {
                     server_url: Some(test_pool.database_url().clone()),
                     ..PostgresSecrets::default()
@@ -367,11 +369,15 @@ impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the repo.
     ///
     /// **Important.** This method is blocking.
-    pub fn new(mut repo: ConfigRepository<'_>) -> anyhow::Result<Self> {
+    pub fn new(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
         repo.capture_parsed_params();
         Ok(Self {
             local: repo.parse()?,
-            consensus: repo.parse_opt()?,
+            consensus: if has_consensus {
+                repo.parse_opt()?
+            } else {
+                None
+            },
             config_params: repo.into_captured_params(),
             remote: (),
         })
@@ -411,17 +417,10 @@ impl ExternalNodeConfig<()> {
 
 impl ExternalNodeConfig {
     #[cfg(test)]
-    pub(crate) fn mock(
-        temp_dir: &tempfile::TempDir,
-        test_pool: &ConnectionPool<Core>,
-        consensus_port_offset: u16,
-    ) -> Self {
-        let mut consensus = ConsensusConfig::for_tests();
-        let port = 4000u16 + consensus_port_offset;
-        consensus.server_addr = format!("127.0.0.1:{port}").parse().unwrap();
+    pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
             local: LocalConfig::mock(temp_dir, test_pool),
-            consensus: Some(consensus),
+            consensus: None,
             config_params: CapturedParams::default(),
             remote: RemoteENConfig::mock(),
         }
@@ -456,6 +455,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBase {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l1_to_l2_txs_paused: false,
+            eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
         }
     }
 }
@@ -497,6 +497,7 @@ impl ExternalNodeConfig {
             wrapped_base_token_store: self.remote.l1_wrapped_base_token_store,
             bridge_hub: self.remote.l1_bridgehub_proxy_addr,
             shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
+            message_root: self.remote.l1_message_root_proxy_addr,
             erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: self.remote.base_token_addr,
             server_notifier_addr: self.remote.l1_server_notifier_addr,
@@ -510,6 +511,7 @@ impl ExternalNodeConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
+                message_root_proxy_addr: self.remote.l1_message_root_proxy_addr,
                 // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,

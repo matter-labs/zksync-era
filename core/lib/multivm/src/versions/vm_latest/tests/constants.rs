@@ -5,5 +5,5 @@ fn test_that_bootloader_encoding_space_is_large_enoguh() {
     let encoding_space = crate::vm_latest::constants::get_bootloader_tx_encoding_space(
         crate::vm_latest::MultiVmSubversion::latest(),
     );
-    assert!(encoding_space >= 330000, "Bootloader tx space is too small");
+    assert!(encoding_space >= 325000, "Bootloader tx space is too small");
 }

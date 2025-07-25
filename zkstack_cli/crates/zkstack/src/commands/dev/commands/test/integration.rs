@@ -1,20 +1,15 @@
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
-use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
 use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::integration::IntegrationArgs,
-    utils::{
-        build_contracts, install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH,
-        TS_INTEGRATION_PATH,
-    },
+    utils::{build_contracts, install_and_build_dependencies, TS_INTEGRATION_PATH},
 };
 use crate::commands::dev::messages::{
-    msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR,
-    MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    msg_integration_tests_run, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
 #[derive(Debug)]
@@ -25,18 +20,20 @@ pub(super) struct IntegrationTestRunner<'a> {
     test_timeout: Duration,
     test_suites: Vec<&'a str>,
     test_pattern: Option<&'a str>,
+    second_chain: Option<&'a str>,
 }
 
 impl<'a> IntegrationTestRunner<'a> {
-    pub fn new(shell: &'a Shell, no_deps: bool) -> anyhow::Result<Self> {
+    pub fn new(shell: &'a Shell, no_deps: bool, timeout: Option<u64>) -> anyhow::Result<Self> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         Ok(Self {
             shell,
             no_deps,
             ecosystem_config,
-            test_timeout: Duration::from_secs(600), // See jest.config.json
+            test_timeout: Duration::from_secs(timeout.unwrap_or(600)), // See jest.config.json
             test_suites: vec![],
             test_pattern: None,
+            second_chain: None,
         })
     }
 
@@ -59,11 +56,13 @@ impl<'a> IntegrationTestRunner<'a> {
         self
     }
 
+    pub fn with_second_chain(mut self, second_chain: Option<&'a str>) -> Self {
+        self.second_chain = second_chain;
+        self
+    }
+
     pub async fn build_command(self) -> anyhow::Result<xshell::Cmd<'a>> {
         let ecosystem_config = self.ecosystem_config;
-        let chain_config = ecosystem_config
-            .load_current_chain()
-            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
         self.shell
             .change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
@@ -71,15 +70,6 @@ impl<'a> IntegrationTestRunner<'a> {
             install_and_build_dependencies(self.shell, &ecosystem_config)?;
             build_contracts(self.shell, &ecosystem_config)?;
         }
-
-        let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
-        let raw_wallets = self.shell.read_file(&wallets_path)?;
-        let wallets: TestWallets =
-            serde_json::from_str(&raw_wallets).context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
-
-        wallets
-            .init_test_wallet(&ecosystem_config, &chain_config)
-            .await?;
 
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
             &["-t", pattern]
@@ -98,7 +88,7 @@ impl<'a> IntegrationTestRunner<'a> {
             "yarn jest --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
         )
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
+        .env("SECOND_CHAIN_NAME", self.second_chain.unwrap_or(""));
 
         if global_config().verbose {
             command = command.env(
@@ -112,9 +102,10 @@ impl<'a> IntegrationTestRunner<'a> {
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     logger::info(msg_integration_tests_run(args.external_node));
-    let mut command = IntegrationTestRunner::new(shell, args.no_deps)?
+    let mut command = IntegrationTestRunner::new(shell, args.no_deps, args.timeout)?
         .with_test_suites(args.suite.iter().map(String::as_str))
         .with_test_pattern(args.test_pattern.as_deref())
+        .with_second_chain(args.second_chain.as_deref())
         .build_command()
         .await?;
     if args.external_node {

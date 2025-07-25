@@ -1,23 +1,46 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_engine::EngineManager;
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_consensus_engine::{EngineInterface as _, EngineManager};
 use zksync_consensus_executor::{self as executor};
+use zksync_consensus_roles::validator;
 use zksync_dal::consensus_dal;
-use zksync_node_sync::sync_action::ActionQueueSender;
+use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
 use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
+    error::is_retryable,
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::{
+    metrics::METRICS,
     registry::{Registry, RegistryAddress},
-    storage::ConnectionPool,
+    storage::{self, ConnectionPool},
 };
+
+/// Whenever more than FALLBACK_FETCHER_THRESHOLD certificates are missing,
+/// the fallback fetcher is active.
+pub(crate) const FALLBACK_FETCHER_THRESHOLD: u64 = 10;
+
+/// Waits until the main node block is greater or equal to the given block number.
+/// Returns the current main node block number.
+async fn wait_for_main_node_block(
+    ctx: &ctx::Ctx,
+    sync_state: &SyncState,
+    pred: impl Fn(validator::BlockNumber) -> bool,
+) -> ctx::OrCanceled<validator::BlockNumber> {
+    sync::wait_for_some(ctx, &mut sync_state.subscribe(), |inner| {
+        inner
+            .main_node_block()
+            .map(|n| validator::BlockNumber(n.0.into()))
+            .filter(|n| pred(*n))
+    })
+    .await
+}
 
 /// External node.
 pub(super) struct EN {
@@ -107,9 +130,30 @@ impl EN {
             .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
 
-            let (engine_manager, engine_runner) = EngineManager::new(ctx, Box::new(store.clone()))
-                .await
-                .wrap("BlockStore::new()")?;
+            // Run the temporary fetcher until the certificates are backfilled.
+            // Temporary fetcher should be removed once json RPC syncing is fully deprecated.
+            s.spawn_bg({
+                let store = store.clone();
+                async {
+                    let store = store;
+                    self.fallback_block_fetcher(ctx, &store)
+                        .await
+                        .wrap("fallback_block_fetcher()")
+                }
+            });
+
+            let (engine_manager, engine_runner) = EngineManager::new(
+                ctx,
+                Box::new(store.clone()),
+                time::Duration::seconds(
+                    cfg.consensus_registry_read_rate
+                        .as_secs()
+                        .try_into()
+                        .unwrap(),
+                ),
+            )
+            .await
+            .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(engine_runner.run(ctx).await.context("BlockStore::run()")?) });
 
             let executor = executor::Executor {
@@ -123,6 +167,36 @@ impl EN {
         })
         .await;
 
+        match res {
+            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
+            Err(ctx::Error::Internal(err)) => Err(err),
+        }
+    }
+
+    /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
+    pub async fn run_fetcher(
+        self,
+        ctx: &ctx::Ctx,
+        actions: ActionQueueSender,
+    ) -> anyhow::Result<()> {
+        tracing::warn!("\
+            WARNING: this node is using ZKsync API synchronization, which will be deprecated soon. \
+            Please follow this instruction to switch to p2p synchronization: \
+            https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/10_decentralization.md");
+        let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
+            // Update sync state in the background.
+            s.spawn_bg(self.fetch_state_loop(ctx));
+            let mut payload_queue = self
+                .pool
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .new_payload_queue(ctx, actions, self.sync_state.clone())
+                .await
+                .wrap("new_fetcher_cursor()")?;
+            self.fetch_blocks(ctx, &mut payload_queue).await
+        })
+        .await;
         match res {
             Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
             Err(ctx::Error::Internal(err)) => Err(err),
@@ -165,5 +239,88 @@ impl EN {
         }
         .proto_fmt(&cfg.0)
         .context("deserialize()")?)
+    }
+
+    /// Fetches (with retries) the given block from the main node.
+    async fn fetch_block(
+        &self,
+        ctx: &ctx::Ctx,
+        n: validator::BlockNumber,
+    ) -> ctx::Result<FetchedBlock> {
+        const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
+        let n = L2BlockNumber(n.0.try_into().context("overflow")?);
+        METRICS.fetch_block.inc();
+        loop {
+            match ctx.wait(self.client.sync_l2_block(n, true)).await? {
+                Ok(Some(block)) => return Ok(block.try_into()?),
+                Ok(None) => {}
+                Err(err) if is_retryable(&err) => {}
+                Err(err) => Err(err).with_context(|| format!("client.sync_l2_block({n})"))?,
+            }
+            ctx.sleep(RETRY_INTERVAL).await?;
+        }
+    }
+
+    /// Fetches blocks from the main node directly whenever the EN is lagging behind too much.
+    pub(crate) async fn fallback_block_fetcher(
+        &self,
+        ctx: &ctx::Ctx,
+        store: &Store,
+    ) -> ctx::Result<()> {
+        const MAX_CONCURRENT_REQUESTS: usize = 30;
+        scope::run!(ctx, |ctx, s| async {
+            let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
+            // TODO: metrics.
+            s.spawn::<()>(async {
+                let send = send;
+                let is_lagging =
+                    |main| main >= store.persisted().borrow().next() + FALLBACK_FETCHER_THRESHOLD;
+                let mut next = store.next_block(ctx).await.wrap("next_block()")?;
+                loop {
+                    // Wait until p2p syncing is lagging.
+                    wait_for_main_node_block(ctx, &self.sync_state, is_lagging).await?;
+                    // Determine the next block to fetch and wait for it to be available.
+                    next = next.max(store.next_block(ctx).await.wrap("next_block()")?);
+                    wait_for_main_node_block(ctx, &self.sync_state, |main| main >= next).await?;
+                    // Fetch the block asynchronously.
+                    send.send(ctx, s.spawn(self.fetch_block(ctx, next))).await?;
+                    next = next.next();
+                }
+            });
+            loop {
+                let block = recv.recv(ctx).await?;
+                store
+                    .queue_next_fetched_block(ctx, block.join(ctx).await?)
+                    .await
+                    .wrap("queue_next_fetched_block()")?;
+            }
+        })
+        .await
+    }
+
+    /// Fetches blocks starting with `queue.next()`.
+    async fn fetch_blocks(
+        &self,
+        ctx: &ctx::Ctx,
+        queue: &mut storage::PayloadQueue,
+    ) -> ctx::Result<()> {
+        const MAX_CONCURRENT_REQUESTS: usize = 30;
+        let mut next = queue.next();
+        scope::run!(ctx, |ctx, s| async {
+            let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
+            s.spawn::<()>(async {
+                let send = send;
+                loop {
+                    wait_for_main_node_block(ctx, &self.sync_state, |main| main >= next).await?;
+                    send.send(ctx, s.spawn(self.fetch_block(ctx, next))).await?;
+                    next = next.next();
+                }
+            });
+            loop {
+                let block = recv.recv(ctx).await?.join(ctx).await?;
+                queue.send(block).await.context("queue.send()")?;
+            }
+        })
+        .await
     }
 }

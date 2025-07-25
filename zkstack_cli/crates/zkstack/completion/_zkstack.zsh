@@ -798,8 +798,7 @@ _arguments "${_arguments_options[@]}" : \
 '--gateway-config-path=[]:GATEWAY_CONFIG_PATH:_default' \
 '--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
 '--new-sl-da-validator=[]:NEW_SL_DA_VALIDATOR:_default' \
-'--validator-1=[]:VALIDATOR_1:_default' \
-'--validator-2=[]:VALIDATOR_2:_default' \
+'--validator=[]:VALIDATOR:_default' \
 '--min-validator-balance=[]:MIN_VALIDATOR_BALANCE:_default' \
 '--refund-recipient=[]:REFUND_RECIPIENT:_default' \
 '--l2-rpc-url=[RPC URL of the chain being migrated (L2)]:L2_RPC_URL:_default' \
@@ -1454,7 +1453,6 @@ _arguments "${_arguments_options[@]}" : \
 (revert)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
-'--enable-consensus[Enable consensus]' \
 '-n[Do not install or build dependencies]' \
 '--no-deps[Do not install or build dependencies]' \
 '--no-kill[The test will not kill all the nodes during execution]' \
@@ -1805,7 +1803,7 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
-'::mode:(rust prettier prettier-contracts)' \
+'::mode:(rustfmt prettier prettier-contracts)' \
 && ret=0
 ;;
 (prover)
@@ -2005,6 +2003,20 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+&& ret=0
+;;
+(rich-account)
+_arguments "${_arguments_options[@]}" : \
+'--l1-account-private-key=[L1 private key to send funds from (default\: Reth rich account)]:L1_ACCOUNT_PRIVATE_KEY:_default' \
+'--amount=[Amount (default 1 ETH)]:AMOUNT:_default' \
+'--l1-rpc-url=[L1 RPC URL (default\: localhost reth)]:L1_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::l2_account -- L2 Account to send funds to (default same as L1 rich account):_default' \
 && ret=0
 ;;
 (track-priority-ops)
@@ -2266,6 +2278,10 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(rich-account)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (track-priority-ops)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2308,6 +2324,7 @@ _arguments "${_arguments_options[@]}" : \
 '--bucket-name=[]:BUCKET_NAME:_default' \
 '--location=[]:LOCATION:_default' \
 '--project-id=[]:PROJECT_ID:_default' \
+'--deploy-proving-networks=[]' \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
@@ -2586,7 +2603,6 @@ _arguments "${_arguments_options[@]}" : \
 (run)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
-'--enable-consensus=[Enable consensus]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--reinit[]' \
 '-v[Verbose mode]' \
@@ -3570,6 +3586,10 @@ _arguments "${_arguments_options[@]}" : \
 esac
 ;;
 (generate-genesis)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(rich-account)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -4583,6 +4603,7 @@ _zkstack__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'rich-account:Make L2 account rich' \
 'track-priority-ops:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -4781,6 +4802,7 @@ _zkstack__dev__help_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'rich-account:Make L2 account rich' \
 'track-priority-ops:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -4911,6 +4933,11 @@ _zkstack__dev__help__prover__insert-batch_commands() {
 _zkstack__dev__help__prover__insert-version_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help prover insert-version commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__rich-account_commands] )) ||
+_zkstack__dev__help__rich-account_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help rich-account commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__send-transactions_commands] )) ||
 _zkstack__dev__help__send-transactions_commands() {
@@ -5083,6 +5110,11 @@ _zkstack__dev__prover__insert-batch_commands() {
 _zkstack__dev__prover__insert-version_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev prover insert-version commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__rich-account_commands] )) ||
+_zkstack__dev__rich-account_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev rich-account commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__send-transactions_commands] )) ||
 _zkstack__dev__send-transactions_commands() {
@@ -5858,6 +5890,7 @@ _zkstack__help__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'rich-account:Make L2 account rich' \
 'track-priority-ops:Generate new genesis file based on current contracts' \
     )
     _describe -t commands 'zkstack help dev commands' commands "$@"
@@ -5982,6 +6015,11 @@ _zkstack__help__dev__prover__insert-batch_commands() {
 _zkstack__help__dev__prover__insert-version_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev prover insert-version commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__rich-account_commands] )) ||
+_zkstack__help__dev__rich-account_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev rich-account commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__send-transactions_commands] )) ||
 _zkstack__help__dev__send-transactions_commands() {

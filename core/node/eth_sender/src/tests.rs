@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
@@ -29,7 +29,7 @@ use zksync_web3_decl::client::MockClient;
 
 use crate::{
     abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tester::{
         EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
         STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
@@ -39,14 +39,15 @@ use crate::{
 };
 
 fn get_dummy_operation(number: u32) -> AggregatedOperation {
-    AggregatedOperation::Execute(ExecuteBatches {
+    AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(number),
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
         priority_ops_proofs: Vec::new(),
-    })
+        dependency_roots: vec![vec![], vec![]],
+    }))
 }
 
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
@@ -80,6 +81,11 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
     let validator_timelock_short_selector = functions
         .state_transition_manager_contract
         .function("validatorTimelock")
+        .unwrap()
+        .short_signature();
+    let valdaitor_timelock_post_v29_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelockPostV29")
         .unwrap()
         .short_signature();
     let prototol_version_short_selector = functions
@@ -135,6 +141,10 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 let non_zero_address = vec![6u8; 32];
 
                 [non_zero_address.clone(), non_zero_address].concat()
+            }
+            selector if selector == valdaitor_timelock_post_v29_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![7u8; 32]
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -389,7 +399,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
     tester
         .execute_tx(
             l1_batch.number,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
             true,
             EthTxFinalityStatus::Pending,
         )
@@ -835,6 +845,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -1058,7 +1069,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await;
     assert!(tx.is_none());
@@ -1078,7 +1089,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await
         .unwrap();

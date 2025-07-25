@@ -16,7 +16,7 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     block::L2BlockHeader,
     commitment::{L1BatchWithMetadata, PubdataType},
     eth_sender::EthTxFinalityStatus,
@@ -86,9 +86,20 @@ pub(crate) fn build_commit_tx_input_data(
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
     } else if protocol_version.is_pre_shared_bridge() {
         POST_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
-    } else {
+    } else if protocol_version.is_pre_interop_fast_blocks() {
         // Post shared bridge transactions also require chain id
         let tokens: Vec<_> = vec![Token::Uint(ERA_CHAIN_ID.into())]
+            .into_iter()
+            .chain(tokens)
+            .collect();
+        contract
+            .function("commitBatchesSharedBridge")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    } else {
+        // Post interop transactions require address of the diamond proxy
+        let tokens: Vec<_> = vec![Token::Address(L1_DIAMOND_PROXY_ADDR)]
             .into_iter()
             .chain(tokens)
             .collect();
@@ -200,6 +211,15 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
                 .protocol_version
                 .map(|v| v.is_pre_gateway())
                 .unwrap_or(true),
+            batch
+                .header
+                .protocol_version
+                .map(|v| v.is_pre_interop_fast_blocks())
+                .unwrap_or(false),
+            batch
+                .header
+                .protocol_version
+                .map_or(EncodingVersion::PreInterop.value(), get_encoding_version),
         )
         .unwrap();
         assert_eq!(
@@ -221,6 +241,8 @@ fn extracting_commit_data_for_boojum_batch() {
         commit_function,
         L1BatchNumber(4_470),
         true,
+        true,
+        0,
     )
     .unwrap();
 
@@ -235,6 +257,8 @@ fn extracting_commit_data_for_boojum_batch() {
             commit_function,
             L1BatchNumber(bogus_l1_batch),
             true,
+            true,
+            0,
         )
         .unwrap_err();
     }
@@ -253,6 +277,8 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_function,
             L1BatchNumber(l1_batch),
             true,
+            true,
+            0,
         )
         .unwrap();
 
@@ -268,6 +294,8 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_function,
             L1BatchNumber(bogus_l1_batch),
             true,
+            true,
+            0,
         )
         .unwrap_err();
     }
@@ -284,6 +312,8 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
         true,
+        true,
+        0,
     )
     .unwrap();
 
@@ -365,7 +395,7 @@ impl SaveAction<'_> {
                     .eth_sender_dal()
                     .insert_pending_received_eth_tx(
                         l1_batch_number,
-                        AggregatedActionType::Commit,
+                        L1BatchAggregatedActionType::Commit,
                         commit_tx_hash,
                         chain_id,
                     )

@@ -20,9 +20,11 @@ export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.parseEther('0.08');
 // Stress tests for L1->L2 transactions on localhost require a lot of upfront payment, but these are skipped during tests on normal environments
 export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.parseEther('0.5');
 export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.parseEther('0.5');
+export const L2_SECOND_CHAIN_ETH_PER_ACCOUNT = ethers.parseEther('0.05');
 
 // Stress tests on local host may require a lot of additiomal funds, but these are skipped during tests on normal environments
 export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.parseEther('50');
+export const L2_SECOND_CHAIN_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.parseEther('5');
 export const ERC20_PER_ACCOUNT = ethers.parseEther('10000.0');
 
 interface VmPlaygroundHealth {
@@ -79,9 +81,11 @@ export class TestContextOwner {
 
     private mainEthersWallet: ethers.Wallet;
     private mainSyncWallet: zksync.Wallet;
+    private secondChainMainSyncWallet: zksync.Wallet | undefined;
 
     private l1Provider: ethers.JsonRpcProvider;
     private l2Provider: zksync.Provider;
+    private l2ProviderSecondChain: zksync.Provider | undefined;
 
     private reporter: Reporter = new Reporter();
 
@@ -109,6 +113,28 @@ export class TestContextOwner {
 
         this.mainEthersWallet = new ethers.Wallet(env.mainWalletPK, this.l1Provider);
         this.mainSyncWallet = new zksync.Wallet(env.mainWalletPK, this.l2Provider, this.l1Provider);
+
+        if (env.l2ChainIdSecondChain) {
+            this.reporter.message('Using second chain L2 provider: ' + env.l2NodeUrlSecondChain);
+            this.l2ProviderSecondChain = new RetryProvider(
+                {
+                    url: env.l2NodeUrlSecondChain!,
+                    timeout: 1200 * 1000
+                },
+                undefined,
+                this.reporter
+            );
+
+            if (isLocalHost(env.network)) {
+                this.l2ProviderSecondChain.pollingInterval = 100;
+            }
+
+            this.secondChainMainSyncWallet = new zksync.Wallet(
+                env.mainWalletPK,
+                this.l2ProviderSecondChain,
+                this.l1Provider
+            );
+        }
     }
 
     // Returns the required amount of L1 ETH
@@ -119,6 +145,13 @@ export class TestContextOwner {
     // Returns the required amount of L2 ETH
     requiredL2ETHPerAccount() {
         return isLocalHost(this.env.network) ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
+    }
+
+    // Returns the required amount of L2 ETH for the second chain
+    requiredL2ETHPerAccountSecondChain() {
+        return isLocalHost(this.env.network)
+            ? L2_SECOND_CHAIN_EXTENDED_TESTS_ETH_PER_ACCOUNT
+            : L2_SECOND_CHAIN_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -162,10 +195,10 @@ export class TestContextOwner {
         // For each transaction to override it, we need to provide greater fee.
         // We would manually provide a value high enough (for a testnet) to be both valid
         // and higher than the previous one. It's OK as we'll only be charged for the base fee
-        // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
+        // anyways. We will also set the miner's tip to 50 gwei, which is also much higher than the normal one.
         // Scaled gas price to be used to prevent transactions from being stuck.
-        const maxPriorityFeePerGas = ethers.parseEther('0.000000005'); // 5 gwei
-        const maxFeePerGas = ethers.parseEther('0.00000025'); // 250 gwei
+        const maxPriorityFeePerGas = ethers.parseEther('0.000000050'); // 50 gwei
+        const maxFeePerGas = ethers.parseEther('0.00000250'); // 2500 gwei
         this.reporter.debug(`Max nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
 
         const cancellationTxs = [];
@@ -193,7 +226,7 @@ export class TestContextOwner {
         const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        const erc20Bridge = await bridgehub.sharedBridge();
+        const erc20Bridge = await this.mainSyncWallet.getL1AssetRouter();
         const baseToken = await bridgehub.baseToken(chainId);
 
         const erc20Token = this.env.erc20Token.l1Address;
@@ -228,14 +261,20 @@ export class TestContextOwner {
         // `+ 1  for the main account (it has to send all these transactions).
         const accountsAmount = BigInt(suites.length) + 1n;
 
-        const l2ETHAmountToDeposit = await this.ensureBalances(accountsAmount);
+        const { l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain } = await this.ensureBalances(accountsAmount);
         const l2ERC20AmountToDeposit = ERC20_PER_ACCOUNT * accountsAmount;
         const wallets = this.createTestWallets(suites);
         const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
         const baseTokenAddress = await bridgehubContract.baseToken(this.env.l2ChainId);
         await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.cancelAllowances();
-        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
+        await this.distributeL1Tokens(
+            wallets,
+            l2ETHAmountToDeposit,
+            l2ETHAmountToDepositSecondChain,
+            l2ERC20AmountToDeposit,
+            baseTokenAddress
+        );
         await this.distributeL2Tokens(wallets);
 
         this.reporter.finishAction();
@@ -245,7 +284,9 @@ export class TestContextOwner {
     /**
      * Checks the operator account balances on L1 and L2 and deposits funds if required.
      */
-    private async ensureBalances(accountsAmount: bigint): Promise<bigint> {
+    private async ensureBalances(
+        accountsAmount: bigint
+    ): Promise<{ l2ETHAmountToDeposit: bigint; l2ETHAmountToDepositSecondChain: bigint }> {
         this.reporter.startAction(`Checking main account balance`);
 
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
@@ -254,23 +295,38 @@ export class TestContextOwner {
         const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
         this.reporter.message(`Operator balance on L2 is ${ethers.formatEther(actualL2ETHAmount)} ETH`);
 
+        let l2ETHAmountToDepositSecondChain = 0n;
+        if (this.env.l2ChainIdSecondChain) {
+            // We only need enough funds for a single test suite
+            const requiredL2SecondChainETHAmount = this.requiredL2ETHPerAccountSecondChain() * accountsAmount;
+            const actualL2SecondChainETHAmount = await this.secondChainMainSyncWallet!.getBalance();
+            this.reporter.message(
+                `Operator balance on second chain is ${ethers.formatEther(actualL2SecondChainETHAmount)} ETH`
+            );
+            if (requiredL2SecondChainETHAmount > actualL2SecondChainETHAmount) {
+                l2ETHAmountToDepositSecondChain = requiredL2SecondChainETHAmount - actualL2SecondChainETHAmount;
+            }
+        }
+
         // We may have enough funds in L2. If that's the case, no need to deposit more than required.
         const l2ETHAmountToDeposit =
             requiredL2ETHAmount > actualL2ETHAmount ? requiredL2ETHAmount - actualL2ETHAmount : 0n;
 
-        const requiredL1ETHAmount = this.requiredL1ETHPerAccount() * accountsAmount + l2ETHAmountToDeposit;
+        const requiredL1ETHAmount =
+            this.requiredL1ETHPerAccount() * accountsAmount + l2ETHAmountToDeposit + l2ETHAmountToDepositSecondChain;
+        // Both mainSyncWallet and secondChainMainSyncWallet share the same L1 wallet
         const actualL1ETHAmount = await this.mainSyncWallet.getBalanceL1();
         this.reporter.message(`Operator balance on L1 is ${ethers.formatEther(actualL1ETHAmount)} ETH`);
 
         if (requiredL1ETHAmount > actualL1ETHAmount) {
             const required = ethers.formatEther(requiredL1ETHAmount);
             const actual = ethers.formatEther(actualL1ETHAmount);
-            const errorMessage = `There must be at least ${required} ETH on main account, but only ${actual} is available`;
+            const errorMessage = `There must be at least ${required} ETH on main account (${this.mainSyncWallet.address}), but only ${actual} is available`;
             throw new Error(errorMessage);
         }
         this.reporter.finishAction();
 
-        return l2ETHAmountToDeposit;
+        return { l2ETHAmountToDeposit, l2ETHAmountToDepositSecondChain };
     }
 
     /**
@@ -386,6 +442,7 @@ export class TestContextOwner {
     private async distributeL1Tokens(
         wallets: TestWallets,
         l2ETHAmountToDeposit: bigint,
+        l2ETHAmountToDepositSecondChain: bigint,
         l2erc20DepositAmount: bigint,
         baseTokenAddress: zksync.types.Address
     ) {
@@ -430,6 +487,30 @@ export class TestContextOwner {
             );
             await depositHandle;
         }
+
+        // Deposit L2 tokens on the second chain (if needed).
+        if (l2ETHAmountToDepositSecondChain != 0n) {
+            // Given that we've already sent a number of transactions,
+            // we have to correctly send nonce.
+            const depositHandle = this.secondChainMainSyncWallet!.deposit({
+                token: zksync.utils.ETH_ADDRESS,
+                amount: l2ETHAmountToDepositSecondChain as BigNumberish,
+                overrides: {
+                    nonce,
+                    gasPrice
+                }
+            }).then((tx) => {
+                const amount = ethers.formatEther(l2ETHAmountToDeposit);
+                this.reporter.debug(
+                    `Sent ETH deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
+                );
+                return tx.wait();
+            });
+            nonce = nonce + 1;
+            this.reporter.debug(`Nonce changed by 1 for ETH deposit on second chain, new nonce: ${nonce}`);
+            await depositHandle;
+        }
+
         // Define values for handling ERC20 transfers/deposits.
         const erc20Token = this.env.erc20Token.l1Address;
         const erc20MintAmount = l2erc20DepositAmount * 100n;
@@ -546,6 +627,21 @@ export class TestContextOwner {
         );
         l2startNonce += l2TxPromises.length;
 
+        let l2TxPromisesSecondChain: Promise<any>[] = [];
+        if (this.env.l2ChainIdSecondChain) {
+            const l2startNonceSecondChain = await this.secondChainMainSyncWallet!.getNonce();
+            // ETH transfers on second chain.
+            l2TxPromisesSecondChain = await sendTransfers(
+                zksync.utils.ETH_ADDRESS,
+                this.secondChainMainSyncWallet!,
+                wallets,
+                this.requiredL2ETHPerAccountSecondChain(),
+                l2startNonceSecondChain,
+                undefined,
+                this.reporter
+            );
+        }
+
         // ERC20 transfers.
         const l2TokenAddress = await this.mainSyncWallet.l2TokenAddress(this.env.erc20Token.l1Address);
         const erc20Promises = await sendTransfers(
@@ -557,7 +653,7 @@ export class TestContextOwner {
             undefined,
             this.reporter
         );
-        l2TxPromises.push(...erc20Promises);
+        l2TxPromises.push(...l2TxPromisesSecondChain, ...erc20Promises);
         await Promise.all(l2TxPromises);
 
         this.reporter.finishAction();
@@ -659,6 +755,7 @@ export class TestContextOwner {
             }
             try {
                 this.l2Provider.destroy();
+                this.l2ProviderSecondChain?.destroy();
             } catch (err: any) {
                 // Catch any request cancellation errors that propagate here after destroying L2 provider
                 console.log(`Caught error while destroying L2 provider: ${err}`);
@@ -675,6 +772,11 @@ export class TestContextOwner {
         if (this.env.l2NodePid !== undefined) {
             this.reporter.startAction(`Terminating L2 node process`);
             await killPidWithAllChilds(this.env.l2NodePid, 9);
+            this.reporter.finishAction();
+        }
+        if (this.env.l2NodePidSecondChain !== undefined) {
+            this.reporter.startAction(`Terminating L2 node process`);
+            await killPidWithAllChilds(this.env.l2NodePidSecondChain, 9);
             this.reporter.finishAction();
         }
     }

@@ -19,7 +19,7 @@ pub async fn get_diamond_proxy_contract(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
 ) -> Result<Address, ContractCallError> {
-    CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
+    CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
         .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await
@@ -50,13 +50,12 @@ pub async fn load_settlement_layer_contracts(
         return Ok(None);
     }
 
-    if !ProtocolSemanticVersion::try_from_packed(
-        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?,
-    )
-    .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?
-    .minor
-    .is_post_fflonk()
-    {
+    let protocol_version =
+        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?;
+    let protocol_version = ProtocolSemanticVersion::try_from_packed(protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
+
+    if !protocol_version.minor.is_post_fflonk() {
         return Ok(None);
     }
 
@@ -66,15 +65,28 @@ pub async fn load_settlement_layer_contracts(
             .call(sl_client)
             .await?;
 
-    let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
-        .for_contract(ctm_address, &state_transition_manager_contract())
+    let message_root_proxy_addr = CallFunctionArgs::new("messageRoot", ())
+        .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await?;
+
+    let validator_timelock_addr = if protocol_version.minor.is_pre_interop_fast_blocks() {
+        CallFunctionArgs::new("validatorTimelock", ())
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?
+    } else {
+        CallFunctionArgs::new("validatorTimelockPostV29", ())
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?
+    };
 
     Ok(Some(SettlementLayerSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
+            message_root_proxy_addr: Some(message_root_proxy_addr),
             validator_timelock_addr: Some(validator_timelock_addr),
             multicall3,
         },

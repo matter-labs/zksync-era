@@ -2,22 +2,14 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 use tokio::sync::oneshot;
-use zksync_consensus_crypto::Text;
-use zksync_consensus_roles::validator::{
-    BlockNumber, ChainId, ForkNumber, GenesisRaw, LeaderSelection, LeaderSelectionMode,
-    ProtocolVersion, Schedule, SecretKey, ValidatorInfo,
-};
-use zksync_dal::{consensus::GlobalConfig, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,
 };
-use zksync_web3_decl::{
-    client::{MockClient, L1},
-    jsonrpsee::core::__reexports::serde_json,
-};
+use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
 
@@ -40,6 +32,10 @@ pub(super) fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         execute_tx_finality: None,
         executed_at: None,
         execute_chain_id: None,
+        precommit_tx_hash: None,
+        precommit_tx_finality: None,
+        precommitted_at: None,
+        precommit_chain_id: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
         fair_pubdata_price: None,
@@ -68,7 +64,6 @@ impl TestEnvironment {
         temp_dir: &TempDir,
         connection_pool: &ConnectionPool<Core>,
         components_str: &str,
-        consensus_port_offset: u16,
     ) -> (Self, TestEnvironmentHandles) {
         // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
         // in the network.
@@ -96,7 +91,7 @@ impl TestEnvironment {
         drop(storage);
 
         let components: ComponentsToRun = components_str.parse().unwrap();
-        let mut config = ExternalNodeConfig::mock(temp_dir, connection_pool, consensus_port_offset);
+        let mut config = ExternalNodeConfig::mock(temp_dir, connection_pool);
         if components.0.contains(&Component::TreeApi) {
             config.local.api.merkle_tree.port = 0;
         }
@@ -172,6 +167,7 @@ pub(super) fn mock_eth_client(
     bridgehub_addres: Address,
 ) -> MockClient<L1> {
     let chain_type_manager = Address::repeat_byte(16);
+    let message_root_proxy_addr = Address::repeat_byte(17);
     let mock = MockSettlementLayer::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
@@ -201,14 +197,12 @@ pub(super) fn mock_eth_client(
         } else if call.to == Some(bridgehub_addres) {
             let call_signature = &call.data.as_ref().unwrap().0[..4];
             let contract = zksync_contracts::bridgehub_contract();
-            let get_zk_chains = contract
-                .function("getHyperchain")
-                .unwrap()
-                .short_signature();
+            let get_zk_chains = contract.function("getZKChain").unwrap().short_signature();
             let chain_type_manager_sig = contract
                 .function("chainTypeManager")
                 .unwrap()
                 .short_signature();
+            let message_root_sig = contract.function("messageRoot").unwrap().short_signature();
 
             let whitelisted_settlement_layer_sig = contract
                 .function("whitelistedSettlementLayers")
@@ -221,6 +215,9 @@ pub(super) fn mock_eth_client(
                 }
                 sig if sig == chain_type_manager_sig => {
                     return ethabi::Token::Address(chain_type_manager);
+                }
+                sig if sig == message_root_sig => {
+                    return ethabi::Token::Address(message_root_proxy_addr);
                 }
                 sig if sig == whitelisted_settlement_layer_sig => {
                     return ethabi::Token::Bool(false);
@@ -265,38 +262,6 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         )
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .method("en_consensusGlobalConfig", || {
-            const VALIDATOR: &str = "validator:secret:bls12_381:3cf20d771450fcd0cbb3839b21cab41161af1554e35d8407a53b0a5d98ff04d4";
-            let key: SecretKey = Text::new(VALIDATOR).decode().unwrap();
-
-            let config = GlobalConfig {
-                genesis: GenesisRaw {
-                    chain_id: ChainId(9),
-                    fork_number: ForkNumber(0),
-                    protocol_version: ProtocolVersion(1),
-                    first_block: BlockNumber(0),
-                    validators_schedule: Some(
-                        Schedule::new(
-                            [ValidatorInfo {
-                                key: key.public(),
-                                weight: 1,
-                                leader: true,
-                            }],
-                            LeaderSelection {
-                                frequency: 1,
-                                mode: LeaderSelectionMode::RoundRobin,
-                            },
-                        )
-                            .unwrap()),
-                }.with_hash(),
-                registry_address: None,
-                seed_peers: Default::default(),
-            };
-            let serialized = zksync_protobuf::serde::Serialize
-                .proto_fmt(&config, serde_json::value::Serializer)
-                .unwrap();
-            Ok(api::en::ConsensusGlobalConfig(serialized))
-        })
         .build()
 }
 

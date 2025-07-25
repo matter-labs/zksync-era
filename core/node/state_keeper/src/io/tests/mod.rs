@@ -100,6 +100,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -151,10 +152,10 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     assert_eq!(mempool.filter(), &want_filter);
 }
 
-async fn test_timestamps_are_distinct(
+async fn test_timestamps(
     connection_pool: ConnectionPool<Core>,
+    prev_l1_batch_timestamp: u64,
     prev_l2_block_timestamp: u64,
-    delay_prev_l2_block_compared_to_batch: bool,
     mut tester: Tester,
 ) {
     tester.genesis(&connection_pool).await;
@@ -163,9 +164,7 @@ async fn test_timestamps_are_distinct(
     let tx_result = tester
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
-    if delay_prev_l2_block_compared_to_batch {
-        tester.set_timestamp(prev_l2_block_timestamp - 1);
-    }
+    tester.set_timestamp(prev_l1_batch_timestamp);
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
@@ -191,7 +190,16 @@ async fn test_timestamps_are_distinct(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
+
+    if l1_batch_params
+        .protocol_version
+        .is_pre_interop_fast_blocks()
+    {
+        assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
+    } else {
+        assert!(l1_batch_params.first_l2_block.timestamp() >= prev_l2_block_timestamp);
+    }
+    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l1_batch_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -200,7 +208,13 @@ async fn l1_batch_timestamp_basics(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp,
+        current_timestamp,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -209,7 +223,13 @@ async fn l1_batch_timestamp_with_clock_skew(commitment_mode: L1BatchCommitmentMo
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp + 2,
+        current_timestamp + 2,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -218,7 +238,13 @@ async fn l1_batch_timestamp_respects_prev_l2_block(commitment_mode: L1BatchCommi
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp,
+        current_timestamp - 1,
+        tester,
+    )
+    .await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -229,7 +255,13 @@ async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(commitment_mode);
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
+    test_timestamps(
+        connection_pool,
+        current_timestamp + 2,
+        current_timestamp + 1,
+        tester,
+    )
+    .await;
 }
 
 fn create_block_seal_command(
@@ -250,9 +282,10 @@ fn create_block_seal_command(
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_legacy_shared_bridge_addr: Some(Address::default()),
-        pre_insert_txs: false,
+        pre_insert_data: false,
         pubdata_params: PubdataParams::default(),
         insert_header: true,
+        rolling_txs_hash: Default::default(),
     }
 }
 
@@ -266,6 +299,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let tx = create_transaction(10, 100);
@@ -357,6 +391,7 @@ async fn processing_events_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let events = (0_u8..10).map(|i| VmEvent {
@@ -433,6 +468,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let static_factory_deps: Vec<_> = (0_u8..10)

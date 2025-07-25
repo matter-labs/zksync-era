@@ -104,13 +104,25 @@ async fn get_txs_status(
         .expect("Failed to fetch latest block")
         .as_u64();
 
-    let filter = Filter::new()
-        .address(diamond_proxy_address)
-        .topic0(topic)
-        .from_block(from_block)
-        .to_block(latest_block);
+    // Instead of querying all logs at once, iterate over blocks in chunks to avoid throttling
+    let mut priority_op_logs = Vec::new();
+    let mut current_from = from_block;
 
-    let priority_op_logs = l1_provider.get_logs(&filter).await?;
+    while current_from <= latest_block {
+        let current_to = std::cmp::min(current_from + DEFAULT_EVENTS_BLOCK_RANGE - 1, latest_block);
+
+        let filter = Filter::new()
+            .address(diamond_proxy_address)
+            .topic0(topic)
+            .from_block(current_from)
+            .to_block(current_to);
+
+        let logs = l1_provider.get_logs(&filter).await?;
+        priority_op_logs.extend(logs);
+
+        current_from = current_to + 1;
+    }
+
     let mut result = vec![];
 
     for log in priority_op_logs.into_iter().rev() {

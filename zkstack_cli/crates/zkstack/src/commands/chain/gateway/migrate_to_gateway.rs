@@ -12,11 +12,12 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-    gateway_common::{extract_and_wait_for_priority_ops, send_tx},
+    gateway_common::extract_and_wait_for_priority_ops,
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
 };
 use crate::{
-    abi::BridgehubAbi, commands::chain::admin_call_builder::AdminCallBuilder,
+    abi::BridgehubAbi,
+    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
@@ -86,8 +87,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone(),
             gateway_rpc_url: gw_rpc_url.clone(),
             new_sl_da_validator: gateway_da_validator_address,
-            validator_1: chain_secrets_config.blob_operator.address,
-            validator_2: chain_secrets_config.operator.address,
+            validator: chain_secrets_config.operator.address,
             min_validator_balance: U256::from(10).pow(19.into()),
             refund_recipient: None,
         },

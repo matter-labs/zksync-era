@@ -86,6 +86,7 @@ export class Node<TYPE extends NodeType> {
         let iter = 0;
         while (iter < 30) {
             try {
+                console.log(this.l2NodeUrl);
                 let provider = new zksync.Provider(this.l2NodeUrl);
                 await provider.getBlockNumber();
                 await sleep(2);
@@ -155,6 +156,7 @@ export class NodeSpawner {
 
         const testMode = overrides?.newPubdataPrice != null || overrides?.newL1GasPrice != null;
 
+        console.log('Spawning main node');
         console.log('Overrides: ', overrides);
 
         if (fileConfig.loadFromFile) {
