@@ -230,6 +230,26 @@ pub fn proof_manager_contract() -> Contract {
     load_proof_manager_contract(PROOF_MANAGER_CONTRACT_FILE)
 }
 
+pub fn validator_timelock_contract() -> Contract {
+    // Create a simple contract definition for ValidatorTimelock with the executionDelay function
+    let abi = r#"[
+        {
+            "inputs": [],
+            "name": "executionDelay",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ]"#;
+    serde_json::from_str(abi).unwrap()
+}
+
 pub fn verifier_contract() -> Contract {
     let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
     let zksync_home = home_path();

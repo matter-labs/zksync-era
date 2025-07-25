@@ -169,4 +169,6 @@ validator can prove the already committed batches regardless of the mentioned ti
 to the `proveBatches` function) will be propagated to the ZKsync contract. After the `delay` is elapsed, the validator
 is allowed to call `executeBatches` to propagate the same calldata to ZKsync contract.
 
+The execution delay is dynamically read from the contract's `executionDelay()` function by the node, eliminating the need for manual configuration management.
+
 The owner of the ValidatorTimelock contract is the decentralized governance. Note, that all the chains share the same ValidatorTimelock for simplicity.
