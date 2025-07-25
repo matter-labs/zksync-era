@@ -27,8 +27,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles
-        | MultiVmSubversion::Interop => 63_800_000,
+        | MultiVmSubversion::EcPrecompiles => 63_800_000,
+        MultiVmSubversion::Interop => 120_000_000,
     }
 }
 
@@ -157,7 +157,7 @@ pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversio
     }
 }
 
-pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
+pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 294912;
 
 pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVmSubversion) -> usize {
     get_compressed_bytecodes_offset(subversion) + COMPRESSED_BYTECODES_SLOTS
@@ -181,6 +181,9 @@ pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
     }
 }
 
+// 32 * 4096 * number of blobs
+// / 5 * 277 / 32
+
 /// One of "worst case" scenarios for the number of state diffs in a batch is when 780kb of pubdata is spent
 /// on repeated writes, that are all zeroed out. In this case, the number of diffs is `780kb / 5 = 156k`. This means that they will have
 /// accommodate 42432000 bytes of calldata for the uncompressed state diffs. Adding 780kb on top leaves us with
@@ -189,7 +192,7 @@ pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
 ///
 /// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
-pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 1360000;
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 2040000;
 
 pub(crate) const fn get_bootloader_tx_description_offset(subversion: MultiVmSubversion) -> usize {
     get_operator_provided_l1_messenger_pubdata_offset(subversion)
@@ -292,5 +295,5 @@ pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
 
 pub(crate) const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
-pub const MAX_BLOBS_PER_BATCH: usize = 6;
+pub const MAX_BLOBS_PER_BATCH: usize = 9;
 pub const MAX_VM_PUBDATA_PER_BATCH: usize = MAX_BLOBS_PER_BATCH * ZK_SYNC_BYTES_PER_BLOB;
