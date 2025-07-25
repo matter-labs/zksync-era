@@ -14,7 +14,9 @@ use super::{
     setup_keys::SetupKeysArgs,
 };
 use crate::{
-    commands::prover::gcs::get_project_ids,
+    commands::prover::{
+        args::deploy_proving_network::DeployProvingNetworkArgs, gcs::get_project_ids,
+    },
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
     defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL},
     messages::{
@@ -44,7 +46,9 @@ pub struct ProverInitArgs {
     pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
 
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub deploy_proving_networks: Option<bool>,
+    pub deploy_proving_network: Option<bool>,
+    #[clap(flatten)]
+    pub deploy_proving_network_args: DeployProvingNetworkArgs,
 
     // Bellman cuda
     #[clap(flatten)]
@@ -147,7 +151,7 @@ pub(crate) struct ProverInitArgsFinal {
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
     pub database_config: Option<ProverDatabaseConfig>,
-    pub deploy_proving_networks: bool,
+    pub deploy_proving_network: Option<DeployProvingNetworkArgs>,
 }
 
 impl ProverInitArgs {
@@ -157,7 +161,7 @@ impl ProverInitArgs {
         default_compressor_key_path: &Path,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
-        let deploy_proving_networks = self.fill_deploy_proving_networks_values_with_prompt();
+        let deploy_proving_network = self.fill_deploy_proving_networks_values_with_prompt();
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let compressor_key_args =
             self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
@@ -171,20 +175,24 @@ impl ProverInitArgs {
             setup_keys,
             bellman_cuda_config,
             database_config,
-            deploy_proving_networks,
+            deploy_proving_network,
         })
     }
 
-    fn fill_deploy_proving_networks_values_with_prompt(&self) -> bool {
+    fn fill_deploy_proving_networks_values_with_prompt(&self) -> Option<DeployProvingNetworkArgs> {
         if self.dev {
-            return false;
+            return None;
         }
 
-        self.deploy_proving_networks.unwrap_or_else(|| {
+        if self.deploy_proving_network.unwrap_or_else(|| {
             PromptConfirm::new("Do you want to deploy proving networks?")
                 .default(false)
                 .ask()
-        })
+        }) {
+            Some(self.deploy_proving_network_args.clone())
+        } else {
+            None
+        }
     }
 
     fn fill_proof_storage_values_with_prompt(

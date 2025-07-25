@@ -1,26 +1,24 @@
+use std::{cmp::max, ops::Deref, sync::Arc};
+
+use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
-use zksync_contracts::proof_manager_contract;
-use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, EnrichedClientError, EthInterface,
-};
-use zksync_eth_watch::GetLogsClient;
+use zksync_eth_client::{BoundEthInterface, EnrichedClientError, Options};
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
     api::Log,
-    ethabi::{Address, Contract},
-    web3::{BlockId, BlockNumber, FilterBuilder},
-    H256,
+    ethabi::{self},
+    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
+    SLChainId, H256, U256,
 };
 
-use crate::types::ClientError;
+use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub struct ProofManagerClient<Net: Network> {
-    client: Box<DynClient<Net>>,
-    proof_manager_abi: Contract,
-    proof_manager_address: Address,
-    proof_manager_config: EthProofManagerConfig,
+pub struct ProofManagerClient {
+    pub(crate) client: Box<dyn BoundEthInterface>,
+    pub(crate) gas_adjuster: Arc<dyn TxParamsProvider>,
+    pub(crate) config: EthProofManagerConfig,
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -33,6 +31,8 @@ const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
 #[async_trait]
 pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn EthProofManagerClient>;
+
     async fn get_events_with_retry(
         &self,
         from: BlockNumber,
@@ -42,32 +42,206 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
         retries_left: usize,
     ) -> Result<Vec<Log>, EnrichedClientError>;
 
-    async fn get_finalized_block(&self) -> Result<u64, ClientError>;
+    async fn get_logs(&self, filter: Filter) -> Result<Vec<Log>, EnrichedClientError>;
+
+    async fn get_latest_block(&self) -> Result<u64, ClientError>;
+
+    // function submitProofRequest(
+    //     ProofRequestIdentifier calldata id,
+    //     ProofRequestParams calldata params
+    // )
+    async fn submit_proof_request(
+        &self,
+        proof_request: ProofRequestIdentifier,
+        proof_request_params: ProofRequestParams,
+    ) -> Result<H256, ClientError>;
+
+    // function submitProofValidationResult(ProofRequestIdentifier calldata id, bool isProofValid)
+    async fn submit_proof_validation_result(
+        &self,
+        proof_request_identifier: ProofRequestIdentifier,
+        is_proof_valid: bool,
+    ) -> Result<H256, ClientError>;
+
+    fn chain_id(&self) -> SLChainId;
 }
 
-impl<Net: Network> ProofManagerClient<Net>
-where
-    Box<DynClient<Net>>: GetLogsClient,
-{
+impl ProofManagerClient {
     pub fn new(
-        client: Box<DynClient<Net>>,
-        proof_manager_address: Address,
-        proof_manager_config: EthProofManagerConfig,
+        client: Box<dyn BoundEthInterface>,
+        gas_adjuster: Arc<dyn TxParamsProvider>,
+        config: EthProofManagerConfig,
     ) -> Self {
         Self {
             client,
-            proof_manager_abi: proof_manager_contract(),
-            proof_manager_address,
-            proof_manager_config,
+            gas_adjuster,
+            config,
         }
+    }
+
+    fn get_eth_fees(
+        &self,
+        prev_base_fee_per_gas: Option<u64>,
+        prev_priority_fee_per_gas: Option<u64>,
+    ) -> (u64, u64) {
+        // Multiply by 2 to optimise for fast inclusion.
+        let mut base_fee_per_gas = self.gas_adjuster.as_ref().get_base_fee(0) * 2;
+        let mut priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
+        if let Some(x) = prev_priority_fee_per_gas {
+            // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
+            priority_fee_per_gas = max(priority_fee_per_gas, (x * 6) / 5 + 1);
+        }
+
+        if let Some(x) = prev_base_fee_per_gas {
+            // same for base_fee_per_gas but 10%
+            base_fee_per_gas = max(base_fee_per_gas, x + (x / 10) + 1);
+        }
+
+        // Extra check to prevent sending transaction with extremely high priority fee.
+        if priority_fee_per_gas > self.config.max_acceptable_priority_fee_in_gwei {
+            panic!(
+                "Extremely high value of priority_fee_per_gas is suggested: {}, while max acceptable is {}",
+                priority_fee_per_gas,
+                self.config.max_acceptable_priority_fee_in_gwei
+            );
+        }
+
+        (base_fee_per_gas, priority_fee_per_gas)
+    }
+
+    async fn send_tx_with_retries(&self, calldata: Vec<u8>) -> Result<H256, ClientError> {
+        let max_attempts = self.config.max_tx_sending_attempts;
+        let sleep_duration = self.config.tx_sending_sleep;
+        let mut prev_base_fee_per_gas: Option<u64> = None;
+        let mut prev_priority_fee_per_gas: Option<u64> = None;
+        let mut last_error = None;
+
+        for attempt in 0..max_attempts {
+            let (base_fee_per_gas, priority_fee_per_gas) =
+                self.get_eth_fees(prev_base_fee_per_gas, prev_priority_fee_per_gas);
+
+            let result = self
+                .send_tx(calldata.clone(), base_fee_per_gas, priority_fee_per_gas)
+                .await;
+
+            if let Err(err) = result {
+                tracing::info!(
+                    "Failed to send transaction, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                    attempt,
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                    err);
+
+                tokio::time::sleep(sleep_duration).await;
+                prev_base_fee_per_gas = Some(base_fee_per_gas);
+                prev_priority_fee_per_gas = Some(priority_fee_per_gas);
+                last_error = Some(err)
+            } else {
+                return Ok(result.unwrap());
+            }
+        }
+
+        let error_message = "Failed to send proof request";
+        Err(last_error
+            .map(|x| x.context(error_message))
+            .unwrap_or_else(|| anyhow::anyhow!(error_message))
+            .into())
+    }
+
+    async fn send_tx(
+        &self,
+        calldata: Vec<u8>,
+        base_fee_per_gas: u64,
+        priority_fee_per_gas: u64,
+    ) -> anyhow::Result<H256> {
+        let nonce = self
+            .client
+            .deref()
+            .as_ref()
+            .nonce_at_for_account(self.client.sender_account(), BlockNumber::Latest)
+            .await
+            .with_context(|| "failed getting transaction count")?
+            .as_u64();
+
+        let options = Options {
+            gas: Some(U256::from(self.config.max_tx_gas)),
+            nonce: Some(U256::from(nonce)),
+            max_fee_per_gas: Some(U256::from(base_fee_per_gas + priority_fee_per_gas)),
+            max_priority_fee_per_gas: Some(U256::from(priority_fee_per_gas)),
+            ..Default::default()
+        };
+
+        let signed_tx = self
+            .client
+            .sign_prepared_tx_for_addr(calldata, self.client.contract_addr(), options)
+            .await
+            .context("cannot sign a transaction")?;
+
+        let hash = self
+            .client
+            .deref()
+            .as_ref()
+            .send_raw_tx(signed_tx.raw_tx)
+            .await
+            .context("failed sending transaction")?;
+
+        let max_attempts = self.config.tx_receipt_checking_max_attempts;
+        let sleep_duration = self.config.tx_receipt_checking_sleep;
+        for _i in 0..max_attempts {
+            let maybe_receipt = self
+                .client
+                .deref()
+                .as_ref()
+                .tx_receipt(hash)
+                .await
+                .context(format!(
+                    "failed getting receipt for transaction {}",
+                    hex::encode(hash)
+                ))?;
+            if let Some(receipt) = maybe_receipt {
+                tracing::info!("Transaction sent: {:?}", hex::encode(hash));
+
+                if receipt.status == Some(1.into()) {
+                    tracing::info!("Transaction confirmed: {:?}", hex::encode(hash));
+                    return Ok(receipt.transaction_hash);
+                }
+
+                let reason = self
+                    .client
+                    .deref()
+                    .as_ref()
+                    .failure_reason(hash)
+                    .await
+                    .context(format!(
+                        "failed getting failure reason of transaction {}",
+                        hex::encode(hash)
+                    ))?;
+
+                return Err(anyhow::Error::msg(format!(
+                    "Failed to send transaction {:?} failed with status {:?}, reason: {:?}",
+                    hex::encode(hash),
+                    receipt.status,
+                    reason
+                )));
+            } else {
+                tokio::time::sleep(sleep_duration).await;
+            }
+        }
+
+        Err(anyhow::Error::msg(format!(
+            "Unable to retrieve transaction status in {} attempts",
+            max_attempts
+        )))
     }
 }
 
 #[async_trait]
-impl<Net: Network> EthProofManagerClient for ProofManagerClient<Net>
-where
-    Box<DynClient<Net>>: GetLogsClient,
-{
+impl EthProofManagerClient for ProofManagerClient {
+    fn clone_boxed(&self) -> Box<dyn EthProofManagerClient> {
+        Box::new(self.clone())
+    }
+
+    /// Get the events with retries
     async fn get_events_with_retry(
         &self,
         from: BlockNumber,
@@ -80,10 +254,10 @@ where
             .from_block(from)
             .to_block(to)
             .topics(topics1.clone(), topics2.clone(), None, None)
-            .address(vec![self.proof_manager_address])
+            .address(vec![self.client.contract_addr()])
             .build();
 
-        let mut result: Result<Vec<Log>, EnrichedClientError> = self.client.get_logs(filter).await;
+        let mut result: Result<Vec<Log>, EnrichedClientError> = self.get_logs(filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -121,7 +295,7 @@ where
                 };
                 let to_number = match to {
                     BlockNumber::Number(num) => num,
-                    BlockNumber::Latest => self.client.block_number().await?,
+                    BlockNumber::Latest => self.client.deref().as_ref().block_number().await?,
                     _ => {
                         // invalid variant
                         return result;
@@ -170,10 +344,25 @@ where
         result
     }
 
-    async fn get_finalized_block(&self) -> Result<u64, ClientError> {
+    async fn get_logs(&self, filter: Filter) -> Result<Vec<Log>, EnrichedClientError> {
+        Ok(self
+            .client
+            .deref()
+            .as_ref()
+            .logs(&filter)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    /// Get the finalized block number from the L1 network.
+    async fn get_latest_block(&self) -> Result<u64, ClientError> {
         let block = self
             .client
-            .block(BlockId::Number(BlockNumber::Finalized))
+            .deref()
+            .as_ref()
+            .block(BlockId::Number(BlockNumber::Latest))
             .await?
             .ok_or_else(|| {
                 let err = jsonrpsee::core::ClientError::Custom(
@@ -190,5 +379,47 @@ where
         })?;
 
         Ok(block_number.as_u64())
+    }
+
+    async fn submit_proof_request(
+        &self,
+        proof_request: ProofRequestIdentifier,
+        proof_request_params: ProofRequestParams,
+    ) -> Result<H256, ClientError> {
+        let fn_submit_proof_request = self
+            .client
+            .contract()
+            .function("submitProofRequest")
+            .context(
+                "`submitProofRequest` function must be present in the ProofManager contract",
+            )?;
+
+        let input = fn_submit_proof_request.encode_input(&[
+            proof_request.into_tokens(),
+            proof_request_params.into_tokens(),
+        ])?;
+
+        self.send_tx_with_retries(input).await
+    }
+
+    async fn submit_proof_validation_result(
+        &self,
+        proof_request_identifier: ProofRequestIdentifier,
+        is_proof_valid: bool,
+    ) -> Result<H256, ClientError> {
+        let fn_submit_proof_validation_result = self.client.contract()
+            .function("submitProofValidationResult")
+            .context("`submitProofValidationResult` function must be present in the ProofManager contract")?;
+
+        let input = fn_submit_proof_validation_result.encode_input(&[
+            proof_request_identifier.into_tokens(),
+            ethabi::Token::Bool(is_proof_valid),
+        ])?;
+
+        self.send_tx_with_retries(input).await
+    }
+
+    fn chain_id(&self) -> SLChainId {
+        self.client.chain_id()
     }
 }

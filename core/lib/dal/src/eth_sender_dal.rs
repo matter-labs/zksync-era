@@ -952,6 +952,7 @@ impl EthSenderDal<'_, '_> {
         )
         .execute(self.storage.conn())
         .await?;
+
         Ok(())
     }
 
