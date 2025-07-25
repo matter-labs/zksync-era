@@ -46,7 +46,6 @@ jobs:
           echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
-          echo RUSTFLAGS="" >> .env
 
       - name: Download contracts
         shell: bash
@@ -239,16 +238,12 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
 
   create_manifest:
     name: Create release manifest
@@ -273,7 +268,7 @@ jobs:
 
       - name: Create Docker manifest
         run: |
-          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
+          docker_repositories=("us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}" "ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}")
           platforms=${{ matrix.component.platform }}
           for repo in "${docker_repositories[@]}"; do
             platform_tags=""
