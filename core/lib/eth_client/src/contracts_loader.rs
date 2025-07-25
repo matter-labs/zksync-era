@@ -59,7 +59,7 @@ pub async fn load_settlement_layer_contracts(
         return Ok(None);
     }
 
-    let ctm_address: zksync_types::H160 =
+    let ctm_address =
         CallFunctionArgs::new("chainTypeManager", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
             .call(sl_client)
