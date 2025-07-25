@@ -37,6 +37,7 @@ use crate::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         set_transaction_filterer, AdminScriptMode,
     },
+    commands::chain::utils::display_admin_script_output,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -63,6 +64,9 @@ pub struct ConvertToGatewayArgs {
     /// Pass the chain id, for which we want to deploy ctm on GW
     #[clap(long, value_parser = parse_decimal_u256)]
     pub ctm_chain_id: Option<U256>,
+
+    #[clap(long, default_value_t = false)]
+    pub only_save_calldata: bool,
 }
 
 fn parse_decimal_u256(s: &str) -> Result<U256, String> {
@@ -145,11 +149,17 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         bridgehub_governance_addr
     };
 
-    grant_gateway_whitelist(
+    let mode = if convert_to_gw_args.only_save_calldata {
+        AdminScriptMode::OnlySave
+    } else {
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor)
+    };
+
+    let mut output = grant_gateway_whitelist(
         shell,
         &args,
         &chain_config.path_to_l1_foundry(),
-        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor), // For testing purposes
         chain_config.chain_id.as_u64(),
         chain_contracts_config
             .ecosystem_contracts
@@ -158,6 +168,10 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         l1_url.clone(),
     )
     .await?;
+
+    if convert_to_gw_args.only_save_calldata {
+        display_admin_script_output(output);
+    }
 
     let vote_preparation_output = gateway_vote_preparation(
         shell,
@@ -189,10 +203,10 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 
     // Now, we will need to execute the corresponding governance calls
     // These calls will produce some L1->L2 transactions. However tracking those is hard at this point, so we won't do it here.
-    governance_execute_calls(
+    output = governance_execute_calls(
         shell,
         &ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::OnlySave,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,
         l1_url.clone(),
@@ -200,24 +214,28 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     )
     .await?;
 
+    if convert_to_gw_args.only_save_calldata {
+        display_admin_script_output(output);
+    } else {
+        // We will revoke the access of the hot wallet immediately
+        revoke_gateway_whitelist(
+            shell,
+            &args,
+            &chain_config.path_to_l1_foundry(),
+            AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+            chain_config.chain_id.as_u64(),
+            chain_contracts_config
+                .ecosystem_contracts
+                .bridgehub_proxy_addr,
+            chain_deployer_wallet.address,
+            l1_url.clone(),
+        )
+        .await?;
+    }
+
     let gateway_config: GatewayConfig = vote_preparation_output.into();
 
     gateway_config.save_with_base_path(shell, chain_config.configs.clone())?;
-
-    // We will revoke the access of the hot wallet immediately
-    revoke_gateway_whitelist(
-        shell,
-        &args,
-        &chain_config.path_to_l1_foundry(),
-        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
-        chain_config.chain_id.as_u64(),
-        chain_contracts_config
-            .ecosystem_contracts
-            .bridgehub_proxy_addr,
-        chain_deployer_wallet.address,
-        l1_url.clone(),
-    )
-    .await?;
 
     Ok(())
 }

@@ -152,12 +152,12 @@ pub async fn make_permanent_rollup(
 pub async fn governance_execute_calls(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    governor: &Wallet,
+    mode: AdminScriptMode,
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
     governance_address: Address,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<AdminScriptOutput> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
@@ -182,9 +182,25 @@ pub async fn governance_execute_calls(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+
+    let description = "executing governance calls";
+    let (forge, spinner_text) = match mode {
+        AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
+        AdminScriptMode::Broadcast(wallet) => {
+            let forge = forge.with_broadcast();
+            let forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Governor)?;
+            check_the_balance(&forge).await?;
+            (forge, format!("Executing {description}"))
+        }
+    };
+
+    let spinner = Spinner::new(&spinner_text);
+    forge.run(shell)?;
+    spinner.finish();
+
+    let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&foundry_contracts_path);
+    Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
 #[allow(clippy::too_many_arguments)]
