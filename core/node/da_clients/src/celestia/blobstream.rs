@@ -81,7 +81,7 @@ impl TendermintRPCClient {
         height: u64,
         start: u64,
         end: u64,
-    ) -> Result<String, ReqwestError> {
+    ) -> Result<String, DAError> {
         let url = format!("{}/data_root_inclusion_proof", self.url);
 
         let request = self
@@ -89,7 +89,7 @@ impl TendermintRPCClient {
             .get(url.clone())
             .query(&[("height", height), ("start", start), ("end", end)])
             .build()
-            .unwrap();
+            .map_err(to_retriable_da_error)?;
         tracing::debug!("request: {:?}", request.url().as_str());
 
         self.client
@@ -97,12 +97,14 @@ impl TendermintRPCClient {
             .query(&[("height", height), ("start", start), ("end", end)])
             .send()
             .await
-            .expect("Failed to send request")
+            .map_err(to_retriable_da_error)?
             .text()
             .await
+            .map_err(to_retriable_da_error)
+
     }
 
-    pub async fn get_data_root(&self, height: u64) -> Result<[u8; 32], ReqwestError> {
+    pub async fn get_data_root(&self, height: u64) -> Result<[u8; 32], DAError> {
         let url = format!("{}/header", self.url);
         let response = self
             .client
@@ -110,21 +112,24 @@ impl TendermintRPCClient {
             .query(&[("height", height)])
             .send()
             .await
-            .expect("Failed to send request")
+            .map_err(to_retriable_da_error)?
             .text()
-            .await?;
+            .await
+            .map_err(to_retriable_da_error)?;
 
         // Parse response JSON to extract data root
         let response_json: serde_json::Value =
-            serde_json::from_str(&response).expect("Failed to parse response JSON");
+            serde_json::from_str(&response).map_err(to_retriable_da_error)?;
 
-        let data_root_hex = response_json["result"]["header"]["data_hash"]
-            .as_str()
-            .expect("Failed to get data_hash")
+        let data_root_hex = response_json.get("result")
+            .and_then(|result| result.get("header"))
+            .and_then(|header| header.get("data_hash"))
+            .and_then(|hash| hash.as_str())
+            .ok_or_else(|| to_retriable_da_error("Failed to parse data root from Celestia Core"))?
             .trim_start_matches("0x");
 
         let mut data_root = [0u8; 32];
-        hex::decode_to_slice(data_root_hex, &mut data_root).expect("Failed to decode hex string");
+        hex::decode_to_slice(data_root_hex, &mut data_root).map_err(to_retriable_da_error)?;
 
         Ok(data_root)
     }

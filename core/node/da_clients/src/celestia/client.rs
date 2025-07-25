@@ -52,7 +52,8 @@ use crate::{
 #[derive(Clone)]
 pub struct CelestiaClient {
     config: CelestiaConfig,
-    eq_client: Arc<EqClient>,
+    verify_inclusion: bool,
+    eq_client: Option<Arc<EqClient>>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
     l2_chain_id: L2ChainId,
@@ -65,6 +66,20 @@ impl CelestiaClient {
         eth_client: Box<DynClient<L1>>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
+
+        let verify_inclusion = config.inclusion_verification.is_some();
+
+        let eq_client = if verify_inclusion {
+            let eq_service_grpc_channel = Endpoint::from_str(config.inclusion_verification.as_ref().unwrap().eq_service_grpc_url.clone().as_str())?
+                .timeout(config.timeout)
+                .connect()
+                .await?;
+            let eq_client = EqClient::new(eq_service_grpc_channel);
+            Some(Arc::new(eq_client))
+        } else {
+            None
+        };
+
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(config.timeout)
             .connect()
@@ -75,16 +90,11 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let eq_service_grpc_channel =
-            Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
-                .timeout(config.timeout)
-                .connect()
-                .await?;
-        let eq_client = EqClient::new(eq_service_grpc_channel);
         Ok(Self {
+            verify_inclusion,
             config,
             celestia_client: Arc::new(client),
-            eq_client: Arc::new(eq_client),
+            eq_client: eq_client,
             eth_client,
             l2_chain_id,
         })
@@ -99,6 +109,8 @@ impl CelestiaClient {
 
         let response = self
             .eq_client
+            .as_ref()
+            .unwrap()
             .get_zk_stack(&blob_id_struct)
             .await
             .map_err(to_retriable_da_error)?;
@@ -160,7 +172,8 @@ impl CelestiaClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        let blobstream_addr = H160::from_str(self.config.blobstream_contract_address.as_str())
+        // unwrap should be safe on these config fields because we checked verify_inclusion before get_inclusion_data calls this function
+        let blobstream_addr = H160::from_str(self.config.inclusion_verification.as_ref().unwrap().blobstream_contract_address.as_str())
             .map_err(to_non_retriable_da_error)?;
 
         let latest_blobstream_height =
@@ -181,7 +194,8 @@ impl CelestiaClient {
         latest_blobstream_height: U256,
         eth_current_height: U64,
     ) -> Result<Option<(U256, U256, U256)>, DAError> {
-        let blobstream_addr = H160::from_str(self.config.blobstream_contract_address.as_str())
+        // unwrap should be safe on these config fields because we checked verify_inclusion before get_inclusion_data calls this function
+        let blobstream_addr = H160::from_str(self.config.inclusion_verification.as_ref().unwrap().blobstream_contract_address.as_str())
             .map_err(to_non_retriable_da_error)?;
 
         find_block_range(
@@ -190,8 +204,8 @@ impl CelestiaClient {
             latest_blobstream_height,
             BlockNumber::Number(eth_current_height),
             blobstream_addr,
-            self.config.blobstream_events_num_pages,
-            self.config.blobstream_events_page_size,
+            self.config.inclusion_verification.as_ref().unwrap().blobstream_events_num_pages,
+            self.config.inclusion_verification.as_ref().unwrap().blobstream_events_page_size,
         )
         .await
         .map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))
@@ -205,7 +219,9 @@ impl CelestiaClient {
         proof_nonce: U256,
     ) -> Result<AttestationProof, DAError> {
         let tm_rpc_client =
-            TendermintRPCClient::new(self.config.celestia_core_tendermint_rpc_url.clone());
+            // unwrap should be safe
+            // create_attestation_proof is only called by get_inclusion_data if verify_inclusion is true
+            TendermintRPCClient::new(self.config.inclusion_verification.as_ref().unwrap().celestia_core_tendermint_rpc_url.clone());
 
         // Get data root inclusion proof
         let data_root_inclusion_proof = self
@@ -387,12 +403,18 @@ impl DataAvailabilityClient for CelestiaClient {
         dispatch_request_id: String,
         _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
+
+        if !self.verify_inclusion {
+            return Ok(None);
+        }
+
         let blob_id = dispatch_request_id
             .parse::<BlobId>()
             .map_err(to_non_retriable_da_error)?;
 
         tracing::debug!("Calling eq-service...");
-        if let Err(tonic_status) = self.eq_client.get_zk_stack(&blob_id).await {
+        // unwrap should be safe because we checked that verify_inclusion is true in the beginning
+        if let Err(tonic_status) = self.eq_client.as_ref().unwrap().get_zk_stack(&blob_id).await {
             // gRPC error, should be retriable, could be something on the eq-service side
             return Err(DAError {
                 error: tonic_status.into(),
