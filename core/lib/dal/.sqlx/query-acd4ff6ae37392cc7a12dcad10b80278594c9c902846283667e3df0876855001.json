@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE eth_txs_history\n                SET\n                    confirmed_at = NULL,\n                    finality_status = $2,\n                    updated_at = NOW()\n                WHERE\n                    tx_hash = $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "acd4ff6ae37392cc7a12dcad10b80278594c9c902846283667e3df0876855001"
+}

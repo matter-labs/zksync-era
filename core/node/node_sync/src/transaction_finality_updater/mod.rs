@@ -9,13 +9,16 @@ use zksync_dal::{blocks_dal::L1BatchWithOptionalMetadata, ConnectionPool, Core, 
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
     eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
     web3::TransactionReceipt,
-    Address, L1BatchNumber, ProtocolVersionId, SLChainId,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId,
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
+use crate::transaction_finality_updater::l1_transaction_verifier::TransactionValidationError;
 
 mod l1_transaction_verifier;
 
@@ -58,7 +61,7 @@ impl BatchTransactionUpdater {
             sl_client,
             l1_transaction_verifier: L1TransactionVerifier::new(diamond_proxy_addr),
             pool,
-            health_updater: ReactiveHealthCheck::new("batch_transaction_updater").1,
+            health_updater: ReactiveHealthCheck::new("transaction_finality_updater").1,
             sleep_interval,
             processing_batch_size,
         }
@@ -91,7 +94,7 @@ impl BatchTransactionUpdater {
 
         let mut connection = self
             .pool
-            .connection_tagged("batch_transaction_updater")
+            .connection_tagged("transaction_finality_updater")
             .await?;
 
         let eth_history_tx = connection
@@ -99,89 +102,168 @@ impl BatchTransactionUpdater {
             .get_eth_tx_history_by_id(db_eth_history_id)
             .await?;
 
-        let batches = connection
-            .blocks_dal()
-            .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
-            .await?;
+        // variable only for logging
+        let for_blocks_or_batches = match eth_history_tx.tx_type {
+            AggregatedActionType::L1Batch(tx_type) => {
+                let batches = connection
+                    .blocks_dal()
+                    .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
+                    .await?;
 
-        if batches.is_empty() {
-            anyhow::bail!(
-                "Transaction {} is not associated with any batch",
-                eth_history_tx.tx_hash
-            );
-        }
+                if batches.is_empty() {
+                    anyhow::bail!(
+                        "Transaction {} is not associated with any batch",
+                        eth_history_tx.tx_hash
+                    );
+                }
 
-        // validate the transaction against db
-        for batch in &batches {
-            let batch_number = L1BatchNumber(batch.number);
+                // validate the transaction against db
+                for batch in &batches {
+                    let batch_number = L1BatchNumber(batch.number);
 
-            let Some(protocol_version) = connection
-                .blocks_dal()
-                .get_batch_protocol_version_id(batch_number)
-                .await?
-            else {
-                tracing::debug!(
-                    "Batch {} protocol version is not found in the database. Cannot verify transaction {} right now",
-                    batch_number,
-                    eth_history_tx.tx_hash
-                );
-                return Ok(false);
-            };
+                    let Some(protocol_version) = connection
+                        .blocks_dal()
+                        .get_batch_protocol_version_id(batch_number)
+                        .await?
+                    else {
+                        tracing::debug!(
+                            "Batch {} protocol version is not found in the database. Cannot verify transaction {} right now",
+                            batch_number,
+                            eth_history_tx.tx_hash
+                        );
+                        return Ok(false);
+                    };
 
-            // Do not validate transactions for batches with protocol version before 29
-            if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
-                continue;
-            }
+                    // Do not validate transactions for batches with protocol version before 29
+                    if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
+                        continue;
+                    }
 
-            let batch_metadata = match connection
-                .blocks_dal()
-                .get_optional_l1_batch_metadata(batch_number)
-                .await?
-            {
-                Some(L1BatchWithOptionalMetadata {
-                    header: _,
-                    metadata: Ok(batch_metadata),
-                }) => batch_metadata,
-                _ => {
-                    tracing::debug!(
+                    let batch_metadata = match connection
+                        .blocks_dal()
+                        .get_optional_l1_batch_metadata(batch_number)
+                        .await?
+                    {
+                        Some(L1BatchWithOptionalMetadata {
+                            header: _,
+                            metadata: Ok(batch_metadata),
+                        }) => batch_metadata,
+                        _ => {
+                            tracing::debug!(
                             "Batch {} metadata is not found in the database. Cannot verify transaction {} right now",
                             batch_number,
                             eth_history_tx.tx_hash
                         );
-                    return Ok(false);
-                }
-            };
+                            return Ok(false);
+                        }
+                    };
 
-            match eth_history_tx.tx_type {
-                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) => self
-                    .l1_transaction_verifier
-                    .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
-                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain) => {
-                    self.l1_transaction_verifier.validate_prove_tx(
-                        &receipt,
-                        batch_metadata,
-                        batch_number,
-                    )?
-                }
-                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute) => self
-                    .l1_transaction_verifier
-                    .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
-                _ => {
+                    match tx_type {
+                        L1BatchAggregatedActionType::Commit => self
+                            .l1_transaction_verifier
+                            .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
+                        L1BatchAggregatedActionType::PublishProofOnchain => self
+                            .l1_transaction_verifier
+                            .validate_prove_tx(&receipt, batch_metadata, batch_number)?,
+                        L1BatchAggregatedActionType::Execute => self
+                            .l1_transaction_verifier
+                            .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
+                    };
                     tracing::debug!(
-                        "Skipping verification for transaction {} ({})",
+                        "Verified transaction {} ({}) for batch {}",
                         receipt.transaction_hash,
-                        eth_history_tx.tx_type
+                        eth_history_tx.tx_type,
+                        batch_number
                     );
-                    continue;
                 }
-            };
-            tracing::debug!(
-                "Verified transaction {} ({}) for batch {}",
-                receipt.transaction_hash,
-                eth_history_tx.tx_type,
-                batch_number
-            );
-        }
+                batches.iter().map(|batch| batch.number).collect::<Vec<_>>()
+            }
+            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
+                let miniblocks = connection
+                    .blocks_dal()
+                    .get_l2_blocks_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
+                    .await?;
+
+                if miniblocks.is_empty() {
+                    anyhow::bail!(
+                        "Transaction {} is not associated with any miniblock",
+                        eth_history_tx.tx_hash
+                    );
+                }
+
+                // a precommit tx is associated with a consecutive series of txs. We validate this property.
+
+                let mut miniblock_numbers = miniblocks
+                    .iter()
+                    .map(|miniblock| miniblock.number)
+                    .collect::<Vec<_>>();
+                miniblock_numbers.sort();
+                for i in 1..miniblock_numbers.len() {
+                    if miniblock_numbers[i] != miniblock_numbers[i - 1] + 1 {
+                        anyhow::bail!(
+                            "Transaction {} is associated with non consecutive set of miniblocks: miniblock {} is not consecutive with miniblock {}",
+                            eth_history_tx.tx_hash,
+                            miniblock_numbers[i],
+                            miniblock_numbers[i - 1]
+                        );
+                    }
+                }
+
+                // Precommit tx emits commitment to the rolling_tx_hash of the highest miniblock
+                // So we validate against the highest miniblock
+                let highest_miniblock_number = L2BlockNumber(
+                    miniblocks
+                        .iter()
+                        .map(|miniblock| miniblock.number)
+                        .max()
+                        .unwrap(),
+                ); // safe because we just checked that miniblocks is not empty
+
+                // miniblock should be in db due to how we perform fetching
+                let Some(miniblock_header) = connection
+                    .blocks_dal()
+                    .get_l2_block_header(highest_miniblock_number)
+                    .await?
+                else {
+                    tracing::debug!(
+                                "Miniblock {} is not found in the database. Cannot verify transaction {} right now",
+                                highest_miniblock_number,
+                                eth_history_tx.tx_hash
+                            );
+                    return Ok(false);
+                };
+
+                let result = self
+                    .l1_transaction_verifier
+                    .validate_precommit_tx(&receipt, miniblock_header);
+
+                if let Err(err) = result {
+                    match err {
+                        TransactionValidationError::MissingExpectedLog { .. } => {
+                            // allow retry in case of MissingExpectedLog error.
+                            // We might now have synced precommit tx for the last
+                            // miniblock in series. We can only validate when we
+                            // have all the miniblocks associations in db
+                            tracing::warn!(
+                                "Transaction {} cannot be validated, because it is missing expected log for miniblock {}. We may need to have a higher miniblock to validate it",
+                                eth_history_tx.tx_hash,
+                                highest_miniblock_number
+                            );
+                            return Ok(false);
+                        }
+                        _ => {
+                            // all other errors are critical
+                            return Err(err.into());
+                        }
+                    }
+                }
+
+                miniblocks
+                    .iter()
+                    .map(|miniblock| miniblock.number)
+                    .collect::<Vec<_>>()
+            }
+        };
 
         connection
             .eth_sender_dal()
@@ -193,14 +275,10 @@ impl BatchTransactionUpdater {
             .await?;
 
         tracing::info!(
-            "Updated finality status for transaction {} ({} for batch {}) from {:?} to {:?}",
+            "Updated finality status for transaction {} ({} for {:?}) from {:?} to {:?}",
             eth_history_tx.tx_hash,
             eth_history_tx.tx_type,
-            batches
-                .iter()
-                .map(|batch| batch.number.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
+            for_blocks_or_batches,
             eth_history_tx.eth_tx_finality_status,
             updated_status
         );
@@ -245,7 +323,7 @@ impl BatchTransactionUpdater {
                             let sent_at_block: u32 = receipt.block_number.unwrap().as_u32();
                             eth_tx_history.sent_at_block = Some(sent_at_block);
                             self.pool
-                                .connection_tagged("batch_transaction_updater")
+                                .connection_tagged("transaction_finality_updater")
                                 .await?
                                 .eth_sender_dal()
                                 .set_sent_at_block(eth_tx_history.id, sent_at_block)
@@ -290,7 +368,7 @@ impl BatchTransactionUpdater {
                             sent_at_block
                         );
                 self.pool
-                    .connection_tagged("batch_transaction_updater")
+                    .connection_tagged("transaction_finality_updater")
                     .await?
                     .eth_sender_dal()
                     .unset_sent_at_block(eth_tx_history.id)
@@ -330,7 +408,7 @@ impl BatchTransactionUpdater {
     ) -> anyhow::Result<usize> {
         let mut connection = self
             .pool
-            .connection_tagged("batch_transaction_updater")
+            .connection_tagged("transaction_finality_updater")
             .await?;
         let to_process: Vec<TxHistory> = connection
             .eth_sender_dal()
