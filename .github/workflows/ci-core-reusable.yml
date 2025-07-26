@@ -19,6 +19,10 @@ jobs:
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [ "count:1/5", "count:2/5", "count:3/5", "count:4/5", "count:5/5" ]
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -72,12 +76,31 @@ jobs:
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
 
+      - name: Build code
+        run: |
+          ci_run cargo nextest run --release --no-run --manifest-path core/Cargo.toml --partition ${{ matrix.partition }}
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
+
       - name: Rust unit tests
         run: |
-          ci_run zkstack dev test rust
+          ci_run zkstack dev test rust --options "--partition ${{ matrix.partition }}"
+
+      - name: Rust benchmarks
+        run: |
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
   
   install-zkstack-with-upgrades:
     runs-on: [ ubuntu-24.04-github-hosted-16core ]
