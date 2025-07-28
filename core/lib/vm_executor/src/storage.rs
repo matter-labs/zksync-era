@@ -22,6 +22,7 @@ const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
 pub struct FirstL2BlockInBatch {
     header: L2BlockHeader,
     l1_batch_number: L1BatchNumber,
+    interop_roots: Vec<InteropRoot>,
 }
 
 impl FirstL2BlockInBatch {
@@ -226,6 +227,15 @@ impl L1BatchParamsProvider {
             .load_number_of_first_l2_block_in_batch(storage, l1_batch_number)
             .await
             .context("failed getting first L2 block number")?;
+
+        let interop_roots = if let Some(l2_block_number) = l2_block_number {
+            storage
+                .interop_root_dal()
+                .get_interop_roots(l2_block_number)
+                .await?
+        } else {
+            vec![]
+        };
         Ok(match l2_block_number {
             Some(number) => storage
                 .blocks_dal()
@@ -234,6 +244,7 @@ impl L1BatchParamsProvider {
                 .map(|header| FirstL2BlockInBatch {
                     header,
                     l1_batch_number,
+                    interop_roots,
                 }),
             None => None,
         })
@@ -355,8 +366,7 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
-            // TODO: check if we should fetch any interop roots
-            Default::default(),
+            first_l2_block_in_batch.interop_roots.clone(),
         );
 
         Ok(RestoredL1BatchEnv {
