@@ -9,7 +9,6 @@ use zksync_prover_interface::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
-    Bincode, CBOR,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -89,24 +88,8 @@ impl<PM: ProcessorMode> Processor<PM> {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, ProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
-            Ok(data) => data,
-            Err(_) => self
-                .blob_store
-                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
-                .await
-                .map(Into::into)?,
-        };
-
-        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
-        {
-            Ok(data) => data,
-            Err(_) => self
-                .blob_store
-                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
-                .await
-                .map(Into::into)?,
-        };
+        let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
+        let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await?;
@@ -372,24 +355,13 @@ impl Processor<Readonly> {
         binary_proof: Vec<u8>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Result<(), ProcessorError> {
-        let expected_proof: L1BatchProofForL1<CBOR> = match self
+        let expected_proof: L1BatchProofForL1 = self
             .blob_store
             .get(L1BatchProofForL1Key::Core((
                 l1_batch_number,
                 protocol_version,
             )))
-            .await
-        {
-            Ok(proof) => proof,
-            Err(_) => self
-                .blob_store
-                .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
-                    l1_batch_number,
-                    protocol_version,
-                )))
-                .await
-                .map(Into::into)?,
-        };
+            .await?;
 
         if expected_proof.protocol_version() != protocol_version {
             return Err(ProcessorError::InvalidProof);
