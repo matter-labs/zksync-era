@@ -11,6 +11,7 @@ use zksync_l1_contract_interface::{
     i_executor::methods::ExecuteBatches, multicall3::Multicall3Call, Tokenizable,
 };
 use zksync_node_test_utils::create_l1_batch;
+use std::time::Duration;
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api::TransactionRequest,
@@ -83,6 +84,11 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .function("validatorTimelock")
         .unwrap()
         .short_signature();
+    let valdaitor_timelock_post_v29_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelockPostV29")
+        .unwrap()
+        .short_signature();
     let prototol_version_short_selector = functions
         .state_transition_manager_contract
         .function("protocolVersion")
@@ -149,6 +155,10 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 let mut result = vec![0u8; 32];
                 result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
                 result
+            }
+            selector if selector == valdaitor_timelock_post_v29_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![7u8; 32]
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -859,6 +869,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
                 result
             }),
         ]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -895,6 +906,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         Address::repeat_byte(6)
     );
     assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
 }
 
 #[test_log::test(tokio::test)]
