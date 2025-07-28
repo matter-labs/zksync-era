@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_contracts::hyperchain_contract;
@@ -11,7 +13,6 @@ use zksync_l1_contract_interface::{
     i_executor::methods::ExecuteBatches, multicall3::Multicall3Call, Tokenizable,
 };
 use zksync_node_test_utils::create_l1_batch;
-use std::time::Duration;
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api::TransactionRequest,

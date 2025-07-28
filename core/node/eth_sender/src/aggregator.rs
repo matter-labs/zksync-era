@@ -408,9 +408,9 @@ impl Aggregator {
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let mut max_l1_batch_timestamp_millis =
             Some(unix_timestamp_ms() - execution_delay.as_millis() as u64);
-        
+
         // Add safety margin for L1 block inclusion delays
-        // On L1 time is discrete and in worst case if you send time at X, 
+        // On L1 time is discrete and in worst case if you send time at X,
         // it will be included in the block with timestamp X - 12.
         // So the margin should be greater than 12 sec, 30 seconds is used.
         // Apply margin only if execution_delay > 0
