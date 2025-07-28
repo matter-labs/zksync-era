@@ -670,13 +670,9 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
-            // For the migration in progress, we can't send txs.
-            if let None = self.settlement_layer {
-                op_restrictions.prove_restriction = reason;
-                op_restrictions.execute_restriction = reason;
-            } else if let Some(SettlementLayer::Gateway(_)) = self.settlement_layer {
-                // From V30 when migrating to or from gateway, we need to wait for all blocks to be executed,
-                // so there is no restriction for prove and execute operations
+            // From V30 when migrating to or from gateway, we need to wait for all blocks to be executed,
+            // so there is no restriction for prove and execute operations
+            if let Some(SettlementLayer::Gateway(_)) = self.settlement_layer {
                 // For the migration from gateway to L1, we need we need to ensure all batches containing interop roots get committed and executed.
                 if !self
                     .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
@@ -1166,43 +1162,6 @@ impl EthTxAggregator {
             .unwrap();
 
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
-    }
-
-    async fn is_waiting_for_all_committed_batches_to_be_executed(
-        &self,
-        storage: &mut Connection<'_, Core>,
-    ) -> Result<bool, EthSenderError> {
-        let last_sent_successfully_eth_commit_tx = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
-                L1BatchAggregatedActionType::Commit,
-            )
-            .await;
-
-        if last_sent_successfully_eth_commit_tx.is_none() {
-            return Ok(false);
-        }
-
-        let last_sent_successfully_eth_execute_tx = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
-                L1BatchAggregatedActionType::Execute,
-            )
-            .await;
-
-        if last_sent_successfully_eth_execute_tx.is_none() {
-            return Ok(true);
-        }
-
-        if last_sent_successfully_eth_commit_tx.unwrap().eth_tx_finality_status == EthTxFinalityStatus::Finalized
-            && last_sent_successfully_eth_execute_tx.unwrap().eth_tx_finality_status
-                == EthTxFinalityStatus::Finalized
-        {
-            return Ok(false);
-        }
-        return Ok(true);
     }
 
     async fn is_waiting_for_batches_with_interop_roots_to_be_committed(
