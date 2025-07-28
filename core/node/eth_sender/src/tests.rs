@@ -904,7 +904,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
     );
     assert_eq!(
         parsed.stm_validator_timelock_address,
-        Address::repeat_byte(6)
+        Address::repeat_byte(7)
     );
     assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
     assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
