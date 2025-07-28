@@ -670,9 +670,8 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
-            // For the migration to or from gateway, we need to wait for all blocks to be executed
-            op_restrictions.prove_restriction = reason;
-            op_restrictions.execute_restriction = reason;
+            // From V30 when migrating to or from gateway, we need to wait for all blocks to be executed,
+            // so there is no restriction for prove and execute operations
             if let Some(SettlementLayer::Gateway(_)) = self.settlement_layer {
                 // For the migration from gateway to L1, we need we need to ensure all batches containing interop roots get committed and executed.
                 if !self
