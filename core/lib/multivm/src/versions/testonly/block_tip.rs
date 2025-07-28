@@ -146,7 +146,6 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
     vm.vm.insert_bytecodes(&bytecodes);
 
     let txs_data = populate_mimic_calls(test_data.clone());
-    dbg!(txs_data.len());
     let account = &mut vm.rich_accounts[0];
 
     for (i, data) in txs_data.into_iter().enumerate() {
@@ -168,7 +167,6 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
         assert!(
             !result.result.is_failed(),
             "Transaction {i} wasn't successful",
-            // test_data
         );
     }
 
@@ -246,7 +244,6 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
     // is sufficient with a very large margin, so it is okay to ignore 1% of possible pubdata.
     const MAX_EFFECTIVE_PUBDATA_PER_BATCH: usize =
         (MAX_VM_PUBDATA_PER_BATCH as f64 * 0.99) as usize;
-    dbg!(MAX_EFFECTIVE_PUBDATA_PER_BATCH);
 
     // We are re-using the `ComplexUpgrade` contract as it already has the `mimicCall` functionality.
     // To get the upper bound, we'll try to do the following:
@@ -262,7 +259,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 l2_to_l1_logs: dbg!(MAX_EFFECTIVE_PUBDATA_PER_BATCH / L2ToL1Log::SERIALIZED_SIZE),
                 ..Default::default()
             }),
-            tag: dbg!("max_logs".to_string()),
+            tag: "max_logs".to_string(),
         },
         // max messages
         StatisticsTagged {
@@ -275,18 +272,8 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 ],
                 ..Default::default()
             }),
-            tag: dbg!("max_messages".to_string()),
+            tag: "max_messages".to_string(),
         },
-        // long message
-        // StatisticsTagged {
-        //     // FIXME: fails here
-        //     statistics: execute_test::<VM>(L1MessengerTestData {
-        //         // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-        //         messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
-        //         ..Default::default()
-        //     }),
-        //     tag: dbg!("long_message".to_string()),
-        // },
         // max bytecodes
         StatisticsTagged {
             statistics: execute_test::<VM>(L1MessengerTestData {
@@ -295,20 +282,8 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH / (32 + 4)],
                 ..Default::default()
             }),
-            tag: dbg!("max_bytecodes".to_string(),),
+            tag: "max_bytecodes".to_string(),
         },
-        // long bytecode
-        // StatisticsTagged {
-        //     // FIXME: this fails
-        //     statistics: execute_test::<VM>(L1MessengerTestData {
-        //         bytecodes: vec![
-        //             vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)];
-        //             1
-        //         ],
-        //         ..Default::default()
-        //     }),
-        //     tag: dbg!("long_bytecode".to_string(),),
-        // },
         // lots of small repeated writes
         StatisticsTagged {
             statistics: execute_test::<VM>(L1MessengerTestData {
@@ -316,7 +291,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 5),
                 ..Default::default()
             }),
-            tag: dbg!("small_repeated_writes".to_string(),),
+            tag: "small_repeated_writes".to_string(),
         },
         // lots of big repeated writes
         StatisticsTagged {
@@ -329,7 +304,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 ),
                 ..Default::default()
             }),
-            tag: dbg!("big_repeated_writes".to_string(),),
+            tag: "big_repeated_writes".to_string(),
         },
         // lots of small initial writes
         StatisticsTagged {
@@ -342,7 +317,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 ),
                 ..Default::default()
             }),
-            tag: dbg!("small_initial_writes".to_string(),),
+            tag: "small_initial_writes".to_string(),
         },
         // lots of large initial writes
         StatisticsTagged {
@@ -355,13 +330,61 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
                 ),
                 ..Default::default()
             }),
-            tag: dbg!("big_initial_writes".to_string(),),
+            tag: "big_initial_writes".to_string(),
         },
     ];
+
+    const PUBDATA_THAT_FITS_BATCH_GAS_LIMIT: usize = 900_000;
+
+    // This chunk of tests is separate because the amount of pubdata >1M (like MAX_EFFECTIVE_PUBDATA_PER_BATCH)
+    // will cause us to exceed the batch gas limit (= 80M, gas per pubdata = 80).
+    // So instead we use a lower constant for pubdata amount and then scale all statistics
+    // proportionately.
+    let scaled_statistics = vec![
+        // long message
+        StatisticsTagged {
+            statistics: execute_test::<VM>(L1MessengerTestData {
+                // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
+                messages: vec![vec![0; PUBDATA_THAT_FITS_BATCH_GAS_LIMIT]; 1],
+                ..Default::default()
+            }),
+            tag: "long_message".to_string(),
+        },
+        // long bytecode
+        StatisticsTagged {
+            statistics: execute_test::<VM>(L1MessengerTestData {
+                bytecodes: vec![
+                    vec![
+                        0;
+                        get_valid_bytecode_length(PUBDATA_THAT_FITS_BATCH_GAS_LIMIT)
+                    ];
+                    1
+                ],
+                ..Default::default()
+            }),
+            tag: "long_bytecode".to_string(),
+        },
+    ]
+    .into_iter()
+    .map(|s| StatisticsTagged {
+        statistics: TestStatistics {
+            max_used_gas: s.statistics.max_used_gas * MAX_EFFECTIVE_PUBDATA_PER_BATCH as u32
+                / PUBDATA_THAT_FITS_BATCH_GAS_LIMIT as u32,
+            circuit_statistics: s.statistics.circuit_statistics
+                * MAX_EFFECTIVE_PUBDATA_PER_BATCH as u64
+                / PUBDATA_THAT_FITS_BATCH_GAS_LIMIT as u64,
+            execution_metrics_size: s.statistics.execution_metrics_size
+                * MAX_EFFECTIVE_PUBDATA_PER_BATCH as u64
+                / PUBDATA_THAT_FITS_BATCH_GAS_LIMIT as u64,
+        },
+        tag: s.tag,
+    })
+    .collect_vec();
 
     // We use 2x overhead for the batch tip compared to the worst estimated scenario.
     let max_used_gas = statistics
         .iter()
+        .chain(scaled_statistics.iter())
         .map(|s| (s.statistics.max_used_gas, s.tag.clone()))
         .max()
         .unwrap();
@@ -375,6 +398,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
 
     let circuit_statistics = statistics
         .iter()
+        .chain(scaled_statistics.iter())
         .map(|s| (s.statistics.circuit_statistics, s.tag.clone()))
         .max()
         .unwrap();
@@ -388,6 +412,7 @@ pub(crate) fn test_dry_run_upper_bound<VM: TestedVm>() {
 
     let execution_metrics_size = statistics
         .iter()
+        .chain(scaled_statistics.iter())
         .map(|s| (s.statistics.execution_metrics_size, s.tag.clone()))
         .max()
         .unwrap();
