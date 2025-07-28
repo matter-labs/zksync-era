@@ -331,7 +331,7 @@ describe('Interop behavior checks', () => {
             // Fee payment call starters
             [
                 {
-                    nextContract: ethers.ZeroAddress,
+                    to: ethers.ZeroAddress,
                     data: '0x',
                     callAttributes: [
                         await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
@@ -341,7 +341,7 @@ describe('Interop behavior checks', () => {
             // Execution call starters for token transfer
             [
                 {
-                    nextContract: L2_ASSET_ROUTER_ADDRESS,
+                    to: L2_ASSET_ROUTER_ADDRESS,
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
                     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])]
                 }
@@ -368,7 +368,7 @@ describe('Interop behavior checks', () => {
 
     // Types for interop call starters and gas fields.
     interface InteropCallStarter {
-        nextContract: string;
+        to: string;
         data: string;
         callAttributes: string[];
     }
