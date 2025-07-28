@@ -166,7 +166,7 @@ impl EventHandler for ProofRequestProvenHandler {
         self.connection_pool
             .connection()
             .await?
-            .eth_proof_manager_dal()
+            .proof_manager_dal()
             .mark_batch_as_proven(batch_number, verification_result)
             .await?;
 

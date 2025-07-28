@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
+use zksync_config::configs::proof_manager::ProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
 use crate::{
-    client::EthProofManagerClient,
+    client::BoxedProofManagerClient,
     sender::{
         submit_proof_request::ProofRequestSubmitter,
         submit_proof_validation::SubmitProofValidationSubmitter,
@@ -18,22 +18,22 @@ mod submit_proof_request;
 mod submit_proof_validation;
 
 #[derive(Debug)]
-pub struct EthProofSender {
-    client: Box<dyn EthProofManagerClient>,
+pub struct ProofSender {
+    client: Box<dyn BoxedProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
     public_blob_store: Arc<dyn ObjectStore>,
-    config: EthProofManagerConfig,
+    config: ProofManagerConfig,
     l2_chain_id: L2ChainId,
 }
 
-impl EthProofSender {
+impl ProofSender {
     pub fn new(
-        client: Box<dyn EthProofManagerClient>,
+        client: Box<dyn BoxedProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Arc<dyn ObjectStore>,
-        config: EthProofManagerConfig,
+        config: ProofManagerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {

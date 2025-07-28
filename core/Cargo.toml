@@ -42,7 +42,7 @@ members = [
   "node/da_clients",
   "node/gateway_migrator",
   "node/zk_os_tree_manager",
-  "node/eth_proof_manager",
+  "node/proof_manager",
   # Libraries
   "lib/db_connection",
   "lib/basic_types",
@@ -325,7 +325,7 @@ zksync_node_framework = { version = "28.9.0-non-semver-compat", path = "lib/node
 zksync_node_framework_derive = { version = "28.9.0-non-semver-compat", path = "lib/node_framework_derive" }
 zksync_shared_resources = { version = "28.9.0-non-semver-compat", path = "lib/shared_resources" }
 zksync_node_jemalloc = { version = "28.9.0-non-semver-compat", path = "node/jemalloc" }
-zksync_eth_proof_manager = { version = "28.9.0-non-semver-compat", path = "node/eth_proof_manager" }
+zksync_proof_manager = { version = "28.9.0-non-semver-compat", path = "node/proof_manager" }
 zksync_eth_watch = { version = "28.9.0-non-semver-compat", path = "node/eth_watch" }
 zksync_shared_metrics = { version = "28.9.0-non-semver-compat", path = "node/shared_metrics" }
 zksync_proof_data_handler = { version = "28.9.0-non-semver-compat", path = "node/proof_data_handler" }

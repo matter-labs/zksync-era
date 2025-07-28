@@ -4,17 +4,17 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L2ChainId;
 
-use crate::{client::EthProofManagerClient, types::ProofRequestIdentifier};
+use crate::{client::BoxedProofManagerClient, types::ProofRequestIdentifier};
 
 pub struct SubmitProofValidationSubmitter {
-    client: Box<dyn EthProofManagerClient>,
+    client: Box<dyn BoxedProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
 }
 
 impl SubmitProofValidationSubmitter {
     pub fn new(
-        client: Box<dyn EthProofManagerClient>,
+        client: Box<dyn BoxedProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         l2_chain_id: L2ChainId,
     ) -> Self {
@@ -48,7 +48,7 @@ impl SubmitProofValidationSubmitter {
             .connection_pool
             .connection()
             .await?
-            .eth_proof_manager_dal()
+            .proof_manager_dal()
             .get_batch_to_send_validation_result()
             .await?;
 
@@ -67,7 +67,7 @@ impl SubmitProofValidationSubmitter {
                     self.connection_pool
                         .connection()
                         .await?
-                        .eth_proof_manager_dal()
+                        .proof_manager_dal()
                         .mark_batch_as_validated(batch_number, tx_hash)
                         .await?;
                     tracing::info!(

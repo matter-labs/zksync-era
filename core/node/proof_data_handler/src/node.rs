@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{
-    eth_proof_manager::EthProofManagerConfig, fri_prover_gateway::ApiMode,
-    proof_data_handler::ProvingMode, ProofDataHandlerConfig,
+    fri_prover_gateway::ApiMode, proof_data_handler::ProvingMode,
+    proof_manager::ProofManagerConfig, ProofDataHandlerConfig,
 };
 use zksync_dal::{
     node::{MasterPool, PoolResource},
@@ -23,7 +23,7 @@ use crate::{proof_router::ProofRouter, ProofDataHandlerClient};
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
-    eth_proof_manager_config: EthProofManagerConfig,
+    proof_manager_config: ProofManagerConfig,
     l2_chain_id: L2ChainId,
     api_mode: ApiMode,
 }
@@ -43,13 +43,13 @@ pub struct Output {
 impl ProofDataHandlerLayer {
     pub fn new(
         proof_data_handler_config: ProofDataHandlerConfig,
-        eth_proof_manager_config: EthProofManagerConfig,
+        proof_manager_config: ProofManagerConfig,
         l2_chain_id: L2ChainId,
         api_mode: ApiMode,
     ) -> Self {
         Self {
             proof_data_handler_config,
-            eth_proof_manager_config,
+            proof_manager_config,
             l2_chain_id,
             api_mode,
         }
@@ -71,7 +71,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 
         let task = ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
-            eth_proof_manager_config: self.eth_proof_manager_config,
+            proof_manager_config: self.proof_manager_config,
             blob_store,
             main_pool,
             l2_chain_id: self.l2_chain_id,
@@ -85,7 +85,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 #[derive(Debug)]
 pub struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
-    eth_proof_manager_config: EthProofManagerConfig,
+    proof_manager_config: ProofManagerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
     api_mode: ApiMode,
@@ -122,9 +122,9 @@ impl Task for ProofDataHandlerTask {
             if self.proof_data_handler_config.proving_mode == ProvingMode::ProvingNetwork {
                 let proof_router = ProofRouter::new(
                     self.main_pool.clone(),
-                    self.eth_proof_manager_config.acknowledgment_timeout,
-                    self.eth_proof_manager_config.proof_generation_timeout,
-                    self.eth_proof_manager_config.picking_timeout,
+                    self.proof_manager_config.acknowledgment_timeout,
+                    self.proof_manager_config.proof_generation_timeout,
+                    self.proof_manager_config.picking_timeout,
                 );
 
                 tokio::select! {

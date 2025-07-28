@@ -25,7 +25,7 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: EcosystemContracts,
     pub bridges: BridgesContracts,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub proof_manager_contracts: Option<EthProofManagerContracts>,
+    pub proof_manager_contracts: Option<ProofManagerContracts>,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
     #[serde(flatten)]
@@ -143,13 +143,13 @@ impl ContractsConfig {
         self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
     }
 
-    pub fn set_eth_proof_manager_addresses(
+    pub fn set_proof_manager_addresses(
         &mut self,
         impl_addr: String,
         proxy_addr: String,
         proxy_admin_addr: String,
     ) -> anyhow::Result<()> {
-        self.proof_manager_contracts = Some(EthProofManagerContracts {
+        self.proof_manager_contracts = Some(ProofManagerContracts {
             proof_manager_addr: H160::from_str(&impl_addr)?,
             proxy_addr: H160::from_str(&proxy_addr)?,
             proxy_admin_addr: H160::from_str(&proxy_admin_addr)?,
@@ -301,7 +301,7 @@ pub struct L1Contracts {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct EthProofManagerContracts {
+pub struct ProofManagerContracts {
     pub proof_manager_addr: Address,
     pub proxy_addr: Address,
     pub proxy_admin_addr: Address,

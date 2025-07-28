@@ -1,5 +1,5 @@
 [package]
-name = "zksync_eth_proof_manager"
+name = "zksync_proof_manager"
 description = "ZKsync Ethereum proof manager"
 version.workspace = true
 edition.workspace = true

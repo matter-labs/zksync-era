@@ -281,7 +281,7 @@ consensus:
 
 gateway_migrator:
   eth_node_poll_interval: 300 ms
-eth_proof_manager:
+proof_manager:
   http_rpc_url: http://127.0.0.1:3050
   sl_chain_id: 271
   object_store:

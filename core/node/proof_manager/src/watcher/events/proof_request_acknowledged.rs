@@ -95,7 +95,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
             self.connection_pool
                 .connection()
                 .await?
-                .eth_proof_manager_dal()
+                .proof_manager_dal()
                 .acknowledge_batch(
                     L1BatchNumber(event.block_number.as_u32()),
                     event.assigned_to.into(),
@@ -109,7 +109,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
             self.connection_pool
                 .connection()
                 .await?
-                .eth_proof_manager_dal()
+                .proof_manager_dal()
                 .fallback_batch(L1BatchNumber(event.block_number.as_u32()))
                 .await?;
         }

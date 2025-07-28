@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
+use zksync_config::configs::proof_manager::ProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
-use crate::client::EthProofManagerClient;
+use crate::client::BoxedProofManagerClient;
 
 mod client;
 pub mod node;
@@ -16,28 +16,28 @@ mod tests;
 mod types;
 mod watcher;
 
-pub struct EthProofManager {
-    watcher: watcher::EthProofWatcher,
-    sender: sender::EthProofSender,
+pub struct ProofManager {
+    watcher: watcher::ProofWatcher,
+    sender: sender::ProofSender,
 }
 
-impl EthProofManager {
+impl ProofManager {
     pub fn new(
-        client: Box<dyn EthProofManagerClient>,
+        client: Box<dyn BoxedProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Arc<dyn ObjectStore>,
-        config: EthProofManagerConfig,
+        config: ProofManagerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
-            watcher: watcher::EthProofWatcher::new(
+            watcher: watcher::ProofWatcher::new(
                 client.clone_boxed(),
                 connection_pool.clone(),
                 blob_store.clone(),
                 config.clone(),
             ),
-            sender: sender::EthProofSender::new(
+            sender: sender::ProofSender::new(
                 client,
                 connection_pool.clone(),
                 blob_store.clone(),

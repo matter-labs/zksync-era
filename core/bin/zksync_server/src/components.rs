@@ -13,7 +13,7 @@ pub(crate) enum Component {
     /// Merkle tree API.
     TreeApi,
     /// Eth proof manager. Component for interacting with proof manager (proof distribution contracts)
-    EthProofManager,
+    ProofManager,
     EthWatcher,
     /// Eth tx generator.
     EthTxAggregator,
@@ -65,7 +65,7 @@ impl FromStr for Components {
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
-            "eth_proof_manager" => Ok(Components(vec![Component::EthProofManager])),
+            "proof_manager" => Ok(Components(vec![Component::ProofManager])),
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
                 Component::EthTxAggregator,

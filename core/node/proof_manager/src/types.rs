@@ -22,12 +22,12 @@ impl ProvingNetwork {
     }
 }
 
-impl From<ProvingNetwork> for zksync_dal::eth_proof_manager_dal::ProvingNetwork {
+impl From<ProvingNetwork> for zksync_dal::proof_manager_dal::ProvingNetwork {
     fn from(val: ProvingNetwork) -> Self {
         match val {
-            ProvingNetwork::None => zksync_dal::eth_proof_manager_dal::ProvingNetwork::None,
-            ProvingNetwork::Fermah => zksync_dal::eth_proof_manager_dal::ProvingNetwork::Fermah,
-            ProvingNetwork::Lagrange => zksync_dal::eth_proof_manager_dal::ProvingNetwork::Lagrange,
+            ProvingNetwork::None => zksync_dal::proof_manager_dal::ProvingNetwork::None,
+            ProvingNetwork::Fermah => zksync_dal::proof_manager_dal::ProvingNetwork::Fermah,
+            ProvingNetwork::Lagrange => zksync_dal::proof_manager_dal::ProvingNetwork::Lagrange,
         }
     }
 }

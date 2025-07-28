@@ -2,7 +2,7 @@ use std::{cmp::max, ops::Deref, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
+use zksync_config::configs::proof_manager::ProofManagerConfig;
 use zksync_eth_client::{BoundEthInterface, EnrichedClientError, Options};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
@@ -18,7 +18,7 @@ use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
 pub struct ProofManagerClient {
     pub(crate) client: Box<dyn BoundEthInterface>,
     pub(crate) gas_adjuster: Arc<dyn TxParamsProvider>,
-    pub(crate) config: EthProofManagerConfig,
+    pub(crate) config: ProofManagerConfig,
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -30,8 +30,8 @@ const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
 #[async_trait]
-pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
-    fn clone_boxed(&self) -> Box<dyn EthProofManagerClient>;
+pub trait BoxedProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn BoxedProofManagerClient>;
 
     async fn get_events_with_retry(
         &self,
@@ -46,17 +46,12 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
 
     async fn get_latest_block(&self) -> Result<u64, ClientError>;
 
-    // function submitProofRequest(
-    //     ProofRequestIdentifier calldata id,
-    //     ProofRequestParams calldata params
-    // )
     async fn submit_proof_request(
         &self,
         proof_request: ProofRequestIdentifier,
         proof_request_params: ProofRequestParams,
     ) -> Result<H256, ClientError>;
 
-    // function submitProofValidationResult(ProofRequestIdentifier calldata id, bool isProofValid)
     async fn submit_proof_validation_result(
         &self,
         proof_request_identifier: ProofRequestIdentifier,
@@ -70,7 +65,7 @@ impl ProofManagerClient {
     pub fn new(
         client: Box<dyn BoundEthInterface>,
         gas_adjuster: Arc<dyn TxParamsProvider>,
-        config: EthProofManagerConfig,
+        config: ProofManagerConfig,
     ) -> Self {
         Self {
             client,
@@ -236,8 +231,8 @@ impl ProofManagerClient {
 }
 
 #[async_trait]
-impl EthProofManagerClient for ProofManagerClient {
-    fn clone_boxed(&self) -> Box<dyn EthProofManagerClient> {
+impl BoxedProofManagerClient for ProofManagerClient {
+    fn clone_boxed(&self) -> Box<dyn BoxedProofManagerClient> {
         Box::new(self.clone())
     }
 

@@ -13,12 +13,12 @@ use zksync_types::{
 use crate::{Core, CoreDal};
 
 #[derive(Debug)]
-pub struct EthProofManagerDal<'a, 'c> {
+pub struct ProofManagerDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 #[derive(Debug, Clone)]
-pub enum EthProofManagerStatus {
+pub enum ProofManagerStatus {
     Fallbacked,
     Unpicked,
     Sent,
@@ -27,15 +27,15 @@ pub enum EthProofManagerStatus {
     Validated,
 }
 
-impl EthProofManagerStatus {
+impl ProofManagerStatus {
     pub fn as_str(&self) -> &str {
         match self {
-            EthProofManagerStatus::Fallbacked => "fallbacked",
-            EthProofManagerStatus::Unpicked => "unpicked",
-            EthProofManagerStatus::Sent => "sent",
-            EthProofManagerStatus::Acknowledged => "acknowledged",
-            EthProofManagerStatus::Proven => "proven",
-            EthProofManagerStatus::Validated => "validated",
+            ProofManagerStatus::Fallbacked => "fallbacked",
+            ProofManagerStatus::Unpicked => "unpicked",
+            ProofManagerStatus::Sent => "sent",
+            ProofManagerStatus::Acknowledged => "acknowledged",
+            ProofManagerStatus::Proven => "proven",
+            ProofManagerStatus::Validated => "validated",
         }
     }
 }
@@ -57,7 +57,7 @@ impl ProvingNetwork {
     }
 }
 
-impl EthProofManagerDal<'_, '_> {
+impl ProofManagerDal<'_, '_> {
     pub async fn insert_batch(
         &mut self,
         batch_number: L1BatchNumber,
@@ -65,18 +65,18 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            INSERT INTO eth_proof_manager (
+            INSERT INTO proof_manager (
                 l1_batch_number, status, created_at, witness_inputs_url, updated_at
             )
             VALUES ($1, $2, NOW(), $3, NOW())
             "#,
             i64::from(batch_number.0),
-            EthProofManagerStatus::Unpicked.as_str(),
+            ProofManagerStatus::Unpicked.as_str(),
             witness_inputs_url
         )
         .instrument("insert_batch")
         .with_arg("batch_number", &batch_number)
-        .with_arg("status", &EthProofManagerStatus::Unpicked.as_str())
+        .with_arg("status", &ProofManagerStatus::Unpicked.as_str())
         .execute(self.storage)
         .await?;
 
@@ -90,11 +90,11 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET status = $2, updated_at = NOW(), assigned_to = $3
+            UPDATE proof_manager SET status = $2, updated_at = NOW(), assigned_to = $3
             WHERE l1_batch_number = $1
             "#,
             i64::from(batch_number.0),
-            EthProofManagerStatus::Acknowledged.as_str(),
+            ProofManagerStatus::Acknowledged.as_str(),
             assigned_to.as_str()
         )
         .instrument("acknowledge_batch")
@@ -113,7 +113,7 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET
+            UPDATE proof_manager SET
                 submit_proof_request_tx_hash = $2,
                 submit_proof_request_tx_sent_at = NOW(),
                 updated_at = NOW(),
@@ -122,7 +122,7 @@ impl EthProofManagerDal<'_, '_> {
             "#,
             i64::from(batch_number.0),
             tx_hash.as_bytes(),
-            EthProofManagerStatus::Sent.as_str()
+            ProofManagerStatus::Sent.as_str()
         )
         .instrument("mark_batch_as_sent")
         .with_arg("batch_number", &batch_number)
@@ -140,7 +140,7 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET
+            UPDATE proof_manager SET
                 validated_proof_request_tx_hash = $2,
                 validated_proof_request_tx_sent_at = NOW(),
                 updated_at = NOW(),
@@ -149,7 +149,7 @@ impl EthProofManagerDal<'_, '_> {
             "#,
             i64::from(batch_number.0),
             tx_hash.as_bytes(),
-            EthProofManagerStatus::Validated.as_str()
+            ProofManagerStatus::Validated.as_str()
         )
         .instrument("mark_batch_as_validated")
         .with_arg("batch_number", &batch_number)
@@ -167,7 +167,7 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET
+            UPDATE proof_manager SET
                 proof_validation_result = $2,
                 updated_at = NOW(),
                 status = $3
@@ -175,7 +175,7 @@ impl EthProofManagerDal<'_, '_> {
             "#,
             i64::from(batch_number.0),
             proof_validation_result,
-            EthProofManagerStatus::Proven.as_str()
+            ProofManagerStatus::Proven.as_str()
         )
         .instrument("mark_batch_as_proven")
         .with_arg("batch_number", &batch_number)
@@ -189,12 +189,12 @@ impl EthProofManagerDal<'_, '_> {
         let batch: Option<L1BatchNumber> = sqlx::query!(
             r#"
             SELECT l1_batch_number, submit_proof_request_tx_hash
-            FROM eth_proof_manager
+            FROM proof_manager
             WHERE status = $1
             ORDER BY created_at ASC
             LIMIT 1
             "#,
-            EthProofManagerStatus::Unpicked.as_str()
+            ProofManagerStatus::Unpicked.as_str()
         )
         .instrument("get_batch_to_send")
         .fetch_optional(self.storage)
@@ -228,16 +228,16 @@ impl EthProofManagerDal<'_, '_> {
         let result: Option<(L1BatchNumber, Option<bool>)> = sqlx::query!(
             r#"
             SELECT l1_batch_number, proof_validation_result
-            FROM eth_proof_manager
+            FROM proof_manager
             WHERE
                 (status = $1 AND l1_batch_number <= $2)
                 OR (status = $3 AND proof_validation_result = false)
             ORDER BY l1_batch_number ASC
             LIMIT 1
             "#,
-            EthProofManagerStatus::Proven.as_str(),
+            ProofManagerStatus::Proven.as_str(),
             i64::from(latest_proven_batch.0),
-            EthProofManagerStatus::Fallbacked.as_str(),
+            ProofManagerStatus::Fallbacked.as_str(),
         )
         .instrument("get_batch_to_validate")
         .fetch_optional(self.storage)
@@ -277,7 +277,7 @@ impl EthProofManagerDal<'_, '_> {
         // 5. The batch was supposed to be picked by prover network, but it wasn't after timeout
         let batches: Vec<L1BatchNumber> = sqlx::query!(
             r#"
-            UPDATE eth_proof_manager
+            UPDATE proof_manager
             SET status = $1, updated_at = NOW()
             WHERE
                 (status = $2 AND submit_proof_request_tx_sent_at < NOW() - $3::INTERVAL)
@@ -289,13 +289,13 @@ impl EthProofManagerDal<'_, '_> {
                 OR (status = $7 AND updated_at < NOW() - $8::INTERVAL)
             RETURNING l1_batch_number
             "#,
-            EthProofManagerStatus::Fallbacked.as_str(),
-            EthProofManagerStatus::Sent.as_str(),
+            ProofManagerStatus::Fallbacked.as_str(),
+            ProofManagerStatus::Sent.as_str(),
             &acknowledgment_timeout,
-            EthProofManagerStatus::Acknowledged.as_str(),
+            ProofManagerStatus::Acknowledged.as_str(),
             &proving_timeout,
-            EthProofManagerStatus::Proven.as_str(),
-            EthProofManagerStatus::Unpicked.as_str(),
+            ProofManagerStatus::Proven.as_str(),
+            ProofManagerStatus::Unpicked.as_str(),
             &picking_timeout,
         )
         .instrument("move_batches_to_fallback")
@@ -341,10 +341,10 @@ impl EthProofManagerDal<'_, '_> {
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
             r#"
-            UPDATE eth_proof_manager SET status = $1, updated_at = NOW()
+            UPDATE proof_manager SET status = $1, updated_at = NOW()
             WHERE l1_batch_number = $2
             "#,
-            EthProofManagerStatus::Unpicked.as_str(),
+            ProofManagerStatus::Unpicked.as_str(),
             i64::from(batch_number.0),
         )
         .instrument("fallback_certain_batch")

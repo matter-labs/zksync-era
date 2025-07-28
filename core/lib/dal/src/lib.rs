@@ -15,11 +15,11 @@ use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
-    eth_proof_manager_dal::EthProofManagerDal, eth_sender_dal::EthSenderDal,
-    eth_watcher_dal::EthWatcherDal, etherscan_verification_dal::EtherscanVerificationDal,
-    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
+    eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
+    etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
+    events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     interop_roots_dal::InteropRootDal, proof_generation_dal::ProofGenerationDal,
-    protocol_versions_dal::ProtocolVersionsDal,
+    proof_manager_dal::ProofManagerDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
     snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
@@ -38,7 +38,6 @@ pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod custom_genesis_export_dal;
 mod data_availability_dal;
-pub mod eth_proof_manager_dal;
 pub mod eth_sender_dal;
 pub mod eth_watcher_dal;
 pub mod etherscan_verification_dal;
@@ -52,6 +51,7 @@ mod models;
 #[cfg(feature = "node_framework")]
 pub mod node;
 pub mod proof_generation_dal;
+pub mod proof_manager_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;
@@ -151,7 +151,7 @@ where
 
     fn server_notifications_dal(&mut self) -> ServerNotificationsDal<'_, 'a>;
 
-    fn eth_proof_manager_dal(&mut self) -> EthProofManagerDal<'_, 'a>;
+    fn proof_manager_dal(&mut self) -> ProofManagerDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -295,7 +295,7 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         CustomGenesisExportDal { storage: self }
     }
 
-    fn eth_proof_manager_dal(&mut self) -> EthProofManagerDal<'_, 'a> {
-        EthProofManagerDal { storage: self }
+    fn proof_manager_dal(&mut self) -> ProofManagerDal<'_, 'a> {
+        ProofManagerDal { storage: self }
     }
 }

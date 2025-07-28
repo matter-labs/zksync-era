@@ -39,7 +39,6 @@ use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
     web3_decl::node::QueryEthClientLayer,
 };
-use zksync_eth_proof_manager::node::EthProofManagerLayer;
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
@@ -67,6 +66,7 @@ use zksync_node_storage_init::node::{
 };
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
+use zksync_proof_manager::node::ProofManagerLayer;
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
@@ -105,7 +105,7 @@ pub(crate) struct MainNodeBuilder {
     // if use pre v26 contracts and not all functions are available for loading contracts
     pub l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
     pub l2_contracts: L2Contracts,
-    pub eth_proof_manager_contracts: Option<ProofManagerContracts>,
+    pub proof_manager_contracts: Option<ProofManagerContracts>,
     pub multicall3: Option<Address>,
 }
 
@@ -285,16 +285,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_eth_proof_manager_layer(mut self) -> anyhow::Result<Self> {
+    fn add_proof_manager_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
-        self.node.add_layer(EthProofManagerLayer::new(
-            self.configs.eth_proof_manager.clone(),
+        self.node.add_layer(ProofManagerLayer::new(
+            self.configs.proof_manager.clone(),
             gas_adjuster_config,
-            self.eth_proof_manager_contracts
+            self.proof_manager_contracts
                 .clone()
                 .expect("Eth proof manager contracts are required to run eth proof manager"),
             self.wallets.clone(),
-            zksync_types::SLChainId(self.configs.eth_proof_manager.sl_chain_id),
+            zksync_types::SLChainId(self.configs.proof_manager.sl_chain_id),
             self.genesis_config.l2_chain_id,
         ));
         Ok(self)
@@ -335,12 +335,12 @@ impl MainNodeBuilder {
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
         let gateway_config = try_load_config!(self.configs.prover_gateway);
-        let eth_proof_manager_config = self.configs.eth_proof_manager.clone();
+        let proof_manager_config = self.configs.proof_manager.clone();
         let l2_chain_id = self.genesis_config.l2_chain_id;
 
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
-            eth_proof_manager_config,
+            proof_manager_config,
             l2_chain_id,
             gateway_config.api_mode,
         ));
@@ -827,8 +827,8 @@ impl MainNodeBuilder {
                     );
                     // Do nothing, will be handled by the `Tree` component.
                 }
-                Component::EthProofManager => {
-                    self = self.add_eth_proof_manager_layer()?;
+                Component::ProofManager => {
+                    self = self.add_proof_manager_layer()?;
                 }
                 Component::EthWatcher => {
                     self = self.add_eth_watch_layer()?;

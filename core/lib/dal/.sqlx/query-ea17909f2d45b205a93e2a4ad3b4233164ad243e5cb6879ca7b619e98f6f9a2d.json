@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO proof_manager (\n                l1_batch_number, status, created_at, witness_inputs_url, updated_at\n            )\n            VALUES ($1, $2, NOW(), $3, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea17909f2d45b205a93e2a4ad3b4233164ad243e5cb6879ca7b619e98f6f9a2d"
+}

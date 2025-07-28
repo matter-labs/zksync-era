@@ -629,12 +629,12 @@ impl EthTxManager {
             .unwrap()
         {
             storage
-                .eth_proof_manager_dal()
+                .proof_manager_dal()
                 .mark_batch_as_proven(batch_number, false)
                 .await
                 .unwrap();
             storage
-                .eth_proof_manager_dal()
+                .proof_manager_dal()
                 .fallback_batch(batch_number)
                 .await
                 .unwrap();

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use zksync_config::configs::proof_data_handler::ProvingMode;
-use zksync_dal::{eth_proof_manager_dal::ProvingNetwork, ConnectionPool, Core, CoreDal};
+use zksync_dal::{proof_manager_dal::ProvingNetwork, ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_proof_data_handler::{Locking, Processor};
 use zksync_types::{L1BatchNumber, L2ChainId, H256};
@@ -43,13 +43,13 @@ async fn test_fallbacking_acknowledgment_timeout() {
     processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .insert_batch(L1BatchNumber(1), "url")
         .await
         .unwrap();
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .mark_batch_as_sent(L1BatchNumber(1), H256::zero())
         .await
         .unwrap();
@@ -59,7 +59,7 @@ async fn test_fallbacking_acknowledgment_timeout() {
     // After timeout of acknowledgment, batch should be fallbacked, so it will be available for prover cluster, but not for proving network
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .fallback_batches(
             config.acknowledgment_timeout,
             config.proof_generation_timeout,
@@ -114,13 +114,13 @@ async fn test_fallbacking_proving_timeout() {
     processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .insert_batch(L1BatchNumber(1), "url")
         .await
         .unwrap();
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .acknowledge_batch(L1BatchNumber(1), ProvingNetwork::Fermah)
         .await
         .unwrap();
@@ -130,7 +130,7 @@ async fn test_fallbacking_proving_timeout() {
     // After timeout of proving, batch should be fallbacked, so it will be available for prover cluster, but not for proving network
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .fallback_batches(
             config.acknowledgment_timeout,
             config.proof_generation_timeout,
@@ -188,7 +188,7 @@ async fn test_fallbacking_picking_timeout() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .fallback_batches(
             config.acknowledgment_timeout,
             config.proof_generation_timeout,
@@ -241,13 +241,13 @@ async fn test_fallbacking_invalid_proof() {
     processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .insert_batch(L1BatchNumber(1), "url")
         .await
         .unwrap();
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .mark_batch_as_proven(L1BatchNumber(1), false)
         .await
         .unwrap();
@@ -255,7 +255,7 @@ async fn test_fallbacking_invalid_proof() {
     // Batch should be fallbacked if the proof provided was invalid
 
     connection
-        .eth_proof_manager_dal()
+        .proof_manager_dal()
         .fallback_batches(
             config.acknowledgment_timeout,
             config.proof_generation_timeout,
