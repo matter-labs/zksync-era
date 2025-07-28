@@ -6,8 +6,8 @@ use crate::{
         chain::{CircuitBreakerConfig, MempoolConfig, StateKeeperConfig, TimestampAsserterConfig},
         consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
+        eth_proof_manager::EthProofManagerConfig,
         house_keeper::HouseKeeperConfig,
-        proof_manager::ProofManagerConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
@@ -60,7 +60,7 @@ pub struct GeneralConfig {
     #[config(nest)]
     pub eth: Option<EthConfig>,
     #[config(nest)]
-    pub proof_manager: ProofManagerConfig,
+    pub eth_proof_manager: EthProofManagerConfig,
     #[config(nest)]
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     #[config(nest)]

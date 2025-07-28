@@ -4,7 +4,7 @@ use smart_config::{DescribeConfig, DeserializeConfig};
 
 use crate::ObjectStoreConfig;
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-pub struct ProofManagerConfig {
+pub struct EthProofManagerConfig {
     /// Chain id of settlement layer(where contracts are deployed)
     #[config(default_t = 271)]
     pub sl_chain_id: u64,

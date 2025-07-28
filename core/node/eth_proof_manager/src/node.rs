@@ -3,7 +3,7 @@ use std::{str::FromStr, sync::Arc};
 use zksync_config::{
     configs::{
         contracts::chain::ProofManagerContracts,
-        proof_manager::ProofManagerConfig,
+        eth_proof_manager::EthProofManagerConfig,
         wallets::{Wallet, Wallets},
     },
     GasAdjusterConfig,
@@ -25,14 +25,14 @@ use zksync_types::{
     L2ChainId, SLChainId,
 };
 
-use crate::{client::ProofManagerClient, ProofManager};
+use crate::{client::ProofManagerClient, EthProofManager};
 
 /// Wiring layer for proof manager.
 #[derive(Debug)]
-pub struct ProofManagerLayer {
-    proof_manager_config: ProofManagerConfig,
+pub struct EthProofManagerLayer {
+    eth_proof_manager_config: EthProofManagerConfig,
     gas_adjuster_config: GasAdjusterConfig,
-    proof_manager_contracts: ProofManagerContracts,
+    eth_proof_manager_contracts: ProofManagerContracts,
     wallets_config: Wallets,
     sl_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
@@ -47,22 +47,22 @@ pub struct Input {
 #[derive(IntoContext)]
 pub struct Output {
     #[context(task)]
-    proof_manager: ProofManager,
+    eth_proof_manager: EthProofManager,
 }
 
-impl ProofManagerLayer {
+impl EthProofManagerLayer {
     pub fn new(
-        proof_manager_config: ProofManagerConfig,
+        eth_proof_manager_config: EthProofManagerConfig,
         gas_adjuster_config: GasAdjusterConfig,
-        proof_manager_contracts: ProofManagerContracts,
+        eth_proof_manager_contracts: ProofManagerContracts,
         wallets_config: Wallets,
         sl_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
-            proof_manager_config,
+            eth_proof_manager_config,
             gas_adjuster_config,
-            proof_manager_contracts,
+            eth_proof_manager_contracts,
             wallets_config,
             sl_chain_id,
             l2_chain_id,
@@ -108,7 +108,7 @@ impl ProofManagerLayer {
             operator_address,
             signer,
             contracts.proxy_addr,
-            self.proof_manager_config
+            self.eth_proof_manager_config
                 .default_priority_fee_per_gas
                 .into(),
             self.sl_chain_id,
@@ -117,18 +117,18 @@ impl ProofManagerLayer {
         ProofManagerClient::new(
             Box::new(eth_client),
             gas_adjuster,
-            self.proof_manager_config.clone(),
+            self.eth_proof_manager_config.clone(),
         )
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for ProofManagerLayer {
+impl WiringLayer for EthProofManagerLayer {
     type Input = Input;
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "proof_manager_layer"
+        "eth_proof_manager_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -136,44 +136,44 @@ impl WiringLayer for ProofManagerLayer {
 
         tracing::info!(
             "Proof manager address: {:#?}, proxy address: {:#?}",
-            self.proof_manager_contracts.proof_manager_addr,
-            self.proof_manager_contracts.proxy_addr
+            self.eth_proof_manager_contracts.proof_manager_addr,
+            self.eth_proof_manager_contracts.proxy_addr
         );
 
         let client = self
             .create_client(
-                self.proof_manager_config.http_rpc_url.clone(),
+                self.eth_proof_manager_config.http_rpc_url.clone(),
                 self.sl_chain_id,
-                &self.proof_manager_contracts,
+                &self.eth_proof_manager_contracts,
                 self.wallets_config
-                    .proof_manager
+                    .eth_proof_manager
                     .clone()
                     .expect("Eth proof manager wallet is required"),
             )
             .await;
 
         let public_object_store =
-            ObjectStoreFactory::new(self.proof_manager_config.object_store.clone())
+            ObjectStoreFactory::new(self.eth_proof_manager_config.object_store.clone())
                 .create_store()
                 .await?;
 
-        let proof_manager = ProofManager::new(
+        let eth_proof_manager = EthProofManager::new(
             Box::new(client),
             main_pool,
             input.object_store,
             public_object_store,
-            self.proof_manager_config.clone(),
+            self.eth_proof_manager_config.clone(),
             self.l2_chain_id,
         );
 
-        Ok(Output { proof_manager })
+        Ok(Output { eth_proof_manager })
     }
 }
 
 #[async_trait::async_trait]
-impl Task for ProofManager {
+impl Task for EthProofManager {
     fn id(&self) -> TaskId {
-        "proof_manager".into()
+        "eth_proof_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

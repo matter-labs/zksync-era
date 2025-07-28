@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS proof_manager (
+CREATE TABLE IF NOT EXISTS eth_proof_manager (
     l1_batch_number BIGINT NOT NULL PRIMARY KEY REFERENCES l1_batches (number) ON DELETE CASCADE,
     assigned_to TEXT,
     status TEXT NOT NULL,

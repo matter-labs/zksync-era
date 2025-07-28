@@ -47,7 +47,7 @@ zksync_state_keeper.workspace = true
 zksync_shared_resources.workspace = true
 zksync_tee_proof_data_handler.workspace = true
 zksync_vm_runner.workspace = true
-zksync_proof_manager.workspace = true
+zksync_eth_proof_manager.workspace = true
 
 # Consensus dependenices
 zksync_consensus_crypto.workspace = true

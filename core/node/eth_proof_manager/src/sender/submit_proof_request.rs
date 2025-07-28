@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use zksync_config::configs::{proof_data_handler::ProvingMode, proof_manager::ProofManagerConfig};
+use zksync_config::configs::{
+    eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{Locking, Processor};
@@ -9,25 +11,25 @@ use zksync_prover_interface::inputs::PublicWitnessInputData;
 use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::{
-    client::BoxedProofManagerClient,
+    client::EthProofManagerClient,
     types::{ProofRequestIdentifier, ProofRequestParams},
 };
 
 pub struct ProofRequestSubmitter {
-    client: Box<dyn BoxedProofManagerClient>,
+    client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
     public_blob_store: Arc<dyn ObjectStore>,
-    config: ProofManagerConfig,
+    config: EthProofManagerConfig,
     processor: Processor<Locking>,
 }
 
 impl ProofRequestSubmitter {
     pub fn new(
-        client: Box<dyn BoxedProofManagerClient>,
+        client: Box<dyn EthProofManagerClient>,
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool<Core>,
-        config: ProofManagerConfig,
+        config: EthProofManagerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
         let processor = Processor::<Locking>::new(
@@ -73,7 +75,7 @@ impl ProofRequestSubmitter {
                     self.connection_pool
                         .connection()
                         .await?
-                        .proof_manager_dal()
+                        .eth_proof_manager_dal()
                         .fallback_batch(batch_id)
                         .await?;
                 }
@@ -86,7 +88,7 @@ impl ProofRequestSubmitter {
                     self.connection_pool
                         .connection()
                         .await?
-                        .proof_manager_dal()
+                        .eth_proof_manager_dal()
                         .fallback_batch(batch_id)
                         .await?;
                 }
@@ -123,7 +125,7 @@ impl ProofRequestSubmitter {
         self.connection_pool
             .connection()
             .await?
-            .proof_manager_dal()
+            .eth_proof_manager_dal()
             .insert_batch(batch_id, &url)
             .await?;
 
@@ -156,7 +158,7 @@ impl ProofRequestSubmitter {
         self.connection_pool
             .connection()
             .await?
-            .proof_manager_dal()
+            .eth_proof_manager_dal()
             .mark_batch_as_sent(batch_id, tx_hash)
             .await?;
 

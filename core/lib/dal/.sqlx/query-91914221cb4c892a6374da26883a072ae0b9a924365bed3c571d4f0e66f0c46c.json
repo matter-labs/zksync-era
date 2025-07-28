@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT l1_batch_number, proof_validation_result\n            FROM proof_manager\n            WHERE\n                (status = $1 AND l1_batch_number <= $2)\n                OR (status = $3 AND proof_validation_result = false)\n            ORDER BY l1_batch_number ASC\n            LIMIT 1\n            ",
+  "query": "\n            SELECT l1_batch_number, proof_validation_result\n            FROM eth_proof_manager\n            WHERE\n                (status = $1 AND l1_batch_number <= $2)\n                OR (status = $3 AND proof_validation_result = false)\n            ORDER BY l1_batch_number ASC\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -26,5 +26,5 @@
       true
     ]
   },
-  "hash": "f8ea910622697d1863c91eb9b1cb6ca61962d62ffd23a163bf82d17ad759d2d8"
+  "hash": "91914221cb4c892a6374da26883a072ae0b9a924365bed3c571d4f0e66f0c46c"
 }

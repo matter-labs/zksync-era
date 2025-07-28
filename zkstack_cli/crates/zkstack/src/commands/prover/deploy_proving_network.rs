@@ -181,7 +181,7 @@ pub(crate) async fn deploy_proving_network(
 
     let mut contracts_config = config.get_contracts_config()?;
 
-    contracts_config.set_proof_manager_addresses(
+    contracts_config.set_eth_proof_manager_addresses(
         impl_addr.clone(),
         proxy_addr.clone(),
         proxy_admin_addr.clone(),
@@ -195,7 +195,11 @@ pub(crate) async fn deploy_proving_network(
     ));
 
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
-    chain_contracts_config.set_proof_manager_addresses(impl_addr, proxy_addr, proxy_admin_addr)?;
+    chain_contracts_config.set_eth_proof_manager_addresses(
+        impl_addr,
+        proxy_addr,
+        proxy_admin_addr,
+    )?;
     chain_contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     spinner.finish();

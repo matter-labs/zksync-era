@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use zksync_config::{
     configs::{
-        object_store::ObjectStoreMode, proof_data_handler::ProvingMode,
-        proof_manager::ProofManagerConfig,
+        eth_proof_manager::EthProofManagerConfig, object_store::ObjectStoreMode,
+        proof_data_handler::ProvingMode,
     },
     ObjectStoreConfig,
 };
@@ -19,8 +19,8 @@ use zksync_types::{
 
 mod fallbacking;
 
-fn test_config() -> ProofManagerConfig {
-    ProofManagerConfig {
+fn test_config() -> EthProofManagerConfig {
+    EthProofManagerConfig {
         sl_chain_id: 270,
         http_rpc_url: "http://127.0.0.1:3050".to_string(),
         object_store: ObjectStoreConfig {
@@ -45,7 +45,7 @@ fn test_config() -> ProofManagerConfig {
         tx_receipt_checking_sleep: Duration::from_secs(1),
         max_tx_gas: 1000000000,
         path_to_fflonk_verification_key:
-            "./core/node/proof_manager/src/tests/fflonk_verification_key.json".to_string(),
+            "./core/node/eth_proof_manager/src/tests/fflonk_verification_key.json".to_string(),
     }
 }
 

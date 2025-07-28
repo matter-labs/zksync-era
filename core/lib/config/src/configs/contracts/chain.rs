@@ -245,7 +245,7 @@ impl ContractsConfig {
         }
     }
 
-    pub fn proof_manager_contracts(&self) -> ProofManagerContracts {
+    pub fn eth_proof_manager_contracts(&self) -> ProofManagerContracts {
         self.proof_manager_contracts.clone()
     }
 

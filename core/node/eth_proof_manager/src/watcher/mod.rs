@@ -1,32 +1,32 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use zksync_config::configs::proof_manager::ProofManagerConfig;
+use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_object_store::ObjectStore;
 use zksync_types::web3::BlockNumber;
 
 use crate::{
-    client::{BoxedProofManagerClient, RETRY_LIMIT},
+    client::{EthProofManagerClient, RETRY_LIMIT},
     types::FflonkFinalVerificationKey,
     watcher::events::{EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler},
 };
 
 mod events;
 
-pub struct ProofWatcher {
-    client: Box<dyn BoxedProofManagerClient>,
+pub struct EthProofWatcher {
+    client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
-    config: ProofManagerConfig,
+    config: EthProofManagerConfig,
     event_handlers: Vec<Box<dyn EventHandler>>,
 }
 
-impl ProofWatcher {
+impl EthProofWatcher {
     pub fn new(
-        client: Box<dyn BoxedProofManagerClient>,
+        client: Box<dyn EthProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
-        config: ProofManagerConfig,
+        config: EthProofManagerConfig,
     ) -> Self {
         let fflonk_vk = serde_json::from_slice::<FflonkFinalVerificationKey>(
             &std::fs::read(config.path_to_fflonk_verification_key.clone()).unwrap_or_else(|_| {

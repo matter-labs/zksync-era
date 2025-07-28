@@ -38,7 +38,7 @@ impl ProofRouter {
                 .connection_pool
                 .connection()
                 .await?
-                .proof_manager_dal()
+                .eth_proof_manager_dal()
                 .fallback_batches(
                     self.acknowledgment_timeout,
                     self.proving_timeout,
