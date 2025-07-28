@@ -635,7 +635,7 @@ describe('web3 API compatibility tests', () => {
         contract.removeAllListeners();
     });
 
-    test('Should check metamask interoperability', async () => {
+    test('Should check metamask compatibility', async () => {
         // Prepare "metamask" wallet.
         const from = new MockMetamask(alice, chainId);
         const to = alice.address;

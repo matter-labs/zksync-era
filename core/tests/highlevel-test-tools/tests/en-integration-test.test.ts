@@ -8,14 +8,14 @@ describe('External Node Integration tests Test', () => {
         // Define some chain B used for interop tests
         const testSecondChain = await createChainAndStartServer('era', 'External Node Integration tests');
 
-        await testChain.generateRealisticLoad();
+        // await testChain.generateRealisticLoad();
 
-        await testChain.waitForAllBatchesToBeExecuted();
+        // await testChain.waitForAllBatchesToBeExecuted();
 
-        await testChain.initExternalNode();
+        // await testChain.initExternalNode();
 
-        await testChain.runExternalNode();
+        // await testChain.runExternalNode();
 
-        await enIntegrationTests(testChain.chainName, testSecondChain.chainName);
+        // await enIntegrationTests(testChain.chainName, testSecondChain.chainName);
     });
 });

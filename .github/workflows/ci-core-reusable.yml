@@ -293,6 +293,13 @@ jobs:
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
 
+      - name: Check permissions
+        run: |
+          whoami
+          pwd
+          touch testfile
+          ls -l testfile
+
       - name: Run tests
         run: |
           ci_run yarn highlevel-test-tools test
