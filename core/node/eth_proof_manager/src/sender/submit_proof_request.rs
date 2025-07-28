@@ -18,7 +18,7 @@ use crate::{
 pub struct ProofRequestSubmitter {
     client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
-    blob_store: Arc<dyn ObjectStore>,
+    public_blob_store: Arc<dyn ObjectStore>,
     config: EthProofManagerConfig,
     processor: Processor<Locking>,
 }
@@ -27,6 +27,7 @@ impl ProofRequestSubmitter {
     pub fn new(
         client: Box<dyn EthProofManagerClient>,
         blob_store: Arc<dyn ObjectStore>,
+        public_blob_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool<Core>,
         config: EthProofManagerConfig,
         l2_chain_id: L2ChainId,
@@ -41,7 +42,7 @@ impl ProofRequestSubmitter {
         Self {
             client,
             connection_pool,
-            blob_store,
+            public_blob_store,
             config,
             processor,
         }
@@ -111,7 +112,7 @@ impl ProofRequestSubmitter {
             PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
 
         let url = self
-            .blob_store
+            .public_blob_store
             .put(
                 L1BatchId::new(self.processor.chain_id(), batch_id),
                 &witness_input_data,

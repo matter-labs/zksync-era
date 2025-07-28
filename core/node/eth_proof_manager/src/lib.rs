@@ -26,6 +26,7 @@ impl EthProofManager {
         client: Box<dyn EthProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
+        public_blob_store: Arc<dyn ObjectStore>,
         config: EthProofManagerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
@@ -40,6 +41,7 @@ impl EthProofManager {
                 client,
                 connection_pool.clone(),
                 blob_store.clone(),
+                public_blob_store.clone(),
                 config,
                 l2_chain_id,
             ),

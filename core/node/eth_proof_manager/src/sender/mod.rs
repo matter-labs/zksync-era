@@ -22,6 +22,7 @@ pub struct EthProofSender {
     client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
+    public_blob_store: Arc<dyn ObjectStore>,
     config: EthProofManagerConfig,
     l2_chain_id: L2ChainId,
 }
@@ -31,6 +32,7 @@ impl EthProofSender {
         client: Box<dyn EthProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
+        public_blob_store: Arc<dyn ObjectStore>,
         config: EthProofManagerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
@@ -38,6 +40,7 @@ impl EthProofSender {
             client,
             connection_pool,
             blob_store,
+            public_blob_store,
             config,
             l2_chain_id,
         }
@@ -49,6 +52,7 @@ impl EthProofSender {
         let proof_request_submitter = ProofRequestSubmitter::new(
             self.client.clone_boxed(),
             self.blob_store.clone(),
+            self.public_blob_store.clone(),
             self.connection_pool.clone(),
             self.config.clone(),
             self.l2_chain_id,

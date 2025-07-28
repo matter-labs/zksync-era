@@ -19,7 +19,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
     commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, url::SensitiveUrl,
     L2ChainId, SLChainId,
@@ -41,6 +41,7 @@ pub struct EthProofManagerLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     master_pool: PoolResource<MasterPool>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[derive(IntoContext)]
@@ -151,7 +152,7 @@ impl WiringLayer for EthProofManagerLayer {
             )
             .await;
 
-        let object_store =
+        let public_object_store =
             ObjectStoreFactory::new(self.eth_proof_manager_config.object_store.clone())
                 .create_store()
                 .await?;
@@ -159,7 +160,8 @@ impl WiringLayer for EthProofManagerLayer {
         let eth_proof_manager = EthProofManager::new(
             Box::new(client),
             main_pool,
-            object_store,
+            input.object_store,
+            public_object_store,
             self.eth_proof_manager_config.clone(),
             self.l2_chain_id,
         );
