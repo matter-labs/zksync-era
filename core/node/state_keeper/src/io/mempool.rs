@@ -563,6 +563,16 @@ impl MempoolIO {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
+
+            let interop_roots = if protocol_version.is_pre_interop_fast_blocks() {
+                vec![]
+            } else {
+                let mut storage = self.pool.connection_tagged("state_keeper").await?;
+                storage
+                    .interop_root_dal()
+                    .get_interop_roots_for_first_l2_block_in_pending_batch()
+                    .await?
+            };
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
@@ -570,7 +580,11 @@ impl MempoolIO {
                 fee_input: unsealed_storage_batch.fee_input,
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
-                first_l2_block: L2BlockParams::new(unsealed_storage_batch.timestamp * 1000),
+                first_l2_block: L2BlockParams::new_raw(
+                    unsealed_storage_batch.timestamp * 1000,
+                    1,
+                    interop_roots,
+                ),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit: unsealed_storage_batch.pubdata_limit,
             }));
