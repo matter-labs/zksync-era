@@ -209,7 +209,7 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_eth_all_blocks_stat(&mut self) -> sqlx::Result<BlocksEthSenderStats> {
+    pub async fn get_eth_all_blocks_stat(&mut self) -> DalResult<BlocksEthSenderStats> {
         struct EthTxRow {
             number: i64,
             confirmed: bool,
@@ -224,6 +224,24 @@ impl EthSenderDal<'_, '_> {
 
         let mut stats = BlocksEthSenderStats::default();
         for &tx_type in TX_TYPES {
+            // Execute cheap query to check if there are any transactions of this type.
+            let eth_txs_type_exist: bool = sqlx::query!(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM eth_txs WHERE tx_type = $1
+                )
+                "#,
+                tx_type.to_string()
+            )
+            .instrument("get_existence_of_eth_txs_by_type")
+            .fetch_one(self.storage)
+            .await?
+            .exists
+            .unwrap_or_default();
+            if !eth_txs_type_exist {
+                continue;
+            }
             let mut tx_rows = vec![];
             for confirmed in [true, false] {
                 let query = match_query_as!(
@@ -253,7 +271,12 @@ impl EthSenderDal<'_, '_> {
                         ),
                     }
                 );
-                tx_rows.extend(query.fetch_all(self.storage.conn()).await?);
+                tx_rows.extend(
+                    query
+                        .instrument("get_eth_blocks_stat")
+                        .fetch_all(self.storage)
+                        .await?,
+                );
             }
 
             for row in tx_rows {
