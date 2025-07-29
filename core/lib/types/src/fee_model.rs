@@ -306,7 +306,7 @@ impl FeeParamsV2 {
         FeeModelConfigV2 {
             minimal_l2_gas_price: self.convert_l1_to_base_token(
                 self.config.minimal_l2_gas_price,
-                self.conversion_ratio.l1,
+                self.conversion_ratio.l1_conversion_ratio(),
             ),
             ..self.config
         }
@@ -314,12 +314,18 @@ impl FeeParamsV2 {
 
     /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_gas_price(&self) -> u64 {
-        self.convert_l1_to_base_token(self.l1_gas_price, self.conversion_ratio.sl)
+        self.convert_l1_to_base_token(
+            self.l1_gas_price,
+            self.conversion_ratio.sl_conversion_ratio(),
+        )
     }
 
     /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_pubdata_price(&self) -> u64 {
-        self.convert_l1_to_base_token(self.l1_pubdata_price, self.conversion_ratio.sl)
+        self.convert_l1_to_base_token(
+            self.l1_pubdata_price,
+            self.conversion_ratio.sl_conversion_ratio(),
+        )
     }
 
     /// Converts the fee param to the base token.
@@ -380,8 +386,8 @@ impl Default for ConversionRatio {
 /// The struct that represents the BaseToken<->ETH conversion ratio.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct BaseTokenConversionRatio {
-    pub l1: ConversionRatio,
-    pub sl: ConversionRatio,
+    l1: Option<ConversionRatio>,
+    sl: Option<ConversionRatio>,
     #[deprecated(note = "backwards compatibility for API")]
     numerator: NonZeroU64,
     #[deprecated(note = "backwards compatibility for API")]
@@ -396,11 +402,22 @@ impl BaseTokenConversionRatio {
 
     pub fn new(l1: ConversionRatio, sl: ConversionRatio) -> Self {
         Self {
-            l1,
-            sl,
+            l1: Some(l1),
+            sl: Some(sl),
             numerator: l1.numerator,
             denominator: l1.denominator,
         }
+    }
+
+    pub fn l1_conversion_ratio(&self) -> ConversionRatio {
+        self.l1.unwrap_or(ConversionRatio {
+            numerator: self.numerator,
+            denominator: self.denominator,
+        })
+    }
+
+    pub fn sl_conversion_ratio(&self) -> ConversionRatio {
+        self.sl.unwrap_or_default()
     }
 }
 
