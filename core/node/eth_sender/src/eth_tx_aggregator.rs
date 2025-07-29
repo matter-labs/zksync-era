@@ -1249,7 +1249,7 @@ impl EthTxAggregator {
             .await?;
 
         if latest_processed_l1_batch_number.is_none() {
-            return Ok(true);
+            return Ok(false);
         }
 
         let last_sent_successfully_eth_tx = storage

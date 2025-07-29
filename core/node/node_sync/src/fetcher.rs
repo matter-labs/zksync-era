@@ -182,7 +182,7 @@ impl IoCursorExt for IoCursor {
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,
                         block.virtual_blocks,
-                        vec![],
+                        block.interop_roots,
                     ),
                     pubdata_params: block.pubdata_params,
                     pubdata_limit: block.pubdata_limit,
