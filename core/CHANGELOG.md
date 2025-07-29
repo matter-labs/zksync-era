@@ -1,5 +1,27 @@
 # Changelog
 
+## [29.0.0](https://github.com/matter-labs/zksync-era/compare/core-v28.10.0...core-v29.0.0) (2025-07-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* v29 upgrade testing & zkstack_cli changes ([#4332](https://github.com/matter-labs/zksync-era/issues/4332))
+
+### Features
+
+* Gateway EN Precommit sync ([#4311](https://github.com/matter-labs/zksync-era/issues/4311)) ([52dec97](https://github.com/matter-labs/zksync-era/commit/52dec977cc3e877dbc54d1f326a8e5944dd34f32))
+* read execution delay from ValidatorTimelock contract instead of config ([#4349](https://github.com/matter-labs/zksync-era/issues/4349)) ([21ebe9f](https://github.com/matter-labs/zksync-era/commit/21ebe9f9626969d9e89bc0aeaa5019284aa3e6e3))
+* v29 upgrade testing & zkstack_cli changes ([#4332](https://github.com/matter-labs/zksync-era/issues/4332)) ([9e4755e](https://github.com/matter-labs/zksync-era/commit/9e4755edb16328baf6f3e0632d700eb4c545eea6))
+
+
+### Bug Fixes
+
+* **api:** Return back fee params backward compatibility for non gateway chains ([#4361](https://github.com/matter-labs/zksync-era/issues/4361)) ([506822e](https://github.com/matter-labs/zksync-era/commit/506822e5d61984bfcb5d66b32cfdea077f02b7e7))
+* **ci:** fix failing gateway integration test ([#4358](https://github.com/matter-labs/zksync-era/issues/4358)) ([e76c079](https://github.com/matter-labs/zksync-era/commit/e76c0797cf818ea112c4eb4c2181762bac8ffeb4))
+* **en:** Properly prune the batches with finality status ([#4362](https://github.com/matter-labs/zksync-era/issues/4362)) ([7d345c3](https://github.com/matter-labs/zksync-era/commit/7d345c32ee6f206b82d97a950585c98ae9500cda))
+* **eth-sender:** Check the existance of eth txs before getting the correct block for statistics ([#4359](https://github.com/matter-labs/zksync-era/issues/4359)) ([99d90e5](https://github.com/matter-labs/zksync-era/commit/99d90e5c78e2aa4b6bbe7cad62fee9f15ad16000))
+* **state-keeper:** set interop roots on first block in batch ([#4324](https://github.com/matter-labs/zksync-era/issues/4324)) ([b108a21](https://github.com/matter-labs/zksync-era/commit/b108a21ad9e57a559d2640a31a2bb3e865d2c88d))
+
 ## [28.10.0](https://github.com/matter-labs/zksync-era/compare/core-v28.9.0...core-v28.10.0) (2025-07-24)
 
 
