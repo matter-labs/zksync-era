@@ -28,7 +28,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
-        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
+        MultiVmSubversion::Interop => 90_000_000, //kl todo vg todo change when memory layout is finalized for interop typeA
     }
 }
 
@@ -156,7 +156,14 @@ pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversio
     }
 }
 
-pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
+/// The "worst" case is many small bytecodes. Each bytecode needs:
+/// - 32-byte formatted bytecode hash
+/// - 32-byte zero (it will be replaced within the code with left-padded selector of the `publishCompressedBytecode`).
+/// - ABI-encoding of the parameters of the `publishCompressedBytecode` method (which accepts 2x
+/// bytes calldata).
+/// That's 8 slots in total for each bytecode. So compressed bytecode slots should be at least
+/// 8 * (number_of_blobs * 130_000 / 32) + some overhead just in case.
+pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 294_000;
 
 pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVmSubversion) -> usize {
     get_compressed_bytecodes_offset(subversion) + COMPRESSED_BYTECODES_SLOTS
@@ -180,15 +187,14 @@ pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
     }
 }
 
-/// One of "worst case" scenarios for the number of state diffs in a batch is when 780kb of pubdata is spent
-/// on repeated writes, that are all zeroed out. In this case, the number of diffs is `780kb / 5 = 156k`. This means that they will have
-/// accommodate 42432000 bytes of calldata for the uncompressed state diffs. Adding 780kb on top leaves us with
-/// roughly 43212000 bytes needed for calldata.
-/// 1350375 slots are needed to accommodate this amount of data. We round up to 1360000 slots just in case.
-///
+/// One of "worst case" scenarios for the number of state diffs in a batch is when 1170kb (130kb in blob * 9) of pubdata is spent
+/// on repeated writes, that are all zeroed out. In this case, the number of diffs is `1170kb / 5 = 234k`. This means that they will have
+/// accommodate 63648kb (234k * 272) of calldata for the uncompressed state diffs. Adding 1170kb on top leaves us with
+/// roughly 64818kb needed for calldata.
+/// ~2026000 slots are needed to accommodate this amount of data. We round up to 2040000 slots just in case.
 /// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
-pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 1360000;
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 2_040_000;
 
 pub(crate) const fn get_bootloader_tx_description_offset(subversion: MultiVmSubversion) -> usize {
     get_operator_provided_l1_messenger_pubdata_offset(subversion)
@@ -291,5 +297,5 @@ pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
 
 pub(crate) const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
-pub const MAX_BLOBS_PER_BATCH: usize = 6;
+pub const MAX_BLOBS_PER_BATCH: usize = 9;
 pub const MAX_VM_PUBDATA_PER_BATCH: usize = MAX_BLOBS_PER_BATCH * ZK_SYNC_BYTES_PER_BLOB;

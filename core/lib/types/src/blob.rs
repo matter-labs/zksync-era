@@ -17,7 +17,9 @@ pub fn num_blobs_created(protocol_version: &ProtocolVersionId) -> usize {
         0
     } else if protocol_version.is_pre_1_5_0() {
         2
-    } else {
+    } else if protocol_version.is_pre_interop_fast_blocks() {
         6
+    } else {
+        9
     }
 }
