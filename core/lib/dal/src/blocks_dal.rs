@@ -1803,7 +1803,7 @@ impl BlocksDal<'_, '_> {
                 eth_txs_history AS execute_tx
                 ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
             WHERE
-                execute_tx.confirmed_at IS NOT NULL
+                execute_tx.finality_status = 'finalized'
             ORDER BY
                 number DESC
             LIMIT
