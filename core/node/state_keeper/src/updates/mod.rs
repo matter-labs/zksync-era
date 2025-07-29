@@ -278,8 +278,8 @@ impl UpdatesManager {
                         .iter()
                         .all(|block| !block.interop_roots.contains(root))
             })
-            .cloned()
             .take(limit.saturating_sub(self.committed_updates.interop_roots.len()))
+            .cloned()
             .collect();
 
         l2_block_params.set_interop_roots(new_interop_roots);
