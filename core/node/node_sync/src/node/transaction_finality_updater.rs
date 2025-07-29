@@ -11,7 +11,7 @@ use zksync_node_framework::{
 use zksync_shared_resources::contracts::SettlementLayerContractsResource;
 use zksync_web3_decl::node::SettlementLayerClient;
 
-use crate::batch_transaction_updater::BatchTransactionUpdater;
+use crate::transaction_finality_updater::BatchTransactionUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
@@ -50,7 +50,7 @@ impl WiringLayer for BatchTransactionUpdaterLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "batch_transaction_updater_layer"
+        "transaction_finality_updater_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -84,7 +84,7 @@ impl WiringLayer for BatchTransactionUpdaterLayer {
 #[async_trait::async_trait]
 impl Task for BatchTransactionUpdater {
     fn id(&self) -> TaskId {
-        "batch_transaction_updater".into()
+        "transaction_finality_updater".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
