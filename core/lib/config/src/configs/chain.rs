@@ -64,6 +64,9 @@ pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     #[config(default_t = 8_192)]
     pub transaction_slots: usize,
+    /// The max number of interop roots in a batch before it should be sealed by the interop roots sealer.
+    #[config(default_t = 95)]
+    pub interop_roots: usize,
 
     /// Deadline after which an L1 batch is going to be unconditionally sealed.
     #[config(deprecated = "block_commit_deadline")]
@@ -156,6 +159,7 @@ impl StateKeeperConfig {
         Self {
             shared: SharedStateKeeperConfig::default(),
             transaction_slots: 250,
+            interop_roots: 50,
             l1_batch_commit_deadline: Duration::from_millis(2500),
             l2_block_commit_deadline: Duration::from_secs(1),
             l2_block_max_payload_size: ByteSize(1_000_000),
@@ -270,6 +274,7 @@ mod tests {
                 protective_reads_persistence_enabled: true,
             },
             transaction_slots: 50,
+            interop_roots: 20,
             l1_batch_commit_deadline: Duration::from_millis(2500),
             l2_block_commit_deadline: Duration::from_millis(1000),
             l2_block_max_payload_size: ByteSize(1_000_000),
@@ -339,6 +344,7 @@ mod tests {
     fn state_keeper_from_yaml() {
         let yaml = r#"
           transaction_slots: 50
+          interop_roots: 20
           l1_batch_commit_deadline_ms: 2500
           l2_block_commit_deadline_ms: 1000
           l2_block_seal_queue_capacity: 10
@@ -377,6 +383,7 @@ mod tests {
     fn state_keeper_from_idiomatic_yaml() {
         let yaml = r#"
           transaction_slots: 50
+          interop_roots: 20
           l1_batch_commit_deadline: 2500ms
           l2_block_commit_deadline: 1 sec
           l2_block_seal_queue_capacity: 10

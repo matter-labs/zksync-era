@@ -40,6 +40,7 @@ api:
     api_namespaces: [ en, eth, net, web3, zks, pubsub, debug, unstable ]
 state_keeper:
   transaction_slots: 8192
+  interop_roots: 95
   max_allowed_l2_tx_gas_limit: 15000000000
   block_commit_deadline_ms: 2000
   miniblock_commit_deadline_ms: 1000
