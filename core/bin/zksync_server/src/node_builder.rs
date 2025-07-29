@@ -587,7 +587,7 @@ impl MainNodeBuilder {
             }
             (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
                 self.node
-                    .add_layer(CelestiaWiringLayer::new(config, secret));
+                    .add_layer(CelestiaWiringLayer::new(config, secret, self.genesis_config.l2_chain_id));
             }
             (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {

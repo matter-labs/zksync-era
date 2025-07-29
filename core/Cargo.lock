@@ -4287,7 +4287,9 @@ dependencies = [
 
 [[package]]
 name = "eq-common"
-version = "0.1.9"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "701b3dd6a74b739fffc944d1c0c56e3e3d7559637d26a6f01fd223d3fcf14f5e"
 dependencies = [
  "celestia-types",
  "prometheus-client",
@@ -4300,7 +4302,9 @@ dependencies = [
 
 [[package]]
 name = "eq-sdk"
-version = "0.1.9"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71e5c2ff0df95e60ca9572d3bbeb6085a22c3fd7973954eab807fde232ba8393"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
@@ -8132,8 +8136,8 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
- "heck 0.4.1",
- "itertools 0.10.5",
+ "heck 0.5.0",
+ "itertools 0.14.0",
  "log",
  "multimap",
  "once_cell",
