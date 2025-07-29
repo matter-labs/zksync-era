@@ -16,8 +16,8 @@ use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
 use crate::{
-    batch_transaction_updater::l1_transaction_verifier::TransactionValidationError,
     metrics::L1BatchStage,
+    transaction_finality_updater::l1_transaction_verifier::TransactionValidationError,
 };
 
 const MOCK_DIAMOND_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
@@ -62,35 +62,56 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
                     tx_type,
                 )));
 
-                let topics: Vec<H256> = match tx_type {
+                let (topics, data): (Vec<H256>, Vec<u8>) = match tx_type {
                     1 => {
                         //BlockCommit (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
                         let event = contract.event("BlockCommit").unwrap();
-                        vec![
-                            event.signature(),
-                            H256::from_low_u64_be(batch_number.into()),
-                            H256::zero(),
-                            H256::zero(),
-                        ]
+                        (
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be(batch_number.into()),
+                                H256::zero(),
+                                H256::zero(),
+                            ],
+                            vec![],
+                        )
                     }
                     2 => {
                         // BlocksVerification (index_topic_1 uint256 previousLastVerifiedBlock, index_topic_2 uint256 currentLastVerifiedBlock
                         let event = contract.event("BlocksVerification").unwrap();
-                        vec![
-                            event.signature(),
-                            H256::from_low_u64_be((batch_number - 1).into()),
-                            H256::from_low_u64_be(batch_number.into()),
-                        ]
+                        (
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be((batch_number - 1).into()),
+                                H256::from_low_u64_be(batch_number.into()),
+                            ],
+                            vec![],
+                        )
                     }
                     3 => {
                         // BlockExecution (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
                         let event = contract.event("BlockExecution").unwrap();
-                        vec![
-                            event.signature(),
-                            H256::from_low_u64_be(batch_number.into()),
-                            H256::zero(),
-                            H256::zero(),
-                        ]
+                        (
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be(batch_number.into()),
+                                H256::zero(),
+                                H256::zero(),
+                            ],
+                            vec![],
+                        )
+                    }
+                    4 => {
+                        // event BatchPrecommitmentSet(uint256 indexed batchNumber, uint256 indexed untrustedLastL2BlockNumberHint, bytes32 precommitment);
+                        let event = contract.event("BatchPrecommitmentSet").unwrap();
+                        (
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be(batch_number.into()),
+                                H256::from_low_u64_be(batch_number.into()),
+                            ],
+                            H256::from_low_u64_be(batch_number.into()).0.to_vec(),
+                        )
                     }
                     _ => return Ok(None),
                 };
@@ -103,7 +124,7 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
                     logs: vec![Log {
                         address: MOCK_DIAMOND_PROXY_ADDRESS,
                         topics,
-                        data: vec![].into(),
+                        data: data.into(),
                         block_hash: None,
                         block_number,
                         transaction_hash: Some(tx_hash),
@@ -169,27 +190,65 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
 /// Helper function to insert a transaction for a specific action type.
 async fn insert_tx(
     storage: &mut Connection<'_, Core>,
-    batch_number: L1BatchNumber,
-    action_type: L1BatchAggregatedActionType,
+    batch_block_number: u32,
+    action_type: AggregatedActionType,
 ) -> anyhow::Result<()> {
-    let tx_hash = create_tx_hash(action_type, batch_number.0);
-    storage
-        .eth_sender_dal()
-        .insert_pending_received_eth_tx(batch_number, action_type, tx_hash, Some(SL_CHAIN_ID))
-        .await?;
+    let tx_hash = create_tx_hash(action_type, batch_block_number);
+    match action_type {
+        AggregatedActionType::L1Batch(action_type) => {
+            storage
+                .eth_sender_dal()
+                .insert_pending_received_eth_tx(
+                    L1BatchNumber(batch_block_number),
+                    action_type,
+                    tx_hash,
+                    Some(SL_CHAIN_ID),
+                )
+                .await?;
+        }
+        AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
+            storage
+                .eth_sender_dal()
+                .insert_pending_received_precommit_eth_tx(
+                    L2BlockNumber(batch_block_number),
+                    tx_hash,
+                    Some(SL_CHAIN_ID),
+                )
+                .await?;
+        }
+    }
     Ok(())
 }
 
 /// Helper function to insert an invalid transaction that will fail validation
 async fn insert_invalid_tx(
     storage: &mut Connection<'_, Core>,
-    batch_number: L1BatchNumber,
-    action_type: L1BatchAggregatedActionType,
+    batch_number: u32,
+    action_type: AggregatedActionType,
 ) -> anyhow::Result<()> {
-    storage
-        .eth_sender_dal()
-        .insert_pending_received_eth_tx(batch_number, action_type, INVALID_HASH, Some(SL_CHAIN_ID))
-        .await?;
+    match action_type {
+        AggregatedActionType::L1Batch(action_type) => {
+            storage
+                .eth_sender_dal()
+                .insert_pending_received_eth_tx(
+                    L1BatchNumber(batch_number),
+                    action_type,
+                    INVALID_HASH,
+                    Some(SL_CHAIN_ID),
+                )
+                .await?;
+        }
+        AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
+            storage
+                .eth_sender_dal()
+                .insert_pending_received_precommit_eth_tx(
+                    L2BlockNumber(batch_number),
+                    INVALID_HASH,
+                    Some(SL_CHAIN_ID),
+                )
+                .await?;
+        }
+    }
     Ok(())
 }
 
@@ -235,22 +294,32 @@ async fn insert_batch_transactions(
     // For each stage, insert the appropriate transactions
     if stage >= L1BatchStage::Committed {
         // Insert commit transaction
-        insert_tx(storage, batch_number, L1BatchAggregatedActionType::Commit).await?;
+        insert_tx(
+            storage,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
+        )
+        .await?;
     }
 
     if stage >= L1BatchStage::Proven {
         // Insert prove transaction
         insert_tx(
             storage,
-            batch_number,
-            L1BatchAggregatedActionType::PublishProofOnchain,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain),
         )
         .await?;
     }
 
     if stage >= L1BatchStage::Executed {
         // Insert execute transaction
-        insert_tx(storage, batch_number, L1BatchAggregatedActionType::Execute).await?;
+        insert_tx(
+            storage,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
+        )
+        .await?;
     }
 
     Ok(())
@@ -323,15 +392,40 @@ async fn verify_transaction_statuses(
 /// Helper function to create transaction hash
 /// The first byte is the transaction type (1 for commit, 2 for prove, 3 for execute)
 /// The last 4 bytes are the batch number
-fn create_tx_hash(tx_type: L1BatchAggregatedActionType, batch_number: u32) -> H256 {
+fn create_tx_hash(tx_type: AggregatedActionType, batch_number: u32) -> H256 {
     let mut h = [0u8; 32];
     h[0] = match tx_type {
-        L1BatchAggregatedActionType::Commit => 1,
-        L1BatchAggregatedActionType::PublishProofOnchain => 2,
-        L1BatchAggregatedActionType::Execute => 3,
+        AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) => 1,
+        AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain) => 2,
+        AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute) => 3,
+        AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => 4,
     };
     h[28..].copy_from_slice(&batch_number.to_be_bytes());
     H256::from(h)
+}
+
+fn block_numbers_for_finality_status(
+    finality_status: EthTxFinalityStatus,
+    block_number_finalized: L1BlockNumber,
+    block_number_with_status: L1BlockNumber,
+) -> L1BlockNumbers {
+    match finality_status {
+        EthTxFinalityStatus::Pending => L1BlockNumbers {
+            finalized: block_number_finalized,
+            fast_finality: block_number_finalized,
+            latest: block_number_with_status,
+        },
+        EthTxFinalityStatus::FastFinalized => L1BlockNumbers {
+            finalized: block_number_finalized,
+            fast_finality: block_number_with_status,
+            latest: block_number_with_status,
+        },
+        EthTxFinalityStatus::Finalized => L1BlockNumbers {
+            finalized: block_number_with_status,
+            fast_finality: block_number_with_status,
+            latest: block_number_with_status,
+        },
+    }
 }
 
 #[test_casing(9, Product(([L1BatchStage::Committed, L1BatchStage::Proven, L1BatchStage::Executed], [EthTxFinalityStatus::Pending, EthTxFinalityStatus::FastFinalized, EthTxFinalityStatus::Finalized])))]
@@ -352,23 +446,11 @@ async fn normal_operation_1_batch(
     insert_batch_transactions(&mut storage, batch_number, stage).await?;
 
     // Run the updater once
-    let l1_block_numbers = match finality_status {
-        EthTxFinalityStatus::Pending => L1BlockNumbers {
-            finalized: L1BlockNumber(10),
-            fast_finality: L1BlockNumber(10),
-            latest: transactions_l1_block_number,
-        },
-        EthTxFinalityStatus::FastFinalized => L1BlockNumbers {
-            finalized: L1BlockNumber(10),
-            fast_finality: transactions_l1_block_number,
-            latest: transactions_l1_block_number,
-        },
-        EthTxFinalityStatus::Finalized => L1BlockNumbers {
-            finalized: transactions_l1_block_number,
-            fast_finality: transactions_l1_block_number,
-            latest: transactions_l1_block_number,
-        },
-    };
+    let l1_block_numbers = block_numbers_for_finality_status(
+        finality_status,
+        L1BlockNumber(10),
+        transactions_l1_block_number,
+    );
 
     // Update transaction statuses
 
@@ -419,8 +501,8 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     // Start with commit tx online
     insert_tx(
         &mut storage,
-        batch_number,
-        L1BatchAggregatedActionType::Commit,
+        batch_number.0,
+        AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
     )
     .await?;
 
@@ -451,8 +533,8 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     // Add Prove transaction (progressing to Proven stage)
     insert_tx(
         &mut storage,
-        batch_number,
-        L1BatchAggregatedActionType::PublishProofOnchain,
+        batch_number.0,
+        AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain),
     )
     .await?;
 
@@ -497,8 +579,8 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     // Add execute transaction for current batch and create next batch with all transactions
     insert_tx(
         &mut storage,
-        batch_number,
-        L1BatchAggregatedActionType::Execute,
+        batch_number.0,
+        AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
     )
     .await?;
     seal_l1_batch(&mut storage, batch_number + 1).await;
@@ -570,6 +652,78 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     Ok(())
 }
 
+async fn assert_precommit_transaction_status(
+    storage: &mut Connection<'_, Core>,
+    miniblock_number: L2BlockNumber,
+    status: EthTxFinalityStatus,
+) {
+    let block = storage
+        .blocks_web3_dal()
+        .get_block_details(miniblock_number)
+        .await
+        .unwrap()
+        .unwrap();
+    if status == EthTxFinalityStatus::Pending {
+        assert_eq!(block.base.precommit_tx_finality, None);
+        assert_eq!(block.base.precommit_tx_hash, None);
+        assert_eq!(block.base.precommit_chain_id, None);
+    } else {
+        assert_eq!(block.base.precommit_tx_finality, Some(status));
+        assert_eq!(
+            block.base.precommit_tx_hash,
+            Some(create_tx_hash(
+                AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
+                miniblock_number.0
+            ))
+        );
+        assert_eq!(block.base.precommit_chain_id, Some(SL_CHAIN_ID));
+    }
+}
+
+#[test_casing(3, [EthTxFinalityStatus::Finalized, EthTxFinalityStatus::FastFinalized, EthTxFinalityStatus::Pending])]
+#[tokio::test]
+async fn test_precommit_transaction_validation(
+    finality_status: EthTxFinalityStatus,
+) -> anyhow::Result<()> {
+    // Set up test environment
+    let (_pool, mut storage, updater, batch_number, _genesis_params) =
+        setup_test_environment().await?;
+
+    // Insert precommit transaction into the database
+    insert_tx(
+        &mut storage,
+        batch_number.0, // miniblock numbers are same as batch numbers in this test
+        AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
+    )
+    .await?;
+    // Run the updater
+    let l1_block_numbers =
+        block_numbers_for_finality_status(finality_status, L1BlockNumber(1), L1BlockNumber(1000));
+    let updated_count = updater
+        .loop_iteration(SL_CHAIN_ID, l1_block_numbers)
+        .await?;
+
+    // We should have updated the precommit tx status
+    assert_eq!(
+        updated_count,
+        if EthTxFinalityStatus::Pending == finality_status {
+            0
+        } else {
+            1
+        }
+    );
+
+    // Verify precommit transaction status was updated to finalized
+    assert_precommit_transaction_status(
+        &mut storage,
+        L2BlockNumber(batch_number.0),
+        finality_status,
+    )
+    .await;
+
+    Ok(())
+}
+
 #[test_casing(3, [L1BatchAggregatedActionType::Commit, L1BatchAggregatedActionType::PublishProofOnchain, L1BatchAggregatedActionType::Execute])]
 #[tokio::test]
 async fn test_invalid_transaction_handling(
@@ -583,15 +737,15 @@ async fn test_invalid_transaction_handling(
     if invalid_tx_type != L1BatchAggregatedActionType::Commit {
         insert_tx(
             &mut storage,
-            batch_number,
-            L1BatchAggregatedActionType::Commit,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
         )
         .await?;
     } else {
         insert_invalid_tx(
             &mut storage,
-            batch_number,
-            L1BatchAggregatedActionType::Commit,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
         )
         .await?;
     }
@@ -599,15 +753,15 @@ async fn test_invalid_transaction_handling(
     if invalid_tx_type != L1BatchAggregatedActionType::PublishProofOnchain {
         insert_tx(
             &mut storage,
-            batch_number,
-            L1BatchAggregatedActionType::PublishProofOnchain,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain),
         )
         .await?;
     } else {
         insert_invalid_tx(
             &mut storage,
-            batch_number,
-            L1BatchAggregatedActionType::PublishProofOnchain,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain),
         )
         .await?;
     }
@@ -615,15 +769,15 @@ async fn test_invalid_transaction_handling(
     if invalid_tx_type != L1BatchAggregatedActionType::Execute {
         insert_tx(
             &mut storage,
-            batch_number,
-            L1BatchAggregatedActionType::Execute,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
         )
         .await?;
     } else {
         insert_invalid_tx(
             &mut storage,
-            batch_number,
-            L1BatchAggregatedActionType::Execute,
+            batch_number.0,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
         )
         .await?;
     }
@@ -648,7 +802,7 @@ async fn test_invalid_transaction_handling(
     assert_matches!(
         err.downcast_ref::<TransactionValidationError>()
             .expect("Unexpected error type"),
-        TransactionValidationError::BatchTransactionInvalid { .. }
+        TransactionValidationError::MissingExpectedLog { .. }
     );
 
     Ok(())

@@ -10,7 +10,7 @@ use zksync_node_framework::{
 };
 use zksync_web3_decl::client::{DynClient, L2};
 
-use crate::batch_status_updater::BatchStatusUpdater;
+use crate::batch_transaction_fetcher::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
@@ -36,7 +36,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "batch_status_updater_layer"
+        "batch_transaction_fetcher_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -60,7 +60,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
 #[async_trait::async_trait]
 impl Task for BatchStatusUpdater {
     fn id(&self) -> TaskId {
-        "batch_status_updater".into()
+        "batch_transaction_fetcher".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

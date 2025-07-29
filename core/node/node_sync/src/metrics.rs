@@ -9,6 +9,8 @@ use zksync_types::aggregated_operations::L1BatchAggregatedActionType;
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum FetchStage {
     GetL1BatchDetails,
+    GetMiniblockDetails,
+    GetSafeBlock,
 }
 
 #[derive(
