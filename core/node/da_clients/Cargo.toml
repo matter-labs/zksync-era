@@ -19,6 +19,7 @@ flate2.workspace = true
 secrecy.workspace = true
 tokio.workspace = true
 chrono.workspace = true
+vise.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true

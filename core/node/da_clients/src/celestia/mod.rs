@@ -9,6 +9,8 @@ pub mod celestia_proto {
 
 pub mod blobstream;
 
+pub mod metrics;
+
 pub mod cosmos {
     pub mod auth {
         include!("generated/cosmos.auth.v1beta1.rs");
