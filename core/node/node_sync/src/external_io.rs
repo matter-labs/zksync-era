@@ -324,7 +324,7 @@ impl StateKeeperIO for ExternalIO {
                         pubdata_limit: params.pubdata_limit,
                     })
                     .await?;
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!("unexpected action in the action queue: {other:?}");

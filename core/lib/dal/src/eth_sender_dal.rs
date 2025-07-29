@@ -10,7 +10,7 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
-    Address, L1BatchNumber, SLChainId, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -209,7 +209,7 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_eth_all_blocks_stat(&mut self) -> sqlx::Result<BlocksEthSenderStats> {
+    pub async fn get_eth_all_blocks_stat(&mut self) -> DalResult<BlocksEthSenderStats> {
         struct EthTxRow {
             number: i64,
             confirmed: bool,
@@ -224,6 +224,24 @@ impl EthSenderDal<'_, '_> {
 
         let mut stats = BlocksEthSenderStats::default();
         for &tx_type in TX_TYPES {
+            // Execute cheap query to check if there are any transactions of this type.
+            let eth_txs_type_exist: bool = sqlx::query!(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM eth_txs WHERE tx_type = $1
+                )
+                "#,
+                tx_type.to_string()
+            )
+            .instrument("get_existence_of_eth_txs_by_type")
+            .fetch_one(self.storage)
+            .await?
+            .exists
+            .unwrap_or_default();
+            if !eth_txs_type_exist {
+                continue;
+            }
             let mut tx_rows = vec![];
             for confirmed in [true, false] {
                 let query = match_query_as!(
@@ -253,7 +271,12 @@ impl EthSenderDal<'_, '_> {
                         ),
                     }
                 );
-                tx_rows.extend(query.fetch_all(self.storage.conn()).await?);
+                tx_rows.extend(
+                    query
+                        .instrument("get_eth_blocks_stat")
+                        .fetch_all(self.storage)
+                        .await?,
+                );
             }
 
             for row in tx_rows {
@@ -615,6 +638,91 @@ impl EthSenderDal<'_, '_> {
         Ok(Some(H256::from_str(tx_hash).context("invalid tx_hash")?))
     }
 
+    async fn get_eth_tx_id_by_tx_hash(
+        transaction: &mut Connection<'_, Core>,
+        tx_hash: &str,
+    ) -> anyhow::Result<Option<i32>> {
+        Ok(sqlx::query_scalar!(
+            r#"
+            SELECT eth_tx_id FROM eth_txs_history
+            WHERE tx_hash = $1
+            "#,
+            tx_hash,
+        )
+        .fetch_optional(transaction.conn())
+        .await?)
+    }
+
+    /// Inserts a pending eth_tx with hash or updates its status to pending if it exists.
+    /// Update to pending is meant when we associate an existing tx with new batch or miniblock.
+    /// We should make sure its revalidated in such case as we do not perform validation before inserting to db.
+    async fn insert_pending_eth_tx_or_update(
+        transaction: &mut Connection<'_, Core>,
+        tx_hash: &str,
+        tx_type: AggregatedActionType,
+        sl_chain_id: Option<SLChainId>,
+    ) -> anyhow::Result<i32> {
+        let eth_tx_id = EthSenderDal::get_eth_tx_id_by_tx_hash(transaction, tx_hash).await?;
+
+        if let Some(eth_tx_id) = eth_tx_id {
+            // mark transaction as pending
+            sqlx::query_scalar!(
+                r#"
+                UPDATE eth_txs_history
+                SET
+                    confirmed_at = NULL,
+                    finality_status = $2,
+                    updated_at = NOW()
+                WHERE
+                    tx_hash = $1
+                "#,
+                tx_hash,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .execute(transaction.conn())
+            .await?;
+
+            sqlx::query_scalar!(
+                r#"
+                UPDATE eth_txs
+                SET
+                    confirmed_eth_tx_history_id = NULL
+                WHERE
+                    id = $1
+                "#,
+                eth_tx_id,
+            )
+            .execute(transaction.conn())
+            .await?;
+
+            Ok(eth_tx_id)
+        } else {
+            let eth_tx_id = sqlx::query_scalar!(
+                r#"INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at)
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now())
+                RETURNING id"#,
+                tx_type.to_string(),
+                sl_chain_id.map(|chain_id| chain_id.0 as i64)
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+
+            // Insert a "sent transaction".
+            sqlx::query_scalar!(
+                r#"INSERT INTO eth_txs_history
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status)
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3)
+                RETURNING id"#,
+                eth_tx_id,
+                tx_hash,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+            Ok(eth_tx_id)
+        }
+    }
+
     /// This method inserts a pending transaction into eth_txs_history table.
     /// It should be used only in external node context as most properties are not set.
     /// Inserted transaction does not need to be validated as its set as pending.
@@ -632,47 +740,13 @@ impl EthSenderDal<'_, '_> {
             .await
             .context("start_transaction")?;
         let tx_hash = format!("{:#x}", tx_hash);
-
-        let eth_tx_id = sqlx::query_scalar!(
-            "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs \
-            ON eth_txs.id = eth_txs_history.eth_tx_id \
-            WHERE eth_txs_history.tx_hash = $1",
-            tx_hash
+        let eth_tx_id = EthSenderDal::insert_pending_eth_tx_or_update(
+            &mut transaction,
+            &tx_hash,
+            AggregatedActionType::L1Batch(tx_type),
+            sl_chain_id,
         )
-        .fetch_optional(transaction.conn())
         .await?;
-
-        // Check if the transaction with the corresponding hash already exists.
-        let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
-            eth_tx_id
-        } else {
-            // No such transaction in the database yet, we have to insert it.
-
-            // Insert general tx descriptor.
-            let eth_tx_id = sqlx::query_scalar!(
-                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
-                RETURNING id",
-                tx_type.to_string(),
-                sl_chain_id.map(|chain_id| chain_id.0 as i64)
-            )
-            .fetch_one(transaction.conn())
-            .await?;
-
-            // Insert a "sent transaction".
-            sqlx::query_scalar!(
-                "INSERT INTO eth_txs_history \
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3) \
-                RETURNING id",
-                eth_tx_id,
-                tx_hash,
-                EthTxFinalityStatus::Pending.to_string()
-            )
-            .fetch_one(transaction.conn())
-            .await?;
-            eth_tx_id
-        };
 
         // Tie the ETH tx to the L1 batch.
         super::BlocksDal {
@@ -687,6 +761,58 @@ impl EthSenderDal<'_, '_> {
         .context("set_eth_tx_id()")?;
 
         transaction.commit().await.context("commit()")
+    }
+
+    /// Inserts a pending precommit transaction into the database.
+    /// It should be used only in external node context as most properties are not set.
+    /// Inserted transaction does not need to be validated as its set as pending.
+    /// Validation needs to be done before marking with one of the executed statuses.
+    /// Errors if transaction was already inserted.
+    pub async fn insert_pending_received_precommit_eth_tx(
+        &mut self,
+        miniblock: L2BlockNumber,
+        tx_hash: H256,
+        sl_chain_id: Option<SLChainId>,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let tx_hash_str = format!("{:#x}", tx_hash);
+
+        let eth_tx_id = EthSenderDal::insert_pending_eth_tx_or_update(
+            &mut transaction,
+            &tx_hash_str,
+            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
+            sl_chain_id,
+        )
+        .await?;
+
+        // Update the miniblocks table with the precommit transaction hash
+        let result = sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                eth_precommit_tx_id = $1
+            WHERE
+                number = $2
+                AND eth_precommit_tx_id IS NULL
+            "#,
+            eth_tx_id as i32,
+            i64::from(miniblock.0)
+        )
+        .execute(transaction.conn())
+        .await
+        .context("Failed to update miniblock with precommit hash")?;
+
+        if result.rows_affected() == 0 {
+            anyhow::bail!(
+                "Update eth_precommit_tx_id that is is not null or for non existing miniblock is not allowed"
+            );
+        }
+
+        transaction.commit().await.context("commit")
     }
 
     pub async fn get_unfinalized_transactions(
@@ -1053,6 +1179,25 @@ impl EthSenderDal<'_, '_> {
         .max
         .unwrap()
         .try_into()
+        .unwrap()
+    }
+
+    pub async fn count_eth_txs_by_type(&mut self, op_type: AggregatedActionType) -> i64 {
+        sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                tx_type = $1
+            "#,
+            op_type.as_str(),
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .count
         .unwrap()
     }
 

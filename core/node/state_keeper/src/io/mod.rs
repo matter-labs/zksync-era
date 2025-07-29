@@ -159,6 +159,7 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
+            self.first_l2_block.interop_roots.clone(),
         );
 
         BatchInitParams {

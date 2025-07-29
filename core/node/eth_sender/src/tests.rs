@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_contracts::hyperchain_contract;
@@ -95,6 +97,11 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .short_signature();
 
     let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
+    let execution_delay_selector = functions
+        .validator_timelock_contract
+        .function("executionDelay")
+        .unwrap()
+        .short_signature();
 
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
@@ -141,6 +148,14 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 let non_zero_address = vec![6u8; 32];
 
                 [non_zero_address.clone(), non_zero_address].concat()
+            }
+            selector if selector == execution_delay_selector => {
+                // The target is config_timelock_contract_address which is a random address in tests
+                // Return a mock execution delay (e.g., 3600 seconds = 1 hour)
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
             }
             selector if selector == valdaitor_timelock_post_v29_short_selector => {
                 assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
@@ -845,7 +860,17 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
+        // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes({
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }),
+        ]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -879,9 +904,10 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
     );
     assert_eq!(
         parsed.stm_validator_timelock_address,
-        Address::repeat_byte(6)
+        Address::repeat_byte(7)
     );
     assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
 }
 
 #[test_log::test(tokio::test)]
