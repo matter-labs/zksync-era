@@ -101,170 +101,182 @@ impl BatchTransactionUpdater {
             .eth_sender_dal()
             .get_eth_tx_history_by_id(db_eth_history_id)
             .await?;
-
-        // variable only for logging
-        let for_blocks_or_batches = match eth_history_tx.tx_type {
-            AggregatedActionType::L1Batch(tx_type) => {
-                let batches = connection
-                    .blocks_dal()
-                    .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
-                    .await?;
-
-                if batches.is_empty() {
-                    anyhow::bail!(
-                        "Transaction {} is not associated with any batch",
-                        eth_history_tx.tx_hash
-                    );
-                }
-
-                // validate the transaction against db
-                for batch in &batches {
-                    let batch_number = L1BatchNumber(batch.number);
-
-                    let Some(protocol_version) = connection
+        let for_blocks_or_batches = if eth_history_tx.eth_tx_finality_status
+            == EthTxFinalityStatus::FastFinalized
+            && updated_status == EthTxFinalityStatus::Finalized
+        {
+            // Transaction is already fast finalized and we checked the transaction consistency before,
+            // we can just update the status to Finalized
+            tracing::debug!(
+                "Transaction {:?} is already fast finalized, skipping the validation",
+                eth_history_tx.tx_hash
+            );
+            None
+        } else {
+            // variable only for logging
+            let for_blocks_or_batches = match eth_history_tx.tx_type {
+                AggregatedActionType::L1Batch(tx_type) => {
+                    let batches = connection
                         .blocks_dal()
-                        .get_batch_protocol_version_id(batch_number)
+                        .get_l1_batches_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
+                        .await?;
+
+                    if batches.is_empty() {
+                        anyhow::bail!(
+                            "Transaction {} is not associated with any batch",
+                            eth_history_tx.tx_hash
+                        );
+                    }
+
+                    // validate the transaction against db
+                    for batch in &batches {
+                        let batch_number = L1BatchNumber(batch.number);
+
+                        let Some(protocol_version) = connection
+                            .blocks_dal()
+                            .get_batch_protocol_version_id(batch_number)
+                            .await?
+                        else {
+                            tracing::debug!(
+                                "Batch {} metadata is not found in the database. Cannot verify transaction {} right now",
+                                batch_number,
+                                eth_history_tx.tx_hash
+                            );
+                            return Ok(false);
+                        };
+
+                        // Do not validate transactions for batches with protocol version before 29
+                        if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
+                            continue;
+                        }
+
+                        let batch_metadata = match connection
+                            .blocks_dal()
+                            .get_optional_l1_batch_metadata(batch_number)
+                            .await?
+                        {
+                            Some(L1BatchWithOptionalMetadata {
+                                header: _,
+                                metadata: Ok(batch_metadata),
+                            }) => batch_metadata,
+                            _ => {
+                                tracing::debug!(
+                                "Batch {} metadata is not found in the database. Cannot verify transaction {} right now",
+                                batch_number,
+                                eth_history_tx.tx_hash
+                            );
+                                return Ok(false);
+                            }
+                        };
+
+                        match tx_type {
+                            L1BatchAggregatedActionType::Commit => self
+                                .l1_transaction_verifier
+                                .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
+                            L1BatchAggregatedActionType::PublishProofOnchain => self
+                                .l1_transaction_verifier
+                                .validate_prove_tx(&receipt, batch_metadata, batch_number)?,
+                            L1BatchAggregatedActionType::Execute => self
+                                .l1_transaction_verifier
+                                .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
+                        };
+                        tracing::debug!(
+                            "Verified transaction {} ({}) for batch {}",
+                            receipt.transaction_hash,
+                            eth_history_tx.tx_type,
+                            batch_number
+                        );
+                    }
+                    batches.iter().map(|batch| batch.number).collect::<Vec<_>>()
+                }
+                AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
+                    let miniblocks = connection
+                        .blocks_dal()
+                        .get_l2_blocks_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
+                        .await?;
+
+                    if miniblocks.is_empty() {
+                        anyhow::bail!(
+                            "Transaction {} is not associated with any miniblock",
+                            eth_history_tx.tx_hash
+                        );
+                    }
+
+                    // a precommit tx is associated with a consecutive series of txs. We validate this property.
+
+                    let mut miniblock_numbers = miniblocks
+                        .iter()
+                        .map(|miniblock| miniblock.number)
+                        .collect::<Vec<_>>();
+                    miniblock_numbers.sort();
+                    for i in 1..miniblock_numbers.len() {
+                        if miniblock_numbers[i] != miniblock_numbers[i - 1] + 1 {
+                            anyhow::bail!(
+                                "Transaction {} is associated with non consecutive set of miniblocks: miniblock {} is not consecutive with miniblock {}",
+                                eth_history_tx.tx_hash,
+                                miniblock_numbers[i],
+                                miniblock_numbers[i - 1]
+                            );
+                        }
+                    }
+
+                    // Precommit tx emits commitment to the rolling_tx_hash of the highest miniblock
+                    // So we validate against the highest miniblock
+                    let highest_miniblock_number = L2BlockNumber(
+                        miniblocks
+                            .iter()
+                            .map(|miniblock| miniblock.number)
+                            .max()
+                            .unwrap(),
+                    ); // safe because we just checked that miniblocks is not empty
+
+                    // miniblock should be in db due to how we perform fetching
+                    let Some(miniblock_header) = connection
+                        .blocks_dal()
+                        .get_l2_block_header(highest_miniblock_number)
                         .await?
                     else {
                         tracing::debug!(
-                            "Batch {} protocol version is not found in the database. Cannot verify transaction {} right now",
-                            batch_number,
-                            eth_history_tx.tx_hash
-                        );
+                                    "Miniblock {} is not found in the database. Cannot verify transaction {} right now",
+                                    highest_miniblock_number,
+                                    eth_history_tx.tx_hash
+                                );
                         return Ok(false);
                     };
 
-                    // Do not validate transactions for batches with protocol version before 29
-                    if protocol_version < FIRST_VALIDATED_PROTOCOL_VERSION_ID {
-                        continue;
-                    }
+                    let result = self
+                        .l1_transaction_verifier
+                        .validate_precommit_tx(&receipt, miniblock_header);
 
-                    let batch_metadata = match connection
-                        .blocks_dal()
-                        .get_optional_l1_batch_metadata(batch_number)
-                        .await?
-                    {
-                        Some(L1BatchWithOptionalMetadata {
-                            header: _,
-                            metadata: Ok(batch_metadata),
-                        }) => batch_metadata,
-                        _ => {
-                            tracing::debug!(
-                            "Batch {} metadata is not found in the database. Cannot verify transaction {} right now",
-                            batch_number,
-                            eth_history_tx.tx_hash
-                        );
-                            return Ok(false);
+                    if let Err(err) = result {
+                        match err {
+                            TransactionValidationError::MissingExpectedLog { .. } => {
+                                // allow retry in case of MissingExpectedLog error.
+                                // We might now have synced precommit tx for the last
+                                // miniblock in series. We can only validate when we
+                                // have all the miniblocks associations in db
+                                tracing::warn!(
+                                    "Transaction {} cannot be validated, because it is missing expected log for miniblock {}. We may need to have a higher miniblock to validate it",
+                                    eth_history_tx.tx_hash,
+                                    highest_miniblock_number
+                                );
+                                return Ok(false);
+                            }
+                            _ => {
+                                // all other errors are critical
+                                return Err(err.into());
+                            }
                         }
-                    };
-
-                    match tx_type {
-                        L1BatchAggregatedActionType::Commit => self
-                            .l1_transaction_verifier
-                            .validate_commit_tx(&receipt, batch_metadata, batch_number)?,
-                        L1BatchAggregatedActionType::PublishProofOnchain => self
-                            .l1_transaction_verifier
-                            .validate_prove_tx(&receipt, batch_metadata, batch_number)?,
-                        L1BatchAggregatedActionType::Execute => self
-                            .l1_transaction_verifier
-                            .validate_execute_tx(&receipt, batch_metadata, batch_number)?,
-                    };
-                    tracing::debug!(
-                        "Verified transaction {} ({}) for batch {}",
-                        receipt.transaction_hash,
-                        eth_history_tx.tx_type,
-                        batch_number
-                    );
-                }
-                batches.iter().map(|batch| batch.number).collect::<Vec<_>>()
-            }
-            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => {
-                let miniblocks = connection
-                    .blocks_dal()
-                    .get_l2_blocks_statistics_for_eth_tx_id(eth_history_tx.eth_tx_id)
-                    .await?;
-
-                if miniblocks.is_empty() {
-                    anyhow::bail!(
-                        "Transaction {} is not associated with any miniblock",
-                        eth_history_tx.tx_hash
-                    );
-                }
-
-                // a precommit tx is associated with a consecutive series of txs. We validate this property.
-
-                let mut miniblock_numbers = miniblocks
-                    .iter()
-                    .map(|miniblock| miniblock.number)
-                    .collect::<Vec<_>>();
-                miniblock_numbers.sort();
-                for i in 1..miniblock_numbers.len() {
-                    if miniblock_numbers[i] != miniblock_numbers[i - 1] + 1 {
-                        anyhow::bail!(
-                            "Transaction {} is associated with non consecutive set of miniblocks: miniblock {} is not consecutive with miniblock {}",
-                            eth_history_tx.tx_hash,
-                            miniblock_numbers[i],
-                            miniblock_numbers[i - 1]
-                        );
                     }
-                }
 
-                // Precommit tx emits commitment to the rolling_tx_hash of the highest miniblock
-                // So we validate against the highest miniblock
-                let highest_miniblock_number = L2BlockNumber(
                     miniblocks
                         .iter()
                         .map(|miniblock| miniblock.number)
-                        .max()
-                        .unwrap(),
-                ); // safe because we just checked that miniblocks is not empty
-
-                // miniblock should be in db due to how we perform fetching
-                let Some(miniblock_header) = connection
-                    .blocks_dal()
-                    .get_l2_block_header(highest_miniblock_number)
-                    .await?
-                else {
-                    tracing::debug!(
-                                "Miniblock {} is not found in the database. Cannot verify transaction {} right now",
-                                highest_miniblock_number,
-                                eth_history_tx.tx_hash
-                            );
-                    return Ok(false);
-                };
-
-                let result = self
-                    .l1_transaction_verifier
-                    .validate_precommit_tx(&receipt, miniblock_header);
-
-                if let Err(err) = result {
-                    match err {
-                        TransactionValidationError::MissingExpectedLog { .. } => {
-                            // allow retry in case of MissingExpectedLog error.
-                            // We might now have synced precommit tx for the last
-                            // miniblock in series. We can only validate when we
-                            // have all the miniblocks associations in db
-                            tracing::warn!(
-                                "Transaction {} cannot be validated, because it is missing expected log for miniblock {}. We may need to have a higher miniblock to validate it",
-                                eth_history_tx.tx_hash,
-                                highest_miniblock_number
-                            );
-                            return Ok(false);
-                        }
-                        _ => {
-                            // all other errors are critical
-                            return Err(err.into());
-                        }
-                    }
+                        .collect::<Vec<_>>()
                 }
-
-                miniblocks
-                    .iter()
-                    .map(|miniblock| miniblock.number)
-                    .collect::<Vec<_>>()
-            }
+            };
+            Some(for_blocks_or_batches)
         };
-
         connection
             .eth_sender_dal()
             .confirm_tx(
@@ -274,14 +286,27 @@ impl BatchTransactionUpdater {
             )
             .await?;
 
-        tracing::info!(
-            "Updated finality status for transaction {} ({} for {:?}) from {:?} to {:?}",
-            eth_history_tx.tx_hash,
-            eth_history_tx.tx_type,
-            for_blocks_or_batches,
-            eth_history_tx.eth_tx_finality_status,
-            updated_status
-        );
+        match for_blocks_or_batches {
+            None => {
+                tracing::info!(
+                    "Updated finality status for transaction {} {} from {:?} to {:?}",
+                    eth_history_tx.tx_hash,
+                    eth_history_tx.tx_type,
+                    eth_history_tx.eth_tx_finality_status,
+                    updated_status
+                );
+            }
+            Some(for_blocks_or_batches) => {
+                tracing::info!(
+                    "Updated finality status for transaction {} ({} for {:?}) from {:?} to {:?}",
+                    eth_history_tx.tx_hash,
+                    eth_history_tx.tx_type,
+                    for_blocks_or_batches,
+                    eth_history_tx.eth_tx_finality_status,
+                    updated_status
+                );
+            }
+        }
 
         Ok(true)
     }
