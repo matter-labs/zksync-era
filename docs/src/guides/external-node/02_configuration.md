@@ -8,6 +8,14 @@ these files as a starting point and modify only the necessary sections.
 **You can also see directory docker-compose-examples if you want to run external-node on your machine with recommended
 default settings.**
 
+## Important Configuration Notes
+
+### Execution Delay
+
+The execution delay (the time L1 batches must wait before being executed) is now dynamically read from the
+ValidatorTimelock contract via multicall. The system automatically queries the contract to determine the current
+execution delay setting.
+
 ## Database
 
 The Node uses two databases: PostgreSQL and RocksDB.

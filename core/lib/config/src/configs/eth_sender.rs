@@ -43,7 +43,6 @@ impl EthConfig {
                 aggregated_block_prove_deadline: Duration::from_secs(10),
                 aggregated_block_execute_deadline: Duration::from_secs(10),
                 timestamp_criteria_max_allowed_lag: 30,
-                l1_batch_min_age_before_execute: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
@@ -145,10 +144,6 @@ pub struct SenderConfig {
     #[config(default_t = 30)]
     pub timestamp_criteria_max_allowed_lag: usize,
 
-    /// L1 batches will only be executed on L1 contract after they are at least this number of seconds old.
-    /// Note that this number must be slightly higher than the one set on the contract,
-    /// because the contract uses `block.timestamp` which lags behind the clock time.
-    pub l1_batch_min_age_before_execute: Option<Duration>,
     /// Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     #[config(default_t = 100_000_000_000)]
     pub max_acceptable_priority_fee_in_gwei: u64,
@@ -288,7 +283,6 @@ mod tests {
                 aggregate_tx_poll_period: Duration::from_secs(3),
                 max_txs_in_flight: 3,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                l1_batch_min_age_before_execute: Some(Duration::from_secs(1000)),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_only_prove_and_execute: false,
@@ -358,7 +352,6 @@ mod tests {
             ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_IN_L1_BLOCKS_CAP="2000"
-            ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
@@ -383,7 +376,6 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3
             aggregate_tx_poll_period: 3
-            l1_batch_min_age_before_execute_seconds: 1000
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
@@ -440,7 +432,6 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3 seconds
             aggregate_tx_poll_period: 3s
-            l1_batch_min_age_before_execute: 1000s
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
