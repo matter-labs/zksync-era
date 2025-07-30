@@ -26,7 +26,9 @@ impl SealCriterion for InteropRootsCriterion {
             interop_roots_count, max_interop_roots_in_batch, protocol_version as u16
         );
 
-        if interop_roots_count == max_interop_roots_in_batch {
+        if interop_roots_count > max_interop_roots_in_batch {
+            SealResolution::ExcludeAndSeal
+        } else if interop_roots_count == max_interop_roots_in_batch {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
