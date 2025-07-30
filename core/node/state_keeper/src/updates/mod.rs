@@ -278,7 +278,7 @@ impl UpdatesManager {
                         .iter()
                         .all(|block| !block.interop_roots.contains(root))
             })
-            .take(limit.saturating_sub(self.committed_updates.interop_roots.len()))
+            .take(limit.saturating_sub(self.pending_interop_roots_len()))
             .cloned()
             .collect();
 
@@ -306,6 +306,15 @@ impl UpdatesManager {
                 .pending_l2_blocks
                 .iter()
                 .map(|b| b.l1_tx_count)
+                .sum::<usize>()
+    }
+
+    pub(crate) fn pending_interop_roots_len(&self) -> usize {
+        self.committed_updates().interop_roots.len()
+            + self
+                .pending_l2_blocks
+                .iter()
+                .map(|b| b.interop_roots.len())
                 .sum::<usize>()
     }
 

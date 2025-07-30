@@ -846,7 +846,7 @@ impl StateKeeperInner {
                     updates_manager.l1_batch_number().0,
                     updates_manager.pending_executed_transactions_len() + 1,
                     updates_manager.pending_l1_transactions_len() + is_tx_l1,
-                    updates_manager.committed_updates().interop_roots.len(),
+                    updates_manager.pending_interop_roots_len(),
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),
