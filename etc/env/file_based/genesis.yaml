@@ -1,6 +1,8 @@
 # TODO(zk os): genesis data taken from server
-# note: this is not the root, but blake(root, index) - it's used in place of root in zksync os
-genesis_root: "0x6e6e7044cb237fa30937e7e2ee56db7bb3b5d3bd0f46ba7c3a46a6ac4cf2f330"
+# note: this is not the root, but blake_hash(root, index, number, prev hashes, timestamp) -
+#  it's used in place of root in zksync os. It's called `state_commitment`
+#  (don't confuse it with `commitment` which is about pudata etc)
+genesis_root: "0xcc97d649ab6333df65a1ff08e76ac04fc5a80143979fae3375b35c918ef9d489"
 genesis_rollup_leaf_index: 0
 genesis_batch_commitment: 0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183
 genesis_protocol_version: 28
