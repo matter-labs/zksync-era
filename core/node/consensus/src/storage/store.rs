@@ -53,6 +53,7 @@ fn to_fetched_block(
             .map(FetchedTransaction::new)
             .collect(),
         pubdata_limit: payload.pubdata_limit,
+        interop_roots: payload.interop_roots.clone(),
     })
 }
 
@@ -348,6 +349,10 @@ impl EngineInterface for Store {
             .set_replica_state(ctx, state)
             .await
             .wrap("set_replica_state()")
+    }
+
+    async fn push_tx(&self, _ctx: &ctx::Ctx, _tx: engine::Transaction) -> ctx::Result<bool> {
+        unimplemented!()
     }
 }
 

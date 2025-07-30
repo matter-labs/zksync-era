@@ -25,24 +25,36 @@
       },
       {
         "ordinal": 4,
-        "name": "numerator",
+        "name": "numerator_l1",
         "type_info": "Numeric"
       },
       {
         "ordinal": 5,
-        "name": "denominator",
+        "name": "denominator_l1",
         "type_info": "Numeric"
       },
       {
         "ordinal": 6,
         "name": "used_in_l1",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "numerator_sl",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "denominator_sl",
+        "type_info": "Numeric"
       }
     ],
     "parameters": {
       "Left": []
     },
     "nullable": [
+      false,
+      false,
       false,
       false,
       false,

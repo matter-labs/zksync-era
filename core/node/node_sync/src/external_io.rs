@@ -324,7 +324,7 @@ impl StateKeeperIO for ExternalIO {
                         pubdata_limit: params.pubdata_limit,
                     })
                     .await?;
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!("unexpected action in the action queue: {other:?}");
@@ -348,7 +348,7 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!(
@@ -392,6 +392,18 @@ impl StateKeeperIO for ExternalIO {
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // We are replaying the already sealed batches so no rollbacks are expected to occur.
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
+    }
+
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        self.actions.validate_ready_for_next_block();
+        Ok(())
+    }
+
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
+        // Do nothing
     }
 
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {

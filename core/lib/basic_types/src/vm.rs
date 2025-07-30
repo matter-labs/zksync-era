@@ -19,12 +19,13 @@ pub enum VmVersion {
     VmGateway,
     VmEvmEmulator,
     VmEcPrecompiles,
+    VmInterop,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::VmEcPrecompiles
+        Self::VmInterop
     }
 }
 

@@ -46,8 +46,9 @@ use zksync_node_storage_init::{
     SnapshotRecoveryConfig,
 };
 use zksync_node_sync::node::{
-    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, ExternalIOLayer, SyncStateUpdaterLayer,
-    TreeDataFetcherLayer, ValidateChainIdsLayer,
+    BatchStatusUpdaterLayer, BatchTransactionUpdaterLayer, DataAvailabilityFetcherLayer,
+    ExternalIOLayer, MiniblockPrecommitFetcherLayer, SyncStateUpdaterLayer, TreeDataFetcherLayer,
+    ValidateChainIdsLayer,
 };
 use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
@@ -271,13 +272,32 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
-    fn add_batch_status_updater_layer(mut self) -> anyhow::Result<Self> {
+    fn add_batch_transaction_fetcher_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(BatchStatusUpdaterLayer);
+        Ok(self)
+    }
+
+    fn add_transaction_finality_updater_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BatchTransactionUpdaterLayer::new(
+            self.config
+                .local
+                .node_sync
+                .batch_transaction_updater_interval,
+            self.config
+                .local
+                .node_sync
+                .batch_transaction_updater_batch_size,
+        ));
         Ok(self)
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(TreeDataFetcherLayer);
+        Ok(self)
+    }
+
+    fn add_miniblock_precommit_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(MiniblockPrecommitFetcherLayer);
         Ok(self)
     }
 
@@ -319,7 +339,9 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(DataAvailabilityFetcherLayer);
+        self.node.add_layer(DataAvailabilityFetcherLayer::new(
+            self.config.local.consistency_checker.max_batches_to_recheck,
+        ));
         Ok(self)
     }
 
@@ -674,7 +696,9 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
-                        .add_batch_status_updater_layer()?
+                        .add_batch_transaction_fetcher_layer()?
+                        .add_transaction_finality_updater_layer()?
+                        .add_miniblock_precommit_fetcher_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }
             }

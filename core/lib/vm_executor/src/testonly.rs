@@ -42,6 +42,7 @@ pub(crate) fn default_l1_batch_env(number: u32) -> L1BatchEnv {
             timestamp: number.into(),
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         fee_input: BatchFeeInput::sensible_l1_pegged_default(),
     }

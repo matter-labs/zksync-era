@@ -32,6 +32,10 @@ pub(super) fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         execute_tx_finality: None,
         executed_at: None,
         execute_chain_id: None,
+        precommit_tx_hash: None,
+        precommit_tx_finality: None,
+        precommitted_at: None,
+        precommit_chain_id: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
         fair_pubdata_price: None,
@@ -163,6 +167,7 @@ pub(super) fn mock_eth_client(
     bridgehub_addres: Address,
 ) -> MockClient<L1> {
     let chain_type_manager = Address::repeat_byte(16);
+    let message_root_proxy_addr = Address::repeat_byte(17);
     let mock = MockSettlementLayer::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
@@ -192,14 +197,12 @@ pub(super) fn mock_eth_client(
         } else if call.to == Some(bridgehub_addres) {
             let call_signature = &call.data.as_ref().unwrap().0[..4];
             let contract = zksync_contracts::bridgehub_contract();
-            let get_zk_chains = contract
-                .function("getHyperchain")
-                .unwrap()
-                .short_signature();
+            let get_zk_chains = contract.function("getZKChain").unwrap().short_signature();
             let chain_type_manager_sig = contract
                 .function("chainTypeManager")
                 .unwrap()
                 .short_signature();
+            let message_root_sig = contract.function("messageRoot").unwrap().short_signature();
 
             let whitelisted_settlement_layer_sig = contract
                 .function("whitelistedSettlementLayers")
@@ -212,6 +215,9 @@ pub(super) fn mock_eth_client(
                 }
                 sig if sig == chain_type_manager_sig => {
                     return ethabi::Token::Address(chain_type_manager);
+                }
+                sig if sig == message_root_sig => {
+                    return ethabi::Token::Address(message_root_proxy_addr);
                 }
                 sig if sig == whitelisted_settlement_layer_sig => {
                     return ethabi::Token::Bool(false);
@@ -247,7 +253,10 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         .method(
             "eth_getBlockByNumber",
             move |number: api::BlockNumber, _with_txs: bool| {
-                assert_eq!(number, api::BlockNumber::Number(0.into()));
+                match number {
+                    api::BlockNumber::Number(num) => assert_eq!(num, U64::from(0)),
+                    _ => {} // request for latest, finalized etc. are fine and can return genesis
+                }
                 Ok(api::Block::<api::TransactionVariant> {
                     hash: genesis_l2_block_hash,
                     ..api::Block::default()
