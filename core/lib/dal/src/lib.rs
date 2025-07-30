@@ -70,6 +70,8 @@ pub mod transactions_dal;
 pub mod transactions_web3_dal;
 pub mod vm_runner_dal;
 
+pub mod external_node_config_dal;
+
 #[cfg(test)]
 mod tests;
 
