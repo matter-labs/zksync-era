@@ -1,4 +1,4 @@
-use zksync_multivm::utils::get_bootloader_max_msg_roots_in_batch;
+use zksync_multivm::utils::get_bootloader_max_interop_roots_in_batch;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
@@ -19,7 +19,7 @@ impl SealCriterion for InteropRootsCriterion {
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         let max_interop_roots_in_batch =
-            get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+            get_bootloader_max_interop_roots_in_batch(protocol_version.into());
         assert!(
             interop_roots_count <= max_interop_roots_in_batch,
             "Interop roots count ({}) must be lower than the bootloader constant MAX_MSG_ROOTS_IN_BATCH={} for protocol version {}",
@@ -43,7 +43,7 @@ impl SealCriterion for InteropRootsCriterion {
         protocol_version: ProtocolVersionId,
     ) -> Option<f64> {
         let max_interop_roots_in_batch =
-            get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+            get_bootloader_max_interop_roots_in_batch(protocol_version.into());
         Some((interop_roots_count as f64) / (max_interop_roots_in_batch as f64))
     }
 
@@ -61,7 +61,7 @@ mod tests {
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig::for_tests();
         let max_interop_roots_in_batch =
-            get_bootloader_max_msg_roots_in_batch(ProtocolVersionId::latest().into());
+            get_bootloader_max_interop_roots_in_batch(ProtocolVersionId::latest().into());
 
         let criterion = InteropRootsCriterion;
 

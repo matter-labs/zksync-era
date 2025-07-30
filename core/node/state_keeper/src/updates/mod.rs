@@ -4,7 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
-        get_batch_base_fee, get_bootloader_max_msg_roots_in_batch, get_max_batch_gas_limit,
+        get_batch_base_fee, get_bootloader_max_interop_roots_in_batch, get_max_batch_gas_limit,
         get_max_gas_per_pubdata_byte, StorageWritesDeduplicator,
     },
 };
@@ -267,7 +267,7 @@ impl UpdatesManager {
         );
         // We need to filter already applied interop roots, and take up to the batch limit set by the bootloader.
         // Because we seal L2 blocks in async manner, it's possible that database returns already applied interop roots.
-        let limit = get_bootloader_max_msg_roots_in_batch(self.protocol_version.into());
+        let limit = get_bootloader_max_interop_roots_in_batch(self.protocol_version.into());
         let new_interop_roots: Vec<_> = l2_block_params
             .interop_roots()
             .iter()
