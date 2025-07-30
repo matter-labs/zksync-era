@@ -26,12 +26,10 @@ impl SealCriterion for InteropRootsCriterion {
             interop_roots_count, max_interop_roots_in_batch, protocol_version as u16
         );
 
-        if interop_roots_count > max_interop_roots_in_batch {
-            SealResolution::ExcludeAndSeal
-        } else if interop_roots_count == max_interop_roots_in_batch {
-            SealResolution::IncludeAndSeal
-        } else {
-            SealResolution::NoSeal
+        match interop_roots_count.cmp(&max_interop_roots_in_batch) {
+            std::cmp::Ordering::Greater => SealResolution::ExcludeAndSeal,
+            std::cmp::Ordering::Equal => SealResolution::IncludeAndSeal,
+            std::cmp::Ordering::Less => SealResolution::NoSeal,
         }
     }
 
