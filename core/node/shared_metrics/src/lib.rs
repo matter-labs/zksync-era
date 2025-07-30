@@ -213,7 +213,7 @@ pub struct ExternalNodeMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub update_batch_statuses: Histogram<Duration>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub batch_status_updater_loop_iteration: Histogram<Duration>,
+    pub batch_transaction_fetcher_loop_iteration: Histogram<Duration>,
     /// Is the external node currently synced?
     pub synced: Gauge<u64>,
     /// Current sync lag of the external node.

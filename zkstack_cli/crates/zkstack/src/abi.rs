@@ -29,11 +29,14 @@ abigen!(
     ChainTypeManagerAbi,
     r"[
     function validatorTimelock()(address)
+    function validatorTimelockPostV29()(address)
     function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
     function serverNotifierAddress()(address)
+    function protocolVersion()(uint256)
 ]"
 );
 
+// "validators" is from pre-v29, used for backward compatibility. Will be removed once v29 is released.
 abigen!(
     ValidatorTimelockAbi,
     r"[
@@ -43,5 +46,6 @@ abigen!(
     function COMMITTER_ROLE()(bytes32)
     function PROVER_ROLE()(bytes32)
     function EXECUTOR_ROLE()(bytes32)
+    function validators(uint256 _chainId, address _validator)(bool)
     ]"
 );

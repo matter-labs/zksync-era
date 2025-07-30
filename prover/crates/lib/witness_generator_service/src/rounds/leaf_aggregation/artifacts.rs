@@ -58,7 +58,7 @@ impl ArtifactsManager for LeafAggregation {
 
         AggregationBlobUrls {
             aggregation_urls,
-            circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
+            circuit_ids_sequence_numbers_and_urls: artifacts.circuit_ids_sequence_numbers_and_urls,
         }
     }
 
@@ -82,7 +82,7 @@ impl ArtifactsManager for LeafAggregation {
 
         let mut prover_connection = connection_pool.connection().await.unwrap();
         let mut transaction = prover_connection.start_transaction().await.unwrap();
-        let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+        let number_of_dependent_jobs = blob_urls.circuit_ids_sequence_numbers_and_urls.len();
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.batch_id)
@@ -95,7 +95,7 @@ impl ArtifactsManager for LeafAggregation {
 
         tracing::info!(
             "Inserting {} prover jobs for job_id {}, block {} with circuit id {}",
-            blob_urls.circuit_ids_and_urls.len(),
+            blob_urls.circuit_ids_sequence_numbers_and_urls.len(),
             job_id,
             artifacts.batch_id,
             artifacts.circuit_id,
@@ -104,7 +104,7 @@ impl ArtifactsManager for LeafAggregation {
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 artifacts.batch_id,
-                blob_urls.circuit_ids_and_urls,
+                blob_urls.circuit_ids_sequence_numbers_and_urls,
                 AggregationRound::LeafAggregation,
                 0,
                 protocol_version_id,

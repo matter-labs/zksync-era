@@ -244,7 +244,7 @@ impl BatchStatusUpdater {
 
     pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         Self::from_parts(
-            Box::new(client.for_component("batch_status_updater")),
+            Box::new(client.for_component("batch_transaction_fetcher")),
             pool,
             Self::DEFAULT_SLEEP_INTERVAL,
         )
@@ -258,7 +258,7 @@ impl BatchStatusUpdater {
         Self {
             client,
             pool,
-            health_updater: ReactiveHealthCheck::new("batch_status_updater").1,
+            health_updater: ReactiveHealthCheck::new("batch_transaction_fetcher").1,
             sleep_interval,
             #[cfg(test)]
             changes_sender: mpsc::unbounded_channel().0,
@@ -373,7 +373,7 @@ impl BatchStatusUpdater {
         cursor: &mut UpdaterCursor,
         changes: StatusChanges,
     ) -> anyhow::Result<()> {
-        let total_latency = EN_METRICS.batch_status_updater_loop_iteration.start();
+        let total_latency = EN_METRICS.batch_transaction_fetcher_loop_iteration.start();
         let mut connection = self.pool.connection_tagged("sync_layer").await?;
         let mut transaction = connection.start_transaction().await?;
         let last_sealed_batch = transaction

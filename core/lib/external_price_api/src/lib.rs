@@ -10,7 +10,7 @@ mod utils;
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address, ZK_L1_ADDRESS};
 
 /// Enum representing the token for which the ratio is fetched.
 #[derive(Debug, Clone, Copy)]
@@ -24,6 +24,9 @@ impl APIToken {
     pub fn from_config_address(address: Address) -> Self {
         if address == Address::zero() || address == Address::from_low_u64_be(1) {
             Self::Eth
+            // ZK needs special handling due to being not recognized by API clients
+        } else if address == ZK_L1_ADDRESS {
+            Self::ZK
         } else {
             Self::ERC20(address)
         }

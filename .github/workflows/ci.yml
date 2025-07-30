@@ -118,17 +118,6 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-tee-prover-images:
-    name: Build TEE Prover images
-    needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
-    uses: ./.github/workflows/build-tee-prover-template.yml
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      action: "build"
-    secrets:
-      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
-
   build-contract-verifier:
     name: Build contract verifier
     needs: changed_files

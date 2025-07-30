@@ -164,6 +164,7 @@ impl StateKeeperIO for MempoolIO {
             fee_input: pending_batch_data.l1_batch_env.fee_input,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
+            protocol_version: pending_batch_data.system_env.version,
         };
 
         storage
@@ -228,14 +229,16 @@ impl StateKeeperIO for MempoolIO {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
         let gateway_migration_state = self.gateway_status(&mut storage).await;
-        let interop_roots = match gateway_migration_state {
-            GatewayMigrationState::InProgress => vec![],
-            _ => {
-                storage
-                    .interop_root_dal()
-                    .get_new_interop_roots(limit)
-                    .await?
-            }
+        // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
+        let interop_roots = if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
+            && gateway_migration_state == GatewayMigrationState::NotInProgress
+        {
+            storage
+                .interop_root_dal()
+                .get_new_interop_roots(limit)
+                .await?
+        } else {
+            vec![]
         };
 
         Ok(Some(L2BlockParams::new_raw(
@@ -561,6 +564,12 @@ impl MempoolIO {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
+
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
+            let interop_roots = storage
+                .interop_root_dal()
+                .get_interop_roots_for_first_l2_block_in_pending_batch()
+                .await?;
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
@@ -568,7 +577,11 @@ impl MempoolIO {
                 fee_input: unsealed_storage_batch.fee_input,
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
-                first_l2_block: L2BlockParams::new(unsealed_storage_batch.timestamp * 1000),
+                first_l2_block: L2BlockParams::new_raw(
+                    unsealed_storage_batch.timestamp * 1000,
+                    1,
+                    interop_roots,
+                ),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit: unsealed_storage_batch.pubdata_limit,
             }));
@@ -640,12 +653,9 @@ impl MempoolIO {
 
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = l2_tx_filter(
-                self.batch_fee_input_provider.as_ref(),
-                protocol_version.into(),
-            )
-            .await
-            .context("failed creating L2 transaction filter")?;
+            self.filter = l2_tx_filter(self.batch_fee_input_provider.as_ref(), protocol_version)
+                .await
+                .context("failed creating L2 transaction filter")?;
 
             // We do not populate mempool with upgrade tx so it should be checked separately.
             if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
@@ -672,12 +682,36 @@ impl MempoolIO {
                 })
                 .await?;
 
+            // During v29 protocol upgrade, interop roots cannot be set as the L2InteropRootStorage contract is not yet deployed
+            // This is why interop roots for the first L2 block are not set on protocol upgrades, as this could cause the batch to fail
+            let first_l2_block = if batch_with_upgrade_tx {
+                L2BlockParams::new(timestamp_ms)
+            } else {
+                let mut storage = self.pool.connection_tagged("state_keeper").await?;
+                let gateway_migration_state = self.gateway_status(&mut storage).await;
+                let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+                // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
+                let interop_roots =
+                    if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
+                        && gateway_migration_state == GatewayMigrationState::NotInProgress
+                    {
+                        storage
+                            .interop_root_dal()
+                            .get_new_interop_roots(limit)
+                            .await?
+                    } else {
+                        vec![]
+                    };
+
+                L2BlockParams::new_raw(timestamp_ms, 1, interop_roots)
+            };
+
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                first_l2_block: L2BlockParams::new(timestamp_ms),
+                first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,
             }));
