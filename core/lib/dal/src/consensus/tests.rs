@@ -10,7 +10,6 @@ use zksync_protobuf::{
 use zksync_test_contracts::Account;
 use zksync_types::{
     commitment::{PubdataParams, PubdataType},
-    h256_to_u256,
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
 };

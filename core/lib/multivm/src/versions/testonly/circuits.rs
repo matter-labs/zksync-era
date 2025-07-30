@@ -72,7 +72,7 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
         } else {
             let diff = (actual - expected) / expected;
             assert!(
-                diff.abs() < 0.15,
+                diff.abs() < 0.1,
                 "Check failed for {}, expected {}, actual {}",
                 name,
                 expected,

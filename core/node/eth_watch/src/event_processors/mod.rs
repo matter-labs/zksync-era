@@ -6,14 +6,12 @@ use zksync_types::{api::Log, H256};
 
 pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
-    appended_chain_batch_root_interop::BatchRootProcessorInterop,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     gateway_migration::GatewayMigrationProcessor, interop_root::InteropRootProcessor,
     priority_ops::PriorityOpsEventProcessor,
 };
 
 mod appended_chain_batch_root;
-mod appended_chain_batch_root_interop;
 mod decentralized_upgrades;
 mod gateway_migration;
 mod interop_root;

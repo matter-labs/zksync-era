@@ -319,7 +319,7 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
                 encode_function_call(
                     "NonMonotonicL2BlockTimestamp",
                     &[ParamType::Uint(128), ParamType::Uint(128)],
-                    &[Token::Uint(U256::from(0)), Token::Uint(U256::from(1))],
+                    &[Token::Uint(U256::from(1)), Token::Uint(U256::from(1))],
                 )
                 .unwrap(),
             )),

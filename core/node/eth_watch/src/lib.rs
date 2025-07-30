@@ -37,7 +37,6 @@ struct EthWatchState {
     next_expected_priority_id: PriorityOpId,
     chain_batch_root_number_lower_bound: L1BatchNumber,
     batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
-    batch_merkle_tree_interop: MiniMerkleTree<[u8; 96]>,
 }
 
 /// Ethereum watcher component.
@@ -81,14 +80,10 @@ impl EthWatch {
         );
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
-        let l1_interop_root_processor =
-            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
-
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
             Box::new(gateway_migration_processor),
-            Box::new(l1_interop_root_processor),
         ];
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {
@@ -144,15 +139,13 @@ impl EthWatch {
         let tree_leaves = batch_hashes.into_iter().map(|(batch_number, batch_root)| {
             BatchRootProcessor::batch_leaf_preimage(batch_root, batch_number)
         });
-        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves.clone(), None);
-        let batch_merkle_tree_interop = MiniMerkleTree::new(tree_leaves, None);
+        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves, None);
 
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
             chain_batch_root_number_lower_bound,
             batch_merkle_tree,
-            batch_merkle_tree_interop,
         })
     }
 
