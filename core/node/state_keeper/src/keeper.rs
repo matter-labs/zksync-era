@@ -870,7 +870,7 @@ impl StateKeeperInner {
         let capacities = self.sealer.capacity_filled(
             manager.pending_executed_transactions_len(),
             manager.pending_l1_transactions_len(),
-            manager.committed_updates().interop_roots.len(),
+            manager.pending_interop_roots_len(),
             &block_data,
             manager.protocol_version(),
         );
