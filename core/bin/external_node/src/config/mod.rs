@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use anyhow::Context;
+use serde::{Deserialize, Serialize};
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use zksync_config::{
     configs::{
@@ -40,7 +41,7 @@ use zksync_web3_decl::{
 mod tests;
 
 /// This part of the external node config is fetched directly from the main node.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct RemoteENConfig {
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_bridgehub_proxy_addr: Option<Address>,
@@ -438,13 +439,12 @@ impl ExternalNodeConfig {
     }
 }
 
-impl From<&ExternalNodeConfig> for InternalApiConfigBase {
-    fn from(config: &ExternalNodeConfig) -> Self {
-        let local = &config.local;
-        let web3_rpc = &config.local.api.web3_json_rpc;
+impl From<&LocalConfig> for InternalApiConfigBase {
+    fn from(config: &LocalConfig) -> Self {
+        let web3_rpc = &config.api.web3_json_rpc;
         Self {
-            l1_chain_id: local.networks.l1_chain_id,
-            l2_chain_id: local.networks.l2_chain_id,
+            l1_chain_id: config.networks.l1_chain_id,
+            l2_chain_id: config.networks.l2_chain_id,
             max_tx_size: web3_rpc.max_tx_size.0 as usize,
             estimate_gas_scale_factor: web3_rpc.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_rpc.estimate_gas_acceptable_overestimation,
@@ -452,18 +452,17 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBase {
             req_entities_limit: web3_rpc.req_entities_limit as usize,
             fee_history_limit: web3_rpc.fee_history_limit,
             filters_disabled: web3_rpc.filters_disabled,
-            dummy_verifier: config.remote.dummy_verifier,
-            l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
+            // dummy_verifier: config.remote.dummy_verifier,
+            // l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l1_to_l2_txs_paused: false,
             eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
         }
     }
 }
 
-impl From<&ExternalNodeConfig> for TxSenderConfig {
-    fn from(config: &ExternalNodeConfig) -> Self {
-        let local = &config.local;
-        let web3_rpc = &local.api.web3_json_rpc;
+impl From<&LocalConfig> for TxSenderConfig {
+    fn from(config: &LocalConfig) -> Self {
+        let web3_rpc = &config.api.web3_json_rpc;
         Self {
             // Fee account address does not matter for the EN operation, since
             // actual fee distribution is handled my the main node.
@@ -477,15 +476,17 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
-            chain_id: local.networks.l2_chain_id,
+            chain_id: config.networks.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
-                TimestampAsserterParams {
-                    address,
-                    min_time_till_end: local.timestamp_asserter.min_time_till_end,
-                }
-            }),
+            // TODO enable timestamp asserter in the future
+            timestamp_asserter_params: None,
+            // timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
+            //     TimestampAsserterParams {
+            //         address,
+            //         min_time_till_end: local.timestamp_asserter.min_time_till_end,
+            //     }
+            // }),
         }
     }
 }

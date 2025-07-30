@@ -190,7 +190,8 @@ fn main() -> anyhow::Result<()> {
     let config = ExternalNodeConfig::new(repo, opt.enable_consensus)?;
 
     if let Some(l1_batch) = revert_to_l1_batch {
-        let node = ExternalNodeBuilder::on_runtime(runtime, config).build_for_revert(l1_batch)?;
+        let node = ExternalNodeBuilder::on_runtime(runtime, config.local, config.consensus)
+            .build_for_revert(l1_batch)?;
         node.run(observability)?;
         return Ok(());
     }
@@ -205,10 +206,10 @@ fn main() -> anyhow::Result<()> {
         .build();
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
-    let config = runtime
-        .block_on(config.fetch_remote(main_node_client.as_ref()))
-        .context("failed fetching remote part of node config from main node")?;
-    let node = ExternalNodeBuilder::on_runtime(runtime, config)
+    // let config = runtime
+    //     .block_on(config.fetch_remote(main_node_client.as_ref()))
+    //     .context("failed fetching remote part of node config from main node")?;
+    let node = ExternalNodeBuilder::on_runtime(runtime, config.local, config.consensus)
         .build(opt.components.0.into_iter().collect())?;
     node.run(observability)?;
     Ok(())

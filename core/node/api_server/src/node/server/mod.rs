@@ -14,6 +14,7 @@ use zksync_shared_resources::{
     contracts::{L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource},
     tree::TreeApiClient,
 };
+use zksync_types::commitment::L1BatchCommitmentMode;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     node::SettlementModeResource,
@@ -193,6 +194,9 @@ impl WiringLayer for Web3ServerLayer {
             input
                 .initial_settlement_mode
                 .settlement_layer_for_sending_txs(),
+            // TODO fill with proper value.
+            false,
+            L1BatchCommitmentMode::Rollup,
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses = input.bridge_addresses;

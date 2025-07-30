@@ -113,8 +113,8 @@ pub struct InternalApiConfigBase {
     /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
-    pub dummy_verifier: bool,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    // pub dummy_verifier: bool,
+    // pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
@@ -131,8 +131,8 @@ impl InternalApiConfigBase {
         Self {
             l1_chain_id: genesis.l1_chain_id,
             l2_chain_id: genesis.l2_chain_id,
-            dummy_verifier: genesis.dummy_verifier,
-            l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
+            // dummy_verifier: genesis.dummy_verifier,
+            // l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
             max_tx_size: web3_config.max_tx_size.0 as usize,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
@@ -193,6 +193,8 @@ impl InternalApiConfig {
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
         settlement_layer: Option<SettlementLayer>,
+        dummy_verifier: bool,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             l1_chain_id: base.l1_chain_id,
@@ -223,8 +225,10 @@ impl InternalApiConfig {
             fee_history_limit: base.fee_history_limit,
             base_token_address: Some(l1_ecosystem_contracts.base_token_address),
             filters_disabled: base.filters_disabled,
-            dummy_verifier: base.dummy_verifier,
-            l1_batch_commit_data_generator_mode: base.l1_batch_commit_data_generator_mode,
+            // dummy_verifier: base.dummy_verifier,
+            // l1_batch_commit_data_generator_mode: base.l1_batch_commit_data_generator_mode,
+            dummy_verifier,
+            l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l2_multicall3: l2_contracts.multicall3,
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
@@ -250,6 +254,8 @@ impl InternalApiConfig {
             l1_ecosystem_contracts,
             l2_contracts,
             Some(settlement_layer),
+            genesis_config.dummy_verifier,
+            genesis_config.l1_batch_commit_data_generator_mode,
         )
     }
 }

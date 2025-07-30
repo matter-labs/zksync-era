@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS "en_remote_config" (
+    "id" SERIAL PRIMARY KEY,
+    "value" TEXT NOT NULL,
+    "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
