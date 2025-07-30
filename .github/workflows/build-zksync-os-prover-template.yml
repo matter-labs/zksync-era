@@ -87,8 +87,6 @@ jobs:
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:latest
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
@@ -96,5 +94,3 @@ jobs:
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
-          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-          docker push matterlabs/${{ matrix.components }}:latest
