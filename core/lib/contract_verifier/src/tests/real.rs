@@ -226,7 +226,10 @@ async fn using_standalone_solc(specify_contract_file: bool) {
 
 #[test_casing(3, [(Some(100), None), (None, Some("shanghai")), (Some(200), Some("paris"))])]
 #[tokio::test]
-async fn using_standalone_solc_with_custom_settings(runs: Option<u16>, evm_version: Option<&str>) {
+async fn using_standalone_solc_with_custom_settings(
+    runs: Option<usize>,
+    evm_version: Option<&str>,
+) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.solc;

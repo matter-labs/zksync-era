@@ -24,7 +24,7 @@ use zksync_types::{
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    try_stoppable, Address, L1BatchNumber, OrStopped, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L1BatchNumber, OrStopped, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 pub mod node;
@@ -178,10 +178,11 @@ impl LocalL1BatchCommitData {
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
-            .await?
-            .with_context(|| {
-                format!("Commit tx hash not found in the database for tx id {commit_tx_id}")
-            })?;
+            .await?;
+
+        let Some(commit_tx_hash) = commit_tx_hash else {
+            return Ok(None);
+        };
 
         let Some(l1_batch) = storage
             .blocks_dal()
@@ -533,6 +534,7 @@ impl ConsistencyChecker {
             commit_function,
             batch_number,
             local.is_pre_v26_gateway(),
+            local.is_pre_v29_interop(),
             local.get_encoding_version(),
         )
         .with_context(|| {
@@ -552,6 +554,7 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
         pre_gateway: bool,
+        pre_interop: bool,
         encoding_version: u8,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
@@ -587,9 +590,14 @@ impl ConsistencyChecker {
                 "Unexpected encoding version: {}",
                 version[0]
             );
+            let schema = if pre_interop {
+                StoredBatchInfo::schema_pre_interop()
+            } else {
+                StoredBatchInfo::schema_post_interop()
+            };
             let decoded_data = ethabi::decode(
                 &[
-                    StoredBatchInfo::schema(),
+                    schema,
                     ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
                 ],
                 encoded_data,
@@ -635,16 +643,6 @@ impl ConsistencyChecker {
                  but it actually commits to batches #{actual_range:?}"
             )
         })
-    }
-
-    async fn last_committed_batch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
-        Ok(self
-            .pool
-            .connection()
-            .await?
-            .blocks_dal()
-            .get_number_of_last_l1_batch_committed_finailized_on_eth()
-            .await?)
     }
 
     async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
@@ -695,34 +693,14 @@ impl ConsistencyChecker {
             }
         }
 
-        // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
-        let earliest_l1_batch_number = try_stoppable!(
-            wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &mut stop_receiver)
-                .await
-        );
-
-        let last_committed_batch = self
-            .last_committed_batch()
-            .await?
-            .unwrap_or(earliest_l1_batch_number);
-        let first_batch_to_check: L1BatchNumber = last_committed_batch
-            .0
-            .saturating_sub(self.max_batches_to_recheck)
-            .into();
-
-        let last_processed_batch = self
-            .pool
-            .connection()
-            .await?
-            .blocks_dal()
-            .get_consistency_checker_last_processed_l1_batch()
+        let (last_committed_batch, first_batch_to_check) =
+            get_last_committed_batch_and_first_batch_to_check(
+                &self.pool,
+                self.sleep_interval,
+                self.max_batches_to_recheck,
+                &mut stop_receiver,
+            )
             .await?;
-
-        // We shouldn't check batches not present in the storage, and skip the genesis batch since
-        // it's not committed on L1.
-        let first_batch_to_check = first_batch_to_check
-            .max(earliest_l1_batch_number)
-            .max(L1BatchNumber(last_processed_batch.0 + 1));
         tracing::info!(
             "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
@@ -809,6 +787,55 @@ impl ConsistencyChecker {
         tracing::info!("Stop request received, consistency_checker is shutting down");
         Ok(())
     }
+}
+
+pub async fn get_last_committed_batch_and_first_batch_to_check(
+    pool: &ConnectionPool<Core>,
+    sleep_interval: Duration,
+    max_batches_to_recheck: u32,
+    stop_receiver: &mut watch::Receiver<bool>,
+) -> anyhow::Result<(L1BatchNumber, L1BatchNumber)> {
+    // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
+    let earliest_l1_batch_number =
+        wait_for_l1_batch_with_metadata(pool, sleep_interval, stop_receiver)
+            .await
+            .map_err(|err| match err {
+                OrStopped::Stopped => {
+                    anyhow::anyhow!("Stop request received, consistency_checker is shutting down")
+                }
+
+                OrStopped::Internal(e) => {
+                    anyhow::anyhow!("Failed waiting for L1 batch with metadata: {e}")
+                }
+            })?;
+
+    let last_committed_batch = pool
+        .connection()
+        .await?
+        .blocks_dal()
+        .get_number_of_last_l1_batch_committed_finailized_on_eth()
+        .await?
+        .unwrap_or(earliest_l1_batch_number);
+
+    let first_batch_to_check: L1BatchNumber = last_committed_batch
+        .0
+        .saturating_sub(max_batches_to_recheck)
+        .into();
+
+    let last_processed_batch = pool
+        .connection()
+        .await?
+        .blocks_dal()
+        .get_consistency_checker_last_processed_l1_batch()
+        .await?;
+
+    // We shouldn't check batches not present in the storage, and skip the genesis batch since
+    // it's not committed on L1.
+    let first_batch_to_check = first_batch_to_check
+        .max(earliest_l1_batch_number)
+        .max(L1BatchNumber(last_processed_batch.0 + 1));
+
+    Ok((last_committed_batch, first_batch_to_check))
 }
 
 /// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially

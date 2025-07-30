@@ -12,6 +12,7 @@ use zksync_db_connection::{
     connection::Connection,
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
+    interpolate_query, match_query_as,
 };
 use zksync_types::{
     aggregated_operations::{
@@ -393,6 +394,29 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    pub async fn get_last_miniblock_with_precommit(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                eth_precommit_tx_id IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_miniblock_with_precommit")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L2BlockNumber(row.number as u32)))
     }
 
     /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
@@ -1657,8 +1681,11 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
+        let Some(batch) = batch else {
+            return Ok(None);
+        };
         // genesis batch is first generated without commitment, we should wait for the tree to set it.
         if batch.commitment.is_none() {
             return Ok(None);
@@ -1802,7 +1829,7 @@ impl BlocksDal<'_, '_> {
                 eth_txs_history AS execute_tx
                 ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
             WHERE
-                execute_tx.confirmed_at IS NOT NULL
+                execute_tx.finality_status = 'finalized'
             ORDER BY
                 number DESC
             LIMIT
@@ -1810,6 +1837,40 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_number_of_last_l1_batch_executed_on_eth")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Returns the number of the last L1 batch for which an Ethereum commit tx exists in DB (may be unconfirmed)
+    pub async fn get_number_of_last_l1_batch_with_tx(
+        &mut self,
+        tx_type: L1BatchAggregatedActionType,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        struct BlockNumberRow {
+            number: i64,
+        }
+        Ok(match_query_as!(
+            BlockNumberRow,
+            [r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE "#, 
+            _,
+            r#" ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#],
+            match (tx_type) {
+                L1BatchAggregatedActionType::Commit => ("eth_commit_tx_id IS NOT NULL";),
+                L1BatchAggregatedActionType::PublishProofOnchain => ("eth_prove_tx_id IS NOT NULL";),
+                L1BatchAggregatedActionType::Execute => ("eth_execute_tx_id IS NOT NULL";),
+            }
+        )
+        .instrument("get_number_of_last_l1_batch_with_tx")
         .fetch_optional(self.storage)
         .await?
         .map(|row| L1BatchNumber(row.number as u32)))

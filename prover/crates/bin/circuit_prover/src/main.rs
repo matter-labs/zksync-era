@@ -47,12 +47,29 @@ struct Cli {
     pub(crate) secrets_path: Option<PathBuf>,
     /// Number of light witness vector generators to run in parallel.
     /// Corresponds to 1 CPU thread & ~2GB of RAM.
-    #[arg(short = 'l', long, default_value_t = 1)]
+    #[arg(
+        short = 'l',
+        long,
+        default_value_t = 1,
+        conflicts_with = "threads",
+        requires = "heavy_wvg_count"
+    )]
     light_wvg_count: usize,
     /// Number of heavy witness vector generators to run in parallel.
     /// Corresponds to 1 CPU thread & ~9GB of RAM.
-    #[arg(short = 'h', long, default_value_t = 1)]
+    #[arg(
+        short = 'h',
+        long,
+        default_value_t = 1,
+        conflicts_with = "threads",
+        requires = "light_wvg_count"
+    )]
     heavy_wvg_count: usize,
+    /// Number of CPU threads to run witness vector generators in parallel.
+    #[arg(short = 't', long, default_value = None,
+        conflicts_with_all = ["light_wvg_count", "heavy_wvg_count"]
+    )]
+    threads: Option<usize>,
     /// Max VRAM to allocate. Useful if you want to limit the size of VRAM used.
     /// None corresponds to allocating all available VRAM.
     #[arg(short = 'm', long)]
@@ -75,7 +92,9 @@ async fn main() -> anyhow::Result<()> {
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
 
     tokio::select! {
-        _ = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {},
+        res = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {
+            res?
+        },
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
         }
@@ -140,11 +159,6 @@ async fn run_inner(
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
 
     PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
-    tracing::info!(
-        "Starting {} light WVGs and {} heavy WVGs.",
-        opt.light_wvg_count,
-        opt.heavy_wvg_count
-    );
 
     let builder = WvgRunnerBuilder::new(
         connection_pool.clone(),
@@ -155,11 +169,25 @@ async fn run_inner(
         cancellation_token.clone(),
     );
 
-    let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
-    let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
-
-    tasks.extend(light_wvg_runner.run());
-    tasks.extend(heavy_wvg_runner.run());
+    let wvg_tasks = if let Some(threads) = opt.threads {
+        // If threads are specified, we run a simple WVG runner.
+        // Otherwise, we use heavy and light job functionality.
+        tracing::info!("Starting {} WVGs.", threads,);
+        let simple_wvg_runner = builder.simple_wvg_runner(threads);
+        simple_wvg_runner.run()
+    } else {
+        tracing::info!(
+            "Starting {} light WVGs and {} heavy WVGs.",
+            opt.light_wvg_count,
+            opt.heavy_wvg_count
+        );
+        let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
+        let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
+        let mut wvg_tasks = light_wvg_runner.run();
+        wvg_tasks.extend(heavy_wvg_runner.run());
+        wvg_tasks
+    };
+    tasks.extend(wvg_tasks);
 
     // necessary as it has a connection_pool which will keep 1 connection active by default
     drop(builder);

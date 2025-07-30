@@ -350,6 +350,10 @@ impl EngineInterface for Store {
             .await
             .wrap("set_replica_state()")
     }
+
+    async fn push_tx(&self, _ctx: &ctx::Ctx, _tx: engine::Transaction) -> ctx::Result<bool> {
+        unimplemented!()
+    }
 }
 
 /// Background task of the `Store`.

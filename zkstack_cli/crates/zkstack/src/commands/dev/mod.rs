@@ -12,18 +12,19 @@ use xshell::Shell;
 
 use self::commands::{
     clean::CleanCommands, config_writer::ConfigWriterArgs, contracts::ContractsArgs,
-    database::DatabaseCommands, fmt::FmtArgs, lint::LintArgs, prover::ProverCommands,
-    send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
+    database::DatabaseCommands, fmt::FmtArgs, init_test_wallet::run as init_test_wallet_run,
+    lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
+    snapshot::SnapshotCommands, test::TestCommands,
+};
+#[cfg(feature = "upgrades")]
+use crate::commands::dev::messages::{
+    GENERAL_CHAIN_UPGRADE, GENERAL_ECOSYSTEM_UPGRADE, V29_CHAIN_UPGRADE,
 };
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
-    MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
-    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
-};
-#[cfg(feature = "v29_interopA_ff")]
-use crate::commands::dev::messages::{
-    MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE, MSG_V29_INTEROP_A_FF_UPGRADE,
+    MSG_INIT_TEST_WALLET_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
 pub(crate) mod commands;
@@ -58,28 +59,36 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[command(about = MSG_INIT_TEST_WALLET_ABOUT)]
+    InitTestWallet,
     #[command(about = MSG_RICH_ACCOUNT_ABOUT)]
     RichAccount(RichAccountArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT)]
     TrackPriorityOps(TrackPriorityOpsArgs),
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
-    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
+    V27EvmInterpreterUpgradeCalldata(commands::upgrades::v27_evm_eq::V27EvmInterpreterCalldataArgs),
     #[cfg(feature = "v28_precompiles")]
     #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
-    GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
-    #[cfg(feature = "v29_interopA_ff")]
-    #[command(about = MSG_V29_INTEROP_A_FF_UPGRADE)]
-    GenerateV29EcosystemCalldata(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
-    #[cfg(feature = "v29_interopA_ff")]
-    #[command(about = MSG_V29_INTEROP_A_FF_UPGRADE)]
-    RunV29EcosystemUpgrade(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
-    #[cfg(feature = "v29_interopA_ff")]
-    #[command(about = MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE)]
-    GenerateV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
-    #[cfg(feature = "v29_interopA_ff")]
-    #[command(about = MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE)]
-    RunV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    GenerateV28UpgradeCalldata(commands::upgrades::v28_precompiles::V28PrecompilesCalldataArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
+    GenerateEcosystemUpgradeCalldata(commands::upgrades::args::ecosystem::EcosystemUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_ECOSYSTEM_UPGRADE)]
+    RunEcosystemUpgrade(commands::upgrades::args::ecosystem::EcosystemUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_CHAIN_UPGRADE)]
+    GenerateChainUpgrade(commands::upgrades::args::chain::DefaultChainUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = GENERAL_CHAIN_UPGRADE)]
+    RunChainUpgrade(commands::upgrades::args::chain::DefaultChainUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = V29_CHAIN_UPGRADE)]
+    RunV29ChainUpgrade(commands::upgrades::args::v29_chain::V29ChainUpgradeArgs),
+    #[cfg(feature = "upgrades")]
+    #[command(about = V29_CHAIN_UPGRADE)]
+    GenerateV29ChainUpgrade(commands::upgrades::args::v29_chain::V29ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -98,31 +107,40 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        DevCommands::InitTestWallet => init_test_wallet_run(shell).await?,
         DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
         DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
-            commands::v27_evm_eq::run(shell, args).await?
+            commands::upgrades::v27_evm_eq::run(shell, args).await?
         }
         #[cfg(feature = "v28_precompiles")]
         DevCommands::GenerateV28UpgradeCalldata(args) => {
-            commands::v28_precompiles::run(shell, args).await?
+            commands::upgrades::v28_precompiles::run(shell, args).await?
         }
-        #[cfg(feature = "v29_interopA_ff")]
-        DevCommands::GenerateV29EcosystemCalldata(args) => {
-            commands::v29_ecosystem_upgrade::run(shell, args, false).await?
+        #[cfg(feature = "upgrades")]
+        DevCommands::GenerateEcosystemUpgradeCalldata(args) => {
+            commands::upgrades::default_ecosystem_upgrade::run(shell, args, false).await?
         }
-        #[cfg(feature = "v29_interopA_ff")]
-        DevCommands::RunV29EcosystemUpgrade(args) => {
-            commands::v29_ecosystem_upgrade::run(shell, args, true).await?
+        #[cfg(feature = "upgrades")]
+        DevCommands::RunEcosystemUpgrade(args) => {
+            commands::upgrades::default_ecosystem_upgrade::run(shell, args, true).await?
         }
-        #[cfg(feature = "v29_interopA_ff")]
+        #[cfg(feature = "upgrades")]
+        DevCommands::GenerateChainUpgrade(args) => {
+            commands::upgrades::default_chain_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "upgrades")]
+        DevCommands::RunChainUpgrade(args) => {
+            commands::upgrades::default_chain_upgrade::run(shell, args, true).await?
+        }
+        #[cfg(feature = "upgrades")]
         DevCommands::GenerateV29ChainUpgrade(args) => {
-            commands::v29_chain_upgrade::run(shell, args, false).await?
+            commands::upgrades::v29_upgrade::run(shell, args, false).await?
         }
-        #[cfg(feature = "v29_interopA_ff")]
+        #[cfg(feature = "upgrades")]
         DevCommands::RunV29ChainUpgrade(args) => {
-            commands::v29_chain_upgrade::run(shell, args, true).await?
+            commands::upgrades::v29_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())

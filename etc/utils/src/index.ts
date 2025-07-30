@@ -102,7 +102,7 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
         } else {
             console.log('Gas price has not gone up, waiting longer');
         }
-        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 3000).catch((e) => {
+        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 60 * 1000).catch((e) => {
             if (ethers.isError(e, 'TIMEOUT')) {
                 console.log(`Transaction timed out, potentially gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`);
                 return null;

@@ -14,7 +14,8 @@ use zksync_config::{
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
         CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
-        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        NodeSyncConfig, ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets,
+        SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -244,6 +245,8 @@ pub(crate) struct LocalConfig {
     pub consistency_checker: ConsistencyCheckerConfig,
     #[config(flatten)]
     pub secrets: Secrets,
+    #[config(nest)]
+    pub node_sync: NodeSyncConfig,
 }
 
 impl LocalConfig {
@@ -335,6 +338,7 @@ impl LocalConfig {
                 data_availability: None,
                 contract_verifier: ContractVerifierSecrets::default(),
             },
+            node_sync: NodeSyncConfig::default(),
         }
     }
 }
@@ -451,6 +455,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBase {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l1_to_l2_txs_paused: false,
+            eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
         }
     }
 }

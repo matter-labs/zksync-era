@@ -19,6 +19,7 @@ pub struct GatewayConfig {
     pub validator_timelock_addr: Address,
     pub multicall3_addr: Address,
     pub relayed_sl_da_validator: Address,
+    pub rollup_da_manager: Address,
     pub validium_da_validator: Address,
     pub diamond_cut_data: Bytes,
 }
@@ -40,6 +41,7 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
             validator_timelock_addr: output.gateway_state_transition.validator_timelock_addr,
             relayed_sl_da_validator: output.relayed_sl_da_validator,
             validium_da_validator: output.validium_da_validator,
+            rollup_da_manager: output.gateway_state_transition.rollup_da_manager_addr,
         }
     }
 }

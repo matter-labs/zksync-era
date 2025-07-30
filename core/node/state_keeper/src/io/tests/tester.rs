@@ -33,9 +33,10 @@ use zksync_types::{
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
+    settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
-    H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, SLChainId,
+    TransactionTimeRangeConstraint, H256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -138,7 +139,8 @@ impl Tester {
             }),
         );
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let chain_id = SLChainId(505);
+        let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -155,6 +157,7 @@ impl Tester {
             L2ChainId::from(270),
             Some(Default::default()),
             Default::default(),
+            Some(SettlementLayer::L1(chain_id)),
         )
         .unwrap();
 

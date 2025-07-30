@@ -100,6 +100,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -124,7 +125,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -173,7 +174,7 @@ async fn test_timestamps(
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -283,6 +284,7 @@ fn create_block_seal_command(
         l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_data: false,
         pubdata_params: PubdataParams::default(),
+        insert_header: true,
         rolling_txs_hash: Default::default(),
     }
 }
@@ -338,7 +340,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     );
 
     let l1_batch_number = L1BatchNumber(2);
-    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block.clone());
     connection_pool
         .connection()
         .await
@@ -411,7 +413,7 @@ async fn processing_events_when_sealing_l2_block() {
         );
     }
 
-    let seal_command = create_block_seal_command(l1_batch_number, l2_block);
+    let seal_command = create_block_seal_command(l1_batch_number, l2_block.clone());
     pool.connection()
         .await
         .unwrap()
@@ -567,7 +569,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -597,7 +599,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         previous_batch_hash,
     );
     let version = batch_init_params.system_env.version;
-    let mut updates = UpdatesManager::new(&batch_init_params, version);
+    let mut updates = UpdatesManager::new(
+        &batch_init_params,
+        version,
+        cursor.prev_l1_batch_timestamp,
+        Some(cursor.prev_l2_block_timestamp),
+        true,
+    );
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
@@ -612,7 +620,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
             .await
             .unwrap();
     tokio::spawn(l2_block_sealer.run());
-    persistence.handle_l2_block(&updates).await.unwrap();
+    persistence.handle_l2_block_data(&updates).await.unwrap();
 
     // Check that the L2 block is persisted and has correct data.
     let persisted_l2_block = storage
@@ -716,7 +724,7 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -813,7 +821,7 @@ async fn test_mempool_with_timestamp_assertion() {
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
