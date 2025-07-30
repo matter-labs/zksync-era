@@ -14173,6 +14173,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "once_cell",
+ "serde",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

@@ -27,3 +27,4 @@ anyhow.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 once_cell.workspace = true
+serde = { version = "1.0.215", features = ["derive"] }

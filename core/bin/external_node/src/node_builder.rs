@@ -59,7 +59,7 @@ use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
 use crate::{
-    config::{ExternalNodeConfig, LocalConfig, RemoteENConfig},
+    config::{ExternalNodeConfig, LocalConfig},
     metrics::framework::ExternalNodeMetricsLayer,
     Component,
 };
@@ -532,17 +532,14 @@ impl ExternalNodeBuilder {
     }
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        todo!()
-        // self.node.add_layer(SettlementLayerData::new(
-        //     zksync_gateway_migrator::node::ENConfig {
-        //         l1_specific_contracts: self.l1_specific_contracts(),
-        //         l1_chain_contracts: self.config.l1_settelment_contracts(),
-        //         l2_contracts: self.config.l2_contracts(),
-        //         chain_id: self.config.networks.l2_chain_id,
-        //         gateway_rpc_url: self.config.secrets.l1.gateway_rpc_url.clone(),
-        //     },
-        // ));
-        // Ok(self)
+        self.node.add_layer(SettlementLayerData::new(
+            zksync_gateway_migrator::node::ENConfig {
+                chain_id: self.config.networks.l2_chain_id,
+                gateway_rpc_url: self.config.secrets.l1.gateway_rpc_url.clone(),
+                main_node_url: self.config.networks.main_node_url.clone(),
+            },
+        ));
+        Ok(self)
     }
 
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
@@ -569,7 +566,7 @@ impl ExternalNodeBuilder {
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let mut optional_config = self.web3_api_optional_config()?;
-        // // Not relevant for HTTP server, so we reset to prevent a logged warning.
+        // Not relevant for HTTP server, so we reset to prevent a logged warning.
         optional_config.websocket_requests_per_minute_limit = None;
         let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
 
@@ -583,7 +580,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        // // TODO: Support websocket requests per minute limit
+        // TODO: Support websocket requests per minute limit
         let optional_config = self.web3_api_optional_config()?;
         let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
 
