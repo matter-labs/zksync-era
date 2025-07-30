@@ -576,7 +576,9 @@ impl EthTxAggregator {
         // For chains before v26 (gateway) we use the timelock address from config.
         // After that, the timelock address can be fetched from STM as it is the valid one
         // for versions starting from v26 and is not expected to change in the near future.
-        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade() {
+        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade()
+            || self.config.force_use_validator_timelock
+        {
             self.config_timelock_contract_address
         } else {
             assert!(

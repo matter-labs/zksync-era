@@ -53,6 +53,7 @@ impl EthConfig {
                 max_acceptable_base_fee_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
                 precommit_params: None,
+                force_use_validator_timelock: false,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -173,6 +174,9 @@ pub struct SenderConfig {
     /// Parameters for precommit operation.
     #[config(nest)]
     pub precommit_params: Option<PrecommitParams>,
+    /// Allow to force change the validator timelock address.
+    #[config(default)]
+    pub force_use_validator_timelock: bool,
 }
 
 /// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
@@ -296,6 +300,7 @@ mod tests {
                     l2_blocks_to_aggregate: 1,
                     deadline: Duration::from_secs(1),
                 }),
+                force_use_validator_timelock: false,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -395,6 +400,7 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            force_use_validator_timelock: false
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
@@ -451,6 +457,7 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            force_use_validator_timelock: false
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
