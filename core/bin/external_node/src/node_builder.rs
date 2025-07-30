@@ -568,34 +568,32 @@ impl ExternalNodeBuilder {
     }
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        todo!()
-        // let mut optional_config = self.web3_api_optional_config()?;
+        let mut optional_config = self.web3_api_optional_config()?;
         // // Not relevant for HTTP server, so we reset to prevent a logged warning.
-        // optional_config.websocket_requests_per_minute_limit = None;
-        // let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
-        //
-        // self.node.add_layer(Web3ServerLayer::http(
-        //     self.config.api.web3_json_rpc.http_port,
-        //     internal_api_config_base,
-        //     optional_config,
-        // ));
-        //
-        // Ok(self)
+        optional_config.websocket_requests_per_minute_limit = None;
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+
+        self.node.add_layer(Web3ServerLayer::http(
+            self.config.api.web3_json_rpc.http_port,
+            internal_api_config_base,
+            optional_config,
+        ));
+
+        Ok(self)
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        todo!()
         // // TODO: Support websocket requests per minute limit
-        // let optional_config = self.web3_api_optional_config()?;
-        // let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
-        //
-        // self.node.add_layer(Web3ServerLayer::ws(
-        //     self.config.api.web3_json_rpc.ws_port,
-        //     internal_api_config_base,
-        //     optional_config,
-        // ));
+        let optional_config = self.web3_api_optional_config()?;
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
 
-        // Ok(self)
+        self.node.add_layer(Web3ServerLayer::ws(
+            self.config.api.web3_json_rpc.ws_port,
+            internal_api_config_base,
+            optional_config,
+        ));
+
+        Ok(self)
     }
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
