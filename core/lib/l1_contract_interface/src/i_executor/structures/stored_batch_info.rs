@@ -10,11 +10,6 @@ pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
 ]);
 
-pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
-]);
-
 /// `StoredBatchInfo` from `IExecutor.sol`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StoredBatchInfo {
@@ -39,6 +34,20 @@ impl StoredBatchInfo {
     }
 
     pub fn schema_pre_interop() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Uint(64),       // `batch_number`
+            ParamType::FixedBytes(32), // `batch_hash`
+            ParamType::Uint(64),       // `index_repeated_storage_changes`
+            ParamType::Uint(256),      // `number_of_layer1_txs`
+            ParamType::FixedBytes(32), // `priority_operations_hash`
+            ParamType::FixedBytes(32), // `dependency_roots_rolling_hash`
+            ParamType::FixedBytes(32), // `l2_logs_tree_root`
+            ParamType::Uint(256),      // `timestamp`
+            ParamType::FixedBytes(32), // `commitment`
+        ])
+    }
+
+    pub fn schema_post_interop() -> ParamType {
         ParamType::Tuple(vec![
             ParamType::Uint(64),       // `batch_number`
             ParamType::FixedBytes(32), // `batch_hash`

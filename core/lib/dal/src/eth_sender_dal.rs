@@ -1066,6 +1066,37 @@ impl EthSenderDal<'_, '_> {
         }))
     }
 
+    pub async fn get_eth_tx_id_by_batch_and_op(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        op_type: L1BatchAggregatedActionType,
+    ) -> sqlx::Result<Option<u32>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                eth_commit_tx_id,
+                eth_prove_tx_id,
+                eth_execute_tx_id
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(row.and_then(|row| {
+            let tx_id_opt: Option<i32> = match op_type {
+                L1BatchAggregatedActionType::Commit => row.eth_commit_tx_id,
+                L1BatchAggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
+                L1BatchAggregatedActionType::Execute => row.eth_execute_tx_id,
+            };
+            tx_id_opt.map(|id| id as u32)
+        }))
+    }
+
     /// Returns the next nonce for the operator account
     pub async fn get_next_nonce(
         &mut self,

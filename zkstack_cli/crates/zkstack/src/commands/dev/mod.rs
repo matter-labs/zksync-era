@@ -26,10 +26,6 @@ use crate::commands::dev::messages::{
     MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
     MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
-#[cfg(feature = "v29_interopA_ff")]
-use crate::commands::dev::messages::{
-    MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE, MSG_V29_INTEROP_A_FF_UPGRADE,
-};
 
 pub(crate) mod commands;
 mod consts;
@@ -145,22 +141,6 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "upgrades")]
         DevCommands::RunV29ChainUpgrade(args) => {
             commands::upgrades::v29_upgrade::run(shell, args, true).await?
-        }
-        #[cfg(feature = "v29_interopA_ff")]
-        DevCommands::GenerateV29EcosystemCalldata(args) => {
-            commands::v29_ecosystem_upgrade::run(shell, args, false).await?
-        }
-        #[cfg(feature = "v29_interopA_ff")]
-        DevCommands::RunV29EcosystemUpgrade(args) => {
-            commands::v29_ecosystem_upgrade::run(shell, args, true).await?
-        }
-        #[cfg(feature = "v29_interopA_ff")]
-        DevCommands::GenerateV29ChainUpgrade(args) => {
-            commands::v29_chain_upgrade::run(shell, args, false).await?
-        }
-        #[cfg(feature = "v29_interopA_ff")]
-        DevCommands::RunV29ChainUpgrade(args) => {
-            commands::v29_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())
