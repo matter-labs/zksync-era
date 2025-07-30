@@ -15,8 +15,6 @@ fee_account_addr = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 
 # Denotes the amount of slots for transactions in the block.
 transaction_slots = 250
-# Denotes the amount of interop roots in the batch
-interop_roots = 25
 
 # 2^50, the maximal allowed gas limit in a batch.
 max_allowed_l2_tx_gas_limit = 1125899906842624
