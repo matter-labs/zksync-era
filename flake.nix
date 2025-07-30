@@ -7,7 +7,7 @@
   description = "ZKsync-era";
 
   nixConfig = {
-    extra-substituters = [ "https://attic.teepot.org/tee-pot" ];
+    extra-substituters = [ "https://static.188.92.12.49.clients.your-server.de/tee-pot" ];
     extra-trusted-public-keys = [ "tee-pot:SS6HcrpG87S1M6HZGPsfo7d1xJccCGev7/tXc5+I4jg=" ];
   };
 

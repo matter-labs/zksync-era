@@ -14,16 +14,14 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::L1Stage;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
-    eth_sender::{EthTx, EthTxFinalityStatus},
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
-    abstract_l1_interface::{
-        AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
-    },
+    abstract_l1_interface::{AbstractL1Interface, OperatorNonce, OperatorType, RealL1Interface},
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
     health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,

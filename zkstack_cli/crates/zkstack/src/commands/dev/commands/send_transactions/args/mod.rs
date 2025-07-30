@@ -12,7 +12,7 @@ use crate::commands::dev::{
     },
 };
 
-const DEFAULT_TRANSACTION_CONFIRMATIONS: usize = 2;
+const DEFAULT_TRANSACTION_CONFIRMATIONS: usize = 5;
 
 #[derive(Debug, Parser)]
 pub struct SendTransactionsArgs {

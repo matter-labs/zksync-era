@@ -1,4 +1,4 @@
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
@@ -6,8 +6,11 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{get_link_to_prover, EcosystemConfig};
 
 use crate::{
-    commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
-    messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
+    commands::prover::{
+        args::setup_keys::{Mode, Region, SetupKeysArgs},
+        compressor_keys::download_compressor_key,
+    },
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
 };
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -16,6 +19,27 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
+        let chain_config = ecosystem_config
+            .load_current_chain()
+            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+        let mut general_config = chain_config.get_general_config().await?.patched();
+        let proof_compressor_setup_path = general_config
+            .proof_compressor_setup_path()
+            .context("proof_compressor_setup_path")?;
+        if proof_compressor_setup_path.exists() {
+            logger::info(format!(
+                "Initial proof compressor setup already present at {}",
+                proof_compressor_setup_path.display()
+            ));
+        } else {
+            logger::info(format!(
+                "Initial proof compressor setup not found at {}, downloading",
+                proof_compressor_setup_path.display()
+            ));
+            download_compressor_key(shell, &mut general_config, &proof_compressor_setup_path)?;
+        }
+        std::env::set_var("COMPACT_CRS_FILE", &proof_compressor_setup_path);
+
         let link_to_prover = get_link_to_prover(&ecosystem_config);
         shell.change_dir(&link_to_prover);
 
@@ -26,6 +50,12 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
             generate-sk-gpu all --recompute-if-missing
             --setup-path=data/keys
             --path={link_to_prover}/data/keys"
+        ));
+        cmd.run()?;
+        let cmd = Cmd::new(cmd!(
+            shell,
+            "cargo run --features gpu --release --bin key_generator -- 
+            generate-compressor-data"
         ));
         cmd.run()?;
         spinner.finish();

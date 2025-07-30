@@ -51,7 +51,14 @@ export function usersRoutes(app: WebServer) {
     };
 
     app.get('/:address', getUserSchema, (req, reply) => {
-        const { authorizer } = app.context;
+        const { authorizer, createTokenSecret } = app.context;
+        const secret = req.headers['x-secret'];
+
+        if (secret !== createTokenSecret) {
+            console.warn(`Invalid secret sent: ${secret}`);
+            throw new HttpError('forbidden', 403);
+        }
+
         const authorized = authorizer.isAddressWhitelisted(req.params.address);
         return reply.send({ authorized });
     });

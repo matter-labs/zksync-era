@@ -496,6 +496,8 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
+pub(super) const MSG_WVG_MODE_PROMPT: &str =
+    "Do you want simple WVG picking jobs mode or advanced one?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

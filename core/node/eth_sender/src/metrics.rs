@@ -12,10 +12,10 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
-    eth_sender::EthTx,
+    eth_sender::{EthTx, L1BlockNumbers},
 };
 
-use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
+use crate::abstract_l1_interface::OperatorType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]

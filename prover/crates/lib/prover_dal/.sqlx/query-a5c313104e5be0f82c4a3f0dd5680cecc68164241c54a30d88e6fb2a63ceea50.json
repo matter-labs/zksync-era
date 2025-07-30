@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT protocol_version, protocol_version_patch\n            FROM proof_compression_jobs_fri\n            WHERE l1_batch_number = $1 AND chain_id = $2 AND status = 'successful'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "a5c313104e5be0f82c4a3f0dd5680cecc68164241c54a30d88e6fb2a63ceea50"
+}

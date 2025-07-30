@@ -36,7 +36,7 @@ pub enum ContractLanguage {
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
 const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 
-const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/artifacts/contracts";
+const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
@@ -85,10 +85,7 @@ const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "DualVerifier.sol/DualVerifier.json",
 );
 
-const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = (
-    "proof-manager-contracts",
-    "artifacts/contracts/ProofManagerV1.sol/ProofManagerV1.json",
-);
+const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
@@ -231,6 +228,26 @@ pub fn wrapped_base_token_store_contract() -> Contract {
 
 pub fn proof_manager_contract() -> Contract {
     load_proof_manager_contract(PROOF_MANAGER_CONTRACT_FILE)
+}
+
+pub fn validator_timelock_contract() -> Contract {
+    // Create a simple contract definition for ValidatorTimelock with the executionDelay function
+    let abi = r#"[
+        {
+            "inputs": [],
+            "name": "executionDelay",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ]"#;
+    serde_json::from_str(abi).unwrap()
 }
 
 pub fn verifier_contract() -> Contract {
@@ -630,8 +647,9 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_interop() -> Self {
-        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
-        // kl todo once contracts are stabilized move to etc/multivm
+        let bootloader_bytecode: Vec<u8> = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_interop/playground_batch.yul/Bootloader.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
@@ -727,7 +745,9 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_interop() -> Self {
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_interop/fee_estimate.yul/Bootloader.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 

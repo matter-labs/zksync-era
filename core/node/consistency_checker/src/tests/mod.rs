@@ -214,6 +214,11 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             batch
                 .header
                 .protocol_version
+                .map(|v| v.is_pre_interop_fast_blocks())
+                .unwrap_or(false),
+            batch
+                .header
+                .protocol_version
                 .map_or(EncodingVersion::PreInterop.value(), get_encoding_version),
         )
         .unwrap();
@@ -236,6 +241,7 @@ fn extracting_commit_data_for_boojum_batch() {
         commit_function,
         L1BatchNumber(4_470),
         true,
+        true,
         0,
     )
     .unwrap();
@@ -250,6 +256,7 @@ fn extracting_commit_data_for_boojum_batch() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(bogus_l1_batch),
+            true,
             true,
             0,
         )
@@ -270,6 +277,7 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_function,
             L1BatchNumber(l1_batch),
             true,
+            true,
             0,
         )
         .unwrap();
@@ -285,6 +293,7 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_tx_input_data,
             commit_function,
             L1BatchNumber(bogus_l1_batch),
+            true,
             true,
             0,
         )
@@ -302,6 +311,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         commit_tx_input_data,
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
+        true,
         true,
         0,
     )
@@ -383,14 +393,17 @@ impl SaveAction<'_> {
                 let chain_id = chain_id_by_l1_batch.get(&l1_batch_number).copied();
                 storage
                     .eth_sender_dal()
-                    .insert_bogus_confirmed_eth_tx(
+                    .insert_pending_received_eth_tx(
                         l1_batch_number,
                         L1BatchAggregatedActionType::Commit,
                         commit_tx_hash,
-                        chrono::Utc::now(),
                         chain_id,
-                        EthTxFinalityStatus::Finalized,
                     )
+                    .await
+                    .unwrap();
+                storage
+                    .eth_sender_dal()
+                    .confirm_tx(commit_tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
                     .await
                     .unwrap();
             }

@@ -23,8 +23,8 @@ use crate::{
     tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{
-        backend_jsonrpsee::MethodTracer, receipts::fill_transaction_receipts, state::RpcState,
-        TypedFilter,
+        backend_jsonrpsee::MethodTracer, namespaces::validate_gas_cap,
+        receipts::fill_transaction_receipts, state::RpcState, TypedFilter,
     },
 };
 
@@ -76,8 +76,24 @@ impl EthNamespace {
                 .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
+
+        // Validate user-provided gas against the cap
+        validate_gas_cap(
+            &request,
+            block_id,
+            &block_args,
+            &mut connection,
+            self.state.api_config.eth_call_gas_cap,
+            self.current_method(),
+        )
+        .await?;
+
         if request.gas.is_none() {
-            request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
+            request.gas = Some(
+                block_args
+                    .default_eth_call_gas(&mut connection, self.state.api_config.eth_call_gas_cap)
+                    .await?,
+            );
         }
         drop(connection);
 

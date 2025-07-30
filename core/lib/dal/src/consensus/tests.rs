@@ -12,7 +12,7 @@ use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     h256_to_u256,
     web3::Bytes,
-    Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
+    Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
 };
 
 use super::*;
@@ -80,9 +80,9 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
 
 fn interop_root(rng: &mut impl Rng) -> InteropRoot {
     InteropRoot {
-        chain_id: rng.gen(),
+        chain_id: L2ChainId::new(rng.gen::<u32>().into()).unwrap(),
         block_number: rng.gen(),
-        sides: (0..10).map(|_| h256_to_u256(rng.gen())).collect(),
+        sides: (0..10).map(|_| rng.gen()).collect(),
     }
 }
 

@@ -129,7 +129,7 @@ jobs:
           ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}/witness-generator.log &
       - name: Run Circuit Prover
         run: |
-          ci_run zkstack prover run --component=circuit-prover -l=23 -h=3 --docker=false &>prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}/circuit_prover.log &
+          ci_run zkstack prover run --component=circuit-prover --threads=32 --docker=false &>prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}/circuit_prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain

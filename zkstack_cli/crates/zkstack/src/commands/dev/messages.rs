@@ -22,13 +22,16 @@ pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
 
-#[cfg(feature = "v29_interopA_ff")]
-pub(super) const MSG_V29_INTEROP_A_FF_UPGRADE: &str =
-    "Interop A + FF (v29) upgrade checker and calldata generator";
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
+    "General ecosystem upgrade checker and calldata generator";
 
-#[cfg(feature = "v29_interopA_ff")]
-pub(super) const MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE: &str =
-    "Interop A + FF (v29) chain upgrade checker and calldata generator";
+#[cfg(feature = "upgrades")]
+pub(super) const GENERAL_CHAIN_UPGRADE: &str =
+    "General chain upgrade checker and calldata generator";
+
+#[cfg(feature = "upgrades")]
+pub(super) const V29_CHAIN_UPGRADE: &str = "V29 chain upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -113,6 +116,8 @@ pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contr
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
 pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
+pub(super) const MSG_TEST_SECOND_CHAIN_HELP: &str =
+    "Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
@@ -162,6 +167,11 @@ pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ra
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
 
+// Init test wallet related messages
+pub(super) const MSG_INIT_TEST_WALLET_ABOUT: &str = "Initialize test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
+
 // Migration test related messages
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
 pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
@@ -190,24 +200,13 @@ pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
 pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
     format!("Running linter for files with extension: .{}", target)
 }
-
-pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
-    format!("Running prettier for: {target:?}")
-}
-
-pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
-    format!("Running rustfmt for: {dir:?}")
-}
-
-pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
-    format!("Running prettier for: {targets:?} and rustfmt")
+pub(super) fn msg_running_fmt_spinner(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!("{}", e)).collect();
+    format!("Running formatters for: {:?}", targets)
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
-pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
-
-pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
 
 pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
     format!("File {} is not formatted", file)

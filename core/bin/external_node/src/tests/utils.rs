@@ -253,7 +253,10 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         .method(
             "eth_getBlockByNumber",
             move |number: api::BlockNumber, _with_txs: bool| {
-                assert_eq!(number, api::BlockNumber::Number(0.into()));
+                match number {
+                    api::BlockNumber::Number(num) => assert_eq!(num, U64::from(0)),
+                    _ => {} // request for latest, finalized etc. are fine and can return genesis
+                }
                 Ok(api::Block::<api::TransactionVariant> {
                     hash: genesis_l2_block_hash,
                     ..api::Block::default()

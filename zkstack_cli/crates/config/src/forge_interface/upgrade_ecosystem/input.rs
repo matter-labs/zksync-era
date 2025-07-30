@@ -9,30 +9,48 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V29UpgradeParams {
+    pub encoded_old_validator_timelocks: String,
+    pub encoded_old_gateway_validator_timelocks: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum EcosystemUpgradeSpecificConfig {
+    V28,
+    V29(V29UpgradeParams),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EcosystemUpgradeInput {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
     pub contracts: EcosystemUpgradeContractsConfig,
     pub tokens: GatewayUpgradeTokensConfig,
+    pub gateway: GatewayUpgradeContractsConfig,
     pub governance_upgrade_timer_initial_delay: u64,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub old_protocol_version: String,
     pub priority_txs_l2_gas_limit: u64,
     pub max_expected_l1_gas_price: u64,
+    #[serde(flatten)]
+    pub specific_config: EcosystemUpgradeSpecificConfig,
 }
 
 impl ZkStackConfig for EcosystemUpgradeInput {}
 
 impl EcosystemUpgradeInput {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
+        gateway_upgrade_config: &GatewayUpgradeContractsConfig,
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
         era_diamond_proxy: Address,
         testnet_verifier: bool,
+        specific_config: EcosystemUpgradeSpecificConfig,
     ) -> Self {
         Self {
             era_chain_id,
@@ -95,13 +113,15 @@ impl EcosystemUpgradeInput {
                 protocol_upgrade_handler_proxy_address: Address::zero(),
                 rollup_da_manager: Address::zero(),
             },
+            gateway: gateway_upgrade_config.clone(),
             tokens: GatewayUpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
             support_l2_legacy_shared_bridge_test: false,
             old_protocol_version: "0x1c00000000".to_string(),
-            priority_txs_l2_gas_limit: 800,
+            priority_txs_l2_gas_limit: 10_000_000,
             max_expected_l1_gas_price: 10000000000,
+            specific_config,
         }
     }
 }
@@ -149,4 +169,19 @@ pub struct EcosystemUpgradeContractsConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayUpgradeTokensConfig {
     pub token_weth_address: Address,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GatewayStateTransitionConfig {
+    pub chain_type_manager_proxy_addr: Address,
+    pub chain_type_manager_proxy_admin: Address,
+    pub rollup_da_manager: Address,
+    pub rollup_sl_da_validator: Address,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+
+pub struct GatewayUpgradeContractsConfig {
+    pub chain_id: u64,
+    pub gateway_state_transition: GatewayStateTransitionConfig,
 }
