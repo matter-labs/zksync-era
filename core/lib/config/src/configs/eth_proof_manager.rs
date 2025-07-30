@@ -5,10 +5,10 @@ use smart_config::{DescribeConfig, DeserializeConfig};
 use crate::ObjectStoreConfig;
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct EthProofManagerConfig {
-    /// Chain id of settlement layer(where contracts are deployed)
+    /// Chain id of L2(where contracts are deployed)
     #[config(default_t = 271)]
-    pub sl_chain_id: u64,
-    /// HTTP RPC URL of settlement layer(where contracts are deployed)
+    pub l2_chain_id: u64,
+    /// HTTP RPC URL of L2(where contracts are deployed)
     #[config(default_t = "http://127.0.0.1:8545".to_string())]
     pub http_rpc_url: String,
     /// Object store config

@@ -13,7 +13,7 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_NO_PORT_REALLOCATION_HELP, MSG_RPC_URL_PROMPT,
+        MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
     },
 };
 
@@ -39,7 +39,7 @@ pub struct InitConfigsArgsFinal {
 impl InitConfigsArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
+            let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if config.l1_network == L1Network::Localhost {
                 prompt = prompt.default(LOCAL_RPC_URL);
             }

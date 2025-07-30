@@ -75,7 +75,7 @@ use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address,
+    Address, L2ChainId,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -294,7 +294,7 @@ impl MainNodeBuilder {
                 .clone()
                 .expect("Eth proof manager contracts are required to run eth proof manager"),
             self.wallets.clone(),
-            zksync_types::SLChainId(self.configs.eth_proof_manager.sl_chain_id),
+            L2ChainId::new(self.configs.eth_proof_manager.l2_chain_id).unwrap(),
             self.genesis_config.l2_chain_id,
         ));
         Ok(self)

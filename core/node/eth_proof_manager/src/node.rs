@@ -34,8 +34,8 @@ pub struct EthProofManagerLayer {
     gas_adjuster_config: GasAdjusterConfig,
     eth_proof_manager_contracts: ProofManagerContracts,
     wallets_config: Wallets,
-    sl_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
+    local_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -56,23 +56,23 @@ impl EthProofManagerLayer {
         gas_adjuster_config: GasAdjusterConfig,
         eth_proof_manager_contracts: ProofManagerContracts,
         wallets_config: Wallets,
-        sl_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
+        local_chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_proof_manager_config,
             gas_adjuster_config,
             eth_proof_manager_contracts,
             wallets_config,
-            sl_chain_id,
             l2_chain_id,
+            local_chain_id,
         }
     }
 
     async fn create_client(
         &self,
         http_rpc_url: String,
-        sl_chain_id: SLChainId,
+        l2_chain_id: L2ChainId,
         contracts: &ProofManagerContracts,
         owner_wallet: Wallet,
     ) -> ProofManagerClient {
@@ -84,13 +84,12 @@ impl EthProofManagerLayer {
         let client = Box::new(
             Client::<L2>::http(SensitiveUrl::from_str(&http_rpc_url).expect("failed to parse url"))
                 .expect("failed to create client")
-                .for_network(L2::from(L2ChainId::from(sl_chain_id.0 as u32)))
+                .for_network(L2::from(l2_chain_id))
                 .build(),
         ) as Box<DynClient<L2>>;
 
         let gas_adjuster_client = GasAdjusterClient::from(client.clone_boxed());
 
-        // todo: what is this?
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
                 gas_adjuster_client,
@@ -111,7 +110,7 @@ impl EthProofManagerLayer {
             self.eth_proof_manager_config
                 .default_priority_fee_per_gas
                 .into(),
-            self.sl_chain_id,
+            SLChainId::from(l2_chain_id.as_u64()),
         );
 
         ProofManagerClient::new(
@@ -143,7 +142,7 @@ impl WiringLayer for EthProofManagerLayer {
         let client = self
             .create_client(
                 self.eth_proof_manager_config.http_rpc_url.clone(),
-                self.sl_chain_id,
+                self.l2_chain_id,
                 &self.eth_proof_manager_contracts,
                 self.wallets_config
                     .eth_proof_manager
@@ -163,7 +162,7 @@ impl WiringLayer for EthProofManagerLayer {
             input.object_store,
             public_object_store,
             self.eth_proof_manager_config.clone(),
-            self.l2_chain_id,
+            self.local_chain_id,
         );
 
         Ok(Output { eth_proof_manager })
