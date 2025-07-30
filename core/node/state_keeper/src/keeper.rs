@@ -846,6 +846,7 @@ impl StateKeeperInner {
                     updates_manager.l1_batch_number().0,
                     updates_manager.pending_executed_transactions_len() + 1,
                     updates_manager.pending_l1_transactions_len() + is_tx_l1,
+                    updates_manager.pending_interop_roots_len(),
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),
@@ -869,6 +870,7 @@ impl StateKeeperInner {
         let capacities = self.sealer.capacity_filled(
             manager.pending_executed_transactions_len(),
             manager.pending_l1_transactions_len(),
+            manager.pending_interop_roots_len(),
             &block_data,
             manager.protocol_version(),
         );

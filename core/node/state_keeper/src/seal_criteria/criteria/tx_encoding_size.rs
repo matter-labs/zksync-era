@@ -14,6 +14,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
         config: &StateKeeperConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
@@ -43,6 +44,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
         _config: &StateKeeperConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Option<f64> {
@@ -78,6 +80,7 @@ mod tests {
             &config,
             0,
             0,
+            0,
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
@@ -86,6 +89,7 @@ mod tests {
 
         let unexecutable_resolution = criterion.should_seal(
             &config,
+            0,
             0,
             0,
             &SealData::default(),
@@ -104,6 +108,7 @@ mod tests {
             &config,
             0,
             0,
+            0,
             &SealData {
                 cumulative_size: bootloader_tx_encoding_space as usize + 1,
                 ..SealData::default()
@@ -118,6 +123,7 @@ mod tests {
 
         let include_and_seal_resolution = criterion.should_seal(
             &config,
+            0,
             0,
             0,
             &SealData {
