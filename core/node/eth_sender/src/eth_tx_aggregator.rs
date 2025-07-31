@@ -305,7 +305,7 @@ impl EthTxAggregator {
             .unwrap();
         let get_execution_delay_call = Multicall3Call {
             target: self.config_timelock_contract_address,
-            allow_failure: ALLOW_FAILURE,
+            allow_failure: true,
             calldata: get_execution_delay_input,
         };
 
@@ -553,17 +553,17 @@ impl EthTxAggregator {
     }
 
     fn parse_execution_delay(data: Token, name: &'static str) -> Result<Duration, EthSenderError> {
-        let multicall_data = Multicall3Result::from_token(data)?.return_data;
-        if multicall_data.len() != 32 {
-            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                format!(
-                    "multicall3 {name} data is not of the len of 32: {:?}",
-                    multicall_data
-                ),
-            )));
+        let multicall_data = Multicall3Result::from_token(data)?;
+
+        if !multicall_data.success {
+            tracing::warn!(
+                "multicall3 {name} data is not of the len of 32: {:?}, returning zero delay",
+                multicall_data.return_data
+            );
+            return Ok(Duration::ZERO);
         }
 
-        let delay_seconds = U256::from_big_endian(&multicall_data);
+        let delay_seconds = U256::from_big_endian(&multicall_data.return_data);
         Ok(Duration::from_secs(delay_seconds.as_u64()))
     }
 
