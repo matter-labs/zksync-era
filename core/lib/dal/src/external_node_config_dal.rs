@@ -18,7 +18,7 @@ impl ExternalNodeConfigDal<'_, '_> {
                 updated_at
             )
             VALUES
-            (1, $1, NOW())
+            (TRUE, $1, NOW())
             ON CONFLICT (id) DO UPDATE
             SET value = excluded.value,
             updated_at = NOW()
