@@ -9,7 +9,7 @@ use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePath
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct PrecalculatedMerklePathsProvider {
-    // We keep the root hash of the last processed leaf, as it is needed by the the witness generator.
+    // We keep the root hash of the last processed leaf, as it is needed by the witness generator.
     pub root_hash: [u8; 32],
     // The ordered list of expected leaves to be interacted with
     pub pending_leaves: Vec<StorageLogMetadata>,
