@@ -18,6 +18,10 @@ impl SealCriterion for InteropRootsCriterion {
         _tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
+        if protocol_version.is_pre_interop_fast_blocks() {
+            // In pre-interop fast blocks, we don't have interop roots, so we never seal based on them.
+            return SealResolution::NoSeal;
+        }
         let max_interop_roots_in_batch =
             get_bootloader_max_interop_roots_in_batch(protocol_version.into());
         assert!(
