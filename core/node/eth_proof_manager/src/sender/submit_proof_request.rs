@@ -111,7 +111,10 @@ impl ProofRequestSubmitter {
         let witness_input_data =
             PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
 
-        let url = self
+        let bucket = self
+            .public_blob_store
+            .get_storage_prefix::<PublicWitnessInputData>();
+        let key = self
             .public_blob_store
             .put(
                 L1BatchId::new(self.processor.chain_id(), batch_id),
@@ -121,6 +124,8 @@ impl ProofRequestSubmitter {
             .map_err(|e| {
                 anyhow::anyhow!("Failed to put proof generation data into blob store: {}", e)
             })?;
+
+        let url = format!("{bucket}/{key}");
 
         self.connection_pool
             .connection()

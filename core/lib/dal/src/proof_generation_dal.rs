@@ -48,54 +48,97 @@ impl ProofGenerationDal<'_, '_> {
         // We are picking up the batch for proving by prover cluster if:
         // 1. Global proving mode is prover cluster(no matter what proving mode of batch is set to)
         // 2. Global proving mode is proving network, but proving mode of batch is set to prover cluster
-        let result: Option<L1BatchNumber> = sqlx::query!(
-            r#"
-            UPDATE proof_generation_details
-            SET
-                status = 'picked_by_prover',
-                proving_mode = 'prover_cluster',
-                updated_at = NOW(),
-                prover_taken_at = NOW()
-            WHERE
-                l1_batch_number = (
-                    SELECT
-                        l1_batch_number
-                    FROM
-                        proof_generation_details
-                    LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+        let result: Option<L1BatchNumber> = match proving_mode {
+            ProvingMode::ProverCluster => {
+                sqlx::query!(
+                    r#"
+                    UPDATE proof_generation_details
+                    SET
+                        status = 'picked_by_prover',
+                        proving_mode = 'prover_cluster',
+                        updated_at = NOW(),
+                        prover_taken_at = NOW()
                     WHERE
-                        (
-                            vm_run_data_blob_url IS NOT NULL
-                            AND proof_gen_data_blob_url IS NOT NULL
-                            AND l1_batches.hash IS NOT NULL
-                            AND l1_batches.aux_data_hash IS NOT NULL
-                            AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = 'unpicked'
-                            AND (
-                                $2 = 'prover_cluster'
-                                OR proving_mode = 'prover_cluster'
-                            )
+                        l1_batch_number = (
+                            SELECT
+                                l1_batch_number
+                            FROM
+                                proof_generation_details
+                            LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+                            WHERE
+                                (
+                                    vm_run_data_blob_url IS NOT NULL
+                                    AND proof_gen_data_blob_url IS NOT NULL
+                                    AND l1_batches.hash IS NOT NULL
+                                    AND l1_batches.aux_data_hash IS NOT NULL
+                                    AND l1_batches.meta_parameters_hash IS NOT NULL
+                                    AND status = 'unpicked'
+                                )
+                                OR (
+                                    status = 'picked_by_prover'
+                                    AND prover_taken_at < NOW() - $1::INTERVAL
+                                )
+                            ORDER BY
+                                l1_batch_number ASC
+                            LIMIT
+                                1
                         )
-                        OR (
-                            status = 'picked_by_prover'
-                            AND prover_taken_at < NOW() - $1::INTERVAL
-                        )
-                    ORDER BY
-                        l1_batch_number ASC
-                    LIMIT
-                        1
+                    RETURNING
+                    proof_generation_details.l1_batch_number
+                    "#,
+                    &processing_timeout
                 )
-            RETURNING
-            proof_generation_details.l1_batch_number
-            "#,
-            &processing_timeout,
-            &proving_mode.into_string(),
-        )
-        .instrument("lock_batch_for_proving")
-        .with_arg("processing_timeout", &processing_timeout)
-        .fetch_optional(self.storage)
-        .await?
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+                .instrument("lock_batch_for_proving")
+                .fetch_optional(self.storage)
+                .await?
+                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+            }
+            ProvingMode::ProvingNetwork => {
+                sqlx::query!(
+                    r#"
+                    UPDATE proof_generation_details
+                    SET
+                        status = 'picked_by_prover',
+                        proving_mode = 'prover_cluster',
+                        updated_at = NOW(),
+                        prover_taken_at = NOW()
+                    WHERE
+                        l1_batch_number = (
+                            SELECT
+                                l1_batch_number
+                            FROM
+                                proof_generation_details
+                            LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+                            WHERE
+                                (
+                                    vm_run_data_blob_url IS NOT NULL
+                                    AND proof_gen_data_blob_url IS NOT NULL
+                                    AND l1_batches.hash IS NOT NULL
+                                    AND l1_batches.aux_data_hash IS NOT NULL
+                                    AND l1_batches.meta_parameters_hash IS NOT NULL
+                                    AND status = 'unpicked'
+                                    AND proving_mode = 'prover_cluster'
+                                )
+                                OR (
+                                    status = 'picked_by_prover'
+                                    AND prover_taken_at < NOW() - $1::INTERVAL
+                                )
+                            ORDER BY
+                                l1_batch_number ASC
+                            LIMIT
+                                1
+                        )
+                    RETURNING
+                    proof_generation_details.l1_batch_number
+                    "#,
+                    &processing_timeout
+                )
+                .instrument("lock_batch_for_proving")
+                .fetch_optional(self.storage)
+                .await?
+                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+            }
+        };
 
         Ok(result)
     }
@@ -104,45 +147,48 @@ impl ProofGenerationDal<'_, '_> {
         &mut self,
         proving_mode: ProvingMode,
     ) -> DalResult<Option<L1BatchNumber>> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
-            r#"
-            UPDATE proof_generation_details
-            SET
-                status = 'picked_by_prover',
-                updated_at = NOW(),
-                prover_taken_at = NOW()
-            WHERE
-                l1_batch_number = (
-                    SELECT
-                        l1_batch_number
-                    FROM
-                        proof_generation_details
-                    LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+        let result: Option<L1BatchNumber> = match proving_mode {
+            ProvingMode::ProverCluster => None,
+            ProvingMode::ProvingNetwork => {
+                sqlx::query!(
+                    r#"
+                    UPDATE proof_generation_details
+                    SET
+                        status = 'picked_by_prover',
+                        updated_at = NOW(),
+                        prover_taken_at = NOW()
                     WHERE
-                        (
-                            vm_run_data_blob_url IS NOT NULL
-                            AND proof_gen_data_blob_url IS NOT NULL
-                            AND l1_batches.hash IS NOT NULL
-                            AND l1_batches.aux_data_hash IS NOT NULL
-                            AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = 'unpicked'
-                            AND proving_mode = 'proving_network'
-                            AND $1 = 'proving_network'
+                        l1_batch_number = (
+                            SELECT
+                                l1_batch_number
+                            FROM
+                                proof_generation_details
+                            LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+                            WHERE
+                                (
+                                    vm_run_data_blob_url IS NOT NULL
+                                    AND proof_gen_data_blob_url IS NOT NULL
+                                    AND l1_batches.hash IS NOT NULL
+                                    AND l1_batches.aux_data_hash IS NOT NULL
+                                    AND l1_batches.meta_parameters_hash IS NOT NULL
+                                    AND status = 'unpicked'
+                                    AND proving_mode = 'proving_network'
+                                )
+                            ORDER BY
+                                l1_batch_number ASC
+                            LIMIT
+                                1
                         )
-                    ORDER BY
-                        l1_batch_number ASC
-                    LIMIT
-                        1
+                    RETURNING
+                    proof_generation_details.l1_batch_number
+                    "#
                 )
-            RETURNING
-            proof_generation_details.l1_batch_number
-            "#,
-            &proving_mode.into_string(),
-        )
-        .instrument("lock_batch_for_proving_network")
-        .fetch_optional(self.storage)
-        .await?
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+                .instrument("lock_batch_for_proving_network")
+                .fetch_optional(self.storage)
+                .await?
+                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+            }
+        };
 
         Ok(result)
     }
