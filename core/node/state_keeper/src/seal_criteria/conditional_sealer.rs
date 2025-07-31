@@ -23,6 +23,7 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         l1_batch_number: u32,
         tx_count: usize,
         l1_tx_count: usize,
+        interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -33,6 +34,7 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         &self,
         tx_count: usize,
         l1_tx_count: usize,
+        interop_roots_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)>;
@@ -74,6 +76,7 @@ impl TransactionFilter for SequencerSealer {
                 &self.config,
                 TX_COUNT,
                 TX_COUNT,
+                TX_COUNT,
                 &data,
                 &data,
                 ProtocolVersionId::latest(),
@@ -93,6 +96,7 @@ impl ConditionalSealer for SequencerSealer {
         l1_batch_number: u32,
         tx_count: usize,
         l1_tx_count: usize,
+        interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -109,6 +113,7 @@ impl ConditionalSealer for SequencerSealer {
                 &self.config,
                 tx_count,
                 l1_tx_count,
+                interop_roots_count,
                 block_data,
                 tx_data,
                 protocol_version,
@@ -136,6 +141,7 @@ impl ConditionalSealer for SequencerSealer {
         &self,
         tx_count: usize,
         l1_tx_count: usize,
+        interop_roots_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)> {
@@ -146,6 +152,7 @@ impl ConditionalSealer for SequencerSealer {
                     &self.config,
                     tx_count,
                     l1_tx_count,
+                    interop_roots_count,
                     block_data,
                     protocol_version,
                 );
@@ -172,6 +179,7 @@ impl SequencerSealer {
     fn default_sealers(config: &StateKeeperConfig) -> Vec<Box<dyn SealCriterion>> {
         vec![
             Box::new(criteria::SlotsCriterion),
+            Box::new(criteria::InteropRootsCriterion),
             Box::new(criteria::PubDataBytesCriterion {
                 max_pubdata_per_batch: config.max_pubdata_per_batch.0,
             }),
@@ -197,6 +205,7 @@ impl ConditionalSealer for NoopSealer {
         _l1_batch_number: u32,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
         _protocol_version: ProtocolVersionId,
@@ -208,6 +217,7 @@ impl ConditionalSealer for NoopSealer {
         &self,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)> {

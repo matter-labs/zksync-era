@@ -13,7 +13,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::{AdvanceInput, L2TxFilter};
 use zksync_multivm::{
     interface::Halt,
-    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_interop_roots_in_batch},
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
@@ -225,7 +225,7 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+        let limit = get_bootloader_max_interop_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
         let gateway_migration_state = self.gateway_status(&mut storage).await;
@@ -689,7 +689,7 @@ impl MempoolIO {
             } else {
                 let mut storage = self.pool.connection_tagged("state_keeper").await?;
                 let gateway_migration_state = self.gateway_status(&mut storage).await;
-                let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+                let limit = get_bootloader_max_interop_roots_in_batch(protocol_version.into());
                 // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
                 let interop_roots =
                     if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))

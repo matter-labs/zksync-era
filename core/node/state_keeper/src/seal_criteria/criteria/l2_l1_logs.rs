@@ -13,6 +13,7 @@ impl SealCriterion for L2L1LogsCriterion {
         config: &StateKeeperConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
@@ -41,6 +42,7 @@ impl SealCriterion for L2L1LogsCriterion {
         _config: &StateKeeperConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Option<f64> {
@@ -70,6 +72,7 @@ mod tests {
     ) -> SealResolution {
         L2L1LogsCriterion.should_seal(
             config,
+            0,
             0,
             0,
             &SealData {

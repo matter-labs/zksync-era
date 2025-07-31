@@ -110,7 +110,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         // before v26 upgrade not all function for getting addresses are available,
         // so we need a fallback and we can load the contracts from configs,
         // it's safe only for l1 contracts
-        .unwrap_or(self.config.l1_sl_specific_contracts.unwrap());
+        .unwrap_or(self.config.l1_sl_specific_contracts.clone().unwrap());
 
         let mut l1_specific_contracts = self.config.l1_specific_contracts.clone();
         // In the future we will be able to load all contracts from the l1 chain. Now for not adding
@@ -162,7 +162,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             }
         };
 
-        let sl_chain_contracts = match &sl_client {
+        let mut sl_chain_contracts = match &sl_client {
             SettlementLayerClient::L1(_) => sl_l1_contracts.clone(),
             SettlementLayerClient::Gateway(client) => {
                 let l2_multicall3 = client
@@ -183,10 +183,20 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             }
         };
 
+        if self.config.eth_sender_config.force_use_validator_timelock {
+            sl_chain_contracts
+                .ecosystem_contracts
+                .validator_timelock_addr = self
+                .config
+                .l1_sl_specific_contracts
+                .as_ref()
+                .and_then(|sl_contracts| sl_contracts.ecosystem_contracts.validator_timelock_addr)
+        }
         let eth_sender_config = adjust_eth_sender_config(
             self.config.eth_sender_config,
             final_settlement_mode.settlement_layer(),
         );
+
         Ok(Output {
             initial_settlement_mode: SettlementModeResource::new(final_settlement_mode.clone()),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
