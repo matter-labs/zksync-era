@@ -17,9 +17,9 @@ use crate::{
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
     etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
-    events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    interop_roots_dal::InteropRootDal, proof_generation_dal::ProofGenerationDal,
-    protocol_versions_dal::ProtocolVersionsDal,
+    events_web3_dal::EventsWeb3Dal, external_node_config_dal::ExternalNodeConfigDal,
+    factory_deps_dal::FactoryDepsDal, interop_roots_dal::InteropRootDal,
+    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
     snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
@@ -151,6 +151,7 @@ where
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a>;
 
     fn server_notifications_dal(&mut self) -> ServerNotificationsDal<'_, 'a>;
+    fn external_node_config_dal(&mut self) -> ExternalNodeConfigDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -292,5 +293,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a> {
         CustomGenesisExportDal { storage: self }
+    }
+
+    fn external_node_config_dal(&mut self) -> ExternalNodeConfigDal<'_, 'a> {
+        ExternalNodeConfigDal { storage: self }
     }
 }

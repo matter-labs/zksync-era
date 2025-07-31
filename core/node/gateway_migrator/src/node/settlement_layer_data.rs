@@ -45,7 +45,7 @@ use zksync_system_constants::{ETHEREUM_ADDRESS, L2_BRIDGEHUB_ADDRESS};
 use zksync_web3_decl::{
     client::{Client, DynClient, L1, L2},
     error::ClientRpcContext,
-    jsonrpsee::types::ErrorCode,
+    jsonrpsee::{core::__reexports::serde_json, types::ErrorCode},
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
     node::{GatewayClientResource, SettlementLayerClient, SettlementModeResource},
 };
@@ -234,23 +234,50 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .await
             .context("Problem with fetching chain id")?;
 
-        let initial_db_sl_mode = get_db_settlement_mode(
-            &mut input
-                .pool
-                .get()
-                .await?
-                .connection()
-                .await
-                .context("failed getting pool connection")?,
-            chain_id,
-        )
-        .await?;
+        let mut connection = input
+            .pool
+            .get()
+            .await?
+            .connection()
+            .await
+            .context("failed getting pool connection")?;
+        let initial_db_sl_mode = get_db_settlement_mode(&mut connection, chain_id).await?;
         let main_node_client = Client::http(self.config.main_node_url.clone())
             .context("failed creating JSON-RPC client for main node")?
             .for_network(self.config.chain_id.into())
             .build();
         let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
-        let remote_config = RemoteENConfig::fetch(main_node_client).await?;
+        let remote_config = RemoteENConfig::fetch(main_node_client).await;
+
+        let remote_config = match remote_config {
+            Ok(config) => {
+                connection
+                    .external_node_config_dal()
+                    .save_config(
+                        serde_json::to_value(&config)
+                            .context("failed to serialize remote config")?,
+                    )
+                    .await
+                    .context("failed to save remote config")?;
+                config
+            }
+            Err(err) => {
+                tracing::error!(
+                    "Failed to fetch remote config: {} \n Using the cached config",
+                    err
+                );
+                serde_json::from_value(
+                    connection
+                        .external_node_config_dal()
+                        .get_en_remote_config()
+                        .await
+                        .context("failed to get remote config")?
+                        .unwrap(), // .or(remote_config)
+                                   // .context("failed to fetch remote config from main node")?,
+                )
+                .context("failed to deserialize remote config from the database")?
+            }
+        };
 
         let initial_sl_mode = if let Some(mode) = initial_db_sl_mode {
             mode

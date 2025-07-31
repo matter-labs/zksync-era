@@ -13,70 +13,40 @@ impl ExternalNodeConfigDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-            server_notifications (
-                main_topic,
-                l1_block_number,
-                created_at
+            en_remote_config (
+                id,
+                value,
+                updated_at
             )
             VALUES
-            ($1, $2, NOW())
-            ON CONFLICT DO NOTHING
+            (1, $1, NOW())
+            ON CONFLICT (id) DO UPDATE
+            SET value = excluded.value,
+            updated_at = NOW()
             "#,
-            main_topic.as_bytes(),
-            l1_block_number.0 as i32,
+            value
         )
-        .instrument("save_notification")
+        .instrument("save_en_remote_config")
         .execute(self.storage)
         .await?;
 
         Ok(())
     }
 
-    pub async fn get_last_notification_by_topics(
-        &mut self,
-        topics: &[H256],
-    ) -> DalResult<Option<ServerNotification>> {
-        let topics: Vec<&[u8]> = topics.iter().map(H256::as_bytes).collect();
-
-        let rows = sqlx::query!(
+    pub async fn get_en_remote_config(&mut self) -> DalResult<Option<serde_json::Value>> {
+        let row = sqlx::query!(
             r#"
             SELECT
-                *
+                value
             FROM
-                server_notifications
-            WHERE
-                main_topic = ANY($1)
-            ORDER BY
-                l1_block_number DESC
+                en_remote_config
             LIMIT 1
             "#,
-            &topics as &[&[u8]]
         )
         .instrument("get_last_notification_by_topics")
         .fetch_optional(self.storage)
-        .await?
-        .map(|a| ServerNotification {
-            l1_block_number: L1BlockNumber(a.l1_block_number as u32),
-            main_topic: H256::from_slice(&a.main_topic),
-        });
+        .await?;
 
-        Ok(rows)
-    }
-
-    pub async fn get_latest_gateway_migration_notification(
-        &mut self,
-    ) -> DalResult<Option<GatewayMigrationNotification>> {
-        let notification = self
-            .get_last_notification_by_topics(
-                &GatewayMigrationNotification::get_server_notifier_topics(),
-            )
-            .await?;
-
-        let notification = notification.map(|notification| {
-            GatewayMigrationNotification::from_topic(notification.main_topic)
-                .expect("Invalid topic")
-        });
-
-        Ok(notification)
+        Ok(row.map(|a| a.value))
     }
 }
