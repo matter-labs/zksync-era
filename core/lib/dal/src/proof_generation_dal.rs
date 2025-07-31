@@ -49,9 +49,8 @@ impl ProofGenerationDal<'_, '_> {
         // 1. Global proving mode is prover cluster(no matter what proving mode of batch is set to)
         // 2. Global proving mode is proving network, but proving mode of batch is set to prover cluster
         let result: Option<L1BatchNumber> = match proving_mode {
-            ProvingMode::ProverCluster => {
-                sqlx::query!(
-                    r#"
+            ProvingMode::ProverCluster => sqlx::query!(
+                r#"
                     UPDATE proof_generation_details
                     SET
                         status = 'picked_by_prover',
@@ -86,16 +85,14 @@ impl ProofGenerationDal<'_, '_> {
                     RETURNING
                     proof_generation_details.l1_batch_number
                     "#,
-                    &processing_timeout
-                )
-                .instrument("lock_batch_for_proving")
-                .fetch_optional(self.storage)
-                .await?
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            }
-            ProvingMode::ProvingNetwork => {
-                sqlx::query!(
-                    r#"
+                &processing_timeout
+            )
+            .instrument("lock_batch_for_proving")
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32)),
+            ProvingMode::ProvingNetwork => sqlx::query!(
+                r#"
                     UPDATE proof_generation_details
                     SET
                         status = 'picked_by_prover',
@@ -131,13 +128,12 @@ impl ProofGenerationDal<'_, '_> {
                     RETURNING
                     proof_generation_details.l1_batch_number
                     "#,
-                    &processing_timeout
-                )
-                .instrument("lock_batch_for_proving")
-                .fetch_optional(self.storage)
-                .await?
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            }
+                &processing_timeout
+            )
+            .instrument("lock_batch_for_proving")
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32)),
         };
 
         Ok(result)
@@ -149,9 +145,8 @@ impl ProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<L1BatchNumber>> {
         let result: Option<L1BatchNumber> = match proving_mode {
             ProvingMode::ProverCluster => None,
-            ProvingMode::ProvingNetwork => {
-                sqlx::query!(
-                    r#"
+            ProvingMode::ProvingNetwork => sqlx::query!(
+                r#"
                     UPDATE proof_generation_details
                     SET
                         status = 'picked_by_prover',
@@ -182,12 +177,11 @@ impl ProofGenerationDal<'_, '_> {
                     RETURNING
                     proof_generation_details.l1_batch_number
                     "#
-                )
-                .instrument("lock_batch_for_proving_network")
-                .fetch_optional(self.storage)
-                .await?
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            }
+            )
+            .instrument("lock_batch_for_proving_network")
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32)),
         };
 
         Ok(result)
