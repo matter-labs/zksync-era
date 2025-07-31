@@ -82,6 +82,7 @@ members = [
   "lib/external_price_api",
   "lib/task_management",
   "lib/zk_os_merkle_tree",
+  "lib/settlement_layer_data",
   "lib/test_contracts",
   # Test infrastructure
   "tests/loadnext",
@@ -320,6 +321,7 @@ zksync_crypto_primitives = { version = "29.0.0-non-semver-compat", path = "lib/c
 zksync_external_price_api = { version = "29.0.0-non-semver-compat", path = "lib/external_price_api" }
 zksync_task_management = { version = "29.0.0-non-semver-compat", path = "lib/task_management" }
 zk_os_merkle_tree = { version = "29.0.0-non-semver-compat", path = "lib/zk_os_merkle_tree" }
+zksync_settlement_layer_data = { version = "29.0.0-non-semver-compat", path = "lib/settlement_layer_data" }
 
 # Framework and components
 zksync_node_framework = { version = "29.0.0-non-semver-compat", path = "lib/node_framework" }

@@ -9,7 +9,6 @@ use zksync_config::{
     sources::{ConfigFilePaths, ConfigSources},
 };
 use zksync_types::L1BatchNumber;
-use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::config::{generate_consensus_secrets, ExternalNodeConfig, LocalConfig};
 
@@ -190,13 +189,12 @@ fn main() -> anyhow::Result<()> {
     let config = ExternalNodeConfig::new(repo, opt.enable_consensus)?;
 
     if let Some(l1_batch) = revert_to_l1_batch {
-        let node = ExternalNodeBuilder::on_runtime(runtime, config.local, config.consensus)
-            .build_for_revert(l1_batch)?;
+        let node = ExternalNodeBuilder::on_runtime(runtime, config).build_for_revert(l1_batch)?;
         node.run(observability)?;
         return Ok(());
     }
 
-    let node = ExternalNodeBuilder::on_runtime(runtime, config.local, config.consensus)
+    let node = ExternalNodeBuilder::on_runtime(runtime, config)
         .build(opt.components.0.into_iter().collect())?;
     node.run(observability)?;
     Ok(())

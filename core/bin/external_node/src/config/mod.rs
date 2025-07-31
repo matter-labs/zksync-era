@@ -1,7 +1,4 @@
-use std::future::Future;
-
 use anyhow::Context;
-use serde::{Deserialize, Serialize};
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use zksync_config::{
     configs::{
@@ -21,10 +18,6 @@ use zksync_consensus_roles as roles;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_api_server::{tx_sender::TxSenderConfig, web3::state::InternalApiConfigBase};
-use zksync_web3_decl::{
-    error::ClientRpcContext,
-    namespaces::{EnNamespaceClient, ZksNamespaceClient},
-};
 
 #[cfg(test)]
 mod tests;
@@ -206,17 +199,6 @@ impl ExternalNodeConfig {
             config_params: CapturedParams::default(),
         }
     }
-
-    // /// Returns verified L1 diamond proxy address.
-    // /// If local configuration contains the address, it will be checked against the one returned by the main node.
-    // /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
-    // /// node so relying on it solely is not recommended.
-    // pub fn l1_diamond_proxy_address(&self) -> Address {
-    //     self.local
-    //         .contracts
-    //         .diamond_proxy_addr
-    //         .unwrap_or(self.remote.l1_diamond_proxy_addr)
-    // }
 }
 
 impl From<&LocalConfig> for InternalApiConfigBase {

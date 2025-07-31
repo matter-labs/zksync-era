@@ -1,7 +1,6 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{server_notification::GatewayMigrationNotification, L1BlockNumber, H256};
 
-use crate::{models::server_notification::ServerNotification, Core};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct ExternalNodeConfigDal<'a, 'c> {
