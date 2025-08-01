@@ -66,8 +66,9 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
         let processor = Processor::<Readonly>::new(
             blob_store,
             replica_pool,
-            self.proof_data_handler_config,
+            self.proof_data_handler_config.proof_generation_timeout,
             self.l2_chain_id,
+            self.proof_data_handler_config.proving_mode,
         );
         let task = Api::new(
             processor,
