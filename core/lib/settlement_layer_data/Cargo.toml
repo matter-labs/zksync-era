@@ -1,6 +1,5 @@
 [package]
-name = "zksync_gateway_migrator"
-description = "Component that handles the migration of the zkSync network from/to gateway"
+name = "zksync_settlement_layer_data"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -20,7 +19,6 @@ zksync_system_constants.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
 zksync_shared_resources.workspace = true
-zksync_settlement_layer_data.workspace = true
 
 tokio.workspace = true
 async-trait.workspace = true

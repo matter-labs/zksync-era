@@ -43,7 +43,7 @@ use zksync_eth_proof_manager::node::EthProofManagerLayer;
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
-use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
+use zksync_gateway_migrator::node::GatewayMigratorLayer;
 use zksync_house_keeper::node::HouseKeeperLayer;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
@@ -67,6 +67,7 @@ use zksync_node_storage_init::node::{
 };
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
+use zksync_settlement_layer_data::{MainNodeConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
@@ -316,6 +317,10 @@ impl MainNodeBuilder {
                 eth_sender_config: try_load_config!(self.configs.eth)
                     .get_eth_sender_config_for_sender_layer_data_layer()
                     .clone(),
+                l1_batch_commit_data_generator_mode: self
+                    .genesis_config
+                    .l1_batch_commit_data_generator_mode,
+                dummy_verifier: self.genesis_config.dummy_verifier,
             }));
         Ok(self)
     }

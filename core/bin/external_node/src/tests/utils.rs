@@ -2,6 +2,9 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 use tokio::sync::oneshot;
+use zksync_config::configs::contracts::{
+    chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
@@ -9,7 +12,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,
 };
-use zksync_web3_decl::client::{MockClient, L1};
+use zksync_web3_decl::client::{MockClient, L1, L2};
 
 use super::*;
 
@@ -57,6 +60,7 @@ pub(super) struct TestEnvironment {
     pub(super) config: ExternalNodeConfig,
     pub(super) genesis_root_hash: H256,
     pub(super) genesis_l2_block: L2BlockHeader,
+    pub(super) settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
 }
 
 impl TestEnvironment {
@@ -106,6 +110,18 @@ impl TestEnvironment {
             config,
             genesis_root_hash,
             genesis_l2_block,
+            settlement_layer_specific_contracts: SettlementLayerSpecificContracts {
+                ecosystem_contracts: EcosystemCommonContracts {
+                    bridgehub_proxy_addr: Some(Address::repeat_byte(8)),
+                    state_transition_proxy_addr: None,
+                    message_root_proxy_addr: None,
+                    multicall3: None,
+                    validator_timelock_addr: None,
+                },
+                chain_contracts_config: ChainContracts {
+                    diamond_proxy_addr: Address::repeat_byte(1),
+                },
+            },
         };
         let handles = TestEnvironmentHandles {
             sigint_sender,
@@ -117,8 +133,13 @@ impl TestEnvironment {
 
     pub(super) fn spawn_node(self, l2_client: MockClient<L2>) -> JoinHandle<anyhow::Result<()>> {
         let eth_client = mock_eth_client(
-            self.config.l1_diamond_proxy_address(),
-            self.config.remote.l1_bridgehub_proxy_addr.unwrap(),
+            self.settlement_layer_specific_contracts
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            self.settlement_layer_specific_contracts
+                .ecosystem_contracts
+                .bridgehub_proxy_addr
+                .unwrap(),
         );
 
         spawn_node(move || {

@@ -115,8 +115,13 @@ async fn running_tree_without_core_is_not_allowed() {
 
     let l2_client = utils::mock_l2_client(&env);
     let eth_client = utils::mock_eth_client(
-        env.config.l1_diamond_proxy_address(),
-        env.config.remote.l1_bridgehub_proxy_addr.unwrap(),
+        env.settlement_layer_specific_contracts
+            .chain_contracts_config
+            .diamond_proxy_addr,
+        env.settlement_layer_specific_contracts
+            .ecosystem_contracts
+            .bridgehub_proxy_addr
+            .unwrap(),
     );
 
     let node_handle = tokio::task::spawn_blocking(move || {
