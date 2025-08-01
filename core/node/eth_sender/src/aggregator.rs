@@ -7,10 +7,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{
-    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
-    Bincode,
-};
+use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -908,22 +905,7 @@ pub async fn load_wrapped_fri_proofs_for_range(
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => {
-                match blob_store
-                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
-                        l1_batch_number,
-                        *version,
-                    )))
-                    .await
-                {
-                    Ok(proof) => return Some(proof.into()),
-                    Err(ObjectStoreError::KeyNotFound(_)) => continue, // proof is not ready yet, continue
-                    Err(err) => panic!(
-                        "Failed to load proof for batch {}: {}",
-                        l1_batch_number.0, err
-                    ),
-                }
-            }
+            Err(ObjectStoreError::KeyNotFound(_)) => continue,
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

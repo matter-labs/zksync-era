@@ -12,29 +12,24 @@ use serde::{Deserialize, Serialize};
 use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId, L1BatchNumber};
 
-use crate::{FormatMarker, CBOR};
-
 #[derive(Clone, Serialize, Deserialize)]
-pub struct L1BatchProofForL1<FM: FormatMarker = CBOR> {
+pub struct L1BatchProofForL1 {
     pub(crate) inner: TypedL1BatchProofForL1,
-    #[serde(skip)]
-    pub(crate) _marker: std::marker::PhantomData<FM>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct JsonL1BatchProofForL1(pub UntaggedTypedL1BatchProofForL1);
 
-impl<FM: FormatMarker> From<L1BatchProofForL1<FM>> for JsonL1BatchProofForL1 {
-    fn from(value: L1BatchProofForL1<FM>) -> Self {
+impl From<L1BatchProofForL1> for JsonL1BatchProofForL1 {
+    fn from(value: L1BatchProofForL1) -> Self {
         Self(value.inner.into())
     }
 }
 
-impl<FM: FormatMarker> From<JsonL1BatchProofForL1> for L1BatchProofForL1<FM> {
+impl From<JsonL1BatchProofForL1> for L1BatchProofForL1 {
     fn from(value: JsonL1BatchProofForL1) -> Self {
         Self {
             inner: value.0.into(),
-            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -66,18 +61,16 @@ impl From<TypedL1BatchProofForL1> for UntaggedTypedL1BatchProofForL1 {
     }
 }
 
-impl<FM: FormatMarker> L1BatchProofForL1<FM> {
+impl L1BatchProofForL1 {
     pub fn new_fflonk(proof: FflonkL1BatchProofForL1) -> Self {
         Self {
             inner: TypedL1BatchProofForL1::Fflonk(proof),
-            _marker: std::marker::PhantomData,
         }
     }
 
     pub fn new_plonk(proof: PlonkL1BatchProofForL1) -> Self {
         Self {
             inner: TypedL1BatchProofForL1::Plonk(proof),
-            _marker: std::marker::PhantomData,
         }
     }
 
@@ -119,11 +112,10 @@ pub struct FflonkL1BatchProofForL1 {
 
 // Implementation created to allow conversion from FflonkL1BatchProofForL1(which is old L1BatchProofForL1)
 // to L1BatchProofForL1 to avoid compatibility problems with serialization/deserialization
-impl<FM: FormatMarker> From<FflonkL1BatchProofForL1> for L1BatchProofForL1<FM> {
+impl From<FflonkL1BatchProofForL1> for L1BatchProofForL1 {
     fn from(proof: FflonkL1BatchProofForL1) -> Self {
         Self {
             inner: TypedL1BatchProofForL1::Fflonk(proof),
-            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -137,11 +129,10 @@ pub struct PlonkL1BatchProofForL1 {
 
 // Implementation created to allow conversion from PlonkL1BatchProofForL1(which is old L1BatchProofForL1)
 // to L1BatchProofForL1 to avoid compatibility problems with serialization/deserialization
-impl<FM: FormatMarker> From<PlonkL1BatchProofForL1> for L1BatchProofForL1<FM> {
+impl From<PlonkL1BatchProofForL1> for L1BatchProofForL1 {
     fn from(proof: PlonkL1BatchProofForL1) -> Self {
         Self {
             inner: TypedL1BatchProofForL1::Plonk(proof),
-            _marker: std::marker::PhantomData,
         }
     }
 }

@@ -2,12 +2,10 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use client::{proof_gen_data_fetcher::ProofGenDataFetcher, proof_submitter::ProofSubmitter};
 use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
-use traits::PeriodicApi as _;
 use zksync_config::{
-    configs::{fri_prover_gateway::ApiMode, GeneralConfig, PostgresSecrets},
+    configs::{GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -15,12 +13,10 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
 
-mod client;
 mod error;
 mod metrics;
 mod proof_data_manager;
 mod server;
-mod traits;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -74,43 +70,18 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed to build Prometheus exporter configuration")?;
     tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
-    tracing::info!("Starting Fri Prover Gateway in mode {:?}", config.api_mode);
-    let tasks = match &config.api_mode {
-        ApiMode::Legacy => {
-            let proof_submitter = ProofSubmitter::new(
-                store_factory.create_store().await?,
-                config.api_url.clone(),
-                pool.clone(),
-            );
-            let proof_gen_data_fetcher = ProofGenDataFetcher::new(
-                store_factory.create_store().await?,
-                config.api_url.clone(),
-                pool,
-            );
+    let port = config
+        .port
+        .expect("Port must be specified in ProverCluster mode");
 
-            vec![
-                tokio::spawn(prometheus_exporter_config.run(stop_receiver.clone())),
-                tokio::spawn(
-                    proof_gen_data_fetcher.run(config.api_poll_duration, stop_receiver.clone()),
-                ),
-                tokio::spawn(proof_submitter.run(config.api_poll_duration, stop_receiver)),
-            ]
-        }
-        ApiMode::ProverCluster => {
-            let port = config
-                .port
-                .expect("Port must be specified in ProverCluster mode");
+    let processor = ProofDataManager::new(store_factory.create_store().await?, pool);
 
-            let processor = ProofDataManager::new(store_factory.create_store().await?, pool);
+    let api = server::Api::new(processor.clone(), port);
 
-            let api = server::Api::new(processor.clone(), port);
-
-            vec![
-                tokio::spawn(prometheus_exporter_config.run(stop_receiver.clone())),
-                tokio::spawn(api.run(stop_receiver)),
-            ]
-        }
-    };
+    let tasks = vec![
+        tokio::spawn(prometheus_exporter_config.run(stop_receiver.clone())),
+        tokio::spawn(api.run(stop_receiver)),
+    ];
 
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {

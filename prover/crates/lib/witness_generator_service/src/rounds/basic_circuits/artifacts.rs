@@ -5,7 +5,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::{inputs::WitnessInputData, Bincode};
+use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchId};
 
 use crate::{
@@ -29,14 +29,10 @@ impl ArtifactsManager for BasicCircuits {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let batch_id = *metadata;
-        let data: WitnessInputData = match object_store.get(batch_id).await {
-            Ok(data) => data,
-            Err(err_cbor) => object_store
-                .get::<WitnessInputData<Bincode>>(batch_id)
-                .await
-                .map(Into::into)
-                .map_err(|err_bincode| anyhow::anyhow!("Getting data with bincode failed with {err_bincode}, getting data with CBOR failed with {err_cbor}"))?,
-        };
+        let data: WitnessInputData = object_store
+            .get(batch_id)
+            .await
+            .map_err(|err_cbor| anyhow::anyhow!("Getting data with CBOR failed with {err_cbor}"))?;
 
         Ok(BasicWitnessGeneratorJob { batch_id, data })
     }
