@@ -21,10 +21,10 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
 [workspace.dependencies]
 # Local dependencies
-zkstack_cli_common = { version = "0.1.2", path = "crates/common" }
-zkstack_cli_config = { version = "0.1.2", path = "crates/config" }
-zkstack_cli_types = { version = "0.1.2", path = "crates/types" }
-zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
+zkstack_cli_common = { version = "=0.2.0", path = "crates/common" }
+zkstack_cli_config = { version = "=0.2.0", path = "crates/config" }
+zkstack_cli_types = { version = "=0.2.0", path = "crates/types" }
+zkstack_cli_git_version_macro = { version = "=0.2.0", path = "crates/git_version_macro" }
 
 # ZkSync deps
 zksync_basic_types = { path = "../core/lib/basic_types" }
