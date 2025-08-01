@@ -1,5 +1,22 @@
 # Changelog
 
+## [29.1.0](https://github.com/matter-labs/zksync-era/compare/core-v29.0.0...core-v29.1.0) (2025-08-01)
+
+
+### Features
+
+* Eth proof manager sender ([#4266](https://github.com/matter-labs/zksync-era/issues/4266)) ([93b2086](https://github.com/matter-labs/zksync-era/commit/93b20860dc2b1bf8671ea3187e4bcebc6913552b))
+* **eth_sender:** Allow to use validator timelock from the config ([#4370](https://github.com/matter-labs/zksync-era/issues/4370)) ([2cb551b](https://github.com/matter-labs/zksync-era/commit/2cb551be575dbe214f8b72b29403070021d875f0))
+
+
+### Bug Fixes
+
+* **contracts:** force load the contracts for sl ([#4371](https://github.com/matter-labs/zksync-era/issues/4371)) ([4751481](https://github.com/matter-labs/zksync-era/commit/4751481f732a4298f6b5f13f64e4320bf0517318))
+* **eth_sender:** Do not fail if execution delay function is absent ([#4373](https://github.com/matter-labs/zksync-era/issues/4373)) ([bd55907](https://github.com/matter-labs/zksync-era/commit/bd55907d211634dc297844e9ebac841849937493))
+* **mempool:** remove redundant connections ([#4378](https://github.com/matter-labs/zksync-era/issues/4378)) ([9ea3c37](https://github.com/matter-labs/zksync-era/commit/9ea3c374ff61f7bc0d964b7948a165edaf83ebf3))
+* **state-keeper:** Do not seal based on interop roots for v28 ([#4376](https://github.com/matter-labs/zksync-era/issues/4376)) ([8c0e689](https://github.com/matter-labs/zksync-era/commit/8c0e689952215284114002387c4cca3d5ae2e48c))
+* **state-keeper:** limit to max interop roots per batch ([#4363](https://github.com/matter-labs/zksync-era/issues/4363)) ([80a20d9](https://github.com/matter-labs/zksync-era/commit/80a20d967fecd25009d8c77ca34b4f996c57c0b3))
+
 ## [29.0.0](https://github.com/matter-labs/zksync-era/compare/core-v28.10.0...core-v29.0.0) (2025-07-29)
 
 
