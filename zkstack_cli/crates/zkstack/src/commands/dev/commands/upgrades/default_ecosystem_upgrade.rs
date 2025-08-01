@@ -219,6 +219,9 @@ async fn no_governance_prepare(
                 )])),
             })
         }
+        UpgradeVersion::V28_1VkEra => {
+            unimplemented!("V28_1VkEra is not implemented yet")
+        }
     };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
@@ -607,6 +610,9 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
     match upgrade_version {
         UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V28_1VkEra => {
+            unimplemented!("V28_1VkEra is not implemented yet")
+        }
     }
 }
 
