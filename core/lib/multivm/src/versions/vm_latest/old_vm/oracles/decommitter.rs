@@ -3,6 +3,8 @@ use std::{
     fmt::Debug,
 };
 
+use anyhow;
+use tracing;
 use zk_evm_1_5_2::{
     abstractions::{DecommittmentProcessor, Memory, MemoryType},
     aux_structures::{
@@ -53,25 +55,34 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
     }
 
     /// Gets the bytecode for a given hash (either from storage, or from 'known_bytecodes' that were populated by `populate` method).
-    /// Panics if bytecode doesn't exist.
-    pub fn get_bytecode(&mut self, hash: U256, timestamp: Timestamp) -> Vec<U256> {
+    /// Returns an error if bytecode doesn't exist instead of panicking.
+    pub fn get_bytecode(&mut self, hash: U256, timestamp: Timestamp) -> anyhow::Result<Vec<U256>> {
         let entry = self.known_bytecodes.inner().get(&hash);
 
         match entry {
-            Some(x) => x.clone(),
+            Some(x) => Ok(x.clone()),
             None => {
-                // It is ok to panic here, since the decommitter is never called directly by
-                // the users and always called by the VM. VM will never let decommit the
-                // code hash which we didn't previously claim to know the preimage of.
-                let value = self
-                    .storage
-                    .borrow_mut()
-                    .load_factory_dep(u256_to_h256(hash))
-                    .unwrap_or_else(|| panic!("Trying to decommit unexisting hash: {}", hash));
-
-                let value = bytes_to_be_words(&value);
-                self.known_bytecodes.insert(hash, value.clone(), timestamp);
-                value
+                let hash_h256 = u256_to_h256(hash);
+                match self.storage.borrow_mut().load_factory_dep(hash_h256) {
+                    Some(value) => {
+                        let value = bytes_to_be_words(&value);
+                        self.known_bytecodes.insert(hash, value.clone(), timestamp);
+                        Ok(value)
+                    }
+                    None => {
+                        // Log the error for debugging synchronization issues
+                        tracing::warn!(
+                            "Failed to load bytecode for hash {}: not found in storage. \
+                            This may indicate a synchronization issue in external node.", 
+                            hash
+                        );
+                        
+                        Err(anyhow::anyhow!(
+                            "Bytecode not found for hash {}: this may be due to incomplete synchronization", 
+                            hash
+                        ))
+                    }
+                }
             }
         }
     }
@@ -227,7 +238,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         let versioned_hash = VersionedCodeHash::from_query(&partial_query);
         let stored_hash = versioned_hash.to_stored_hash();
         // We are fetching a fresh bytecode that we didn't read before.
-        let values = self.get_bytecode(stored_hash, partial_query.timestamp);
+        let values = self.get_bytecode(stored_hash, partial_query.timestamp)?;
         let page_to_use = partial_query.memory_page;
         let timestamp = partial_query.timestamp;
 
@@ -312,5 +323,69 @@ impl VersionedCodeHash {
             }
             Self::Evm(header, _) => header.0[2] as u32 * 256 + header.0[3] as u32,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interface::storage::InMemoryStorage;
+    use zksync_vm_interface::storage::StoragePtr;
+    use zk_evm_1_5_2::aux_structures::Timestamp;
+
+    #[test]
+    fn test_graceful_missing_bytecode_handling() {
+        // Create empty storage - this will simulate the case where bytecode is missing
+        let storage = InMemoryStorage::default();
+        let storage_ptr: StoragePtr<_> = storage.into();
+        
+        // Create decommitter oracle
+        let mut decommitter: DecommitterOracle<false, InMemoryStorage, HistoryEnabled> = 
+            DecommitterOracle::new(storage_ptr);
+        
+        // Try to get a bytecode for a non-existent hash
+        let fake_hash = U256::from(12345678u64);
+        let timestamp = Timestamp(0);
+        
+        // This should return an error instead of panicking
+        let result = decommitter.get_bytecode(fake_hash, timestamp);
+        
+        // Verify that we get an error and not a panic
+        assert!(result.is_err(), "Expected error for missing bytecode hash");
+        
+        let error_message = result.unwrap_err().to_string();
+        assert!(
+            error_message.contains("Bytecode not found for hash"), 
+            "Error message should indicate missing bytecode. Got: {}", 
+            error_message
+        );
+    }
+
+    #[test]
+    fn test_existing_bytecode_retrieval() {
+        // Create storage with some bytecode
+        let mut storage = InMemoryStorage::default();
+        let bytecode = vec![0x60, 0x00, 0x60, 0x00, 0xf3]; // Simple contract bytecode
+        let bytecode_hash = H256::from_low_u64_be(42);
+        
+        // Store the bytecode
+        storage.set_factory_dep(bytecode_hash, bytecode.clone());
+        let storage_ptr: StoragePtr<_> = storage.into();
+        
+        // Create decommitter oracle
+        let mut decommitter: DecommitterOracle<false, InMemoryStorage, HistoryEnabled> = 
+            DecommitterOracle::new(storage_ptr);
+        
+        // Try to get the bytecode
+        let hash_u256 = h256_to_u256(bytecode_hash);
+        let timestamp = Timestamp(0);
+        
+        let result = decommitter.get_bytecode(hash_u256, timestamp);
+        
+        // Verify that we get the bytecode successfully
+        assert!(result.is_ok(), "Expected successful bytecode retrieval");
+        
+        let retrieved_bytecode = result.unwrap();
+        assert!(!retrieved_bytecode.is_empty(), "Retrieved bytecode should not be empty");
     }
 }
