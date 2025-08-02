@@ -1,11 +1,10 @@
 use std::path::Path;
 
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    ChainConfig, EcosystemConfig, ExternalNodeConfigPatch, GatewayChainConfig, GeneralConfig,
-    KeyAndAddress, SecretsConfigPatch, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE,
+    ChainConfig, ExternalNodeConfigPatch, GatewayChainConfig, GeneralConfig, KeyAndAddress,
+    SecretsConfigPatch, ZkStackConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE,
     SECRETS_FILE,
 };
 use zksync_consensus_crypto::TextFmt;
@@ -13,9 +12,7 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    messages::{
-        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
-    },
+    messages::{msg_preparing_en_config_is_done, MSG_PREPARING_EN_CONFIGS},
     utils::{
         consensus::node_public_key,
         ports::EcosystemPortsScanner,
@@ -25,10 +22,7 @@ use crate::{
 
 pub async fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let mut chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let mut chain_config = ZkStackConfig::current_chain(shell)?;
 
     let args = args.fill_values_with_prompt(&chain_config);
     let external_node_config_path = chain_config
@@ -37,8 +31,7 @@ pub async fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     shell.create_dir(&external_node_config_path)?;
     chain_config.external_node_config_path = Some(external_node_config_path.clone());
     prepare_configs(shell, &chain_config, &external_node_config_path, args).await?;
-    let chain_path = ecosystem_config.chains.join(&chain_config.name);
-    chain_config.save_with_base_path(shell, chain_path)?;
+    chain_config.save_current(shell)?;
     logger::info(msg_preparing_en_config_is_done(&external_node_config_path));
     Ok(())
 }

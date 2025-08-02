@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use xshell::Shell;
@@ -9,7 +9,7 @@ use zkstack_cli_common::{
     logger,
     spinner::Spinner,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::messages::{
     MSG_BUILDING_CONTRACTS, MSG_BUILDING_CONTRACTS_SUCCESS, MSG_BUILDING_L1_CONTRACTS_SPINNER,
@@ -71,41 +71,42 @@ pub enum ContractType {
     SystemContracts,
 }
 
+type CommandType = Box<dyn FnOnce(Shell, &Path) -> anyhow::Result<()>>;
 struct ContractBuilder {
-    cmd: Box<dyn FnOnce(Shell, PathBuf) -> anyhow::Result<()>>,
+    cmd: CommandType,
     msg: String,
     link_to_code: PathBuf,
 }
 
 impl ContractBuilder {
-    fn new(ecosystem: &EcosystemConfig, contract_type: ContractType) -> Self {
+    fn new(link_to_code: PathBuf, contract_type: ContractType) -> Self {
         match contract_type {
             ContractType::L1 => Self {
                 cmd: Box::new(build_l1_contracts),
                 msg: MSG_BUILDING_L1_CONTRACTS_SPINNER.to_string(),
-                link_to_code: ecosystem.link_to_code.clone(),
+                link_to_code,
             },
             ContractType::L1DA => Self {
                 cmd: Box::new(build_l1_da_contracts),
                 msg: MSG_BUILDING_L1_DA_CONTRACTS_SPINNER.to_string(),
-                link_to_code: ecosystem.link_to_code.clone(),
+                link_to_code,
             },
             ContractType::L2 => Self {
                 cmd: Box::new(build_l2_contracts),
                 msg: MSG_BUILDING_L2_CONTRACTS_SPINNER.to_string(),
-                link_to_code: ecosystem.link_to_code.clone(),
+                link_to_code,
             },
             ContractType::SystemContracts => Self {
                 cmd: Box::new(build_system_contracts),
                 msg: MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER.to_string(),
-                link_to_code: ecosystem.link_to_code.clone(),
+                link_to_code,
             },
         }
     }
 
     fn build(self, shell: Shell) -> anyhow::Result<()> {
         let spinner = Spinner::new(&self.msg);
-        (self.cmd)(shell, self.link_to_code.clone())?;
+        (self.cmd)(shell, &self.link_to_code)?;
         spinner.finish();
         Ok(())
     }
@@ -120,11 +121,11 @@ pub fn run(shell: &Shell, args: ContractsArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_BUILDING_CONTRACTS);
 
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let link_to_code = ZkStackConfig::from_file(shell)?.link_to_code();
 
     contracts
         .iter()
-        .map(|contract| ContractBuilder::new(&ecosystem, *contract))
+        .map(|contract| ContractBuilder::new(link_to_code.clone(), *contract))
         .try_for_each(|builder| builder.build(shell.clone()))?;
 
     logger::outro(MSG_BUILDING_CONTRACTS_SUCCESS);

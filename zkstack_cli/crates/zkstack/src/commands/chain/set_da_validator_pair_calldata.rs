@@ -41,6 +41,8 @@ pub struct SetDAValidatorPairCalldataArgs {
 }
 
 pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow::Result<()> {
+    let chain_config = zkstack_cli_config::ZkStackConfig::current_chain(shell)
+        .context("Failed to load the current chain configuration")?;
     let l1_provider = get_ethers_provider(&args.l1_rpc_url)?;
     let l1_bridgehub = BridgehubAbi::new(args.bridgehub_address, l1_provider.clone());
     let l1_chain_id = l1_provider.get_chainid().await?.as_u64();
@@ -68,7 +70,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         set_da_validator_pair(
             shell,
             &Default::default(),
-            &get_default_foundry_path(shell)?,
+            &chain_config.path_to_l1_foundry(),
             AdminScriptMode::OnlySave,
             args.chain_id,
             args.bridgehub_address,

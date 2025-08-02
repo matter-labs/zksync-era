@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract};
 use lazy_static::lazy_static;
@@ -9,7 +11,7 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig,
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ZkStackConfig,
 };
 use zksync_basic_types::Address;
 
@@ -32,10 +34,7 @@ lazy_static! {
 }
 
 pub async fn run(args: SetPubdataPricingModeArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let pubdata_pricing_mode: u8 = if args.rollup.unwrap() { 0 } else { 1 };
@@ -43,7 +42,7 @@ pub async fn run(args: SetPubdataPricingModeArgs, shell: &Shell) -> anyhow::Resu
     let spinner = Spinner::new(MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER);
     set_pubdata_pricing_mode(
         shell,
-        &ecosystem_config,
+        chain_config.path_to_l1_foundry(),
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.chain_admin_addr,
         contracts_config.l1.diamond_proxy_addr,
@@ -63,7 +62,7 @@ pub async fn run(args: SetPubdataPricingModeArgs, shell: &Shell) -> anyhow::Resu
 #[allow(clippy::too_many_arguments)]
 pub async fn set_pubdata_pricing_mode(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    foundry_contracts_path: PathBuf,
     governor: &Wallet,
     chain_admin_addr: Address,
     diamond_proxy_address: Address,
@@ -83,7 +82,6 @@ pub async fn set_pubdata_pricing_mode(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(&ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(), args.clone())
         .with_ffi()

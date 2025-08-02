@@ -82,7 +82,7 @@ impl ChainCreateArgs {
         number_of_chains: u32,
         l1_network: &L1Network,
         possible_erc20: Vec<Erc20Token>,
-        link_to_code: String,
+        link_to_code: &str,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
@@ -242,7 +242,7 @@ impl ChainCreateArgs {
             set_as_default,
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
-            link_to_code,
+            link_to_code: link_to_code.to_string(),
             update_submodules: self.update_submodules,
             tight_ports: self.tight_ports,
         })
