@@ -305,7 +305,7 @@ impl EthTxAggregator {
             .unwrap();
         let get_execution_delay_call = Multicall3Call {
             target: self.config_timelock_contract_address,
-            allow_failure: ALLOW_FAILURE,
+            allow_failure: true,
             calldata: get_execution_delay_input,
         };
 
@@ -553,17 +553,17 @@ impl EthTxAggregator {
     }
 
     fn parse_execution_delay(data: Token, name: &'static str) -> Result<Duration, EthSenderError> {
-        let multicall_data = Multicall3Result::from_token(data)?.return_data;
-        if multicall_data.len() != 32 {
-            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                format!(
-                    "multicall3 {name} data is not of the len of 32: {:?}",
-                    multicall_data
-                ),
-            )));
+        let multicall_data = Multicall3Result::from_token(data)?;
+
+        if !multicall_data.success {
+            tracing::warn!(
+                "multicall3 {name} data is not of the len of 32: {:?}, returning zero delay",
+                multicall_data.return_data
+            );
+            return Ok(Duration::ZERO);
         }
 
-        let delay_seconds = U256::from_big_endian(&multicall_data);
+        let delay_seconds = U256::from_big_endian(&multicall_data.return_data);
         Ok(Duration::from_secs(delay_seconds.as_u64()))
     }
 
@@ -576,7 +576,9 @@ impl EthTxAggregator {
         // For chains before v26 (gateway) we use the timelock address from config.
         // After that, the timelock address can be fetched from STM as it is the valid one
         // for versions starting from v26 and is not expected to change in the near future.
-        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade() {
+        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade()
+            || self.config.force_use_validator_timelock
+        {
             self.config_timelock_contract_address
         } else {
             assert!(

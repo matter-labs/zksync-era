@@ -39,5 +39,6 @@ COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
 COPY core/lib/dal/migrations/ /migrations
+COPY prover/data/keys/fflonk_verification_snark_key.json /keys/fflonk_verification_snark_key.json
 
 ENTRYPOINT ["zksync_server"]

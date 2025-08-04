@@ -9079,6 +9079,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_engine",
  "zksync_consensus_roles",

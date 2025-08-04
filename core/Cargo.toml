@@ -267,7 +267,6 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
 zk_evm_1_5_2 = { package = "zk_evm", version = "=0.152.3" }
 
 fflonk = "=0.32.1"
-
 bellman = { package = "zksync_bellman", version = "=0.32.1" }
 
 # New VM
