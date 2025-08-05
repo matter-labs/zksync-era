@@ -277,7 +277,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 43] = [
     ),
     (
         "../../l1-contracts/zkout/",
-        "AssetTracker",
+        "L2AssetTracker",
         L2_ASSET_TRACKER_ADDRESS,
         ContractLanguage::Sol,
     ), //

@@ -305,4 +305,3 @@ pub async fn migrate_token_balances_from_gateway(
 
     Ok(())
 }
-
