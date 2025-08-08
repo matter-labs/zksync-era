@@ -129,7 +129,7 @@ dependencies = [
  "hashbrown 0.15.2",
  "indexmap 2.9.0",
  "itoa",
- "k256 0.13.4",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "keccak-asm",
  "paste",
  "proptest",
@@ -976,7 +976,7 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "regex-lite",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "tracing",
  "url",
 ]
@@ -1027,7 +1027,7 @@ dependencies = [
  "p256 0.11.1",
  "percent-encoding",
  "ring",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "subtle",
  "time",
  "tracing",
@@ -1063,7 +1063,7 @@ dependencies = [
  "md-5",
  "pin-project-lite",
  "sha1",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "tracing",
 ]
 
@@ -1797,7 +1797,7 @@ dependencies = [
  "rand 0.8.5",
  "rayon",
  "serde",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sha3_ce",
  "smallvec",
  "unroll",
@@ -2007,7 +2007,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_repr",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "signature 2.2.0",
  "subtle",
  "subtle-encoding",
@@ -2057,7 +2057,7 @@ dependencies = [
  "ruint",
  "serde",
  "serde_repr",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "thiserror 1.0.69",
  "time",
 ]
@@ -2179,8 +2179,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "558525d05da2dcb1a4953cc0ea80fe4bd57f9586b052db4660ec18962c4af8a5"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -2193,8 +2192,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8381cbb52de325fb551347a7eb7af77c8b1df919da51c49405540f207c92313"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "derivative",
  "serde",
@@ -2205,8 +2203,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b1b6a32c5c902ea01ef7eca76dd9c16585d5c9005aabcb2c08a7a4a45827b07"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "derivative",
  "rayon",
@@ -3180,7 +3177,7 @@ dependencies = [
  "ed25519",
  "rand_core 0.6.4",
  "serde",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "subtle",
  "zeroize",
 ]
@@ -3659,7 +3656,7 @@ dependencies = [
  "semver 1.0.26",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "solang-parser",
  "svm-rs",
  "svm-rs-builds",
@@ -4200,7 +4197,7 @@ dependencies = [
  "ring",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "thiserror 1.0.69",
  "time",
  "tokio",
@@ -5303,7 +5300,7 @@ dependencies = [
  "cfg-if",
  "ecdsa 0.14.8",
  "elliptic-curve 0.12.3",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -5316,7 +5313,20 @@ dependencies = [
  "ecdsa 0.16.9",
  "elliptic-curve 0.13.8",
  "once_cell",
- "sha2 0.10.8",
+ "sha2 0.10.9",
+ "signature 2.2.0",
+]
+
+[[package]]
+name = "k256"
+version = "0.13.4"
+source = "git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep#f0d3b288ea3b8f8316f24ce9a39919c170782398"
+dependencies = [
+ "cfg-if",
+ "ecdsa 0.16.9",
+ "elliptic-curve 0.13.8",
+ "once_cell",
+ "sha2 0.10.9",
  "signature 2.2.0",
 ]
 
@@ -5449,7 +5459,7 @@ dependencies = [
  "hkdf",
  "multihash",
  "quick-protobuf",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "thiserror 1.0.69",
  "tracing",
 ]
@@ -5945,7 +5955,7 @@ dependencies = [
  "borsh",
  "bytes",
  "serde",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -6432,7 +6442,7 @@ checksum = "51f44edd08f51e2ade572f141051021c5af22677e42b7dd28a88155151c33594"
 dependencies = [
  "ecdsa 0.14.8",
  "elliptic-curve 0.12.3",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -6443,8 +6453,19 @@ checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
  "ecdsa 0.16.9",
  "elliptic-curve 0.13.8",
- "primeorder",
- "sha2 0.10.8",
+ "primeorder 0.13.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "p256"
+version = "0.13.2"
+source = "git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep#f0d3b288ea3b8f8316f24ce9a39919c170782398"
+dependencies = [
+ "ecdsa 0.16.9",
+ "elliptic-curve 0.13.8",
+ "primeorder 0.13.6 (git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep)",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -6635,7 +6656,7 @@ checksum = "7f9f832470494906d1fca5329f8ab5791cc60beb230c74815dff541cbd2b5ca0"
 dependencies = [
  "once_cell",
  "pest",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -6897,6 +6918,14 @@ name = "primeorder"
 version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
+dependencies = [
+ "elliptic-curve 0.13.8",
+]
+
+[[package]]
+name = "primeorder"
+version = "0.13.6"
+source = "git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep#f0d3b288ea3b8f8316f24ce9a39919c170782398"
 dependencies = [
  "elliptic-curve 0.13.8",
 ]
@@ -7927,7 +7956,7 @@ dependencies = [
  "num_cpus",
  "rand 0.8.5",
  "rayon",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sys-info",
  "ureq",
 ]
@@ -8337,7 +8366,7 @@ dependencies = [
  "getrandom_or_panic",
  "merlin",
  "rand_core 0.6.4",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "subtle",
  "zeroize",
 ]
@@ -8793,9 +8822,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.8"
+version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -9083,7 +9112,7 @@ dependencies = [
  "curve25519-dalek",
  "rand_core 0.6.4",
  "rustc_version 0.4.1",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "subtle",
 ]
 
@@ -9136,7 +9165,7 @@ dependencies = [
  "blake2b_simd",
  "byteorder",
  "digest 0.10.7",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sha3 0.10.8",
  "twox-hash",
 ]
@@ -9219,7 +9248,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "smallvec",
  "thiserror 2.0.12",
  "tokio",
@@ -9256,7 +9285,7 @@ dependencies = [
  "quote 1.0.40",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sqlx-core",
  "sqlx-mysql",
  "sqlx-postgres",
@@ -9303,7 +9332,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "sha1",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "smallvec",
  "sqlx-core",
  "stringprep",
@@ -9345,7 +9374,7 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "smallvec",
  "sqlx-core",
  "stringprep",
@@ -9530,7 +9559,7 @@ dependencies = [
  "regex",
  "schnorrkel",
  "secrecy 0.10.3",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "thiserror 2.0.12",
  "zeroize",
 ]
@@ -9548,7 +9577,7 @@ dependencies = [
  "semver 1.0.26",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.12",
  "url",
@@ -11615,8 +11644,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.141.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8886ba5989b952b7b76096469eeb6fdfaf3369770e9e22a6f67dc4b7d65f9243"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-141#da2b6c839f4844357113bf416835dbb356a2bd38"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11631,8 +11659,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.151.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "820fedbd066674163225e8c95ace92277002aaed2e0d18e1656702919fb8c42c"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-1518#1b01e83cbe1df3f523417dcba60356aade4330ae"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11646,8 +11673,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a207813b523f4a617350f87bd56c4a56635c78ce14fb00828f52af442395b740"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11674,8 +11700,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.141.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "637a3cb6cb475bb238bee3e450763205d36fe6c92dc1b23300655927915baf03"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-141#da2b6c839f4844357113bf416835dbb356a2bd38"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -11687,8 +11712,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.151.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc75573623393d2a1fa0716ceed1c725a9e238d7eab2ddcc7e08d61c79e54cbd"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-1518#1b01e83cbe1df3f523417dcba60356aade4330ae"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -11700,8 +11724,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7c45a892c8c254aeff3617df7507650815925943b423cf888bac201c94b926c"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -11765,8 +11788,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "733098c2321910b16f6fe5b8110e3a1d675ea52345e1aeb5f4b897edaf88b22d"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -11793,7 +11815,7 @@ dependencies = [
  "bitflags 1.3.2",
  "ethereum-types",
  "lazy_static",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -11814,49 +11836,46 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.141.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6be7bd5f0e0b61211f544147289640b4712715589d7f2fe5229d92a7a3ac64c0"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-141#da2b6c839f4844357113bf416835dbb356a2bd38"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
  "ethereum-types",
- "k256 0.13.4",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sha3 0.10.8",
 ]
 
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.151.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e50a5bc9bfe4cdea8f057d77df5cd21bcf38e9044b36de3235fbf6e361de53a"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-1518#1b01e83cbe1df3f523417dcba60356aade4330ae"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
  "ethereum-types",
- "k256 0.13.4",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static",
- "p256 0.13.2",
+ "p256 0.13.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sha3 0.10.8",
 ]
 
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04f02fb6f185df1aa4f33b18002024c50e73e3f701d25070e7da0c419bb93d77"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
  "ethereum-types",
- "k256 0.13.4",
+ "k256 0.13.4 (git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep)",
  "lazy_static",
- "p256 0.13.2",
+ "p256 0.13.2 (git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep)",
  "serde",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sha3 0.10.8",
  "zksync_pairing",
 ]
@@ -11899,7 +11918,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "strum",
  "thiserror 2.0.12",
  "tiny-keccak 2.0.2",
@@ -12071,7 +12090,7 @@ dependencies = [
  "ed25519-dalek",
  "elliptic-curve 0.13.8",
  "hex",
- "k256 0.13.4",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.8.5",
  "sha3 0.10.8",
  "thiserror 1.0.69",
@@ -12303,7 +12322,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "thiserror 2.0.12",
  "zksync_basic_types",
 ]
@@ -12364,7 +12383,7 @@ dependencies = [
  "secrecy 0.10.3",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "subxt-metadata",
  "subxt-signer",
  "tokio",
@@ -12749,8 +12768,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15e73fcc7cc64e59ce36bb8e8d436b62057e87ee9dd12aec21f9055524eb42fa"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-152#2a6aedbf48a0b137bb82a682fdbca22bce5df7ab"
 dependencies = [
  "boojum",
  "derivative",
@@ -12776,7 +12794,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "sha3 0.10.8",
  "zksync_kzg",
  "zksync_prover_interface",
@@ -13772,8 +13790,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43b3bc8ecfdfdc986aff5229f995340cad4c7c1967f0ad96ac870d354847925f"
+source = "git+https://github.com/matias-gonz/vm2?branch=chore%2Fupgrade-sha2-deps#7196fe6a3165b66d4b426c24a8da1a0657a1e5ce"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -13785,8 +13802,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a24e80c29891fcdfe80f273b60a72c1778268c9719a7224d2e15b8e3712f8c62"
+source = "git+https://github.com/matias-gonz/vm2?branch=chore%2Fupgrade-sha2-deps#7196fe6a3165b66d4b426c24a8da1a0657a1e5ce"
 dependencies = [
  "primitive-types",
 ]
