@@ -2818,9 +2818,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.7.2"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a027c55dacaabcc6daddf23375c0d80a401880cd1e3a57c36982f66c540e51d4"
+checksum = "2ad9997e960ce6a4ac0648a227430673583d649103ceb2d850395b1e32e4c647"
 dependencies = [
  "bytes",
  "prost 0.13.5",
@@ -2834,9 +2834,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6230f51ca735829affa9762f20acbb4e94a38b423d97c0bcacdd6b54ddfbbb78"
+checksum = "6f536bad6c2891ee5efbe3d7665393b7c18a6921254c3198036d603078000ced"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -2847,8 +2847,10 @@ dependencies = [
  "cid",
  "const_format",
  "enum_dispatch",
+ "k256 0.13.4",
  "leopard-codec",
  "libp2p-identity",
+ "lumina-utils",
  "multiaddr",
  "multihash",
  "nmt-rs",
@@ -4287,9 +4289,8 @@ dependencies = [
 
 [[package]]
 name = "eq-common"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "701b3dd6a74b739fffc944d1c0c56e3e3d7559637d26a6f01fd223d3fcf14f5e"
+version = "0.1.11"
+source = "git+https://github.com/celestiaorg/eq-service.git?rev=0bd20d390315efa63cfa74e9f431709b16cbe579#0bd20d390315efa63cfa74e9f431709b16cbe579"
 dependencies = [
  "celestia-types",
  "prometheus-client",
@@ -4302,9 +4303,8 @@ dependencies = [
 
 [[package]]
 name = "eq-sdk"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e5c2ff0df95e60ca9572d3bbeb6085a22c3fd7973954eab807fde232ba8393"
+version = "0.1.11"
+source = "git+https://github.com/celestiaorg/eq-service.git?rev=0bd20d390315efa63cfa74e9f431709b16cbe579#0bd20d390315efa63cfa74e9f431709b16cbe579"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
@@ -6616,6 +6616,15 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
+
+[[package]]
+name = "lumina-utils"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e43f1559f5e0bb89979c0f3753840ca645929085ab6be2372f77391d92f2faf"
+dependencies = [
+ "js-sys",
+]
 
 [[package]]
 name = "lz4-sys"

@@ -239,7 +239,7 @@ bech32 = "0.11.0"
 ripemd = "0.1.3"
 tonic = { version = "0.11.0", default-features = false }
 pbjson-types = "0.6.0"
-eq-sdk = "0.1.11"
+eq-sdk = { git = "https://github.com/celestiaorg/eq-service.git", rev="0bd20d390315efa63cfa74e9f431709b16cbe579" }
 lazy_static = "1.5.0"
 
 # EigenDA
