@@ -253,7 +253,7 @@ crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.1" }
 
 kzg = { package = "zksync_kzg", git = "https://github.com/matias-gonz/zksync-protocol", branch = "chore/upgrade-sha-deps-152" }
 
-zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
+zk_evm_1_3_1 = { package = "zk_evm", git = "https://github.com/matias-gonz/zksync-protocol", branch = "chore/upgrade-sha-deps-131" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", git = "https://github.com/matias-gonz/zksync-protocol", branch = "chore/upgrade-sha-deps-141" }

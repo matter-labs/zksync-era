@@ -5293,6 +5293,17 @@ dependencies = [
 
 [[package]]
 name = "k256"
+version = "0.11.0"
+source = "git+https://github.com/matias-gonz/elliptic-curves?branch=chore%2Fupgrade-sha2-dep-0.11.0#c94ee15c610488d5a739310a129de60292069e24"
+dependencies = [
+ "cfg-if",
+ "ecdsa 0.14.8",
+ "elliptic-curve 0.12.3",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "k256"
 version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72c1e0b51e7ec0a97369623508396067a486bd0cbed95a2659a4b863d28cfc8b"
@@ -11594,11 +11605,10 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.131.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2b83ee7887fb29fda57c6b26a0f64c9b211459d718f8a26310f962e69f0b764"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-131#24837b1598ada8fe0687e22c7f17cc08a1f7fec3"
 dependencies = [
  "blake2_ce",
- "k256 0.11.6",
+ "k256 0.11.0",
  "lazy_static",
  "num",
  "serde",
@@ -11809,8 +11819,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.131.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49e0154bd4ae8202c96c52b29dd44f944bfd08c1c233fef843744463964de957"
+source = "git+https://github.com/matias-gonz/zksync-protocol?branch=chore%2Fupgrade-sha-deps-131#24837b1598ada8fe0687e22c7f17cc08a1f7fec3"
 dependencies = [
  "bitflags 1.3.2",
  "ethereum-types",
