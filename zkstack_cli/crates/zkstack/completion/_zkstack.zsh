@@ -86,6 +86,7 @@ in-file\:"Specify file with wallets"))' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--tight-ports[Use tight ports allocation (no offset between chains)]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -255,6 +256,7 @@ in-file\:"Specify file with wallets"))' \
 '--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--tight-ports[Use tight ports allocation (no offset between chains)]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -1423,6 +1425,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '-t+[Run just the tests matching a pattern. Same as the -t flag on jest.]:TEST_PATTERN:_default' \
 '--test-pattern=[Run just the tests matching a pattern. Same as the -t flag on jest.]:TEST_PATTERN:_default' \
+'-t+[Timeout for tests in milliseconds]:TIMEOUT:_default' \
+'--timeout=[Timeout for tests in milliseconds]:TIMEOUT:_default' \
+'-s+[Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain]:SECOND_CHAIN:_default' \
+'--second-chain=[Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain]:SECOND_CHAIN:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-e[Run tests for external node]' \
 '--external-node[Run tests for external node]' \
@@ -1453,6 +1459,7 @@ _arguments "${_arguments_options[@]}" : \
 (revert)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
+'--enable-consensus[Enable consensus]' \
 '-n[Do not install or build dependencies]' \
 '--no-deps[Do not install or build dependencies]' \
 '--no-kill[The test will not kill all the nodes during execution]' \
@@ -2005,6 +2012,16 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(init-test-wallet)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (rich-account)
 _arguments "${_arguments_options[@]}" : \
 '--l1-account-private-key=[L1 private key to send funds from (default\: Reth rich account)]:L1_ACCOUNT_PRIVATE_KEY:_default' \
@@ -2278,6 +2295,10 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(init-test-wallet)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (rich-account)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2365,10 +2386,12 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--component=[]:COMPONENT:(gateway witness-generator circuit-prover compressor prover-job-monitor)' \
 '--round=[]:ROUND:(all-rounds basic-circuits leaf-aggregation node-aggregation recursion-tip scheduler)' \
-'-l+[]:LIGHT_WVG_COUNT:_default' \
-'--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
-'-h+[]:HEAVY_WVG_COUNT:_default' \
-'--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
+'(-t --threads)-l+[]:LIGHT_WVG_COUNT:_default' \
+'(-t --threads)--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
+'(-t --threads)-h+[]:HEAVY_WVG_COUNT:_default' \
+'(-t --threads)--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
+'(-l --light-wvg-count -h --heavy-wvg-count)-t+[]:THREADS:_default' \
+'(-l --light-wvg-count -h --heavy-wvg-count)--threads=[]:THREADS:_default' \
 '-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
 '--mode=[]:MODE:(fflonk plonk)' \
@@ -2573,6 +2596,7 @@ _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-u[Use default database urls and names]' \
 '--use-default[Use default database urls and names]' \
+'--tight-ports[Use tight ports allocation (no offset between chains)]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -2603,6 +2627,7 @@ _arguments "${_arguments_options[@]}" : \
 (run)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
+'--enable-consensus=[Enable consensus]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--reinit[]' \
 '-v[Verbose mode]' \
@@ -3586,6 +3611,10 @@ _arguments "${_arguments_options[@]}" : \
 esac
 ;;
 (generate-genesis)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(init-test-wallet)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -4603,6 +4632,7 @@ _zkstack__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'init-test-wallet:Initialize test wallet' \
 'rich-account:Make L2 account rich' \
 'track-priority-ops:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -4802,6 +4832,7 @@ _zkstack__dev__help_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'init-test-wallet:Initialize test wallet' \
 'rich-account:Make L2 account rich' \
 'track-priority-ops:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -4904,6 +4935,11 @@ _zkstack__dev__help__generate-genesis_commands() {
 _zkstack__dev__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help help commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__init-test-wallet_commands] )) ||
+_zkstack__dev__help__init-test-wallet_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help init-test-wallet commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__lint_commands] )) ||
 _zkstack__dev__help__lint_commands() {
@@ -5050,6 +5086,11 @@ _zkstack__dev__help__test__wallet_commands() {
 _zkstack__dev__help__track-priority-ops_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help track-priority-ops commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__init-test-wallet_commands] )) ||
+_zkstack__dev__init-test-wallet_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev init-test-wallet commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__lint_commands] )) ||
 _zkstack__dev__lint_commands() {
@@ -5890,6 +5931,7 @@ _zkstack__help__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'init-test-wallet:Initialize test wallet' \
 'rich-account:Make L2 account rich' \
 'track-priority-ops:Generate new genesis file based on current contracts' \
     )
@@ -5986,6 +6028,11 @@ _zkstack__help__dev__fmt_commands() {
 _zkstack__help__dev__generate-genesis_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev generate-genesis commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__init-test-wallet_commands] )) ||
+_zkstack__help__dev__init-test-wallet_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev init-test-wallet commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__lint_commands] )) ||
 _zkstack__help__dev__lint_commands() {

@@ -34,14 +34,13 @@ use zksync_shared_resources::{
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
-    jsonrpsee::core::__reexports::serde_json,
     namespaces::ZksNamespaceClient,
     node::{GatewayClientResource, SettlementLayerClient, SettlementModeResource},
 };
 
 use crate::{
     adjust_eth_sender_config, current_settlement_layer, get_db_settlement_mode, get_l2_client,
-    remote_en_config::RemoteENConfig,
+    remote_en_config::fetch_remote_en_config,
 };
 
 pub struct MainNodeConfig {
@@ -252,7 +251,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .await
             .context("failed getting pool connection")?;
         let initial_db_sl_mode = get_db_settlement_mode(&mut connection, chain_id).await?;
-        let remote_config = RemoteENConfig::fetch(
+        let remote_config = fetch_remote_en_config(
             input
                 .main_node_client
                 .expect("Main node client is required for EN"),
@@ -263,10 +262,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             Ok(config) => {
                 connection
                     .external_node_config_dal()
-                    .save_config(
-                        serde_json::to_value(&config)
-                            .context("failed to serialize remote config")?,
-                    )
+                    .save_config(&config)
                     .await
                     .context("failed to save remote config")?;
                 config
@@ -276,16 +272,13 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
                     "Failed to fetch remote config: {} \n Using the cached config",
                     err
                 );
-                serde_json::from_value(
-                    connection
+                connection
                         .external_node_config_dal()
                         .get_en_remote_config()
                         .await
                         .context("failed to get remote config")?
                         .context("remote config is not set in the database, \
-                        most likely it's your first run and main node should be available for this time")?,
-                )
-                    .context("failed to deserialize remote config from the database")?
+                        most likely it's your first run and main node should be available for this time")?
             }
         };
 
