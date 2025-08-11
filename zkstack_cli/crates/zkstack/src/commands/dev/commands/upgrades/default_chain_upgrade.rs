@@ -235,16 +235,9 @@ pub struct UpdatedValidators {
     pub blob_operator: Option<Address>,
 }
 
+#[derive(Default)]
 pub struct AdditionalUpgradeParams {
     pub updated_validators: Option<UpdatedValidators>,
-}
-
-impl Default for AdditionalUpgradeParams {
-    fn default() -> Self {
-        Self {
-            updated_validators: None,
-        }
-    }
 }
 
 pub(crate) async fn run_chain_upgrade(
