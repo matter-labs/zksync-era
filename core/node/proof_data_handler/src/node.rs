@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use zksync_config::configs::{EthProofManagerConfig, ProofDataHandlerConfig};
+use zksync_config::configs::{
+    eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
+    ProofDataHandlerConfig,
+};
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core,
@@ -37,7 +40,11 @@ pub struct Output {
 }
 
 impl ProofDataHandlerLayer {
-    pub fn new(proof_data_handler_config: ProofDataHandlerConfig, l2_chain_id: L2ChainId) -> Self {
+    pub fn new(
+        proof_data_handler_config: ProofDataHandlerConfig,
+        eth_proof_manager_config: EthProofManagerConfig,
+        l2_chain_id: L2ChainId,
+    ) -> Self {
         Self {
             proof_data_handler_config,
             eth_proof_manager_config,
@@ -89,14 +96,14 @@ impl Task for ProofDataHandlerTask {
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let client = ProofDataHandlerClient::new(
             self.blob_store,
-            self.main_pool,
-            self.proof_data_handler_config,
+            self.main_pool.clone(),
+            self.proof_data_handler_config.clone(),
             self.l2_chain_id,
         );
 
         if self.proof_data_handler_config.proving_mode == ProvingMode::ProvingNetwork {
-            let proof_router = ProofRouter::new(
-                self.main_pool.clone(),
+            let proof_router: ProofRouter = ProofRouter::new(
+                self.main_pool,
                 self.eth_proof_manager_config.acknowledgment_timeout,
                 self.eth_proof_manager_config.proof_generation_timeout,
                 self.eth_proof_manager_config.picking_timeout,
