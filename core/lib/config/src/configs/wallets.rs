@@ -109,6 +109,8 @@ pub struct Wallets {
     pub fee_account: Option<AddressWallet>,
     #[config(nest)]
     pub token_multiplier_setter: Option<Wallet>,
+    #[config(nest)]
+    pub eth_proof_manager: Option<Wallet>,
 }
 
 impl Wallets {
@@ -121,6 +123,9 @@ impl Wallets {
             fee_account: Some(AddressWallet::from_address(H160::repeat_byte(0x3))),
             token_multiplier_setter: Some(
                 Wallet::from_private_key_bytes(H256::repeat_byte(0x4), None).unwrap(),
+            ),
+            eth_proof_manager: Some(
+                Wallet::from_private_key_bytes(H256::repeat_byte(0x5), None).unwrap(),
             ),
         }
     }
@@ -147,6 +152,9 @@ mod tests {
             token_multiplier_setter:
               address: 0x1900678c093afec2558642bc4cae038254b9e664
               private_key: 0x2137749ca460802189d3eeb9be411128c28ce67edf0d2fd750212f96a888cfa5
+            eth_proof_manager:
+              address: 0x1900678c093afec2558642bc4cae038254b9e664
+              private_key: 0x2137749ca460802189d3eeb9be411128c28ce67edf0d2fd750212f96a888cfa5
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -171,6 +179,12 @@ mod tests {
         );
         assert_eq!(
             wallets.token_multiplier_setter.unwrap().address(),
+            "0x1900678c093afec2558642bc4cae038254b9e664"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            wallets.eth_proof_manager.unwrap().address(),
             "0x1900678c093afec2558642bc4cae038254b9e664"
                 .parse()
                 .unwrap()

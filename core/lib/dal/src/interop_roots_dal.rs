@@ -224,6 +224,32 @@ impl InteropRootDal<'_, '_> {
         Ok(records)
     }
 
+    pub async fn get_interop_roots_for_first_l2_block_in_pending_batch(
+        &mut self,
+    ) -> DalResult<Vec<InteropRoot>> {
+        let records = sqlx::query_as!(
+            StorageInteropRoot,
+            r#"
+            SELECT
+                interop_roots.chain_id,
+                interop_roots.dependency_block_number,
+                interop_roots.interop_root_sides
+            FROM interop_roots
+            WHERE
+                processed_block_number =
+                (SELECT MIN(number) FROM miniblocks WHERE l1_batch_number IS NULL)
+            ORDER BY chain_id, dependency_block_number DESC;
+            "#,
+        )
+        .try_map(InteropRoot::try_from)
+        .instrument("get_interop_roots")
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .collect();
+        Ok(records)
+    }
+
     pub async fn get_interop_roots_batch(
         &mut self,
         batch_number: L1BatchNumber,
