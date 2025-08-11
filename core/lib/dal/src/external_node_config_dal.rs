@@ -13,12 +13,11 @@ impl ExternalNodeConfigDal<'_, '_> {
             r#"
             INSERT INTO
             en_remote_config (
-                id,
                 value,
                 updated_at
             )
             VALUES
-            (TRUE, $1, NOW())
+            ($1, NOW())
             ON CONFLICT (id) DO UPDATE
             SET value = excluded.value,
             updated_at = NOW()

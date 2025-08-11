@@ -10,9 +10,13 @@ use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
-    api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,
+    api, api::BridgeAddresses, block::L2BlockHeader, ethabi, Address, L2BlockNumber,
+    ProtocolVersionId, H256,
 };
-use zksync_web3_decl::client::{MockClient, L1, L2};
+use zksync_web3_decl::{
+    client::{MockClient, L1, L2},
+    types::EcosystemContractsDto,
+};
 
 use super::*;
 
@@ -259,6 +263,7 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
     let genesis_root_hash = env.genesis_root_hash;
     let genesis_l2_block_hash = env.genesis_l2_block.hash;
 
+    let contracts = env.settlement_layer_specific_contracts.clone();
     MockClient::builder(L2::default())
         .method("eth_chainId", || Ok(U64::from(270)))
         .method("zks_L1ChainId", || Ok(U64::from(9)))
@@ -286,6 +291,34 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         )
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .method("en_getEcosystemContracts", move || {
+            Ok(EcosystemContractsDto {
+                bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr.unwrap(),
+                state_transition_proxy_addr: contracts
+                    .ecosystem_contracts
+                    .state_transition_proxy_addr,
+                message_root_proxy_addr: contracts.ecosystem_contracts.message_root_proxy_addr,
+                transparent_proxy_admin_addr: Default::default(),
+                l1_bytecodes_supplier_addr: None,
+                l1_wrapped_base_token_store: None,
+                server_notifier_addr: None,
+            })
+        })
+        .method("zks_getBridgeContracts", || {
+            Ok(BridgeAddresses {
+                l1_shared_default_bridge: Some(Address::repeat_byte(1)),
+                l2_shared_default_bridge: Some(Address::repeat_byte(3)),
+                l1_erc20_default_bridge: Some(Address::repeat_byte(4)),
+                l2_erc20_default_bridge: Some(Address::repeat_byte(3)),
+                l1_weth_bridge: None,
+                l2_weth_bridge: None,
+                l2_legacy_shared_bridge: Some(Address::repeat_byte(5)),
+            })
+        })
+        .method("zks_getTestnetPaymaster", || Ok(Address::repeat_byte(15)))
+        .method("zks_getMainContract", move || {
+            Ok(contracts.chain_contracts_config.diamond_proxy_addr)
+        })
         .build()
 }
 

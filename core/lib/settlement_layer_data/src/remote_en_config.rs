@@ -53,6 +53,7 @@ impl RemoteENConfig {
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
             .await?;
+
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")

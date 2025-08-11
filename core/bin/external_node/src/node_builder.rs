@@ -537,7 +537,6 @@ impl ExternalNodeBuilder {
         self.node.add_layer(SettlementLayerData::new(ENConfig {
             chain_id: self.config.local.networks.l2_chain_id,
             gateway_rpc_url: self.config.local.secrets.l1.gateway_rpc_url.clone(),
-            main_node_url: self.config.local.networks.main_node_url.clone(),
         }));
         Ok(self)
     }

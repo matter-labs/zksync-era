@@ -33,7 +33,7 @@ use zksync_shared_resources::{
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
-    client::{Client, DynClient, L1, L2},
+    client::{DynClient, L1, L2},
     jsonrpsee::core::__reexports::serde_json,
     namespaces::ZksNamespaceClient,
     node::{GatewayClientResource, SettlementLayerClient, SettlementModeResource},
@@ -73,6 +73,7 @@ impl<T> SettlementLayerData<T> {
 pub struct Input {
     eth_client: Box<DynClient<L1>>,
     pool: PoolResource<MasterPool>,
+    main_node_client: Option<Box<DynClient<L2>>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -221,7 +222,6 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 pub struct ENConfig {
     pub chain_id: L2ChainId,
     pub gateway_rpc_url: Option<SensitiveUrl>,
-    pub main_node_url: SensitiveUrl,
 }
 
 impl SettlementLayerData<ENConfig> {
@@ -252,12 +252,12 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .await
             .context("failed getting pool connection")?;
         let initial_db_sl_mode = get_db_settlement_mode(&mut connection, chain_id).await?;
-        let main_node_client = Client::http(self.config.main_node_url.clone())
-            .context("failed creating JSON-RPC client for main node")?
-            .for_network(self.config.chain_id.into())
-            .build();
-        let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
-        let remote_config = RemoteENConfig::fetch(main_node_client).await;
+        let remote_config = RemoteENConfig::fetch(
+            input
+                .main_node_client
+                .expect("Main node client is required for EN"),
+        )
+        .await;
 
         let remote_config = match remote_config {
             Ok(config) => {
