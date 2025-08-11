@@ -15,8 +15,7 @@ use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
-            ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            ForgeScriptParams, ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS
         },
         upgrade_ecosystem::{
             input::{
@@ -220,7 +219,7 @@ async fn no_governance_prepare(
             })
         }
         UpgradeVersion::V28_1VkEra => {
-            unimplemented!("V28_1VkEra is not implemented yet")
+            EcosystemUpgradeSpecificConfig::V28
         }
     };
 
@@ -610,9 +609,7 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
     match upgrade_version {
         UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersion::V28_1VkEra => {
-            unimplemented!("V28_1VkEra is not implemented yet")
-        }
+        UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS
     }
 }
 

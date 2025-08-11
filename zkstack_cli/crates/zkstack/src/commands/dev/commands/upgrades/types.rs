@@ -22,7 +22,7 @@ impl UpgradeVersion {
                 "./contracts/l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
             }
             UpgradeVersion::V28_1VkEra => {
-                unimplemented!("V28_1VkEra is not implemented yet")
+                "./contracts/l1-contracts/script-out/v28-1-upgrade-ecosystem.toml"
             }
         }
     }
