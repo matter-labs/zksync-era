@@ -553,19 +553,12 @@ impl MempoolIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
         // Check if there is an existing unsealed batch
-        if let Some(unsealed_storage_batch) = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await?
-            .blocks_dal()
-            .get_unsealed_l1_batch()
-            .await?
-        {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        if let Some(unsealed_storage_batch) = storage.blocks_dal().get_unsealed_l1_batch().await? {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
 
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let interop_roots = storage
                 .interop_root_dal()
                 .get_interop_roots_for_first_l2_block_in_pending_batch()
@@ -589,14 +582,13 @@ impl MempoolIO {
 
         let deadline = Instant::now() + max_wait;
 
-        let previous_protocol_version = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await?
+        let previous_protocol_version = storage
             .blocks_dal()
             .pending_protocol_version()
             .await
             .context("Failed loading previous protocol version")?;
+        drop(storage);
+
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {

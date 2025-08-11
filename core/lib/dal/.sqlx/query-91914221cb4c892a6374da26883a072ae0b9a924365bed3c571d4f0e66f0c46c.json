@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT l1_batch_number, proof_validation_result\n            FROM eth_proof_manager\n            WHERE\n                (status = $1 AND l1_batch_number <= $2)\n                OR (status = $3 AND proof_validation_result = false)\n            ORDER BY l1_batch_number ASC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "proof_validation_result",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "91914221cb4c892a6374da26883a072ae0b9a924365bed3c571d4f0e66f0c46c"
+}

@@ -14,6 +14,8 @@ pub enum EventType {
     PriorityTransactions,
     ChainBatchRoot,
     ServerNotification,
+    ProofRequestAcknowledged,
+    ProofRequestProven,
     InteropRoot,
 }
 

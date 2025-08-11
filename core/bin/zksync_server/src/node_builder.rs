@@ -76,7 +76,7 @@ use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address,
+    Address, L2ChainId,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -287,11 +287,16 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_proof_manager_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
         self.node.add_layer(EthProofManagerLayer::new(
             self.configs.eth_proof_manager.clone(),
+            gas_adjuster_config,
             self.eth_proof_manager_contracts
                 .clone()
                 .expect("Eth proof manager contracts are required to run eth proof manager"),
+            self.wallets.clone(),
+            L2ChainId::new(self.configs.eth_proof_manager.l2_chain_id).unwrap(),
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -335,9 +340,13 @@ impl MainNodeBuilder {
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
         let gateway_config = try_load_config!(self.configs.prover_gateway);
+        let eth_proof_manager_config = self.configs.eth_proof_manager.clone();
+        let l2_chain_id = self.genesis_config.l2_chain_id;
+
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
-            self.genesis_config.l2_chain_id,
+            eth_proof_manager_config,
+            l2_chain_id,
             gateway_config.api_mode,
         ));
         Ok(self)
