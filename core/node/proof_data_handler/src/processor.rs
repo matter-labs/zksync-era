@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::{
@@ -39,8 +39,9 @@ impl ProcessorMode for Locking {}
 pub struct Processor<PM: ProcessorMode> {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    config: ProofDataHandlerConfig,
+    proof_generation_timeout: Duration,
     chain_id: L2ChainId,
+    proving_mode: ProvingMode,
     _marker: std::marker::PhantomData<PM>,
 }
 
@@ -48,14 +49,16 @@ impl<PM: ProcessorMode> Processor<PM> {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
-        config: ProofDataHandlerConfig,
+        proof_generation_timeout: Duration,
         chain_id: L2ChainId,
+        proving_mode: ProvingMode,
     ) -> Self {
         Self {
             blob_store,
             pool,
-            config,
+            proof_generation_timeout,
             chain_id,
+            proving_mode,
             _marker: std::marker::PhantomData,
         }
     }
@@ -177,7 +180,7 @@ impl Processor<Locking> {
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
         let l1_batch_number = match self
-            .lock_batch_for_proving(self.config.proof_generation_timeout)
+            .lock_batch_for_proving(self.proof_generation_timeout)
             .await?
         {
             Some(number) => number,
@@ -199,7 +202,7 @@ impl Processor<Locking> {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    async fn lock_batch_for_proving(
+    pub async fn lock_batch_for_proving(
         &self,
         proof_generation_timeout: Duration,
     ) -> Result<Option<L1BatchNumber>, ProcessorError> {
@@ -207,7 +210,20 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving(proof_generation_timeout)
+            .lock_batch_for_proving(proof_generation_timeout, self.proving_mode.clone())
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Will choose a batch that has all the required data and isn't picked up by proving network yet.
+    pub async fn lock_batch_for_proving_network(
+        &self,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
+        self.pool
+            .connection()
+            .await?
+            .proof_generation_dal()
+            .lock_batch_for_proving_network(self.proving_mode.clone())
             .await
             .map_err(Into::into)
     }

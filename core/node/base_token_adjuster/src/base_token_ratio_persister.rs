@@ -298,8 +298,14 @@ mod tests {
 
         // Check the latest ratio matches expected values
         let ratio = ratio.unwrap();
-        assert_eq!(ratio.ratio.sl.numerator.get(), expected_num_ratio);
-        assert_eq!(ratio.ratio.sl.denominator.get(), expected_denom_ratio);
+        assert_eq!(
+            ratio.ratio.sl_conversion_ratio().numerator.get(),
+            expected_num_ratio
+        );
+        assert_eq!(
+            ratio.ratio.sl_conversion_ratio().denominator.get(),
+            expected_denom_ratio
+        );
     }
 
     const TOKEN_1_ADDRESS: Address = Address::repeat_byte(0x01);

@@ -20,6 +20,7 @@ use crate::client::ProofDataHandlerClient;
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
+    eth_proof_manager_config: EthProofManagerConfig,
     l2_chain_id: L2ChainId,
 }
 
@@ -39,6 +40,7 @@ impl ProofDataHandlerLayer {
     pub fn new(proof_data_handler_config: ProofDataHandlerConfig, l2_chain_id: L2ChainId) -> Self {
         Self {
             proof_data_handler_config,
+            eth_proof_manager_config,
             l2_chain_id,
         }
     }
@@ -59,6 +61,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 
         let task = ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
+            eth_proof_manager_config: self.eth_proof_manager_config,
             blob_store,
             main_pool,
             l2_chain_id: self.l2_chain_id,
@@ -71,6 +74,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 #[derive(Debug)]
 pub struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
+    eth_proof_manager_config: EthProofManagerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,

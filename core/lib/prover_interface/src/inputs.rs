@@ -235,6 +235,31 @@ impl StoredObject for WitnessInputData {
     }
 }
 
+pub struct PublicWitnessInputData(WitnessInputData);
+
+impl PublicWitnessInputData {
+    pub fn new(witness_input_data: WitnessInputData) -> Self {
+        Self(witness_input_data)
+    }
+}
+
+impl StoredObject for PublicWitnessInputData {
+    const BUCKET: Bucket = Bucket::PublicWitnessInputs;
+    type Key<'a> = L1BatchId;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        WitnessInputData::<CBOR>::encode_key(key)
+    }
+
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        <WitnessInputData as StoredObject>::serialize(&self.0)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        <WitnessInputData as StoredObject>::deserialize(bytes).map(Self)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct L1BatchMetadataHashes {
     pub root_hash: H256,
