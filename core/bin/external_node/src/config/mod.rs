@@ -214,8 +214,6 @@ impl From<&LocalConfig> for InternalApiConfigBase {
             req_entities_limit: web3_rpc.req_entities_limit as usize,
             fee_history_limit: web3_rpc.fee_history_limit,
             filters_disabled: web3_rpc.filters_disabled,
-            // dummy_verifier: config.remote.dummy_verifier,
-            // l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l1_to_l2_txs_paused: false,
             eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
         }
@@ -241,14 +239,8 @@ impl From<&LocalConfig> for TxSenderConfig {
             chain_id: config.networks.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            // TODO enable timestamp asserter in the future
+            // It will be set in the wiring code.
             timestamp_asserter_params: None,
-            // timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
-            //     TimestampAsserterParams {
-            //         address,
-            //         min_time_till_end: local.timestamp_asserter.min_time_till_end,
-            //     }
-            // }),
         }
     }
 }

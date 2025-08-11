@@ -8,7 +8,6 @@ use tokio::task::JoinHandle;
 use zksync_dal::ConnectionPool;
 use zksync_health_check::HealthStatus;
 use zksync_types::{fee_model::FeeParams, L1BatchNumber, U64};
-use zksync_web3_decl::jsonrpsee::core::ClientError;
 
 use self::framework::inject_test_layers;
 use super::*;
@@ -93,7 +92,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let (env, env_handles) =
         utils::TestEnvironment::with_genesis_block(&temp_dir, &connection_pool, "core").await;
 
-    let l2_client = utils::mock_l2_client_hanging();
+    let l2_client = utils::mock_l2_client(&env);
     let mut node_handle = env.spawn_node(l2_client);
 
     // Check that the node doesn't stop on its own.

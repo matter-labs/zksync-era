@@ -321,19 +321,3 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         })
         .build()
 }
-
-/// Creates a mock L2 client that will mimic request timeouts on block info requests.
-pub(super) fn mock_l2_client_hanging() -> MockClient<L2> {
-    MockClient::builder(L2::default())
-        .method("eth_chainId", || Ok(U64::from(270)))
-        .method("zks_L1ChainId", || Ok(U64::from(9)))
-        .method("zks_L1BatchNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("eth_blockNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
-        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .build()
-}
