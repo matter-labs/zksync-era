@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{
-    eth_proof_manager::EthProofManagerConfig, fri_prover_gateway::ApiMode,
-    proof_data_handler::ProvingMode, ProofDataHandlerConfig,
+    eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
+    ProofDataHandlerConfig,
 };
 use zksync_dal::{
     node::{MasterPool, PoolResource},
@@ -17,7 +17,7 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
-use crate::{proof_router::ProofRouter, ProofDataHandlerClient};
+use crate::{client::ProofDataHandlerClient, proof_router::ProofRouter};
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
@@ -25,7 +25,6 @@ pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
     eth_proof_manager_config: EthProofManagerConfig,
     l2_chain_id: L2ChainId,
-    api_mode: ApiMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -45,13 +44,11 @@ impl ProofDataHandlerLayer {
         proof_data_handler_config: ProofDataHandlerConfig,
         eth_proof_manager_config: EthProofManagerConfig,
         l2_chain_id: L2ChainId,
-        api_mode: ApiMode,
     ) -> Self {
         Self {
             proof_data_handler_config,
             eth_proof_manager_config,
             l2_chain_id,
-            api_mode,
         }
     }
 }
@@ -75,7 +72,6 @@ impl WiringLayer for ProofDataHandlerLayer {
             blob_store,
             main_pool,
             l2_chain_id: self.l2_chain_id,
-            api_mode: self.api_mode,
         };
 
         Ok(Output { task })
@@ -88,7 +84,6 @@ pub struct ProofDataHandlerTask {
     eth_proof_manager_config: EthProofManagerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
-    api_mode: ApiMode,
     l2_chain_id: L2ChainId,
 }
 
@@ -99,47 +94,33 @@ impl Task for ProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        if self.api_mode == ApiMode::Legacy {
-            crate::run_server(
-                self.proof_data_handler_config.clone(),
-                self.blob_store.clone(),
-                self.main_pool.clone(),
-                self.l2_chain_id,
-                self.api_mode.clone(),
-                stop_receiver.clone().0,
-            )
-            .await?;
+        let client = ProofDataHandlerClient::new(
+            self.blob_store,
+            self.main_pool.clone(),
+            self.proof_data_handler_config.clone(),
+            self.l2_chain_id,
+        );
 
-            Ok(())
-        } else {
-            let client = ProofDataHandlerClient::new(
-                self.blob_store,
-                self.main_pool.clone(),
-                self.proof_data_handler_config.clone(),
-                self.l2_chain_id,
+        if self.proof_data_handler_config.proving_mode == ProvingMode::ProvingNetwork {
+            let proof_router: ProofRouter = ProofRouter::new(
+                self.main_pool,
+                self.eth_proof_manager_config.acknowledgment_timeout,
+                self.eth_proof_manager_config.proof_generation_timeout,
+                self.eth_proof_manager_config.picking_timeout,
             );
 
-            if self.proof_data_handler_config.proving_mode == ProvingMode::ProvingNetwork {
-                let proof_router = ProofRouter::new(
-                    self.main_pool.clone(),
-                    self.eth_proof_manager_config.acknowledgment_timeout,
-                    self.eth_proof_manager_config.proof_generation_timeout,
-                    self.eth_proof_manager_config.picking_timeout,
-                );
-
-                tokio::select! {
-                    _ = client.run(stop_receiver.0.clone()) => {
-                        tracing::info!("Proof data handler client stopped");
-                    }
-                    _ = proof_router.run(stop_receiver.0) => {
-                        tracing::info!("Proof router stopped");
-                    }
+            tokio::select! {
+                _ = client.run(stop_receiver.0.clone()) => {
+                    tracing::info!("Proof data handler client stopped");
                 }
-            } else {
-                client.run(stop_receiver.0).await?;
+                _ = proof_router.run(stop_receiver.0) => {
+                    tracing::info!("Proof router stopped");
+                }
             }
-
-            Ok(())
+        } else {
+            client.run(stop_receiver.0).await?;
         }
+
+        Ok(())
     }
 }

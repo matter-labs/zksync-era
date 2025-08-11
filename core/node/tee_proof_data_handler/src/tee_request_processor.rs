@@ -8,10 +8,7 @@ use zksync_dal::{
     ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{
-    inputs::{VMRunWitnessInputData, WitnessInputMerklePaths},
-    Bincode,
-};
+use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
 use zksync_tee_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitTeeProofRequest,
@@ -117,32 +114,23 @@ impl TeeRequestProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<TeeVerifierInput, TeeProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
-            Ok(data) => data,
-            Err(_) => self
-                .blob_store
-                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
-                .await
-                .map(Into::into)
-                .map_err(|source| TeeProcessorError::ObjectStore {
-                    source,
-                    context: "Failed to get VMRunWitnessInputData".into(),
-                })?,
-        };
+        let vm_run_data: VMRunWitnessInputData = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(|source| TeeProcessorError::ObjectStore {
+                source,
+                context: "Failed to get VMRunWitnessInputData".into(),
+            })?;
 
-        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
-        {
-            Ok(data) => data,
-            Err(_) => self
-                .blob_store
-                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
-                .await
-                .map(Into::into)
-                .map_err(|source| TeeProcessorError::ObjectStore {
-                    source,
-                    context: "Failed to get WitnessInputMerklePaths".into(),
-                })?,
-        };
+        let merkle_paths: WitnessInputMerklePaths = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(|source| TeeProcessorError::ObjectStore {
+                source,
+                context: "Failed to get WitnessInputMerklePaths".into(),
+            })?;
 
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
 
