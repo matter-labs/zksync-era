@@ -248,7 +248,7 @@ impl StoredObject for PublicWitnessInputData {
     type Key<'a> = L1BatchId;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        WitnessInputData::<CBOR>::encode_key(key)
+        WitnessInputData::encode_key(key)
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

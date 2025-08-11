@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::{EthProofManagerConfig, ProofDataHandlerConfig};
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core,
@@ -14,7 +14,7 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
-use crate::client::ProofDataHandlerClient;
+use crate::{client::ProofDataHandlerClient, proof_router::ProofRouter};
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
@@ -94,7 +94,25 @@ impl Task for ProofDataHandlerTask {
             self.l2_chain_id,
         );
 
-        client.run(stop_receiver.0).await?;
+        if self.proof_data_handler_config.proving_mode == ProvingMode::ProvingNetwork {
+            let proof_router = ProofRouter::new(
+                self.main_pool.clone(),
+                self.eth_proof_manager_config.acknowledgment_timeout,
+                self.eth_proof_manager_config.proof_generation_timeout,
+                self.eth_proof_manager_config.picking_timeout,
+            );
+
+            tokio::select! {
+                _ = client.run(stop_receiver.0.clone()) => {
+                    tracing::info!("Proof data handler client stopped");
+                }
+                _ = proof_router.run(stop_receiver.0) => {
+                    tracing::info!("Proof router stopped");
+                }
+            }
+        } else {
+            client.run(stop_receiver.0).await?;
+        }
 
         Ok(())
     }
