@@ -70,21 +70,18 @@ impl FriProverDal<'_, '_> {
     pub async fn insert_prover_jobs(
         &mut self,
         batch_id: L1BatchId,
-        circuit_ids_and_urls: Vec<(u8, String)>,
+        circuit_ids_sequence_numbers_and_urls: Vec<(u8, usize, String)>,
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
-        if circuit_ids_and_urls.is_empty() {
+        if circuit_ids_sequence_numbers_and_urls.is_empty() {
             return;
         }
 
-        for (chunk_index, chunk) in circuit_ids_and_urls
-            .chunks(Self::INSERT_JOBS_CHUNK_SIZE)
-            .enumerate()
-        {
+        for chunk in circuit_ids_sequence_numbers_and_urls.chunks(Self::INSERT_JOBS_CHUNK_SIZE) {
             // Build multi-row INSERT for the current chunk
             let mut query_builder = QueryBuilder::new(
                 r#"
@@ -108,14 +105,14 @@ impl FriProverDal<'_, '_> {
             );
 
             query_builder.push_values(
-                chunk.iter().enumerate(),
-                |mut row, (i, (circuit_id, circuit_blob_url))| {
+                chunk.iter(),
+                |mut row, (circuit_id, sequence_number, circuit_blob_url)| {
                     row.push_bind(batch_id.batch_number().0 as i64)
                         .push_bind(batch_id.chain_id().inner() as i64)
                         .push_bind(*circuit_id as i16)
                         .push_bind(circuit_blob_url)
                         .push_bind(aggregation_round as i64)
-                        .push_bind((chunk_index * Self::INSERT_JOBS_CHUNK_SIZE + i) as i64) // sequence_number
+                        .push_bind(*sequence_number as i64) // sequence_number
                         .push_bind(depth as i32)
                         .push_bind(false) // is_node_final_proof
                         .push_bind(protocol_version_id.minor as i32)
@@ -291,6 +288,84 @@ impl FriProverDal<'_, '_> {
             picked_by,
             AggregationRound::BasicCircuits as i64,
             &HEAVY_BASIC_CIRCUIT_IDS[..],
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .expect("failed to get prover job")
+        .map(|row| FriProverJobMetadata {
+            id: row.id as u32,
+            batch_id: L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
+            circuit_id: row.circuit_id as u8,
+            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                .unwrap(),
+            sequence_number: row.sequence_number as usize,
+            depth: row.depth as u16,
+            is_node_final_proof: row.is_node_final_proof,
+            pick_time: Instant::now(),
+        })
+    }
+
+    /// Retrieves the next prover job to be proven. Called by WVGs.
+    ///
+    /// Prover jobs must be thought of as ordered.
+    /// Prover must prioritize proving such jobs that will make the chain move forward the fastest.
+    /// Current ordering:
+    /// - pick the lowest batch
+    /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
+    /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
+    ///
+    /// NOTE: We don't differentiate between heavy and light jobs in this function.
+    pub async fn get_next_job(
+        &mut self,
+        protocol_version: ProtocolSemanticVersion,
+        picked_by: &str,
+    ) -> Option<FriProverJobMetadata> {
+        sqlx::query!(
+            r#"
+            UPDATE prover_jobs_fri
+            SET
+                status = 'in_progress',
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW(),
+                picked_by = $3
+            WHERE
+                (id, chain_id) = (
+                    SELECT
+                        id,
+                        chain_id
+                    FROM
+                        prover_jobs_fri
+                    WHERE
+                        status = 'queued'
+                        AND protocol_version = $1
+                        AND protocol_version_patch = $2
+                    ORDER BY
+                        priority DESC,
+                        batch_sealed_at ASC,
+                        aggregation_round ASC,
+                        circuit_id ASC,
+                        id ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                    SKIP LOCKED
+                )
+            RETURNING
+            prover_jobs_fri.id,
+            prover_jobs_fri.l1_batch_number,
+            prover_jobs_fri.chain_id,
+            prover_jobs_fri.circuit_id,
+            prover_jobs_fri.aggregation_round,
+            prover_jobs_fri.sequence_number,
+            prover_jobs_fri.depth,
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
+            "#,
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32,
+            picked_by,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -973,9 +1048,9 @@ mod tests {
     use super::*;
     use crate::ProverDal;
 
-    fn mock_circuit_ids_and_urls(num_circuits: usize) -> Vec<(u8, String)> {
+    fn mock_circuit_ids_and_urls(num_circuits: usize) -> Vec<(u8, usize, String)> {
         (0..num_circuits)
-            .map(|i| (i as u8, format!("circuit{}", i)))
+            .map(|i| (i as u8, i, format!("circuit{}", i)))
             .collect()
     }
 

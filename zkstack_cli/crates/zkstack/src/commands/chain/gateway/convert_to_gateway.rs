@@ -102,6 +102,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let grantees = vec![
         ecosystem_config.get_contracts_config()?.l1.governance_addr,
         chain_deployer_wallet.address,
+        // This is only for local deployment, to allow easier future testing
+        ecosystem_config.get_wallets()?.deployer.unwrap().address,
         chain_contracts_config
             .ecosystem_contracts
             .stm_deployment_tracker_proxy_addr

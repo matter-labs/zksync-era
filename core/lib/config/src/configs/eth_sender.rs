@@ -43,7 +43,6 @@ impl EthConfig {
                 aggregated_block_prove_deadline: Duration::from_secs(10),
                 aggregated_block_execute_deadline: Duration::from_secs(10),
                 timestamp_criteria_max_allowed_lag: 30,
-                l1_batch_min_age_before_execute: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
@@ -53,6 +52,8 @@ impl EthConfig {
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
+                precommit_params: None,
+                force_use_validator_timelock: false,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -144,10 +145,6 @@ pub struct SenderConfig {
     #[config(default_t = 30)]
     pub timestamp_criteria_max_allowed_lag: usize,
 
-    /// L1 batches will only be executed on L1 contract after they are at least this number of seconds old.
-    /// Note that this number must be slightly higher than the one set on the contract,
-    /// because the contract uses `block.timestamp` which lags behind the clock time.
-    pub l1_batch_min_age_before_execute: Option<Duration>,
     /// Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     #[config(default_t = 100_000_000_000)]
     pub max_acceptable_priority_fee_in_gwei: u64,
@@ -174,6 +171,28 @@ pub struct SenderConfig {
     /// Cap for `b ^ time_in_mempool` used for price calculations.
     #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
+    /// Parameters for precommit operation.
+    #[config(nest)]
+    pub precommit_params: Option<PrecommitParams>,
+    /// Allow to force change the validator timelock address.
+    #[config(default)]
+    pub force_use_validator_timelock: bool,
+}
+
+/// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct PrecommitParams {
+    pub l2_blocks_to_aggregate: u32,
+    pub deadline: Duration,
+}
+
+impl PrecommitParams {
+    pub fn fast_precommit() -> Self {
+        Self {
+            l2_blocks_to_aggregate: 100000,
+            deadline: Duration::from_millis(1),
+        }
+    }
 }
 
 impl SenderConfig {
@@ -268,7 +287,6 @@ mod tests {
                 aggregate_tx_poll_period: Duration::from_secs(3),
                 max_txs_in_flight: 3,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                l1_batch_min_age_before_execute: Some(Duration::from_secs(1000)),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_only_prove_and_execute: false,
@@ -278,6 +296,11 @@ mod tests {
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
                 time_in_mempool_multiplier_cap: Some(10),
+                precommit_params: Some(PrecommitParams {
+                    l2_blocks_to_aggregate: 1,
+                    deadline: Duration::from_secs(1),
+                }),
+                force_use_validator_timelock: false,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -334,12 +357,13 @@ mod tests {
             ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_IN_L1_BLOCKS_CAP="2000"
-            ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -357,7 +381,6 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3
             aggregate_tx_poll_period: 3
-            l1_batch_min_age_before_execute_seconds: 1000
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
@@ -377,6 +400,10 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            force_use_validator_timelock: false
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
@@ -411,7 +438,6 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3 seconds
             aggregate_tx_poll_period: 3s
-            l1_batch_min_age_before_execute: 1000s
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
@@ -431,6 +457,10 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            force_use_validator_timelock: false
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

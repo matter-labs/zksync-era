@@ -78,37 +78,6 @@ jobs:
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
-  
-  install-zkstack-with-upgrades:
-    runs-on: [ ubuntu-24.04-github-hosted-16core ]
-
-    defaults:
-      run:
-        working-directory: zkstack_cli
-
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          submodules: "recursive"
-          fetch-depth: 0
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1
-        with:
-          toolchain: nightly-2024-09-01
-          rustflags: ""
-
-      - name: Build zkstack cli
-        run: cargo build --bin zkstack --release
-
-      - name: Verify builds with v27 upgrade features
-        run: |
-          cargo build --bin zkstack --release --features v27_evm_interpreter
-
-      - name: Verify builds with v28 upgrade features
-        run: |
-          cargo build --bin zkstack --release --features v28_precompiles
-
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
@@ -125,7 +94,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 16000 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 36000 || 22500 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
@@ -283,6 +252,7 @@ jobs:
       - name: Run gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 

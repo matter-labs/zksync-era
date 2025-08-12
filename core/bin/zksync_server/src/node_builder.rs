@@ -16,7 +16,9 @@ use zksync_config::{
         api::Namespace,
         consensus::ConsensusConfig,
         contracts::{
-            chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+            chain::{L2Contracts, ProofManagerContracts},
+            ecosystem::L1SpecificContracts,
+            SettlementLayerSpecificContracts,
         },
         da_client::DAClientConfig,
         secrets::DataAvailabilitySecrets,
@@ -37,10 +39,11 @@ use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
     web3_decl::node::QueryEthClientLayer,
 };
+use zksync_eth_proof_manager::node::EthProofManagerLayer;
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
-use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
+use zksync_gateway_migrator::node::GatewayMigratorLayer;
 use zksync_house_keeper::node::HouseKeeperLayer;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
@@ -64,6 +67,7 @@ use zksync_node_storage_init::node::{
 };
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
+use zksync_settlement_layer_data::{MainNodeConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
@@ -72,7 +76,7 @@ use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    Address, L2ChainId,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -102,6 +106,7 @@ pub(crate) struct MainNodeBuilder {
     // if use pre v26 contracts and not all functions are available for loading contracts
     pub l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
     pub l2_contracts: L2Contracts,
+    pub eth_proof_manager_contracts: Option<ProofManagerContracts>,
     pub multicall3: Option<Address>,
 }
 
@@ -193,12 +198,10 @@ impl MainNodeBuilder {
     }
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
-        // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        if self.l1_specific_contracts.base_token_address != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
-            let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
-            self.node
-                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
-        }
+        // We always insert base token ratio persister as its needed for all chains on gateway
+        let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
+        self.node
+            .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let api_config = try_load_config!(self.configs.api_config);
         let l1_gas_layer = L1GasLayer::new(
@@ -283,6 +286,21 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_eth_proof_manager_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
+        self.node.add_layer(EthProofManagerLayer::new(
+            self.configs.eth_proof_manager.clone(),
+            gas_adjuster_config,
+            self.eth_proof_manager_contracts
+                .clone()
+                .expect("Eth proof manager contracts are required to run eth proof manager"),
+            self.wallets.clone(),
+            L2ChainId::new(self.configs.eth_proof_manager.l2_chain_id).unwrap(),
+            self.genesis_config.l2_chain_id,
+        ));
+        Ok(self)
+    }
+
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
         self.node.add_layer(EthWatchLayer::new(
@@ -304,6 +322,10 @@ impl MainNodeBuilder {
                 eth_sender_config: try_load_config!(self.configs.eth)
                     .get_eth_sender_config_for_sender_layer_data_layer()
                     .clone(),
+                l1_batch_commit_data_generator_mode: self
+                    .genesis_config
+                    .l1_batch_commit_data_generator_mode,
+                dummy_verifier: self.genesis_config.dummy_verifier,
             }));
         Ok(self)
     }
@@ -317,11 +339,10 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
-        let gateway_config = try_load_config!(self.configs.prover_gateway);
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
+            self.configs.eth_proof_manager.clone(),
             self.genesis_config.l2_chain_id,
-            gateway_config.api_mode,
         ));
         Ok(self)
     }
@@ -805,6 +826,9 @@ impl MainNodeBuilder {
                         "Merkle tree API cannot be started without a tree component"
                     );
                     // Do nothing, will be handled by the `Tree` component.
+                }
+                Component::EthProofManager => {
+                    self = self.add_eth_proof_manager_layer()?;
                 }
                 Component::EthWatcher => {
                     self = self.add_eth_watch_layer()?;

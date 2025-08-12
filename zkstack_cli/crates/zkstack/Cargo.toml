@@ -56,7 +56,3 @@ clap_complete.workspace = true
 dirs.workspace = true
 ethers.workspace = true
 xshell.workspace = true
-
-[features]
-v27_evm_interpreter = []
-v28_precompiles = []

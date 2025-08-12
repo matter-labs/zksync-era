@@ -327,7 +327,6 @@ mod tests {
                 storage_refunds: vec![],
                 pubdata_costs: vec![],
                 witness_block_state: Default::default(),
-                _marker: std::marker::PhantomData,
             },
             WitnessInputMerklePaths::new(0),
             vec![],
@@ -343,6 +342,7 @@ mod tests {
                     timestamp: 0,
                     prev_block_hash: H256([1; 32]),
                     max_virtual_blocks_to_create: 0,
+                    interop_roots: vec![],
                 },
             },
             SystemEnv {

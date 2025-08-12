@@ -1,16 +1,12 @@
-#[cfg(feature = "v28_precompiles")]
 use std::path::Path;
 
-#[cfg(feature = "v28_precompiles")]
-use ethers::types::Bytes;
 use ethers::{
     abi::{decode, ParamType, Token},
+    types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
-#[cfg(feature = "v28_precompiles")]
 use xshell::Shell;
-#[cfg(feature = "v28_precompiles")]
 use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
@@ -98,7 +94,10 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(feature = "v28_precompiles")]
+    pub fn extend_with_calls(&mut self, calls: Vec<AdminCall>) {
+        self.calls.extend(calls);
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -144,7 +143,6 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
     pub fn append_execute_upgrade(
         &mut self,
         hyperchain_addr: Address,
@@ -179,7 +177,6 @@ impl AdminCallBuilder {
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
     pub fn display(&self) {
         // Serialize with pretty printing
         let serialized = serde_json::to_string_pretty(&self.calls).unwrap();

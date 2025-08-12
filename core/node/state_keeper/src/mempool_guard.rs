@@ -6,7 +6,9 @@ use std::{
 use tokio::sync::{Mutex as TokioMutex, MutexGuard};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{AdvanceInput, L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_types::{Address, Nonce, PriorityOpId, Transaction, TransactionTimeRangeConstraint};
+use zksync_types::{
+    Address, Nonce, PriorityOpId, ProtocolVersionId, Transaction, TransactionTimeRangeConstraint,
+};
 
 use super::metrics::StateKeeperGauges;
 
@@ -17,16 +19,36 @@ pub struct MempoolGuard {
 }
 
 impl MempoolGuard {
-    pub async fn from_storage(storage_processor: &mut Connection<'_, Core>, capacity: u64) -> Self {
+    pub async fn from_storage(
+        storage_processor: &mut Connection<'_, Core>,
+        capacity: u64,
+        high_priority_l2_tx_initiator: Option<Address>,
+        high_priority_l2_tx_protocol_version: Option<ProtocolVersionId>,
+    ) -> Self {
         let next_priority_id = storage_processor
             .transactions_dal()
             .next_priority_id()
             .await;
-        Self::new(next_priority_id, capacity)
+        Self::new(
+            next_priority_id,
+            capacity,
+            high_priority_l2_tx_initiator,
+            high_priority_l2_tx_protocol_version,
+        )
     }
 
-    pub(super) fn new(next_priority_id: PriorityOpId, capacity: u64) -> Self {
-        let store = MempoolStore::new(next_priority_id, capacity);
+    pub(super) fn new(
+        next_priority_id: PriorityOpId,
+        capacity: u64,
+        high_priority_l2_tx_initiator: Option<Address>,
+        high_priority_l2_tx_protocol_version: Option<ProtocolVersionId>,
+    ) -> Self {
+        let store = MempoolStore::new(
+            next_priority_id,
+            capacity,
+            high_priority_l2_tx_initiator,
+            high_priority_l2_tx_protocol_version,
+        );
         Self {
             mempool: Arc::new(Mutex::new(store)),
             critical_mutex: Arc::new(TokioMutex::new(())),

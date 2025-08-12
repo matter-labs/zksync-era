@@ -154,7 +154,7 @@ impl From<zksync_types::web3::Filter> for Filter {
     fn from(value: zksync_types::web3::Filter) -> Self {
         let convert_block_number = |b: zksync_types::web3::BlockNumber| match b {
             zksync_types::web3::BlockNumber::Finalized => BlockNumber::Finalized,
-            zksync_types::web3::BlockNumber::Safe => BlockNumber::L1Committed,
+            zksync_types::web3::BlockNumber::Safe => BlockNumber::Precommitted,
             zksync_types::web3::BlockNumber::Latest => BlockNumber::Latest,
             zksync_types::web3::BlockNumber::Earliest => BlockNumber::Earliest,
             zksync_types::web3::BlockNumber::Pending => BlockNumber::Pending,
@@ -336,6 +336,7 @@ pub enum PubSubResult {
 pub struct EcosystemContractsDto {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Address,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
