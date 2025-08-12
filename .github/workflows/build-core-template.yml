@@ -190,7 +190,7 @@ jobs:
           mkdir ./foundry-zksync
           # downloading newer version of foundry-zksync since the latest nightly is not working
           curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.24/foundry_zksync_v0.0.24_linux_arm64.tar.gz
-          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          tar zxf foundry_zksync_v0.0.24_linux_arm64.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
