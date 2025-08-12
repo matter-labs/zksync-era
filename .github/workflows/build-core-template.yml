@@ -17,7 +17,7 @@ on:
         description: 'JSON of required compilers and their versions'
         type: string
         required: false
-        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19", "1.3.21", "1.5.15"] } , { "zkvyper": ["1.3.13"] }]'
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19", "1.3.21"] } , { "zkvyper": ["1.3.13"] }]'
       en_alpha_release:
         description: 'Flag that determins if EN release should be marked as alpha'
         type: boolean
@@ -78,16 +78,6 @@ jobs:
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
 
-      - name: Clone & checkout proof manager contracts
-        shell: bash
-        run: |
-          rm -rf ./proof-manager-contracts
-          git clone https://github.com/matter-labs/proof-manager-contracts.git ./proof-manager-contracts
-          cd ./proof-manager-contracts
-          # for now these contracts will be pinned to specific commit
-          git checkout cc7a521
-          git submodule update --init --recursive
-
       - name: Install Apt dependencies
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
@@ -139,14 +129,6 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: Build proof manager contracts
-        if: env.BUILD_CONTRACTS == 'true'
-        working-directory: ./proof-manager-contracts
-        shell: bash
-        run: |
-          forge --version
-          forge build --zksync
-
       - name: Install zkstack
         if: env.BUILD_CONTRACTS == 'true'
         run: |
@@ -159,6 +141,14 @@ jobs:
         run: |
           cp etc/tokens/{test,localhost}.json
           zkstack dev contracts
+      
+      - name: Build proof manager contracts
+        if: env.BUILD_CONTRACTS == 'true'
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          forge --version
+          forge build --zksync
 
       - name: Upload contracts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -167,6 +157,60 @@ jobs:
           path: |
             ./contracts
 
+  prepare-proof-manager-contracts:
+    name: Prepare proof manager contracts
+    runs-on: matterlabs-ci-runner-high-performance
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: "recursive"
+
+      - name: Prepare ENV
+        shell: bash
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
+
+      - name: Clone & checkout proof manager contracts
+        if: env.BUILD_CONTRACTS == 'true'
+        shell: bash
+        run: |
+          rm -rf ./proof-manager-contracts
+          git clone https://github.com/matter-labs/proof-manager-contracts.git ./proof-manager-contracts
+          cd ./proof-manager-contracts
+          # for now these contracts will be pinned to specific commit
+          git checkout cc7a521
+          git submodule update --init --recursive
+      
+      - name: Install foundry-zksync
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          mkdir ./foundry-zksync
+          # downloading newer version of foundry-zksync since the latest nightly is not working
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.24/foundry_zksync_v0.0.24_linux_arm64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      - name: Build proof manager contracts
+        if: env.BUILD_CONTRACTS == 'true'
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          forge --version
+          forge build --zksync
+
+      - name: Upload contracts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proof-manager-contracts
+          path: |
+            ./proof-manager-contracts
+          
   build-images:
     name: Build and Push Docker Images
     needs: prepare-contracts
