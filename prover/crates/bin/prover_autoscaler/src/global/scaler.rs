@@ -1623,7 +1623,7 @@ mod tests {
         };
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            scaler.calculate(&"prover".into(), 2 * 1500 + 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
@@ -1665,7 +1665,7 @@ mod tests {
             "Override priority: H100 in foo, then L4 in bar"
         );
         assert_eq!(
-            scaler2.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            scaler2.calculate(&"prover".into(), 2 * 1500 + 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
@@ -1687,7 +1687,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 0 * 1500 + 0 * 3000, &clusters_h100),
+            scaler.calculate(&"prover".into(), 0 * 3000, &clusters_h100),
             [
                 (
                     PoolKey {
