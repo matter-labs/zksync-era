@@ -176,16 +176,15 @@ jobs:
           echo IN_DOCKER=1 >> .env
 
       - name: Clone & checkout proof manager contracts
+        working-directory: ./proof-manager-contracts
         shell: bash
         run: |
-          rm -rf ./proof-manager-contracts
-          git clone https://github.com/matter-labs/proof-manager-contracts.git ./proof-manager-contracts
-          cd ./proof-manager-contracts
           # for now these contracts will be pinned to specific commit
           git checkout cc7a521
           git submodule update --init --recursive
       
       - name: Install foundry-zksync
+        if: env.BUILD_CONTRACTS == 'true'
         run: |
           mkdir ./foundry-zksync
           # downloading newer version of foundry-zksync since the latest nightly is not working
@@ -195,6 +194,7 @@ jobs:
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
       - name: Build proof manager contracts
+        if: env.BUILD_CONTRACTS == 'true'
         working-directory: ./proof-manager-contracts
         shell: bash
         run: |
