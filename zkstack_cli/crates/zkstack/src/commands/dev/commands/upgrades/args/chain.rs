@@ -28,6 +28,8 @@ pub struct ChainUpgradeParams {
     pub dangerous_local_default_overrides: Option<bool>,
     #[clap(long, default_missing_value = "false")]
     pub force_display_finalization_params: Option<bool>,
+    #[clap(long)]
+    pub refund_recipient: Option<String>,
 }
 
 impl DefaultChainUpgradeArgs {
