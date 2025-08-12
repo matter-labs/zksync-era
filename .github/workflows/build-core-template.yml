@@ -196,7 +196,7 @@ jobs:
         with:
           name: proof-manager-contracts
           path: |
-            ./proof-manager-contracts
+            ./proof-manager-contracts/zkout
           
   build-images:
     name: Build and Push Docker Images
@@ -267,7 +267,7 @@ jobs:
         with:
           name: proof-manager-contracts
           path: |
-            .
+            ./proof-manager-contracts/zkout
 
       - name: Check contracts existense
         shell: bash
