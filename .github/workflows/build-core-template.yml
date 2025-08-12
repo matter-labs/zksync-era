@@ -78,7 +78,7 @@ jobs:
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
 
-      - name: Copy proof manager contracts
+      - name: Clone & checkout proof manager contracts
         shell: bash
         run: |
           rm -rf ./proof-manager-contracts
@@ -144,7 +144,7 @@ jobs:
         working-directory: ./proof-manager-contracts
         shell: bash
         run: |
-        
+          ls -la
           forge --version
           zksolc --version
           solc --version || true
