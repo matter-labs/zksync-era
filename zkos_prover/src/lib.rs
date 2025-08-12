@@ -157,7 +157,7 @@ pub async fn run(args: Args) {
         if args.enabled_logging {
             Path::new(&manifest_path).join("../execution_environment/app_logging_enabled.bin")
         } else {
-            Path::new(&manifest_path).join("../execution_environment/app.bin")
+            Path::new(&manifest_path).join("../execution_environment/multiblock_batch.bin")
         }
     });
 
