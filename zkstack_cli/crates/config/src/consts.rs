@@ -1,5 +1,5 @@
 /// Name of the main configuration file
-pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";
+pub const CONFIG_NAME: &str = "ZkStack.yaml";
 /// Name of the wallets file
 pub const WALLETS_FILE: &str = "wallets.yaml";
 /// Name of the secrets config file

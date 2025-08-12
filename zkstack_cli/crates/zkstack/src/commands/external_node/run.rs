@@ -1,20 +1,15 @@
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{ChainConfig, EcosystemConfig};
+use zkstack_cli_config::{ChainConfig, ZkStackConfig};
 
 use crate::{
     commands::external_node::{args::run::RunExternalNodeArgs, init},
     external_node::RunExternalNode,
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_STARTING_EN},
+    messages::MSG_STARTING_EN,
 };
 
 pub async fn run(shell: &Shell, args: RunExternalNodeArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     logger::info(MSG_STARTING_EN);
 

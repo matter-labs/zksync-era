@@ -6,7 +6,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger, spinner::Spinner,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::Address;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
@@ -40,10 +40,7 @@ pub struct SetDAValidatorPairArgs {
 }
 
 pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let chain_id = chain_config.chain_id.as_u64();
 
@@ -130,7 +127,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         set_da_validator_pair(
             shell,
             &args.forge_args.clone(),
-            &get_default_foundry_path(shell)?,
+            &chain_config.path_to_l1_foundry(),
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             chain_id,
             diamond_proxy_address,

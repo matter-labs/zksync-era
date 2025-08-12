@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig};
 
 use super::{
     args::integration::IntegrationArgs,
@@ -25,7 +25,7 @@ pub(super) struct IntegrationTestRunner<'a> {
 
 impl<'a> IntegrationTestRunner<'a> {
     pub fn new(shell: &'a Shell, no_deps: bool, timeout: Option<u64>) -> anyhow::Result<Self> {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
         Ok(Self {
             shell,
             no_deps,
@@ -67,8 +67,8 @@ impl<'a> IntegrationTestRunner<'a> {
             .change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
         if !self.no_deps {
-            install_and_build_dependencies(self.shell, &ecosystem_config)?;
-            build_contracts(self.shell, &ecosystem_config)?;
+            install_and_build_dependencies(self.shell, &ecosystem_config.link_to_code)?;
+            build_contracts(self.shell, &ecosystem_config.link_to_code)?;
         }
 
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {

@@ -8,7 +8,7 @@ use anyhow::{bail, Context};
 use clap::Parser;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::{
     autocomplete::{autocomplete_file_name, generate_completions},
@@ -50,15 +50,15 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
 
     logger::info(msg_running_linters_for_files(&targets));
 
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let link_to_code = ZkStackConfig::from_file(shell)?.link_to_code();
 
     for target in targets {
         match target {
-            Target::Rs => lint_rs(shell, &ecosystem, args.check)?,
-            Target::Contracts => lint_contracts(shell, &ecosystem, args.check)?,
+            Target::Rs => lint_rs(shell, &link_to_code, args.check)?,
+            Target::Contracts => lint_contracts(shell, &link_to_code, args.check)?,
             Target::Autocompletion => lint_autocompletion_files(shell, args.check)?,
             Target::RustToolchain => check_rust_toolchain(shell)?,
-            ext => lint(shell, &ecosystem, &ext, args.check)?,
+            ext => lint(shell, &link_to_code, &ext, args.check)?,
         }
     }
 
@@ -67,12 +67,12 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
+fn lint_rs(shell: &Shell, link_to_code: &Path, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(&Target::Rs));
 
-    let link_to_core = &ecosystem.link_to_code.join("core");
-    let lint_to_prover = &ecosystem.link_to_code.join("prover");
-    let link_to_zkstack = &ecosystem.link_to_code.join("zkstack_cli");
+    let link_to_core = &link_to_code.join("core");
+    let lint_to_prover = &link_to_code.join("prover");
+    let link_to_zkstack = &link_to_code.join("zkstack_cli");
 
     spinner.freeze();
     for path in [link_to_core, lint_to_prover, link_to_zkstack] {
@@ -136,17 +136,12 @@ fn get_linter(target: &Target) -> Vec<String> {
     }
 }
 
-fn lint(
-    shell: &Shell,
-    ecosystem: &EcosystemConfig,
-    target: &Target,
-    check: bool,
-) -> anyhow::Result<()> {
+fn lint(shell: &Shell, link_to_code: &Path, target: &Target, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(target));
-    let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
+    let _dir_guard = shell.push_dir(link_to_code);
     let files = get_unignored_files(shell, target, None)?;
     let cmd = cmd!(shell, "yarn");
-    let config_path = ecosystem.link_to_code.join(CONFIG_PATH);
+    let config_path = link_to_code.join(CONFIG_PATH);
     let config_path = config_path.join(format!("{}.js", target));
     let config_path = config_path
         .to_str()
@@ -174,9 +169,9 @@ fn lint(
     Ok(())
 }
 
-fn lint_contracts(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
+fn lint_contracts(shell: &Shell, link_to_code: &Path, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_RUNNING_CONTRACTS_LINTER_SPINNER);
-    let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
+    let _dir_guard = shell.push_dir(link_to_code);
     let cmd = cmd!(shell, "yarn");
     let linter = if check { "lint:check" } else { "lint:fix" };
     let args = ["--cwd", "contracts", linter];
