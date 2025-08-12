@@ -79,9 +79,11 @@ jobs:
           tar -C ./contracts -zxf system-contracts.tar.gz
 
       - name: Copy proof manager contracts
-        working-directory: ./proof-manager-contracts
         shell: bash
         run: |
+          rm -rf ./proof-manager-contracts
+          git clone https://github.com/matter-labs/proof-manager-contracts.git ./proof-manager-contracts
+          cd ./proof-manager-contracts
           # for now these contracts will be pinned to specific commit
           git checkout cc7a521
           git submodule update --init --recursive
@@ -137,6 +139,18 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
+      - name: Build proof manager contracts
+        if: env.BUILD_CONTRACTS == 'true'
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+        
+          forge --version
+          zksolc --version
+          solc --version || true
+          forge clean
+          forge build --zksync
+
       - name: Install zkstack
         if: env.BUILD_CONTRACTS == 'true'
         run: |
@@ -149,13 +163,6 @@ jobs:
         run: |
           cp etc/tokens/{test,localhost}.json
           zkstack dev contracts
-
-      - name: Build proof manager contracts
-        if: env.BUILD_CONTRACTS == 'true'
-        working-directory: ./proof-manager-contracts
-        shell: bash
-        run: |
-          forge build --zksync
 
       - name: Upload contracts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
