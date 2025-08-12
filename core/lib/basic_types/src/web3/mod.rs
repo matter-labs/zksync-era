@@ -1104,5 +1104,3 @@ impl Serialize for Work {
         }
     }
 }
-
-mod test_better_errors;
