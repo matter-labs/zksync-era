@@ -14093,6 +14093,7 @@ dependencies = [
  "zksync_node_sync",
  "zksync_object_store",
  "zksync_reorg_detector",
+ "zksync_settlement_layer_data",
  "zksync_snapshots_applier",
  "zksync_state",
  "zksync_state_keeper",
@@ -14180,6 +14181,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "once_cell",
+ "serde",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
@@ -14189,6 +14191,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_node_framework",
+ "zksync_settlement_layer_data",
  "zksync_shared_resources",
  "zksync_system_constants",
  "zksync_web3_decl",
@@ -14903,6 +14906,7 @@ dependencies = [
  "zksync_node_storage_init",
  "zksync_object_store",
  "zksync_proof_data_handler",
+ "zksync_settlement_layer_data",
  "zksync_shared_resources",
  "zksync_state",
  "zksync_state_keeper",
@@ -14911,6 +14915,28 @@ dependencies = [
  "zksync_types",
  "zksync_vlog",
  "zksync_vm_runner",
+ "zksync_web3_decl",
+]
+
+[[package]]
+name = "zksync_settlement_layer_data"
+version = "29.0.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "once_cell",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_node_framework",
+ "zksync_shared_resources",
+ "zksync_system_constants",
  "zksync_web3_decl",
 ]
 

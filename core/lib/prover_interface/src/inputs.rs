@@ -7,9 +7,6 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchId,
     L1BatchNumber, ProtocolVersionId, H256, U256,
 };
-
-use crate::{FormatMarker, CBOR};
-
 const HASH_LEN: usize = H256::len_bytes();
 
 /// Metadata emitted by a Merkle tree after processing single storage log.
@@ -64,13 +61,10 @@ impl StorageLogMetadata {
 /// Merkle paths; if this is the case, the starting hashes are skipped and are the same
 /// as in the first path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WitnessInputMerklePaths<FM: FormatMarker = CBOR> {
+pub struct WitnessInputMerklePaths {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
     pub merkle_paths: Vec<StorageLogMetadata>,
     pub(crate) next_enumeration_index: u64,
-
-    #[serde(skip)]
-    pub(crate) _marker: std::marker::PhantomData<FM>,
 }
 
 impl StoredObject for WitnessInputMerklePaths {
@@ -106,7 +100,6 @@ impl WitnessInputMerklePaths {
         Self {
             merkle_paths: vec![],
             next_enumeration_index,
-            _marker: std::marker::PhantomData,
         }
     }
 
@@ -158,7 +151,7 @@ impl WitnessInputMerklePaths {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct VMRunWitnessInputData<FM: FormatMarker = CBOR> {
+pub struct VMRunWitnessInputData {
     pub l1_batch_number: L1BatchNumber,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
@@ -170,12 +163,9 @@ pub struct VMRunWitnessInputData<FM: FormatMarker = CBOR> {
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Vec<i32>,
     pub witness_block_state: WitnessStorageState,
-
-    #[serde(skip)]
-    pub _marker: std::marker::PhantomData<FM>,
 }
 
-impl StoredObject for VMRunWitnessInputData<CBOR> {
+impl StoredObject for VMRunWitnessInputData {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
     type Key<'a> = L1BatchNumber;
@@ -203,9 +193,9 @@ impl StoredObject for VMRunWitnessInputData<CBOR> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WitnessInputData<FM: FormatMarker = CBOR> {
-    pub vm_run_data: VMRunWitnessInputData<FM>,
-    pub merkle_paths: WitnessInputMerklePaths<FM>,
+pub struct WitnessInputData {
+    pub vm_run_data: VMRunWitnessInputData,
+    pub merkle_paths: WitnessInputMerklePaths,
     pub previous_batch_metadata: L1BatchMetadataHashes,
     pub eip_4844_blobs: Eip4844Blobs,
 }
@@ -258,7 +248,7 @@ impl StoredObject for PublicWitnessInputData {
     type Key<'a> = L1BatchId;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        WitnessInputData::<CBOR>::encode_key(key)
+        WitnessInputData::encode_key(key)
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
