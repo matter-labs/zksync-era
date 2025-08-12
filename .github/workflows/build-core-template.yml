@@ -79,11 +79,10 @@ jobs:
           tar -C ./contracts -zxf system-contracts.tar.gz
 
       - name: Copy proof manager contracts
+        working-directory: ./proof-manager-contracts
         shell: bash
         run: |
           # for now these contracts will be pinned to specific commit
-          git clone https://github.com/matter-labs/proof-manager-contracts.git
-          cd proof-manager-contracts
           git checkout cc7a521
           git submodule update --init --recursive
 
