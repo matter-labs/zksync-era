@@ -213,7 +213,7 @@ jobs:
           
   build-images:
     name: Build and Push Docker Images
-    needs: prepare-contracts
+    needs: [prepare-contracts, prepare-proof-manager-contracts]
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
