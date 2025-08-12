@@ -68,7 +68,7 @@ async fn verify_next_batch_new_version(
         )
     })?;
     match upgrade_versions {
-        UpgradeVersion::V28_1Vk => {
+        UpgradeVersion::V28_1Vk | UpgradeVersion::V28_1VkEra => {
             ensure!(
                 protocol_version >= ProtocolVersionId::Version28,
                 "THe block does not yet contain the v28 upgrade"
@@ -235,16 +235,9 @@ pub struct UpdatedValidators {
     pub blob_operator: Option<Address>,
 }
 
+#[derive(Default)]
 pub struct AdditionalUpgradeParams {
     pub updated_validators: Option<UpdatedValidators>,
-}
-
-impl Default for AdditionalUpgradeParams {
-    fn default() -> Self {
-        Self {
-            updated_validators: None,
-        }
-    }
 }
 
 pub(crate) async fn run_chain_upgrade(
@@ -339,8 +332,11 @@ pub(crate) async fn run_chain_upgrade(
                 upgrade_info.contracts_config.old_protocol_version,
                 chain_info.gw_hyperchain_addr,
                 chain_info.l1_asset_router_proxy,
-                // TODO: the funds go to nowhere as this is not the aliased address.
-                chain_info.chain_admin_addr,
+                args_input
+                    .refund_recipient
+                    .context("refund_recipient is required")?
+                    .parse()
+                    .context("refund recipient is not a valid address")?,
                 upgrade_info.gateway.upgrade_cut_data.0.into(),
                 args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
             )
