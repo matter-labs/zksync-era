@@ -10,7 +10,7 @@ import { Fee } from '../types';
 import { getL2bUrl } from '../helpers';
 import { IERC20__factory as IERC20Factory } from 'zksync-ethers/build/typechain';
 import {
-    ArtifactAssetTracker,
+    ArtifactL2AssetTracker,
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
@@ -371,7 +371,7 @@ async function getChainBalance(
     // console.log('balance', l1 ? 'l1' : 'l2', balance);
     if (settlementLayer != (await wallet.providerL1!.getNetwork()).chainId && l1) {
         const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
-        const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactAssetTracker.abi, gwProvider);
+        const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactL2AssetTracker.abi, gwProvider);
         balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
     }
     return balance;
