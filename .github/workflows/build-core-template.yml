@@ -141,14 +141,6 @@ jobs:
         run: |
           cp etc/tokens/{test,localhost}.json
           zkstack dev contracts
-      
-      - name: Build proof manager contracts
-        if: env.BUILD_CONTRACTS == 'true'
-        working-directory: ./proof-manager-contracts
-        shell: bash
-        run: |
-          forge --version
-          forge build --zksync
 
       - name: Upload contracts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
