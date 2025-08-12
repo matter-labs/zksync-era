@@ -79,7 +79,6 @@ jobs:
           tar -C ./contracts -zxf system-contracts.tar.gz
 
       - name: Copy proof manager contracts
-        working-directory: ./contracts
         shell: bash
         run: |
           # for now these contracts will be pinned to specific commit
@@ -154,7 +153,7 @@ jobs:
 
       - name: Build proof manager contracts
         if: env.BUILD_CONTRACTS == 'true'
-        working-directory: ./contracts/proof-manager-contracts
+        working-directory: ./proof-manager-contracts
         shell: bash
         run: |
           forge build --zksync
