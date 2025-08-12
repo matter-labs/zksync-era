@@ -78,6 +78,16 @@ jobs:
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
 
+      - name: Copy proof manager contracts
+        working-directory: ./contracts
+        shell: bash
+        run: |
+          # for now these contracts will be pinned to specific commit
+          git clone https://github.com/matter-labs/proof-manager-contracts.git
+          cd proof-manager-contracts
+          git checkout cc7a521
+          git submodule update --init --recursive
+
       - name: Install Apt dependencies
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
@@ -141,6 +151,13 @@ jobs:
         run: |
           cp etc/tokens/{test,localhost}.json
           zkstack dev contracts
+
+      - name: Build proof manager contracts
+        if: env.BUILD_CONTRACTS == 'true'
+        working-directory: ./contracts/proof-manager-contracts
+        shell: bash
+        run: |
+          forge build --zksync
 
       - name: Upload contracts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
