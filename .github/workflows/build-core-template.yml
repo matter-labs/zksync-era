@@ -269,6 +269,13 @@ jobs:
           path: |
             .
 
+      - name: Check contracts existense
+        shell: bash
+        run: |
+          ls -la
+          cd proof-manager-contracts
+          ls -la
+
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}
         shell: bash
