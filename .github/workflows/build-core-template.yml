@@ -145,7 +145,6 @@ jobs:
         shell: bash
         run: |
           forge --version
-          forge clean
           forge build --zksync
 
       - name: Install zkstack
