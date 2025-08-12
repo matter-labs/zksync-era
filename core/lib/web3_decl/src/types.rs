@@ -94,12 +94,41 @@ impl TryFrom<Vec<u8>> for TransactionCalldata {
 }
 
 // Changes watched by the given `Filter`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum FilterChanges {
     Hashes(Vec<H256>),
     Logs(Vec<Log>),
     Empty([u8; 0]),
+}
+
+impl<'de> serde::Deserialize<'de> for FilterChanges {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Hashes(Vec<H256>),
+            Logs(Vec<Log>),
+            Empty([u8; 0]),
+        }
+
+        match Repr::deserialize(deserializer) {
+            Ok(Repr::Hashes(hashes)) => Ok(FilterChanges::Hashes(hashes)),
+            Ok(Repr::Logs(logs)) => Ok(FilterChanges::Logs(logs)),
+            Ok(Repr::Empty(empty)) => Ok(FilterChanges::Empty(empty)),
+            Err(e) => Err(serde::de::Error::custom(format!(
+                "Invalid filter changes format. Expected an array containing either: \
+                 (1) block hashes as 32-byte hex strings (e.g., '0x123abc...'), \
+                 (2) log objects with fields like 'address', 'topics', 'data', etc., \
+                 or (3) an empty array. \
+                 Common issues: malformed hex strings, missing required log fields, or invalid JSON structure. \
+                 Original error: {}",
+                e
+            ))),
+        }
+    }
 }
 
 /// Filter
