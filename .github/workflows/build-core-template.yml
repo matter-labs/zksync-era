@@ -267,7 +267,7 @@ jobs:
         with:
           name: proof-manager-contracts
           path: |
-            ./proof-manager-contracts
+            .
 
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}
