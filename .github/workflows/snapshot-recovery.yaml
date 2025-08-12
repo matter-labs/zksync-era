@@ -1,0 +1,71 @@
+name: Check JSON RPC for External Node Snapshot Recovery
+on:
+  pull_request:
+
+
+jobs:
+  prepare_env:
+    runs-on: [matterlabs-ci-runner]
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator"
+     
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+        
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo EXPECTED_TX_COUNT="500" >> .env
+          echo FAIL_FAST="true" >> .env
+          echo IN_DOCKER="1" >> .env
+          echo DATABASE_MERKLE_TREE_MODE="lightweight" >> .env
+          cat .env
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
+
+      - name: Step 1 - Run zk init
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+          ci_run zk
+          ci_run zk init
+ 
+      - name: Step 2 - Run main node
+        run: |
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
+          ci_run sleep 5
+
+      - name: Step 3 - Run integration tests
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
+             
+      - name: Step 4 - Create a snapshot
+        run: |
+          ci_run zk env docker
+          ci_run zk run snapshots-creator
+
+      - name: Step 5 - Run external node
+        run: |
+          ci_run zk env ext-node-docker
+          ci_run zk db setup
+          ci_run zk external-node --reinit -- --enable-snapshots-recovery &
+          ci_run sleep 65
+
+      - name: Step 6 - Stub - run curl requests
+        run: |
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 1 ]}'  "http://0.0.0.0:3060"
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getMainContract", "params": [  ]}' "http://0.0.0.0:3060"
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBridgeContracts", "params": [  ]}' "http://0.0.0.0:3060"
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getTestnetPaymaster", "params": [  ]}' "http://0.0.0.0:3060" 
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_L1BatchNumber", "params": [  ]}' "http://0.0.0.0:3060"
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_L1ChainId", "params": [  ]}' "http://0.0.0.0:3060"
+
+
+          
