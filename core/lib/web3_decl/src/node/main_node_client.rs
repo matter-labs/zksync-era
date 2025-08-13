@@ -99,4 +99,8 @@ impl CheckHealth for MainNodeHealthCheck {
         }
         HealthStatus::Ready.into()
     }
+
+    fn consider_in_overall_health(&self) -> bool {
+        false
+    }
 }

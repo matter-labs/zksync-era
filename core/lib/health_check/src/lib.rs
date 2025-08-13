@@ -245,11 +245,17 @@ impl AppHealthCheck {
 
         let aggregated_status = components
             .values()
-            .map(|health| health.status)
+            .filter(|(consider_in_overall_health, _)| *consider_in_overall_health)
+            .map(|(_, health)| health.status)
             .max_by_key(|status| status.priority_for_aggregation())
             .unwrap_or(HealthStatus::Ready);
         let mut inner = Health::from(aggregated_status);
         inner.details = app_details.clone();
+
+        let components = components
+            .into_iter()
+            .map(|(name, (_, health))| (name, health))
+            .collect();
 
         let health = AppHealth { inner, components };
         if !health.inner.status.is_healthy() {
@@ -263,7 +269,7 @@ impl AppHealthCheck {
         check: &dyn CheckHealth,
         slow_time_limit: Duration,
         hard_time_limit: Duration,
-    ) -> (&'static str, Health) {
+    ) -> (&'static str, (bool, Health)) {
         struct DropGuard {
             check_name: &'static str,
             started_at: tokio::time::Instant,
@@ -292,6 +298,7 @@ impl AppHealthCheck {
         }
 
         let check_name = check.name();
+        let consider_in_overall_health = check.consider_in_overall_health();
         let started_at = tokio::time::Instant::now();
         let mut drop_guard = DropGuard {
             check_name,
@@ -312,14 +319,17 @@ impl AppHealthCheck {
                     );
                     METRICS.observe_abnormal_check(check_name, CheckResult::Slow, elapsed);
                 }
-                (check_name, output)
+                (check_name, (consider_in_overall_health, output))
             }
             Err(_) => {
                 tracing::warn!(
                     "Health check `{check_name}` timed out, taking >{hard_time_limit:?} to complete; marking as not ready"
                 );
                 METRICS.observe_abnormal_check(check_name, CheckResult::TimedOut, elapsed);
-                (check_name, HealthStatus::NotReady.into())
+                (
+                    check_name,
+                    (consider_in_overall_health, HealthStatus::NotReady.into()),
+                )
             }
         }
     }
@@ -356,6 +366,10 @@ pub trait CheckHealth: Send + Sync + 'static {
     fn name(&self) -> &'static str;
     /// Checks health of the component.
     async fn check_health(&self) -> Health;
+
+    fn consider_in_overall_health(&self) -> bool {
+        true
+    }
 }
 
 impl fmt::Debug for dyn CheckHealth {
@@ -375,6 +389,10 @@ impl<T: CheckHealth + ?Sized> CheckHealth for Arc<T> {
 
     async fn check_health(&self) -> Health {
         (**self).check_health().await
+    }
+
+    fn consider_in_overall_health(&self) -> bool {
+        (**self).consider_in_overall_health()
     }
 }
 
