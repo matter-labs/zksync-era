@@ -199,7 +199,8 @@ pub async fn run(args: Args) {
             block_number
         );
         let proof_bytes: Vec<u8> =
-            bincode::serialize(&proof).expect("failed to bincode-serialize proof");
+            bincode::serde::encode_to_vec(&proof, bincode::config::standard())
+                .expect("failed to bincode-serialize proof");
 
         // 2) base64-encode that binary blob
         let proof_b64 = base64::encode(&proof_bytes);

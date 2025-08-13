@@ -316,6 +316,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "bincode"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36eaf5d7b090263e8150820482d5d93cd964a81e4019913c972f4edcc6edb740"
+dependencies = [
+ "bincode_derive",
+ "serde",
+ "unty",
+]
+
+[[package]]
+name = "bincode_derive"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf95709a440f45e986983918d0e8a1f30a9b1df04918fc828670606804ac3c09"
+dependencies = [
+ "virtue",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -649,7 +669,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.3.3#f9ed2c101bfc76d288ce38b046264be74bc483ea"
 dependencies = [
  "arrayvec",
- "bincode",
+ "bincode 1.3.3",
  "blake2s_u32",
  "derivative",
  "divrem",
@@ -1684,7 +1704,7 @@ checksum = "b8ec7ab813848ba4522158d5517a6093db1ded27575b070f4177b8d12b41db5e"
 dependencies = [
  "flate2",
  "memchr",
- "ruzstd",
+ "ruzstd 0.6.0",
 ]
 
 [[package]]
@@ -1693,7 +1713,9 @@ version = "0.36.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
 dependencies = [
+ "flate2",
  "memchr",
+ "ruzstd 0.7.3",
 ]
 
 [[package]]
@@ -1956,7 +1978,7 @@ name = "prover"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.3.3#f9ed2c101bfc76d288ce38b046264be74bc483ea"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "bit-set",
  "blake2s_u32",
  "cs",
@@ -1985,7 +2007,7 @@ name = "prover_examples"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=v0.3.3#f9ed2c101bfc76d288ce38b046264be74bc483ea"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "cs",
  "gpu_prover",
  "itertools 0.14.0",
@@ -2298,7 +2320,7 @@ dependencies = [
  "field",
  "inferno",
  "memmap2",
- "object 0.35.0",
+ "object 0.36.7",
  "poseidon2",
  "rand 0.9.1",
  "ringbuffer",
@@ -2448,6 +2470,15 @@ checksum = "5174a470eeb535a721ae9fdd6e291c2411a906b96592182d05217591d5c5cf7b"
 dependencies = [
  "byteorder",
  "derive_more",
+ "twox-hash",
+]
+
+[[package]]
+name = "ruzstd"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fad02996bfc73da3e301efe90b1837be9ed8f4a462b6ed410aa35d00381de89f"
+dependencies = [
  "twox-hash",
 ]
 
@@ -3057,6 +3088,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "unty"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d49784317cd0d1ee7ec5c716dd598ec5b4483ea832a2dced265471cc0f690ae"
+
+[[package]]
 name = "url"
 version = "2.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3126,6 +3163,12 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "virtue"
+version = "0.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "051eb1abcf10076295e815102942cc58f9d5e3b4560e46e53c21e8ff6f3af7b1"
 
 [[package]]
 name = "want"
@@ -3579,7 +3622,7 @@ version = "20.2.0"
 dependencies = [
  "anyhow",
  "base64",
- "bincode",
+ "bincode 2.0.1",
  "clap",
  "cli",
  "execution_utils",
