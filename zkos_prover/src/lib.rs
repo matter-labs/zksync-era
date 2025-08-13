@@ -112,7 +112,7 @@ fn create_proof(
         prover_input,
         &Machine::Standard,
         // FIXME: figure out how many instances (currently gpu ignores this).
-        100,
+        1000,
         None,
         #[cfg(feature = "gpu")]
         &mut Some(gpu_state),
@@ -155,7 +155,8 @@ pub async fn run(args: Args) {
     };
     let binary_path = args.app_bin_path.unwrap_or_else(|| {
         if args.enabled_logging {
-            Path::new(&manifest_path).join("../execution_environment/app_logging_enabled.bin")
+            println!("enabled_logging is requested, but there is no multiblock_batch.bin with logging enabled. Using multiblock_batch.bin without logging enabled.");
+            Path::new(&manifest_path).join("../execution_environment/multiblock_batch.bin")
         } else {
             Path::new(&manifest_path).join("../execution_environment/multiblock_batch.bin")
         }
