@@ -5,7 +5,7 @@ use zksync_config::configs::{
     eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_proof_data_handler::{Locking, Processor};
 use zksync_prover_interface::inputs::PublicWitnessInputData;
 use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
@@ -111,9 +111,7 @@ impl ProofRequestSubmitter {
         let witness_input_data =
             PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
 
-        let bucket = self
-            .public_blob_store
-            .get_storage_prefix::<PublicWitnessInputData>();
+        let bucket = Bucket::PublicWitnessInputs;
         let key = self
             .public_blob_store
             .put(
@@ -125,7 +123,12 @@ impl ProofRequestSubmitter {
                 anyhow::anyhow!("Failed to put proof generation data into blob store: {}", e)
             })?;
 
-        let url = format!("{bucket}/{key}");
+        let url = format!(
+            "{}/{}/{}",
+            self.config.public_object_store_url,
+            bucket.as_str(),
+            key
+        );
 
         self.connection_pool
             .connection()

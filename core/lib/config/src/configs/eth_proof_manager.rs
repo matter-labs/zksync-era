@@ -11,6 +11,9 @@ pub struct EthProofManagerConfig {
     /// HTTP RPC URL of L2(where contracts are deployed)
     #[config(default_t = "http://127.0.0.1:8545".to_string())]
     pub http_rpc_url: String,
+    /// Public object store URL
+    #[config(default_t = "".to_string())]
+    pub public_object_store_url: String,
     /// Object store config
     #[config(nest, default)]
     pub object_store: ObjectStoreConfig,
