@@ -267,14 +267,7 @@ jobs:
         with:
           name: proof-manager-contracts
           path: |
-            ./proof-manager-contracts/zkout
-
-      - name: Check contracts existense
-        shell: bash
-        run: |
-          ls -la
-          cd proof-manager-contracts
-          ls -la
+            ./proof-manager-contracts/zkoutß
 
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}
