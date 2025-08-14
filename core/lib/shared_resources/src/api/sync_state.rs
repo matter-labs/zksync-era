@@ -158,7 +158,7 @@ mod tests {
         assert!(!sync_state.borrow().is_synced());
 
         let health = sync_state.check_health().await;
-        assert_matches!(health.status(), HealthStatus::NotReady);
+        assert_matches!(health.status(), HealthStatus::Affected);
 
         // The gap is too big, still not synced.
         sync_state.set_local_block(L2BlockNumber(0));
