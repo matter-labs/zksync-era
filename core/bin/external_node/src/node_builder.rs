@@ -623,7 +623,8 @@ impl ExternalNodeBuilder {
                 .add_block_reverter_layer()?
                 .add_storage_initialization_layer(LayerKind::Task)?;
         }
-
+        // Add preconditions for all the components.
+        self = self.add_storage_initialization_layer(LayerKind::Precondition)?;
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
             // API consumes the resources provided by other layers (multiple ones), so it has to come the last.
