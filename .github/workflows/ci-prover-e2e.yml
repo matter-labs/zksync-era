@@ -67,7 +67,7 @@ jobs:
 
       - name: Run server
         run: |
-          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}/server.log &
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
 
       - name: Waiting for web3_json_rpc to become ready
         env:
