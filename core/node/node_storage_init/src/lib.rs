@@ -3,7 +3,7 @@ use std::{future::Future, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_types::{try_stoppable, L1BatchNumber, OrStopped};
+use zksync_types::{try_stoppable, L1BatchNumber, OrStopped, StopContext};
 
 pub use crate::traits::{InitializeStorage, RevertStorage};
 
@@ -131,6 +131,17 @@ impl NodeStorageInitializer {
             }
         }
 
+        // Now we may check whether we're in the invalid state and should perform a rollback.
+        if let Some(reverter) = &self.strategy.block_reverter {
+            if let Some(to_batch) =
+                try_stoppable!(reverter.last_correct_batch_for_reorg(stop_receiver).await)
+            {
+                tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
+                tracing::info!("Performing the rollback");
+                reverter.revert_storage(to_batch).await?;
+            }
+        }
+
         Ok(())
     }
 
@@ -147,7 +158,11 @@ impl NodeStorageInitializer {
         })
         .await?;
 
-        Ok(())
+        // Wait until the rollback is no longer needed.
+        poll(stop_receiver.clone(), POLLING_INTERVAL, || {
+            self.is_chain_tip_correct(stop_receiver.clone())
+        })
+        .await
     }
 
     async fn is_database_initialized(&self) -> anyhow::Result<bool> {
@@ -159,6 +174,23 @@ impl NodeStorageInitializer {
             return snapshot_recovery.is_initialized().await;
         }
         Ok(false)
+    }
+
+    /// Checks if the head of the chain has correct state, e.g. no rollback needed.
+    async fn is_chain_tip_correct(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<bool> {
+        // May be `true` if stop request is received, but the node will shut down without launching any tasks anyway.
+        let initialized = if let Some(reverter) = &self.strategy.block_reverter {
+            !reverter
+                .is_reorg_needed(stop_receiver)
+                .await
+                .unwrap_stopped(false)?
+        } else {
+            true
+        };
+        Ok(initialized)
     }
 }
 

@@ -34,7 +34,7 @@ impl RevertStorage for ExternalNodeReverter {
         stop_receiver: watch::Receiver<bool>,
     ) -> Result<bool, OrStopped> {
         ReorgDetector::new(self.client.clone(), self.pool.clone())
-            .check_reorg_presence(stop_receiver)
+            .check_reorg_presence(stop_receiver, true)
             .await
     }
 
