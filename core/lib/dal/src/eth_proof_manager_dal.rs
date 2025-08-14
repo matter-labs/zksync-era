@@ -344,7 +344,7 @@ impl EthProofManagerDal<'_, '_> {
             UPDATE eth_proof_manager SET status = $1, updated_at = NOW()
             WHERE l1_batch_number = $2
             "#,
-            EthProofManagerStatus::Unpicked.as_str(),
+            EthProofManagerStatus::Fallbacked.as_str(),
             i64::from(batch_number.0),
         )
         .instrument("fallback_certain_batch")
