@@ -3,7 +3,7 @@ use std::{future::Future, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_types::{try_stoppable, L1BatchNumber, OrStopped, StopContext};
+use zksync_types::{try_stoppable, L1BatchNumber, OrStopped};
 
 pub use crate::traits::{InitializeStorage, RevertStorage};
 
@@ -159,23 +159,6 @@ impl NodeStorageInitializer {
             return snapshot_recovery.is_initialized().await;
         }
         Ok(false)
-    }
-
-    /// Checks if the head of the chain has correct state, e.g. no rollback needed.
-    async fn is_chain_tip_correct(
-        &self,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<bool> {
-        // May be `true` if stop request is received, but the node will shut down without launching any tasks anyway.
-        let initialized = if let Some(reverter) = &self.strategy.block_reverter {
-            !reverter
-                .is_reorg_needed(stop_receiver)
-                .await
-                .unwrap_stopped(false)?
-        } else {
-            true
-        };
-        Ok(initialized)
     }
 }
 

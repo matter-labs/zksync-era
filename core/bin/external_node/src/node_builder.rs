@@ -252,9 +252,9 @@ impl ExternalNodeBuilder {
     }
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
-        // let config = &self.config.local.networks;
-        // let layer = ValidateChainIdsLayer::new(config.l1_chain_id, config.l2_chain_id);
-        // self.node.add_layer(layer);
+        let config = &self.config.local.networks;
+        let layer = ValidateChainIdsLayer::new(config.l1_chain_id, config.l2_chain_id);
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -623,11 +623,6 @@ impl ExternalNodeBuilder {
                 .add_block_reverter_layer()?
                 .add_storage_initialization_layer(LayerKind::Task)?;
         }
-
-        // Add preconditions for all the components.
-        self = self
-            .add_validate_chain_ids_layer()?
-            .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
