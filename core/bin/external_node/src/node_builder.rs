@@ -252,9 +252,9 @@ impl ExternalNodeBuilder {
     }
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
-        let config = &self.config.local.networks;
-        let layer = ValidateChainIdsLayer::new(config.l1_chain_id, config.l2_chain_id);
-        self.node.add_layer(layer);
+        // let config = &self.config.local.networks;
+        // let layer = ValidateChainIdsLayer::new(config.l1_chain_id, config.l2_chain_id);
+        // self.node.add_layer(layer);
         Ok(self)
     }
 

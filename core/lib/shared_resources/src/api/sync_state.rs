@@ -134,7 +134,7 @@ impl From<&SyncStateData> for Health {
         } else if block_diff.is_some() {
             HealthStatus::Affected
         } else {
-            return HealthStatus::NotReady.into(); // `state` isn't initialized yet
+            return HealthStatus::Affected.into(); // `state` isn't initialized yet
         };
         Health::from(status).with_details(SyncStateHealthDetails {
             is_synced,
