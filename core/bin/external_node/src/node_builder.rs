@@ -602,7 +602,8 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_reorg_detector_layer()?;
+            .add_reorg_detector_layer()?
+            .add_validate_chain_ids_layer()?;
 
         #[cfg(not(target_env = "msvc"))]
         {
@@ -623,8 +624,10 @@ impl ExternalNodeBuilder {
                 .add_block_reverter_layer()?
                 .add_storage_initialization_layer(LayerKind::Task)?;
         }
+
         // Add preconditions for all the components.
         self = self.add_storage_initialization_layer(LayerKind::Precondition)?;
+
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
             // API consumes the resources provided by other layers (multiple ones), so it has to come the last.
