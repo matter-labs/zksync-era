@@ -60,6 +60,7 @@ impl TestContext {
         EthProofManagerConfig {
             l2_chain_id: 270,
             http_rpc_url: "http://127.0.0.1:3050".to_string(),
+            public_object_store_url: "".to_string(),
             object_store: ObjectStoreConfig {
                 mode: ObjectStoreMode::FileBacked {
                     file_backed_base_path: "/tmp/zksync/object_store".to_string().into(),
