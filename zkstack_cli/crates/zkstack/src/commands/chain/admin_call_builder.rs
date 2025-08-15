@@ -1,10 +1,5 @@
 use std::path::Path;
 
-use crate::abi::{
-    CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
-    CHAINTYPEMANAGERUPGRADEFNABI_ABI as CHAIN_TYPE_MANAGER_UPGRADE_ABI,
-    DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
-};
 use ethers::{
     abi::{decode, Abi, ParamType, Token},
     types::Bytes,
@@ -14,6 +9,12 @@ use serde::Serialize;
 use xshell::Shell;
 use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_types::{Address, U256};
+
+use crate::abi::{
+    CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
+    CHAINTYPEMANAGERUPGRADEFNABI_ABI as CHAIN_TYPE_MANAGER_UPGRADE_ABI,
+    DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
