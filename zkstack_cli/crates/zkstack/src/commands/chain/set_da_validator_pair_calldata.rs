@@ -33,10 +33,22 @@ pub struct SetDAValidatorPairCalldataArgs {
     pub explicit_settlement_layer_chain_id: Option<u64>,
 
     /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
+    #[clap(
+        long,
+        help = "Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)"
+    )]
     pub max_l1_gas_price: Option<u64>,
     /// The refund recipient for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
+    #[clap(
+        long,
+        help = "The refund recipient for L1->GW transaction (in case the chain is settling on top of ZK Gateway)"
+    )]
     pub refund_recipient: Option<Address>,
     /// The ZK Gateway RPC URL (only used in case the chain is settling on top of ZK Gateway)
+    #[clap(
+        long,
+        help = "The ZK Gateway RPC URL (only used in case the chain is settling on top of ZK Gateway)"
+    )]
     pub gw_rpc_url: Option<String>,
 }
 
