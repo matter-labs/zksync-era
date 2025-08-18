@@ -203,7 +203,7 @@ impl L1TxCommonData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct L1Tx {
     pub execute: Execute,
     pub common_data: L1TxCommonData,

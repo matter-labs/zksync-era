@@ -1,9 +1,12 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, fmt::Debug, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
+use zksync_contracts::{
+    hyperchain_contract, BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_eth_client::EthInterface;
 use zksync_state_keeper::{
     io::{
         common::{load_pending_batch, IoCursor},
@@ -16,11 +19,16 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
+    l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    u256_to_h256,
+    web3::FilterBuilder,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
+    H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
+use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{
     client::MainNodeClient,
@@ -41,6 +49,7 @@ pub struct ExternalIO {
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
+    txs_verifier: Box<dyn PriorityTransactionVerifier>,
 }
 
 impl ExternalIO {
@@ -49,6 +58,7 @@ impl ExternalIO {
         actions: ActionQueue,
         main_node_client: Box<dyn MainNodeClient>,
         chain_id: L2ChainId,
+        txs_verifier: Box<dyn PriorityTransactionVerifier>,
     ) -> anyhow::Result<Self> {
         let l1_batch_params_provider = L1BatchParamsProvider::uninitialized();
         Ok(Self {
@@ -57,6 +67,7 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
+            txs_verifier,
         })
     }
 
@@ -375,11 +386,18 @@ impl StateKeeperIO for ExternalIO {
         match action {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
-                return Ok(Some(Transaction::from(*tx)));
+                let tx = Transaction::from(*tx);
+                if let Some(l1_tx) = &tx.l1_tx() {
+                    self.txs_verifier
+                        .verify_transaction(l1_tx)
+                        .await
+                        .context("failed to verify priority transaction")?;
+                }
+                Ok(Some(tx))
             }
             SyncAction::SealL2Block | SyncAction::SealBatch => {
                 // No more transactions in the current L2 block; the state keeper should seal it.
-                return Ok(None);
+                Ok(None)
             }
             other => {
                 anyhow::bail!(
@@ -491,6 +509,130 @@ impl StateKeeperIO for ExternalIO {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PriorityTransactionVerificationError {
+    #[error("Transaction deoes not match the L1 transaction with id: {0:?}")]
+    TransactionDoesnntMatchL1Tx(PriorityOpId),
+    #[error("Transaction doesn't exist: {0}")]
+    TransactionDoesntExist(H256),
+    #[error("Error: {0}")]
+    Other(#[from] anyhow::Error),
+}
+
+#[async_trait]
+pub trait PriorityTransactionVerifier: std::fmt::Debug + Send + Sync {
+    /// Verifies the transaction and returns an error if it is not executable.
+    async fn verify_transaction(
+        &self,
+        tx: &L1Tx,
+    ) -> Result<(), PriorityTransactionVerificationError>;
+}
+
+#[derive(Debug)]
+pub struct PriorityTxVerifierL1 {
+    l1_client: Box<DynClient<L1>>,
+    l1_diamond_proxy: Address,
+    new_priority_request_signature: H256,
+
+    pub new_priority_request_id_signature: H256,
+}
+
+impl PriorityTxVerifierL1 {
+    pub fn new(l1_client: Box<DynClient<L1>>, l1_diamond_proxy: Address) -> Self {
+        let new_priority_request_signature = hyperchain_contract()
+            .event("NewPriorityRequest")
+            .context("NewPriorityRequest event is missing in ABI")
+            .unwrap()
+            .signature();
+        let new_priority_request_id_signature = hyperchain_contract()
+            .event("NewPriorityRequestId")
+            .context("NewPriorityRequestId event is missing in ABI")
+            .unwrap()
+            .signature();
+
+        Self {
+            l1_client,
+            l1_diamond_proxy,
+            new_priority_request_signature,
+            new_priority_request_id_signature,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl PriorityTransactionVerifier for PriorityTxVerifierL1 {
+    async fn verify_transaction(
+        &self,
+        tx: &L1Tx,
+    ) -> Result<(), PriorityTransactionVerificationError> {
+        let filter = FilterBuilder::default()
+            .address(vec![self.l1_diamond_proxy])
+            .topics(
+                Some(vec![self.new_priority_request_id_signature]),
+                Some(vec![u256_to_h256((*tx.serial_id()).into())]),
+                None,
+                None,
+            )
+            .from_block((tx.common_data.eth_block - 1).into())
+            .to_block((tx.common_data.eth_block + 1).into())
+            .build();
+        // TODO fix this unwrap
+        let mut logs = self.l1_client.logs(&filter).await.unwrap();
+        if logs.len() != 1 {
+            return Err(PriorityTransactionVerificationError::Other(
+                anyhow::anyhow!(
+                    "Expected exactly one log for transaction {}, but found {}",
+                    tx.hash(),
+                    logs.len()
+                ),
+            ));
+        }
+
+        let log = logs.remove(0);
+        let tx_hash = log.transaction_hash.ok_or_else(|| {
+            PriorityTransactionVerificationError::Other(anyhow::anyhow!(
+                "Log for transaction {} does not have a transaction hash",
+                tx.hash()
+            ))
+        })?;
+
+        let data = self
+            .l1_client
+            .tx_receipt(tx_hash)
+            .await
+            .context("Failed to fetch transaction receipt")?
+            .context("Transaction receipt for the priority transaction is missing on L1")?;
+        let priority_requests = data
+            .logs
+            .iter()
+            .filter(|log| log.topics[0] == self.new_priority_request_signature)
+            .find_map(|log| {
+                let new_l1_tx = L1Tx::try_from(Into::<zksync_types::web3::Log>::into(log.clone()))
+                    .map_err(|err| PriorityTransactionVerificationError::Other(err.into()))
+                    .unwrap();
+                if new_l1_tx.serial_id() == tx.serial_id() {
+                    Some(new_l1_tx)
+                } else {
+                    None
+                }
+            });
+
+        let Some(found_l1_tx) = priority_requests else {
+            return Err(PriorityTransactionVerificationError::TransactionDoesntExist(tx.hash()));
+        };
+
+        if found_l1_tx != *tx {
+            return Err(
+                PriorityTransactionVerificationError::TransactionDoesnntMatchL1Tx(
+                    found_l1_tx.serial_id(),
+                ),
+            );
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -499,11 +641,29 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
-        api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-        H256,
+        api, fee_model::BatchFeeInput, l1::L1Tx, L1BatchNumber, L2BlockNumber, L2ChainId,
+        ProtocolVersionId, H256,
     };
 
-    use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
+    use crate::{
+        external_io::{PriorityTransactionVerificationError, PriorityTransactionVerifier},
+        sync_action::SyncAction,
+        testonly::MockMainNodeClient,
+        ActionQueue, ExternalIO,
+    };
+
+    #[derive(Debug)]
+    struct MockPriorityTransactionVerifier;
+
+    #[async_trait::async_trait]
+    impl PriorityTransactionVerifier for MockPriorityTransactionVerifier {
+        async fn verify_transaction(
+            &self,
+            _tx: &L1Tx,
+        ) -> Result<(), PriorityTransactionVerificationError> {
+            Ok(())
+        }
+    }
 
     #[tokio::test]
     async fn insert_batch_with_protocol_version() {
@@ -530,6 +690,7 @@ mod tests {
             action_queue,
             Box::new(client),
             L2ChainId::default(),
+            Box::new(MockPriorityTransactionVerifier),
         )
         .unwrap();
 

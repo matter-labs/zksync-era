@@ -22,6 +22,7 @@ use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
+    external_io::{PriorityTransactionVerificationError, PriorityTransactionVerifier},
     fetcher::{FetchedTransaction, IoCursorExt as _},
     sync_action::{ActionQueue, ActionQueueSender, SyncAction},
     testonly::MockMainNodeClient,
@@ -41,6 +42,7 @@ use zksync_test_contracts::Account;
 use zksync_types::{
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
+    l1::L1Tx,
     settlement::SettlementLayer,
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     Transaction,
@@ -49,6 +51,18 @@ use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{en, storage::ConnectionPool};
 
+#[derive(Debug)]
+struct MockPriorityTransactionVerifier;
+
+#[async_trait::async_trait]
+impl PriorityTransactionVerifier for MockPriorityTransactionVerifier {
+    async fn verify_transaction(
+        &self,
+        _tx: &L1Tx,
+    ) -> Result<(), PriorityTransactionVerificationError> {
+        Ok(())
+    }
+}
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
 pub(super) struct StateKeeper {
@@ -512,6 +526,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
+                Box::new(MockPriorityTransactionVerifier),
             )?;
 
             s.spawn_bg(async {
@@ -628,6 +643,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
+                Box::new(MockPriorityTransactionVerifier),
             )?;
 
             let state_keeper = StateKeeperBuilder::new(
