@@ -203,11 +203,17 @@ impl L1TxCommonData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L1Tx {
     pub execute: Execute,
     pub common_data: L1TxCommonData,
     pub received_timestamp_ms: u64,
+}
+
+impl PartialEq for L1Tx {
+    fn eq(&self, other: &Self) -> bool {
+        self.execute == other.execute && self.common_data == other.common_data
+    }
 }
 
 impl HashEmptySubtree<L1Tx> for KeccakHasher {

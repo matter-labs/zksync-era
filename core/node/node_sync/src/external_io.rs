@@ -388,10 +388,25 @@ impl StateKeeperIO for ExternalIO {
                 self.actions.pop_action().unwrap();
                 let tx = Transaction::from(*tx);
                 if let Some(l1_tx) = &tx.l1_tx() {
-                    self.txs_verifier
-                        .verify_transaction(l1_tx)
-                        .await
-                        .context("failed to verify priority transaction")?;
+                    let max_attempts = 5;
+                    for i in 0..=max_attempts {
+                        if let Err(err) = self.txs_verifier.verify_transaction(l1_tx).await {
+                            if err.is_retriable() && i < max_attempts {
+                                tracing::warn!(
+                                    "Failed to verify transaction {:?} with error: {err}. Retrying...",
+                                    tx.hash()
+                                );
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
+                            } else {
+                                tracing::error!(
+                                    "Transaction {:?} verification failed with error: {err}",
+                                    tx.hash()
+                                );
+                                anyhow::bail!(err);
+                            }
+                        }
+                    }
                 }
                 Ok(Some(tx))
             }
@@ -511,12 +526,25 @@ impl StateKeeperIO for ExternalIO {
 
 #[derive(Debug, thiserror::Error)]
 pub enum PriorityTransactionVerificationError {
-    #[error("Transaction deoes not match the L1 transaction with id: {0:?}")]
+    #[error("Transaction does not match the L1 transaction with id: {0:?}")]
     TransactionDoesnntMatchL1Tx(PriorityOpId),
     #[error("Transaction doesn't exist: {0}")]
     TransactionDoesntExist(H256),
+    #[error("Client error: {0}")]
+    ClientError(#[from] zksync_eth_client::EnrichedClientError),
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
+}
+
+impl PriorityTransactionVerificationError {
+    fn is_retriable(&self) -> bool {
+        match self {
+            PriorityTransactionVerificationError::ClientError(_)
+            | PriorityTransactionVerificationError::Other(_) => true,
+            // Other errors are not retriable
+            _ => false,
+        }
+    }
 }
 
 #[async_trait]
@@ -576,8 +604,7 @@ impl PriorityTransactionVerifier for PriorityTxVerifierL1 {
             .from_block((tx.common_data.eth_block - 1).into())
             .to_block((tx.common_data.eth_block + 1).into())
             .build();
-        // TODO fix this unwrap
-        let mut logs = self.l1_client.logs(&filter).await.unwrap();
+        let mut logs = self.l1_client.logs(&filter).await?;
         if logs.len() != 1 {
             return Err(PriorityTransactionVerificationError::Other(
                 anyhow::anyhow!(
@@ -599,37 +626,42 @@ impl PriorityTransactionVerifier for PriorityTxVerifierL1 {
         let data = self
             .l1_client
             .tx_receipt(tx_hash)
-            .await
-            .context("Failed to fetch transaction receipt")?
+            .await?
             .context("Transaction receipt for the priority transaction is missing on L1")?;
+
         let priority_requests = data
             .logs
             .iter()
             .filter(|log| log.topics[0] == self.new_priority_request_signature)
-            .find_map(|log| {
-                let new_l1_tx = L1Tx::try_from(Into::<zksync_types::web3::Log>::into(log.clone()))
+            .map(|log| {
+                L1Tx::try_from(Into::<zksync_types::web3::Log>::into(log.clone()))
                     .map_err(|err| PriorityTransactionVerificationError::Other(err.into()))
-                    .unwrap();
-                if new_l1_tx.serial_id() == tx.serial_id() {
-                    Some(new_l1_tx)
-                } else {
-                    None
-                }
-            });
+            })
+            .find(|new_l1_tx| {
+                let Ok(res) = new_l1_tx else { return false };
+                res.serial_id() == tx.serial_id()
+            })
+            .transpose()?;
 
         let Some(found_l1_tx) = priority_requests else {
             return Err(PriorityTransactionVerificationError::TransactionDoesntExist(tx.hash()));
         };
 
         if found_l1_tx != *tx {
-            return Err(
+            tracing::warn!(
+                "Transaction {:?} does not match the L1
+                 Found L1 transaction: {:?}",
+                tx,
+                found_l1_tx
+            );
+            Err(
                 PriorityTransactionVerificationError::TransactionDoesnntMatchL1Tx(
                     found_l1_tx.serial_id(),
                 ),
-            );
+            )
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 }
 

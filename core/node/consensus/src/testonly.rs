@@ -63,6 +63,7 @@ impl PriorityTransactionVerifier for MockPriorityTransactionVerifier {
         Ok(())
     }
 }
+
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
 pub(super) struct StateKeeper {
