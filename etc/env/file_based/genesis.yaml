@@ -2,9 +2,9 @@
 # note: this is not the root, but blake_hash(root, index, number, prev hashes, timestamp) -
 #  it's used in place of root in zksync os. It's called `state_commitment`
 #  (don't confuse it with `commitment` which is about pudata etc)
-genesis_root: "0xcc97d649ab6333df65a1ff08e76ac04fc5a80143979fae3375b35c918ef9d489"
+genesis_root: "0x5ad4d160881862597fba728afa284acb262582e6356e680d56fa89c1dade48e6"
 genesis_rollup_leaf_index: 0
-genesis_batch_commitment: 0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183
+genesis_batch_commitment: 0x1ab09a448e4abd0685699a356c782d82a17452c86c6adda5ccdc9e75f240dc94
 genesis_protocol_version: 28
 default_aa_hash: 0x010005f72e443c94460f4583fb38ef5d0c5cd9897021c41df840f91465c0392e
 bootloader_hash: 0x0100085f9382a7928dd83bfc529121827b5f29f18b9aa10d18aa68e1be7ddc35
