@@ -50,8 +50,6 @@ contracts/.git
 !etc/env/consensus_config.yaml
 !rust-toolchain
 !execution_environment/*
-!app.bin
-!app_logging_enabled.bin
 !zksync_os_snark_prover/*
 !proof_cache/*
 !sequencer_proof_client/*
