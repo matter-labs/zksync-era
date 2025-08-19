@@ -2818,9 +2818,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ad9997e960ce6a4ac0648a227430673583d649103ceb2d850395b1e32e4c647"
+checksum = "8b45e24b1edcfef14c47001bde6cab70c45044e1de9cad9ff500f778d00a9bfb"
 dependencies = [
  "bytes",
  "prost 0.13.5",
@@ -2834,9 +2834,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f536bad6c2891ee5efbe3d7665393b7c18a6921254c3198036d603078000ced"
+checksum = "7406c815e56e612e0305b58d9e9796e59ebf53a4da7fdbf9f347a898b9f592eb"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -2855,7 +2855,7 @@ dependencies = [
  "multihash",
  "nmt-rs",
  "prost 0.13.5",
- "ruint",
+ "rust_decimal",
  "serde",
  "serde_repr",
  "sha2 0.10.8",
@@ -4289,8 +4289,9 @@ dependencies = [
 
 [[package]]
 name = "eq-common"
-version = "0.1.11"
-source = "git+https://github.com/celestiaorg/eq-service.git?rev=0bd20d390315efa63cfa74e9f431709b16cbe579#0bd20d390315efa63cfa74e9f431709b16cbe579"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b653a9f2f71966b1316e14cb1569e36f6dd0da197c0324144868dd5d0bd8b8b9"
 dependencies = [
  "celestia-types",
  "prometheus-client",
@@ -4303,8 +4304,9 @@ dependencies = [
 
 [[package]]
 name = "eq-sdk"
-version = "0.1.11"
-source = "git+https://github.com/celestiaorg/eq-service.git?rev=0bd20d390315efa63cfa74e9f431709b16cbe579#0bd20d390315efa63cfa74e9f431709b16cbe579"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "410b56e7f586b78e853c475d7aff39d9e59065bf100f133df6c9070752a4d491"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
