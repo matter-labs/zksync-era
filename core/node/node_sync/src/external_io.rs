@@ -616,8 +616,8 @@ impl PriorityTransactionVerifier for PriorityTxVerifierL1 {
                 None,
                 None,
             )
-            .from_block((tx.common_data.eth_block - 1).into())
-            .to_block((tx.common_data.eth_block + 1).into())
+            .from_block((tx.common_data.eth_block).into())
+            .to_block((tx.common_data.eth_block).into())
             .build();
         let mut logs = self.l1_client.logs(&filter).await?;
         if logs.len() != 1 {

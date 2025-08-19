@@ -171,9 +171,29 @@ impl ProtoFmt for Payload {
         let mut transactions = vec![];
 
         match protocol_version {
+            v if v >= ProtocolVersionId::Version29 => {
+                anyhow::ensure!(
+                    r.transactions.is_empty(),
+                    "transactions should be empty in protocol_version {v}"
+                );
+                anyhow::ensure!(
+                    r.transactions_v25.is_empty(),
+                    "transactions should be empty in protocol_version {v}"
+                );
+                for (i, tx) in r.transactions_v29.iter().enumerate() {
+                    transactions.push(
+                        tx.read()
+                            .with_context(|| format!("transactions_v25[{i}]"))?,
+                    );
+                }
+            }
             v if v >= ProtocolVersionId::Version25 => {
                 anyhow::ensure!(
                     r.transactions.is_empty(),
+                    "transactions should be empty in protocol_version {v}"
+                );
+                anyhow::ensure!(
+                    r.transactions_v29.is_empty(),
                     "transactions should be empty in protocol_version {v}"
                 );
                 for (i, tx) in r.transactions_v25.iter().enumerate() {
@@ -187,6 +207,10 @@ impl ProtoFmt for Payload {
                 anyhow::ensure!(
                     r.transactions_v25.is_empty(),
                     "transactions_v25 should be empty in protocol_version {v}"
+                );
+                anyhow::ensure!(
+                    r.transactions_v29.is_empty(),
+                    "transactions should be empty in protocol_version {v}"
                 );
                 for (i, tx) in r.transactions.iter().enumerate() {
                     transactions.push(tx.read().with_context(|| format!("transactions[{i}]"))?)
@@ -280,6 +304,7 @@ impl ProtoFmt for Payload {
             // Transactions are stored in execution order, therefore order is deterministic.
             transactions: vec![],
             transactions_v25: vec![],
+            transactions_v29: vec![],
             last_in_batch: Some(self.last_in_batch),
             pubdata_params: if self.pubdata_params == PubdataParams::default() {
                 None
@@ -290,6 +315,9 @@ impl ProtoFmt for Payload {
             interop_roots: self.interop_roots.iter().map(ProtoRepr::build).collect(),
         };
         match self.protocol_version {
+            v if v >= ProtocolVersionId::Version29 => {
+                x.transactions_v29 = self.transactions.iter().map(ProtoRepr::build).collect();
+            }
             v if v >= ProtocolVersionId::Version25 => {
                 x.transactions_v25 = self.transactions.iter().map(ProtoRepr::build).collect();
             }
@@ -338,6 +366,53 @@ impl ProtoRepr for proto::TransactionV25 {
                 } => T::L1(proto::L1Transaction {
                     rlp: Some(ethabi::encode(&[tx.encode()])),
                     factory_deps,
+                }),
+                abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
+            }),
+        }
+    }
+}
+
+impl ProtoRepr for proto::TransactionV29 {
+    type Type = Transaction;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        use proto::transaction_v29::T;
+        let tx = match required(&self.t)? {
+            T::L1(l1) => abi::Transaction::L1 {
+                tx: required(&l1.rlp)
+                    .and_then(|x| {
+                        let tokens = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], x)
+                            .context("ethabi::decode()")?;
+                        // Unwrap is safe because `ethabi::decode` does the verification.
+                        let tx =
+                            abi::L2CanonicalTransaction::decode(tokens.into_iter().next().unwrap())
+                                .context("L2CanonicalTransaction::decode()")?;
+                        Ok(tx)
+                    })
+                    .context("rlp")?
+                    .into(),
+                factory_deps: l1.factory_deps.clone(),
+                eth_block: *required(&l1.eth_block).context("eth_block")?,
+            },
+            T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
+        };
+        Transaction::from_abi(tx, true)
+    }
+
+    fn build(tx: &Self::Type) -> Self {
+        let tx = abi::Transaction::try_from(tx.clone()).unwrap();
+        use proto::transaction_v29::T;
+        Self {
+            t: Some(match tx {
+                abi::Transaction::L1 {
+                    tx,
+                    factory_deps,
+                    eth_block,
+                } => T::L1(proto::L1TransactionWithEthBlock {
+                    rlp: Some(ethabi::encode(&[tx.encode()])),
+                    factory_deps,
+                    eth_block: Some(eth_block),
                 }),
                 abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
             }),

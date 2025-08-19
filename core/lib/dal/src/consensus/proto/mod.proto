@@ -36,8 +36,10 @@ message Payload {
   optional bytes operator_address = 7; // required; H160
   // Set for protocol_version < 25.
   repeated Transaction transactions = 8;
-  // Set for protocol_version >= 25.
+  // Set for protocol_version >= 25 and < 29.
   repeated TransactionV25 transactions_v25 = 12;
+  // Set for protocol_version >= 29.
+  repeated TransactionV29 transactions_v29 = 16;
   optional bool last_in_batch = 10; // required
   optional PubdataParams pubdata_params = 13; // optional
   optional uint64 pubdata_limit = 14; // required since v29
@@ -55,8 +57,24 @@ message L1Transaction {
   repeated bytes factory_deps = 2;
 }
 
+message L1TransactionWithEthBlock {
+  optional bytes rlp = 1; // required; RLP encoded L2CanonicalTransaction
+  repeated bytes factory_deps = 2;
+    optional uint64 eth_block = 3; // required; constant = 0
+}
+
+
 message L2Transaction {
   optional bytes rlp = 1; // required; RLP encoded TransactionRequest
+}
+
+
+message TransactionV29 {
+  // required
+  oneof t {
+    L1TransactionWithEthBlock l1 = 1;
+    L2Transaction l2 = 2;
+  }
 }
 
 message TransactionV25 {
