@@ -50,6 +50,7 @@ pub struct ExternalIO {
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
     txs_verifier: Box<dyn PriorityTransactionVerifier>,
+    current_protocol_version: Option<ProtocolVersionId>,
 }
 
 impl ExternalIO {
@@ -68,6 +69,7 @@ impl ExternalIO {
             main_node_client,
             chain_id,
             txs_verifier,
+            current_protocol_version: None,
         })
     }
 
@@ -322,6 +324,7 @@ impl StateKeeperIO for ExternalIO {
 
                 self.ensure_protocol_version_is_saved(params.protocol_version)
                     .await?;
+                self.current_protocol_version = Some(params.protocol_version);
                 self.pool
                     .connection_tagged("sync_layer")
                     .await?
@@ -387,10 +390,17 @@ impl StateKeeperIO for ExternalIO {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
                 let tx = Transaction::from(*tx);
+                let Some(protocol_version) = self.current_protocol_version else {
+                    return Ok(Some(tx));
+                };
                 if let Some(l1_tx) = &tx.l1_tx() {
                     let max_attempts = 5;
                     for i in 0..=max_attempts {
-                        if let Err(err) = self.txs_verifier.verify_transaction(l1_tx).await {
+                        if let Err(err) = self
+                            .txs_verifier
+                            .verify_transaction(l1_tx, protocol_version)
+                            .await
+                        {
                             if err.is_retriable() && i < max_attempts {
                                 tracing::warn!(
                                     "Failed to verify transaction {:?} with error: {err}. Retrying...",
@@ -553,6 +563,7 @@ pub trait PriorityTransactionVerifier: std::fmt::Debug + Send + Sync {
     async fn verify_transaction(
         &self,
         tx: &L1Tx,
+        protocol_version_id: ProtocolVersionId,
     ) -> Result<(), PriorityTransactionVerificationError>;
 }
 
@@ -561,8 +572,7 @@ pub struct PriorityTxVerifierL1 {
     l1_client: Box<DynClient<L1>>,
     l1_diamond_proxy: Address,
     new_priority_request_signature: H256,
-
-    pub new_priority_request_id_signature: H256,
+    new_priority_request_id_signature: H256,
 }
 
 impl PriorityTxVerifierL1 {
@@ -592,7 +602,12 @@ impl PriorityTransactionVerifier for PriorityTxVerifierL1 {
     async fn verify_transaction(
         &self,
         tx: &L1Tx,
+        protocol_version_id: ProtocolVersionId,
     ) -> Result<(), PriorityTransactionVerificationError> {
+        if protocol_version_id.is_pre_interop_fast_blocks() {
+            // The necessary events are not emitted in pre-interop fast blocks,
+            return Ok(());
+        }
         let filter = FilterBuilder::default()
             .address(vec![self.l1_diamond_proxy])
             .topics(
@@ -692,6 +707,7 @@ mod tests {
         async fn verify_transaction(
             &self,
             _tx: &L1Tx,
+            _protocol_version_id: ProtocolVersionId,
         ) -> Result<(), PriorityTransactionVerificationError> {
             Ok(())
         }

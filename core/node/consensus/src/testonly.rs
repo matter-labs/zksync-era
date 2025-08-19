@@ -59,6 +59,7 @@ impl PriorityTransactionVerifier for MockPriorityTransactionVerifier {
     async fn verify_transaction(
         &self,
         _tx: &L1Tx,
+        _protocol_version_id: ProtocolVersionId,
     ) -> Result<(), PriorityTransactionVerificationError> {
         Ok(())
     }
