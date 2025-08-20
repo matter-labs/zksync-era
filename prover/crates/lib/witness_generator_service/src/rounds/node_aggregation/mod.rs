@@ -40,7 +40,7 @@ pub struct NodeAggregationArtifacts {
     batch_id: L1BatchId,
     depth: u16,
     pub next_aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
-    pub recursive_circuit_ids_and_urls: Vec<(u8, String)>,
+    pub recursive_circuit_ids_sequence_numbers_and_urls: Vec<(u8, usize, String)>,
 }
 
 #[derive(Clone)]
@@ -150,20 +150,21 @@ impl JobManager for NodeAggregation {
                     &all_leafs_layer_params,
                 );
 
-                let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
-                    job.batch_id,
-                    circuit_idx,
-                    vec![recursive_circuit],
-                    AggregationRound::NodeAggregation,
-                    job.depth + 1,
-                    &*object_store,
-                    Some(job.circuit_id),
-                )
-                .await;
+                let recursive_circuit_id_sequence_number_and_url =
+                    save_recursive_layer_prover_input_artifacts(
+                        job.batch_id,
+                        circuit_idx,
+                        vec![recursive_circuit],
+                        AggregationRound::NodeAggregation,
+                        job.depth + 1,
+                        &*object_store,
+                        Some(job.circuit_id),
+                    )
+                    .await;
 
                 (
                     (result_circuit_id, input_queue),
-                    recursive_circuit_id_and_url,
+                    recursive_circuit_id_sequence_number_and_url,
                 )
             });
 
@@ -171,12 +172,14 @@ impl JobManager for NodeAggregation {
         }
 
         let mut next_aggregations = vec![];
-        let mut recursive_circuit_ids_and_urls = vec![];
+        let mut recursive_circuit_ids_sequence_numbers_and_urls = vec![];
         for handle in handles {
-            let (next_aggregation, recursive_circuit_id_and_url) = handle.await.unwrap();
+            let (next_aggregation, recursive_circuit_id_sequence_number_and_url) =
+                handle.await.unwrap();
 
             next_aggregations.push(next_aggregation);
-            recursive_circuit_ids_and_urls.extend(recursive_circuit_id_and_url);
+            recursive_circuit_ids_sequence_numbers_and_urls
+                .extend(recursive_circuit_id_sequence_number_and_url);
         }
 
         tracing::info!(
@@ -193,7 +196,7 @@ impl JobManager for NodeAggregation {
             batch_id: job.batch_id,
             depth: job.depth + 1,
             next_aggregations,
-            recursive_circuit_ids_and_urls,
+            recursive_circuit_ids_sequence_numbers_and_urls,
         })
     }
 

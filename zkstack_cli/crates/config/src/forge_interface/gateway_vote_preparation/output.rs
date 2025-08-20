@@ -1,7 +1,7 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkStackConfig;
+use crate::traits::ZkStackConfigTrait;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMOutput {
@@ -14,7 +14,7 @@ pub struct DeployGatewayCTMOutput {
     pub ecosystem_admin_calls_to_execute: String,
 }
 
-impl ZkStackConfig for DeployGatewayCTMOutput {}
+impl ZkStackConfigTrait for DeployGatewayCTMOutput {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StateTransitionDeployedAddresses {
@@ -29,5 +29,6 @@ pub struct StateTransitionDeployedAddresses {
     pub genesis_upgrade_addr: Address,
     pub default_upgrade_addr: Address,
     pub validator_timelock_addr: Address,
+    pub rollup_da_manager_addr: Address,
     // The `diamond_proxy` field is removed as indicated by the TODO comment in the Solidity struct.
 }

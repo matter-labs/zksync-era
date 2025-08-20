@@ -14,13 +14,19 @@ pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
 pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 
-#[cfg(feature = "v27_evm_interpreter")]
 pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
     "EVM Interpreter (v27) upgrade checker and calldata generator";
 
-#[cfg(feature = "v28_precompiles")]
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
+
+pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
+    "General ecosystem upgrade checker and calldata generator";
+
+pub(super) const GENERAL_CHAIN_UPGRADE: &str =
+    "General chain upgrade checker and calldata generator";
+
+pub(super) const V29_CHAIN_UPGRADE: &str = "V29 chain upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -147,6 +153,7 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES: &str =
 pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test contracts...";
 
 // Revert tests related messages
+pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";

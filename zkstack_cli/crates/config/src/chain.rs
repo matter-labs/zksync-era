@@ -19,7 +19,7 @@ use crate::{
     gateway::GatewayConfig,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath, ZkStackConfig,
+        SaveConfigWithBasePath, ZkStackConfigTrait,
     },
     ContractsConfig, EcosystemConfig, GatewayChainConfig, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig, GATEWAY_CHAIN_FILE,
@@ -262,4 +262,4 @@ impl FileConfigWithDefaultName for ChainConfigInternal {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl ZkStackConfig for ChainConfigInternal {}
+impl ZkStackConfigTrait for ChainConfigInternal {}

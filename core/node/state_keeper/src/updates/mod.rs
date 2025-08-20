@@ -4,8 +4,8 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
-        get_batch_base_fee, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
-        StorageWritesDeduplicator,
+        get_batch_base_fee, get_bootloader_max_interop_roots_in_batch, get_max_batch_gas_limit,
+        get_max_gas_per_pubdata_byte, StorageWritesDeduplicator,
     },
 };
 use zksync_types::{
@@ -265,8 +265,9 @@ impl UpdatesManager {
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
-        // We need to filter already applied interop roots. Because we seal L2 blocks in async manner,
-        // it's possible that database returns already applied interop roots
+        // We need to filter already applied interop roots, and take up to the batch limit set by the bootloader.
+        // Because we seal L2 blocks in async manner, it's possible that database returns already applied interop roots.
+        let limit = get_bootloader_max_interop_roots_in_batch(self.protocol_version.into());
         let new_interop_roots: Vec<_> = l2_block_params
             .interop_roots()
             .iter()
@@ -277,6 +278,7 @@ impl UpdatesManager {
                         .iter()
                         .all(|block| !block.interop_roots.contains(root))
             })
+            .take(limit.saturating_sub(self.pending_interop_roots_len()))
             .cloned()
             .collect();
 
@@ -304,6 +306,15 @@ impl UpdatesManager {
                 .pending_l2_blocks
                 .iter()
                 .map(|b| b.l1_tx_count)
+                .sum::<usize>()
+    }
+
+    pub(crate) fn pending_interop_roots_len(&self) -> usize {
+        self.committed_updates().interop_roots.len()
+            + self
+                .pending_l2_blocks
+                .iter()
+                .map(|b| b.interop_roots.len())
                 .sum::<usize>()
     }
 

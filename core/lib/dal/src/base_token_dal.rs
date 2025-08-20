@@ -32,10 +32,30 @@ impl BaseTokenDal<'_, '_> {
             RETURNING
             id
             "#,
-            BigDecimal::from_u64(base_token_conversion_ratio.l1.numerator.get()),
-            BigDecimal::from_u64(base_token_conversion_ratio.l1.denominator.get()),
-            BigDecimal::from_u64(base_token_conversion_ratio.sl.numerator.get()),
-            BigDecimal::from_u64(base_token_conversion_ratio.sl.denominator.get()),
+            BigDecimal::from_u64(
+                base_token_conversion_ratio
+                    .l1_conversion_ratio()
+                    .numerator
+                    .get()
+            ),
+            BigDecimal::from_u64(
+                base_token_conversion_ratio
+                    .l1_conversion_ratio()
+                    .denominator
+                    .get()
+            ),
+            BigDecimal::from_u64(
+                base_token_conversion_ratio
+                    .sl_conversion_ratio()
+                    .numerator
+                    .get()
+            ),
+            BigDecimal::from_u64(
+                base_token_conversion_ratio
+                    .sl_conversion_ratio()
+                    .denominator
+                    .get()
+            ),
             ratio_timestamp,
         )
         .instrument("insert_token_ratio")

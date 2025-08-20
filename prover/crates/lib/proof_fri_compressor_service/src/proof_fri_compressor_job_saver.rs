@@ -4,10 +4,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::{
-    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
-    CBOR,
-};
+use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_prover_job_processor::JobSaver;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId};
 
@@ -50,7 +47,7 @@ impl JobSaver for ProofFriCompressorJobSaver {
     )]
     async fn save_job_result(
         &self,
-        data: (anyhow::Result<L1BatchProofForL1<CBOR>>, L1BatchId),
+        data: (anyhow::Result<L1BatchProofForL1>, L1BatchId),
     ) -> anyhow::Result<()> {
         let start_time = Instant::now();
         let (result, l1_batch_id) = data;

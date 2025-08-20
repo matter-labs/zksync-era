@@ -43,7 +43,7 @@ use zksync_eth_proof_manager::node::EthProofManagerLayer;
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
-use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
+use zksync_gateway_migrator::node::GatewayMigratorLayer;
 use zksync_house_keeper::node::HouseKeeperLayer;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
@@ -67,6 +67,7 @@ use zksync_node_storage_init::node::{
 };
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
+use zksync_settlement_layer_data::{MainNodeConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
@@ -75,7 +76,7 @@ use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address,
+    Address, L2ChainId,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -286,11 +287,16 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_proof_manager_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
         self.node.add_layer(EthProofManagerLayer::new(
             self.configs.eth_proof_manager.clone(),
+            gas_adjuster_config,
             self.eth_proof_manager_contracts
                 .clone()
                 .expect("Eth proof manager contracts are required to run eth proof manager"),
+            self.wallets.clone(),
+            L2ChainId::new(self.configs.eth_proof_manager.l2_chain_id).unwrap(),
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -316,6 +322,10 @@ impl MainNodeBuilder {
                 eth_sender_config: try_load_config!(self.configs.eth)
                     .get_eth_sender_config_for_sender_layer_data_layer()
                     .clone(),
+                l1_batch_commit_data_generator_mode: self
+                    .genesis_config
+                    .l1_batch_commit_data_generator_mode,
+                dummy_verifier: self.genesis_config.dummy_verifier,
             }));
         Ok(self)
     }
@@ -329,11 +339,10 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
-        let gateway_config = try_load_config!(self.configs.prover_gateway);
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
+            self.configs.eth_proof_manager.clone(),
             self.genesis_config.l2_chain_id,
-            gateway_config.api_mode,
         ));
         Ok(self)
     }

@@ -95,7 +95,7 @@ impl CheckHealth for MainNodeHealthCheck {
             let details = serde_json::json!({
                 "error": err.to_string(),
             });
-            return Health::from(HealthStatus::NotReady).with_details(details);
+            return Health::from(HealthStatus::Affected).with_details(details);
         }
         HealthStatus::Ready.into()
     }
