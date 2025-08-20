@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{L2ChainId, H256};
 
-use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
+use crate::{traits::ZkStackConfigTrait, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainL1Config {
@@ -66,7 +66,7 @@ pub struct ChainL1Config {
     pub allow_evm_emulator: bool,
 }
 
-impl ZkStackConfig for RegisterChainL1Config {}
+impl ZkStackConfigTrait for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {

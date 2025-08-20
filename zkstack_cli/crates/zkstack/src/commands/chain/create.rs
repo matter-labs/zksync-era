@@ -95,13 +95,13 @@ pub(crate) async fn create_chain_inner(
     );
     let link_to_code = resolve_link_to_code(
         shell,
-        chain_path.clone(),
+        &chain_path,
         args.link_to_code.clone(),
         args.update_submodules,
     )?;
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);

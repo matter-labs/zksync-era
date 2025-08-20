@@ -3,7 +3,7 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Bytes, Address};
 
-use crate::{gateway::GatewayConfig, traits::ZkStackConfig, ChainConfig, ContractsConfig};
+use crate::{gateway::GatewayConfig, traits::ZkStackConfigTrait, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayPreparationConfig {
@@ -21,7 +21,7 @@ pub struct GatewayPreparationConfig {
     pub l1_nullifier_proxy_addr: Address,
 }
 
-impl ZkStackConfig for GatewayPreparationConfig {}
+impl ZkStackConfigTrait for GatewayPreparationConfig {}
 
 impl GatewayPreparationConfig {
     pub fn new(

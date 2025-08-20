@@ -18,7 +18,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&chain_config.link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
 
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     anyhow::ensure!(has_evm_emulation_support, MSG_EVM_EMULATOR_HASH_MISSING_ERR);
