@@ -8,7 +8,7 @@ use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 #[derive(Debug)]
 pub struct AggregationBlobUrls {
     pub aggregation_urls: String,
-    pub circuit_ids_and_urls: Vec<(u8, String)>,
+    pub circuit_ids_sequence_numbers_and_urls: Vec<(u8, usize, String)>,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -221,6 +221,7 @@ fn parsing_from_full_env() {
         EN_ESTIMATE_GAS_SCALE_FACTOR=1.2
         EN_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=2000
         EN_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
+        EN_ETH_CALL_GAS_CAP=""
         EN_GAS_PRICE_SCALE_FACTOR=1.4
 
         # NEW PARAMS: From Web3RpcConfig
@@ -722,7 +723,7 @@ fn parsing_consensus_from_env_vars() {
     let config_sources = cli.config_sources(None).unwrap();
     let schema = LocalConfig::schema().unwrap();
     let repo = config_sources.build_repository(&schema);
-    let config = ExternalNodeConfig::new(repo).unwrap();
+    let config = ExternalNodeConfig::new(repo, true).unwrap();
 
     assert_consensus_config(config.consensus.unwrap());
     let node_key = config.local.secrets.consensus.node_key.unwrap();

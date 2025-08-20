@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use serde::{Deserialize, Serialize};
+use smart_config::{de::WellKnown, metadata::TimeUnit, DescribeConfig, DeserializeConfig, Serde};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProofDataHandlerConfig {
@@ -14,6 +15,28 @@ pub struct ProofDataHandlerConfig {
     pub proof_gen_data_submit_interval: Duration,
     #[config(default_t = true)]
     pub fetch_zero_chain_id_proofs: bool,
+    #[config(default_t = ProvingMode::ProverCluster)]
+    pub proving_mode: ProvingMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ProvingMode {
+    ProvingNetwork,
+    ProverCluster,
+}
+
+impl ProvingMode {
+    pub fn into_string(&self) -> String {
+        match self {
+            ProvingMode::ProvingNetwork => "proving_network".to_string(),
+            ProvingMode::ProverCluster => "prover_cluster".to_string(),
+        }
+    }
+}
+
+impl WellKnown for ProvingMode {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
 #[cfg(test)]
@@ -30,6 +53,7 @@ mod tests {
             proof_fetch_interval: Duration::from_secs(15),
             proof_gen_data_submit_interval: Duration::from_secs(20),
             fetch_zero_chain_id_proofs: false,
+            proving_mode: ProvingMode::ProverCluster,
         }
     }
 
@@ -42,6 +66,7 @@ mod tests {
             PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS=15
             PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS=20
             PROOF_DATA_HANDLER_FETCH_ZERO_CHAIN_ID_PROOFS=false
+            PROOF_DATA_HANDLER_PROVING_MODE=ProverCluster
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -60,6 +85,7 @@ mod tests {
           proof_fetch_interval_in_secs: 15
           proof_gen_data_submit_interval_in_secs: 20
           fetch_zero_chain_id_proofs: false
+          proving_mode: ProverCluster
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
@@ -75,6 +101,7 @@ mod tests {
           proof_fetch_interval: 15s
           proof_gen_data_submit_interval: 20 secs
           fetch_zero_chain_id_proofs: false
+          proving_mode: ProverCluster
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();

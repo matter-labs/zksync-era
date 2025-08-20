@@ -519,9 +519,20 @@ impl ReorgDetector {
     pub async fn check_reorg_presence(
         &mut self,
         mut stop_receiver: watch::Receiver<bool>,
+        ignore_rpc_error: bool,
     ) -> Result<bool, OrStopped> {
         while !*stop_receiver.borrow_and_update() {
             let sleep_interval = match self.find_last_diverged_batch().await {
+                Err(HashMatchError::Rpc(err)) => {
+                    // If we have rpc error, we won't try to check the reorg presence.
+                    // In the worst case, we will restart right after the main node recovers.
+                    if ignore_rpc_error {
+                        return Ok(false);
+                    } else {
+                        self.handle_hash_err(HashMatchError::Rpc(err))
+                            .map_err(OrStopped::internal)?
+                    }
+                }
                 Err(err) => self.handle_hash_err(err).map_err(OrStopped::internal)?,
                 Ok(maybe_diverged_batch) => return Ok(maybe_diverged_batch.is_some()),
             };

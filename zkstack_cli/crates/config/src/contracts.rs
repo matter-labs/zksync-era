@@ -15,7 +15,7 @@ use crate::{
         },
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
+    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -54,6 +54,12 @@ impl ContractsConfig {
             .deployed_addresses
             .bridgehub
             .bridgehub_proxy_addr;
+        self.ecosystem_contracts.message_root_proxy_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridgehub
+                .message_root_proxy_addr,
+        );
         self.ecosystem_contracts.state_transition_proxy_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -214,11 +220,13 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
-impl ZkStackConfig for ContractsConfig {}
+impl ZkStackConfigTrait for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_root_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from pre-gateway protocol version.
@@ -245,7 +253,7 @@ pub struct EcosystemContracts {
     pub server_notifier_proxy_addr: Option<Address>,
 }
 
-impl ZkStackConfig for EcosystemContracts {}
+impl ZkStackConfigTrait for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

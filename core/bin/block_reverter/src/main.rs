@@ -211,7 +211,6 @@ async fn main() -> anyhow::Result<()> {
         &eth_sender,
         sl_diamond_proxy,
         sl_validator_timelock,
-        zksync_network_id,
         settlement_mode,
     )?;
 

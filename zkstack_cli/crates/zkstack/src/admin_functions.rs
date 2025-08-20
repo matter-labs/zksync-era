@@ -17,7 +17,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
-    traits::{ReadConfig, ZkStackConfig},
+    traits::{ReadConfig, ZkStackConfigTrait},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use zksync_basic_types::U256;
@@ -49,7 +49,9 @@ lazy_static! {
             "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)",
-            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)"
+            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)",
+            "function enableValidator(address bridgehub,uint256 l2ChainId,address validatorAddress,address validatorTimelock,bool _shouldSend) public",
+            "function ecosystemAdminExecuteCalls(bytes memory callsToExecute, address ecosystemAdminAddr)"
         ])
         .unwrap(),
     );
@@ -180,6 +182,40 @@ pub async fn governance_execute_calls(
         .with_broadcast()
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn ecosystem_admin_execute_calls(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    ecosystem_admin: &Wallet,
+    encoded_calls: Vec<u8>,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let ecosystem_admin_addr = ecosystem_config.get_contracts_config()?.l1.chain_admin_addr;
+
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "ecosystemAdminExecuteCalls",
+            (Token::Bytes(encoded_calls), ecosystem_admin_addr),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, ecosystem_admin, forge).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -352,7 +388,7 @@ struct AdminScriptOutputInner {
     encoded_data: String,
 }
 
-impl ZkStackConfig for AdminScriptOutputInner {}
+impl ZkStackConfigTrait for AdminScriptOutputInner {}
 
 #[derive(Debug, Clone, Default)]
 pub struct AdminScriptOutput {
@@ -646,6 +682,43 @@ pub(crate) async fn enable_validator_via_gateway(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub(crate) async fn enable_validator(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    l1_bridgehub: Address,
+    l2_chain_id: u64,
+    validator_address: Address,
+    validator_timelock: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "enableValidator",
+            (
+                l1_bridgehub,
+                U256::from(l2_chain_id),
+                validator_address,
+                validator_timelock,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!("enabling validator {:#?} via gateway", validator_address),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_to_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -791,7 +864,6 @@ pub(crate) async fn admin_l1_l2_tx(
     .await
 }
 
-#[cfg(feature = "v28_precompiles")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
     shell: &Shell,

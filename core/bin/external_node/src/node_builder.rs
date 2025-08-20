@@ -24,7 +24,6 @@ use zksync_da_clients::node::{
 };
 use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
-use zksync_gateway_migrator::node::SettlementLayerData;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
@@ -47,38 +46,36 @@ use zksync_node_storage_init::{
 };
 use zksync_node_sync::node::{
     BatchStatusUpdaterLayer, BatchTransactionUpdaterLayer, DataAvailabilityFetcherLayer,
-    ExternalIOLayer, SyncStateUpdaterLayer, TreeDataFetcherLayer, ValidateChainIdsLayer,
+    ExternalIOLayer, MiniblockPrecommitFetcherLayer, SyncStateUpdaterLayer, TreeDataFetcherLayer,
+    ValidateChainIdsLayer,
 };
 use zksync_reorg_detector::node::ReorgDetectorLayer;
+use zksync_settlement_layer_data::{ENConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
 use zksync_types::L1BatchNumber;
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
-use crate::{
-    config::{ExternalNodeConfig, RemoteENConfig},
-    metrics::framework::ExternalNodeMetricsLayer,
-    Component,
-};
+use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
 /// Builder for the external node.
 #[derive(Debug)]
-pub(crate) struct ExternalNodeBuilder<R = RemoteENConfig> {
+pub(crate) struct ExternalNodeBuilder {
     pub(crate) node: ZkStackServiceBuilder,
-    config: ExternalNodeConfig<R>,
+    config: ExternalNodeConfig,
 }
 
-impl<R> ExternalNodeBuilder<R> {
+impl ExternalNodeBuilder {
     #[cfg(test)]
-    pub fn new(config: ExternalNodeConfig<R>) -> anyhow::Result<Self> {
+    pub fn new(config: ExternalNodeConfig) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
             config,
         })
     }
 
-    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig<R>) -> Self {
+    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig) -> Self {
         Self {
             node: ZkStackServiceBuilder::on_runtime(runtime),
             config,
@@ -184,19 +181,23 @@ impl<R> ExternalNodeBuilder<R> {
         // compression.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
-        let config = &self.config.local;
-        let queue_capacity = config.state_keeper.l2_block_seal_queue_capacity;
+        let queue_capacity = self.config.local.state_keeper.l2_block_seal_queue_capacity;
         let persistence_layer = OutputHandlerLayer::new(queue_capacity)
             .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
             .with_protective_reads_persistence_enabled(
-                config.state_keeper.protective_reads_persistence_enabled,
+                self.config
+                    .local
+                    .state_keeper
+                    .protective_reads_persistence_enabled,
             );
 
-        let io_layer = ExternalIOLayer::new(config.networks.l2_chain_id);
+        let io_layer = ExternalIOLayer::new(self.config.local.networks.l2_chain_id);
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
         // TODO(PLA-1153): this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.
-        let save_call_traces = config
+        let save_call_traces = self
+            .config
+            .local
             .api
             .web3_json_rpc
             .api_namespaces
@@ -204,13 +205,15 @@ impl<R> ExternalNodeBuilder<R> {
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
 
-        let db_config = &config.db.experimental;
+        let db_config = &self.config.local.db.experimental;
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config.state_keeper_db_block_cache_capacity.0 as usize,
             max_open_files: db_config.state_keeper_db_max_open_files,
         };
-        let state_keeper_layer =
-            StateKeeperLayer::new(config.db.state_keeper_db_path.clone(), rocksdb_options);
+        let state_keeper_layer = StateKeeperLayer::new(
+            self.config.local.db.state_keeper_db_path.clone(),
+            rocksdb_options,
+        );
         self.node
             .add_layer(io_layer)
             .add_layer(persistence_layer)
@@ -220,20 +223,14 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        let config = self.config.consensus.clone().ok_or_else(||
-            anyhow::anyhow!(
-            "ZKsync API synchronization is not supported anymore so consensus config is required. \
-            Please follow this instruction to enable p2p synchronization: \
-            https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/10_decentralization.md"
-            )
-        );
+        let config = self.config.consensus.clone();
         let secrets = self.config.local.secrets.consensus.clone();
         let layer = ExternalNodeConsensusLayer {
             build_version: crate::metadata::SERVER_VERSION
                 .parse()
                 .context("CRATE_VERSION.parse()")?,
-            config: config.context("Consensus config is missing")?,
-            secrets,
+            config,
+            secrets: Some(secrets),
         };
         self.node.add_layer(layer);
         Ok(self)
@@ -277,12 +274,12 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
-    fn add_batch_status_updater_layer(mut self) -> anyhow::Result<Self> {
+    fn add_batch_transaction_fetcher_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(BatchStatusUpdaterLayer);
         Ok(self)
     }
 
-    fn add_batch_transaction_updater_layer(mut self) -> anyhow::Result<Self> {
+    fn add_transaction_finality_updater_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(BatchTransactionUpdaterLayer::new(
             self.config
                 .local
@@ -298,6 +295,11 @@ impl<R> ExternalNodeBuilder<R> {
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(TreeDataFetcherLayer);
+        Ok(self)
+    }
+
+    fn add_miniblock_precommit_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(MiniblockPrecommitFetcherLayer);
         Ok(self)
     }
 
@@ -339,7 +341,9 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(DataAvailabilityFetcherLayer);
+        self.node.add_layer(DataAvailabilityFetcherLayer::new(
+            self.config.local.consistency_checker.max_batches_to_recheck,
+        ));
         Ok(self)
     }
 
@@ -530,15 +534,10 @@ impl ExternalNodeBuilder {
     }
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerData::new(
-            zksync_gateway_migrator::node::ENConfig {
-                l1_specific_contracts: self.config.l1_specific_contracts(),
-                l1_chain_contracts: self.config.l1_settelment_contracts(),
-                l2_contracts: self.config.l2_contracts(),
-                chain_id: self.config.local.networks.l2_chain_id,
-                gateway_rpc_url: self.config.local.secrets.l1.gateway_rpc_url.clone(),
-            },
-        ));
+        self.node.add_layer(SettlementLayerData::new(ENConfig {
+            chain_id: self.config.local.networks.l2_chain_id,
+            gateway_rpc_url: self.config.local.secrets.l1.gateway_rpc_url.clone(),
+        }));
         Ok(self)
     }
 
@@ -554,7 +553,7 @@ impl ExternalNodeBuilder {
         let tx_sender_layer = TxSenderLayer::new(
             postgres_storage_config,
             max_vm_concurrency,
-            (&self.config).into(),
+            (&self.config.local).into(),
             self.config.local.timestamp_asserter.clone(),
         )
         .with_whitelisted_tokens_for_aa_cache(true);
@@ -568,7 +567,7 @@ impl ExternalNodeBuilder {
         let mut optional_config = self.web3_api_optional_config()?;
         // Not relevant for HTTP server, so we reset to prevent a logged warning.
         optional_config.websocket_requests_per_minute_limit = None;
-        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+        let internal_api_config_base: InternalApiConfigBase = (&self.config.local).into();
 
         self.node.add_layer(Web3ServerLayer::http(
             self.config.local.api.web3_json_rpc.http_port,
@@ -582,7 +581,7 @@ impl ExternalNodeBuilder {
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         // TODO: Support websocket requests per minute limit
         let optional_config = self.web3_api_optional_config()?;
-        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+        let internal_api_config_base: InternalApiConfigBase = (&self.config.local).into();
 
         self.node.add_layer(Web3ServerLayer::ws(
             self.config.local.api.web3_json_rpc.ws_port,
@@ -603,7 +602,8 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_reorg_detector_layer()?;
+            .add_reorg_detector_layer()?
+            .add_validate_chain_ids_layer()?;
 
         #[cfg(not(target_env = "msvc"))]
         {
@@ -626,9 +626,7 @@ impl ExternalNodeBuilder {
         }
 
         // Add preconditions for all the components.
-        self = self
-            .add_validate_chain_ids_layer()?
-            .add_storage_initialization_layer(LayerKind::Precondition)?;
+        self = self.add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -694,8 +692,9 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
-                        .add_batch_status_updater_layer()?
-                        .add_batch_transaction_updater_layer()?
+                        .add_batch_transaction_fetcher_layer()?
+                        .add_transaction_finality_updater_layer()?
+                        .add_miniblock_precommit_fetcher_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }
             }

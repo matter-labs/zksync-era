@@ -5,21 +5,18 @@ use std::sync::Arc;
 use anyhow::Context;
 use chrono::Utc;
 use ethers::{
-    middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Filter, TransactionReceipt, TransactionRequest},
+    types::{Filter, TransactionReceipt},
+    utils::keccak256,
 };
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
     forge::ForgeScriptArgs,
     logger,
-    spinner::Spinner,
 };
 use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::bridgehub_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
@@ -33,8 +30,8 @@ use super::{
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
-    commands::chain::admin_call_builder::AdminCallBuilder,
+    abi::{BridgehubAbi, ChainTypeManagerAbi, IChainAssetHandlerAbi, ZkChainAbi},
+    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
@@ -121,10 +118,13 @@ pub(crate) async fn get_migration_transaction(
         .expect("Failed to fetch latest block")
         .as_u64();
 
-    let bridgehub_contract = bridgehub_contract();
+    let bridgehub = BridgehubAbi::new(bridgehub_address, provider.clone());
+    let chain_asset_handler_addr = bridgehub.chain_asset_handler().await?;
+    let chain_asset_handler =
+        IChainAssetHandlerAbi::new(chain_asset_handler_addr, provider.clone());
 
     let max_interval_to_search = Utc::now() - MAX_SEARCHING_MIGRATION_TXS_INTERVAL;
-    let latest_event_log = loop {
+    let latest_tx_hash: Option<H256> = loop {
         let lower_bound = search_upper_bound.saturating_sub(DEFAULT_EVENTS_BLOCK_RANGE);
 
         logger::info(format!(
@@ -132,21 +132,15 @@ pub(crate) async fn get_migration_transaction(
             lower_bound, search_upper_bound
         ));
 
-        let filter = Filter::new()
-            .address(bridgehub_address)
-            .topic0(
-                bridgehub_contract
-                    .event("MigrationStarted")
-                    .unwrap()
-                    .signature(),
-            )
+        let ev = chain_asset_handler
+            .migration_started_filter()
+            .topic1(U256::from(l2_chain_id))
             .from_block(lower_bound)
-            .topic1(u256_to_h256(U256::from(l2_chain_id)))
             .to_block(search_upper_bound);
 
-        let result_logs = provider.get_logs(&filter).await?;
-        if !result_logs.is_empty() {
-            break result_logs.last().cloned();
+        let results = ev.query_with_meta().await?;
+        if let Some((_, meta)) = results.last() {
+            break Some(meta.transaction_hash);
         }
 
         if lower_bound == 0 {
@@ -165,11 +159,7 @@ pub(crate) async fn get_migration_transaction(
         search_upper_bound = lower_bound - 1;
     };
 
-    let Some(log) = latest_event_log else {
-        return Ok(None);
-    };
-
-    Ok(log.transaction_hash)
+    Ok(latest_tx_hash)
 }
 
 async fn get_batch_execution_status(
@@ -513,51 +503,6 @@ pub(crate) async fn notify_server(
     Ok(())
 }
 
-pub(crate) async fn send_tx(
-    to: Address,
-    data: Vec<u8>,
-    value: U256,
-    l1_rpc_url: String,
-    private_key: H256,
-    description: &str,
-) -> anyhow::Result<TransactionReceipt> {
-    // 1. Connect to provider
-    let provider = Provider::<Http>::try_from(&l1_rpc_url)?;
-
-    // 2. Set up wallet (signer)
-    let wallet: LocalWallet = LocalWallet::from_bytes(private_key.as_bytes())?;
-    let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
-
-    // 3. Create a transaction
-    let tx = TransactionRequest::new().to(to).data(data).value(value);
-
-    let spinner = Spinner::new(&format!("Sending transaction for {description}..."));
-
-    // 4. Sign the transaction
-    let client = SignerMiddleware::new(provider.clone(), wallet.clone());
-    let pending_tx = client.send_transaction(tx, None).await?;
-    spinner.finish();
-
-    logger::info(format!(
-        "Transaction sent! Hash: {:#?}",
-        pending_tx.tx_hash()
-    ));
-
-    let spinner = Spinner::new("Waiting for transaction to complete");
-
-    // 5. Await receipt
-    let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
-
-    spinner.finish();
-
-    logger::info(format!(
-        "Transaciton {:#?} completed!",
-        receipt.transaction_hash
-    ));
-
-    Ok(receipt)
-}
-
 pub(crate) async fn extract_and_wait_for_priority_ops(
     receipt: TransactionReceipt,
     expected_diamond_proxy: Address,
@@ -580,8 +525,9 @@ pub(crate) async fn extract_priority_ops(
     receipt: TransactionReceipt,
     expected_diamond_proxy: Address,
 ) -> anyhow::Result<Vec<H256>> {
-    let contract = zksync_contracts::hyperchain_contract();
-    let expected_topic_0 = contract.event("NewPriorityRequest").unwrap().signature();
+    let expected_topic_0: ethers::types::H256 = ethers::types::H256::from(keccak256(
+        b"NewPriorityRequest(uint256,bytes32,uint64,(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256[4],bytes,bytes,uint256[],bytes,bytes),bytes[])",
+    ));
 
     let priority_ops = receipt
         .logs

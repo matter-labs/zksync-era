@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::{
@@ -9,7 +9,6 @@ use zksync_prover_interface::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
-    Bincode, CBOR,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -40,8 +39,9 @@ impl ProcessorMode for Locking {}
 pub struct Processor<PM: ProcessorMode> {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    config: ProofDataHandlerConfig,
+    proof_generation_timeout: Duration,
     chain_id: L2ChainId,
+    proving_mode: ProvingMode,
     _marker: std::marker::PhantomData<PM>,
 }
 
@@ -49,14 +49,16 @@ impl<PM: ProcessorMode> Processor<PM> {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
-        config: ProofDataHandlerConfig,
+        proof_generation_timeout: Duration,
         chain_id: L2ChainId,
+        proving_mode: ProvingMode,
     ) -> Self {
         Self {
             blob_store,
             pool,
-            config,
+            proof_generation_timeout,
             chain_id,
+            proving_mode,
             _marker: std::marker::PhantomData,
         }
     }
@@ -89,24 +91,8 @@ impl<PM: ProcessorMode> Processor<PM> {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, ProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
-            Ok(data) => data,
-            Err(_) => self
-                .blob_store
-                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
-                .await
-                .map(Into::into)?,
-        };
-
-        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
-        {
-            Ok(data) => data,
-            Err(_) => self
-                .blob_store
-                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
-                .await
-                .map(Into::into)?,
-        };
+        let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
+        let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await?;
@@ -194,7 +180,7 @@ impl Processor<Locking> {
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
         let l1_batch_number = match self
-            .lock_batch_for_proving(self.config.proof_generation_timeout)
+            .lock_batch_for_proving(self.proof_generation_timeout)
             .await?
         {
             Some(number) => number,
@@ -216,7 +202,7 @@ impl Processor<Locking> {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    async fn lock_batch_for_proving(
+    pub async fn lock_batch_for_proving(
         &self,
         proof_generation_timeout: Duration,
     ) -> Result<Option<L1BatchNumber>, ProcessorError> {
@@ -224,7 +210,20 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving(proof_generation_timeout)
+            .lock_batch_for_proving(proof_generation_timeout, self.proving_mode.clone())
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Will choose a batch that has all the required data and isn't picked up by proving network yet.
+    pub async fn lock_batch_for_proving_network(
+        &self,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
+        self.pool
+            .connection()
+            .await?
+            .proof_generation_dal()
+            .lock_batch_for_proving_network(self.proving_mode.clone())
             .await
             .map_err(Into::into)
     }
@@ -372,24 +371,13 @@ impl Processor<Readonly> {
         binary_proof: Vec<u8>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Result<(), ProcessorError> {
-        let expected_proof: L1BatchProofForL1<CBOR> = match self
+        let expected_proof: L1BatchProofForL1 = self
             .blob_store
             .get(L1BatchProofForL1Key::Core((
                 l1_batch_number,
                 protocol_version,
             )))
-            .await
-        {
-            Ok(proof) => proof,
-            Err(_) => self
-                .blob_store
-                .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
-                    l1_batch_number,
-                    protocol_version,
-                )))
-                .await
-                .map(Into::into)?,
-        };
+            .await?;
 
         if expected_proof.protocol_version() != protocol_version {
             return Err(ProcessorError::InvalidProof);

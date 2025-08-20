@@ -38,6 +38,7 @@ zksync_node_sync.workspace = true
 zksync_node_api_server.workspace = true
 zksync_node_consensus.workspace = true
 zksync_node_framework.workspace = true
+zksync_settlement_layer_data.workspace = true
 zksync_vlog = { workspace = true, features = ["node_framework"] }
 
 zksync_consensus_roles.workspace = true
@@ -67,5 +68,3 @@ serde_yaml.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
 zksync_node_genesis.workspace = true
-zksync_protobuf.workspace = true
-

@@ -66,6 +66,21 @@ pub(crate) async fn create_chain_inner(
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
     let default_chain_name = args.chain_name.clone();
+    println!(
+        "ecosystem_config.list_of_chains() before: {:?}",
+        ecosystem_config.list_of_chains()
+    );
+    let internal_id = if ecosystem_config.list_of_chains().contains(&args.chain_name) {
+        ecosystem_config
+            .list_of_chains()
+            .iter()
+            .position(|x| *x == args.chain_name)
+            .unwrap() as u32
+            + 1
+    } else {
+        ecosystem_config.list_of_chains().len() as u32 + 1
+    };
+    println!("internal_id: {}", internal_id);
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
@@ -74,16 +89,19 @@ pub(crate) async fn create_chain_inner(
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
-    let internal_id = ecosystem_config.list_of_chains().len() as u32;
+    println!(
+        "ecosystem_config.list_of_chains() after: {:?}",
+        ecosystem_config.list_of_chains()
+    );
     let link_to_code = resolve_link_to_code(
         shell,
-        chain_path.clone(),
+        &chain_path,
         args.link_to_code.clone(),
         args.update_submodules,
     )?;
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);

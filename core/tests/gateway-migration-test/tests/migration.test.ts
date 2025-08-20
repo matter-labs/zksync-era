@@ -38,6 +38,7 @@ describe('Migration From/To gateway test', function () {
 
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
+    let gwMainContract: ethers.Contract;
 
     let gatewayChain: string;
     let logs: fs.FileHandle;
@@ -76,7 +77,7 @@ describe('Migration From/To gateway test', function () {
         web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
-            enableConsensus: true,
+            enableConsensus: false,
             ethClientWeb3Url: ethProviderAddress!,
             apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
             baseTokenAddress: contractsConfig.l1.base_token_addr
@@ -175,6 +176,9 @@ describe('Migration From/To gateway test', function () {
             gatewayInfo?.gatewayProvider
         );
 
+        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
+        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
+
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
@@ -198,6 +202,24 @@ describe('Migration From/To gateway test', function () {
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
+    });
+
+    /// Verify that the precommits are enabled on the gateway. This check is enough for making sure
+    // precommits are working correctly. The rest of the checks are done by contract.
+    step('Verify precommits', async () => {
+        let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
+        while (gwCommittedBatches === 1) {
+            console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
+            await utils.sleep(1);
+        }
+
+        // Now we sure that we have at least one batch was committed from the gateway
+
+        const currentBlock = await tester.ethProvider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 50000);
+        const filter = gwMainContract.filters.BatchPrecommitmentSet();
+        const events = await gwMainContract.queryFilter(filter, fromBlock, 'latest');
+        expect(events.length > 0, 'No precommitment events found on the gateway').to.be.true;
     });
 
     after('Try killing server', async () => {

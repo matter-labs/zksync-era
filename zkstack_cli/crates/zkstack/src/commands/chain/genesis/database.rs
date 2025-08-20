@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Context;
 use xshell::Shell;
@@ -39,7 +39,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     initialize_server_database(
         shell,
         &args.server_db,
-        chain_config.link_to_code.clone(),
+        &chain_config.link_to_code,
         args.dont_drop,
     )
     .await?;
@@ -51,7 +51,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn initialize_server_database(
     shell: &Shell,
     server_db_config: &DatabaseConfig,
-    link_to_code: PathBuf,
+    link_to_code: &Path,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
     let path_to_server_migration = link_to_code.join(SERVER_MIGRATIONS);
@@ -67,7 +67,7 @@ pub async fn initialize_server_database(
     }
     migrate_db(
         shell,
-        path_to_server_migration,
+        &path_to_server_migration,
         &server_db_config.full_url(),
     )
     .await?;
@@ -101,7 +101,7 @@ pub async fn update_configs(
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
+            &link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
             config,
         )?;
     }
@@ -110,7 +110,7 @@ pub async fn update_configs(
     {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
+            &link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
             config,
         )?;
     }
