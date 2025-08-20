@@ -7,6 +7,7 @@ pub use self::{
     main_node_fetcher::MainNodeFeeParamsFetcher,
 };
 
+mod blob_base_fee_predictor;
 mod gas_adjuster;
 mod main_node_fetcher;
 

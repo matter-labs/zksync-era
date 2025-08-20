@@ -7,6 +7,7 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_eth_client::EthFeeInterface;
 use zksync_types::{
     commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, L1_GAS_PER_PUBDATA_BYTE,
@@ -16,6 +17,7 @@ use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use self::metrics::METRICS;
 use super::TxParamsProvider;
+use crate::l1_gas_price::blob_base_fee_predictor::predict_blob_base_fee;
 
 mod metrics;
 #[cfg(test)]
@@ -23,7 +25,7 @@ mod tests;
 
 #[derive(Debug)]
 pub struct GasAdjusterClient {
-    inner: Box<dyn EthFeeInterface>,
+    pub(crate) inner: Box<dyn EthFeeInterface>,
 }
 
 impl From<Box<DynClient<L1>>> for GasAdjusterClient {
@@ -63,6 +65,7 @@ pub struct GasAdjuster {
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     client: GasAdjusterClient,
+    connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -72,6 +75,7 @@ impl GasAdjuster {
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
+        connection_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -122,6 +126,7 @@ impl GasAdjuster {
             pubdata_sending_mode,
             client,
             commitment_mode,
+            connection_pool,
         })
     }
 
@@ -245,7 +250,7 @@ impl GasAdjuster {
         self.bound_gas_price(calculated_price)
     }
 
-    pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
+    pub(crate) async fn estimate_effective_pubdata_price(&self) -> u64 {
         if let Some(price) = self.config.internal_enforced_pubdata_price {
             return price;
         }
@@ -265,7 +270,19 @@ impl GasAdjuster {
                 METRICS
                     .median_blob_base_fee
                     .set(blob_base_fee_median.as_u64());
-                let calculated_price = blob_base_fee_median.as_u64() as f64
+
+                let predicted_blob_base_fee = predict_blob_base_fee(
+                    &mut self
+                        .connection_pool
+                        .connection()
+                        .await
+                        .expect("Failed to acquire connection"),
+                    &self.client,
+                    blob_base_fee_median.as_u64(),
+                )
+                .await;
+
+                let calculated_price = predicted_blob_base_fee as f64
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
