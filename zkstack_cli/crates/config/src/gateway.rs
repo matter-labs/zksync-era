@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,7 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
 pub struct GatewayChainConfig(RawConfig);
 
 impl GatewayChainConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)
     }
 
@@ -70,7 +70,7 @@ impl GatewayChainConfig {
 pub struct GatewayChainConfigPatch(PatchedConfig);
 
 impl GatewayChainConfigPatch {
-    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
+    pub fn empty(shell: &Shell, path: &Path) -> Self {
         Self(PatchedConfig::empty(shell, path))
     }
 

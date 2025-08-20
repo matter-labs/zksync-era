@@ -59,7 +59,7 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
     if shell.path_exists(path_to_era_observability.clone()) {
         let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
-        git::pull(shell, path_to_era_observability)?;
+        git::pull(shell, &path_to_era_observability)?;
         spinner.finish();
     }
 
@@ -69,13 +69,13 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
 }
 
 fn update_repo(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
-    let link_to_code = ecosystem.link_to_code.clone();
+    let link_to_code = &ecosystem.link_to_code;
 
     let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
-    git::pull(shell, link_to_code.clone())?;
+    git::pull(shell, link_to_code)?;
     spinner.finish();
     let spinner = Spinner::new(MSG_UPDATING_SUBMODULES_SPINNER);
-    git::submodule_update(shell, link_to_code.clone())?;
+    git::submodule_update(shell, link_to_code)?;
     spinner.finish();
 
     Ok(())
@@ -185,11 +185,11 @@ async fn update_chain(
     let secrets = chain.get_secrets_config().await?;
     if let Some(url) = secrets.core_database_url()? {
         let path_to_migration = chain.link_to_code.join(SERVER_MIGRATIONS);
-        migrate_db(shell, path_to_migration, &url).await?;
+        migrate_db(shell, &path_to_migration, &url).await?;
     }
     if let Some(url) = secrets.prover_database_url()? {
         let path_to_migration = chain.link_to_code.join(PROVER_MIGRATIONS);
-        migrate_db(shell, path_to_migration, &url).await?;
+        migrate_db(shell, &path_to_migration, &url).await?;
     }
     Ok(())
 }

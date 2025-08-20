@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Context;
 use xshell::{cmd, Shell};
@@ -81,7 +81,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         initialize_prover_database(
             shell,
             &prover_db.database_config,
-            ecosystem_config.link_to_code.clone(),
+            &ecosystem_config.link_to_code,
             prover_db.dont_drop,
         )
         .await?;
@@ -122,7 +122,7 @@ fn get_object_store_config(
 async fn initialize_prover_database(
     shell: &Shell,
     prover_db_config: &DatabaseConfig,
-    link_to_code: PathBuf,
+    link_to_code: &Path,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
     if global_config().verbose {
@@ -137,7 +137,7 @@ async fn initialize_prover_database(
     let path_to_prover_migration = link_to_code.join(PROVER_MIGRATIONS);
     migrate_db(
         shell,
-        path_to_prover_migration,
+        &path_to_prover_migration,
         &prover_db_config.full_url(),
     )
     .await?;
