@@ -95,6 +95,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_se
 false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l legacy-bridge
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l tight-ports -d 'Use tight ports allocation (no offset between chains)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -s h -l help -d 'Print help (see more with \'--help\')'
@@ -219,6 +220,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l legacy-bridge
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l tight-ports -d 'Use tight ports allocation (no offset between chains)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -s h -l help -d 'Print help (see more with \'--help\')'
@@ -527,25 +529,26 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "set-da-validator-pair" -d 'Update da validator pair (used for Rollup -> Validium migration)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "gateway"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "database" -d 'Database related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "test" -d 'Run tests'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "clean" -d 'Clean artifacts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "snapshot" -d 'Snapshots creator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "lint" -d 'Lint code'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "fmt" -d 'Format code'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "prover" -d 'Protocol version used by provers'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "contracts" -d 'Build contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "config-writer" -d 'Overwrite general config'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "send-transactions" -d 'Send transactions from file'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "status" -d 'Get status of the server'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "generate-genesis" -d 'Generate new genesis file based on current contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "rich-account" -d 'Make L2 account rich'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis rich-account track-priority-ops help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "database" -d 'Database related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "test" -d 'Run tests'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "clean" -d 'Clean artifacts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "snapshot" -d 'Snapshots creator'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "lint" -d 'Lint code'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "fmt" -d 'Format code'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "prover" -d 'Protocol version used by provers'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "contracts" -d 'Build contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "config-writer" -d 'Overwrite general config'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "send-transactions" -d 'Send transactions from file'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "status" -d 'Get status of the server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "generate-genesis" -d 'Generate new genesis file based on current contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "init-test-wallet" -d 'Initialize test wallet'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "rich-account" -d 'Make L2 account rich'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from database" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from database" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from database" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -651,6 +654,10 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-genesis" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-genesis" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-genesis" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from init-test-wallet" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from init-test-wallet" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from init-test-wallet" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from init-test-wallet" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from rich-account" -l l1-account-private-key -d 'L1 private key to send funds from (default: Reth rich account)' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from rich-account" -l amount -d 'Amount (default 1 ETH)' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from rich-account" -l l1-rpc-url -d 'L1 RPC URL (default: localhost reth)' -r
@@ -684,6 +691,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "send-transactions" -d 'Send transactions from file'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "status" -d 'Get status of the server'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "generate-genesis" -d 'Generate new genesis file based on current contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "init-test-wallet" -d 'Initialize test wallet'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "rich-account" -d 'Make L2 account rich'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
@@ -754,6 +762,7 @@ recursion-tip\t''
 scheduler\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s l -l light-wvg-count -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s h -l heavy-wvg-count -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s t -l threads -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s m -l max-allocation -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l mode -r -f -a "fflonk\t''
 plonk\t''"
@@ -831,6 +840,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fis
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l gateway-rpc-url -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -s u -l use-default -d 'Use default database urls and names'
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l tight-ports -d 'Use tight ports allocation (no offset between chains)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from configs" -s h -l help -d 'Print help'
@@ -843,6 +853,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fis
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from build" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from build" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l components -d 'Components of server to run' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l enable-consensus -d 'Enable consensus' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l reinit
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
@@ -1062,6 +1074,7 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_su
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "send-transactions" -d 'Send transactions from file'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "status" -d 'Get status of the server'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "generate-genesis" -d 'Generate new genesis file based on current contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "init-test-wallet" -d 'Initialize test wallet'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "rich-account" -d 'Make L2 account rich'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "init" -d 'Initialize prover'

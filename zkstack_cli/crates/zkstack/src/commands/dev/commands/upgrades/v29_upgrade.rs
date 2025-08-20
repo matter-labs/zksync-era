@@ -1,26 +1,8 @@
-use ethers::utils::hex;
 use xshell::Shell;
-use zkstack_cli_common::logger;
-use zkstack_cli_config::{traits::ReadConfig, EcosystemConfig};
-use zksync_basic_types::U256;
 
-use crate::{
-    admin_functions::{enable_validator, enable_validator_via_gateway, AdminScriptMode},
-    commands::{
-        chain::{
-            admin_call_builder::{AdminCall, AdminCallBuilder},
-            utils::{get_default_foundry_path, send_tx},
-        },
-        dev::commands::upgrades::{
-            args::{chain::UpgradeArgsInner, v29_chain::V29ChainUpgradeArgs},
-            default_chain_upgrade::{
-                check_chain_readiness, fetch_chain_info, run_chain_upgrade,
-                AdditionalUpgradeParams, UpdatedValidators, UpgradeInfo,
-            },
-            types::UpgradeVersion,
-            utils::{print_error, set_upgrade_timestamp_calldata},
-        },
-    },
+use crate::commands::dev::commands::upgrades::{
+    args::v29_chain::V29ChainUpgradeArgs,
+    default_chain_upgrade::{run_chain_upgrade, AdditionalUpgradeParams, UpdatedValidators},
 };
 
 pub(crate) async fn run(
