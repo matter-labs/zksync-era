@@ -105,7 +105,7 @@ impl EcosystemConfig {
     }
 
     pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
-        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
+        let Ok(path) = find_file(shell, &shell.current_dir(), CONFIG_NAME) else {
             return Err(EcosystemConfigFromFileError::NotExists {
                 path: shell.current_dir(),
             });
@@ -300,7 +300,7 @@ pub fn get_default_era_chain_id() -> L2ChainId {
 }
 
 // Find file in all parents repository and return necessary path or an empty error if nothing has been found
-fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
+fn find_file(shell: &Shell, path_buf: &Path, file_name: &str) -> Result<PathBuf, ()> {
     let _dir = shell.push_dir(path_buf);
     if shell.path_exists(file_name) {
         Ok(shell.current_dir())
@@ -309,7 +309,7 @@ fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBu
         let Some(path) = current_dir.parent() else {
             return Err(());
         };
-        find_file(shell, path.to_path_buf(), file_name)
+        find_file(shell, path, file_name)
     }
 }
 

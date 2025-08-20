@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 use anyhow::Context;
 use clap::Parser;
 use xshell::Shell;
@@ -23,13 +25,13 @@ impl ConfigWriterArgs {
 }
 
 pub fn run(shell: &Shell, args: ConfigWriterArgs) -> anyhow::Result<()> {
-    let path = args.get_config_path().into();
+    let path = PathBuf::from_str(&args.get_config_path())?;
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     logger::step(msg_overriding_config(chain.name.clone()));
-    override_config(shell, path, &chain)?;
+    override_config(shell, &path, &chain)?;
     logger::outro(MSG_OVERRIDE_SUCCESS);
     Ok(())
 }

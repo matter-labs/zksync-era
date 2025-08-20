@@ -32,7 +32,7 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         .as_ref()
         .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?
         .join(SECRETS_FILE);
-    let secrets = SecretsConfig::read(shell, secrets_path).await?;
+    let secrets = SecretsConfig::read(shell, &secrets_path).await?;
     let db_url = secrets
         .core_database_url()?
         .context("missing core database URL")?;
@@ -47,7 +47,7 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         RocksDBDirOption::ExternalNode,
     )?;
     let path_to_server_migration = chain_config.link_to_code.join(SERVER_MIGRATIONS);
-    migrate_db(shell, path_to_server_migration, &db_config.full_url()).await?;
+    migrate_db(shell, &path_to_server_migration, &db_config.full_url()).await?;
     spin.finish();
     Ok(())
 }

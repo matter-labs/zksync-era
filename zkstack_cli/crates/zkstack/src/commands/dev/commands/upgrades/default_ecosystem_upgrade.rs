@@ -53,7 +53,7 @@ pub async fn run(
     println!("Running ecosystem gateway upgrade args");
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    git::submodule_update(shell, &ecosystem_config.link_to_code)?;
 
     let upgrade_version = args.upgrade_version;
 
@@ -140,7 +140,7 @@ async fn no_governance_prepare(
     let genesis_config_path = ecosystem_config
         .get_default_configs_path()
         .join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
