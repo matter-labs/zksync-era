@@ -1150,6 +1150,7 @@ impl BlocksDal<'_, '_> {
             .get_blobs_so_far(L1BatchNumber(header.number.0.saturating_sub(1)))
             .await?
             + pubdata_input
+                .clone()
                 .map(|input| input.len() as u64)
                 .unwrap_or(0)
                 .div_ceil(ZK_SYNC_BYTES_PER_BLOB as u64);
@@ -1217,15 +1218,19 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn get_blobs_so_far(&mut self, batch_number: L1BatchNumber) -> DalResult<u64> {
-        let blobs_so_far = sqlx::query!(
+        let result = sqlx::query!(
             r#"
             SELECT blobs_so_far FROM l1_batches WHERE number = $1
             "#,
             i64::from(batch_number.0)
         )
+        .instrument("get_blobs_so_far")
         .fetch_optional(self.storage)
-        .await?;
-        Ok(blobs_so_far.unwrap_or(0).into())
+        .await?
+        .map(|r| r.blobs_so_far)
+        .unwrap_or(Some(0))
+        .unwrap();
+        Ok(result as u64)
     }
 
     pub async fn get_unsealed_l1_batch(&mut self) -> DalResult<Option<UnsealedL1BatchHeader>> {
