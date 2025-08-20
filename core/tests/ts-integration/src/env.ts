@@ -1,10 +1,8 @@
 import * as path from 'path';
-import * as fs from 'fs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
-import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 import {
     FileConfig,

@@ -1,15 +1,8 @@
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
-import {
-    L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-    INTEROP_BUNDLE_ABI,
-    MESSAGE_INCLUSION_PROOF_ABI,
-    L2_INTEROP_CENTER_ADDRESS
-} from './constants';
-import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
-
-const L1_MESSENGER_ADDRESS = L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR;
+import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDRESS } from './constants';
+// import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 
 export interface Output {
     output: any;
@@ -115,7 +108,7 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
         //     withdrawalHash,
         //     index
         // );
-        const gatewayChainId = 506;
+        // const gatewayChainId = 506;
         const {
             l1BatchNumber: l1BatchNumberRead,
             l2TxNumberInBlock: l2TxNumberInBlockRead,

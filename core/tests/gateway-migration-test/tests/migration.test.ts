@@ -248,10 +248,10 @@ describe('Migration From/To gateway test', function () {
             assetId
         );
 
-        let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
-        let expectedGatewayAssetSettlementLayer = 0n;
+        // let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
+        // let expectedGatewayAssetSettlementLayer = 0n;
         if (direction == 'TO') {
-            expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
+            // expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
             // expectedGatewayAssetSettlementLayer = BigInt(fileConfig.chain!);
         } else {
             return; // kl todo add migrate back from gateway

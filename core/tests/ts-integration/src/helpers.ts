@@ -6,7 +6,7 @@ import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 import * as path from 'path';
 import { loadConfig } from 'utils/src/file-configs';
 
-import { L2_BRIDGEHUB_ADDRESS } from '../src/constants';
+// import { L2_BRIDGEHUB_ADDRESS } from '../src/constants';
 
 /**
  * Loads the test contract

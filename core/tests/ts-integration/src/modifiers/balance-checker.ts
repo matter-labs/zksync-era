@@ -14,11 +14,10 @@ import {
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
-    L2_ASSET_TRACKER_ADDRESS,
-    ArtifactInteropCenter
+    L2_ASSET_TRACKER_ADDRESS
 } from '../constants';
 import { RetryProvider } from '../retry-provider';
-import { getEcosystemContracts } from 'utils/build/tokens';
+import { getEcosystemContracts } from 'utils/src/tokens';
 // checkout whole file before merge
 
 /**
@@ -132,7 +131,7 @@ class ShouldChangeBalance extends MatcherModifier {
             const wallet = entry.wallet;
             const address = entry.addressToCheck ?? entry.wallet.address;
             const initialBalance = await getBalance(l1, wallet, address, token, params?.ignoreUndeployedToken);
-            const initialChainBalance = await getChainBalance(l1, wallet, token, params?.ignoreUndeployedToken);
+            const initialChainBalance = await getChainBalance(l1, wallet, token);
             populatedBalanceChanges.push({
                 wallet: entry.wallet,
                 change: entry.change,
@@ -346,13 +345,8 @@ async function getBalance(
  *     If it's set to `true` and token is not deployed, then function returns 0.
  * @returns Token balance
  */
-async function getChainBalance(
-    l1: boolean,
-    wallet: zksync.Wallet,
-    token: string,
-    ignoreUndeployedToken?: boolean
-): Promise<bigint> {
-    const provider = l1 ? wallet.providerL1! : wallet.provider;
+async function getChainBalance(l1: boolean, wallet: zksync.Wallet, token: string): Promise<bigint> {
+    // const provider = l1 ? wallet.providerL1! : wallet.provider;
     // kl todo get from env or something.
 
     const ecosystemContracts = await getEcosystemContracts(wallet);

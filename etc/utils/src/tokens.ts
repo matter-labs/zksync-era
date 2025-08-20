@@ -10,7 +10,6 @@ import {
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
-    L2_ASSET_TRACKER_ADDRESS,
     ArtifactInteropCenter
 } from './constants';
 
@@ -29,7 +28,7 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
     );
     // console.log('bridgehub', await bridgehub.getAddress());
     // console.log('interface', bridgehub.interface);
-    const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
+    // const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
     const interopCenter = new zksync.Contract(
         await bridgehub.interopCenter(),
         ArtifactInteropCenter.abi,
