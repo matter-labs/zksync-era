@@ -1,7 +1,5 @@
 use std::{
-    collections::HashMap,
     fmt::{Debug, Formatter},
-    fs::File,
     str::FromStr,
     sync::Arc,
 };
@@ -14,10 +12,9 @@ use eq_sdk::{
         ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
     },
     types::BlobId,
-    EqClient, ZKStackEqProofOutput,
+    EqClient
 };
 use secrecy::ExposeSecret;
-use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
 use zksync_basic_types::L2ChainId;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
@@ -31,7 +28,7 @@ use zksync_eth_client::{
 };
 use zksync_types::{
     ethabi,
-    ethabi::{Bytes, Contract, Event, EventParam, FixedBytes, Token, Uint},
+    ethabi::{Bytes, FixedBytes, Token, Uint},
     web3::{contract::Tokenize, BlockNumber},
     H160, U256, U64,
 };

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use vise::{Buckets, Gauge, Histogram, Metrics, Unit};
+use vise::{Buckets, Histogram, Metrics};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "celestia")]

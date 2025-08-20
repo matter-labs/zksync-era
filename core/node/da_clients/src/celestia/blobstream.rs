@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 use hex;
 use lazy_static::lazy_static;
-use reqwest::{Client, Error as ReqwestError};
+use reqwest::Client;
 use serde::Deserialize;
 use zksync_da_client::types::DAError;
 use zksync_eth_client::{
@@ -14,7 +14,7 @@ use zksync_eth_client::{
 };
 use zksync_types::{
     ethabi::{
-        decode, Contract, Event, EventParam, FixedBytes, Function, Param, ParamType,
+        decode, Event, EventParam, FixedBytes, Function, Param, ParamType,
         StateMutability, Token,
     },
     web3::{contract::Tokenize, BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
