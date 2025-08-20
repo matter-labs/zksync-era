@@ -7,7 +7,7 @@ use zkstack_cli_common::{
     logger,
 };
 use zkstack_cli_config::{
-    traits::{ReadConfig, ZkStackConfig},
+    traits::{ReadConfig, ZkStackConfigTrait},
     EcosystemConfig,
 };
 use zksync_basic_types::{
@@ -228,7 +228,7 @@ pub struct GatewayStateTransition {
     pub(crate) validator_timelock_addr: Address,
 }
 
-impl ZkStackConfig for UpgradeInfo {}
+impl ZkStackConfigTrait for UpgradeInfo {}
 
 pub struct UpdatedValidators {
     pub operator: Option<Address>,
