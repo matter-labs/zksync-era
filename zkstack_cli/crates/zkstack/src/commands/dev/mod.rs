@@ -15,8 +15,6 @@ use self::commands::{
     lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
     snapshot::SnapshotCommands, test::TestCommands,
 };
-#[cfg(feature = "upgrades")]
-use crate::commands::dev::messages::{GENERAL_CHAIN_UPGRADE, GENERAL_ECOSYSTEM_UPGRADE};
 use crate::commands::dev::messages::{
     GENERAL_CHAIN_UPGRADE, GENERAL_ECOSYSTEM_UPGRADE, MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT,
     MSG_GENERATE_GENESIS_ABOUT, MSG_INIT_TEST_WALLET_ABOUT, MSG_PROVER_VERSION_ABOUT,

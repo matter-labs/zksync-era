@@ -22,9 +22,8 @@ use zksync_multivm::{
 use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 use zksync_tee_prover_interface::inputs::V1TeeVerifierInput;
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, settlement::SettlementLayer,
-    u256_to_h256, L1BatchNumber, ProtocolVersionId, SLChainId, StorageLog, StorageValue,
-    Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
+    ProtocolVersionId, StorageLog, StorageValue, Transaction, H256,
 };
 
 /// A structure to hold the result of verification.
@@ -311,6 +310,7 @@ mod tests {
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
+    use zksync_types::settlement::SettlementLayer;
 
     use super::*;
 
@@ -345,7 +345,7 @@ mod tests {
                     max_virtual_blocks_to_create: 0,
                     interop_roots: vec![],
                 },
-                settlement_layer: SettlementLayer::L1(SLChainId(59)),
+                settlement_layer: SettlementLayer::for_tests(),
             },
             SystemEnv {
                 zk_porter_available: false,

@@ -512,24 +512,19 @@ impl Aggregator {
                     .blocks_web3_dal()
                     .get_l2_to_l1_logs(batch.header.number)
                     .await
-                    .map_err(|e| EthSenderError::Dal(e))?;
+                    .map_err(EthSenderError::Dal)?;
                 let messages = storage
                     .blocks_web3_dal()
                     .get_l2_to_l1_messages(batch.header.number)
                     .await
-                    .map_err(|e| EthSenderError::Dal(e))?;
+                    .map_err(EthSenderError::Dal)?;
                 // let filtered_logs = logs.into_iter().filter(|log| !log.is_service).map(|log| UserL2ToL1Log(log)).collect();
                 let message_root = storage
                     .blocks_dal()
                     .get_message_root(batch.header.number)
                     .await
                     .unwrap();
-                all_logs.push(
-                    logs.clone()
-                        .into_iter()
-                        .map(|log| UserL2ToL1Log(log))
-                        .collect(),
-                );
+                all_logs.push(logs.clone().into_iter().map(UserL2ToL1Log).collect());
                 all_messages.push(messages);
                 all_message_roots.push(message_root);
             }

@@ -41,7 +41,7 @@ struct InitializedBatchState {
     batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
     protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
     next_block_should_be_fictive: bool,
-    settlement_layer: SettlementLayer,
+    _settlement_layer: SettlementLayer,
 }
 
 #[derive(Debug)]
@@ -282,7 +282,7 @@ impl StateKeeperBuilder {
                 batch_executor,
                 protocol_upgrade_tx,
                 next_block_should_be_fictive: false,
-                settlement_layer,
+                _settlement_layer: settlement_layer,
             })),
         })
     }
@@ -339,7 +339,7 @@ impl StateKeeperInner {
             batch_executor,
             protocol_upgrade_tx,
             next_block_should_be_fictive: false,
-            settlement_layer: self.settlement_layer,
+            _settlement_layer: self.settlement_layer,
         })
     }
 

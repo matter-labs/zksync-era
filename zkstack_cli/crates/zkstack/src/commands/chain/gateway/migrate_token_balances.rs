@@ -24,7 +24,7 @@ use zksync_types::L2ChainId;
 use crate::{
     commands::dev::commands::{rich_account, rich_account::args::RichAccountArgs},
     messages::MSG_CHAIN_NOT_INITIALIZED,
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
@@ -82,7 +82,7 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
 
     // let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
-    logger::info(&format!(
+    logger::info(format!(
         "Migrating the token balances {} the Gateway...",
         if args.to_gateway.unwrap_or(true) {
             "to"
@@ -137,7 +137,7 @@ pub async fn migrate_token_balances_from_gateway(
     l2_rpc_url: String,
 ) -> anyhow::Result<()> {
     println!("l2_chain_id: {}", l2_chain_id);
-    println!("wallet.address: {}", wallet.address.to_string());
+    println!("wallet.address: {}", wallet.address);
 
     if run_initial {
         rich_account::run(
@@ -227,7 +227,7 @@ pub async fn migrate_token_balances_from_gateway(
         )
         .unwrap();
 
-    let mut forge = Forge::new(foundry_scripts_path)
+    let forge = Forge::new(foundry_scripts_path)
         .script(
             &PathBuf::from(GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH),
             forge_args.clone(),
