@@ -32,7 +32,7 @@ pub(crate) async fn predict_blob_base_fee(
         }
     }
 
-    let last_l1_commited_batch = last_l1_commited_batch.expect("No committed batch found");
+    let last_l1_commited_batch = last_l1_commited_batch.unwrap_or(L1BatchNumber::from(0));
 
     // todo: implement this
     let total_blobs_to_send = 0;
