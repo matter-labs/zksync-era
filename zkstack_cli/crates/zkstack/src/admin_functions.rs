@@ -682,7 +682,6 @@ pub(crate) async fn enable_validator_via_gateway(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "upgrades")]
 pub(crate) async fn enable_validator(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -865,11 +864,6 @@ pub(crate) async fn admin_l1_l2_tx(
     .await
 }
 
-#[cfg(any(
-    feature = "v27_evm_interpreter",
-    feature = "v28_precompiles",
-    feature = "upgrades"
-))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
     shell: &Shell,

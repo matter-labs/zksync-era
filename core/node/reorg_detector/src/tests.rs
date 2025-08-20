@@ -314,7 +314,7 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
     assert!(!detector
-        .check_reorg_presence(stop_receiver.clone())
+        .check_reorg_presence(stop_receiver.clone(), false)
         .await
         .unwrap());
 
@@ -324,7 +324,10 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
         detector.check_consistency().await,
         Err(Error::ReorgDetected(L1BatchNumber(1)))
     );
-    assert!(detector.check_reorg_presence(stop_receiver).await.unwrap());
+    assert!(detector
+        .check_reorg_presence(stop_receiver, false)
+        .await
+        .unwrap());
 }
 
 #[tokio::test]
@@ -632,7 +635,10 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
     );
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    assert!(detector.check_reorg_presence(stop_receiver).await.unwrap());
+    assert!(detector
+        .check_reorg_presence(stop_receiver, false)
+        .await
+        .unwrap());
 }
 
 #[derive(Debug)]

@@ -621,6 +621,26 @@ impl EthTxManager {
             .mark_failed_transaction(tx.id)
             .await
             .unwrap();
+
+        if let Some(batch_number) = storage
+            .blocks_dal()
+            .get_batch_number_of_prove_tx_id(tx.id)
+            .await
+            .unwrap()
+        {
+            storage
+                .eth_proof_manager_dal()
+                .mark_batch_as_proven(batch_number, false)
+                .await
+                .unwrap();
+            storage
+                .eth_proof_manager_dal()
+                .fallback_batch(batch_number)
+                .await
+                .unwrap();
+            tracing::info!("Batch {} proven with false result", batch_number);
+        }
+
         let failure_reason = self
             .l1_interface
             .failure_reason(tx_status.receipt.transaction_hash, self.operator_type(tx))
