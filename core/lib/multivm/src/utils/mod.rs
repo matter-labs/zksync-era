@@ -331,7 +331,7 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
     }
 }
 
-pub fn get_bootloader_max_msg_roots_in_batch(version: VmVersion) -> usize {
+pub fn get_bootloader_max_interop_roots_in_batch(version: VmVersion) -> usize {
     match version {
         VmVersion::M5WithRefunds
         | VmVersion::M5WithoutRefunds

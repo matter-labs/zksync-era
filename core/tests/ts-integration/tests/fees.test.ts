@@ -74,6 +74,7 @@ testFees('Test fees', function () {
 
     const fileConfig = shouldLoadConfigFromFile();
     const pathToHome = path.join(__dirname, '../../../..');
+    const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
 
     async function logsPath(chain: string | undefined, name: string): Promise<string> {
         chain = chain ? chain : 'default';
@@ -118,7 +119,7 @@ testFees('Test fees', function () {
         console.log(`Writing server logs to ${pathToMainLogs}`);
 
         mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
-            enableConsensus: true,
+            enableConsensus,
             ethClientWeb3Url,
             apiWeb3JsonRpcHttpUrl,
             baseTokenAddress

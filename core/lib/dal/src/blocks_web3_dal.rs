@@ -828,6 +828,89 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(storage_block_details.map(Into::into))
     }
 
+    /// Returns miniblock details including unverified transactions.
+    /// This is used in testing
+    pub async fn get_block_details_incl_unverified_transactions(
+        &mut self,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<api::BlockDetails>> {
+        let storage_block_details = sqlx::query_as!(
+            StorageBlockDetails,
+            r#"
+            SELECT
+                miniblocks.number,
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                        WHERE
+                            is_sealed
+                    )
+                ) AS "l1_batch_number!",
+                miniblocks.timestamp,
+                miniblocks.l1_tx_count,
+                miniblocks.l2_tx_count,
+                miniblocks.hash AS "root_hash?",
+                commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.confirmed_at AS "committed_at?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
+                prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.confirmed_at AS "proven_at?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
+                execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
+                execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
+                miniblocks.protocol_version,
+                miniblocks.fee_account_address
+            FROM
+                miniblocks
+            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON miniblocks.eth_precommit_tx_id = precommit_tx.eth_tx_id
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON l1_batches.eth_commit_tx_id = commit_tx_data.id
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON l1_batches.eth_prove_tx_id = prove_tx_data.id
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON l1_batches.eth_execute_tx_id = execute_tx_data.id
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON miniblocks.eth_precommit_tx_id = precommit_tx_data.id
+            WHERE
+                miniblocks.number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .instrument("get_block_details_incl_unverified_transactions")
+        .with_arg("block_number", &block_number)
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(storage_block_details.map(Into::into))
+    }
+
     pub async fn get_l1_batch_details(
         &mut self,
         l1_batch_number: L1BatchNumber,

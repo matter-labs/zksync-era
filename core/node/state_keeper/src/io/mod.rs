@@ -161,6 +161,7 @@ impl L1BatchParams {
             self.first_l2_block.virtual_blocks,
             chain_id,
             settlement_layer,
+            self.first_l2_block.interop_roots.clone(),
         );
 
         BatchInitParams {

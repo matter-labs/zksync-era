@@ -68,6 +68,10 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
     }
 }
 
+pub fn fake_rolling_txs_hash_for_block(number: u32) -> H256 {
+    H256::from_low_u64_be(number.into())
+}
+
 /// Creates an L2 block header with the specified number and deterministic contents.
 pub fn create_l2_block(number: u32) -> L2BlockHeader {
     L2BlockHeader {
@@ -86,7 +90,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
-        rolling_txs_hash: Some(H256::zero()),
+        rolling_txs_hash: Some(fake_rolling_txs_hash_for_block(number)),
         settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(89)),
     }
 }

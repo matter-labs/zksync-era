@@ -143,6 +143,7 @@ data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
   gateway_api_url: http://127.0.0.1:3322
+  proving_mode: PROVER_CLUSTER
 tee_proof_data_handler:
   http_port: 4320
   proof_generation_timeout_in_secs: 60
@@ -283,6 +284,24 @@ gateway_migrator:
   eth_node_poll_interval: 300 ms
 
 eth_proof_manager:
+  http_rpc_url: http://127.0.0.1:3050
+  l2_chain_id: 271
+  object_store:
+    mode: FileBacked
+    file_backed_base_path: artifacts
+    max_retries: 100
   event_poll_interval: 10000 ms
   event_expiration_blocks: 1000
+  request_sending_interval: 10000 ms
+  default_priority_fee_per_gas: 1000000
+  max_reward: 10
+  proof_request_timeout: 120000 ms
+  proof_generation_timeout: 7200000 ms
+  max_acceptable_priority_fee_in_gwei: 100000000000
+  max_tx_sending_attempts: 5
+  tx_sending_sleep: 1000 ms
+  tx_receipt_checking_max_attempts: 10
+  tx_receipt_checking_sleep: 1000 ms
+  max_tx_gas: 1000000
+  path_to_fflonk_verification_key: "./prover/data/keys/fflonk_verification_snark_key.json"
   

@@ -44,13 +44,13 @@ jobs:
           extra_nix_config: |
             access-tokens = github.com=${{ github.token }}
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= tee-pot:SS6HcrpG87S1M6HZGPsfo7d1xJccCGev7/tXc5+I4jg=
-            substituters = https://cache.nixos.org/ https://attic.teepot.org/tee-pot
+            substituters = https://cache.nixos.org/ https://static.188.92.12.49.clients.your-server.de/tee-pot
             sandbox = true
 
       - name: Setup Attic cache
         uses: ryanccn/attic-action@f6b7e98e9ba10c6db4841e4996cd3fe4bdb3f3ed # v0.3.2
         with:
-          endpoint: https://attic.teepot.org/
+          endpoint: https://static.188.92.12.49.clients.your-server.de/
           cache: tee-pot
           token: ${{ secrets.ATTIC_TOKEN }}
 

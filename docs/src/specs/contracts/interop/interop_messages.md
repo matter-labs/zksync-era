@@ -50,7 +50,7 @@ A high-level overview of the send-and-verify flow:
 7. **Verification Complete**.
    At this point, the interop root for the batch is confirmed.
 8. **User Proof Submission**.
-   The user calls `proveL2MessageInclusionShared` on **L2_B**’s Mailbox facet, supplying the message data and a proof of inclusion (see below). Note, that this step could be done in the same batch as steps 6-7, not necessarily strictly later.
+   The user calls `proveL2MessageInclusionShared` on **L2_B**’s `L2_MESSAGE_VERIFICATION_ADDRESS` (`0x..10009`), supplying the message data and a proof of inclusion (see below). Note, that this step could be done in the same batch as steps 6-7, not necessarily strictly later.
 9. **Final Verification**.
    This triggers `L2InteropRootStorage` to verify the corresponding interop-root inclusion on **L2_B**.
 
@@ -75,3 +75,8 @@ They represent a simple, broadcast-style communication primitive.
 
 * On ElasticChain, older messages can become harder to validate as gathering the required Merkle-proof data grows more challenging over time.
 * Nevertheless, if you can obtain the proof for the corresponding leaf, there is **no expiration**—messages remain technically verifiable indefinitely.
+
+
+#### Example
+
+Please see the [Advanced Guide](../../../guides/advanced/19_interop_basics.md) for example with exact commands.

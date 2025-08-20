@@ -12,7 +12,7 @@ use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMo
 use zksync_types::{
     block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
     fee_model::BatchFeeInput, settlement::SettlementLayer, snapshots::SnapshotRecoveryStatus,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
     ZKPORTER_IS_AVAILABLE,
 };
 
@@ -23,6 +23,7 @@ const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
 pub struct FirstL2BlockInBatch {
     header: L2BlockHeader,
     l1_batch_number: L1BatchNumber,
+    interop_roots: Vec<InteropRoot>,
 }
 
 impl FirstL2BlockInBatch {
@@ -69,6 +70,7 @@ pub fn l1_batch_params(
     virtual_blocks: u32,
     chain_id: L2ChainId,
     settlement_layer: SettlementLayer,
+    interop_roots: Vec<InteropRoot>,
 ) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
@@ -92,7 +94,7 @@ pub fn l1_batch_params(
                 timestamp: l1_batch_timestamp,
                 prev_block_hash: prev_l2_block_hash,
                 max_virtual_blocks_to_create: virtual_blocks,
-                interop_roots: vec![],
+                interop_roots,
             },
             settlement_layer,
         },
@@ -228,6 +230,15 @@ impl L1BatchParamsProvider {
             .load_number_of_first_l2_block_in_batch(storage, l1_batch_number)
             .await
             .context("failed getting first L2 block number")?;
+
+        let interop_roots = if let Some(l2_block_number) = l2_block_number {
+            storage
+                .interop_root_dal()
+                .get_interop_roots(l2_block_number)
+                .await?
+        } else {
+            vec![]
+        };
         Ok(match l2_block_number {
             Some(number) => storage
                 .blocks_dal()
@@ -236,6 +247,7 @@ impl L1BatchParamsProvider {
                 .map(|header| FirstL2BlockInBatch {
                     header,
                     l1_batch_number,
+                    interop_roots,
                 }),
             None => None,
         })
@@ -358,6 +370,7 @@ impl L1BatchParamsProvider {
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
             first_l2_block_in_batch.header.settlement_layer,
+            first_l2_block_in_batch.interop_roots.clone(),
         );
 
         Ok(RestoredL1BatchEnv {

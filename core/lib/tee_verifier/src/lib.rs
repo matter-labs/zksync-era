@@ -328,7 +328,6 @@ mod tests {
                 storage_refunds: vec![],
                 pubdata_costs: vec![],
                 witness_block_state: Default::default(),
-                _marker: std::marker::PhantomData,
             },
             WitnessInputMerklePaths::new(0),
             vec![],
