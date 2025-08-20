@@ -14,6 +14,7 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     interpolate_query, match_query_as,
 };
+use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
@@ -1143,6 +1144,16 @@ impl BlocksDal<'_, '_> {
         let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
         let pubdata_costs: Vec<_> = pubdata_costs.iter().copied().map(i64::from).collect();
 
+        let blobs_so_far = self
+            .storage
+            .blocks_dal()
+            .get_blobs_so_far(L1BatchNumber(header.number.0.saturating_sub(1)))
+            .await?
+            + pubdata_input
+                .map(|input| input.len() as u64)
+                .unwrap_or(0)
+                .div_ceil(ZK_SYNC_BYTES_PER_BLOB as u64);
+
         let query = sqlx::query!(
             r#"
             UPDATE l1_batches
@@ -1163,6 +1174,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_costs = $15,
                 pubdata_input = $16,
                 predicted_circuits_by_type = $17,
+                blobs_so_far = $18,
                 updated_at = NOW(),
                 sealed_at = NOW(),
                 is_sealed = TRUE
@@ -1190,6 +1202,7 @@ impl BlocksDal<'_, '_> {
             &pubdata_costs,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
+            blobs_so_far as i64,
         );
         let update_result = instrumentation.with(query).execute(self.storage).await?;
 
@@ -1201,6 +1214,18 @@ impl BlocksDal<'_, '_> {
         }
 
         Ok(())
+    }
+
+    pub async fn get_blobs_so_far(&mut self, batch_number: L1BatchNumber) -> DalResult<u64> {
+        let blobs_so_far = sqlx::query!(
+            r#"
+            SELECT blobs_so_far FROM l1_batches WHERE number = $1
+            "#,
+            i64::from(batch_number.0)
+        )
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(blobs_so_far.unwrap_or(0).into())
     }
 
     pub async fn get_unsealed_l1_batch(&mut self) -> DalResult<Option<UnsealedL1BatchHeader>> {

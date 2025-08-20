@@ -60,6 +60,7 @@ strum = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 chrono = { workspace = true, default-features = false, features = ["now"] }
 rayon.workspace = true
+kzg.workspace = true
 
 [dev-dependencies]
 zksync_test_contracts.workspace = true

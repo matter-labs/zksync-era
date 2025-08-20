@@ -33,16 +33,34 @@ pub(crate) async fn predict_blob_base_fee(
     }
 
     let last_l1_commited_batch = last_l1_commited_batch.unwrap_or(L1BatchNumber::from(0));
+    let last_sealed_batch = connection
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
+        .await
+        .expect("Failed to get last sealed batch")
+        .unwrap_or(L1BatchNumber::from(0));
 
-    // todo: implement this
-    let total_blobs_to_send = 0;
+    let total_blobs_to_send = connection
+        .blocks_dal()
+        .get_blobs_so_far(last_sealed_batch)
+        .await
+        .expect("Failed to get blobs so far for last sealed batch")
+        - connection
+            .blocks_dal()
+            .get_blobs_so_far(last_l1_commited_batch)
+            .await
+            .expect("Failed to get blobs so far for last committed batch");
 
     let total_l1_blocks_for_these_blocks =
-        U256::from(chrono::Utc::now().timestamp()) - last_finalized_block.timestamp;
+        (U256::from(chrono::Utc::now().timestamp()) - last_finalized_block.timestamp).as_u64() / 12;
+
+    if total_blobs_to_send == 0 {
+        return last_known_l1_gas_price;
+    }
 
     predict_blob_fee_cap(
         total_blobs_to_send,
-        total_l1_blocks_for_these_blocks.as_u64(),
+        total_l1_blocks_for_these_blocks,
         last_known_l1_gas_price,
     )
 }

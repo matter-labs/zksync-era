@@ -1,0 +1,1 @@
+ALTER TABLE l1_batches ADD COLUMN blobs_so_far BIGINT DEFAULT 0;
