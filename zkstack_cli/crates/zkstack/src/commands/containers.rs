@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::{anyhow, Context};
 use xshell::Shell;
@@ -37,7 +37,7 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
 
 pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
     if !shell.path_exists(DOCKER_COMPOSE_FILE) {
-        copy_dockerfile(shell, ecosystem.link_to_code.clone())?;
+        copy_dockerfile(shell, &ecosystem.link_to_code)?;
     };
 
     Ok(())
@@ -74,7 +74,7 @@ pub fn start_containers(shell: &Shell, observability: bool) -> anyhow::Result<()
     Ok(())
 }
 
-fn copy_dockerfile(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
+fn copy_dockerfile(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let docker_compose_file = link_to_code.join(DOCKER_COMPOSE_FILE);
 
     let docker_compose_text = shell.read_file(&docker_compose_file).map_err(|err| {

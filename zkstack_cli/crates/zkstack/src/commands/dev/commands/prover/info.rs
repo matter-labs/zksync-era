@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
 use anyhow::Context as _;
 use url::Url;
@@ -42,7 +39,7 @@ Database URL: {}\n
 
 pub(crate) async fn get_protocol_version(
     shell: &Shell,
-    link_to_prover: &PathBuf,
+    link_to_prover: &Path,
 ) -> anyhow::Result<String> {
     shell.change_dir(link_to_prover);
     let protocol_version = cmd!(shell, "cargo run --release --bin prover_version").read()?;

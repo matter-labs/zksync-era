@@ -52,7 +52,7 @@ pub enum CloudConnectionMode {
 pub struct GeneralConfig(RawConfig);
 
 impl GeneralConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)
     }
 
@@ -168,7 +168,7 @@ impl GeneralConfigPatch {
     pub fn extract_consensus(
         &mut self,
         shell: &Shell,
-        path: PathBuf,
+        path: &Path,
     ) -> anyhow::Result<ConsensusConfigPatch> {
         let raw_consensus: serde_yaml::Mapping = self.0.base().get("consensus")?;
         self.0.remove("consensus");
@@ -317,7 +317,7 @@ fn set_file_backed_path_if_selected(
     Ok(())
 }
 
-pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
+pub fn override_config(shell: &Shell, path: &Path, chain: &ChainConfig) -> anyhow::Result<()> {
     let chain_config_path = chain.path_to_general_config();
     let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
     let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path.clone())?)?;
