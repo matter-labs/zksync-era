@@ -47,7 +47,7 @@ fn clone_bellman_cuda(shell: &Shell) -> anyhow::Result<String> {
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     let path = git::clone(
         shell,
-        shell.current_dir(),
+        &shell.current_dir(),
         "https://github.com/matter-labs/era-bellman-cuda",
         BELLMAN_CUDA_DIR,
     )?;

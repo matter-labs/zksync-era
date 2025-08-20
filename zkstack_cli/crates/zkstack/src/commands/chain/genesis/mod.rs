@@ -76,13 +76,8 @@ pub async fn genesis(
     logger::info(MSG_STARTING_GENESIS);
 
     let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
-    initialize_server_database(
-        shell,
-        &args.server_db,
-        config.link_to_code.clone(),
-        args.dont_drop,
-    )
-    .await?;
+    initialize_server_database(shell, &args.server_db, &config.link_to_code, args.dont_drop)
+        .await?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);

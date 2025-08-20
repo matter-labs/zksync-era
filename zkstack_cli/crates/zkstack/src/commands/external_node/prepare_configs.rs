@@ -56,7 +56,8 @@ async fn prepare_configs(
     let gateway = config.get_gateway_chain_config().await.ok();
     let l2_rpc_url = general.l2_http_url()?;
 
-    let mut en_config = ExternalNodeConfigPatch::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
+    let mut en_config =
+        ExternalNodeConfigPatch::empty(shell, &en_configs_path.join(EN_CONFIG_FILE));
     en_config.set_chain_ids(
         genesis.l1_chain_id()?,
         genesis.l2_chain_id()?,
@@ -71,13 +72,13 @@ async fn prepare_configs(
     // Copy and modify the general config
     let general_config_path = en_configs_path.join(GENERAL_FILE);
     shell.copy_file(config.path_to_general_config(), &general_config_path)?;
-    let general_en = GeneralConfig::read(shell, general_config_path.clone()).await?;
+    let general_en = GeneralConfig::read(shell, &general_config_path).await?;
     let main_node_public_addr = general_en.consensus_public_addr()?;
     let mut general_en = general_en.patched();
 
     // Extract and modify the consensus config
     let mut en_consensus_config =
-        general_en.extract_consensus(shell, en_configs_path.join(CONSENSUS_CONFIG_FILE))?;
+        general_en.extract_consensus(shell, &en_configs_path.join(CONSENSUS_CONFIG_FILE))?;
     let main_node_public_key = node_public_key(
         &config
             .get_secrets_config()
@@ -92,7 +93,7 @@ async fn prepare_configs(
     en_consensus_config.save().await?;
 
     // Set secrets config
-    let mut secrets = SecretsConfigPatch::empty(shell, en_configs_path.join(SECRETS_FILE));
+    let mut secrets = SecretsConfigPatch::empty(shell, &en_configs_path.join(SECRETS_FILE));
     let node_key = roles::node::SecretKey::generate().encode();
     secrets.set_consensus_node_key(&node_key)?;
     secrets.set_server_database(&args.db)?;
