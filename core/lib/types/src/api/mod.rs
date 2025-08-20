@@ -717,6 +717,7 @@ pub struct GetLogsFilter {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultDebugCall {
+    pub tx_hash: H256,
     pub result: DebugCall,
 }
 
