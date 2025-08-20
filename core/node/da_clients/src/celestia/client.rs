@@ -12,7 +12,7 @@ use eq_sdk::{
         ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
     },
     types::BlobId,
-    EqClient
+    EqClient,
 };
 use secrecy::ExposeSecret;
 use tonic::transport::Endpoint;

@@ -14,8 +14,7 @@ use zksync_eth_client::{
 };
 use zksync_types::{
     ethabi::{
-        decode, Event, EventParam, FixedBytes, Function, Param, ParamType,
-        StateMutability, Token,
+        decode, Event, EventParam, FixedBytes, Function, Param, ParamType, StateMutability, Token,
     },
     web3::{contract::Tokenize, BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
     H160, H256, U256,
