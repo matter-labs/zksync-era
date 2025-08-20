@@ -4,12 +4,7 @@ use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
 
-pub fn clone(
-    shell: &Shell,
-    path: PathBuf,
-    repository: &str,
-    name: &str,
-) -> anyhow::Result<PathBuf> {
+pub fn clone(shell: &Shell, path: &Path, repository: &str, name: &str) -> anyhow::Result<PathBuf> {
     let _dir = shell.push_dir(path);
     Cmd::new(cmd!(
         shell,

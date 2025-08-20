@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{anyhow, Context};
 use xshell::{cmd, Shell};
@@ -101,8 +101,8 @@ fn run_dockerized_component(
     args: &[String],
     message: &'static str,
     error: &'static str,
-    path_to_configs: &PathBuf,
-    path_to_prover: &PathBuf,
+    path_to_configs: &Path,
+    path_to_prover: &Path,
     path_to_ecosystem: &Path,
 ) -> anyhow::Result<()> {
     logger::info(message);

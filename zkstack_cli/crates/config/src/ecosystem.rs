@@ -105,7 +105,7 @@ impl EcosystemConfig {
     }
 
     pub(crate) fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
-        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
+        let Ok(path) = find_file(shell, &shell.current_dir(), CONFIG_NAME) else {
             return Err(EcosystemConfigFromFileError::NotExists {
                 path: shell.current_dir(),
             });

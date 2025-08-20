@@ -130,7 +130,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
     let mut gateway_chain_config =
-        GatewayChainConfigPatch::empty(shell, chain_config.path_to_gateway_chain_config());
+        GatewayChainConfigPatch::empty(shell, &chain_config.path_to_gateway_chain_config());
     gateway_chain_config.init(
         &gateway_gateway_config,
         gw_bridgehub

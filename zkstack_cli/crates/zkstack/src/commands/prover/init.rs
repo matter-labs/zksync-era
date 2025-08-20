@@ -137,7 +137,7 @@ async fn initialize_prover_database(
     let path_to_prover_migration = link_to_code.join(PROVER_MIGRATIONS);
     migrate_db(
         shell,
-        path_to_prover_migration,
+        &path_to_prover_migration,
         &prover_db_config.full_url(),
     )
     .await?;

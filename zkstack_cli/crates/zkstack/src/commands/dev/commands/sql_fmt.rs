@@ -142,7 +142,7 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
 
 const SNAPSHOT_FILE: &str = ".format_sql_snapshot";
 
-pub async fn calculate_fingerprint(code_root: &Path, dal_root: &PathBuf) -> Result<String> {
+pub async fn calculate_fingerprint(code_root: &Path, dal_root: &Path) -> Result<String> {
     let mut files: Vec<PathBuf> = WalkDir::new(dal_root)
         .into_iter()
         .filter_map(Result::ok)

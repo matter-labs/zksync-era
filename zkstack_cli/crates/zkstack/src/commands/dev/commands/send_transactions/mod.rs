@@ -2,7 +2,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
     ops::Add,
-    path::PathBuf,
+    path::Path,
     time::Duration,
 };
 
@@ -119,7 +119,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
     Ok(())
 }
 
-fn log_receipt(path: &PathBuf, receipt: &str) -> anyhow::Result<()> {
+fn log_receipt(path: &Path, receipt: &str) -> anyhow::Result<()> {
     let mut file = OpenOptions::new()
         .append(true)
         .create(true)

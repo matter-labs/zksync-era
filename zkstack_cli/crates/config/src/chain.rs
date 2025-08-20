@@ -98,11 +98,11 @@ impl ChainConfig {
     }
 
     pub async fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
-        GenesisConfig::read(self.get_shell(), self.path_to_genesis_config()).await
+        GenesisConfig::read(self.get_shell(), &self.path_to_genesis_config()).await
     }
 
     pub async fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        GeneralConfig::read(self.get_shell(), self.path_to_general_config()).await
+        GeneralConfig::read(self.get_shell(), &self.path_to_general_config()).await
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
@@ -127,7 +127,7 @@ impl ChainConfig {
     }
 
     pub async fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
-        SecretsConfig::read(self.get_shell(), self.path_to_secrets_config()).await
+        SecretsConfig::read(self.get_shell(), &self.path_to_secrets_config()).await
     }
 
     pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {
@@ -135,7 +135,7 @@ impl ChainConfig {
     }
 
     pub async fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
-        GatewayChainConfig::read(self.get_shell(), self.path_to_gateway_chain_config()).await
+        GatewayChainConfig::read(self.get_shell(), &self.path_to_gateway_chain_config()).await
     }
 
     pub fn path_to_general_config(&self) -> PathBuf {
@@ -238,7 +238,7 @@ impl ChainConfig {
 
 impl ChainConfigInternal {
     pub(crate) fn from_file(shell: &Shell) -> anyhow::Result<ChainConfigInternal> {
-        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
+        let Ok(path) = find_file(shell, &shell.current_dir(), CONFIG_NAME) else {
             anyhow::bail!("Chain config not found")
         };
 

@@ -63,7 +63,7 @@ pub async fn initialize_server_database(
     }
     migrate_db(
         shell,
-        path_to_server_migration,
+        &path_to_server_migration,
         &server_db_config.full_url(),
     )
     .await?;
@@ -97,7 +97,7 @@ pub async fn update_configs(
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
+            &link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
             config,
         )?;
     }
@@ -106,7 +106,7 @@ pub async fn update_configs(
     {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
+            &link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
             config,
         )?;
     }

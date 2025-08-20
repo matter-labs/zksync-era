@@ -57,7 +57,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
     override_config(
         shell,
-        ecosystem_config
+        &ecosystem_config
             .link_to_code
             .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
         &chain_config,

@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 use clap::Parser;
 use xshell::Shell;
 use zkstack_cli_common::{logger, Prompt};
@@ -22,10 +24,10 @@ impl ConfigWriterArgs {
 }
 
 pub fn run(shell: &Shell, args: ConfigWriterArgs) -> anyhow::Result<()> {
-    let path = args.get_config_path().into();
+    let path = PathBuf::from_str(&args.get_config_path())?;
     let chain = ZkStackConfig::current_chain(shell)?;
     logger::step(msg_overriding_config(chain.name.clone()));
-    override_config(shell, path, &chain)?;
+    override_config(shell, &path, &chain)?;
     logger::outro(MSG_OVERRIDE_SUCCESS);
     Ok(())
 }

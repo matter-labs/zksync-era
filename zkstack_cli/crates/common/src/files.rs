@@ -67,7 +67,7 @@ pub fn save_json_file(
 }
 
 // Find file in all parents repository and return necessary path or an empty error if nothing has been found
-pub fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> anyhow::Result<PathBuf> {
+pub fn find_file(shell: &Shell, path_buf: &Path, file_name: &str) -> anyhow::Result<PathBuf> {
     let _dir = shell.push_dir(path_buf);
     if shell.path_exists(file_name) {
         Ok(shell.current_dir())
@@ -79,6 +79,6 @@ pub fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> anyhow::R
                 file_name
             ));
         };
-        find_file(shell, path.to_path_buf(), file_name)
+        find_file(shell, path, file_name)
     }
 }

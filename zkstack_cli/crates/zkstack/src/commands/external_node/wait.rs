@@ -16,7 +16,7 @@ pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
         .external_node_config_path
         .clone()
         .context("External node is not initialized")?;
-    let general_config = GeneralConfig::read(shell, en_path.join(GENERAL_FILE)).await?;
+    let general_config = GeneralConfig::read(shell, &en_path.join(GENERAL_FILE)).await?;
     let health_check_url = general_config.healthcheck_url()?;
 
     logger::info(MSG_WAITING_FOR_EN);

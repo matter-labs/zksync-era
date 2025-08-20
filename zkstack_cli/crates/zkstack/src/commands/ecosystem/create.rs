@@ -55,7 +55,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let link_to_code = resolve_link_to_code(
         shell,
-        shell.current_dir(),
+        &shell.current_dir(),
         args.link_to_code.clone(),
         args.update_submodules,
     )?;

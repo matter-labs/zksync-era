@@ -20,14 +20,14 @@ impl ZkStackConfig {
             return Ok(ZkStackConfig::EcosystemConfig(ecosystem));
         }
 
-        shell.change_dir(current_dir);
+        shell.change_dir(&current_dir);
         if let Ok(chain_internal) = ChainConfigInternal::from_file(shell) {
             if let Ok(chain) = ChainConfig::from_internal(chain_internal, shell.clone()) {
                 return Ok(ZkStackConfig::ChainConfig(chain));
             }
         }
 
-        bail!("Missing ZkStackConfig. Failed to find ecosystem or chain");
+        bail!("Could not find `ZkStack.yaml` for ecosystem or chain in `{current_dir:?}` or any parent directory.");
     }
 
     pub fn current_chain(shell: &Shell) -> anyhow::Result<ChainConfig> {
