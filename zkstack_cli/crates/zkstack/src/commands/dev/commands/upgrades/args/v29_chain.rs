@@ -1,6 +1,6 @@
 use clap::Parser;
 use xshell::Shell;
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 use zksync_types::Address;
 
 use super::chain::ChainUpgradeParams;
@@ -19,8 +19,7 @@ impl V29ChainUpgradeArgs {
     pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
         self.base = self.base.fill_if_empty(shell).await?;
         // Restore operator/blob_operator default filling
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let chain_config = ecosystem_config.load_current_chain()?;
+        let chain_config = ZkStackConfig::current_chain(shell)?;
         self.operator = self
             .operator
             .or_else(|| Some(chain_config.get_wallets_config().ok()?.operator.address));

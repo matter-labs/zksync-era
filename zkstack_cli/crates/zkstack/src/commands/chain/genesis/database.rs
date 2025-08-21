@@ -7,7 +7,7 @@ use zkstack_cli_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
 };
-use zkstack_cli_config::{override_config, ChainConfig, EcosystemConfig, FileArtifacts};
+use zkstack_cli_config::{override_config, ChainConfig, FileArtifacts, ZkStackConfig};
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
@@ -18,18 +18,14 @@ use crate::{
         SERVER_MIGRATIONS,
     },
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
-        MSG_GENESIS_DATABASES_INITIALIZED, MSG_INITIALIZING_SERVER_DATABASE,
-        MSG_RECREATE_ROCKS_DB_ERRROR,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_DATABASES_INITIALIZED,
+        MSG_INITIALIZING_SERVER_DATABASE, MSG_RECREATE_ROCKS_DB_ERRROR,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     let args = args.fill_values_with_secrets(&chain_config).await?;
@@ -97,7 +93,7 @@ pub async fn update_configs(
     general.set_file_artifacts(file_artifacts)?;
     general.save().await?;
 
-    let link_to_code = config.link_to_code.clone();
+    let link_to_code = &config.link_to_code;
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,

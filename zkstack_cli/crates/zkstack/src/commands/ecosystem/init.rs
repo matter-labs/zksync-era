@@ -19,7 +19,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, EcosystemConfig,
+    ContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::L1Network;
 
@@ -48,7 +48,7 @@ use crate::{
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
         git::submodule_update(shell, &ecosystem_config.link_to_code)?;
@@ -115,9 +115,9 @@ async fn init_ecosystem(
     if !init_args.skip_contract_compilation_override {
         install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
         build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-        build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
-        build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
-        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+        build_l1_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
+        build_system_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
+        build_l2_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
     }
     spinner.finish();
 
@@ -276,7 +276,7 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config,
+        config.path_to_l1_foundry(),
         contracts_config.l1.governance_addr,
         &config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -287,7 +287,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        config.path_to_l1_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -298,7 +298,7 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config,
+        config.path_to_l1_foundry(),
         contracts_config.l1.governance_addr,
         &config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -312,7 +312,7 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config,
+        config.path_to_l1_foundry(),
         contracts_config.l1.governance_addr,
         &config.get_wallets()?.governor,
         contracts_config
@@ -325,7 +325,7 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        config.path_to_l1_foundry(),
         contracts_config.l1.chain_admin_addr,
         &config.get_wallets()?.governor,
         contracts_config
@@ -338,7 +338,7 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config,
+        config.path_to_l1_foundry(),
         contracts_config.l1.governance_addr,
         &config.get_wallets()?.governor,
         contracts_config

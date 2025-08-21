@@ -1,8 +1,7 @@
-use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zkstack_cli_config::{ChainConfig, EcosystemConfig};
+use zkstack_cli_config::{ChainConfig, ZkStackConfig};
 
 use crate::{
     commands::chain::{
@@ -10,8 +9,8 @@ use crate::{
         genesis::{database::initialize_server_database, server::run_server_genesis},
     },
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
+        MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
     },
 };
 
@@ -46,10 +45,7 @@ pub(crate) async fn run(args: GenesisCommand, shell: &Shell) -> anyhow::Result<(
 }
 
 pub async fn run_genesis(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
     genesis(args, shell, &chain_config).await?;
