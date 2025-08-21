@@ -455,7 +455,7 @@ async fn normal_operation_1_batch(
     // Update transaction statuses
 
     let updated_count = updater
-        .loop_iteration(SL_CHAIN_ID, l1_block_numbers)
+        .update_for_blocks(SL_CHAIN_ID, l1_block_numbers)
         .await?;
 
     // Verify the transaction statuses in the database
@@ -484,7 +484,7 @@ async fn normal_operation_1_batch(
 
     // Test second update does not change anything
     let updated_count = updater
-        .loop_iteration(SL_CHAIN_ID, l1_block_numbers)
+        .update_for_blocks(SL_CHAIN_ID, l1_block_numbers)
         .await?;
     assert_eq!(updated_count, 0);
     verify_transaction_statuses(&mut storage, batch_number, stage, finality_status).await?;
@@ -514,7 +514,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     let block_execute = mock_block_number_for_batch_transaction(batch_number, 3);
 
     let updated_count = updater
-        .loop_iteration(
+        .update_for_blocks(
             SL_CHAIN_ID,
             L1BlockNumbers {
                 finalized: L1BlockNumber(30),
@@ -540,7 +540,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
 
     // Update with blocks that won't finalize any transactions
     let updated_count = updater
-        .loop_iteration(
+        .update_for_blocks(
             SL_CHAIN_ID,
             L1BlockNumbers {
                 finalized: L1BlockNumber(50),
@@ -554,7 +554,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
 
     // Update with blocks that will fast-finalize only the commit transaction
     let updated_count = updater
-        .loop_iteration(
+        .update_for_blocks(
             SL_CHAIN_ID,
             L1BlockNumbers {
                 finalized: L1BlockNumber(50),
@@ -591,7 +591,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     let block_next_execute = mock_block_number_for_batch_transaction(batch_number + 1, 3);
 
     let updated_count = updater
-        .loop_iteration(
+        .update_for_blocks(
             SL_CHAIN_ID,
             L1BlockNumbers {
                 finalized: L1BlockNumber(block_next_prove), // Finalized up to next batch's prove
@@ -635,7 +635,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
 
     // Final update - should update last execute to finalized
     let updated_count = updater
-        .loop_iteration(SL_CHAIN_ID, final_l1_block_numbers)
+        .update_for_blocks(SL_CHAIN_ID, final_l1_block_numbers)
         .await?;
     assert_eq!(updated_count, 1);
 
@@ -700,7 +700,7 @@ async fn test_precommit_transaction_validation(
     let l1_block_numbers =
         block_numbers_for_finality_status(finality_status, L1BlockNumber(1), L1BlockNumber(1000));
     let updated_count = updater
-        .loop_iteration(SL_CHAIN_ID, l1_block_numbers)
+        .update_for_blocks(SL_CHAIN_ID, l1_block_numbers)
         .await?;
 
     // We should have updated the precommit tx status
@@ -787,7 +787,7 @@ async fn test_invalid_transaction_handling(
 
     // Should fail as the transaction is invalid
     let err = updater
-        .loop_iteration(
+        .update_for_blocks(
             SL_CHAIN_ID,
             L1BlockNumbers {
                 finalized: L1BlockNumber(block_execute),
@@ -799,6 +799,9 @@ async fn test_invalid_transaction_handling(
         .unwrap_err();
 
     // Failure should be due to invalid transaction
+    let TransactionFinalityUpdaterError::Internal(err) = err else {
+        panic!("Expected Internal error, got: {:?}", err);
+    };
     assert_matches!(
         err.downcast_ref::<TransactionValidationError>()
             .expect("Unexpected error type"),
