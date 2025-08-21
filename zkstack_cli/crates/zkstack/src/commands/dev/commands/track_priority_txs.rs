@@ -7,13 +7,13 @@ use cliclack::clear_screen;
 use ethers::{
     providers::{Http, Middleware, Provider},
     types::{Filter, H256},
+    utils::keccak256,
 };
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client_from_url},
     logger,
 };
 use zksync_basic_types::Address;
-use zksync_contracts::hyperchain_contract;
 use zksync_types::l1::L1Tx;
 use zksync_web3_decl::{
     client::{Client, L2},
@@ -92,10 +92,9 @@ async fn get_txs_status(
     l1_tx_hash: Option<H256>,
     l2_tx_hash: Option<H256>,
 ) -> anyhow::Result<Vec<TxStatus>> {
-    let topic = hyperchain_contract()
-        .event("NewPriorityRequest")
-        .unwrap()
-        .signature();
+    let topic: ethers::types::H256 = ethers::types::H256::from(keccak256(
+        b"NewPriorityRequest(uint256,bytes32,uint64,(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256[4],bytes,bytes,uint256[],bytes,bytes),bytes[])",
+    ));
 
     // Get the latest block so we know how far we can go
     let latest_block = l1_provider

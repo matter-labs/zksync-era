@@ -1,16 +1,16 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkStackConfig;
+use crate::traits::ZkStackConfigTrait;
 
-impl ZkStackConfig for InitializeBridgeOutput {}
-impl ZkStackConfig for DefaultL2UpgradeOutput {}
-impl ZkStackConfig for ConsensusRegistryOutput {}
-impl ZkStackConfig for Multicall3Output {}
+impl ZkStackConfigTrait for InitializeBridgeOutput {}
+impl ZkStackConfigTrait for DefaultL2UpgradeOutput {}
+impl ZkStackConfigTrait for ConsensusRegistryOutput {}
+impl ZkStackConfigTrait for Multicall3Output {}
 
-impl ZkStackConfig for TimestampAsserterOutput {}
+impl ZkStackConfigTrait for TimestampAsserterOutput {}
 
-impl ZkStackConfig for L2DAValidatorAddressOutput {}
+impl ZkStackConfigTrait for L2DAValidatorAddressOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {

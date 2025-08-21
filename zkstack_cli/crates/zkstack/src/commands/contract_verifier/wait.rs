@@ -1,15 +1,11 @@
-use anyhow::Context as _;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
-use crate::{commands::args::WaitArgs, messages::MSG_CHAIN_NOT_FOUND_ERR};
+use crate::commands::args::WaitArgs;
 
 pub(crate) async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain = ZkStackConfig::current_chain(shell)?;
     let verbose = global_config().verbose;
 
     let prometheus_port = chain
