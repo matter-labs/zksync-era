@@ -949,6 +949,28 @@ impl EthSenderDal<'_, '_> {
         Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
     }
 
+    pub async fn get_sent_at_block_for_commited_block(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<u32>> {
+        let sent_at_block = sqlx::query_scalar!(
+            "
+                SELECT h.sent_at_block
+                FROM l1_batches      AS b
+                JOIN eth_txs         AS t ON t.id = b.eth_commit_tx_id
+                JOIN eth_txs_history AS h ON h.id = t.confirmed_eth_tx_history_id
+                WHERE b.number = $1
+                LIMIT 1
+                ",
+            i64::from(batch_number.0)
+        )
+        .instrument("get_sent_at_block_for_commited_block")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(sent_at_block.flatten().map(|block| block as u32))
+    }
+
     pub async fn get_block_number_on_first_sent_attempt(
         &mut self,
         eth_tx_id: u32,

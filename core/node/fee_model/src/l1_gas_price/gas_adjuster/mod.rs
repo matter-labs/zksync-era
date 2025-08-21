@@ -282,6 +282,8 @@ impl GasAdjuster {
                 )
                 .await;
 
+                tracing::debug!("Predicted blob base fee: {predicted_blob_base_fee}, blob base fee median: {blob_base_fee_median}");
+
                 let calculated_price = predicted_blob_base_fee as f64
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;

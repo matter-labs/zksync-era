@@ -2,7 +2,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     web3::{BlockId, BlockNumber},
-    L1BatchNumber, U256,
+    L1BatchNumber,
 };
 
 use crate::l1_gas_price::GasAdjusterClient;
@@ -12,13 +12,6 @@ pub(crate) async fn predict_blob_base_fee(
     client: &GasAdjusterClient,
     last_known_l1_gas_price: u64,
 ) -> u64 {
-    let last_finalized_block = client
-        .inner
-        .block(BlockId::Number(BlockNumber::Finalized))
-        .await
-        .unwrap()
-        .unwrap();
-
     let batch_stats = connection
         .eth_sender_dal()
         .get_eth_all_blocks_stat()
@@ -51,12 +44,33 @@ pub(crate) async fn predict_blob_base_fee(
             .await
             .expect("Failed to get blobs so far for last committed batch");
 
-    let total_l1_blocks_for_these_blocks =
-        (U256::from(chrono::Utc::now().timestamp()) - last_finalized_block.timestamp).as_u64() / 12;
+    let latest_block_number = client
+        .inner
+        .block(BlockId::Number(BlockNumber::Latest))
+        .await
+        .expect("Failed to get latest block")
+        .expect("Latest block is None")
+        .number
+        .expect("Latest block number is None");
+    let last_commited_block_number = connection
+        .eth_sender_dal()
+        .get_sent_at_block_for_commited_block(last_l1_commited_batch)
+        .await
+        .expect("Failed to get sent at block for commited block")
+        .unwrap_or(latest_block_number.as_u32());
+
+    let mut total_l1_blocks_for_these_blocks = latest_block_number
+        .saturating_sub(last_commited_block_number.into())
+        .as_u64();
+    if total_l1_blocks_for_these_blocks == 0 {
+        total_l1_blocks_for_these_blocks = 1;
+    }
 
     if total_blobs_to_send == 0 {
         return last_known_l1_gas_price;
     }
+
+    tracing::debug!("Predicting blob fee cap with params: blobs_total: {total_blobs_to_send}, l1_blocks_total: {total_l1_blocks_for_these_blocks}, last_known_l1_gas_price: {last_known_l1_gas_price}");
 
     predict_blob_fee_cap(
         total_blobs_to_send,
@@ -69,7 +83,7 @@ pub(crate) async fn predict_blob_base_fee(
 const MIN_BASE_FEE_PER_BLOB_GAS: u64 = 1;
 const BLOB_BASE_FEE_UPDATE_FRACTION: u64 = 3_338_477;
 const BLOB_GAS_PER_BLOB: u64 = 131_072; // spec value
-const BLOB_GAS_PER_BLOCK_TARGET: u64 = 393_216; // e.g. 3 blobs * 131_072
+const BLOB_GAS_PER_BLOCK_TARGET: u64 = 393_216; // target number of blobs per block(Ethereum uses 3)
 const CAPACITY_BLOBS_PER_BLOCK: u64 = 6; // spec max
 
 // todo: revisit this
