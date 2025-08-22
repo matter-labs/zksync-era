@@ -30,7 +30,7 @@ use zksync_shared_resources::{
         L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
         SettlementLayerContractsResource, ZkChainOnChainConfigResource,
     },
-    DummyVerifierResource, PubdataSendingModeResource,
+    DummyVerifierResource, L1BatchCommitmentModeResource, PubdataSendingModeResource,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
@@ -89,6 +89,7 @@ pub struct Output {
     eth_sender_config: Option<SenderConfigResource>,
     pubdata_sending_mode: Option<PubdataSendingModeResource>,
     dummy_verifier: DummyVerifierResource,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentModeResource,
 }
 
 #[async_trait::async_trait]
@@ -228,6 +229,9 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             sl_client,
             gateway_client: l2_eth_client.map(GatewayClientResource),
             zk_chain_on_chain_config: Some(ZkChainOnChainConfigResource(zkchain_on_chain_config)),
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentModeResource(
+                self.config.l1_batch_commit_data_generator_mode,
+            ),
         })
     }
 }
@@ -371,6 +375,9 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             eth_sender_config: None,
             pubdata_sending_mode: None,
             zk_chain_on_chain_config: None,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentModeResource(
+                remote_config.l1_batch_commit_data_generator_mode,
+            ),
         })
     }
 }

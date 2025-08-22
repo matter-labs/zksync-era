@@ -197,24 +197,24 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
     }
 
-    let da_validator_encoding_result = set_da_validator_pair_via_gateway(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        crate::admin_functions::AdminScriptMode::OnlySave,
-        params.l1_bridgehub_addr,
-        params.max_l1_gas_price.into(),
-        params.l2_chain_id,
-        params.gateway_chain_id,
-        params.new_sl_da_validator,
-        l2_da_validator,
-        zk_chain_gw_address,
-        refund_recipient,
-        params.l1_rpc_url.clone(),
-    )
-    .await?;
+    // let da_validator_encoding_result = set_da_validator_pair_via_gateway(
+    //     shell,
+    //     forge_args,
+    //     foundry_contracts_path,
+    //     crate::admin_functions::AdminScriptMode::OnlySave,
+    //     params.l1_bridgehub_addr,
+    //     params.max_l1_gas_price.into(),
+    //     params.l2_chain_id,
+    //     params.gateway_chain_id,
+    //     params.new_sl_da_validator,
+    //     l2_da_validator,
+    //     zk_chain_gw_address,
+    //     refund_recipient,
+    //     params.l1_rpc_url.clone(),
+    // )
+    // .await?;
 
-    result.extend(da_validator_encoding_result.calls.into_iter());
+    // result.extend(da_validator_encoding_result.calls.into_iter());
 
     let is_validator_enabled =
         if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {

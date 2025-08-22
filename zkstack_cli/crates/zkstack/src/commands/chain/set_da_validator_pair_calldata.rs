@@ -4,6 +4,7 @@ use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
+use zksync_basic_types::commitment::L2DACommitmentScheme;
 use zksync_types::{Address, L2_BRIDGEHUB_ADDRESS};
 
 use super::utils::{display_admin_script_output, get_default_foundry_path};
@@ -19,7 +20,7 @@ pub struct SetDAValidatorPairCalldataArgs {
     pub sl_da_validator: Address,
 
     /// Gateway transaction filterer
-    pub l2_da_validator: Address,
+    pub l2_da_validator_commitment_schema: L2DACommitmentScheme,
 
     /// Bridgehub address
     pub bridgehub_address: Address,
@@ -87,7 +88,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
             args.chain_id,
             args.bridgehub_address,
             args.sl_da_validator,
-            args.l2_da_validator,
+            args.l2_da_validator_commitment_schema,
             args.l1_rpc_url,
         )
         .await?
@@ -116,7 +117,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
             args.chain_id,
             used_settlement_layer,
             args.sl_da_validator,
-            args.l2_da_validator,
+            args.l2_da_validator_commitment_schema,
             chain_diamond_proxy_on_gateway,
             args.refund_recipient
                 .context("Must provide `--refund-recipient` when preparing L1->GW transaction")?,

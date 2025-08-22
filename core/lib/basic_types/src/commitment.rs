@@ -120,6 +120,20 @@ impl From<u8> for L2DACommitmentScheme {
     }
 }
 
+impl FromStr for L2DACommitmentScheme {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "None" => Ok(Self::None),
+            "EmptyNoDA" => Ok(Self::EmptyNoDA),
+            "PubdataKeccak256" => Ok(Self::PubdataKeccak256),
+            "BlobsAndPubdataKeccak256" => Ok(Self::BlobsAndPubdataKeccak256),
+            _ => Err("Incorrect L2 DA commitment scheme; expected one of `None`, `EmptyNoDA`, `PubdataKeccak256`, `BlobsAndPubdataKeccak256`"),
+        }
+    }
+}
+
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
     pub l2_da_validator_address: Option<Address>,
