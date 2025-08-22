@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use ethers::providers::Middleware;
+use ethers::{providers::Middleware, types::H160};
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{
@@ -13,12 +13,19 @@ use crate::{
     commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
+        MSG_BRIGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
         MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
+
+#[derive(Clone, Copy, Default)]
+pub struct PromptPolicy {
+    pub deploy_erc20: bool,
+    pub observability: bool,
+    pub skip_ecosystem: bool,
+}
 
 /// Check if L1 RPC is healthy by calling eth_chainId
 async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
@@ -136,9 +143,39 @@ pub struct EcosystemInitArgs {
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
+    #[clap(long, help = MSG_BRIGEHUB)]
+    pub bridgehub: Option<String>,
 }
 
 impl EcosystemInitArgs {
+    pub fn resolve_deploy_erc20(dev: bool, deploy_erc20: Option<bool>, prompt: bool) -> bool {
+        if dev {
+            true
+        } else {
+            match (prompt, deploy_erc20) {
+                (_, Some(val)) => val,
+                (true, None) => PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
+                    .default(true)
+                    .ask(),
+                (false, None) => true,
+            }
+        }
+    }
+
+    pub fn resolve_observability(dev: bool, observability: Option<bool>, prompt: bool) -> bool {
+        if dev {
+            true
+        } else {
+            match (prompt, observability) {
+                (_, Some(val)) => val,
+                (true, None) => PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
+                    .default(true)
+                    .ask(),
+                (false, None) => true,
+            }
+        }
+    }
+
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
@@ -152,43 +189,52 @@ impl EcosystemInitArgs {
     pub async fn fill_values_with_prompt(
         self,
         l1_network: L1Network,
+        prompt_policy: PromptPolicy,
     ) -> anyhow::Result<EcosystemInitArgsFinal> {
-        let deploy_erc20 = if self.dev {
-            true
-        } else {
-            self.deploy_erc20.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
-                    .default(true)
-                    .ask()
-            })
-        };
-        let ecosystem = self
-            .ecosystem
-            .fill_values_with_prompt(l1_network, self.dev)
+        let EcosystemInitArgs {
+            ecosystem,
+            forge_args,
+            dev,
+            deploy_erc20,
+            observability,
+            ecosystem_only,
+            no_port_reallocation,
+            skip_contract_compilation_override,
+            validium_args,
+            support_l2_legacy_shared_bridge_test,
+            bridgehub,
+            ..
+        } = self;
+
+        let ecosystem = ecosystem
+            .fill_values_with_prompt(l1_network, dev || prompt_policy.skip_ecosystem)
             .await?;
-        let observability = if self.dev {
-            true
+
+        let bridgehub_address: H160 = if let Some(ref addr_str) = bridgehub {
+            addr_str
+                .parse::<H160>()
+                .expect("Invalid bridgehub address format")
         } else {
-            self.observability.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
-                    .default(true)
-                    .ask()
-            })
+            H160::zero()
         };
 
         Ok(EcosystemInitArgsFinal {
-            deploy_erc20,
+            deploy_erc20: Self::resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),
+            observability: Self::resolve_observability(
+                dev,
+                observability,
+                prompt_policy.observability,
+            ),
             ecosystem,
-            forge_args: self.forge_args.clone(),
-            dev: self.dev,
-            observability,
-            ecosystem_only: self.ecosystem_only,
-            no_port_reallocation: self.no_port_reallocation,
-            skip_contract_compilation_override: self.skip_contract_compilation_override,
-            validium_args: self.validium_args,
-            support_l2_legacy_shared_bridge_test: self
-                .support_l2_legacy_shared_bridge_test
+            forge_args,
+            dev,
+            ecosystem_only,
+            no_port_reallocation,
+            skip_contract_compilation_override,
+            validium_args,
+            support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
+            bridgehub_address,
         })
     }
 }
@@ -205,4 +251,5 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
+    pub bridgehub_address: H160,
 }

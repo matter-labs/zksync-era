@@ -27,7 +27,7 @@ pub enum GatewayComamnds {
         finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayArgs,
     ),
     /// Prepare chain to be an eligible gateway
-    ConvertToGateway(ForgeScriptArgs),
+    ConvertToGateway(convert_to_gateway::ConvertToGatewayArgs),
     /// Migrate chain to gateway
     MigrateToGateway(migrate_to_gateway::MigrateToGatewayArgs),
     /// Migrate chain from gateway
