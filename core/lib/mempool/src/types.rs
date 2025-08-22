@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, PriorityOpId, Transaction,
-    TransactionTimeRangeConstraint, U256,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, PriorityOpId, ProtocolVersionId,
+    Transaction, TransactionTimeRangeConstraint, U256,
 };
 
 /// Pending mempool transactions of account
@@ -177,6 +177,8 @@ pub struct L2TxFilter {
     pub fee_per_gas: u64,
     /// Effective pubdata price in gas for transaction. The number of gas per 1 pubdata byte.
     pub gas_per_pubdata: u32,
+    /// Protocol version from which the high priority L2 transactions are allowed and prioritized.
+    pub protocol_version: ProtocolVersionId,
 }
 
 #[derive(Debug)]
@@ -205,6 +207,7 @@ mod tests {
                 fee_input: BatchFeeInput::sensible_l1_pegged_default(),
                 fee_per_gas,
                 gas_per_pubdata,
+                protocol_version: ProtocolVersionId::latest(),
             }
         }
 

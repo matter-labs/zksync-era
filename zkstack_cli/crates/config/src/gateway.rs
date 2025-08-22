@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use zksync_basic_types::{web3::Bytes, Address, SLChainId};
 use crate::{
     forge_interface::gateway_vote_preparation::output::DeployGatewayCTMOutput,
     raw::{PatchedConfig, RawConfig},
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
+    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
     GATEWAY_FILE,
 };
 
@@ -19,6 +19,7 @@ pub struct GatewayConfig {
     pub validator_timelock_addr: Address,
     pub multicall3_addr: Address,
     pub relayed_sl_da_validator: Address,
+    pub rollup_da_manager: Address,
     pub validium_da_validator: Address,
     pub diamond_cut_data: Bytes,
 }
@@ -27,7 +28,7 @@ impl FileConfigWithDefaultName for GatewayConfig {
     const FILE_NAME: &'static str = GATEWAY_FILE;
 }
 
-impl ZkStackConfig for GatewayConfig {}
+impl ZkStackConfigTrait for GatewayConfig {}
 
 impl From<DeployGatewayCTMOutput> for GatewayConfig {
     fn from(output: DeployGatewayCTMOutput) -> Self {
@@ -40,6 +41,7 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
             validator_timelock_addr: output.gateway_state_transition.validator_timelock_addr,
             relayed_sl_da_validator: output.relayed_sl_da_validator,
             validium_da_validator: output.validium_da_validator,
+            rollup_da_manager: output.gateway_state_transition.rollup_da_manager_addr,
         }
     }
 }
@@ -48,7 +50,7 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
 pub struct GatewayChainConfig(RawConfig);
 
 impl GatewayChainConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)
     }
 
@@ -68,7 +70,7 @@ impl GatewayChainConfig {
 pub struct GatewayChainConfigPatch(PatchedConfig);
 
 impl GatewayChainConfigPatch {
-    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
+    pub fn empty(shell: &Shell, path: &Path) -> Self {
         Self(PatchedConfig::empty(shell, path))
     }
 

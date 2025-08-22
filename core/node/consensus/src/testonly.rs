@@ -373,6 +373,21 @@ impl StateKeeper {
         }
     }
 
+    /// Runs the centralized fetcher.
+    pub async fn run_fetcher(
+        self,
+        ctx: &ctx::Ctx,
+        client: Box<DynClient<L2>>,
+    ) -> anyhow::Result<()> {
+        en::EN {
+            pool: self.pool,
+            client,
+            sync_state: self.sync_state.clone(),
+        }
+        .run_fetcher(ctx, self.actions_sender)
+        .await
+    }
+
     /// Runs consensus node for the external node.
     pub async fn run_consensus(
         self,

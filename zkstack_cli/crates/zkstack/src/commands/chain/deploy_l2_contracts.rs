@@ -19,7 +19,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 
 use crate::{
@@ -41,7 +41,8 @@ pub async fn run(
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    // todo we actually need only chain config here
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
@@ -131,7 +132,7 @@ async fn build_and_deploy(
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+    build_l2_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
     call_forge(
         shell,
         chain_config,

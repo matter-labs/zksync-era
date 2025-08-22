@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger,
 };
-use zkstack_cli_config::{EcosystemConfig, GatewayChainConfigPatch};
+use zkstack_cli_config::{GatewayChainConfigPatch, ZkStackConfig};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::U256;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
@@ -33,7 +33,7 @@ pub struct MigrateToGatewayArgs {
 }
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
@@ -87,8 +87,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone(),
             gateway_rpc_url: gw_rpc_url.clone(),
             new_sl_da_validator: gateway_da_validator_address,
-            validator_1: chain_secrets_config.blob_operator.address,
-            validator_2: chain_secrets_config.operator.address,
+            validator: chain_secrets_config.operator.address,
             min_validator_balance: U256::from(10).pow(19.into()),
             refund_recipient: None,
         },
@@ -131,7 +130,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
     let mut gateway_chain_config =
-        GatewayChainConfigPatch::empty(shell, chain_config.path_to_gateway_chain_config());
+        GatewayChainConfigPatch::empty(shell, &chain_config.path_to_gateway_chain_config());
     gateway_chain_config.init(
         &gateway_gateway_config,
         gw_bridgehub

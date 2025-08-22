@@ -74,7 +74,22 @@ pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
+pub(super) const MSG_RPC_URL_PROMPT: &str = "What is the RPC URL of the network?";
+pub(super) const MSG_RPC_URL_PROMPT_PROVING_NETWORK: &str =
+    "What is the RPC URL for the proving network(defaults to local L2)?";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
+pub(super) const MSG_FERMAH_ADDRESS_PROMPT: &str =
+    "What is Fermah's Proving Network address (allows acknowledging/submitting proofs for Fermah)?";
+pub(super) const MSG_LAGRANGE_ADDRESS_PROMPT: &str =
+    "What is Lagrange's Proving Network address (allows acknowledging/submitting proofs for Lagrange)?";
+pub(super) const MSG_USDC_ADDRESS_PROMPT: &str = "What is the address of the USDC contract?";
+pub(super) const MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT: &str = "What is the address of the ProofManager owner(what address is allowed to submit Proof Requests?)?";
+pub(super) const MSG_PROXY_OWNER_ADDRESS_PROMPT: &str =
+    "What is the address of the Proxy owner(who will be able to upgrade the contract)?";
+pub(super) const MSG_TOP_UP_SERVER_WALLETS_PROMPT: &str =
+    "Do you want to top up server wallets(on L2, by 1 ETH)?";
+pub(super) const MSG_TOP_UP_NETWORK_WALLETS_PROMPT: &str =
+    "Do you want to top up proving network wallets(on L2, by 1 ETH)?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
 pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
@@ -281,6 +296,7 @@ pub(super) const MSG_CHAIN_TRANSACTIONS_BUILT: &str = "Chain transactions succes
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
+pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
@@ -495,6 +511,8 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
+pub(super) const MSG_WVG_MODE_PROMPT: &str =
+    "Do you want simple WVG picking jobs mode or advanced one?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

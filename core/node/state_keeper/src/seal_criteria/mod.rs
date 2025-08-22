@@ -191,6 +191,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
         config: &StateKeeperConfig,
         tx_count: usize,
         l1_tx_count: usize,
+        interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -203,6 +204,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
         _config: &StateKeeperConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
     ) -> Option<f64> {

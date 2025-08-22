@@ -6,6 +6,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::node::{MasterPool, PoolResource};
+use zksync_eth_client::web3_decl::node::SettlementModeResource;
 use zksync_node_fee_model::node::SequencerFeeInputResource;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -51,6 +52,7 @@ pub struct Input {
     fee_input: SequencerFeeInputResource,
     master_pool: PoolResource<MasterPool>,
     l2_contracts: L2ContractsResource,
+    settlement_mode: SettlementModeResource,
     zk_chain_on_chain_config: ZkChainOnChainConfigResource,
 }
 
@@ -92,7 +94,15 @@ impl MempoolIOLayer {
             .connection()
             .await
             .context("Access storage to build mempool")?;
-        let mempool = MempoolGuard::from_storage(&mut storage, self.mempool_config.capacity).await;
+        let mempool = MempoolGuard::from_storage(
+            &mut storage,
+            self.mempool_config.capacity,
+            self.mempool_config.high_priority_l2_tx_initiator,
+            self.mempool_config
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        )
+        .await;
         mempool.register_metrics();
         Ok(mempool)
     }
@@ -140,6 +150,7 @@ impl WiringLayer for MempoolIOLayer {
             input.l2_contracts.0.da_validator_addr,
             input.zk_chain_on_chain_config.0.l2_da_commitment_scheme,
             self.pubdata_type,
+            input.settlement_mode.settlement_layer_for_sending_txs(),
         )?;
 
         // Create sealer.

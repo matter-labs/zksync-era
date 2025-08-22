@@ -79,7 +79,6 @@ impl SyncDal<'_, '_> {
             i64::from(numbers.start.0),
             i64::from(numbers.end.0 - 1),
         );
-
         let instrumentation =
             Instrumented::new("sync_dal_sync_blocks").with_arg("numbers", &numbers);
         let blocks = instrumentation

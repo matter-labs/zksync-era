@@ -1,11 +1,10 @@
 use std::path::Path;
 
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    ChainConfig, EcosystemConfig, ExternalNodeConfigPatch, GatewayChainConfig, GeneralConfig,
-    KeyAndAddress, SecretsConfigPatch, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE,
+    ChainConfig, ExternalNodeConfigPatch, GatewayChainConfig, GeneralConfig, KeyAndAddress,
+    SecretsConfigPatch, ZkStackConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE,
     SECRETS_FILE,
 };
 use zksync_consensus_crypto::TextFmt;
@@ -13,9 +12,7 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    messages::{
-        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
-    },
+    messages::{msg_preparing_en_config_is_done, MSG_PREPARING_EN_CONFIGS},
     utils::{
         consensus::node_public_key,
         ports::EcosystemPortsScanner,
@@ -25,10 +22,7 @@ use crate::{
 
 pub async fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let mut chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let mut chain_config = ZkStackConfig::current_chain(shell)?;
 
     let args = args.fill_values_with_prompt(&chain_config);
     let external_node_config_path = chain_config
@@ -37,8 +31,7 @@ pub async fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     shell.create_dir(&external_node_config_path)?;
     chain_config.external_node_config_path = Some(external_node_config_path.clone());
     prepare_configs(shell, &chain_config, &external_node_config_path, args).await?;
-    let chain_path = ecosystem_config.chains.join(&chain_config.name);
-    chain_config.save_with_base_path(shell, chain_path)?;
+    chain_config.save_current(shell)?;
     logger::info(msg_preparing_en_config_is_done(&external_node_config_path));
     Ok(())
 }
@@ -56,7 +49,8 @@ async fn prepare_configs(
     let gateway = config.get_gateway_chain_config().await.ok();
     let l2_rpc_url = general.l2_http_url()?;
 
-    let mut en_config = ExternalNodeConfigPatch::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
+    let mut en_config =
+        ExternalNodeConfigPatch::empty(shell, &en_configs_path.join(EN_CONFIG_FILE));
     en_config.set_chain_ids(
         genesis.l1_chain_id()?,
         genesis.l2_chain_id()?,
@@ -71,13 +65,13 @@ async fn prepare_configs(
     // Copy and modify the general config
     let general_config_path = en_configs_path.join(GENERAL_FILE);
     shell.copy_file(config.path_to_general_config(), &general_config_path)?;
-    let general_en = GeneralConfig::read(shell, general_config_path.clone()).await?;
+    let general_en = GeneralConfig::read(shell, &general_config_path).await?;
     let main_node_public_addr = general_en.consensus_public_addr()?;
     let mut general_en = general_en.patched();
 
     // Extract and modify the consensus config
     let mut en_consensus_config =
-        general_en.extract_consensus(shell, en_configs_path.join(CONSENSUS_CONFIG_FILE))?;
+        general_en.extract_consensus(shell, &en_configs_path.join(CONSENSUS_CONFIG_FILE))?;
     let main_node_public_key = node_public_key(
         &config
             .get_secrets_config()
@@ -92,7 +86,7 @@ async fn prepare_configs(
     en_consensus_config.save().await?;
 
     // Set secrets config
-    let mut secrets = SecretsConfigPatch::empty(shell, en_configs_path.join(SECRETS_FILE));
+    let mut secrets = SecretsConfigPatch::empty(shell, &en_configs_path.join(SECRETS_FILE));
     let node_key = roles::node::SecretKey::generate().encode();
     secrets.set_consensus_node_key(&node_key)?;
     secrets.set_server_database(&args.db)?;

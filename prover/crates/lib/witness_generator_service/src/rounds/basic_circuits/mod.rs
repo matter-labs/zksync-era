@@ -28,7 +28,7 @@ mod utils;
 
 #[derive(Clone)]
 pub struct BasicCircuitArtifacts {
-    pub(super) circuit_urls: Vec<(u8, String)>,
+    pub(super) circuit_ids_sequence_numbers_and_urls: Vec<(u8, usize, String)>,
     pub(super) queue_urls: Vec<(u8, String, usize)>,
     pub(super) scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -45,7 +45,7 @@ pub struct BasicWitnessGeneratorJob {
 }
 
 type Witness = (
-    Vec<(u8, String)>,
+    Vec<(u8, usize, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -75,11 +75,15 @@ impl JobManager for BasicCircuits {
             data: job,
         } = job;
 
-        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-            generate_witness(batch_id, object_store, job, max_circuits_in_flight).await;
+        let (
+            circuit_ids_sequence_numbers_and_urls,
+            queue_urls,
+            scheduler_witness,
+            aux_output_witness,
+        ) = generate_witness(batch_id, object_store, job, max_circuits_in_flight).await;
 
         Ok(BasicCircuitArtifacts {
-            circuit_urls,
+            circuit_ids_sequence_numbers_and_urls,
             queue_urls,
             scheduler_witness,
             aux_output_witness,

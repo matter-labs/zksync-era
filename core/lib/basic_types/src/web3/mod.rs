@@ -241,10 +241,17 @@ where
             Sequence(Vec<T>),
         }
 
-        Ok(match Repr::<T>::deserialize(deserializer)? {
-            Repr::Single(element) => Self(vec![element]),
-            Repr::Sequence(elements) => Self(elements),
-        })
+        match Repr::<T>::deserialize(deserializer) {
+            Ok(Repr::Single(element)) => Ok(Self(vec![element])),
+            Ok(Repr::Sequence(elements)) => Ok(Self(elements)),
+            Err(e) => Err(serde::de::Error::custom(format!(
+                "Invalid parameter format. Expected either a single value or an array of values. \
+                 Common issues: hex strings with extra spaces, malformed JSON objects, or invalid data types. \
+                 Make sure hex strings are properly formatted (e.g., '0x123abc' not '0x123 abc'). \
+                 Original error: {}",
+                e
+            ))),
+        }
     }
 }
 

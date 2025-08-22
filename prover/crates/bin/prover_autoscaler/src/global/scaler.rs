@@ -108,6 +108,11 @@ impl<K: Key> Scaler<K> {
                     .and_then(|inner_map| inner_map.get(&key))
                     .copied()
                     .unwrap_or(0),
+                scale_errors: namespace_value
+                    .scale_errors
+                    .iter()
+                    .filter(|v| v.time > Utc::now() - self.config.scale_errors_duration)
+                    .count(),
                 ..Default::default()
             });
 
@@ -1682,7 +1687,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 0, &clusters_h100),
+            scaler.calculate(&"prover".into(), 0 * 3000, &clusters_h100),
             [
                 (
                     PoolKey {
@@ -1770,7 +1775,7 @@ mod tests {
                     (PodStatus::Running, 1)
                 ]
                 .into(),
-                scale_errors: 1,
+                scale_errors: 2,
                 max_pool_size: 100,
             }]
         );

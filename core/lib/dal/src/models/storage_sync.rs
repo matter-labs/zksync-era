@@ -136,7 +136,7 @@ impl SyncBlock {
             protocol_version: self.protocol_version,
             pubdata_params: Some(self.pubdata_params),
             pubdata_limit: self.pubdata_limit,
-            interop_roots: self.interop_roots,
+            interop_roots: Some(self.interop_roots),
         }
     }
 

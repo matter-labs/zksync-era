@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig, GenesisConfig, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
 
@@ -20,7 +20,8 @@ use crate::{
 };
 
 pub async fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    // TODO support creating without ecosystem
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     create(args, &mut ecosystem_config, shell).await
 }
 
@@ -35,7 +36,7 @@ pub async fn create(
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
             tokens,
-            ecosystem_config.link_to_code.clone().display().to_string(),
+            &ecosystem_config.link_to_code.display().to_string(),
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -95,13 +96,13 @@ pub(crate) async fn create_chain_inner(
     );
     let link_to_code = resolve_link_to_code(
         shell,
-        chain_path.clone(),
+        &chain_path,
         args.link_to_code.clone(),
         args.update_submodules,
     )?;
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
@@ -113,6 +114,7 @@ pub(crate) async fn create_chain_inner(
         chain_id,
         prover_version: args.prover_version,
         l1_network: ecosystem_config.l1_network,
+        self_path: chain_path.clone(),
         link_to_code: ecosystem_config.link_to_code.clone(),
         rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
         artifacts: ecosystem_config.get_chain_artifacts_path(&default_chain_name),

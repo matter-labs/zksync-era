@@ -100,6 +100,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -124,7 +125,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -173,7 +174,7 @@ async fn test_timestamps(
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -568,7 +569,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -723,7 +724,7 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -820,7 +821,7 @@ async fn test_mempool_with_timestamp_assertion() {
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();

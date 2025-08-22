@@ -7,8 +7,11 @@ pub(crate) mod eth;
 mod net;
 mod snapshots;
 mod unstable;
+mod utils;
 mod web3;
 mod zks;
+
+pub(crate) use utils::*;
 
 pub(super) use self::{
     debug::DebugNamespace, en::EnNamespace, eth::EthNamespace, net::NetNamespace,

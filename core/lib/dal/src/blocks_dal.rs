@@ -396,6 +396,29 @@ impl BlocksDal<'_, '_> {
         Ok(row.map(|row| L1BatchNumber(row.number as u32)))
     }
 
+    pub async fn get_last_miniblock_with_precommit(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                eth_precommit_tx_id IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_miniblock_with_precommit")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L2BlockNumber(row.number as u32)))
+    }
+
     /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
     /// or `None` if there are no such L1 batches.
     pub async fn get_earliest_l1_batch_number_with_metadata(
@@ -1661,8 +1684,11 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
+        let Some(batch) = batch else {
+            return Ok(None);
+        };
         // genesis batch is first generated without commitment, we should wait for the tree to set it.
         if batch.commitment.is_none() {
             return Ok(None);
@@ -1806,7 +1832,7 @@ impl BlocksDal<'_, '_> {
                 eth_txs_history AS execute_tx
                 ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
             WHERE
-                execute_tx.confirmed_at IS NOT NULL
+                execute_tx.finality_status = 'finalized'
             ORDER BY
                 number DESC
             LIMIT
@@ -3509,6 +3535,28 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_batch_number_of_prove_tx_id(
+        &mut self,
+        tx_id: u32,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                eth_prove_tx_id = $1
+            "#,
+            tx_id as i32
+        )
+        .instrument("get_batch_number_of_prove_tx_id")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
     }
 }
 

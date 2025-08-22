@@ -12,15 +12,8 @@ use crate::{
     PRIVATE_RPC_DOCKER_COMPOSE_FILE,
 };
 
-pub fn get_private_rpc_docker_compose_path(
-    ecosystem_base_path: &Path,
-    chain_name: &str,
-) -> PathBuf {
-    ecosystem_base_path
-        .join(LOCAL_CHAINS_PATH)
-        .join(chain_name)
-        .join(LOCAL_CONFIGS_PATH)
-        .join(PRIVATE_RPC_DOCKER_COMPOSE_FILE)
+pub fn get_private_rpc_docker_compose_path(configs_path: &Path) -> PathBuf {
+    configs_path.join(PRIVATE_RPC_DOCKER_COMPOSE_FILE)
 }
 
 pub async fn create_private_rpc_service(
@@ -28,20 +21,19 @@ pub async fn create_private_rpc_service(
     port: u16,
     create_token_secret: &str,
     l2_rpc_url: Url,
-    ecosystem_path: &Path,
+    configs_path: &Path,
     chain_name: &str,
     docker_network_host: bool,
 ) -> anyhow::Result<DockerComposeService> {
     let base_permissions_path = if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
         PathBuf::from(docker_root)
+            .join(LOCAL_CHAINS_PATH)
+            .join(chain_name)
+            .join(LOCAL_CONFIGS_PATH)
     } else {
-        ecosystem_path.to_path_buf()
+        configs_path.to_path_buf()
     };
-    let permissions_path = base_permissions_path
-        .join("chains")
-        .join(chain_name)
-        .join("configs")
-        .join("private-rpc-permissions.yaml");
+    let permissions_path = base_permissions_path.join("private-rpc-permissions.yaml");
 
     // FIXME: Cors origin is the explorer app URL. This must be changed to reflect
     // the actual deployment URL.
