@@ -1,12 +1,8 @@
-use anyhow::Context;
 use clap::Parser;
 use xshell::Shell;
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
-use crate::{
-    commands::dev::messages::{MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP},
-    messages::MSG_CHAIN_NOT_FOUND_ERR,
-};
+use crate::commands::dev::messages::{MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP};
 
 #[derive(Debug, Parser)]
 pub enum StatusSubcommands {
@@ -27,10 +23,7 @@ impl StatusArgs {
         if let Some(url) = &self.url {
             Ok(url.clone())
         } else {
-            let ecosystem = EcosystemConfig::from_file(shell)?;
-            let chain = ecosystem
-                .load_current_chain()
-                .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+            let chain = ZkStackConfig::current_chain(shell)?;
             let general_config = chain.get_general_config().await?;
             general_config.healthcheck_url()
         }

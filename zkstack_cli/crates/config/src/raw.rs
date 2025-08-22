@@ -12,8 +12,8 @@ pub(crate) struct RawConfig {
 }
 
 impl RawConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
-        let path = shell.current_dir().join(&path);
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
+        let path = shell.current_dir().join(path);
         let raw = fs::read_to_string(&path)
             .await
             .with_context(|| format!("failed reading config at `{path:?}`"))?;
@@ -64,8 +64,8 @@ pub(crate) struct PatchedConfig {
 }
 
 impl PatchedConfig {
-    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
-        let path = shell.current_dir().join(&path);
+    pub fn empty(shell: &Shell, path: &Path) -> Self {
+        let path = shell.current_dir().join(path);
         Self {
             base: RawConfig {
                 path,

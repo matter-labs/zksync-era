@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, docker, logger};
-use zkstack_cli_config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, EcosystemConfig};
+use zkstack_cli_config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, ZkStackConfig};
 
 use crate::{
     consts::{
@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let ecosystem_path = shell.current_dir();
     // Get ecosystem level apps.yaml config
     let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;

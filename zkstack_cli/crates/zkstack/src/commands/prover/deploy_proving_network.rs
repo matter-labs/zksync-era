@@ -2,7 +2,9 @@ use anyhow::Context as _;
 use ethers::utils::hex::ToHexExt;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use zkstack_cli_config::{
+    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig,
+};
 
 use crate::{
     commands::prover::args::deploy_proving_network::DeployProvingNetworkArgs,
@@ -10,8 +12,10 @@ use crate::{
 };
 
 pub(crate) async fn run(shell: &Shell, args: DeployProvingNetworkArgs) -> anyhow::Result<()> {
-    let config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
-    let chain_config = config.load_current_chain()?;
+    let config: EcosystemConfig = ZkStackConfig::ecosystem(shell)?;
+    let chain_config = config
+        .load_current_chain()
+        .context("Failed to load current chain configuration")?;
     deploy_proving_network(shell, &config, &chain_config, args).await
 }
 
