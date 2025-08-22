@@ -49,7 +49,7 @@ pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TxForPrecommit {
     pub l1_batch_number: Option<L1BatchNumber>,
     pub l2block_number: L2BlockNumber,
