@@ -16,7 +16,8 @@ use crate::messages::{
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt()?;
-    let chain = ZkStackConfig::current_chain(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
+    let chain = ecosystem.load_current_chain()?;
 
     let path_to_ecosystem = shell.current_dir();
 
@@ -46,7 +47,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
                 check_prerequisites(shell, &GPU_PREREQUISITES, false);
                 shell.set_var(
                     "BELLMAN_CUDA_DIR",
-                    ZkStackConfig::ecosystem(shell)?
+                    ecosystem
                         .bellman_cuda_dir
                         .clone()
                         .expect(MSG_BELLMAN_CUDA_DIR_ERR),
