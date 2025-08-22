@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use chrono::Utc;
 use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{blocks_dal::TxForPrecommit, Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -369,17 +369,25 @@ impl Aggregator {
 
         // We can skip precommit if we are sending the precommit for not sealed batch and do some batching.
         // If the batch already sealed we have to send it as soon as possible
-        if l1_batch_number.is_none() {
-            // We need to check that the first and last L2 blocks are in the same batch
-
-            let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
-            if first_l2_block_age < precommit_params.deadline.as_secs() as i64
-                && (first_tx.l2block_number.0 - last_tx.l2block_number.0
-                    < precommit_params.l2_blocks_to_aggregate)
-            {
-                return Ok(None);
-            }
+        if l1_batch_number.is_none()
+            && !ready_to_create_precommit_operation(
+                &first_tx,
+                last_tx,
+                precommit_params,
+                Utc::now().timestamp(),
+            )
+        {
+            return Ok(None);
         }
+
+        tracing::info!(
+            "Creating precommit operation for L1 batch {} with first tx {:?}, last tx {:?} and params {:?}",
+            l1_batch_for_precommit,
+            first_tx.l2block_number,
+            last_tx.l2block_number,
+            precommit_params,
+
+        );
 
         Ok(Some(L2BlockAggregatedOperation::Precommit {
             l1_batch: l1_batch_for_precommit,
@@ -914,4 +922,97 @@ pub async fn load_wrapped_fri_proofs_for_range(
     }
 
     None
+}
+
+fn ready_to_create_precommit_operation(
+    first_tx: &TxForPrecommit,
+    last_tx: &TxForPrecommit,
+    precommit_params: &PrecommitParams,
+    current_timestamp: i64,
+) -> bool {
+    let first_l2_block_age = current_timestamp - first_tx.timestamp;
+
+    first_l2_block_age >= precommit_params.deadline.as_secs() as i64
+        || last_tx.l2block_number.0 - first_tx.l2block_number.0
+            >= precommit_params.l2_blocks_to_aggregate
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::L2BlockNumber;
+
+    use super::*;
+
+    #[test]
+    fn test_ready_to_create_precommit_operation() {
+        let current_time = Utc::now().timestamp();
+        let precommit_params = PrecommitParams {
+            deadline: Duration::from_secs(60),
+            l2_blocks_to_aggregate: 5,
+        };
+
+        // No precommit operation should be created if the first transaction is too fresh
+        let first_tx = TxForPrecommit {
+            l2block_number: L2BlockNumber(1),
+            timestamp: current_time - 30,
+            ..Default::default()
+        };
+        let last_tx = TxForPrecommit {
+            l2block_number: L2BlockNumber(3),
+            timestamp: current_time - 20,
+            ..Default::default()
+        };
+
+        assert!(!ready_to_create_precommit_operation(
+            &first_tx,
+            &last_tx,
+            &precommit_params,
+            current_time
+        ));
+
+        // Tx too old
+        let first_tx = TxForPrecommit {
+            l1_batch_number: None,
+            l2block_number: L2BlockNumber(1),
+            timestamp: current_time - 70,
+            tx_hash: Default::default(),
+            is_success: false,
+        };
+        let last_tx = TxForPrecommit {
+            l1_batch_number: None,
+            l2block_number: L2BlockNumber(2),
+            timestamp: current_time - 5,
+            tx_hash: Default::default(),
+            is_success: false,
+        };
+
+        assert!(ready_to_create_precommit_operation(
+            &first_tx,
+            &last_tx,
+            &precommit_params,
+            current_time
+        ));
+
+        let first_tx = TxForPrecommit {
+            l1_batch_number: None,
+            l2block_number: L2BlockNumber(1),
+            timestamp: current_time - 70,
+            tx_hash: Default::default(),
+            is_success: false,
+        };
+        let last_tx = TxForPrecommit {
+            l1_batch_number: None,
+            l2block_number: L2BlockNumber(6),
+            timestamp: current_time - 50,
+            tx_hash: Default::default(),
+            is_success: false,
+        };
+
+        assert!(ready_to_create_precommit_operation(
+            &first_tx,
+            &last_tx,
+            &precommit_params,
+            current_time
+        ));
+    }
 }
