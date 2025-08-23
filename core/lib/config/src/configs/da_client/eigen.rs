@@ -24,6 +24,10 @@ pub struct EigenConfig {
     pub operator_state_retriever_addr: String,
     /// Address of the registry coordinator
     pub registry_coordinator_addr: String,
+    /// URL of the EigenDA Prover Service RPC server
+    /// This is used for EigenDA V2 Secure integration,
+    /// so if its either `None` or `Some` defines whether we are using EigenDA V2 Secure or not.
+    pub eigenda_prover_service_rpc: Option<String>,
 }
 
 /// Configuration for the EigenDA secrets.
