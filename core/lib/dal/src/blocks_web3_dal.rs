@@ -312,7 +312,7 @@ impl BlocksWeb3Dal<'_, '_> {
                         (
                             SELECT MAX(number)
                             FROM miniblocks
-                            JOIN eth_txs_history ON
+                            LEFT JOIN eth_txs_history ON
                                 miniblocks.eth_precommit_tx_id = eth_txs_history.eth_tx_id
                             WHERE
                                 eth_txs_history.finality_status = 'finalized'
