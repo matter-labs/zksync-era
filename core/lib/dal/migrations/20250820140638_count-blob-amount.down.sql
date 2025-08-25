@@ -1,1 +1,1 @@
-ALTER TABLE l1_batches DROP COLUMN blobs_so_far;
+ALTER TABLE l1_batches DROP COLUMN blobs_amount;

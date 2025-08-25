@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use bigdecimal::{BigDecimal, FromPrimitive};
+use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection,
@@ -1144,16 +1144,11 @@ impl BlocksDal<'_, '_> {
         let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
         let pubdata_costs: Vec<_> = pubdata_costs.iter().copied().map(i64::from).collect();
 
-        let blobs_so_far = self
-            .storage
-            .blocks_dal()
-            .get_blobs_so_far(L1BatchNumber(header.number.0.saturating_sub(1)))
-            .await?
-            + pubdata_input
-                .clone()
-                .map(|input| input.len() as u64)
-                .unwrap_or(0)
-                .div_ceil(ZK_SYNC_BYTES_PER_BLOB as u64);
+        let blobs_amount = pubdata_input
+            .clone()
+            .map(|input| input.len() as u64)
+            .unwrap_or(0)
+            .div_ceil(ZK_SYNC_BYTES_PER_BLOB as u64);
 
         let query = sqlx::query!(
             r#"
@@ -1175,7 +1170,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_costs = $15,
                 pubdata_input = $16,
                 predicted_circuits_by_type = $17,
-                blobs_so_far = $18,
+                blobs_amount = $18,
                 updated_at = NOW(),
                 sealed_at = NOW(),
                 is_sealed = TRUE
@@ -1203,7 +1198,7 @@ impl BlocksDal<'_, '_> {
             &pubdata_costs,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
-            blobs_so_far as i64,
+            blobs_amount as i64,
         );
         let update_result = instrumentation.with(query).execute(self.storage).await?;
 
@@ -1217,20 +1212,27 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_blobs_so_far(&mut self, batch_number: L1BatchNumber) -> DalResult<u64> {
-        let result = sqlx::query!(
+    pub async fn get_blobs_amount_for_range(
+        &mut self,
+        lower_bound: L1BatchNumber,
+        upper_bound: L1BatchNumber,
+    ) -> DalResult<u64> {
+        let result: u64 = sqlx::query!(
             r#"
-            SELECT blobs_so_far FROM l1_batches WHERE number = $1
+            SELECT SUM(blobs_amount) FROM l1_batches WHERE number BETWEEN $1 AND $2
             "#,
-            i64::from(batch_number.0)
+            i64::from(lower_bound.0),
+            i64::from(upper_bound.0)
         )
-        .instrument("get_blobs_so_far")
+        .instrument("get_blobs_amount_for_range")
         .fetch_optional(self.storage)
         .await?
-        .map(|r| r.blobs_so_far)
-        .unwrap_or(Some(0))
-        .unwrap();
-        Ok(result as u64)
+        .map(|r| r.sum)
+        .unwrap()
+        .map(|x| x.to_i64().unwrap() as u64)
+        .unwrap_or(0);
+
+        Ok(result)
     }
 
     pub async fn get_unsealed_l1_batch(&mut self) -> DalResult<Option<UnsealedL1BatchHeader>> {
