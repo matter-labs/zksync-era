@@ -111,7 +111,6 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         priority_queue_type: PriorityQueueType::Deque,
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
-        // DEPRECATED.
         eth_block: 0,
     };
 
