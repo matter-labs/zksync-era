@@ -83,7 +83,7 @@ const SAFETY_BPS: u32 = 11000; // +10%
 const TIP: u64 = 0; // wei per blob gas
 
 fn predict_blob_fee_cap(blobs_total: u64, l1_blocks_total: u64, l1_blob_base_fee: u64) -> u64 {
-    let excess = 0.max(blobs_total - (BLOB_GAS_PER_BLOCK_TARGET * l1_blocks_total));
+    let excess = blobs_total.saturating_sub(BLOB_GAS_PER_BLOCK_TARGET * l1_blocks_total);
     let max_fee = l1_blob_base_fee.max(base_fee_from_excess(excess));
 
     // --- return a safe cap = max_fee * (1 + safety) + tip ---
