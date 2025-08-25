@@ -3,7 +3,7 @@ use std::str::FromStr;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::{
     commands::test::db::reset_test_databases,
@@ -13,14 +13,14 @@ use crate::commands::dev::{
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::from_file(shell)?;
     let dals = vec![Dal {
         url: Url::from_str(TEST_DATABASE_PROVER_URL)?,
         path: PROVER_DAL_PATH.to_string(),
     }];
-    reset_test_databases(shell, &ecosystem.link_to_code, dals).await?;
+    reset_test_databases(shell, &config.link_to_code(), dals).await?;
 
-    let _dir_guard = shell.push_dir(ecosystem.link_to_code.join("prover"));
+    let _dir_guard = shell.push_dir(config.link_to_code().join("prover"));
     Cmd::new(cmd!(shell, "cargo test --release --workspace --locked"))
         .with_force_run()
         .env("TEST_DATABASE_PROVER_URL", TEST_DATABASE_PROVER_URL)

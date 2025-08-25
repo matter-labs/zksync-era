@@ -1,12 +1,12 @@
 use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()

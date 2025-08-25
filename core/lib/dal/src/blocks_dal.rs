@@ -54,7 +54,7 @@ pub struct L2ToL1Messages {
     l2_to_l1_messages: Vec<Vec<u8>>,
 } //
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TxForPrecommit {
     pub l1_batch_number: Option<L1BatchNumber>,
     pub l2block_number: L2BlockNumber,

@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
-use zkstack_cli_common::{config::global_config, logger};
+use zkstack_cli_common::{config::global_config, files::find_file, logger};
 use zkstack_cli_types::{L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::L2ChainId;
 
@@ -21,7 +21,7 @@ use crate::{
         input::{Erc20DeploymentConfig, InitialDeploymentConfig},
         output::{ERC20Tokens, Erc20Token},
     },
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfig},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfigTrait},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
     PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
@@ -95,17 +95,17 @@ impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl ZkStackConfig for EcosystemConfigInternal {}
+impl ZkStackConfigTrait for EcosystemConfigInternal {}
 
-impl ZkStackConfig for EcosystemConfig {}
+impl ZkStackConfigTrait for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {
         self.shell.get().expect("Must be initialized")
     }
 
-    pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
-        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
+    pub(crate) fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
+        let Ok(path) = find_file(shell, &shell.current_dir(), CONFIG_NAME) else {
             return Err(EcosystemConfigFromFileError::NotExists {
                 path: shell.current_dir(),
             });
@@ -157,8 +157,9 @@ impl EcosystemConfig {
     }
 
     fn load_chain_inner(&self, name: &str) -> anyhow::Result<ChainConfig> {
-        let path = self.chains.join(name).join(CONFIG_NAME);
-        let config = ChainConfigInternal::read(self.get_shell(), path.clone())?;
+        let path = self.chains.join(name);
+
+        let config = ChainConfigInternal::read(self.get_shell(), path.join(CONFIG_NAME).clone())?;
 
         Ok(ChainConfig {
             id: config.id,
@@ -169,7 +170,8 @@ impl EcosystemConfig {
             external_node_config_path: config.external_node_config_path,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             l1_network: self.l1_network,
-            link_to_code: self.get_shell().current_dir().join(&self.link_to_code),
+            self_path: path,
+            link_to_code: config.link_to_code.unwrap_or(self.link_to_code.clone()),
             base_token: config.base_token,
             rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,
@@ -299,23 +301,6 @@ pub fn get_default_era_chain_id() -> L2ChainId {
     L2ChainId::from(ERA_CHAIN_ID)
 }
 
-// Find file in all parents repository and return necessary path or an empty error if nothing has been found
-fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
-    let _dir = shell.push_dir(path_buf);
-    if shell.path_exists(file_name) {
-        Ok(shell.current_dir())
-    } else {
-        let current_dir = shell.current_dir();
-        let Some(path) = current_dir.parent() else {
-            return Err(());
-        };
-        find_file(shell, path.to_path_buf(), file_name)
-    }
-}
-
-pub fn get_link_to_prover(config: &EcosystemConfig) -> PathBuf {
-    let link_to_code = config.link_to_code.clone();
-    let mut link_to_prover = link_to_code.into_os_string();
-    link_to_prover.push("/prover");
-    link_to_prover.into()
+pub fn get_link_to_prover(link_to_code: &Path) -> PathBuf {
+    link_to_code.join("prover")
 }

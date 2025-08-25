@@ -1,11 +1,11 @@
 use args::RichAccountArgs;
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::H256;
 use zksync_types::L2ChainId;
 
-use crate::{commands::dev::messages::msg_rich_account_outro, messages::MSG_CHAIN_NOT_FOUND_ERR};
+use crate::commands::dev::messages::msg_rich_account_outro;
 pub mod args;
 use alloy::{
     primitives::U256,
@@ -40,10 +40,7 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let contracts_config = chain_config.get_contracts_config()?;
     let bridgehub_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;

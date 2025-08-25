@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use serde::Deserialize;
 use xshell::{cmd, Shell};
@@ -57,8 +57,8 @@ impl TestWallets {
     }
 }
 
-pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
+pub fn build_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    shell.change_dir(link_to_code.join(TS_INTEGRATION_PATH));
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
@@ -69,11 +69,8 @@ pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> any
     Ok(())
 }
 
-pub fn install_and_build_dependencies(
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
+pub fn install_and_build_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code);
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
 
     Cmd::new(cmd!(shell, "yarn install")).run()?;
