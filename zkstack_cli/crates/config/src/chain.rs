@@ -3,8 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
+use zkstack_cli_common::files::find_file;
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::L2ChainId;
 
@@ -19,8 +21,8 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfigTrait,
     },
-    ContractsConfig, GatewayChainConfig, GeneralConfig, GenesisConfig, SecretsConfig,
-    WalletsConfig, GATEWAY_CHAIN_FILE,
+    ContractsConfig, EcosystemConfig, GatewayChainConfig, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig, GATEWAY_CHAIN_FILE,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -33,6 +35,8 @@ pub struct ChainConfigInternal {
     pub name: String,
     pub chain_id: L2ChainId,
     pub prover_version: ProverMode,
+    pub l1_network: Option<L1Network>,
+    pub link_to_code: Option<PathBuf>,
     pub configs: PathBuf,
     pub rocks_db_path: PathBuf,
     pub external_node_config_path: Option<PathBuf>,
@@ -57,6 +61,7 @@ pub struct ChainConfig {
     pub chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub l1_network: L1Network,
+    pub self_path: PathBuf,
     pub link_to_code: PathBuf,
     pub rocks_db_path: PathBuf,
     pub artifacts: PathBuf,
@@ -113,6 +118,10 @@ impl ChainConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
+    pub fn get_preexisting_ecosystem_contracts_path(&self) -> PathBuf {
+        todo!()
+    }
+
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
@@ -167,12 +176,19 @@ impl ChainConfig {
         config.save_with_base_path(shell, path)
     }
 
+    pub fn save_current(self, shell: &Shell) -> anyhow::Result<()> {
+        let config = self.get_internal();
+        config.save_with_base_path(shell, self.self_path)
+    }
+
     fn get_internal(&self) -> ChainConfigInternal {
         ChainConfigInternal {
             id: self.id,
             name: self.name.clone(),
             chain_id: self.chain_id,
             prover_version: self.prover_version,
+            l1_network: Some(self.l1_network),
+            link_to_code: Some(self.link_to_code.clone()),
             configs: self.configs.clone(),
             rocks_db_path: self.rocks_db_path.clone(),
             external_node_config_path: self.external_node_config_path.clone(),
@@ -183,6 +199,61 @@ impl ChainConfig {
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
             tight_ports: self.tight_ports,
+        }
+    }
+    pub(crate) fn from_internal(
+        chain_internal: ChainConfigInternal,
+        shell: Shell,
+    ) -> anyhow::Result<Self> {
+        let l1_network = chain_internal.l1_network.context("L1 Network not found")?;
+        let link_to_code = chain_internal
+            .link_to_code
+            .context("Link to code not found")?;
+        let artifacts = chain_internal
+            .artifacts_path
+            .context("Artifacts path not found")?;
+
+        Ok(Self {
+            id: chain_internal.id,
+            name: chain_internal.name,
+            chain_id: chain_internal.chain_id,
+            prover_version: chain_internal.prover_version,
+            configs: chain_internal.configs,
+            rocks_db_path: chain_internal.rocks_db_path,
+            external_node_config_path: chain_internal.external_node_config_path,
+            l1_network,
+            l1_batch_commit_data_generator_mode: chain_internal.l1_batch_commit_data_generator_mode,
+            base_token: chain_internal.base_token,
+            wallet_creation: chain_internal.wallet_creation,
+            legacy_bridge: chain_internal.legacy_bridge,
+            link_to_code,
+            artifacts,
+            evm_emulator: chain_internal.evm_emulator,
+            tight_ports: chain_internal.tight_ports,
+            self_path: shell.current_dir(),
+            shell: shell.into(),
+        })
+    }
+}
+
+impl ChainConfigInternal {
+    pub(crate) fn from_file(shell: &Shell) -> anyhow::Result<ChainConfigInternal> {
+        let Ok(path) = find_file(shell, &shell.current_dir(), CONFIG_NAME) else {
+            anyhow::bail!("Chain config not found")
+        };
+
+        shell.change_dir(&path);
+
+        match ChainConfigInternal::read(shell, CONFIG_NAME) {
+            Ok(config) => Ok(config),
+            Err(err) => {
+                if let Ok(ecosystem) = EcosystemConfig::read(shell, CONFIG_NAME) {
+                    let chain = ecosystem.load_current_chain()?;
+                    Ok(chain.get_internal())
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 }

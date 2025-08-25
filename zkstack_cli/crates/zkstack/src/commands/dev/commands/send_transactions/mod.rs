@@ -14,7 +14,7 @@ use serde::Deserialize;
 use tokio::time::sleep;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::create_ethers_client, logger};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::{H160, U256};
 
 use crate::commands::dev::{
@@ -52,8 +52,8 @@ struct Txns {
 pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_id = ecosystem_config.l1_network.chain_id();
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let chain_id = chain_config.l1_network.chain_id();
 
     // Read the JSON file
     let mut file = File::open(args.file).context(MSG_UNABLE_TO_OPEN_FILE_ERR)?;
@@ -65,7 +65,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
     let txns: Txns = serde_json::from_str(&data).context(MSG_UNABLE_TO_READ_PARSE_JSON_ERR)?;
 
     let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
-    let log_file = ecosystem_config
+    let log_file = chain_config
         .link_to_code
         .join(DEFAULT_UNSIGNED_TRANSACTIONS_DIR)
         .join(format!("{}_receipt.log", timestamp));

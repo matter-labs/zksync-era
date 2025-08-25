@@ -6,20 +6,16 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, WalletsConfig, ZkStackConfig,
+    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 
 use crate::messages::{
-    MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
-    MSG_STARTING_GENESIS_SPINNER,
+    MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED, MSG_STARTING_GENESIS_SPINNER,
 };
 
 pub async fn run(server_command: Option<String>, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
     run_server_genesis(server_command, &chain_config, shell)?;

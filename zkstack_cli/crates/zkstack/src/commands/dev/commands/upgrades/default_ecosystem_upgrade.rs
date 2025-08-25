@@ -27,7 +27,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
@@ -52,7 +52,7 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     git::submodule_update(shell, &ecosystem_config.link_to_code)?;
 
     let upgrade_version = args.upgrade_version;
