@@ -4,14 +4,15 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
-        get_batch_base_fee, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
-        StorageWritesDeduplicator,
+        get_batch_base_fee, get_bootloader_max_interop_roots_in_batch, get_max_batch_gas_limit,
+        get_max_gas_per_pubdata_byte, StorageWritesDeduplicator,
     },
 };
 use zksync_types::{
     block::{build_bloom, L2BlockHeader},
     commitment::PubdataParams,
     fee_model::BatchFeeInput,
+    settlement::SettlementLayer,
     Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
@@ -51,6 +52,7 @@ pub struct UpdatesManager {
     previous_batch_protocol_version: ProtocolVersionId,
     previous_batch_timestamp: u64,
     sync_block_data_and_header_persistence: bool,
+    settlement_layer: SettlementLayer,
 
     // committed state
     committed_updates: CommittedUpdates,
@@ -94,6 +96,7 @@ impl UpdatesManager {
             previous_batch_protocol_version,
             previous_batch_timestamp,
             sync_block_data_and_header_persistence,
+            settlement_layer: batch_init_params.l1_batch_env.settlement_layer,
             committed_updates: CommittedUpdates::new(),
             last_committed_l2_block_number: L2BlockNumber(
                 batch_init_params.l1_batch_env.first_l2_block.number,
@@ -189,6 +192,7 @@ impl UpdatesManager {
             insert_header: self.sync_block_data_and_header_persistence
                 || (tx_count_in_last_block == 0),
             rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
+            settlement_layer: self.settlement_layer,
         }
     }
 
@@ -265,8 +269,9 @@ impl UpdatesManager {
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
-        // We need to filter already applied interop roots. Because we seal L2 blocks in async manner,
-        // it's possible that database returns already applied interop roots
+        // We need to filter already applied interop roots, and take up to the batch limit set by the bootloader.
+        // Because we seal L2 blocks in async manner, it's possible that database returns already applied interop roots.
+        let limit = get_bootloader_max_interop_roots_in_batch(self.protocol_version.into());
         let new_interop_roots: Vec<_> = l2_block_params
             .interop_roots()
             .iter()
@@ -277,6 +282,7 @@ impl UpdatesManager {
                         .iter()
                         .all(|block| !block.interop_roots.contains(root))
             })
+            .take(limit.saturating_sub(self.pending_interop_roots_len()))
             .cloned()
             .collect();
 
@@ -304,6 +310,15 @@ impl UpdatesManager {
                 .pending_l2_blocks
                 .iter()
                 .map(|b| b.l1_tx_count)
+                .sum::<usize>()
+    }
+
+    pub(crate) fn pending_interop_roots_len(&self) -> usize {
+        self.committed_updates().interop_roots.len()
+            + self
+                .pending_l2_blocks
+                .iter()
+                .map(|b| b.interop_roots.len())
                 .sum::<usize>()
     }
 
@@ -359,6 +374,7 @@ impl UpdatesManager {
             logs_bloom,
             pubdata_params: self.pubdata_params,
             rolling_txs_hash: Some(self.rolling_tx_hash_updates.rolling_hash),
+            settlement_layer: self.settlement_layer,
         }
     }
 
@@ -491,6 +507,7 @@ pub struct L2BlockSealCommand {
     pub pubdata_params: PubdataParams,
     pub insert_header: bool,
     pub rolling_txs_hash: H256,
+    pub settlement_layer: SettlementLayer,
 }
 
 #[cfg(test)]

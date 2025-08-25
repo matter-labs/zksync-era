@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_types::{api::Log, ethabi, L1BatchNumber, L2ChainId, SLChainId, H256};
+use zksync_types::{api::Log, ethabi, L1BlockNumber, L2ChainId, SLChainId, H256};
 
 use crate::{
     client::ZkSyncExtentionEthClient,
@@ -99,7 +99,7 @@ impl EventProcessor for InteropRootProcessor {
                 .interop_root_dal()
                 .set_interop_root(
                     SLChainId(chain_id),
-                    L1BatchNumber(block_number as u32),
+                    L1BlockNumber(block_number as u32),
                     &root,
                 )
                 .await

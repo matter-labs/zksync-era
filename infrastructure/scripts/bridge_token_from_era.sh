@@ -23,7 +23,7 @@ cd contracts/l1-contracts/
 export TOKEN_ADDRESS=$(forge create ./contracts/dev-contracts/TestnetERC20Token.sol:TestnetERC20Token \
   --private-key $PRIVATE_KEY \
   --broadcast \
-  --gas-price 10000 \
+  --gas-price 1000000000000000 \
   --zksync \
   -r "$RPC_URL" \
   --constructor-args L2TestToken TT 18 | grep "Deployed to:" | awk '{print $3}'

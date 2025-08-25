@@ -1,5 +1,7 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256};
+use zksync_types::{
+    InteropRoot, L1BatchNumber, L1BlockNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
+};
 
 use crate::Core;
 
@@ -37,7 +39,7 @@ impl InteropRootDal<'_, '_> {
     pub async fn set_interop_root(
         &mut self,
         chain_id: SLChainId,
-        number: L1BatchNumber,
+        dependency_block_number: L1BlockNumber,
         interop_root: &[H256],
     ) -> DalResult<()> {
         let sides = interop_root
@@ -54,12 +56,12 @@ impl InteropRootDal<'_, '_> {
             DO UPDATE SET interop_root_sides = excluded.interop_root_sides;
             "#,
             chain_id.0 as i64,
-            i64::from(number.0),
+            i64::from(dependency_block_number.0),
             &sides,
         )
         .instrument("set_interop_root")
         .with_arg("chain_id", &chain_id)
-        .with_arg("number", &number)
+        .with_arg("dependency_block_number", &dependency_block_number)
         .with_arg("interop_root", &interop_root)
         .execute(self.storage)
         .await?;
@@ -80,7 +82,7 @@ impl InteropRootDal<'_, '_> {
                 interop_roots.interop_root_sides
             FROM interop_roots
             WHERE processed_block_number IS NULL
-            ORDER BY chain_id, dependency_block_number
+            ORDER BY chain_id, dependency_block_number DESC
             LIMIT $1
             "#,
             number_of_roots as i64
@@ -209,9 +211,35 @@ impl InteropRootDal<'_, '_> {
                 interop_roots.interop_root_sides
             FROM interop_roots
             WHERE processed_block_number = $1
-            ORDER BY chain_id, dependency_block_number;
+            ORDER BY chain_id, dependency_block_number DESC;
             "#,
             l2block_number.0 as i32
+        )
+        .try_map(InteropRoot::try_from)
+        .instrument("get_interop_roots")
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .collect();
+        Ok(records)
+    }
+
+    pub async fn get_interop_roots_for_first_l2_block_in_pending_batch(
+        &mut self,
+    ) -> DalResult<Vec<InteropRoot>> {
+        let records = sqlx::query_as!(
+            StorageInteropRoot,
+            r#"
+            SELECT
+                interop_roots.chain_id,
+                interop_roots.dependency_block_number,
+                interop_roots.interop_root_sides
+            FROM interop_roots
+            WHERE
+                processed_block_number =
+                (SELECT MIN(number) FROM miniblocks WHERE l1_batch_number IS NULL)
+            ORDER BY chain_id, dependency_block_number DESC;
+            "#,
         )
         .try_map(InteropRoot::try_from)
         .instrument("get_interop_roots")
@@ -237,7 +265,7 @@ impl InteropRootDal<'_, '_> {
             JOIN miniblocks
                 ON interop_roots.processed_block_number = miniblocks.number
             WHERE l1_batch_number = $1
-            ORDER BY chain_id, dependency_block_number;
+            ORDER BY chain_id, dependency_block_number DESC;
             "#,
             i64::from(batch_number.0)
         )
@@ -250,5 +278,25 @@ impl InteropRootDal<'_, '_> {
         .collect();
 
         Ok(roots)
+    }
+
+    pub async fn get_latest_processed_interop_root_l1_batch_number(
+        &mut self,
+    ) -> DalResult<Option<u32>> {
+        let l1_batch_number = sqlx::query_scalar!(
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                miniblocks
+            WHERE
+                number = (SELECT MAX(processed_block_number) FROM interop_roots)
+            "#
+        )
+        .instrument("get_latest_processed_interop_root_l1_batch_number")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(l1_batch_number.flatten().map(|number| number as u32))
     }
 }

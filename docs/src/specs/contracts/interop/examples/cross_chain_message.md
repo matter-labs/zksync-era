@@ -40,3 +40,5 @@ chains can retrieve the `signup_open_msg_hash`, obtain the necessary proof from 
 call the `openSignup` function on any destination chain. 
 
 More details on the overall process can be read [here](../interop_messages.md).
+
+You can also see another example in [Advanced guides](../../../../guides/advanced/19_interop_basics.md).

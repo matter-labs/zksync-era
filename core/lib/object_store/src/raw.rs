@@ -20,10 +20,11 @@ pub enum Bucket {
     StorageSnapshot,
     DataAvailability,
     VmDumps,
+    PublicWitnessInputs,
 }
 
 impl Bucket {
-    pub(crate) fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::ProverJobs => "prover_jobs",
             Self::WitnessInput => "witness_inputs",
@@ -39,6 +40,7 @@ impl Bucket {
             Self::StorageSnapshot => "storage_logs_snapshots",
             Self::DataAvailability => "data_availability",
             Self::VmDumps => "vm_dumps",
+            Self::PublicWitnessInputs => "public_witness_inputs",
         }
     }
 }

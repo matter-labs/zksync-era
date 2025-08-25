@@ -10,15 +10,14 @@ import { Fee } from '../types';
 import { getL2bUrl } from '../helpers';
 import { IERC20__factory as IERC20Factory } from 'zksync-ethers/build/typechain';
 import {
-    ArtifactAssetTracker,
+    ArtifactL2AssetTracker,
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
-    L2_ASSET_TRACKER_ADDRESS,
-    ArtifactInteropCenter
+    L2_ASSET_TRACKER_ADDRESS
 } from '../constants';
 import { RetryProvider } from '../retry-provider';
-import { getEcosystemContracts } from 'utils/build/tokens';
+import { getEcosystemContracts } from 'utils/src/tokens';
 // checkout whole file before merge
 
 /**
@@ -132,7 +131,7 @@ class ShouldChangeBalance extends MatcherModifier {
             const wallet = entry.wallet;
             const address = entry.addressToCheck ?? entry.wallet.address;
             const initialBalance = await getBalance(l1, wallet, address, token, params?.ignoreUndeployedToken);
-            const initialChainBalance = await getChainBalance(l1, wallet, token, params?.ignoreUndeployedToken);
+            const initialChainBalance = await getChainBalance(l1, wallet, token);
             populatedBalanceChanges.push({
                 wallet: entry.wallet,
                 change: entry.change,
@@ -346,20 +345,17 @@ async function getBalance(
  *     If it's set to `true` and token is not deployed, then function returns 0.
  * @returns Token balance
  */
-async function getChainBalance(
-    l1: boolean,
-    wallet: zksync.Wallet,
-    token: string,
-    ignoreUndeployedToken?: boolean
-): Promise<bigint> {
-    const provider = l1 ? wallet.providerL1! : wallet.provider;
+async function getChainBalance(l1: boolean, wallet: zksync.Wallet, token: string): Promise<bigint> {
+    // const provider = l1 ? wallet.providerL1! : wallet.provider;
     // kl todo get from env or something.
-    const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
 
     const ecosystemContracts = await getEcosystemContracts(wallet);
 
+    const settlementLayer = await ecosystemContracts.bridgehub.settlementLayer(
+        (await wallet.provider.getNetwork()).chainId
+    );
+
     const assetId = await ecosystemContracts.nativeTokenVault.assetId(token);
-    const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactAssetTracker.abi, gwProvider);
 
     // console.log("chainId", (await wallet.provider.getNetwork()).chainId, "assetId", assetId);
     let balance = await ecosystemContracts.assetTracker.chainBalance(
@@ -367,7 +363,9 @@ async function getChainBalance(
         assetId
     );
     // console.log('balance', l1 ? 'l1' : 'l2', balance);
-    if (balance == 0n && l1) {
+    if (settlementLayer != (await wallet.providerL1!.getNetwork()).chainId && l1) {
+        const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
+        const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactL2AssetTracker.abi, gwProvider);
         balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
     }
     return balance;

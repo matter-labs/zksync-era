@@ -1,0 +1,45 @@
+[package]
+name = "zksync_eth_proof_manager"
+description = "ZKsync Ethereum proof manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde.workspace = true
+vise.workspace = true
+zksync_types.workspace = true
+zksync_circuit_breaker = { workspace = true, features = ["node_framework"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_config.workspace = true
+zksync_contracts.workspace = true
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_l1_contract_interface.workspace = true
+zksync_node_framework.workspace = true
+zksync_object_store = { workspace = true, features = ["node_framework"] }
+zksync_prover_interface.workspace = true
+zksync_shared_metrics.workspace = true
+zksync_node_fee_model.workspace = true
+zksync_mini_merkle_tree.workspace = true
+zksync_eth_watch.workspace = true
+zksync_eth_signer.workspace = true
+zksync_proof_data_handler.workspace = true
+bellman.workspace = true
+circuit_definitions.workspace = true
+fflonk.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+jsonrpsee.workspace = true
+hex.workspace = true
+serde_json.workspace = true

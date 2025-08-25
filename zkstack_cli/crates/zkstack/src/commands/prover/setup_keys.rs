@@ -1,4 +1,4 @@
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
@@ -7,7 +7,10 @@ use zkstack_cli_config::{get_link_to_prover, EcosystemConfig};
 
 use crate::{
     commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
-    messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
+    messages::{
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_SK_GENERATED,
+    },
 };
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -16,6 +19,38 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
+        let chain_config = ecosystem_config
+            .load_current_chain()
+            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+        let general_config = chain_config.get_general_config().await?.patched();
+        let proof_compressor_setup_path = general_config
+            .proof_compressor_setup_path()
+            .context(MSG_SETUP_KEY_PATH_ERROR)?;
+        let prover_path = get_link_to_prover(&ecosystem_config);
+        let proof_compressor_setup_path = prover_path.join(proof_compressor_setup_path);
+
+        if proof_compressor_setup_path.exists() {
+            logger::info(format!(
+                "Proof compressor setup key is available at {}",
+                proof_compressor_setup_path.display()
+            ));
+            std::env::set_var("COMPACT_CRS_FILE", &proof_compressor_setup_path);
+        } else {
+            return Err(anyhow::anyhow!(
+                "Proof compressor key not found at {}, run `zkstack prover compressor-keys` command to download it",
+                proof_compressor_setup_path.display(),
+            ));
+        }
+
+        let bellman_cuda_dir = ecosystem_config.bellman_cuda_dir.clone();
+        if let Some(bellman_cuda_dir) = bellman_cuda_dir {
+            std::env::set_var("BELLMAN_CUDA_DIR", bellman_cuda_dir);
+        } else {
+            return Err(anyhow::anyhow!(
+                "Bellman CUDA directory is not set. Please run `zkstack prover init-bellman-cuda` to set it."
+            ));
+        }
+
         let link_to_prover = get_link_to_prover(&ecosystem_config);
         shell.change_dir(&link_to_prover);
 
@@ -26,6 +61,12 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
             generate-sk-gpu all --recompute-if-missing
             --setup-path=data/keys
             --path={link_to_prover}/data/keys"
+        ));
+        cmd.run()?;
+        let cmd = Cmd::new(cmd!(
+            shell,
+            "cargo run --features gpu --release --bin key_generator -- 
+            generate-compressor-data"
         ));
         cmd.run()?;
         spinner.finish();

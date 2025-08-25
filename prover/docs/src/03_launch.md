@@ -61,13 +61,14 @@ each round separately, but it's mostly useful in production environments.
 ### Circuit Prover
 
 ```bash
-zkstack prover run --component=circuit-prover -l 15 -h 1
+zkstack prover run --component=circuit-prover --threads 32
 ```
 
 Circuit prover takes outputs from witness generators and produces proofs out of it. As part of the process, there's
 vector generation and GPU proving. Vector Generation is single-threaded time-consuming operation. You may run multiple
-jobs by changing `-l` and `-h` parameters. The exact amount depends strictly on your CPU/GPU specs, but a ballpark
-estimate (useful for local development) is 15 light & 1 heavy.
+jobs by changing `--threads` parameter, it should correspond to the number of CPU cores. Alternatively you can use
+advanced mode by setting `--light_wvg_count` and `--heavy_wvg_count` parameters instead of `--threads`. The exact amount
+depends strictly on your CPU/GPU specs, but a ballpark estimate (useful for local development) is 15 light & 1 heavy.
 
 ```admonish note
 The light threads typically uses approximately 2GB of RAM, with heavy ~10GB of RAM.

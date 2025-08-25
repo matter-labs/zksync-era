@@ -79,7 +79,7 @@ describe('Migration From/To gateway test', function () {
         web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
         mainNodeSpawner = new utils.NodeSpawner(pathToHome, logs, fileConfig, {
-            enableConsensus: true,
+            enableConsensus: false,
             ethClientWeb3Url: ethProviderAddress!,
             apiWeb3JsonRpcHttpUrl: web3JsonRpc!,
             baseTokenAddress: contractsConfig.l1.base_token_addr
@@ -212,6 +212,7 @@ describe('Migration From/To gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
+        await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
@@ -247,10 +248,10 @@ describe('Migration From/To gateway test', function () {
             assetId
         );
 
-        let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
-        let expectedGatewayAssetSettlementLayer = 0n;
+        // let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
+        // let expectedGatewayAssetSettlementLayer = 0n;
         if (direction == 'TO') {
-            expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
+            // expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
             // expectedGatewayAssetSettlementLayer = BigInt(fileConfig.chain!);
         } else {
             return; // kl todo add migrate back from gateway

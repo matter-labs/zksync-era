@@ -11,7 +11,7 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce};
+use zksync_types::{get_nonce_key, Address, Nonce, ProtocolVersionId};
 
 use super::{mempool_guard::MempoolGuard, metrics::KEEPER_METRICS};
 
@@ -20,14 +20,16 @@ use super::{mempool_guard::MempoolGuard, metrics::KEEPER_METRICS};
 /// to process them.
 pub async fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
-    vm_version: VmVersion,
+    protocol_version: ProtocolVersionId,
 ) -> anyhow::Result<L2TxFilter> {
     let fee_input = batch_fee_input_provider.get_batch_fee_input().await?;
-    let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
     Ok(L2TxFilter {
         fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
+        protocol_version,
     })
 }
 
@@ -111,12 +113,9 @@ impl MempoolFetcher {
                 );
                 (fee_per_gas, gas_per_pubdata as u32)
             } else {
-                let filter = l2_tx_filter(
-                    self.batch_fee_input_provider.as_ref(),
-                    protocol_version.into(),
-                )
-                .await
-                .context("failed creating L2 transaction filter")?;
+                let filter = l2_tx_filter(self.batch_fee_input_provider.as_ref(), protocol_version)
+                    .await
+                    .context("failed creating L2 transaction filter")?;
 
                 (filter.fee_per_gas, filter.gas_per_pubdata)
             };
@@ -223,6 +222,8 @@ mod tests {
         remove_stuck_txs: false,
         delay_interval: Duration::from_millis(10),
         l1_to_l2_txs_paused: false,
+        high_priority_l2_tx_initiator: None,
+        high_priority_l2_tx_protocol_version: Some(29),
     };
 
     #[tokio::test]
@@ -271,7 +272,14 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -334,7 +342,14 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -380,7 +395,14 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();

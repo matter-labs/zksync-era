@@ -6,11 +6,10 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 
 import {
-    ArtifactAssetTracker,
+    ArtifactL1AssetTracker,
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
-    L2_ASSET_TRACKER_ADDRESS,
     ArtifactInteropCenter
 } from './constants';
 
@@ -29,7 +28,7 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
     );
     // console.log('bridgehub', await bridgehub.getAddress());
     // console.log('interface', bridgehub.interface);
-    const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
+    // const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
     const interopCenter = new zksync.Contract(
         await bridgehub.interopCenter(),
         ArtifactInteropCenter.abi,
@@ -42,7 +41,7 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
         ArtifactL1AssetRouter.abi,
         wallet.providerL1!
     );
-    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactAssetTracker.abi, wallet.providerL1!);
+    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactL1AssetTracker.abi, wallet.providerL1!);
     const nativeTokenVault = new zksync.Contract(
         await assetRouter.nativeTokenVault(),
         ArtifactNativeTokenVault.abi,

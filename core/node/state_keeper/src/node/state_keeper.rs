@@ -99,6 +99,7 @@ impl WiringLayer for StateKeeperLayer {
             sealer,
             Arc::new(storage_factory),
             input.shared_allow_list.map(DeploymentTxFilter::new),
+            input.settlement_mode.settlement_layer(),
         );
 
         input

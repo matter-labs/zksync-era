@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use chrono::Utc;
 use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
@@ -7,10 +7,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{
-    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
-    Bincode,
-};
+use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -238,6 +235,7 @@ impl Aggregator {
         priority_tree_start_index: Option<usize>,
         precommit_params: Option<&PrecommitParams>,
         is_gateway: bool, //
+        execution_delay: Duration,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -255,6 +253,7 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 priority_tree_start_index,
                 is_gateway, //
+                execution_delay,
             )
             .await?,
         ) {
@@ -406,11 +405,21 @@ impl Aggregator {
         last_sealed_l1_batch: L1BatchNumber,
         priority_tree_start_index: Option<usize>,
         is_gateway: bool,
+        execution_delay: Duration,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
-        let max_l1_batch_timestamp_millis = self
-            .config
-            .l1_batch_min_age_before_execute
-            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
+        let mut max_l1_batch_timestamp_millis =
+            Some(unix_timestamp_ms() - execution_delay.as_millis() as u64);
+
+        // Add safety margin for L1 block inclusion delays
+        // On L1 time is discrete and in worst case if you send time at X,
+        // it will be included in the block with timestamp X - 12.
+        // So the margin should be greater than 12 sec, 30 seconds is used.
+        // Apply margin only if execution_delay > 0
+        if execution_delay > Duration::ZERO {
+            const SAFETY_MARGIN_MS: u64 = 30_000; // 30 seconds in milliseconds
+            max_l1_batch_timestamp_millis = max_l1_batch_timestamp_millis
+                .map(|timestamp| timestamp.saturating_sub(SAFETY_MARGIN_MS));
+        }
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
@@ -503,24 +512,19 @@ impl Aggregator {
                     .blocks_web3_dal()
                     .get_l2_to_l1_logs(batch.header.number)
                     .await
-                    .map_err(|e| EthSenderError::Dal(e))?;
+                    .map_err(EthSenderError::Dal)?;
                 let messages = storage
                     .blocks_web3_dal()
                     .get_l2_to_l1_messages(batch.header.number)
                     .await
-                    .map_err(|e| EthSenderError::Dal(e))?;
+                    .map_err(EthSenderError::Dal)?;
                 // let filtered_logs = logs.into_iter().filter(|log| !log.is_service).map(|log| UserL2ToL1Log(log)).collect();
                 let message_root = storage
                     .blocks_dal()
                     .get_message_root(batch.header.number)
                     .await
                     .unwrap();
-                all_logs.push(
-                    logs.clone()
-                        .into_iter()
-                        .map(|log| UserL2ToL1Log(log))
-                        .collect(),
-                );
+                all_logs.push(logs.clone().into_iter().map(UserL2ToL1Log).collect());
                 all_messages.push(messages);
                 all_message_roots.push(message_root);
             }
@@ -934,22 +938,7 @@ pub async fn load_wrapped_fri_proofs_for_range(
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => {
-                match blob_store
-                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
-                        l1_batch_number,
-                        *version,
-                    )))
-                    .await
-                {
-                    Ok(proof) => return Some(proof.into()),
-                    Err(ObjectStoreError::KeyNotFound(_)) => continue, // proof is not ready yet, continue
-                    Err(err) => panic!(
-                        "Failed to load proof for batch {}: {}",
-                        l1_batch_number.0, err
-                    ),
-                }
-            }
+            Err(ObjectStoreError::KeyNotFound(_)) => continue,
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

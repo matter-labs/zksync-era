@@ -20,6 +20,7 @@ use zksync_types::{
     l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolSemanticVersion,
+    settlement::SettlementLayer,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
@@ -100,6 +101,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         fee_input,
         fee_per_gas: want_base_fee,
         gas_per_pubdata: want_gas_per_pubdata as u32,
+        protocol_version: ProtocolVersionId::latest(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -124,7 +126,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -173,7 +175,7 @@ async fn test_timestamps(
     // Insert a transaction to trigger L1 batch creation.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -285,6 +287,7 @@ fn create_block_seal_command(
         pubdata_params: PubdataParams::default(),
         insert_header: true,
         rolling_txs_hash: Default::default(),
+        settlement_layer: SettlementLayer::for_tests(),
     }
 }
 
@@ -568,7 +571,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -596,6 +599,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
+        SettlementLayer::for_tests(),
     );
     let version = batch_init_params.system_env.version;
     let mut updates = UpdatesManager::new(
@@ -723,7 +727,7 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();
@@ -820,7 +824,7 @@ async fn test_mempool_with_timestamp_assertion() {
     // Create a copy of the tx filter that the mempool will use.
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
-        ProtocolVersionId::latest().into(),
+        ProtocolVersionId::latest(),
     )
     .await
     .unwrap();

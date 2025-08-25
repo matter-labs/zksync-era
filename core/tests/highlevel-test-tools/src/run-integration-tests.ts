@@ -118,7 +118,7 @@ export async function genesisRecoveryTest(chainName: string): Promise<void> {
     // await runTest('recovery', chainName, undefined, ['--no-kill', '--ignore-prerequisites', '--verbose']);
 }
 
-export async function enIntegrationTests(chainName: string, secondChainName?: string | undefined): Promise<void> {
+export async function enIntegrationTests(_chainName: string, _secondChainName?: string | undefined): Promise<void> {
     // await initTestWallet(chainName);
     // await runTest('integration', chainName, undefined, [
     //     '--verbose',
@@ -126,4 +126,14 @@ export async function enIntegrationTests(chainName: string, secondChainName?: st
     //     '--external-node',
     //     secondChainName ? `--second-chain=${secondChainName}` : ''
     // ]);
+}
+
+export async function gatewayMigrationToGatewayTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('gateway-migration', chainName, undefined, ['--to-gateway']);
+}
+
+export async function gatewayMigrationFromGatewayTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('gateway-migration', chainName, undefined, ['--from-gateway']);
 }

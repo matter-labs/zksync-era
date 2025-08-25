@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
@@ -20,7 +20,7 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchWithMetadata, SerializeCommitment},
-    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxFinalityStatus, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -28,7 +28,7 @@ use zksync_types::{
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, CallRequest},
-    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::{
@@ -63,6 +63,8 @@ pub struct MulticallData {
     pub stm_validator_timelock_address: Address,
     pub stm_protocol_version_id: ProtocolVersionId,
     pub da_validator_pair: DAValidatorPair,
+    /// Execution delay in seconds from the ValidatorTimelock contract
+    pub execution_delay: Duration,
 }
 
 /// The component is responsible for aggregating l1 batches into eth_txs.
@@ -268,17 +270,17 @@ impl EthTxAggregator {
             calldata: get_stm_protocol_version_input,
         };
 
-        let get_stm_validator_timelock_input = self
+        let get_stm_pre_v29_validator_timelock_input = self
             .functions
             .state_transition_manager_contract
             .function("validatorTimelock")
             .unwrap()
             .encode_input(&[])
             .unwrap();
-        let get_stm_validator_timelock_call = Multicall3Call {
+        let get_stm_pre_v29_validator_timelock_call = Multicall3Call {
             target: self.state_transition_manager_address,
             allow_failure: ALLOW_FAILURE,
-            calldata: get_stm_validator_timelock_input,
+            calldata: get_stm_pre_v29_validator_timelock_input,
         };
 
         let get_da_validator_pair_input = self
@@ -293,6 +295,35 @@ impl EthTxAggregator {
             calldata: get_da_validator_pair_input,
         };
 
+        // Get execution delay from ValidatorTimelock contract
+        let get_execution_delay_input = self
+            .functions
+            .validator_timelock_contract
+            .function("executionDelay")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+        let get_execution_delay_call = Multicall3Call {
+            target: self.config_timelock_contract_address,
+            allow_failure: true,
+            calldata: get_execution_delay_input,
+        };
+
+        let get_post_v29_upgradeable_validator_timelock_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("validatorTimelockPostV29")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+
+        let get_post_v29_upgradeable_validator_timelock_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            // Note, that this call is allowed to fail, as the corresponding function is not present in the pre-v29 protocol versions
+            allow_failure: true,
+            calldata: get_post_v29_upgradeable_validator_timelock_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
@@ -300,8 +331,10 @@ impl EthTxAggregator {
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
             get_stm_protocol_version_call.into_token(),
-            get_stm_validator_timelock_call.into_token(),
+            get_stm_pre_v29_validator_timelock_call.into_token(),
             get_da_validator_pair_call.into_token(),
+            get_execution_delay_call.into_token(),
+            get_post_v29_upgradeable_validator_timelock_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -337,8 +370,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 9 } else { 8 };
-            // 8 or 9 calls are aggregated in multicall
+            let number_of_calls = if evm_emulator_hash_requested { 11 } else { 10 };
+            // 10 or 11 calls are aggregated in multicall (added execution delay call and post-v29 validator timelock call)
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -415,6 +448,24 @@ impl EthTxAggregator {
                 "contract DA validator pair",
             )?;
 
+            let execution_delay = Self::parse_execution_delay(
+                call_results_iterator.next().unwrap(),
+                "execution delay",
+            )?;
+
+            let stm_validator_timelock_address =
+                if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+                    // We just skip the result for the pre-V29 upgradeable validator timelock
+                    call_results_iterator.next().unwrap();
+
+                    stm_validator_timelock_address
+                } else {
+                    Self::parse_address(
+                        call_results_iterator.next().unwrap(),
+                        "post-V29 upgradeable validator timelock",
+                    )?
+                };
+
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
@@ -422,6 +473,7 @@ impl EthTxAggregator {
                 stm_protocol_version_id,
                 stm_validator_timelock_address,
                 da_validator_pair,
+                execution_delay,
             });
         }
         parse_error(&[token])
@@ -454,7 +506,13 @@ impl EthTxAggregator {
     }
 
     fn parse_address(data: Token, name: &'static str) -> Result<Address, EthSenderError> {
-        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        let result = Multicall3Result::from_token(data)?;
+        if !result.success {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!("multicall3 {name} call failed"),
+            )));
+        }
+        let multicall_data = result.return_data;
         if multicall_data.len() != 32 {
             return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
                 format!(
@@ -494,6 +552,21 @@ impl EthTxAggregator {
         Ok(pair)
     }
 
+    fn parse_execution_delay(data: Token, name: &'static str) -> Result<Duration, EthSenderError> {
+        let multicall_data = Multicall3Result::from_token(data)?;
+
+        if !multicall_data.success {
+            tracing::warn!(
+                "multicall3 {name} data is not of the len of 32: {:?}, returning zero delay",
+                multicall_data.return_data
+            );
+            return Ok(Duration::ZERO);
+        }
+
+        let delay_seconds = U256::from_big_endian(&multicall_data.return_data);
+        Ok(Duration::from_secs(delay_seconds.as_u64()))
+    }
+
     fn timelock_contract_address(
         &self,
         chain_protocol_version_id: ProtocolVersionId,
@@ -503,7 +576,9 @@ impl EthTxAggregator {
         // For chains before v26 (gateway) we use the timelock address from config.
         // After that, the timelock address can be fetched from STM as it is the valid one
         // for versions starting from v26 and is not expected to change in the near future.
-        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade() {
+        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade()
+            || self.config.force_use_validator_timelock
+        {
             self.config_timelock_contract_address
         } else {
             assert!(
@@ -595,6 +670,7 @@ impl EthTxAggregator {
             stm_protocol_version_id,
             stm_validator_timelock_address,
             da_validator_pair,
+            execution_delay,
         } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
@@ -670,10 +746,23 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
-            // For the migration to and from gateway, we need to wait for all blocks to be executed
+            // From V30 when migrating to or from gateway, we need to wait for all blocks to be executed,
+            // so there is no restriction for prove and execute operations
+            if let Some(SettlementLayer::Gateway(_)) = self.settlement_layer {
+                // For the migration from gateway to L1, we need we need to ensure all batches containing interop roots get committed and executed.
+                if !self
+                    .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
+                    .await?
+                {
+                    op_restrictions.commit_restriction = None;
+                    op_restrictions.precommit_restriction = None;
+                }
+            }
         }
 
-        let precommit_params = self.precommit_params(storage).await?;
+        let precommit_params = self
+            .precommit_params(storage, chain_protocol_version_id)
+            .await?;
 
         if let Some(agg_op) = self
             .aggregator
@@ -686,6 +775,7 @@ impl EthTxAggregator {
                 priority_tree_start_index,
                 precommit_params.as_ref(),
                 is_gateway, //
+                execution_delay,
             )
             .await?
         {
@@ -726,7 +816,12 @@ impl EthTxAggregator {
     async fn precommit_params(
         &mut self,
         storage: &mut Connection<'_, Core>,
+        chain_protocol_version_id: ProtocolVersionId,
     ) -> Result<Option<PrecommitParams>, EthSenderError> {
+        if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+            // If we are in the pre-interop fast blocks mode, we don't use precommit operations
+            return Ok(None);
+        }
         if let Some(params) = self.config.precommit_params.clone() {
             return Ok(Some(params));
         }
@@ -1144,6 +1239,36 @@ impl EthTxAggregator {
             .unwrap();
 
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
+    }
+
+    async fn is_waiting_for_batches_with_interop_roots_to_be_committed(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<bool, EthSenderError> {
+        let latest_processed_l1_batch_number = storage
+            .interop_root_dal()
+            .get_latest_processed_interop_root_l1_batch_number()
+            .await?;
+
+        if latest_processed_l1_batch_number.is_none() {
+            return Ok(false);
+        }
+
+        let last_sent_successfully_eth_tx = storage
+            .eth_sender_dal()
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(
+                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
+                L1BatchAggregatedActionType::Commit,
+            )
+            .await;
+
+        if last_sent_successfully_eth_tx
+            .is_some_and(|tx| tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized)
+        {
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 }
 

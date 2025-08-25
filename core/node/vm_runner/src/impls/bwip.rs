@@ -279,7 +279,6 @@ async fn get_updates_manager_witness_input_data(
         storage_refunds,
         pubdata_costs,
         witness_block_state,
-        _marker: std::marker::PhantomData,
     })
 }
 

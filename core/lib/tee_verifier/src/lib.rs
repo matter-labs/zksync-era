@@ -310,6 +310,7 @@ mod tests {
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
+    use zksync_types::settlement::SettlementLayer;
 
     use super::*;
 
@@ -327,7 +328,6 @@ mod tests {
                 storage_refunds: vec![],
                 pubdata_costs: vec![],
                 witness_block_state: Default::default(),
-                _marker: std::marker::PhantomData,
             },
             WitnessInputMerklePaths::new(0),
             vec![],
@@ -345,6 +345,7 @@ mod tests {
                     max_virtual_blocks_to_create: 0,
                     interop_roots: vec![],
                 },
+                settlement_layer: SettlementLayer::for_tests(),
             },
             SystemEnv {
                 zk_porter_available: false,

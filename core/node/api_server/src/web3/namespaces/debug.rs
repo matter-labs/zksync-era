@@ -19,7 +19,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     execution_sandbox::SandboxAction,
-    web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
+    web3::{backend_jsonrpsee::MethodTracer, namespaces::validate_gas_cap, state::RpcState},
 };
 
 #[derive(Debug, Clone)]
@@ -278,8 +278,24 @@ impl DebugNamespace {
                 .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
+
+        // Validate user-provided gas against the cap
+        validate_gas_cap(
+            &request,
+            block_id,
+            &block_args,
+            &mut connection,
+            self.state.api_config.eth_call_gas_cap,
+            self.current_method(),
+        )
+        .await?;
+
         if request.gas.is_none() {
-            request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
+            request.gas = Some(
+                block_args
+                    .default_eth_call_gas(&mut connection, self.state.api_config.eth_call_gas_cap)
+                    .await?,
+            );
         }
 
         let fee_input = if block_args.resolves_to_latest_sealed_l2_block() {

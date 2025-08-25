@@ -24,6 +24,7 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
+    settlement::SettlementLayer,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -398,6 +399,29 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    pub async fn get_last_miniblock_with_precommit(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                eth_precommit_tx_id IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_miniblock_with_precommit")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L2BlockNumber(row.number as u32)))
     }
 
     /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
@@ -1240,6 +1264,12 @@ impl BlocksDal<'_, '_> {
                 )
             })?;
 
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            match l2_block_header.settlement_layer {
+                SettlementLayer::L1(chain_id) => ("L1", chain_id.0 as i64),
+                SettlementLayer::Gateway(chain_id) => ("Gateway", chain_id.0 as i64),
+            };
+
         let query = sqlx::query!(
             r#"
             INSERT INTO
@@ -1266,7 +1296,9 @@ impl BlocksDal<'_, '_> {
                 pubdata_type,
                 rolling_txs_hash,
                 created_at,
-                updated_at
+                updated_at,
+                settlement_layer_type,
+                settlement_layer_chain_id
             )
             VALUES
             (
@@ -1292,7 +1324,9 @@ impl BlocksDal<'_, '_> {
                 $20,
                 $21,
                 NOW(),
-                NOW()
+                NOW(),
+                $22,
+                $23
             )
             "#,
             i64::from(l2_block_header.number.0),
@@ -1330,7 +1364,9 @@ impl BlocksDal<'_, '_> {
             l2_block_header.pubdata_params.pubdata_type.to_string(),
             l2_block_header
                 .rolling_txs_hash
-                .map(|h| h.as_bytes().to_vec())
+                .map(|h| h.as_bytes().to_vec()),
+            settlement_layer_type,
+            settlement_layer_chain_id
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1362,7 +1398,9 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 miniblocks
             ORDER BY
@@ -1406,7 +1444,9 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 miniblocks
             WHERE
@@ -1662,8 +1702,11 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
+        let Some(batch) = batch else {
+            return Ok(None);
+        };
         // genesis batch is first generated without commitment, we should wait for the tree to set it.
         if batch.commitment.is_none() {
             return Ok(None);
@@ -1807,7 +1850,7 @@ impl BlocksDal<'_, '_> {
                 eth_txs_history AS execute_tx
                 ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
             WHERE
-                execute_tx.confirmed_at IS NOT NULL
+                execute_tx.finality_status = 'finalized'
             ORDER BY
                 number DESC
             LIMIT
@@ -3560,6 +3603,28 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_batch_number_of_prove_tx_id(
+        &mut self,
+        tx_id: u32,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                eth_prove_tx_id = $1
+            "#,
+            tx_id as i32
+        )
+        .instrument("get_batch_number_of_prove_tx_id")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
     }
 }
 

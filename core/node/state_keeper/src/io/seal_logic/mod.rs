@@ -404,6 +404,7 @@ impl L2BlockSealCommand {
                 logs_bloom,
                 pubdata_params: self.pubdata_params,
                 rolling_txs_hash: Some(self.rolling_txs_hash),
+                settlement_layer: self.settlement_layer,
             };
 
             let mut connection = strategy.connection().await?;

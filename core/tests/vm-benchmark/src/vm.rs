@@ -13,9 +13,9 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms, u256_to_h256,
-    utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-    Transaction,
+    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
+    settlement::SettlementLayer, u256_to_h256, utils::storage_key_for_eth_balance, L1BatchNumber,
+    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
 };
 
 use crate::{instruction_counter::InstructionCounter, transaction::PRIVATE_KEY};
@@ -246,6 +246,7 @@ fn test_env() -> (SystemEnv, L1BatchEnv) {
             max_virtual_blocks_to_create: 100,
             interop_roots: vec![],
         },
+        settlement_layer: SettlementLayer::for_tests(),
     };
     (system_env, l1_batch_env)
 }
