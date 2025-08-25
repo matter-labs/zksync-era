@@ -447,12 +447,13 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_fee_params_impl(&self) -> FeeParams {
+    pub async fn get_fee_params_impl(&self) -> FeeParams {
         self.state
             .tx_sender
             .0
             .batch_fee_input_provider
             .get_fee_model_params()
+            .await
     }
 
     #[deprecated]

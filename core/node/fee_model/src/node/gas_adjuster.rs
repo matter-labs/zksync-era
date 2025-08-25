@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_config::{GasAdjusterConfig, GenesisConfig};
+use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -25,6 +26,7 @@ pub struct GasAdjusterLayer {
 pub struct Input {
     client: SettlementLayerClient,
     pubdata_sending_mode: PubdataSendingModeResource,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -64,6 +66,11 @@ impl WiringLayer for GasAdjusterLayer {
             self.gas_adjuster_config,
             input.pubdata_sending_mode.0,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            input
+                .master_pool
+                .get()
+                .await
+                .expect("Failed to get connection pool"),
         )
         .await
         .context("GasAdjuster::new()")?;

@@ -87,6 +87,8 @@ impl Tester {
             max_blob_base_fee: u64::MAX,
         };
 
+        let pool = ConnectionPool::<Core>::test_pool().await;
+
         let client: Box<DynClient<L1>> = Box::new(eth_client.into_client());
 
         GasAdjuster::new(
@@ -94,6 +96,7 @@ impl Tester {
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.commitment_mode,
+            pool,
         )
         .await
         .unwrap()

@@ -9,7 +9,10 @@ use zksync_config::{
     GasAdjusterConfig,
 };
 use zksync_contracts::proof_manager_contract;
-use zksync_dal::node::{MasterPool, PoolResource};
+use zksync_dal::{
+    node::{MasterPool, PoolResource},
+    ConnectionPool, Core,
+};
 use zksync_eth_client::clients::{Client, DynClient, SigningClient, L2};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
@@ -75,6 +78,7 @@ impl EthProofManagerLayer {
         l2_chain_id: L2ChainId,
         contracts: &ProofManagerContracts,
         owner_wallet: Wallet,
+        connection_pool: ConnectionPool<Core>,
     ) -> ProofManagerClient {
         let operator_private_key = owner_wallet.private_key().clone();
         let operator_address = operator_private_key.address();
@@ -96,6 +100,7 @@ impl EthProofManagerLayer {
                 self.gas_adjuster_config.clone(),
                 PubdataSendingMode::Custom,
                 L1BatchCommitmentMode::Rollup,
+                connection_pool,
             )
             .await
             .unwrap(),
@@ -148,6 +153,7 @@ impl WiringLayer for EthProofManagerLayer {
                     .eth_proof_manager
                     .clone()
                     .expect("Eth proof manager wallet is required"),
+                main_pool.clone(),
             )
             .await;
 

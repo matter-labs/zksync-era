@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT h.sent_at_block\n                FROM l1_batches      AS b\n                JOIN eth_txs         AS t ON t.id = b.eth_commit_tx_id\n                JOIN eth_txs_history AS h ON h.id = t.confirmed_eth_tx_history_id\n                WHERE b.number = $1\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sent_at_block",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c7b9539ca15a1dce50262d9fed6c5134f57d0655ef6c601605012ce900306e97"
+}

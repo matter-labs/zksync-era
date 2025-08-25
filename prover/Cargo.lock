@@ -9083,6 +9083,7 @@ dependencies = [
  "zksync_consensus_utils",
  "zksync_contracts",
  "zksync_db_connection",
+ "zksync_kzg",
  "zksync_l1_contract_interface",
  "zksync_protobuf",
  "zksync_protobuf_build",

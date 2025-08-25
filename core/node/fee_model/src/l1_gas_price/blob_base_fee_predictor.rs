@@ -1,0 +1,113 @@
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_types::{
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    web3::{BlockId, BlockNumber},
+    L1BatchNumber,
+};
+
+use crate::l1_gas_price::GasAdjusterClient;
+
+pub(crate) async fn predict_blob_base_fee(
+    connection: &mut Connection<'_, Core>,
+    client: &GasAdjusterClient,
+    last_known_l1_gas_price: u64,
+) -> u64 {
+    let batch_stats = connection
+        .eth_sender_dal()
+        .get_eth_all_blocks_stat()
+        .await
+        .expect("Failed to get batch stats");
+    let mut last_l1_commited_batch: Option<L1BatchNumber> = None;
+
+    for (tx_type, block) in batch_stats.mined {
+        if tx_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) {
+            last_l1_commited_batch = Some(block.into());
+        }
+    }
+
+    let last_l1_commited_batch = last_l1_commited_batch.unwrap_or(L1BatchNumber::from(0));
+    let last_sealed_batch = connection
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
+        .await
+        .expect("Failed to get last sealed batch")
+        .unwrap_or(L1BatchNumber::from(0));
+
+    let total_blobs_to_send = connection
+        .blocks_dal()
+        .get_blobs_amount_for_range(last_l1_commited_batch + 1, last_sealed_batch)
+        .await
+        .expect("Failed to get blobs amount for range");
+
+    let latest_block_number = client
+        .inner
+        .block(BlockId::Number(BlockNumber::Latest))
+        .await
+        .expect("Failed to get latest block")
+        .expect("Latest block is None")
+        .number
+        .expect("Latest block number is None");
+    let last_commited_block_number = connection
+        .eth_sender_dal()
+        .get_sent_at_block_for_commited_block(last_l1_commited_batch)
+        .await
+        .expect("Failed to get sent at block for commited block")
+        .unwrap_or(latest_block_number.as_u32());
+
+    let mut total_l1_blocks_for_these_blocks = latest_block_number
+        .saturating_sub(last_commited_block_number.into())
+        .as_u64();
+    if total_l1_blocks_for_these_blocks == 0 {
+        total_l1_blocks_for_these_blocks = 1;
+    }
+
+    if total_blobs_to_send == 0 {
+        return last_known_l1_gas_price;
+    }
+
+    tracing::debug!("Predicting blob fee cap with params: blobs_total: {total_blobs_to_send}, l1_blocks_total: {total_l1_blocks_for_these_blocks}, last_known_l1_gas_price: {last_known_l1_gas_price}");
+
+    predict_blob_fee_cap(
+        total_blobs_to_send,
+        total_l1_blocks_for_these_blocks,
+        last_known_l1_gas_price,
+    )
+}
+
+// todo: revisit this
+const MIN_BASE_FEE_PER_BLOB_GAS: u64 = 1;
+const BLOB_BASE_FEE_UPDATE_FRACTION: u64 = 3_338_477;
+const BLOB_GAS_PER_BLOCK_TARGET: u64 = 786_432; // target number of blobs per block(Ethereum uses 6)
+
+const SAFETY_BPS: u32 = 11000; // +10%
+const TIP: u64 = 0; // wei per blob gas
+
+fn predict_blob_fee_cap(blobs_total: u64, l1_blocks_total: u64, l1_blob_base_fee: u64) -> u64 {
+    let excess = blobs_total.saturating_sub(BLOB_GAS_PER_BLOCK_TARGET * l1_blocks_total);
+    let max_fee = l1_blob_base_fee.max(base_fee_from_excess(excess));
+
+    // --- return a safe cap = max_fee * (1 + safety) + tip ---
+    ((max_fee as u128) * (SAFETY_BPS as u128) / 10_000u128) as u64 + TIP
+}
+
+fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u64 {
+    let mut i: u128 = 1;
+    let mut output: u128 = 0;
+    let mut accum: u128 = (factor as u128) * (denominator as u128);
+    let num = numerator as u128;
+    let den = denominator as u128;
+    while accum > 0 {
+        output += accum;
+        accum = (accum * num) / (den * i);
+        i += 1;
+    }
+    (output / den) as u64
+}
+
+fn base_fee_from_excess(excess: u64) -> u64 {
+    fake_exponential(
+        MIN_BASE_FEE_PER_BLOB_GAS,
+        excess,
+        BLOB_BASE_FEE_UPDATE_FRACTION,
+    )
+}
