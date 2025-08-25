@@ -2,7 +2,7 @@ use zksync_multivm::utils::execution_metrics_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    SealCriteriaConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub struct PubDataBytesCriterion {
 impl SealCriterion for PubDataBytesCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -62,7 +62,7 @@ impl SealCriterion for PubDataBytesCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -92,11 +92,11 @@ mod tests {
     #[test]
     fn seal_criterion() {
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
+        let config = SealCriteriaConfig {
             reject_tx_at_eth_params_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
             max_pubdata_per_batch: 100000.into(),
-            ..StateKeeperConfig::for_tests()
+            ..SealCriteriaConfig::for_tests()
         };
 
         let criterion = PubDataBytesCriterion {

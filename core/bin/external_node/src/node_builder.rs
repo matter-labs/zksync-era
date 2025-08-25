@@ -12,6 +12,7 @@ use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Namespace},
+        chain::SealCriteriaConfig,
         database::MerkleTreeMode,
         DataAvailabilitySecrets,
     },
@@ -191,7 +192,10 @@ impl ExternalNodeBuilder {
                     .protective_reads_persistence_enabled,
             );
 
-        let io_layer = ExternalIOLayer::new(self.config.local.networks.l2_chain_id);
+        let io_layer = ExternalIOLayer::new(
+            self.config.local.networks.l2_chain_id,
+            SealCriteriaConfig::for_tests(), //TODO FIXME, FILL ME
+        );
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
         // TODO(PLA-1153): this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.

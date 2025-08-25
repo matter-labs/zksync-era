@@ -7,7 +7,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_types::{ProtocolVersionId, Transaction};
 use zksync_vm_executor::interface::TransactionFilter;
@@ -47,7 +47,7 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
 /// Non-deterministic seal criteria are expressed using [`IoSealCriteria`](super::IoSealCriteria).
 #[derive(Debug)]
 pub struct SequencerSealer {
-    config: StateKeeperConfig,
+    config: SealCriteriaConfig,
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
@@ -55,7 +55,7 @@ pub struct SequencerSealer {
 impl SequencerSealer {
     pub(crate) fn for_tests() -> Self {
         Self {
-            config: StateKeeperConfig::for_tests(),
+            config: SealCriteriaConfig::for_tests(),
             sealers: vec![],
         }
     }
@@ -163,20 +163,20 @@ impl ConditionalSealer for SequencerSealer {
 }
 
 impl SequencerSealer {
-    pub fn new(config: StateKeeperConfig) -> Self {
+    pub fn new(config: SealCriteriaConfig) -> Self {
         let sealers = Self::default_sealers(&config);
         Self { config, sealers }
     }
 
     #[cfg(test)]
     pub(crate) fn with_sealers(
-        config: StateKeeperConfig,
+        config: SealCriteriaConfig,
         sealers: Vec<Box<dyn SealCriterion>>,
     ) -> Self {
         Self { config, sealers }
     }
 
-    fn default_sealers(config: &StateKeeperConfig) -> Vec<Box<dyn SealCriterion>> {
+    fn default_sealers(config: &SealCriteriaConfig) -> Vec<Box<dyn SealCriterion>> {
         vec![
             Box::new(criteria::SlotsCriterion),
             Box::new(criteria::InteropRootsCriterion),
@@ -222,5 +222,70 @@ impl ConditionalSealer for NoopSealer {
         _protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)> {
         Vec::new()
+    }
+}
+
+/// Sealer for usage in EN. Panics if passed transaction should be excluded.
+#[derive(Debug)]
+pub struct PanicSealer {
+    sealer: SequencerSealer,
+}
+
+impl PanicSealer {
+    pub fn new(config: SealCriteriaConfig) -> Self {
+        Self {
+            sealer: SequencerSealer::new(config),
+        }
+    }
+}
+
+impl ConditionalSealer for PanicSealer {
+    fn should_seal_l1_batch(
+        &self,
+        l1_batch_number: u32,
+        tx_count: usize,
+        l1_tx_count: usize,
+        interop_roots_count: usize,
+        block_data: &SealData,
+        tx_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> SealResolution {
+        let resolution = self.sealer.should_seal_l1_batch(
+            l1_batch_number,
+            tx_count,
+            l1_tx_count,
+            interop_roots_count,
+            block_data,
+            tx_data,
+            protocol_version,
+        );
+        match resolution {
+            // Sealing should be triggered by a different mechanism
+            SealResolution::IncludeAndSeal => SealResolution::NoSeal,
+            SealResolution::ExcludeAndSeal => {
+                panic!("Transaction should have been excluded, but was sequenced");
+            }
+            SealResolution::NoSeal => SealResolution::NoSeal,
+            SealResolution::Unexecutable(reason) => {
+                panic!("Unexecutable transaction was sequenced: {reason:?}");
+            }
+        }
+    }
+
+    fn capacity_filled(
+        &self,
+        tx_count: usize,
+        l1_tx_count: usize,
+        interop_roots_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Vec<(&'static str, f64)> {
+        self.sealer.capacity_filled(
+            tx_count,
+            l1_tx_count,
+            interop_roots_count,
+            block_data,
+            protocol_version,
+        )
     }
 }

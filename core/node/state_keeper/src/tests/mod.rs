@@ -7,7 +7,7 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
     interface::{
         Halt, SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs,
@@ -143,9 +143,9 @@ impl Query {
 
 #[tokio::test]
 async fn sealed_by_number_of_txs() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -164,9 +164,9 @@ async fn sealed_by_number_of_txs() {
 
 #[tokio::test]
 async fn batch_sealed_before_l2_block_does() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -191,9 +191,9 @@ async fn batch_sealed_before_l2_block_does() {
 
 #[tokio::test]
 async fn rejected_tx() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -223,9 +223,9 @@ async fn rejected_tx() {
 
 #[tokio::test]
 async fn bootloader_tip_out_of_gas_flow() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -263,9 +263,9 @@ async fn bootloader_tip_out_of_gas_flow() {
 
 #[tokio::test]
 async fn pending_batch_is_applied() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 3,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -372,9 +372,9 @@ async fn unconditional_sealing() {
     let start = Instant::now();
     let seal_l2_block_after = POLL_WAIT_DURATION; // Seal after 2 state keeper polling duration intervals.
 
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -402,9 +402,9 @@ async fn unconditional_sealing() {
 /// Checks the next L2 block sealed after pending batch has a correct timestamp
 #[tokio::test]
 async fn l2_block_timestamp_after_pending_batch() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -450,9 +450,9 @@ async fn time_is_monotonic() {
     let timestamp_second_l2_block = timestamp_first_l2_block.clone();
     let timestamp_third_l2_block = timestamp_first_l2_block.clone();
 
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -512,9 +512,9 @@ async fn time_is_monotonic() {
 
 #[tokio::test]
 async fn protocol_upgrade() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -552,9 +552,9 @@ async fn protocol_upgrade() {
 /// Checks the next L2 block timestamp is updated upon receiving a transaction
 #[tokio::test]
 async fn l2_block_timestamp_updated_after_first_tx() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
     let new_timestamp_ms = 555000;
@@ -581,9 +581,9 @@ async fn l2_block_timestamp_updated_after_first_tx() {
 /// Basic test for L2 block rollback.
 #[tokio::test]
 async fn l2_block_rollback_basics() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 3,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
     let tx1 = random_tx(1);
