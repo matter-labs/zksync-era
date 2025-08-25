@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{
-    block::UnsealedL1BatchHeader, fee_model::BatchFeeInput, Address, L1BatchNumber,
-    ProtocolVersionId, H256,
+    block::UnsealedL1BatchHeader, fee_model::BatchFeeInput, settlement::SettlementLayer, Address,
+    L1BatchNumber, ProtocolVersionId, H256,
 };
 
 use super::L2BlockEnv;
@@ -23,6 +23,7 @@ pub struct L1BatchEnv {
     pub fee_account: Address,
     pub enforced_base_fee: Option<u64>,
     pub first_l2_block: L2BlockEnv,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl L1BatchEnv {

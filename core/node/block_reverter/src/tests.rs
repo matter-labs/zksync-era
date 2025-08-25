@@ -13,6 +13,7 @@ use zksync_state::interface::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     fee_model::BatchFeeInput,
+    settlement::SettlementLayer,
     snapshots::SnapshotVersion,
     AccountTreeId, L2BlockNumber, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog,
 };
@@ -70,6 +71,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
             rolling_txs_hash: Some(H256::zero()),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         storage
             .blocks_dal()

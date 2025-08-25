@@ -21,12 +21,13 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
     u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
     zk_evm_types::LogQuery,
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
+    ProtocolVersion, ProtocolVersionId, SLChainId, StorageKey, StorageLog, H256, U256,
 };
 
 use crate::utils::{
@@ -504,6 +505,8 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         logs_bloom: Bloom::zero(),
         pubdata_params: Default::default(),
         rolling_txs_hash: Some(H256::zero()),
+        // kl todo think through if adding proper genesis settlement layer here is needed.
+        settlement_layer: SettlementLayer::L1(SLChainId(39)),
     };
 
     let mut transaction = storage.start_transaction().await?;

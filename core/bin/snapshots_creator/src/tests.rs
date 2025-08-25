@@ -16,6 +16,7 @@ use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData, L2BlockHeader},
+    settlement::SettlementLayer,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
@@ -179,6 +180,7 @@ async fn create_l2_block(
         gas_limit: 0,
         logs_bloom: Default::default(),
         rolling_txs_hash: None,
+        settlement_layer: SettlementLayer::for_tests(),
     };
 
     conn.blocks_dal()
