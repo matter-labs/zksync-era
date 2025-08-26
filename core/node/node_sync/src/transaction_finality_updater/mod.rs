@@ -536,7 +536,7 @@ impl BatchTransactionUpdater {
                         );
                         if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                             .await
-                            .is_err()
+                            .is_ok()
                         {
                             break;
                         }
