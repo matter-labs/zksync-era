@@ -1,5 +1,13 @@
 # Changelog
 
+## [29.1.2](https://github.com/matter-labs/zksync-era/compare/core-v29.1.1...core-v29.1.2) (2025-08-26)
+
+
+### Bug Fixes
+
+* **en:** Proper error handling for transaction updater ([#4431](https://github.com/matter-labs/zksync-era/issues/4431)) ([16ade67](https://github.com/matter-labs/zksync-era/commit/16ade67db66fd0b44774fb8a89abf7047f696d49))
+* **eth-proof-manager:** batch fallbacking ([#4419](https://github.com/matter-labs/zksync-era/issues/4419)) ([7edd4ea](https://github.com/matter-labs/zksync-era/commit/7edd4ea2516b1db4aa6f0499911880b84c2ce39d))
+
 ## [29.1.1](https://github.com/matter-labs/zksync-era/compare/core-v29.1.0...core-v29.1.1) (2025-08-21)
 
 
