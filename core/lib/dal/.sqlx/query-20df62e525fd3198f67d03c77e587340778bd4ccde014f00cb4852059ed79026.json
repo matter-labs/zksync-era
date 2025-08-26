@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            en_remote_config (\n                value,\n                updated_at\n            )\n            VALUES\n            ($1, NOW())\n            ON CONFLICT (id) DO UPDATE\n            SET value = excluded.value,\n            updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "20df62e525fd3198f67d03c77e587340778bd4ccde014f00cb4852059ed79026"
+}

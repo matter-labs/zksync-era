@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Context;
 use xshell::Shell;
@@ -7,7 +7,7 @@ use zkstack_cli_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
 };
-use zkstack_cli_config::{override_config, ChainConfig, EcosystemConfig, FileArtifacts};
+use zkstack_cli_config::{override_config, ChainConfig, FileArtifacts, ZkStackConfig};
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
@@ -18,18 +18,14 @@ use crate::{
         SERVER_MIGRATIONS,
     },
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
-        MSG_GENESIS_DATABASES_INITIALIZED, MSG_INITIALIZING_SERVER_DATABASE,
-        MSG_RECREATE_ROCKS_DB_ERRROR,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_DATABASES_INITIALIZED,
+        MSG_INITIALIZING_SERVER_DATABASE, MSG_RECREATE_ROCKS_DB_ERRROR,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     let args = args.fill_values_with_secrets(&chain_config).await?;
@@ -39,7 +35,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     initialize_server_database(
         shell,
         &args.server_db,
-        chain_config.link_to_code.clone(),
+        &chain_config.link_to_code,
         args.dont_drop,
     )
     .await?;
@@ -51,7 +47,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn initialize_server_database(
     shell: &Shell,
     server_db_config: &DatabaseConfig,
-    link_to_code: PathBuf,
+    link_to_code: &Path,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
     let path_to_server_migration = link_to_code.join(SERVER_MIGRATIONS);
@@ -67,7 +63,7 @@ pub async fn initialize_server_database(
     }
     migrate_db(
         shell,
-        path_to_server_migration,
+        &path_to_server_migration,
         &server_db_config.full_url(),
     )
     .await?;
@@ -97,11 +93,11 @@ pub async fn update_configs(
     general.set_file_artifacts(file_artifacts)?;
     general.save().await?;
 
-    let link_to_code = config.link_to_code.clone();
+    let link_to_code = &config.link_to_code;
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
+            &link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
             config,
         )?;
     }
@@ -110,7 +106,7 @@ pub async fn update_configs(
     {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
+            &link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
             config,
         )?;
     }

@@ -8,7 +8,7 @@ use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, Prompt};
 use crate::{
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
     defaults::LOCAL_RPC_URL,
-    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},
+    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_RPC_URL_PROMPT},
 };
 
 const CHAIN_SUBDIR: &str = "chain";
@@ -31,7 +31,7 @@ impl BuildTransactionsArgs {
         let chain_name = global_config().chain_name.clone();
 
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            Prompt::new(MSG_L1_RPC_URL_PROMPT)
+            Prompt::new(MSG_RPC_URL_PROMPT)
                 .default(LOCAL_RPC_URL)
                 .validate_with(|val: &String| -> Result<(), String> {
                     Url::parse(val)

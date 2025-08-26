@@ -44,7 +44,6 @@ zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
 zksync_web3_decl.workspace = true
 zksync_system_constants.workspace = true
-zksync_contracts.workspace = true
 prost.workspace = true
 reqwest.workspace = true
 sha2.workspace = true
@@ -56,8 +55,3 @@ clap_complete.workspace = true
 dirs.workspace = true
 ethers.workspace = true
 xshell.workspace = true
-
-[features]
-v27_evm_interpreter = []
-v28_precompiles = []
-upgrades = []

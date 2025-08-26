@@ -1,6 +1,6 @@
 use clap::Parser;
 use xshell::Shell;
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::commands::upgrades::types::UpgradeVersion;
 
@@ -28,6 +28,8 @@ pub struct ChainUpgradeParams {
     pub dangerous_local_default_overrides: Option<bool>,
     #[clap(long, default_missing_value = "false")]
     pub force_display_finalization_params: Option<bool>,
+    #[clap(long)]
+    pub refund_recipient: Option<String>,
 }
 
 impl DefaultChainUpgradeArgs {
@@ -43,8 +45,7 @@ impl ChainUpgradeParams {
             return Ok(self);
         }
 
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let chain_config = ecosystem_config.load_current_chain()?;
+        let chain_config = ZkStackConfig::current_chain(shell)?;
         self.chain_id = Some(self.chain_id.unwrap_or(chain_config.chain_id.as_u64()));
 
         self.server_upgrade_timestamp = Some(

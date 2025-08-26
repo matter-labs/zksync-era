@@ -108,6 +108,11 @@ impl<K: Key> Scaler<K> {
                     .and_then(|inner_map| inner_map.get(&key))
                     .copied()
                     .unwrap_or(0),
+                scale_errors: namespace_value
+                    .scale_errors
+                    .iter()
+                    .filter(|v| v.time > Utc::now() - self.config.scale_errors_duration)
+                    .count(),
                 ..Default::default()
             });
 
@@ -1618,7 +1623,7 @@ mod tests {
         };
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            scaler.calculate(&"prover".into(), 2 * 1500 + 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
@@ -1660,7 +1665,7 @@ mod tests {
             "Override priority: H100 in foo, then L4 in bar"
         );
         assert_eq!(
-            scaler2.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            scaler2.calculate(&"prover".into(), 2 * 1500 + 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
@@ -1682,7 +1687,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 0 * 1500 + 0 * 3000, &clusters_h100),
+            scaler.calculate(&"prover".into(), 0 * 3000, &clusters_h100),
             [
                 (
                     PoolKey {
@@ -1770,7 +1775,7 @@ mod tests {
                     (PodStatus::Running, 1)
                 ]
                 .into(),
-                scale_errors: 1,
+                scale_errors: 2,
                 max_pool_size: 100,
             }]
         );
