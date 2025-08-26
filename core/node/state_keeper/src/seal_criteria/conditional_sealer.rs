@@ -236,11 +236,17 @@ pub struct ENSealer {
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
-impl ENSealer {
-    pub fn new() -> Self {
+impl Default for ENSealer {
+    fn default() -> Self {
         Self {
             sealers: SequencerSealer::default_sealers(),
         }
+    }
+}
+
+impl ENSealer {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

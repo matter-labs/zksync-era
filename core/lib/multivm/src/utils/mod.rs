@@ -1,4 +1,3 @@
-
 use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     vm::VmVersion,
