@@ -126,6 +126,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
+        init_args.deploy_ecosystem,
     )
     .await?;
 
@@ -156,8 +157,9 @@ async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
+    deploy_ecosystem: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    if ecosystem.deploy_ecosystem {
+    if deploy_ecosystem {
         return deploy_ecosystem_inner(
             shell,
             forge_args,

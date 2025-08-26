@@ -55,16 +55,6 @@ impl EcosystemArgs {
         l1_network: L1Network,
         dev: bool,
     ) -> anyhow::Result<EcosystemArgsFinal> {
-        let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
-            if dev {
-                true
-            } else {
-                PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
-                    .default(true)
-                    .ask()
-            }
-        });
-
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
             if dev {
@@ -87,7 +77,6 @@ impl EcosystemArgs {
         check_l1_rpc_health(&l1_rpc_url).await?;
 
         Ok(EcosystemArgsFinal {
-            deploy_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
             l1_rpc_url,
         })
@@ -96,7 +85,6 @@ impl EcosystemArgs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemArgsFinal {
-    pub deploy_ecosystem: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,
     pub l1_rpc_url: String,
 }
@@ -148,21 +136,21 @@ pub struct EcosystemInitArgs {
     pub bridgehub: Option<String>,
 }
 
-impl EcosystemInitArgs {
-    pub fn resolve_deploy_erc20(dev: bool, deploy_erc20: Option<bool>, prompt: bool) -> bool {
-        if dev {
-            true
-        } else {
-            match (prompt, deploy_erc20) {
-                (_, Some(val)) => val,
-                (true, None) => PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
-                    .default(true)
-                    .ask(),
-                (false, None) => true,
-            }
+pub fn resolve_deploy_erc20(dev: bool, deploy_erc20: Option<bool>, prompt: bool) -> bool {
+    if dev {
+        true
+    } else {
+        match (prompt, deploy_erc20) {
+            (_, Some(val)) => val,
+            (true, None) => PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
+                .default(true)
+                .ask(),
+            (false, None) => true,
         }
     }
+}
 
+impl EcosystemInitArgs {
     pub fn resolve_observability(dev: bool, observability: Option<bool>, prompt: bool) -> bool {
         if dev {
             true
@@ -207,6 +195,16 @@ impl EcosystemInitArgs {
             ..
         } = self;
 
+        let deploy_ecosystem = ecosystem.deploy_ecosystem.unwrap_or_else(|| {
+            if dev {
+                true
+            } else {
+                PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
+                    .default(true)
+                    .ask()
+            }
+        });
+
         let ecosystem = ecosystem
             .fill_values_with_prompt(l1_network, dev || prompt_policy.skip_ecosystem)
             .await?;
@@ -220,7 +218,7 @@ impl EcosystemInitArgs {
         };
 
         Ok(EcosystemInitArgsFinal {
-            deploy_erc20: Self::resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),
+            deploy_erc20: resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),
             observability: Self::resolve_observability(
                 dev,
                 observability,
@@ -236,6 +234,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
             bridgehub_address,
+            deploy_ecosystem,
         })
     }
 }
@@ -253,6 +252,7 @@ pub struct EcosystemInitArgsFinal {
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: H160,
+    pub deploy_ecosystem: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -307,6 +307,163 @@ impl From<&EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
             ecosystem: args.ecosystem.clone(),
             forge_args: args.forge_args.clone(),
             update_submodules: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
+pub struct InitNewCTMArgs {
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub ecosystem: EcosystemArgs,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
+    #[clap(long, default_value_t = false)]
+    pub skip_contract_compilation_override: bool,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub support_l2_legacy_shared_bridge_test: Option<bool>,
+    #[clap(long, help = MSG_BRIDGEHUB)]
+    pub bridgehub: Option<String>,
+}
+
+impl InitNewCTMArgs {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+        prompt_policy: PromptPolicy,
+    ) -> anyhow::Result<InitNewCTMArgsFinal> {
+        let InitNewCTMArgs {
+            ecosystem,
+            forge_args,
+            update_submodules,
+            skip_contract_compilation_override,
+            support_l2_legacy_shared_bridge_test,
+            bridgehub,
+        } = self;
+
+        // Fill ecosystem args
+        let ecosystem = ecosystem
+            .fill_values_with_prompt(l1_network, prompt_policy.skip_ecosystem)
+            .await?;
+
+        // Parse bridgehub address
+        let bridgehub_address = if let Some(ref addr_str) = bridgehub {
+            addr_str
+                .parse::<H160>()
+                .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?
+        } else {
+            H160::zero()
+        };
+
+        Ok(InitNewCTMArgsFinal {
+            ecosystem,
+            forge_args,
+            update_submodules,
+            skip_contract_compilation_override,
+            support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
+                .unwrap_or(false),
+            bridgehub_address,
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InitNewCTMArgsFinal {
+    pub ecosystem: EcosystemArgsFinal,
+    pub forge_args: ForgeScriptArgs,
+    pub update_submodules: Option<bool>,
+    pub skip_contract_compilation_override: bool,
+    pub support_l2_legacy_shared_bridge_test: bool,
+    pub bridgehub_address: H160,
+}
+
+impl From<&EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
+    fn from(args: &EcosystemInitArgsFinal) -> Self {
+        InitNewCTMArgsFinal {
+            ecosystem: args.ecosystem.clone(),
+            forge_args: args.forge_args.clone(),
+            update_submodules: None,
+            skip_contract_compilation_override: args.skip_contract_compilation_override,
+            support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
+            bridgehub_address: args.bridgehub_address,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
+pub struct InitCoreContractsArgs {
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub deploy_erc20: Option<bool>,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub ecosystem: EcosystemArgs,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+    #[clap(long, help = MSG_DEV_ARG_HELP)]
+    pub dev: bool,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
+    #[clap(long, default_value_t = false)]
+    pub skip_contract_compilation_override: bool,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub support_l2_legacy_shared_bridge_test: Option<bool>,
+}
+
+impl InitCoreContractsArgs {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+        prompt_policy: PromptPolicy,
+    ) -> anyhow::Result<InitCoreContractsArgsFinal> {
+        let InitCoreContractsArgs {
+            deploy_erc20,
+            ecosystem,
+            forge_args,
+            dev,
+            update_submodules,
+            skip_contract_compilation_override,
+            support_l2_legacy_shared_bridge_test,
+        } = self;
+
+        let ecosystem = ecosystem
+            .fill_values_with_prompt(l1_network, prompt_policy.skip_ecosystem)
+            .await?;
+
+        Ok(InitCoreContractsArgsFinal {
+            deploy_erc20: resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),
+            ecosystem,
+            forge_args,
+            update_submodules,
+            skip_contract_compilation_override,
+            support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
+                .unwrap_or(false),
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InitCoreContractsArgsFinal {
+    pub deploy_erc20: bool,
+    pub ecosystem: EcosystemArgsFinal,
+    pub forge_args: ForgeScriptArgs,
+    pub update_submodules: Option<bool>,
+    pub skip_contract_compilation_override: bool,
+    pub support_l2_legacy_shared_bridge_test: bool,
+}
+
+impl From<&EcosystemInitArgsFinal> for InitCoreContractsArgsFinal {
+    fn from(args: &EcosystemInitArgsFinal) -> Self {
+        InitCoreContractsArgsFinal {
+            deploy_erc20: args.deploy_erc20,
+            ecosystem: args.ecosystem.clone(),
+            forge_args: args.forge_args.clone(),
+            update_submodules: None,
+            skip_contract_compilation_override: args.skip_contract_compilation_override,
+            support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
         }
     }
 }

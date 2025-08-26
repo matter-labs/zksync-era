@@ -100,6 +100,7 @@ pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path"
 pub(super) const MSG_GENESIS_DATABASE_ERR: &str = "Unable to perform genesis on the database";
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
+pub(super) const MSG_INITIALIZING_CTM: &str = "Initializing CTM";
 pub(super) const MSG_REGISTERING_CTM: &str = "Registering CTM";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";

@@ -5,7 +5,7 @@ use xshell::Shell;
 use crate::commands::ecosystem::args::{
     change_default::ChangeDefaultChain,
     create::EcosystemCreateArgs,
-    init::{EcosystemInitArgs, RegisterCTMArgs},
+    init::{EcosystemInitArgs, InitCoreContractsArgs, InitNewCTMArgs, RegisterCTMArgs},
 };
 
 pub mod args;
@@ -33,9 +33,9 @@ pub enum EcosystemCommands {
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
     /// Initialize new ecosystem on existing bridgehub
-    InitNewCTM(EcosystemInitArgs),
+    InitNewCTM(InitNewCTMArgs),
     /// Initialize ecosystem core contracts
-    InitCoreContracts(EcosystemInitArgs),
+    InitCoreContracts(InitCoreContractsArgs),
     /// Change the default chain
     #[command(alias = "cd")]
     ChangeDefaultChain(ChangeDefaultChain),
