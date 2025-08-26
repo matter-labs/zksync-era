@@ -15,8 +15,8 @@ use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
-            ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            ForgeScriptParams, ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
+            V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{
             input::{
@@ -27,7 +27,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
@@ -52,8 +52,8 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
+    git::submodule_update(shell, &ecosystem_config.link_to_code)?;
 
     let upgrade_version = args.upgrade_version;
 
@@ -140,7 +140,7 @@ async fn no_governance_prepare(
     let genesis_config_path = ecosystem_config
         .get_default_configs_path()
         .join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
@@ -195,8 +195,7 @@ async fn no_governance_prepare(
     }
     new_genesis.protocol_version = new_version;
 
-    let gateway_upgrade_config =
-        get_gateway_state_transition_config(shell, ecosystem_config).await?;
+    let gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
 
     let upgrade_specific_config = match upgrade_version {
         UpgradeVersion::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
@@ -219,6 +218,7 @@ async fn no_governance_prepare(
                 )])),
             })
         }
+        UpgradeVersion::V28_1VkEra => EcosystemUpgradeSpecificConfig::V28,
     };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
@@ -607,6 +607,7 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
     match upgrade_version {
         UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
 
@@ -623,7 +624,6 @@ fn get_local_gateway_chain_config(
 }
 
 async fn get_gateway_state_transition_config(
-    shell: &Shell,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<GatewayUpgradeContractsConfig> {
     // Firstly, we obtain the gateway config

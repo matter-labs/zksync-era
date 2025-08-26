@@ -31,7 +31,6 @@ zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
-zksync_contracts = { path = "../core/lib/contracts" }
 zksync_consensus_roles = "=0.13"
 zksync_consensus_crypto = "=0.13"
 

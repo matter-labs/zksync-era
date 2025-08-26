@@ -113,6 +113,12 @@ pub const ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptP
     script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v28_1_zk_os.s.sol",
 };
 
+pub const ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/era-v28-1-upgrade-ecosystem.toml",
+    output: "script-out/era-v28-1-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v28_1.s.sol",
+};
+
 pub const ZK_OS_V28_1_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/zk-os-v28-1-upgrade-chain.toml",
     output: "script-out/zk-os-v28-1-upgrade-chain.toml",

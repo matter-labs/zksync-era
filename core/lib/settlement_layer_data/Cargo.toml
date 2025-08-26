@@ -1,0 +1,30 @@
+[package]
+name = "zksync_settlement_layer_data"
+description = "ZKsync settlement layer data"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_web3_decl.workspace = true
+zksync_contracts.workspace = true
+zksync_basic_types.workspace = true
+zksync_config.workspace = true
+zksync_system_constants.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
+zksync_shared_resources.workspace = true
+
+tokio.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+once_cell.workspace = true
+serde.workspace = true

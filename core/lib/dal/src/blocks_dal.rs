@@ -49,7 +49,7 @@ pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TxForPrecommit {
     pub l1_batch_number: Option<L1BatchNumber>,
     pub l2block_number: L2BlockNumber,
@@ -3530,6 +3530,28 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_batch_number_of_prove_tx_id(
+        &mut self,
+        tx_id: u32,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                eth_prove_tx_id = $1
+            "#,
+            tx_id as i32
+        )
+        .instrument("get_batch_number_of_prove_tx_id")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
     }
 }
 

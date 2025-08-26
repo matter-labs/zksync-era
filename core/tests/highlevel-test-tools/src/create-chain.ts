@@ -102,7 +102,7 @@ export function getCustomTokenAddress(configPath: string = join(configsPath(), '
 export async function createChainAndStartServer(chainType: ChainType, testSuiteName: string): Promise<TestChain> {
     // Default configuration
     const finalConfig: ChainConfig = {
-        l1RpcUrl: 'http://localhost:8545',
+        l1RpcUrl: 'http://127.0.0.1:8545',
         serverDbUrl: 'postgres://postgres:notsecurepassword@localhost:5432'
     };
 

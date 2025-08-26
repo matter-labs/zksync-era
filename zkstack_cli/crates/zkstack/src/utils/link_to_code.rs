@@ -89,7 +89,7 @@ pub(crate) fn get_link_to_code(shell: &Shell) -> String {
 
 pub(crate) fn resolve_link_to_code(
     shell: &Shell,
-    base_path: PathBuf,
+    base_path: &Path,
     link_to_code: String,
     update_submodules: Option<bool>,
 ) -> anyhow::Result<PathBuf> {
@@ -99,7 +99,7 @@ pub(crate) fn resolve_link_to_code(
         }
         let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
         if !base_path.exists() {
-            shell.create_dir(&base_path)?;
+            shell.create_dir(base_path)?;
         }
         let link_to_code = git::clone(shell, base_path, ZKSYNC_ERA_GIT_REPO, "zksync-era")?;
         spinner.finish();
@@ -107,7 +107,7 @@ pub(crate) fn resolve_link_to_code(
     } else {
         let path = PathBuf::from_str(&link_to_code)?;
         if update_submodules.is_none() || update_submodules == Some(true) {
-            git::submodule_update(shell, path.clone())?;
+            git::submodule_update(shell, &path)?;
         }
         Ok(path)
     }
