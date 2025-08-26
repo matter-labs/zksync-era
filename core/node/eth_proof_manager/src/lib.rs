@@ -15,6 +15,7 @@ mod sender;
 mod tests;
 mod types;
 mod watcher;
+mod metrics;
 
 pub struct EthProofManager {
     watcher: watcher::EthProofWatcher,

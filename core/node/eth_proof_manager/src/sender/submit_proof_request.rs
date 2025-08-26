@@ -11,8 +11,7 @@ use zksync_prover_interface::inputs::PublicWitnessInputData;
 use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::{
-    client::EthProofManagerClient,
-    types::{ProofRequestIdentifier, ProofRequestParams},
+    client::EthProofManagerClient, metrics::{TxType, METRICS}, types::{ProofRequestIdentifier, ProofRequestParams}
 };
 
 pub struct ProofRequestSubmitter {
@@ -151,31 +150,35 @@ impl ProofRequestSubmitter {
             max_reward: self.config.max_reward,
         };
 
-        let tx_hash = self
-            .client
-            .submit_proof_request(proof_request_identifier, proof_request_parameters)
-            .await
-            .map_err(|e| {
-                anyhow::anyhow!(
+        match self
+        .client
+        .submit_proof_request(proof_request_identifier, proof_request_parameters)
+        .await {
+            Ok(tx_hash) => {
+                self.connection_pool
+                    .connection()
+                    .await?
+                    .eth_proof_manager_dal()
+                    .mark_batch_as_sent(batch_id, tx_hash)
+                    .await?;
+
+                tracing::info!(
+                    "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
+                    proof_generation_data.l1_batch_number,
+                    proof_generation_data.chain_id,
+                    tx_hash
+                );
+            }
+            Err(e) => {
+                METRICS.failed_to_send_tx[&TxType::ProofRequest].inc();
+                return Err(anyhow::anyhow!(
                     "Failed to submit proof request for batch {}, error: {}",
                     batch_id,
                     e
-                )
-            })?;
-
-        self.connection_pool
-            .connection()
-            .await?
-            .eth_proof_manager_dal()
-            .mark_batch_as_sent(batch_id, tx_hash)
-            .await?;
-
-        tracing::info!(
-            "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
-            proof_generation_data.l1_batch_number,
-            proof_generation_data.chain_id,
-            tx_hash
-        );
+                ));
+            }
+        }
+        
         Ok(())
     }
 }
