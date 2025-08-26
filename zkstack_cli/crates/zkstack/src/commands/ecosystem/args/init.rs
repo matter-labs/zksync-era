@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
 use clap::Parser;
 use ethers::{providers::Middleware, types::H160};
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ use crate::{
     commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_BRIGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
+        MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
         MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
@@ -143,7 +144,7 @@ pub struct EcosystemInitArgs {
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
-    #[clap(long, help = MSG_BRIGEHUB)]
+    #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
 }
 
@@ -213,7 +214,7 @@ impl EcosystemInitArgs {
         let bridgehub_address: H160 = if let Some(ref addr_str) = bridgehub {
             addr_str
                 .parse::<H160>()
-                .expect("Invalid bridgehub address format")
+                .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?
         } else {
             H160::zero()
         };
@@ -252,4 +253,60 @@ pub struct EcosystemInitArgsFinal {
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: H160,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
+pub struct RegisterCTMArgs {
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub ecosystem: EcosystemArgs,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
+    #[clap(long, help = MSG_DEV_ARG_HELP)]
+    pub dev: bool,
+}
+
+impl RegisterCTMArgs {
+    pub async fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+        prompt_policy: PromptPolicy,
+    ) -> anyhow::Result<RegisterCTMArgsFinal> {
+        let RegisterCTMArgs {
+            ecosystem,
+            forge_args,
+            update_submodules,
+            dev,
+        } = self;
+
+        let ecosystem = ecosystem
+            .fill_values_with_prompt(l1_network, dev || prompt_policy.skip_ecosystem)
+            .await?;
+
+        Ok(RegisterCTMArgsFinal {
+            ecosystem,
+            forge_args,
+            update_submodules,
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegisterCTMArgsFinal {
+    pub ecosystem: EcosystemArgsFinal,
+    pub forge_args: ForgeScriptArgs,
+    pub update_submodules: Option<bool>,
+}
+
+impl From<&EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
+    fn from(args: &EcosystemInitArgsFinal) -> Self {
+        RegisterCTMArgsFinal {
+            ecosystem: args.ecosystem.clone(),
+            forge_args: args.forge_args.clone(),
+            update_submodules: None,
+        }
+    }
 }

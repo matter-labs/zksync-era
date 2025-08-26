@@ -184,7 +184,6 @@ pub async fn governance_execute_calls(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
         .with_calldata(&calldata);
 
     let description = "executing governance calls";

@@ -3,7 +3,9 @@ use clap::Subcommand;
 use xshell::Shell;
 
 use crate::commands::ecosystem::args::{
-    change_default::ChangeDefaultChain, create::EcosystemCreateArgs, init::EcosystemInitArgs,
+    change_default::ChangeDefaultChain,
+    create::EcosystemCreateArgs,
+    init::{EcosystemInitArgs, RegisterCTMArgs},
 };
 
 pub mod args;
@@ -42,7 +44,7 @@ pub enum EcosystemCommands {
     #[command(alias = "obs")]
     SetupObservability,
     /// Register CTM on Existing Bridgehub
-    RegisterCTM(EcosystemInitArgs),
+    RegisterCTM(RegisterCTMArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {

@@ -206,13 +206,8 @@ pub async fn register_ctm_on_existing_bh(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        // forge =
-        // fill_forge_private_key(forge, Some(&wallets_config.governor), WalletOwner::Governor)?;
-        forge = fill_forge_private_key(
-            forge,
-            wallets_config.deployer.as_ref(),
-            WalletOwner::Deployer,
-        )?;
+        forge =
+            fill_forge_private_key(forge, Some(&wallets_config.governor), WalletOwner::Governor)?;
     }
 
     if broadcast {

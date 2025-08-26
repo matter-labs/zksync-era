@@ -3,16 +3,12 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, git, logger};
 use zkstack_cli_config::EcosystemConfig;
 
 use super::{
-    args::init::{EcosystemInitArgs, EcosystemInitArgsFinal},
-    common::{init_chains, register_ctm_on_existing_bh},
-    setup_observability,
+    args::init::{RegisterCTMArgs, RegisterCTMArgsFinal},
+    common::register_ctm_on_existing_bh,
 };
-use crate::{
-    commands::ecosystem::args::init::PromptPolicy,
-    messages::{msg_ecosystem_initialized, MSG_INITIALIZING_ECOSYSTEM},
-};
+use crate::{commands::ecosystem::args::init::PromptPolicy, messages::MSG_REGISTERING_CTM};
 
-pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
@@ -30,11 +26,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .fill_values_with_prompt(ecosystem_config.l1_network, prompt_policy)
         .await?;
 
-    logger::info(MSG_INITIALIZING_ECOSYSTEM);
-
-    if final_ecosystem_args.observability {
-        setup_observability::run(shell)?;
-    }
+    logger::info(MSG_REGISTERING_CTM);
 
     let forge_args = final_ecosystem_args.forge_args.clone();
 
@@ -46,18 +38,11 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
-    // Initialize chain(s)
-    let mut chains: Vec<String> = vec![];
-    if !final_ecosystem_args.ecosystem_only {
-        chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
-    }
-    logger::outro(msg_ecosystem_initialized(&chains.join(",")));
-
     Ok(())
 }
 
 pub async fn register_ctm(
-    init_args: &mut EcosystemInitArgsFinal,
+    init_args: &mut RegisterCTMArgsFinal,
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,

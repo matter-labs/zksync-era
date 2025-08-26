@@ -18,13 +18,10 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
-        deploy_gateway_tx_filterer::{
-            input::GatewayTxFiltererInput, output::GatewayTxFiltererOutput,
-        },
         gateway_vote_preparation::{
             input::GatewayVotePreparationConfig, output::DeployGatewayCTMOutput,
         },
-        script_params::{DEPLOY_GATEWAY_TX_FILTERER, GATEWAY_VOTE_PREPARATION},
+        script_params::GATEWAY_VOTE_PREPARATION,
     },
     override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
@@ -36,7 +33,7 @@ use crate::{
     abi::BridgehubAbi,
     admin_functions::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
-        set_transaction_filterer, AdminScriptMode,
+        AdminScriptMode,
     },
     commands::chain::utils::display_admin_script_output,
     consts::PATH_TO_GATEWAY_OVERRIDE_CONFIG,
@@ -45,8 +42,6 @@ use crate::{
 };
 
 lazy_static! {
-    static ref DEPLOY_GATEWAY_TX_FILTERER_ABI: BaseContract =
-        BaseContract::from(parse_abi(&["function runWithInputFromFile() public"]).unwrap(),);
     static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract = BaseContract::from(
         parse_abi(&["function prepareForGWVoting(uint256 ctmChainId) public"]).unwrap(),
     );
@@ -80,14 +75,13 @@ fn parse_decimal_u256(s: &str) -> Result<U256, String> {
 
 pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = convert_to_gw_args.forge_args;
-    let bridgehub_address = convert_to_gw_args.bridgehub_addr.unwrap_or(Address::zero());
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
-    let mut chain_contracts_config = chain_config.get_contracts_config()?;
+    let chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
     override_config(
@@ -105,56 +99,25 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 
     let grantees;
 
-    let bridgehub_governance_addr = if bridgehub_address.is_zero() {
-        let output: GatewayTxFiltererOutput = deploy_gateway_tx_filterer(
-            shell,
-            args.clone(),
-            &ecosystem_config,
-            &chain_config,
-            &chain_deployer_wallet,
-            GatewayTxFiltererInput::new(
-                &ecosystem_config.get_initial_deployment_config().unwrap(),
-                &chain_contracts_config,
-            )?,
-            l1_url.clone(),
-        )
-        .await?;
+    let bridgehub_governance_addr = if let Some(addr) = convert_to_gw_args.bridgehub_addr {
+        let l1_provider = get_ethers_provider(&l1_url)?;
+        let l1_bridgehub = BridgehubAbi::new(addr, l1_provider);
+        let bridgehub_governance_addr = l1_bridgehub.owner().await?;
 
-        set_transaction_filterer(
-            shell,
-            &args,
-            &chain_config.path_to_l1_foundry(),
-            AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
-            chain_config.chain_id.as_u64(),
-            chain_contracts_config
-                .ecosystem_contracts
-                .bridgehub_proxy_addr,
-            output.gateway_tx_filterer_proxy,
-            l1_url.clone(),
-        )
-        .await?;
-
-        chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
-        chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
-
+        grantees = vec![bridgehub_governance_addr, chain_deployer_wallet.address];
+        bridgehub_governance_addr
+    } else {
+        // Fallback to local config
+        let governance_addr = ecosystem_config.get_contracts_config()?.l1.governance_addr;
         grantees = vec![
-            ecosystem_config.get_contracts_config()?.l1.governance_addr,
+            governance_addr,
             chain_deployer_wallet.address,
             chain_contracts_config
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr
                 .context("No CTM deployment tracker")?,
         ];
-
-        Address::zero()
-    } else {
-        let l1_provider = get_ethers_provider(&l1_url)?;
-        let l1_bridgehub = BridgehubAbi::new(bridgehub_address, l1_provider);
-        let bridgehub_governance_addr = l1_bridgehub.owner().await?;
-
-        grantees = vec![bridgehub_governance_addr, chain_deployer_wallet.address];
-
-        bridgehub_governance_addr
+        governance_addr
     };
 
     let mode = if convert_to_gw_args.only_save_calldata {
@@ -283,42 +246,5 @@ pub async fn gateway_vote_preparation(
     DeployGatewayCTMOutput::read(
         shell,
         GATEWAY_VOTE_PREPARATION.output(&chain_config.path_to_l1_foundry()),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn deploy_gateway_tx_filterer(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
-    chain_config: &ChainConfig,
-    deployer: &Wallet,
-    input: GatewayTxFiltererInput,
-    l1_rpc_url: String,
-) -> anyhow::Result<GatewayTxFiltererOutput> {
-    input.save(
-        shell,
-        DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_l1_foundry()),
-    )?;
-
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
-        .script(&DEPLOY_GATEWAY_TX_FILTERER.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url)
-        .with_calldata(
-            &DEPLOY_GATEWAY_TX_FILTERER_ABI
-                .encode("runWithInputFromFile", ())
-                .unwrap(),
-        )
-        .with_broadcast();
-
-    // This script can be run by any wallet without privileges
-    forge = fill_forge_private_key(forge, Some(deployer), WalletOwner::Deployer)?;
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-
-    GatewayTxFiltererOutput::read(
-        shell,
-        DEPLOY_GATEWAY_TX_FILTERER.output(&chain_config.path_to_l1_foundry()),
     )
 }

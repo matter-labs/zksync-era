@@ -16,7 +16,9 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1Network;
 
 use super::{
-    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    args::init::{
+        EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal, RegisterCTMArgsFinal,
+    },
     common::{deploy_erc20, init_chains},
     setup_observability,
     utils::{build_da_contracts, install_yarn_dependencies},
@@ -140,7 +142,8 @@ async fn init_ecosystem(
 
     let forge_args = init_args.forge_args.clone();
 
-    register_ctm(init_args, shell, forge_args, ecosystem_config).await?;
+    let mut reg_args = RegisterCTMArgsFinal::from(&*init_args);
+    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config).await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
     Ok(contracts)

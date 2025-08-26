@@ -215,7 +215,6 @@ async fn deploy_ecosystem_inner(
     .await?;
     spinner.finish();
 
-    println!("Got here 1");
     accept_owner(
         shell,
         config,
@@ -226,8 +225,6 @@ async fn deploy_ecosystem_inner(
         l1_rpc_url.clone(),
     )
     .await?;
-
-    println!("Got here 2");
 
     accept_admin(
         shell,
@@ -240,8 +237,8 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    println!("Got here 3");
-
+    // Note, that there is no admin in L1 asset router, so we do
+    // need to accept it
     accept_owner(
         shell,
         config,
@@ -252,8 +249,6 @@ async fn deploy_ecosystem_inner(
         l1_rpc_url.clone(),
     )
     .await?;
-
-    println!("Got here 4");
 
     accept_owner(
         shell,
@@ -268,8 +263,6 @@ async fn deploy_ecosystem_inner(
         l1_rpc_url.clone(),
     )
     .await?;
-
-    println!("Got here 5");
 
     Ok(contracts_config)
 }

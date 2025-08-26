@@ -1,6 +1,5 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::Context;
 use ethers::types::H160;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -221,121 +220,31 @@ async fn deploy_new_ctm_inner(
     .await?;
     spinner.finish();
 
-    if bridgehub_address == H160::zero() {
-        println!("BH address is zero!");
-        // Note, that there is no admin in L1 asset router, so we do
-        // need to accept it
+    accept_owner(
+        shell,
+        config,
+        contracts_config.l1.governance_addr,
+        &config.get_wallets()?.governor,
+        contracts_config
+            .ecosystem_contracts
+            .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
 
-        accept_owner(
-            shell,
-            config,
-            contracts_config.l1.governance_addr,
-            &config.get_wallets()?.governor,
-            contracts_config
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
+    accept_admin(
+        shell,
+        config,
+        contracts_config.l1.chain_admin_addr,
+        &config.get_wallets()?.governor,
+        contracts_config
+            .ecosystem_contracts
+            .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
 
-        println!("One");
-
-        accept_admin(
-            shell,
-            config,
-            contracts_config.l1.chain_admin_addr,
-            &config.get_wallets()?.governor,
-            contracts_config
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-
-        println!("Two");
-
-        accept_owner(
-            shell,
-            config,
-            contracts_config.l1.governance_addr,
-            &config.get_wallets()?.governor,
-            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-
-        println!("Three");
-
-        accept_admin(
-            shell,
-            config,
-            contracts_config.l1.chain_admin_addr,
-            &config.get_wallets()?.governor,
-            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-
-        println!("Four");
-
-        accept_owner(
-            shell,
-            config,
-            contracts_config.l1.governance_addr,
-            &config.get_wallets()?.governor,
-            contracts_config.bridges.shared.l1_address,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-
-        println!("Five");
-
-        accept_owner(
-            shell,
-            config,
-            contracts_config.l1.governance_addr,
-            &config.get_wallets()?.governor,
-            contracts_config
-                .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr
-                .context("stm_deployment_tracker_proxy_addr")?,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-
-        println!("Six");
-    } else {
-        accept_owner(
-            shell,
-            config,
-            contracts_config.l1.governance_addr,
-            &config.get_wallets()?.governor,
-            contracts_config
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-
-        accept_admin(
-            shell,
-            config,
-            contracts_config.l1.chain_admin_addr,
-            &config.get_wallets()?.governor,
-            contracts_config
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-    }
     Ok(contracts_config)
 }
