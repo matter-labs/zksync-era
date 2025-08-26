@@ -140,11 +140,7 @@ mod tests {
         let l1_blob_base_fee = 1; // assume base fee at minimum
 
         let cap = predict_blob_fee_cap(blobs_total, l1_blocks_total, l1_blob_base_fee);
-        assert_eq!(
-            cap,
-            4,
-            "fee cap should be 4"
-        );
+        assert_eq!(cap, 4, "fee cap should be 4");
     }
 
     #[test]
@@ -172,8 +168,7 @@ mod tests {
 
         let cap = predict_blob_fee_cap(blobs_total, l1_blocks_total, l1_blob_base_fee);
         assert_eq!(
-            cap,
-            11_726_944_357_681_419,
+            cap, 11_726_944_357_681_419,
             "extreme backlog should yield very high fee cap"
         );
     }
@@ -186,10 +181,6 @@ mod tests {
         let l1_blob_base_fee = 1;
 
         let cap = predict_blob_fee_cap(blobs_total, l1_blocks_total, l1_blob_base_fee);
-        assert_eq!(
-            cap,
-            44,
-            "fee cap should be 44"
-        );
+        assert_eq!(cap, 44, "fee cap should be 44");
     }
 }
