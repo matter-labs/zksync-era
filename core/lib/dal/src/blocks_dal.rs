@@ -14,7 +14,6 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     interpolate_query, match_query_as,
 };
-use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
@@ -1117,6 +1116,7 @@ impl BlocksDal<'_, '_> {
         storage_refunds: &[u32],
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
+        bytes_per_blob: u64,
     ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
@@ -1148,7 +1148,7 @@ impl BlocksDal<'_, '_> {
             .clone()
             .map(|input| input.len() as u64)
             .unwrap_or(0)
-            .div_ceil(ZK_SYNC_BYTES_PER_BLOB as u64);
+            .div_ceil(bytes_per_blob);
 
         let query = sqlx::query!(
             r#"
@@ -3616,7 +3616,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default())
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1)
             .await
     }
 

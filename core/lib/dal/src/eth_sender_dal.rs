@@ -291,6 +291,45 @@ impl EthSenderDal<'_, '_> {
         Ok(stats)
     }
 
+    /// This query returns the number and sent_at_block of the latest commited batch.
+    /// Query should be primary used for L1, not for gateway settlement layer.
+    ///
+    /// Although, here we are not checking if the batch is from gateway settlement layer,
+    /// because we are using upper bound from the found values, so it is safe to assume that the values
+    /// next values will be coming for L1 if used.
+    pub async fn get_number_and_sent_at_block_for_latest_commited_batch(
+        &mut self,
+        latest_block_number: u32,
+    ) -> DalResult<(u32, u32)> {
+        // if no commited batch found, return first batch number and latest block number
+        let result = sqlx::query!(
+            r#"
+            SELECT number, sent_at_block
+            FROM l1_batches
+            INNER JOIN
+                eth_txs_history
+                ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
+            WHERE eth_txs_history.confirmed_at IS NOT NULL
+            ORDER BY number DESC
+            LIMIT 1
+            "#,
+        )
+        .instrument("get_number_and_sent_at_block_for_latest_commited_batch")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| {
+            (
+                row.number as u32,
+                row.sent_at_block
+                    .map(|v| v as u32)
+                    .unwrap_or(latest_block_number as u32),
+            )
+        })
+        .unwrap_or((1 as u32, latest_block_number as u32));
+
+        Ok(result)
+    }
+
     pub async fn get_eth_tx(&mut self, eth_tx_id: u32) -> sqlx::Result<Option<EthTx>> {
         Ok(sqlx::query_as!(
             StorageEthTx,
@@ -947,28 +986,6 @@ impl EthSenderDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
         Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
-    }
-
-    pub async fn get_sent_at_block_for_commited_block(
-        &mut self,
-        batch_number: L1BatchNumber,
-    ) -> DalResult<Option<u32>> {
-        let sent_at_block = sqlx::query_scalar!(
-            "
-                SELECT h.sent_at_block
-                FROM l1_batches      AS b
-                JOIN eth_txs         AS t ON t.id = b.eth_commit_tx_id
-                JOIN eth_txs_history AS h ON h.id = t.confirmed_eth_tx_history_id
-                WHERE b.number = $1
-                LIMIT 1
-                ",
-            i64::from(batch_number.0)
-        )
-        .instrument("get_sent_at_block_for_commited_block")
-        .with_arg("batch_number", &batch_number)
-        .fetch_optional(self.storage)
-        .await?;
-        Ok(sent_at_block.flatten().map(|block| block as u32))
     }
 
     pub async fn get_block_number_on_first_sent_attempt(
