@@ -6,13 +6,7 @@ use crate::seal_criteria::{
 };
 
 #[derive(Debug)]
-pub struct PubDataBytesCriterion {
-    /// This value changes based on the DA solution.
-    /// If we use calldata, the limit is `128kb`
-    /// If we use blobs then the value can be up to `252kb`, up to `126kb` will fill 1 blob,
-    /// more than that will switch over to 2 blobs.
-    pub max_pubdata_per_batch: u64,
-}
+pub struct PubDataBytesCriterion;
 
 impl SealCriterion for PubDataBytesCriterion {
     fn should_seal(
@@ -25,7 +19,7 @@ impl SealCriterion for PubDataBytesCriterion {
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
-        let max_pubdata_per_l1_batch = self.max_pubdata_per_batch as usize;
+        let max_pubdata_per_l1_batch = config.max_pubdata_per_batch.0 as usize;
         let reject_bound =
             (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
         let include_and_seal_bound =
@@ -62,7 +56,7 @@ impl SealCriterion for PubDataBytesCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &SealCriteriaConfig,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -73,7 +67,7 @@ impl SealCriterion for PubDataBytesCriterion {
             + block_data.writes_metrics.size(protocol_version)
             + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into()))
             as f64;
-        let full_pubdata = self.max_pubdata_per_batch as f64;
+        let full_pubdata = config.max_pubdata_per_batch.0 as f64;
 
         Some(used_pubdata / full_pubdata)
     }
@@ -99,9 +93,7 @@ mod tests {
             ..SealCriteriaConfig::for_tests()
         };
 
-        let criterion = PubDataBytesCriterion {
-            max_pubdata_per_batch: 100000,
-        };
+        let criterion = PubDataBytesCriterion {};
 
         let block_execution_metrics = VmExecutionMetrics {
             l2_l1_long_messages: (config.max_pubdata_per_batch.0 as f64

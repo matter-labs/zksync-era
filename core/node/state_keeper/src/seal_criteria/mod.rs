@@ -20,7 +20,7 @@ use zksync_multivm::{
 use zksync_types::{ProtocolVersionId, Transaction};
 
 pub use self::{
-    conditional_sealer::{ConditionalSealer, NoopSealer, PanicSealer, SequencerSealer},
+    conditional_sealer::{ConditionalSealer, ENSealer, NoopSealer, SequencerSealer},
     io_criteria::IoSealCriteria,
 };
 use crate::metrics::AGGREGATION_METRICS;

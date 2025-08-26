@@ -7,8 +7,13 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use smart_config::ByteSize;
 use zksync_config::configs::chain::SealCriteriaConfig;
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::{
+    interface::TransactionExecutionMetrics,
+    utils::{get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits},
+    vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+};
 use zksync_types::{ProtocolVersionId, Transaction};
 use zksync_vm_executor::interface::TransactionFilter;
 
@@ -164,7 +169,7 @@ impl ConditionalSealer for SequencerSealer {
 
 impl SequencerSealer {
     pub fn new(config: SealCriteriaConfig) -> Self {
-        let sealers = Self::default_sealers(&config);
+        let sealers = Self::default_sealers();
         Self { config, sealers }
     }
 
@@ -176,13 +181,11 @@ impl SequencerSealer {
         Self { config, sealers }
     }
 
-    fn default_sealers(config: &SealCriteriaConfig) -> Vec<Box<dyn SealCriterion>> {
+    fn default_sealers() -> Vec<Box<dyn SealCriterion>> {
         vec![
             Box::new(criteria::SlotsCriterion),
             Box::new(criteria::InteropRootsCriterion),
-            Box::new(criteria::PubDataBytesCriterion {
-                max_pubdata_per_batch: config.max_pubdata_per_batch.0,
-            }),
+            Box::new(criteria::PubDataBytesCriterion),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
             Box::new(criteria::GasForBatchTipCriterion),
@@ -227,19 +230,42 @@ impl ConditionalSealer for NoopSealer {
 
 /// Sealer for usage in EN. Panics if passed transaction should be excluded.
 #[derive(Debug)]
-pub struct PanicSealer {
-    sealer: SequencerSealer,
+pub struct ENSealer {
+    sealers: Vec<Box<dyn SealCriterion>>,
 }
 
-impl PanicSealer {
-    pub fn new(config: SealCriteriaConfig) -> Self {
+impl ENSealer {
+    pub fn new() -> Self {
         Self {
-            sealer: SequencerSealer::new(config),
+            sealers: SequencerSealer::default_sealers(),
         }
     }
 }
 
-impl ConditionalSealer for PanicSealer {
+impl ENSealer {
+    fn seal_criteria_config_for_protocol_version(
+        &self,
+        protocol_version: ProtocolVersionId,
+    ) -> SealCriteriaConfig {
+        SealCriteriaConfig {
+            transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()) as usize, // do not limit on transaction slots
+            max_pubdata_per_batch: ByteSize(
+                MAX_VM_PUBDATA_PER_BATCH
+                    .try_into()
+                    .expect("logic error, usize does not fit into u64"),
+            ),
+            reject_tx_at_geometry_percentage: 1.0,
+            reject_tx_at_eth_params_percentage: 1.0,
+            reject_tx_at_gas_percentage: 1.0,
+            close_block_at_geometry_percentage: 1.0,
+            close_block_at_eth_params_percentage: 1.0,
+            close_block_at_gas_percentage: 1.0,
+            max_circuits_per_batch: get_max_batch_base_layer_circuits(protocol_version.into()),
+        }
+    }
+}
+
+impl ConditionalSealer for ENSealer {
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
@@ -250,26 +276,38 @@ impl ConditionalSealer for PanicSealer {
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
-        let resolution = self.sealer.should_seal_l1_batch(
-            l1_batch_number,
-            tx_count,
-            l1_tx_count,
-            interop_roots_count,
-            block_data,
-            tx_data,
-            protocol_version,
+        tracing::trace!(
+            "Checking seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
+             and metrics {:?}",
+            block_data.execution_metrics
         );
-        match resolution {
-            // Sealing should be triggered by a different mechanism
-            SealResolution::IncludeAndSeal => SealResolution::NoSeal,
-            SealResolution::ExcludeAndSeal => {
-                panic!("Transaction should have been excluded, but was sequenced");
-            }
-            SealResolution::NoSeal => SealResolution::NoSeal,
-            SealResolution::Unexecutable(reason) => {
-                panic!("Unexecutable transaction was sequenced: {reason:?}");
+
+        // This seal config represents max criteria that we can allow. Sequencer may have stricter seal config
+        let en_seal_config = self.seal_criteria_config_for_protocol_version(protocol_version);
+
+        for sealer in &self.sealers {
+            let seal_resolution = sealer.should_seal(
+                &en_seal_config,
+                tx_count,
+                l1_tx_count,
+                interop_roots_count,
+                block_data,
+                tx_data,
+                protocol_version,
+            );
+            match &seal_resolution {
+                SealResolution::IncludeAndSeal | SealResolution::NoSeal => {
+                    // no seal, don't need to do anything
+                }
+                SealResolution::ExcludeAndSeal => {
+                    panic!("Transaction should have been excluded, but was sequenced");
+                }
+                SealResolution::Unexecutable(reason) => {
+                    panic!("Unexecutable transaction was sequenced: {reason:?}");
+                }
             }
         }
+        SealResolution::NoSeal // EN sealer either panics when we should seal or reports "NoSeal"
     }
 
     fn capacity_filled(
@@ -280,12 +318,19 @@ impl ConditionalSealer for PanicSealer {
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)> {
-        self.sealer.capacity_filled(
-            tx_count,
-            l1_tx_count,
-            interop_roots_count,
-            block_data,
-            protocol_version,
-        )
+        self.sealers
+            .iter()
+            .filter_map(|s| {
+                let filled = s.capacity_filled(
+                    &self.seal_criteria_config_for_protocol_version(protocol_version),
+                    tx_count,
+                    l1_tx_count,
+                    interop_roots_count,
+                    block_data,
+                    protocol_version,
+                );
+                filled.map(|f| (s.prom_criterion_name(), f))
+            })
+            .collect()
     }
 }

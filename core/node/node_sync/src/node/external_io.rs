@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
@@ -11,7 +10,7 @@ use zksync_node_framework::{
 use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     node::StateKeeperIOResource,
-    seal_criteria::{ConditionalSealer, PanicSealer},
+    seal_criteria::{ConditionalSealer, ENSealer, NoopSealer},
 };
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, L2};
@@ -23,7 +22,7 @@ use crate::{ActionQueue, ExternalIO};
 #[derive(Debug)]
 pub struct ExternalIOLayer {
     chain_id: L2ChainId,
-    seal_criteria_config: SealCriteriaConfig,
+    should_verify_seal_criteria: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -42,10 +41,10 @@ pub struct Output {
 }
 
 impl ExternalIOLayer {
-    pub fn new(chain_id: L2ChainId, seal_criteria_config: SealCriteriaConfig) -> Self {
+    pub fn new(chain_id: L2ChainId, should_verify_seal_criteria: bool) -> Self {
         Self {
             chain_id,
-            seal_criteria_config,
+            should_verify_seal_criteria,
         }
     }
 }
@@ -81,7 +80,11 @@ impl WiringLayer for ExternalIOLayer {
         .context("Failed initializing I/O for external node state keeper")?;
 
         // Create sealer.
-        let sealer = Arc::new(PanicSealer::new(self.seal_criteria_config));
+        let sealer: Arc<dyn ConditionalSealer> = if self.should_verify_seal_criteria {
+            Arc::new(ENSealer::new())
+        } else {
+            Arc::new(NoopSealer)
+        };
 
         Ok(Output {
             sync_state,

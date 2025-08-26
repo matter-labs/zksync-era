@@ -32,6 +32,7 @@ zksync_system_constants.workspace = true
 zksync_base_token_adjuster.workspace = true
 zksync_node_framework.workspace = true
 zksync_shared_resources.workspace = true
+smart-config.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

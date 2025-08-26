@@ -199,25 +199,7 @@ impl ExternalNodeBuilder {
 
         let io_layer = ExternalIOLayer::new(
             self.config.local.networks.l2_chain_id,
-            SealCriteriaConfig {
-                transaction_slots: get_bootloader_max_txs_in_batch(
-                    ProtocolVersionId::latest().into(),
-                ) as usize, // do not limit on transaction slots
-                max_pubdata_per_batch: ByteSize(
-                    MAX_VM_PUBDATA_PER_BATCH
-                        .try_into()
-                        .expect("logic error, usize does not fit into u64"),
-                ),
-                reject_tx_at_geometry_percentage: 1.0,
-                reject_tx_at_eth_params_percentage: 1.0,
-                reject_tx_at_gas_percentage: 1.0,
-                close_block_at_geometry_percentage: 1.0,
-                close_block_at_eth_params_percentage: 1.0,
-                close_block_at_gas_percentage: 1.0,
-                max_circuits_per_batch: get_max_batch_base_layer_circuits(
-                    ProtocolVersionId::latest().into(),
-                ),
-            },
+            true, //TODO make configurable
         );
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
