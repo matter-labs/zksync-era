@@ -4,6 +4,7 @@
 use std::mem;
 
 use anyhow::{bail, Context as _};
+use smart_config::ByteSize;
 use zksync_block_reverter::{
     node::{BlockReverterLayer, UnconditionalRevertLayer},
     NodeRole,
@@ -30,6 +31,10 @@ use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
     MerkleTreeReaderConfig, MetadataCalculatorConfig,
 };
+use zksync_multivm::{
+    utils::{get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits},
+    vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+};
 use zksync_node_api_server::{
     node::{
         HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
@@ -54,7 +59,7 @@ use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_settlement_layer_data::{ENConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, ProtocolVersionId};
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
@@ -194,7 +199,25 @@ impl ExternalNodeBuilder {
 
         let io_layer = ExternalIOLayer::new(
             self.config.local.networks.l2_chain_id,
-            SealCriteriaConfig::for_tests(), //TODO FIXME, FILL ME
+            SealCriteriaConfig {
+                transaction_slots: get_bootloader_max_txs_in_batch(
+                    ProtocolVersionId::latest().into(),
+                ) as usize, // do not limit on transaction slots
+                max_pubdata_per_batch: ByteSize(
+                    MAX_VM_PUBDATA_PER_BATCH
+                        .try_into()
+                        .expect("logic error, usize does not fit into u64"),
+                ),
+                reject_tx_at_geometry_percentage: 1.0,
+                reject_tx_at_eth_params_percentage: 1.0,
+                reject_tx_at_gas_percentage: 1.0,
+                close_block_at_geometry_percentage: 1.0,
+                close_block_at_eth_params_percentage: 1.0,
+                close_block_at_gas_percentage: 1.0,
+                max_circuits_per_batch: get_max_batch_base_layer_circuits(
+                    ProtocolVersionId::latest().into(),
+                ),
+            },
         );
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.

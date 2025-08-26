@@ -14082,6 +14082,7 @@ dependencies = [
  "zksync_instrument",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
+ "zksync_multivm",
  "zksync_node_api_server",
  "zksync_node_consensus",
  "zksync_node_db_pruner",
