@@ -1,6 +1,5 @@
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     web3::{BlockId, BlockNumber},
     L1BatchNumber,
 };
@@ -40,7 +39,7 @@ pub(crate) async fn predict_blob_base_fee(
 
     let total_blobs_to_send = connection
         .blocks_dal()
-        .get_blobs_amount_for_range(last_l1_commited_batch + 1, last_sealed_batch)
+        .get_blobs_amount_for_range(L1BatchNumber(last_l1_commited_batch + 1), last_sealed_batch)
         .await
         .expect("Failed to get blobs amount for range");
 
