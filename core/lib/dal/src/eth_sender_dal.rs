@@ -309,7 +309,7 @@ impl EthSenderDal<'_, '_> {
             INNER JOIN
                 eth_txs_history
                 ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
-            WHERE eth_txs_history.finality_status <> 'pending'
+            WHERE eth_txs_history.finality_status = 'finalized'
             ORDER BY number DESC
             LIMIT 1
             "#,
