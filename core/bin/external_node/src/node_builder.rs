@@ -4,7 +4,6 @@
 use std::mem;
 
 use anyhow::{bail, Context as _};
-use smart_config::ByteSize;
 use zksync_block_reverter::{
     node::{BlockReverterLayer, UnconditionalRevertLayer},
     NodeRole,
@@ -13,7 +12,6 @@ use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Namespace},
-        chain::SealCriteriaConfig,
         database::MerkleTreeMode,
         DataAvailabilitySecrets,
     },
@@ -30,10 +28,6 @@ use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
     MerkleTreeReaderConfig, MetadataCalculatorConfig,
-};
-use zksync_multivm::{
-    utils::{get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits},
-    vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
 };
 use zksync_node_api_server::{
     node::{
@@ -59,7 +53,7 @@ use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_settlement_layer_data::{ENConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::L1BatchNumber;
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 

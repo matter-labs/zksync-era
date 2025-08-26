@@ -11,8 +11,10 @@ use smart_config::ByteSize;
 use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
     interface::TransactionExecutionMetrics,
-    utils::{get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits},
-    vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+    utils::{
+        get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits,
+        get_max_vm_pubdata_per_batch,
+    },
 };
 use zksync_types::{ProtocolVersionId, Transaction};
 use zksync_vm_executor::interface::TransactionFilter;
@@ -248,9 +250,9 @@ impl ENSealer {
         protocol_version: ProtocolVersionId,
     ) -> SealCriteriaConfig {
         SealCriteriaConfig {
-            transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()) as usize, // do not limit on transaction slots
+            transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()), // do not limit on transaction slots
             max_pubdata_per_batch: ByteSize(
-                MAX_VM_PUBDATA_PER_BATCH
+                get_max_vm_pubdata_per_batch(protocol_version.into())
                     .try_into()
                     .expect("logic error, usize does not fit into u64"),
             ),
