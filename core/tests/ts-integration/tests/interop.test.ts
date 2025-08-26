@@ -474,7 +474,7 @@ describe('Interop behavior checks', () => {
      * Reads an interop transaction from the sender chain, constructs a new transaction,
      * and broadcasts it on the receiver chain.
      */
-    async function readAndBroadcastInteropBundle(txHash: string, senderProvider: zksync.Provider) {
+    async function readAndBroadcastInteropBundle(txHash: string, senderProvider: zksync.Provider, receiverProvider: zksync.Provider) {
         console.log('*Reading and broadcasting interop bundle initiated by txHash*', txHash);
         const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, senderProvider);
         const txReceipt = await senderProvider.getTransactionReceipt(txHash);
