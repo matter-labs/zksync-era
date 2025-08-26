@@ -322,10 +322,10 @@ impl EthSenderDal<'_, '_> {
                 row.number as u32,
                 row.sent_at_block
                     .map(|v| v as u32)
-                    .unwrap_or(latest_block_number as u32),
+                    .unwrap_or(latest_block_number),
             )
         })
-        .unwrap_or((1 as u32, latest_block_number as u32));
+        .unwrap_or((1, latest_block_number));
 
         Ok(result)
     }
