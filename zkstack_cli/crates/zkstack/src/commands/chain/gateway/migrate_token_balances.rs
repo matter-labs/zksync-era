@@ -16,7 +16,7 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, EcosystemConfig,
+    forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, ZkStackConfig,
 };
 use zksync_basic_types::U256;
 use zksync_types::L2ChainId;
@@ -57,7 +57,7 @@ pub struct MigrateTokenBalancesArgs {
 }
 
 pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
