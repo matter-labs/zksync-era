@@ -41,7 +41,7 @@ The L1Nullifier stores two things:
 1. finalized L2->L1 withdrawals
 1. initiated L1->L2 priority transactions
 
-1. is needed on L1 as L2->L1 txs are executed arbitrarily, so we need to record whether they happened or not to stop double spending. However, L1->L2 priority txs are enforced to be executed only once, so we don't need a separate L2Nullifier.
+1. is needed on L1 as L2->L1 txs are executed arbitrarily, so we need to record whether they happened or not to stop double spending. However, L1->L2 priority txs are enforced to be executed only once, so we don't need a separate L2Nullifier.  Finally, L2->L2 txs are executed in the InteropHandler, which does store if they were executed or not (so the L2Nullifier is built into the InteropHandler).
 
 2. The initiated L2->L1 and L2->L2 transactions are not stored. This is needed for L1->L2 txs, as priority transactions have to be executed by the system, and cannot be retried if they fail. So failed deposits have to be redeemable on L1. L2->L2 and L2->L1 txs might also fail, but if they fail due to gas reasons, they can be retried. If they fail due to contract error, then the receiving contract has to be fixed ( another way of explaining it, there can always be a contract error even for claiming failed deposits. So the only sustainable way of fixing contract errors is to fix the contract).
 
