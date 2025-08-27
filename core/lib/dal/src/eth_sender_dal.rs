@@ -322,13 +322,11 @@ impl EthSenderDal<'_, '_> {
 
         match result {
             Some(row) => {
-                if !row.is_gateway {
-                    return Ok((
-                        row.number as u32,
-                        row.sent_at_block
-                            .map(|v| v as u32)
-                            .unwrap_or(latest_block_number),
-                    ));
+                let batch_number = row.number as u32;
+                let sent_at_block = if !row.is_gateway {
+                    row.sent_at_block
+                        .map(|v| v as u32)
+                        .unwrap_or(latest_block_number)
                 } else {
                     let latest_notification = self
                         .storage
@@ -336,20 +334,20 @@ impl EthSenderDal<'_, '_> {
                         .get_latest_gateway_migration_notification_and_block_number()
                         .await?;
 
-                    if latest_notification.is_none() {
-                        return Ok((1, latest_block_number));
-                    }
-                    let (notification, notification_block_number) = latest_notification.unwrap();
-                    if notification == GatewayMigrationNotification::FromGateway {
-                        return Ok((row.number as u32, notification_block_number.0));
+                    if let Some((notification, notification_block_number)) = latest_notification {
+                        if notification == GatewayMigrationNotification::FromGateway {
+                            notification_block_number.0
+                        } else {
+                            latest_block_number
+                        }
                     } else {
-                        return Ok((row.number as u32, latest_block_number));
+                        latest_block_number
                     }
-                }
+                };
+
+                Ok((batch_number, sent_at_block))
             }
-            None => {
-                return Ok((1, latest_block_number));
-            }
+            None => Ok((1, latest_block_number)),
         }
     }
 
