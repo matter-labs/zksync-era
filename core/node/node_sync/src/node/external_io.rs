@@ -10,7 +10,7 @@ use zksync_node_framework::{
 use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     node::StateKeeperIOResource,
-    seal_criteria::{ConditionalSealer, ENSealer, NoopSealer},
+    seal_criteria::{ConditionalSealer, NoopSealer, PanicSealer},
 };
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, L2};
@@ -81,7 +81,7 @@ impl WiringLayer for ExternalIOLayer {
 
         // Create sealer.
         let sealer: Arc<dyn ConditionalSealer> = if self.should_verify_seal_criteria {
-            Arc::new(ENSealer::new())
+            Arc::new(PanicSealer::new())
         } else {
             Arc::new(NoopSealer)
         };

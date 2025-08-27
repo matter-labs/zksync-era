@@ -232,11 +232,11 @@ impl ConditionalSealer for NoopSealer {
 
 /// Sealer for usage in EN. Panics if passed transaction should be excluded.
 #[derive(Debug)]
-pub struct ENSealer {
+pub struct PanicSealer {
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
-impl Default for ENSealer {
+impl Default for PanicSealer {
     fn default() -> Self {
         Self {
             sealers: SequencerSealer::default_sealers(),
@@ -244,13 +244,13 @@ impl Default for ENSealer {
     }
 }
 
-impl ENSealer {
+impl PanicSealer {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl ENSealer {
+impl PanicSealer {
     fn seal_criteria_config_for_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
@@ -273,7 +273,7 @@ impl ENSealer {
     }
 }
 
-impl ConditionalSealer for ENSealer {
+impl ConditionalSealer for PanicSealer {
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
