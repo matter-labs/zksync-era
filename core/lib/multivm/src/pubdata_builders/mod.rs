@@ -19,7 +19,6 @@ pub fn pubdata_params_to_builder(
     params: PubdataParams,
     protocol_version: ProtocolVersionId,
 ) -> Rc<dyn PubdataBuilder> {
-    dbg!(&params);
     if protocol_version.is_pre_gateway() {
         return Rc::new(FullPubdataBuilder::new(
             params.l2_da_validator_address,

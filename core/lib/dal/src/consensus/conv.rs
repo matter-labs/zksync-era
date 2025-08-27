@@ -5,7 +5,7 @@ use zksync_consensus_roles::node;
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
     ethabi,
     fee::Fee,
     h256_to_u256,
@@ -119,7 +119,10 @@ impl ProtoRepr for proto::PubdataParams {
                 .map(|a| parse_h160(a))
                 .transpose()
                 .context("l2_da_validator_address")?,
-            l2_da_commitment_scheme: None, // TODO: Fix it
+            l2_da_commitment_scheme: self
+                .l2_da_commitment_scheme
+                .as_ref()
+                .map(|a| L2DACommitmentScheme::from(*a as u8)),
             pubdata_type: required(&self.pubdata_info)
                 .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
                 .context("pubdata_type")?
@@ -133,6 +136,11 @@ impl ProtoRepr for proto::PubdataParams {
                 .l2_da_validator_address
                 .as_ref()
                 .map(|addr| addr.as_bytes().to_vec()),
+            l2_da_commitment_scheme: this
+                .l2_da_commitment_scheme
+                .as_ref()
+                .map(|addr| *addr as u32),
+
             pubdata_info: Some(this.pubdata_type as i32),
         }
     }

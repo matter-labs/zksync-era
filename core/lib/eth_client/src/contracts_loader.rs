@@ -190,7 +190,6 @@ pub async fn get_zk_chain_on_chain_params(
         .for_contract(diamond_proxy_addr, &abi)
         .call(eth_client)
         .await?;
-    dbg!(&l2_da_commitment_scheme);
     let l2_da_commitment_scheme =
         if let Token::Tuple(l2_da_commitment_scheme) = l2_da_commitment_scheme {
             if let [Token::Address(_), Token::Uint(l2_da_commitment_scheme)] =

@@ -1248,7 +1248,6 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
-        dbg!(l2_block_header);
         let instrumentation =
             Instrumented::new("insert_l2_block").with_arg("number", &l2_block_header.number);
 

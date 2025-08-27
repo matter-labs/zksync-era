@@ -535,8 +535,6 @@ impl MempoolIO {
     }
 
     fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
-        dbg!(self.l2_da_validator_address,);
-        dbg!(self.l2_da_commitment_scheme,);
         let pubdata_params = match (
             protocol_version.is_pre_interop_fast_blocks(),
             self.l2_da_validator_address,
