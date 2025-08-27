@@ -265,7 +265,7 @@ impl InteropRootDal<'_, '_> {
             JOIN miniblocks
                 ON interop_roots.processed_block_number = miniblocks.number
             WHERE l1_batch_number = $1
-            ORDER BY chain_id, dependency_block_number DESC;
+            ORDER BY chain_id, processed_block_number, dependency_block_number DESC;
             "#,
             i64::from(batch_number.0)
         )
