@@ -193,7 +193,7 @@ impl ExternalNodeBuilder {
 
         let io_layer = ExternalIOLayer::new(
             self.config.local.networks.l2_chain_id,
-            true, //TODO make configurable
+            self.config.local.node_sync.validate_seal_criteria,
         );
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
