@@ -258,9 +258,7 @@ impl PanicSealer {
         SealCriteriaConfig {
             transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()), // do not limit on transaction slots
             max_pubdata_per_batch: ByteSize(
-                get_max_vm_pubdata_per_batch(protocol_version.into())
-                    .try_into()
-                    .expect("logic error, usize does not fit into u64"),
+                get_max_vm_pubdata_per_batch(protocol_version.into()) as u64
             ),
             reject_tx_at_geometry_percentage: 1.0,
             reject_tx_at_eth_params_percentage: 1.0,
