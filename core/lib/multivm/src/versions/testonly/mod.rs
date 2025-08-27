@@ -200,7 +200,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(FullPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(Some(Address::zero()), None))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

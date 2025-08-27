@@ -1,6 +1,6 @@
 use zksync_types::{
-    u256_to_h256, writes::StateDiffRecord, Address, ProtocolVersionId,
-    ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
+    commitment::L2DACommitmentScheme, u256_to_h256, writes::StateDiffRecord, Address,
+    ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
 };
 
 use super::{full_builder::FullPubdataBuilder, hashed_builder::HashedPubdataBuilder};
@@ -57,7 +57,7 @@ fn mock_input() -> PubdataInput {
 fn test_full_pubdata_building() {
     let input = mock_input();
 
-    let full_pubdata_builder = FullPubdataBuilder::new(Address::zero());
+    let full_pubdata_builder = FullPubdataBuilder::new(Some(Address::zero()), None);
 
     let actual =
         full_pubdata_builder.l1_messenger_operator_input(&input, ProtocolVersionId::Version24);
@@ -93,6 +93,16 @@ fn test_full_pubdata_building() {
         &hex::encode(actual),
         expected,
         "mismatch for `settlement_layer_pubdata` (post gateway)"
+    );
+    let full_pubdata_builder =
+        FullPubdataBuilder::new(None, Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256));
+    let actual =
+        full_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version30);
+    let expected = "00000001000000000000000000000000000000000000000000008001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000100000004deadbeef0000000100000060bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0100002a040001000000000000000000000000000000000000000000000000000000000000007e090e0000000c0901";
+    assert_eq!(
+        &hex::encode(actual),
+        expected,
+        "mismatch for `BlobsAndPubdataKeccak256` (post gateway)"
     );
 }
 

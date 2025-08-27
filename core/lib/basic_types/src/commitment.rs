@@ -98,7 +98,7 @@ impl FromStr for PubdataType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Display)]
 #[repr(u8)]
 pub enum L2DACommitmentScheme {
     #[default]

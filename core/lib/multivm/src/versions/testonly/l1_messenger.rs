@@ -42,7 +42,7 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
     let uncompressed_state_diffs_hash = keccak256(&uncompressed_state_diffs);
     full_header.extend(uncompressed_state_diffs_hash);
 
-    let pubdata_builder = FullPubdataBuilder::new(Address::zero());
+    let pubdata_builder = FullPubdataBuilder::new(Some(Address::zero()), None);
     let mut full_pubdata =
         pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::latest());
     let full_pubdata_hash = keccak256(&full_pubdata);
@@ -115,7 +115,7 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    let pubdata_builder = FullPubdataBuilder::new(l2_da_validator_address);
+    let pubdata_builder = FullPubdataBuilder::new(Some(l2_da_validator_address), None);
     let batch_result = vm.vm.finish_batch(Rc::new(pubdata_builder));
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),

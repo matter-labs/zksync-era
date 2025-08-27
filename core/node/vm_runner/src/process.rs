@@ -80,6 +80,7 @@ impl VmRunner {
         let kind = StorageKind::new(&storage);
         METRICS.data_and_storage_latency[&kind].observe(stage_started_at.elapsed());
 
+        dbg!(&batch_data);
         let mut batch_executor = self.batch_executor_factory.lock().await.init_batch(
             storage,
             batch_data.l1_batch_env.clone(),

@@ -1248,6 +1248,7 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
+        dbg!(l2_block_header);
         let instrumentation =
             Instrumented::new("insert_l2_block").with_arg("number", &l2_block_header.number);
 
@@ -1284,6 +1285,7 @@ impl BlocksDal<'_, '_> {
                 l2_da_validator_address,
                 pubdata_type,
                 rolling_txs_hash,
+                l2_da_commitment_scheme,
                 created_at,
                 updated_at
             )
@@ -1310,6 +1312,7 @@ impl BlocksDal<'_, '_> {
                 $19,
                 $20,
                 $21,
+                $22,
                 NOW(),
                 NOW()
             )
@@ -1350,7 +1353,12 @@ impl BlocksDal<'_, '_> {
             l2_block_header.pubdata_params.pubdata_type.to_string(),
             l2_block_header
                 .rolling_txs_hash
-                .map(|h| h.as_bytes().to_vec())
+                .map(|h| h.as_bytes().to_vec()),
+            l2_block_header
+                .pubdata_params
+                .l2_da_commitment_scheme
+                .as_ref()
+                .map(|l2_da_commitment_scheme| *l2_da_commitment_scheme as i32)
         );
 
         instrumentation.with(query).execute(self.storage).await?;
