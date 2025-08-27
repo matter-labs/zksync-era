@@ -239,7 +239,7 @@ impl EcosystemInitArgs {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemInitArgsFinal {
     pub deploy_erc20: bool,
     pub ecosystem: EcosystemArgsFinal,
@@ -301,11 +301,11 @@ pub struct RegisterCTMArgsFinal {
     pub update_submodules: Option<bool>,
 }
 
-impl From<&EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
-    fn from(args: &EcosystemInitArgsFinal) -> Self {
+impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
+    fn from(args: EcosystemInitArgsFinal) -> Self {
         RegisterCTMArgsFinal {
-            ecosystem: args.ecosystem.clone(),
-            forge_args: args.forge_args.clone(),
+            ecosystem: args.ecosystem,
+            forge_args: args.forge_args,
             update_submodules: None,
         }
     }
@@ -380,11 +380,11 @@ pub struct InitNewCTMArgsFinal {
     pub bridgehub_address: H160,
 }
 
-impl From<&EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
-    fn from(args: &EcosystemInitArgsFinal) -> Self {
+impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
+    fn from(args: EcosystemInitArgsFinal) -> Self {
         InitNewCTMArgsFinal {
-            ecosystem: args.ecosystem.clone(),
-            forge_args: args.forge_args.clone(),
+            ecosystem: args.ecosystem,
+            forge_args: args.forge_args,
             update_submodules: None,
             skip_contract_compilation_override: args.skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
@@ -455,12 +455,12 @@ pub struct InitCoreContractsArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
 }
 
-impl From<&EcosystemInitArgsFinal> for InitCoreContractsArgsFinal {
-    fn from(args: &EcosystemInitArgsFinal) -> Self {
+impl From<EcosystemInitArgsFinal> for InitCoreContractsArgsFinal {
+    fn from(args: EcosystemInitArgsFinal) -> Self {
         InitCoreContractsArgsFinal {
             deploy_erc20: args.deploy_erc20,
-            ecosystem: args.ecosystem.clone(),
-            forge_args: args.forge_args.clone(),
+            ecosystem: args.ecosystem,
+            forge_args: args.forge_args,
             update_submodules: None,
             skip_contract_compilation_override: args.skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,

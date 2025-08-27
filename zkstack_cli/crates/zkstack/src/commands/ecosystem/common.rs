@@ -182,7 +182,6 @@ pub async fn deploy_l1_core_contracts(
     Ok(contracts_config)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn register_ctm_on_existing_bh(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,

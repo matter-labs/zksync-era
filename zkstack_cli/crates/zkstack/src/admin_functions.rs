@@ -158,16 +158,20 @@ pub async fn governance_execute_calls(
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
-    governance_address: Address,
+    governance_address: Option<Address>,
 ) -> anyhow::Result<AdminScriptOutput> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let governance_address = if governance_address.is_zero() {
-        ecosystem_config.get_contracts_config()?.l1.governance_addr
-    } else {
-        governance_address
+    let governance_address = match governance_address {
+        Some(addr) => addr,
+        None => {
+            let cfg = ecosystem_config
+                .get_contracts_config()
+                .context("Failed to fetch contracts config to resolve governance address")?;
+            cfg.l1.governance_addr
+        }
     };
 
     let calldata = ADMIN_FUNCTIONS

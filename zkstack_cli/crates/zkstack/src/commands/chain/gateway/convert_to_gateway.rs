@@ -97,28 +97,28 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         .deployer
         .context("deployer")?;
 
-    let grantees;
+    let (grantees, bridgehub_governance_addr) =
+        if let Some(addr) = convert_to_gw_args.bridgehub_addr {
+            let l1_provider = get_ethers_provider(&l1_url)?;
+            let l1_bridgehub = BridgehubAbi::new(addr, l1_provider);
+            let addr = l1_bridgehub.owner().await?;
 
-    let bridgehub_governance_addr = if let Some(addr) = convert_to_gw_args.bridgehub_addr {
-        let l1_provider = get_ethers_provider(&l1_url)?;
-        let l1_bridgehub = BridgehubAbi::new(addr, l1_provider);
-        let bridgehub_governance_addr = l1_bridgehub.owner().await?;
+            (vec![addr, chain_deployer_wallet.address], addr)
+        } else {
+            let governance_addr = ecosystem_config.get_contracts_config()?.l1.governance_addr;
 
-        grantees = vec![bridgehub_governance_addr, chain_deployer_wallet.address];
-        bridgehub_governance_addr
-    } else {
-        // Fallback to local config
-        let governance_addr = ecosystem_config.get_contracts_config()?.l1.governance_addr;
-        grantees = vec![
-            governance_addr,
-            chain_deployer_wallet.address,
-            chain_contracts_config
-                .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr
-                .context("No CTM deployment tracker")?,
-        ];
-        governance_addr
-    };
+            (
+                vec![
+                    governance_addr,
+                    chain_deployer_wallet.address,
+                    chain_contracts_config
+                        .ecosystem_contracts
+                        .stm_deployment_tracker_proxy_addr
+                        .context("No CTM deployment tracker")?,
+                ],
+                governance_addr,
+            )
+        };
 
     let mode = if convert_to_gw_args.only_save_calldata {
         AdminScriptMode::OnlySave
@@ -168,7 +168,9 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             Address::zero(),
         ),
         l1_url.clone(),
-        convert_to_gw_args.ctm_chain_id.unwrap_or_default(),
+        convert_to_gw_args
+            .ctm_chain_id
+            .unwrap_or(chain_config.chain_id.as_u64().into()),
     )
     .await?;
 
@@ -181,7 +183,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,
         l1_url.clone(),
-        bridgehub_governance_addr,
+        Some(bridgehub_governance_addr),
     )
     .await?;
 

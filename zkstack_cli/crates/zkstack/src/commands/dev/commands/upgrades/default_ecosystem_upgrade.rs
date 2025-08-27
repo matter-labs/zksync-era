@@ -30,7 +30,7 @@ use zkstack_cli_config::{
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_types::{h256_to_address, Address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
     admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls, AdminScriptMode},
@@ -368,7 +368,7 @@ async fn governance_stage_0(
         stage0_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
-        Address::zero(),
+        None,
     )
     .await?;
     spinner.finish();
@@ -411,7 +411,7 @@ async fn governance_stage_1(
         stage1_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
-        Address::zero(),
+        None,
     )
     .await?;
 
@@ -474,7 +474,7 @@ async fn governance_stage_2(
         stage2_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
-        Address::zero(),
+        None,
     )
     .await?;
 

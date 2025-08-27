@@ -118,30 +118,12 @@ async fn deploy_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    return deploy_ecosystem_inner(
-        shell,
-        forge_args,
-        ecosystem_config,
-        initial_deployment_config,
-        ecosystem.l1_rpc_url.clone(),
-        support_l2_legacy_shared_bridge_test,
-    )
-    .await;
-}
-
-async fn deploy_ecosystem_inner(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    l1_rpc_url: String,
-    support_l2_legacy_shared_bridge_test: bool,
-) -> anyhow::Result<ContractsConfig> {
+    let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
         shell,
         &forge_args,
-        config,
+        ecosystem_config,
         initial_deployment_config,
         &l1_rpc_url,
         None,
@@ -153,9 +135,9 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config,
+        ecosystem_config,
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
@@ -164,9 +146,9 @@ async fn deploy_ecosystem_inner(
 
     accept_admin(
         shell,
-        config,
+        ecosystem_config,
         contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
@@ -177,9 +159,9 @@ async fn deploy_ecosystem_inner(
     // need to accept it
     accept_owner(
         shell,
-        config,
+        ecosystem_config,
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
         &forge_args,
         l1_rpc_url.clone(),
@@ -188,15 +170,15 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config,
+        ecosystem_config,
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
             .stm_deployment_tracker_proxy_addr
             .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
-        l1_rpc_url.clone(),
+        l1_rpc_url,
     )
     .await?;
 
