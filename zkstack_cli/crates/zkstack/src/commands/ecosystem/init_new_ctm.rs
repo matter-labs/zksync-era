@@ -18,9 +18,7 @@ use super::{
 };
 use crate::{
     admin_functions::{accept_admin, accept_owner},
-    commands::ecosystem::{
-        args::init::PromptPolicy, create_configs::create_initial_deployments_config,
-    },
+    commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
     },
@@ -38,15 +36,9 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let prompt_policy = PromptPolicy {
-        deploy_erc20: false,
-        observability: false,
-        skip_ecosystem: true,
-    };
-
     let mut init_ctm_args = args
         .clone()
-        .fill_values_with_prompt(ecosystem_config.l1_network, prompt_policy)
+        .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
     logger::info(MSG_INITIALIZING_CTM);

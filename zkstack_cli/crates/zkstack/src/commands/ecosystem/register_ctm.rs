@@ -6,7 +6,7 @@ use super::{
     args::init::{RegisterCTMArgs, RegisterCTMArgsFinal},
     common::register_ctm_on_existing_bh,
 };
-use crate::{commands::ecosystem::args::init::PromptPolicy, messages::MSG_REGISTERING_CTM};
+use crate::messages::MSG_REGISTERING_CTM;
 
 pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -15,15 +15,9 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
     }
 
-    let prompt_policy = PromptPolicy {
-        deploy_erc20: false,
-        observability: true,
-        skip_ecosystem: true,
-    };
-
     let mut final_ecosystem_args = args
         .clone()
-        .fill_values_with_prompt(ecosystem_config.l1_network, prompt_policy)
+        .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
     logger::info(MSG_REGISTERING_CTM);
@@ -51,7 +45,7 @@ pub async fn register_ctm(
         shell,
         &forge_args,
         ecosystem_config,
-        init_args.ecosystem.l1_rpc_url.clone(),
+        &init_args.ecosystem.l1_rpc_url,
         None,
         true,
     )

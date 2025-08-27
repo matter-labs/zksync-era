@@ -14,14 +14,12 @@ use zkstack_cli_config::{
         },
         script_params::DEPLOY_GATEWAY_TX_FILTERER,
     },
-    override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
 
 use crate::{
     admin_functions::{set_transaction_filterer, AdminScriptMode},
-    consts::PATH_TO_GATEWAY_OVERRIDE_CONFIG,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -39,13 +37,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
-    override_config(
-        shell,
-        ecosystem_config
-            .link_to_code
-            .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
-        &chain_config,
-    )?;
 
     let chain_deployer_wallet = chain_config
         .get_wallets_config()?

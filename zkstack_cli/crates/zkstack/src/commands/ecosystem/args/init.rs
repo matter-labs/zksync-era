@@ -21,13 +21,6 @@ use crate::{
     },
 };
 
-#[derive(Clone, Copy, Default)]
-pub struct PromptPolicy {
-    pub deploy_erc20: bool,
-    pub observability: bool,
-    pub skip_ecosystem: bool,
-}
-
 /// Check if L1 RPC is healthy by calling eth_chainId
 async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
     let l1_provider = get_ethers_provider(l1_rpc_url)?;
@@ -39,9 +32,6 @@ async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {
-    /// Deploy ecosystem contracts
-    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub deploy_ecosystem: Option<bool>,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
@@ -91,6 +81,9 @@ pub struct EcosystemArgsFinal {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemInitArgs {
+    /// Deploy ecosystem contracts
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub deploy_ecosystem: Option<bool>,
     /// Deploy ERC20 contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_erc20: Option<bool>,
@@ -136,53 +129,7 @@ pub struct EcosystemInitArgs {
     pub bridgehub: Option<String>,
 }
 
-pub fn resolve_deploy_erc20(dev: bool, deploy_erc20: Option<bool>, prompt: bool) -> bool {
-    if dev {
-        true
-    } else {
-        match (prompt, deploy_erc20) {
-            (_, Some(val)) => val,
-            (true, None) => PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
-                .default(true)
-                .ask(),
-            (false, None) => true,
-        }
-    }
-}
-
 impl EcosystemInitArgs {
-    pub fn resolve_observability(dev: bool, observability: Option<bool>, prompt: bool) -> bool {
-        if dev {
-            true
-        } else {
-            match (prompt, observability) {
-                (_, Some(val)) => val,
-                (true, None) => PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
-                    .default(true)
-                    .ask(),
-                (false, None) => true,
-            }
-        }
-    }
-
-    pub fn resolve_deploy_ecosystem(
-        dev: bool,
-        deploy_ecosystem: Option<bool>,
-        prompt: bool,
-    ) -> bool {
-        if dev {
-            true
-        } else {
-            match (prompt, deploy_ecosystem) {
-                (_, Some(val)) => val,
-                (true, None) => PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
-                    .default(true)
-                    .ask(),
-                (false, None) => true,
-            }
-        }
-    }
-
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
@@ -196,14 +143,10 @@ impl EcosystemInitArgs {
     pub async fn fill_values_with_prompt(
         self,
         l1_network: L1Network,
-        prompt_policy: PromptPolicy,
     ) -> anyhow::Result<EcosystemInitArgsFinal> {
         let EcosystemInitArgs {
-            ecosystem,
             forge_args,
             dev,
-            deploy_erc20,
-            observability,
             ecosystem_only,
             no_port_reallocation,
             skip_contract_compilation_override,
@@ -213,29 +156,51 @@ impl EcosystemInitArgs {
             ..
         } = self;
 
-        let deploy_ecosystem = Self::resolve_deploy_ecosystem(
-            dev,
-            ecosystem.deploy_ecosystem,
-            prompt_policy.skip_ecosystem,
-        );
+        let deploy_erc20 = if self.dev {
+            true
+        } else {
+            self.deploy_erc20.unwrap_or_else(|| {
+                PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
+                    .default(true)
+                    .ask()
+            })
+        };
+        let ecosystem = self
+            .ecosystem
+            .fill_values_with_prompt(l1_network, self.dev)
+            .await?;
+        let observability = if self.dev {
+            true
+        } else {
+            self.observability.unwrap_or_else(|| {
+                PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
+                    .default(true)
+                    .ask()
+            })
+        };
 
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+        let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
+            if dev {
+                true
+            } else {
+                PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
+                    .default(true)
+                    .ask()
+            }
+        });
 
         let bridgehub_address: H160 = if let Some(ref addr_str) = bridgehub {
             addr_str
                 .parse::<H160>()
                 .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?
         } else {
+            // Solidity script does the check if passed value is 0 for BH
             H160::zero()
         };
 
         Ok(EcosystemInitArgsFinal {
-            deploy_erc20: resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),
-            observability: Self::resolve_observability(
-                dev,
-                observability,
-                prompt_policy.observability,
-            ),
+            deploy_erc20,
+            observability,
             ecosystem,
             forge_args,
             dev,
@@ -285,7 +250,6 @@ impl RegisterCTMArgs {
     pub async fn fill_values_with_prompt(
         self,
         l1_network: L1Network,
-        prompt_policy: PromptPolicy,
     ) -> anyhow::Result<RegisterCTMArgsFinal> {
         let RegisterCTMArgs {
             ecosystem,
@@ -343,7 +307,6 @@ impl InitNewCTMArgs {
     pub async fn fill_values_with_prompt(
         self,
         l1_network: L1Network,
-        prompt_policy: PromptPolicy,
     ) -> anyhow::Result<InitNewCTMArgsFinal> {
         let InitNewCTMArgs {
             ecosystem,
@@ -363,6 +326,7 @@ impl InitNewCTMArgs {
                 .parse::<H160>()
                 .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?
         } else {
+            // Solidity script does the check if passed value is 0 for BH
             H160::zero()
         };
 
@@ -425,22 +389,31 @@ impl InitCoreContractsArgs {
     pub async fn fill_values_with_prompt(
         self,
         l1_network: L1Network,
-        prompt_policy: PromptPolicy,
     ) -> anyhow::Result<InitCoreContractsArgsFinal> {
         let InitCoreContractsArgs {
-            deploy_erc20,
             ecosystem,
             forge_args,
             dev,
             update_submodules,
             skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
+            ..
         } = self;
+
+        let deploy_erc20 = if self.dev {
+            true
+        } else {
+            self.deploy_erc20.unwrap_or_else(|| {
+                PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
+                    .default(true)
+                    .ask()
+            })
+        };
 
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
 
         Ok(InitCoreContractsArgsFinal {
-            deploy_erc20: resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),
+            deploy_erc20,
             ecosystem,
             forge_args,
             update_submodules,

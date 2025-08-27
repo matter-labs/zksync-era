@@ -25,7 +25,6 @@ use super::{
 };
 use crate::{
     commands::ecosystem::{
-        args::init::PromptPolicy,
         common::deploy_l1_core_contracts,
         create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
         init_new_ctm::deploy_new_ctm,
@@ -51,15 +50,9 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let prompt_policy = PromptPolicy {
-        deploy_erc20: true,
-        observability: true,
-        skip_ecosystem: false,
-    };
-
     let mut final_ecosystem_args = args
         .clone()
-        .fill_values_with_prompt(ecosystem_config.l1_network, prompt_policy)
+        .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
