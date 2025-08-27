@@ -1,15 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
 
-pub fn clone(
-    shell: &Shell,
-    path: PathBuf,
-    repository: &str,
-    name: &str,
-) -> anyhow::Result<PathBuf> {
+pub fn clone(shell: &Shell, path: &Path, repository: &str, name: &str) -> anyhow::Result<PathBuf> {
     let _dir = shell.push_dir(path);
     Cmd::new(cmd!(
         shell,
@@ -19,7 +14,7 @@ pub fn clone(
     Ok(shell.current_dir().join(name))
 }
 
-pub fn submodule_update(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
+pub fn submodule_update(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);
     Cmd::new(cmd!(
         shell,
@@ -30,7 +25,7 @@ pub fn submodule_update(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<
     Ok(())
 }
 
-pub fn pull(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
+pub fn pull(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);
     let res = Cmd::new(cmd!(shell, "git rev-parse --abbrev-ref HEAD")).run_with_output()?;
     let current_branch = String::from_utf8(res.stdout)?;

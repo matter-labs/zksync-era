@@ -25,7 +25,7 @@ use zkstack_cli_config::{
     },
     override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayConfig,
+    ChainConfig, EcosystemConfig, GatewayConfig, ZkStackConfig,
 };
 use zkstack_cli_types::ProverMode;
 
@@ -76,7 +76,7 @@ fn parse_decimal_u256(s: &str) -> Result<U256, String> {
 pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = convert_to_gw_args.forge_args;
     let chain_name = global_config().chain_name.clone();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
@@ -86,7 +86,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
     override_config(
         shell,
-        ecosystem_config
+        &ecosystem_config
             .link_to_code
             .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
         &chain_config,

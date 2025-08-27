@@ -5,7 +5,7 @@ use xshell::Shell;
 
 use crate::{
     consts::{APPS_CONFIG_FILE, DEFAULT_EXPLORER_PORT, DEFAULT_PORTAL_PORT, LOCAL_CONFIGS_PATH},
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfig},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfigTrait},
 };
 
 /// Ecosystem level configuration for the apps (portal and explorer).
@@ -20,7 +20,7 @@ pub struct AppEcosystemConfig {
     pub http_port: u16,
 }
 
-impl ZkStackConfig for AppsEcosystemConfig {}
+impl ZkStackConfigTrait for AppsEcosystemConfig {}
 impl FileConfigWithDefaultName for AppsEcosystemConfig {
     const FILE_NAME: &'static str = APPS_CONFIG_FILE;
 }

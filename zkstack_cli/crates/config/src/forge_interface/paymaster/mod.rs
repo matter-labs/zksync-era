@@ -2,7 +2,7 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
-use crate::{traits::ZkStackConfig, ChainConfig};
+use crate::{traits::ZkStackConfigTrait, ChainConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployPaymasterInput {
@@ -22,11 +22,11 @@ impl DeployPaymasterInput {
     }
 }
 
-impl ZkStackConfig for DeployPaymasterInput {}
+impl ZkStackConfigTrait for DeployPaymasterInput {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployPaymasterOutput {
     pub paymaster: Address,
 }
 
-impl ZkStackConfig for DeployPaymasterOutput {}
+impl ZkStackConfigTrait for DeployPaymasterOutput {}

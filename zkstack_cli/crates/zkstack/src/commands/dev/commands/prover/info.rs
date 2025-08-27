@@ -1,24 +1,15 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
 use anyhow::Context as _;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{ChainConfig, EcosystemConfig};
-
-use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
+use zkstack_cli_config::{ChainConfig, ZkStackConfig};
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let link_to_code = ecosystem_config.link_to_code;
-    let link_to_prover = link_to_code.join("prover");
+    let link_to_prover = chain_config.link_to_code.join("prover");
 
     let protocol_version = get_protocol_version(shell, &link_to_prover).await?;
     let snark_wrapper = get_snark_wrapper(&link_to_prover).await?;
@@ -42,7 +33,7 @@ Database URL: {}\n
 
 pub(crate) async fn get_protocol_version(
     shell: &Shell,
-    link_to_prover: &PathBuf,
+    link_to_prover: &Path,
 ) -> anyhow::Result<String> {
     shell.change_dir(link_to_prover);
     let protocol_version = cmd!(shell, "cargo run --release --bin prover_version").read()?;

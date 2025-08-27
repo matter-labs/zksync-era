@@ -5,7 +5,7 @@ use serde_yaml::Value;
 use url::Url;
 use xshell::Shell;
 use zkstack_cli_config::{
-    explorer_compose::ExplorerBackendPorts, EcosystemConfig, DEFAULT_EXPLORER_API_PORT,
+    explorer_compose::ExplorerBackendPorts, ZkStackConfig, DEFAULT_EXPLORER_API_PORT,
     DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
 };
 
@@ -219,7 +219,7 @@ impl EcosystemPortsScanner {
     /// It allows to reuse default ports even if the general file exist with previously allocated ports.
     /// It makes allocation more predictable
     pub fn scan(shell: &Shell, current_chain: Option<&str>) -> Result<EcosystemPorts> {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
         // Create a list of directories to scan:
         // - Ecosystem configs directory

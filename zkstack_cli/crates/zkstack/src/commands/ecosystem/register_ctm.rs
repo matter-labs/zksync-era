@@ -12,7 +12,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-        git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+        git::submodule_update(shell, &ecosystem_config.link_to_code)?;
     }
 
     let mut final_ecosystem_args = args

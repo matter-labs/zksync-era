@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use walkdir::WalkDir;
 use xshell::{cmd, Shell};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::messages::msg_file_is_not_formatted;
 
@@ -142,7 +142,7 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
 
 const SNAPSHOT_FILE: &str = ".format_sql_snapshot";
 
-pub async fn calculate_fingerprint(code_root: &Path, dal_root: &PathBuf) -> Result<String> {
+pub async fn calculate_fingerprint(code_root: &Path, dal_root: &Path) -> Result<String> {
     let mut files: Vec<PathBuf> = WalkDir::new(dal_root)
         .into_iter()
         .filter_map(Result::ok)
@@ -174,12 +174,10 @@ pub async fn calculate_fingerprint(code_root: &Path, dal_root: &PathBuf) -> Resu
 }
 
 pub async fn format_sql(shell: Shell, check: bool) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(&shell)?;
+    let code_root = ZkStackConfig::from_file(&shell)?.link_to_code();
+    let dal_root = code_root.join("core/lib/dal");
 
-    let code_root: &Path = &ecosystem.link_to_code;
-    let dal_root: PathBuf = code_root.join("core/lib/dal");
-
-    let fingerprint = calculate_fingerprint(code_root, &dal_root).await?;
+    let fingerprint = calculate_fingerprint(&code_root, &dal_root).await?;
 
     let snapshot_path = code_root.join(SNAPSHOT_FILE);
     if let Ok(prev) = fs::read_to_string(&snapshot_path) {
@@ -196,7 +194,7 @@ pub async fn format_sql(shell: Shell, check: bool) -> anyhow::Result<()> {
         }
     }
 
-    let new_fingerprint = calculate_fingerprint(code_root, &dal_root).await?;
+    let new_fingerprint = calculate_fingerprint(&code_root, &dal_root).await?;
     let mut f = fs::File::create(&snapshot_path)?;
     writeln!(f, "{new_fingerprint}")?;
 
