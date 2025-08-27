@@ -10,12 +10,13 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
+    server_notification::GatewayMigrationNotification,
     Address, L1BatchNumber, L2BlockNumber, SLChainId, H256, U256,
 };
 
 use crate::{
     models::storage_eth_tx::{BlocksEthSenderStats, StorageEthTx, StorageTxHistory},
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
@@ -304,11 +305,12 @@ impl EthSenderDal<'_, '_> {
         // if no commited batch found, return first batch number and latest block number
         let result = sqlx::query!(
             r#"
-            SELECT number, sent_at_block
+            SELECT number, eth_txs_history.sent_at_block, eth_txs.is_gateway
             FROM l1_batches
             INNER JOIN
                 eth_txs_history
                 ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
+            INNER JOIN eth_txs ON eth_txs_history.eth_tx_id = eth_txs.id
             WHERE eth_txs_history.finality_status = 'finalized'
             ORDER BY number DESC
             LIMIT 1
@@ -316,18 +318,39 @@ impl EthSenderDal<'_, '_> {
         )
         .instrument("get_number_and_sent_at_block_for_latest_commited_batch")
         .fetch_optional(self.storage)
-        .await?
-        .map(|row| {
-            (
-                row.number as u32,
-                row.sent_at_block
-                    .map(|v| v as u32)
-                    .unwrap_or(latest_block_number),
-            )
-        })
-        .unwrap_or((1, latest_block_number));
+        .await?;
 
-        Ok(result)
+        match result {
+            Some(row) => {
+                if !row.is_gateway {
+                    return Ok((
+                        row.number as u32,
+                        row.sent_at_block
+                            .map(|v| v as u32)
+                            .unwrap_or(latest_block_number),
+                    ));
+                } else {
+                    let latest_notification = self
+                        .storage
+                        .server_notifications_dal()
+                        .get_latest_gateway_migration_notification_and_block_number()
+                        .await?;
+
+                    if latest_notification.is_none() {
+                        return Ok((1, latest_block_number));
+                    }
+                    let (notification, notification_block_number) = latest_notification.unwrap();
+                    if notification == GatewayMigrationNotification::FromGateway {
+                        return Ok((row.number as u32, notification_block_number.0));
+                    } else {
+                        return Ok((row.number as u32, latest_block_number));
+                    }
+                }
+            }
+            None => {
+                return Ok((1, latest_block_number));
+            }
+        }
     }
 
     pub async fn get_eth_tx(&mut self, eth_tx_id: u32) -> sqlx::Result<Option<EthTx>> {

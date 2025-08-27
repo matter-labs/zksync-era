@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT number, eth_txs_history.sent_at_block, eth_txs.is_gateway\n            FROM l1_batches\n            INNER JOIN\n                eth_txs_history\n                ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id\n            INNER JOIN eth_txs ON eth_txs_history.eth_tx_id = eth_txs.id\n            WHERE eth_txs_history.finality_status = 'finalized'\n            ORDER BY number DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "sent_at_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "is_gateway",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "3db31982ac100a2b2de24f8a42b9f5882d69055a3399f046adea196ae053d6a3"
+}
