@@ -141,12 +141,12 @@ async fn init_ecosystem(
         init_args.bridgehub_address,
     )
     .await?;
+    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
     let forge_args = init_args.forge_args.clone();
 
     let mut reg_args = RegisterCTMArgsFinal::from((*init_args).clone());
     register_ctm(&mut reg_args, shell, forge_args, ecosystem_config).await?;
-    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
     Ok(contracts)
 }

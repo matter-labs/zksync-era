@@ -47,24 +47,15 @@ pub async fn register_ctm(
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
-    register_ctm_inner_inner(
+    register_ctm_on_existing_bh(
         shell,
-        forge_args,
+        &forge_args,
         ecosystem_config,
         init_args.ecosystem.l1_rpc_url.clone(),
+        None,
+        true,
     )
     .await?;
-
-    Ok(())
-}
-
-async fn register_ctm_inner_inner(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
-    l1_rpc_url: String,
-) -> anyhow::Result<()> {
-    register_ctm_on_existing_bh(shell, &forge_args, config, &l1_rpc_url, None, true).await?;
 
     Ok(())
 }

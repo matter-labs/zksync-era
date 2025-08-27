@@ -165,6 +165,24 @@ impl EcosystemInitArgs {
         }
     }
 
+    pub fn resolve_deploy_ecosystem(
+        dev: bool,
+        deploy_ecosystem: Option<bool>,
+        prompt: bool,
+    ) -> bool {
+        if dev {
+            true
+        } else {
+            match (prompt, deploy_ecosystem) {
+                (_, Some(val)) => val,
+                (true, None) => PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
+                    .default(true)
+                    .ask(),
+                (false, None) => true,
+            }
+        }
+    }
+
     pub fn get_genesis_args(&self) -> GenesisArgs {
         GenesisArgs {
             server_db_url: self.server_db_url.clone(),
@@ -195,19 +213,13 @@ impl EcosystemInitArgs {
             ..
         } = self;
 
-        let deploy_ecosystem = ecosystem.deploy_ecosystem.unwrap_or_else(|| {
-            if dev {
-                true
-            } else {
-                PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
-                    .default(true)
-                    .ask()
-            }
-        });
+        let deploy_ecosystem = Self::resolve_deploy_ecosystem(
+            dev,
+            ecosystem.deploy_ecosystem,
+            prompt_policy.skip_ecosystem,
+        );
 
-        let ecosystem = ecosystem
-            .fill_values_with_prompt(l1_network, dev || prompt_policy.skip_ecosystem)
-            .await?;
+        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
 
         let bridgehub_address: H160 = if let Some(ref addr_str) = bridgehub {
             addr_str
@@ -282,9 +294,7 @@ impl RegisterCTMArgs {
             dev,
         } = self;
 
-        let ecosystem = ecosystem
-            .fill_values_with_prompt(l1_network, dev || prompt_policy.skip_ecosystem)
-            .await?;
+        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
 
         Ok(RegisterCTMArgsFinal {
             ecosystem,
@@ -345,9 +355,7 @@ impl InitNewCTMArgs {
         } = self;
 
         // Fill ecosystem args
-        let ecosystem = ecosystem
-            .fill_values_with_prompt(l1_network, prompt_policy.skip_ecosystem)
-            .await?;
+        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, true).await?;
 
         // Parse bridgehub address
         let bridgehub_address = if let Some(ref addr_str) = bridgehub {
@@ -429,9 +437,7 @@ impl InitCoreContractsArgs {
             support_l2_legacy_shared_bridge_test,
         } = self;
 
-        let ecosystem = ecosystem
-            .fill_values_with_prompt(l1_network, prompt_policy.skip_ecosystem)
-            .await?;
+        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
 
         Ok(InitCoreContractsArgsFinal {
             deploy_erc20: resolve_deploy_erc20(dev, deploy_erc20, prompt_policy.deploy_erc20),

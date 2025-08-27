@@ -101,32 +101,12 @@ pub async fn deploy_new_ctm(
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: H160,
 ) -> anyhow::Result<ContractsConfig> {
-    return deploy_new_ctm_inner(
-        shell,
-        forge_args,
-        ecosystem_config,
-        initial_deployment_config,
-        ecosystem.l1_rpc_url.clone(),
-        support_l2_legacy_shared_bridge_test,
-        bridgehub_address,
-    )
-    .await;
-}
-
-async fn deploy_new_ctm_inner(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    l1_rpc_url: String,
-    support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: H160,
-) -> anyhow::Result<ContractsConfig> {
+    let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
         shell,
         &forge_args,
-        config,
+        ecosystem_config,
         initial_deployment_config,
         &l1_rpc_url,
         None,
@@ -139,9 +119,9 @@ async fn deploy_new_ctm_inner(
 
     accept_owner(
         shell,
-        config,
+        ecosystem_config,
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
@@ -152,9 +132,9 @@ async fn deploy_new_ctm_inner(
 
     accept_admin(
         shell,
-        config,
+        ecosystem_config,
         contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
