@@ -136,7 +136,7 @@ impl StateKeeperHandles {
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(NoopSealer {}),
+            Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
         );
