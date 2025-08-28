@@ -133,7 +133,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
-        init_args.bridgehub_address,
+        init_args.bridgehub_address.unwrap_or_default(), // Scripts are expected to consume 0 address for BH
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;

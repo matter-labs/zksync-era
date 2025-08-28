@@ -189,13 +189,14 @@ impl EcosystemInitArgs {
             }
         });
 
-        let bridgehub_address: H160 = if let Some(ref addr_str) = bridgehub {
-            addr_str
-                .parse::<H160>()
-                .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?
+        let bridgehub_address = if let Some(ref addr_str) = bridgehub {
+            Some(
+                addr_str
+                    .parse::<H160>()
+                    .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
+            )
         } else {
-            // Solidity script does the check if passed value is 0 for BH
-            H160::zero()
+            None
         };
 
         Ok(EcosystemInitArgsFinal {
@@ -228,7 +229,7 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: H160,
+    pub bridgehub_address: Option<H160>,
     pub deploy_ecosystem: bool,
 }
 
@@ -322,12 +323,13 @@ impl InitNewCTMArgs {
 
         // Parse bridgehub address
         let bridgehub_address = if let Some(ref addr_str) = bridgehub {
-            addr_str
-                .parse::<H160>()
-                .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?
+            Some(
+                addr_str
+                    .parse::<H160>()
+                    .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
+            )
         } else {
-            // Solidity script does the check if passed value is 0 for BH
-            H160::zero()
+            None
         };
 
         Ok(InitNewCTMArgsFinal {
@@ -349,7 +351,7 @@ pub struct InitNewCTMArgsFinal {
     pub update_submodules: Option<bool>,
     pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: H160,
+    pub bridgehub_address: Option<H160>,
 }
 
 impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
