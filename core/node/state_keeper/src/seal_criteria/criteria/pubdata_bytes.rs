@@ -93,7 +93,7 @@ mod tests {
             ..SealCriteriaConfig::for_tests()
         };
 
-        let criterion = PubDataBytesCriterion {};
+        let criterion = PubDataBytesCriterion;
 
         let block_execution_metrics = VmExecutionMetrics {
             l2_l1_long_messages: (config.max_pubdata_per_batch.0 as f64

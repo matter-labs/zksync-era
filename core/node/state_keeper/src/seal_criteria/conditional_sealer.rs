@@ -7,7 +7,6 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use itertools::Itertools;
 use smart_config::ByteSize;
 use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
@@ -170,9 +169,30 @@ impl ConditionalSealer for SequencerSealer {
     }
 }
 
+/// Sealers excluding pubdata for verifying blocks produced by sequencer
+/// on validium chains through PanicSealer
+fn validium_sealers() -> Vec<Box<dyn SealCriterion>> {
+    vec![
+        Box::new(criteria::SlotsCriterion),
+        Box::new(criteria::InteropRootsCriterion),
+        Box::new(criteria::CircuitsCriterion),
+        Box::new(criteria::TxEncodingSizeCriterion),
+        Box::new(criteria::GasForBatchTipCriterion),
+        Box::new(criteria::L1L2TxsCriterion),
+        Box::new(criteria::L2L1LogsCriterion),
+    ]
+}
+
+/// All sealers
+fn default_sealers() -> Vec<Box<dyn SealCriterion>> {
+    let mut sealers = validium_sealers();
+    sealers.push(Box::new(criteria::PubDataBytesCriterion));
+    sealers
+}
+
 impl SequencerSealer {
     pub fn new(config: SealCriteriaConfig) -> Self {
-        let sealers = Self::default_sealers();
+        let sealers = default_sealers();
         Self { config, sealers }
     }
 
@@ -182,19 +202,6 @@ impl SequencerSealer {
         sealers: Vec<Box<dyn SealCriterion>>,
     ) -> Self {
         Self { config, sealers }
-    }
-
-    fn default_sealers() -> Vec<Box<dyn SealCriterion>> {
-        vec![
-            Box::new(criteria::SlotsCriterion),
-            Box::new(criteria::InteropRootsCriterion),
-            Box::new(criteria::PubDataBytesCriterion),
-            Box::new(criteria::CircuitsCriterion),
-            Box::new(criteria::TxEncodingSizeCriterion),
-            Box::new(criteria::GasForBatchTipCriterion),
-            Box::new(criteria::L1L2TxsCriterion),
-            Box::new(criteria::L2L1LogsCriterion),
-        ]
     }
 }
 
@@ -237,26 +244,17 @@ pub struct PanicSealer {
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
-impl Default for PanicSealer {
-    fn default() -> Self {
-        Self {
-            sealers: SequencerSealer::default_sealers(),
-        }
-    }
-}
-
 impl PanicSealer {
     pub fn new(l1_batch_commit_data_generator_mode: L1BatchCommitmentMode) -> Self {
-        let mut sealer = Self::default();
         if l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
-            let (position, _) = sealer
-                .sealers
-                .iter()
-                .find_position(|s| s.prom_criterion_name() == "pub_data_size")
-                .expect("Did not find pub_data_size criterion");
-            sealer.sealers.remove(position);
-        };
-        sealer
+            Self {
+                sealers: validium_sealers(),
+            }
+        } else {
+            Self {
+                sealers: default_sealers(),
+            }
+        }
     }
 }
 
