@@ -120,17 +120,23 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             )
         };
 
-    let mode = if convert_to_gw_args.only_save_calldata {
+    let mode_chain_governor = if convert_to_gw_args.only_save_calldata {
         AdminScriptMode::OnlySave
     } else {
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor)
+    };
+
+    let mode_ecosystem_governor = if convert_to_gw_args.only_save_calldata {
+        AdminScriptMode::OnlySave
+    } else {
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor)
     };
 
     let mut output = grant_gateway_whitelist(
         shell,
         &args,
         &chain_config.path_to_l1_foundry(),
-        mode.clone(),
+        mode_chain_governor.clone(),
         chain_config.chain_id.as_u64(),
         chain_contracts_config
             .ecosystem_contracts
@@ -179,7 +185,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     output = governance_execute_calls(
         shell,
         &ecosystem_config,
-        mode,
+        mode_ecosystem_governor,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,
         l1_url.clone(),
@@ -195,7 +201,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             shell,
             &args,
             &chain_config.path_to_l1_foundry(),
-            AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
+            mode_chain_governor,
             chain_config.chain_id.as_u64(),
             chain_contracts_config
                 .ecosystem_contracts
