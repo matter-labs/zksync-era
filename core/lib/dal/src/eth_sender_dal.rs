@@ -340,15 +340,14 @@ impl EthSenderDal<'_, '_> {
                         .get_latest_gateway_migration_notification_and_block_number()
                         .await?;
 
-                    if let Some((notification, notification_block_number)) = latest_notification {
-                        if notification == GatewayMigrationNotification::FromGateway {
-                            notification_block_number.0
-                        } else {
-                            tracing::error!("Latest notifciation is not FromGateway, but trying to calculate blob prices");
-                            latest_block_number
-                        }
+                    if let Some((
+                        GatewayMigrationNotification::FromGateway,
+                        notification_block_number,
+                    )) = latest_notification
+                    {
+                        notification_block_number.0
                     } else {
-                        tracing::error!("No latest GW migration notification, but trying to calculate blob prices");
+                        tracing::error!("No latest GW -> L1 migration notification, but trying to calculate blob prices");
                         latest_block_number
                     }
                 };
