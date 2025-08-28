@@ -20,6 +20,7 @@ use zksync_types::{
     l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolSemanticVersion,
+    settlement::SettlementLayer,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
@@ -286,6 +287,7 @@ fn create_block_seal_command(
         pubdata_params: PubdataParams::default(),
         insert_header: true,
         rolling_txs_hash: Default::default(),
+        settlement_layer: SettlementLayer::for_tests(),
     }
 }
 
@@ -597,6 +599,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
+        SettlementLayer::for_tests(),
     );
     let version = batch_init_params.system_env.version;
     let mut updates = UpdatesManager::new(

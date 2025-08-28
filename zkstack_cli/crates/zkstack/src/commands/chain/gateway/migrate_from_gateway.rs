@@ -216,7 +216,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     Ok(())
 }
 
-const LOOK_WAITING_TIME_MS: u64 = 200;
+const LOOK_WAITING_TIME_MS: u64 = 1600;
 
 pub(crate) async fn check_whether_gw_transaction_is_finalized(
     gateway_provider: &Client<L2>,
