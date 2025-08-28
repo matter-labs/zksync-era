@@ -14543,6 +14543,7 @@ version = "29.1.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "test-casing",
  "tokio",
  "tracing",
@@ -14601,6 +14602,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_kzg",
  "zksync_merkle_tree",
  "zksync_multivm",
  "zksync_system_constants",
@@ -15059,6 +15061,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",
+ "zksync_kzg",
  "zksync_mempool",
  "zksync_multivm",
  "zksync_node_fee_model",
