@@ -1,5 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
@@ -24,6 +25,7 @@ use super::{
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
+    admin_functions::{accept_admin, accept_owner},
     commands::ecosystem::{
         common::deploy_l1_core_contracts,
         create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
@@ -237,6 +239,54 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
     spinner.finish();
+
+    accept_owner(
+        shell,
+        config.path_to_l1_foundry(),
+        contracts_config.l1.governance_addr,
+        &config.get_wallets()?.governor,
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+    accept_admin(
+        shell,
+        config.path_to_l1_foundry(),
+        contracts_config.l1.chain_admin_addr,
+        &config.get_wallets()?.governor,
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    // Note, that there is no admin in L1 asset router, so we do
+    // need to accept it
+    accept_owner(
+        shell,
+        config.path_to_l1_foundry(),
+        contracts_config.l1.governance_addr,
+        &config.get_wallets()?.governor,
+        contracts_config.bridges.shared.l1_address,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    accept_owner(
+        shell,
+        config.path_to_l1_foundry(),
+        contracts_config.l1.governance_addr,
+        &config.get_wallets()?.governor,
+        contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr
+            .context("stm_deployment_tracker_proxy_addr")?,
+        &forge_args,
+        l1_rpc_url,
+    )
+    .await?;
 
     Ok(contracts_config)
 }

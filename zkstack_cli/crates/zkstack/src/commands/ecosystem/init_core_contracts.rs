@@ -104,7 +104,7 @@ async fn init_ecosystem(
     Ok(contracts)
 }
 
-async fn deploy_ecosystem(
+pub async fn deploy_ecosystem(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
@@ -137,7 +137,6 @@ async fn deploy_ecosystem(
         l1_rpc_url.clone(),
     )
     .await?;
-
     accept_admin(
         shell,
         ecosystem_config.path_to_l1_foundry(),
