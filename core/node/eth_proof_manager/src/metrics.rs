@@ -20,7 +20,7 @@ pub(super) enum ValidationResult {
 #[metrics(prefix = "server_eth_proof_manager")]
 pub(super) struct EthProofManagerMetrics {
     pub failed_to_send_tx: Family<TxType, Counter>,
-    pub validation_result: Family<ValidationResult, Counter>,
+    pub validated_batches: Family<ValidationResult, Counter>,
     pub proven_batches: Family<ProvingNetwork, Counter>,
     pub acknowledged_batches: Family<ProvingNetwork, Counter>,
     pub fallbacked_batches: Counter<u64>,

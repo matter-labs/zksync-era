@@ -81,6 +81,7 @@ impl ProofRequestSubmitter {
                         batch_id,
                         e
                     );
+                    METRICS.fallbacked_batches.inc();
                     self.connection_pool
                         .connection()
                         .await?

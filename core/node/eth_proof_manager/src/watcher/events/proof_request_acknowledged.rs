@@ -108,6 +108,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
                 "Proof request for batch {} not accepted, moving to prover cluster",
                 event.block_number
             );
+            METRICS.fallbacked_batches.inc();
             self.connection_pool
                 .connection()
                 .await?

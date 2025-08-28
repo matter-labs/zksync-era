@@ -155,10 +155,10 @@ impl EventHandler for ProofRequestProvenHandler {
                 .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
                 .await?;
 
-            METRICS.validation_result[&ValidationResult::Success].inc();
+            METRICS.validated_batches[&ValidationResult::Success].inc();
             METRICS.proven_batches[&event.assigned_to].inc();
         } else {
-            METRICS.validation_result[&ValidationResult::Failed].inc();
+            METRICS.validated_batches[&ValidationResult::Failed].inc();
         }
 
         tracing::info!(
