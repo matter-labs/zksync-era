@@ -1,5 +1,21 @@
 # Changelog
 
+## [29.1.2](https://github.com/matter-labs/zksync-era/compare/core-v29.1.1...core-v29.1.2) (2025-08-26)
+
+
+### Bug Fixes
+
+* **en:** Proper error handling for transaction updater ([#4431](https://github.com/matter-labs/zksync-era/issues/4431)) ([16ade67](https://github.com/matter-labs/zksync-era/commit/16ade67db66fd0b44774fb8a89abf7047f696d49))
+* **eth-proof-manager:** batch fallbacking ([#4419](https://github.com/matter-labs/zksync-era/issues/4419)) ([7edd4ea](https://github.com/matter-labs/zksync-era/commit/7edd4ea2516b1db4aa6f0499911880b84c2ce39d))
+
+## [29.1.1](https://github.com/matter-labs/zksync-era/compare/core-v29.1.0...core-v29.1.1) (2025-08-21)
+
+
+### Bug Fixes
+
+* **transaction-finality-updater:** Handle rpc error properly ([#4414](https://github.com/matter-labs/zksync-era/issues/4414)) ([a6f0dd5](https://github.com/matter-labs/zksync-era/commit/a6f0dd5bf392ba525b25b55611f8f3f6403895c7))
+* **zkstack:** Allow to use chain config if ecosystem is redundant ([#4236](https://github.com/matter-labs/zksync-era/issues/4236)) ([066b3b1](https://github.com/matter-labs/zksync-era/commit/066b3b1f901053e318b0cf8c1c315d35d1d5526f))
+
 ## [29.1.0](https://github.com/matter-labs/zksync-era/compare/core-v29.0.0...core-v29.1.0) (2025-08-15)
 
 
