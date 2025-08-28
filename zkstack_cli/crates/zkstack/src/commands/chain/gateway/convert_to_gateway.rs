@@ -213,6 +213,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn gateway_vote_preparation(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
