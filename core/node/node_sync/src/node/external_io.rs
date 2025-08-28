@@ -7,16 +7,16 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_resources::api::SyncState;
+use zksync_shared_resources::{api::SyncState, contracts::L1ChainContractsResource};
 use zksync_state_keeper::{
     node::StateKeeperIOResource,
     seal_criteria::{ConditionalSealer, NoopSealer},
 };
 use zksync_types::L2ChainId;
-use zksync_web3_decl::client::{DynClient, L2};
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use super::resources::ActionQueueSenderResource;
-use crate::{ActionQueue, ExternalIO};
+use crate::{external_io::PriorityTxVerifierL1, ActionQueue, ExternalIO};
 
 /// Wiring layer for `ExternalIO`, an IO part of state keeper used by the external node.
 #[derive(Debug)]
@@ -29,6 +29,8 @@ pub struct Input {
     app_health: Arc<AppHealthCheck>,
     pool: PoolResource<MasterPool>,
     main_node_client: Box<DynClient<L2>>,
+    l1_node: Box<DynClient<L1>>,
+    l1_chain_contracts_resource: L1ChainContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -65,6 +67,15 @@ impl WiringLayer for ExternalIOLayer {
         // Create `ActionQueueSender` resource.
         let (action_queue_sender, action_queue) = ActionQueue::new();
 
+        let priority_tx_verifier = PriorityTxVerifierL1::new(
+            input.l1_node.for_component("priority_tx_verifier"),
+            input
+                .l1_chain_contracts_resource
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr,
+        );
+
         // Create external IO resource.
         let io_pool = input.pool.get().await.context("Get master pool")?;
         let io = ExternalIO::new(
@@ -72,6 +83,7 @@ impl WiringLayer for ExternalIOLayer {
             action_queue,
             Box::new(input.main_node_client.for_component("external_io")),
             self.chain_id,
+            Box::new(priority_tx_verifier),
         )
         .context("Failed initializing I/O for external node state keeper")?;
 

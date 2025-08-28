@@ -95,6 +95,7 @@ fn test_encoding() {
     //test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
     test_encode_all_formats::<FmtConv<BlockMetadata>>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));
+    encode_decode::<proto::TransactionV29, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l2_transaction(rng));
