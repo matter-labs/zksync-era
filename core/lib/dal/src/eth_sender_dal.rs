@@ -325,9 +325,14 @@ impl EthSenderDal<'_, '_> {
             Some(row) => {
                 let batch_number = row.number as u32;
                 let sent_at_block = if !row.is_gateway {
-                    row.sent_at_block
-                        .map(|v| v as u32)
-                        .unwrap_or(latest_block_number)
+                    let block = row.sent_at_block.map(|v| v as u32);
+
+                    if let Some(block) = block {
+                        block
+                    } else {
+                        tracing::error!("There is a commited batch, but no sent at block");
+                        latest_block_number
+                    }
                 } else {
                     let latest_notification = self
                         .storage
@@ -339,9 +344,11 @@ impl EthSenderDal<'_, '_> {
                         if notification == GatewayMigrationNotification::FromGateway {
                             notification_block_number.0
                         } else {
+                            tracing::error!("Latest notifciation is not FromGateway, but trying to calculate blob prices");
                             latest_block_number
                         }
                     } else {
+                        tracing::error!("No latest GW migration notification, but trying to calculate blob prices");
                         latest_block_number
                     }
                 };
