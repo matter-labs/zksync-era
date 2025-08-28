@@ -45,9 +45,9 @@ use crate::{
 
 #[derive(Debug)]
 pub struct DAValidatorPair {
-    l1_validator: Address,
-    l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
-    l2_validator: Option<Address>,
+    pub l1_validator: Address,
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
+    pub l2_validator: Option<Address>,
 }
 
 /// Data queried from L1 using multicall contract.

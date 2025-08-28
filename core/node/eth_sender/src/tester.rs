@@ -18,6 +18,7 @@ use zksync_types::{
     block::L1BatchHeader,
     commitment::L1BatchCommitmentMode,
     eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
+    protocol_version::{ProtocolSemanticVersion, VersionPatch},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
@@ -157,6 +158,27 @@ impl EthSenderTester {
         commitment_mode: L1BatchCommitmentMode,
         settlement_layer: SettlementLayer,
     ) -> Self {
+        Self::new_with_protocol_version(
+            connection_pool,
+            history,
+            non_ordering_confirmations,
+            aggregator_operate_4844_mode,
+            commitment_mode,
+            settlement_layer,
+            ProtocolVersionId::latest(),
+        )
+        .await
+    }
+
+    pub async fn new_with_protocol_version(
+        connection_pool: ConnectionPool<Core>,
+        history: Vec<u64>,
+        non_ordering_confirmations: bool,
+        aggregator_operate_4844_mode: bool,
+        commitment_mode: L1BatchCommitmentMode,
+        settlement_layer: SettlementLayer,
+        protocol_version_id: ProtocolVersionId,
+    ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
         let pubdata_sending_mode =
@@ -195,7 +217,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
-                crate::tests::mock_multicall_response(call)
+                crate::tests::mock_multicall_response(call, protocol_version_id)
             })
             .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
@@ -216,7 +238,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
-                crate::tests::mock_multicall_response(call)
+                crate::tests::mock_multicall_response(call, protocol_version_id)
             })
             .build();
         l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
@@ -236,7 +258,7 @@ impl EthSenderTester {
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
                 assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
-                crate::tests::mock_multicall_response(call)
+                crate::tests::mock_multicall_response(call, protocol_version_id)
             })
             .with_sender(Address::from_str("0xb10b000000000000000000000000000000000000").unwrap())
             .build();
@@ -309,9 +331,16 @@ impl EthSenderTester {
 
         let connection_pool_clone = connection_pool.clone();
         let mut storage = connection_pool_clone.connection().await.unwrap();
+        let protocol_version = ProtocolVersion {
+            version: ProtocolSemanticVersion {
+                minor: protocol_version_id,
+                patch: VersionPatch(0),
+            },
+            ..Default::default()
+        };
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .save_protocol_version_with_tx(&protocol_version)
             .await
             .unwrap();
 
