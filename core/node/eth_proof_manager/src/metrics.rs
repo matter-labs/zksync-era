@@ -1,8 +1,6 @@
-//! Metrics for Ethereum watcher.
+use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Metrics};
 
-use std::time::Duration;
-
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+use crate::types::ProvingNetwork;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -25,6 +23,9 @@ pub(super) enum ValidationResult {
 pub(super) struct EthProofManagerMetrics {
     pub failed_to_send_tx: Family<TxType, Counter>,
     pub validation_result: Family<ValidationResult, Counter>,
+    pub proven_batches:  Family<ProvingNetwork, Counter>,
+    pub acknowledged_batches:  Family<ProvingNetwork, Counter>,
+    pub fallbacked_batches:  Counter<u64>,
 }
 
 #[vise::register]

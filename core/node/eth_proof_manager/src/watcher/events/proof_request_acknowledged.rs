@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
-use crate::{types::ProvingNetwork, watcher::events::EventHandler};
+use crate::{metrics::METRICS, types::ProvingNetwork, watcher::events::EventHandler};
 
 //event ProofRequestAcknowledged(
 //     uint256 indexed chainId,
@@ -90,6 +90,8 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         };
 
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
+
+        METRICS.acknowledged_batches[&event.assigned_to].inc();
 
         if accepted {
             self.connection_pool

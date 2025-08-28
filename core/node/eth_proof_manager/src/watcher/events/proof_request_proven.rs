@@ -154,6 +154,7 @@ impl EventHandler for ProofRequestProvenHandler {
                 .await?;
 
             METRICS.validation_result[&ValidationResult::Success].inc();
+            METRICS.proven_batches[&event.assigned_to].inc();
         }
         else {
             METRICS.validation_result[&ValidationResult::Failed].inc();
