@@ -73,12 +73,7 @@ impl ProofRequestSubmitter {
         if let Some(batch_id) = batch_id {
             match self.submit_request(batch_id).await {
                 Ok(_) => {
-                    self.connection_pool
-                        .connection()
-                        .await?
-                        .eth_proof_manager_dal()
-                        .fallback_batch(batch_id)
-                        .await?;
+                    tracing::info!("Submitted proof request for batch {}", batch_id);
                 }
                 Err(e) => {
                     tracing::error!(
