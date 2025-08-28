@@ -7,7 +7,6 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use smart_config::ByteSize;
 use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
     interface::TransactionExecutionMetrics,
@@ -265,9 +264,8 @@ impl PanicSealer {
     ) -> SealCriteriaConfig {
         SealCriteriaConfig {
             transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()), // do not limit on transaction slots
-            max_pubdata_per_batch: ByteSize(
-                get_max_vm_pubdata_per_batch(protocol_version.into()) as u64
-            ),
+            max_pubdata_per_batch: (get_max_vm_pubdata_per_batch(protocol_version.into()) as u64)
+                .into(),
             reject_tx_at_geometry_percentage: 1.0,
             reject_tx_at_eth_params_percentage: 1.0,
             reject_tx_at_gas_percentage: 1.0,

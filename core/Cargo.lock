@@ -15049,7 +15049,6 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "smart-config",
  "tempfile",
  "test-casing",
  "thiserror 2.0.12",
