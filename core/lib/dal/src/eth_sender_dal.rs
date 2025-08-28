@@ -294,10 +294,6 @@ impl EthSenderDal<'_, '_> {
 
     /// This query returns the number and sent_at_block of the latest commited batch.
     /// Query should be primary used for L1, not for gateway settlement layer.
-    ///
-    /// Although, here we are not checking if the batch is from gateway settlement layer,
-    /// because we are using upper bound from the found values, so it is safe to assume that the values
-    /// next values will be coming for L1 if used.
     pub async fn get_number_and_sent_at_block_for_latest_commited_batch(
         &mut self,
         latest_block_number: u32,
@@ -320,6 +316,11 @@ impl EthSenderDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
+        // Here we are returning final values based on the following logic:
+        // - If there is no commited batch, we are returning 1 and latest block number
+        // - If the commited batch is not a gateway batch, we are returning the batch number and the sent at block
+        // - If the commited batch was a gateway batch, we are checking, if there was a gateway migration GW -> L1,
+        // if so, we are returning the block number of the gateway migration, otherwise we are returning the latest block number
         match result {
             Some(row) => {
                 let batch_number = row.number as u32;
