@@ -4,7 +4,11 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L2ChainId;
 
-use crate::{client::EthProofManagerClient, metrics::{TxType, METRICS}, types::ProofRequestIdentifier};
+use crate::{
+    client::EthProofManagerClient,
+    metrics::{TxType, METRICS},
+    types::ProofRequestIdentifier,
+};
 
 pub struct SubmitProofValidationSubmitter {
     client: Box<dyn EthProofManagerClient>,

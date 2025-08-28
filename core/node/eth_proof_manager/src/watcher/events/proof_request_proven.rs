@@ -18,7 +18,9 @@ use zksync_types::{
 };
 
 use crate::{
-    metrics::{ValidationResult, METRICS}, types::{FflonkFinalVerificationKey, ProvingNetwork}, watcher::events::EventHandler
+    metrics::{ValidationResult, METRICS},
+    types::{FflonkFinalVerificationKey, ProvingNetwork},
+    watcher::events::EventHandler,
 };
 
 #[derive(Debug)]
@@ -155,8 +157,7 @@ impl EventHandler for ProofRequestProvenHandler {
 
             METRICS.validation_result[&ValidationResult::Success].inc();
             METRICS.proven_batches[&event.assigned_to].inc();
-        }
-        else {
+        } else {
             METRICS.validation_result[&ValidationResult::Failed].inc();
         }
 

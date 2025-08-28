@@ -11,7 +11,9 @@ use zksync_prover_interface::inputs::PublicWitnessInputData;
 use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::{
-    client::EthProofManagerClient, metrics::{TxType, METRICS}, types::{ProofRequestIdentifier, ProofRequestParams}
+    client::EthProofManagerClient,
+    metrics::{TxType, METRICS},
+    types::{ProofRequestIdentifier, ProofRequestParams},
 };
 
 pub struct ProofRequestSubmitter {
@@ -151,9 +153,10 @@ impl ProofRequestSubmitter {
         };
 
         match self
-        .client
-        .submit_proof_request(proof_request_identifier, proof_request_parameters)
-        .await {
+            .client
+            .submit_proof_request(proof_request_identifier, proof_request_parameters)
+            .await
+        {
             Ok(tx_hash) => {
                 self.connection_pool
                     .connection()
@@ -178,7 +181,7 @@ impl ProofRequestSubmitter {
                 ));
             }
         }
-        
+
         Ok(())
     }
 }
