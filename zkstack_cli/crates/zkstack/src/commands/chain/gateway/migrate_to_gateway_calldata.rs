@@ -25,7 +25,7 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        set_da_validator_pair_via_gateway, AdminScriptOutput,
+        AdminScriptOutput,
     },
     commands::chain::{
         admin_call_builder::AdminCall,

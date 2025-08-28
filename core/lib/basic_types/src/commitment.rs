@@ -108,14 +108,15 @@ pub enum L2DACommitmentScheme {
     BlobsAndPubdataKeccak256 = 3,
 }
 
-impl From<u8> for L2DACommitmentScheme {
-    fn from(value: u8) -> Self {
+impl TryFrom<u8> for L2DACommitmentScheme {
+    type Error = &'static str;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => L2DACommitmentScheme::None,
-            1 => L2DACommitmentScheme::EmptyNoDA,
-            2 => L2DACommitmentScheme::PubdataKeccak256,
-            3 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
-            _ => panic!("Invalid L2DACommitmentScheme value: {}", value),
+            0 => Ok(L2DACommitmentScheme::None),
+            1 => Ok(L2DACommitmentScheme::EmptyNoDA),
+            2 => Ok(L2DACommitmentScheme::PubdataKeccak256),
+            3 => Ok(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            _ => Err("Invalid L2DACommitmentScheme value"),
         }
     }
 }

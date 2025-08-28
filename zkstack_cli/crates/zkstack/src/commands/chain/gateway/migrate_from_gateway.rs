@@ -34,7 +34,7 @@ use zksync_web3_decl::{
 
 use crate::{
     abi::ZkChainAbi,
-    admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
+    admin_functions::start_migrate_chain_from_gateway,
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
         gateway::{

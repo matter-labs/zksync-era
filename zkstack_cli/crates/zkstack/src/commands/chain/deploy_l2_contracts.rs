@@ -236,7 +236,7 @@ pub async fn deploy_l2_da_validator(
     shell: &Shell,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
-    contracts_config: &mut ContractsConfig,
+    _contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     build_and_deploy(
@@ -246,7 +246,7 @@ pub async fn deploy_l2_da_validator(
         forge_args,
         Some("runDeployL2DAValidator"),
         |shell, out| {
-            // Check what it should looks like now
+            // Now, we don't have a specific l2 da validator address
             Ok(())
         },
         true,

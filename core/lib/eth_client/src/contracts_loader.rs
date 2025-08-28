@@ -197,7 +197,7 @@ pub async fn get_zk_chain_on_chain_params(
             {
                 Some(
                     L2DACommitmentScheme::try_from(l2_da_commitment_scheme.as_u64() as u8)
-                        .expect("Invalid L2DACommitmentScheme value"),
+                        .expect("wrong l2_da_commitment_scheme"),
                 )
             } else {
                 None

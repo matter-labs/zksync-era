@@ -122,7 +122,10 @@ impl ProtoRepr for proto::PubdataParams {
             l2_da_commitment_scheme: self
                 .l2_da_commitment_scheme
                 .as_ref()
-                .map(|a| L2DACommitmentScheme::from(*a as u8)),
+                .map(|a| L2DACommitmentScheme::try_from(*a as u8))
+                .transpose()
+                .unwrap(),
+
             pubdata_type: required(&self.pubdata_info)
                 .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
                 .context("pubdata_type")?

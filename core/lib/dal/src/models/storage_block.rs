@@ -680,7 +680,9 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                     .map(|a| Address::from_slice(&a)),
                 l2_da_commitment_scheme: row
                     .l2_da_commitment_scheme
-                    .map(|a| L2DACommitmentScheme::from(a as u8)),
+                    .map(|a| L2DACommitmentScheme::try_from(a as u8))
+                    .transpose()
+                    .expect("wrong l2_da_commitment_scheme"),
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
             rolling_txs_hash: row.rolling_txs_hash.as_deref().map(H256::from_slice),
@@ -716,9 +718,9 @@ impl From<StoragePubdataParams> for PubdataParams {
     fn from(row: StoragePubdataParams) -> Self {
         Self {
             l2_da_validator_address: row.l2_da_validator_address.map(|a| Address::from_slice(&a)),
-            l2_da_commitment_scheme: row
-                .l2_da_commitment_scheme
-                .map(|a| L2DACommitmentScheme::from(a as u8)),
+            l2_da_commitment_scheme: row.l2_da_commitment_scheme.map(|a| {
+                L2DACommitmentScheme::try_from(a as u8).expect("wrong l2_da_commitment_scheme")
+            }),
             pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
         }
     }
