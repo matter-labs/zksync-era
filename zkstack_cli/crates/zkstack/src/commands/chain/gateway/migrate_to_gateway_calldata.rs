@@ -145,27 +145,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
     let chain_admin_address = l1_zk_chain.get_admin().await?;
-    let zk_chain_gw_address = {
-        let recorded_zk_chain_gw_address =
-            gw_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
-        if recorded_zk_chain_gw_address == Address::zero() {
-            precompute_chain_address_on_gateway(
-                params.l2_chain_id,
-                H256(
-                    l1_bridgehub
-                        .base_token_asset_id(params.l2_chain_id.into())
-                        .await?,
-                ),
-                apply_l1_to_l2_alias(l1_zk_chain.get_admin().await?),
-                protocol_version,
-                params.gateway_diamond_cut.clone(),
-                gw_ctm,
-            )
-            .await?
-        } else {
-            recorded_zk_chain_gw_address
-        }
-    };
 
     let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
         shell,
@@ -196,25 +175,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
         logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
     }
-
-    // let da_validator_encoding_result = set_da_validator_pair_via_gateway(
-    //     shell,
-    //     forge_args,
-    //     foundry_contracts_path,
-    //     crate::admin_functions::AdminScriptMode::OnlySave,
-    //     params.l1_bridgehub_addr,
-    //     params.max_l1_gas_price.into(),
-    //     params.l2_chain_id,
-    //     params.gateway_chain_id,
-    //     params.new_sl_da_validator,
-    //     l2_da_validator,
-    //     zk_chain_gw_address,
-    //     refund_recipient,
-    //     params.l1_rpc_url.clone(),
-    // )
-    // .await?;
-
-    // result.extend(da_validator_encoding_result.calls.into_iter());
 
     let is_validator_enabled =
         if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {

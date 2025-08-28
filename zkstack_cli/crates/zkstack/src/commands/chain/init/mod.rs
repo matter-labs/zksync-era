@@ -184,7 +184,15 @@ pub async fn init(
         if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
             L2DACommitmentScheme::BlobsAndPubdataKeccak256
         } else {
-            todo!()
+            let da_client_type = chain_config.get_general_config().await?.da_client_type();
+
+            match da_client_type.as_deref() {
+                Some("Avail") | Some("Eigen") => L2DACommitmentScheme::PubdataKeccak256,
+                Some("NoDA") | None => L2DACommitmentScheme::EmptyNoDA,
+                Some(unsupported) => {
+                    anyhow::bail!("DA client config is not supported: {unsupported:?}");
+                }
+            }
         };
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(

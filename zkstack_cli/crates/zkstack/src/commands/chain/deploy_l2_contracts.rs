@@ -245,7 +245,7 @@ pub async fn deploy_l2_da_validator(
         ecosystem_config,
         forge_args,
         Some("runDeployL2DAValidator"),
-        |shell, out| {
+        |_shell, _out| {
             // Now, we don't have a specific l2 da validator address
             Ok(())
         },
