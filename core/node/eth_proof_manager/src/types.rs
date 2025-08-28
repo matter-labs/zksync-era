@@ -1,10 +1,12 @@
 use bellman::bn256::Bn256;
 use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
 use fflonk::FflonkVerificationKey;
+use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{ContractCallError, EnrichedClientError, SigningError};
 use zksync_types::{ethabi, U256};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "proving_network", rename_all = "snake_case")]
 pub enum ProvingNetwork {
     None = 0,
     Fermah = 1,
