@@ -15,7 +15,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_GATEWAY_TX_FILTERER,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig,
+    ChainConfig, EcosystemConfig, ZkStackConfig,
 };
 
 use crate::{
@@ -31,7 +31,7 @@ lazy_static! {
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;

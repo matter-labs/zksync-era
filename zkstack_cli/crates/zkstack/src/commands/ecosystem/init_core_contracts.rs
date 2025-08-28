@@ -8,7 +8,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::SaveConfigWithBasePath, ContractsConfig, EcosystemConfig,
+    traits::SaveConfigWithBasePath, ContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 
 use super::{
@@ -29,7 +29,7 @@ use crate::{
 };
 
 pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
         git::submodule_update(shell, &ecosystem_config.link_to_code)?;
