@@ -7,6 +7,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use itertools::Itertools;
 use smart_config::ByteSize;
 use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
@@ -16,7 +17,7 @@ use zksync_multivm::{
         get_max_vm_pubdata_per_batch,
     },
 };
-use zksync_types::{ProtocolVersionId, Transaction};
+use zksync_types::{commitment::L1BatchCommitmentMode, ProtocolVersionId, Transaction};
 use zksync_vm_executor::interface::TransactionFilter;
 
 use super::{criteria, SealCriterion, SealData, SealResolution, AGGREGATION_METRICS};
@@ -245,8 +246,17 @@ impl Default for PanicSealer {
 }
 
 impl PanicSealer {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(l1_batch_commit_data_generator_mode: L1BatchCommitmentMode) -> Self {
+        let mut sealer = Self::default();
+        if l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
+            let (position, _) = sealer
+                .sealers
+                .iter()
+                .find_position(|s| s.prom_criterion_name() == "pub_data_size")
+                .expect("Did not find pub_data_size criterion");
+            sealer.sealers.remove(position);
+        };
+        sealer
     }
 }
 

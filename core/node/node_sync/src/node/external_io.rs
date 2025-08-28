@@ -7,7 +7,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_resources::api::SyncState;
+use zksync_shared_resources::{api::SyncState, L1BatchCommitmentModeResource};
 use zksync_state_keeper::{
     node::StateKeeperIOResource,
     seal_criteria::{ConditionalSealer, NoopSealer, PanicSealer},
@@ -30,6 +30,7 @@ pub struct Input {
     app_health: Arc<AppHealthCheck>,
     pool: PoolResource<MasterPool>,
     main_node_client: Box<DynClient<L2>>,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -81,7 +82,9 @@ impl WiringLayer for ExternalIOLayer {
 
         // Create sealer.
         let sealer: Arc<dyn ConditionalSealer> = if self.should_verify_seal_criteria {
-            Arc::new(PanicSealer::new())
+            Arc::new(PanicSealer::new(
+                input.l1_batch_commit_data_generator_mode.0,
+            ))
         } else {
             Arc::new(NoopSealer)
         };
