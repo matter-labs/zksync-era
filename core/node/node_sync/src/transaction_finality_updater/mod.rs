@@ -16,6 +16,7 @@ use zksync_types::{
     web3::TransactionReceipt,
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId,
 };
+use zksync_web3_decl::error::EnrichedClientError;
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
 use crate::transaction_finality_updater::l1_transaction_verifier::TransactionValidationError;
@@ -35,6 +36,25 @@ const FIRST_VALIDATED_PROTOCOL_VERSION_ID: ProtocolVersionId = if cfg!(test) {
 } else {
     ProtocolVersionId::Version29
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum TransactionFinalityUpdaterError {
+    #[error("RPC error SL Node {0}")]
+    Rpc(#[from] EnrichedClientError),
+    #[error("Database Error {0}")]
+    DBError(#[from] zksync_dal::DalError),
+    #[error("internal error: {0}")]
+    Internal(#[from] anyhow::Error),
+}
+
+impl TransactionFinalityUpdaterError {
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::Rpc(err) => err.is_retryable(),
+            Self::Internal(_) | Self::DBError(_) => false, // Internal errors are not retryable
+        }
+    }
+}
 
 /// Module responsible for updating L1 batch status. (Pending->FastFinalized->Finalized)
 /// Its currently the component that should terminate EN when gateway migration happens.
@@ -315,7 +335,7 @@ impl BatchTransactionUpdater {
         &self,
         to_process: Vec<TxHistory>,
         l1_block_numbers: L1BlockNumbers,
-    ) -> anyhow::Result<usize> {
+    ) -> Result<usize, TransactionFinalityUpdaterError> {
         let mut updated_count: usize = 0;
 
         tracing::debug!("Checking {} unfinalized transactions", to_process.len());
@@ -429,8 +449,16 @@ impl BatchTransactionUpdater {
     pub async fn loop_iteration(
         &self,
         sl_chain_id: SLChainId,
+    ) -> Result<usize, TransactionFinalityUpdaterError> {
+        let l1_block_numbers = self.sl_client.get_block_numbers(None).await?;
+        self.update_for_blocks(sl_chain_id, l1_block_numbers).await
+    }
+
+    pub async fn update_for_blocks(
+        &self,
+        sl_chain_id: SLChainId,
         l1_block_numbers: L1BlockNumbers,
-    ) -> anyhow::Result<usize> {
+    ) -> Result<usize, TransactionFinalityUpdaterError> {
         let mut connection = self
             .pool
             .connection_tagged("transaction_finality_updater")
@@ -452,13 +480,13 @@ impl BatchTransactionUpdater {
                 // with proper chain_id on this SELECT due to a race condition
                 && all_chain_ids_transactions[0].chain_id != Some(sl_chain_id)
             {
-                anyhow::bail!(
+                return Err(anyhow::anyhow!(
                     "No batch transactions to process for chain id {} while there are some for {:?} chain_id.\
                         Error is thrown so node can restart and reload SL data. If node doesn't \
                         make any progress after restart, then it's bug, please contact developers.",
                     sl_chain_id,
                     all_chain_ids_transactions[0].chain_id
-                );
+                ).into());
             }
         }
         drop(connection);
@@ -479,21 +507,47 @@ impl BatchTransactionUpdater {
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
-        let sl_chain_id = self.sl_client.fetch_chain_id().await?;
-
+        let sl_chain_id = self
+            .sl_client
+            .fetch_chain_id()
+            .await
+            .context("Failed to get SL chain ID")?;
         while !*stop_receiver.borrow_and_update() {
-            let l1_block_numbers = self.sl_client.get_block_numbers(None).await?;
-            let updates = self.loop_iteration(sl_chain_id, l1_block_numbers).await?;
-            if updates == 0 {
-                tracing::debug!("No updates made, waiting for the next iteration");
-                if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
-                    .await
-                    .is_ok()
-                {
-                    break;
+            match self.loop_iteration(sl_chain_id).await {
+                Ok(updates) => {
+                    if updates == 0 {
+                        tracing::debug!("No updates made, waiting for the next iteration");
+                        if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                            .await
+                            .is_ok()
+                        {
+                            break;
+                        }
+                    } else {
+                        tracing::debug!("Updated {} transactions", updates);
+                    }
                 }
-            } else {
-                tracing::debug!("Updated {} transactions", updates);
+                Err(err) => {
+                    if err.is_retryable() {
+                        tracing::warn!(
+                            "Retryable error occurred while updating transactions: {}. Retrying in {}",
+                            err,
+                            self.sleep_interval.as_secs()
+                        );
+                        if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                            .await
+                            .is_ok()
+                        {
+                            break;
+                        }
+                    } else {
+                        tracing::error!(
+                            "Fatal error occurred while updating transactions: {}",
+                            err
+                        );
+                        return Err(err.into());
+                    }
+                }
             }
         }
 

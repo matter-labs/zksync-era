@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use ethers::{
@@ -17,7 +17,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
-    traits::{ReadConfig, ZkStackConfig},
+    traits::{ReadConfig, ZkStackConfigTrait},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use zksync_basic_types::U256;
@@ -59,7 +59,7 @@ lazy_static! {
 
 pub async fn accept_admin(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    foundry_contracts_path: PathBuf,
     admin: Address,
     governor: &Wallet,
     target_address: Address,
@@ -75,7 +75,6 @@ pub async fn accept_admin(
     let calldata = ADMIN_FUNCTIONS
         .encode("chainAdminAcceptAdmin", (admin, target_address))
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -90,7 +89,7 @@ pub async fn accept_admin(
 
 pub async fn accept_owner(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    foundry_contracts_path: PathBuf,
     governor_contract: Address,
     governor: &Wallet,
     target_address: Address,
@@ -104,7 +103,6 @@ pub async fn accept_owner(
     let calldata = ADMIN_FUNCTIONS
         .encode("governanceAcceptOwner", (governor_contract, target_address))
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -388,7 +386,7 @@ struct AdminScriptOutputInner {
     encoded_data: String,
 }
 
-impl ZkStackConfig for AdminScriptOutputInner {}
+impl ZkStackConfigTrait for AdminScriptOutputInner {}
 
 #[derive(Debug, Clone, Default)]
 pub struct AdminScriptOutput {

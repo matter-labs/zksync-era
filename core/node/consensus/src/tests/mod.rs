@@ -426,6 +426,7 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
 // them directly or indirectly.
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
+// #[ignore]
 async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
     const NODES: usize = 2;
 
