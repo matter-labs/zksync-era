@@ -874,7 +874,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         Token::Tuple(vec![
             Token::Bool(true),
             Token::Bytes(
-                vec![
+                [
                     vec![7u8; 32],
                     H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
                         .0

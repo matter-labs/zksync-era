@@ -1,9 +1,5 @@
 use anyhow::Context;
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-    utils::hex,
-};
+use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
