@@ -275,7 +275,7 @@ impl TestScenario {
         panic!("State keeper test did not exit until the hard timeout, probably it got stuck");
     }
 
-    /// Launches the test.
+    /// Launches the test and checks sequencer completes successfully.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
     pub(crate) async fn run_success(self, sealer: Arc<dyn ConditionalSealer>) {
         self.run(sealer)
@@ -284,7 +284,7 @@ impl TestScenario {
             .unwrap();
     }
 
-    /// Launches the test.
+    /// Launches the test and checks for sequencer panic with message.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
     pub(crate) async fn run_panic(self, sealer: Arc<dyn ConditionalSealer>, message: &str) {
         let join_error = self.run(sealer).await.expect_err("Not paniced");
