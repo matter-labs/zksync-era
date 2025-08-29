@@ -20,7 +20,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, ZkStackConfigTrait},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use zksync_basic_types::U256;
+use zksync_basic_types::{commitment::L2DACommitmentScheme, U256};
 
 use crate::{
     commands::chain::admin_call_builder::{decode_admin_calls, AdminCall},
@@ -33,8 +33,8 @@ lazy_static! {
         parse_abi(&[
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
-            "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, address _l2DaValidator, bool _shouldSend) public",
-            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
+            "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, uint8 _l2DaCommitmentScheme, bool _shouldSend) public",
+            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, uint8 _l2DaCommitmentScheme, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
@@ -487,7 +487,7 @@ pub async fn set_da_validator_pair(
     chain_id: u64,
     bridgehub: Address,
     l1_da_validator_address: Address,
-    l2_da_validator_address: Address,
+    l2_da_commitment_chema: L2DACommitmentScheme,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
@@ -497,7 +497,7 @@ pub async fn set_da_validator_pair(
                 bridgehub,
                 U256::from(chain_id),
                 l1_da_validator_address,
-                l2_da_validator_address,
+                l2_da_commitment_chema as u8,
                 mode.should_send(),
             ),
         )
@@ -512,7 +512,7 @@ pub async fn set_da_validator_pair(
         l1_rpc_url,
         &format!(
             "setting data availability validator pair ({:#?}, {:#?}) for chain {}",
-            l1_da_validator_address, l2_da_validator_address, chain_id
+            l1_da_validator_address, l2_da_commitment_chema, chain_id
         ),
     )
     .await
@@ -599,7 +599,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     l2_chain_id: u64,
     gateway_chain_id: u64,
     l1_da_validator: Address,
-    l2_da_validator: Address,
+    l2_da_validator_commitment_schema: L2DACommitmentScheme,
     chain_diamond_proxy_on_gateway: Address,
     refund_recipient: Address,
     l1_rpc_url: String,
@@ -613,7 +613,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
                 l1_da_validator,
-                l2_da_validator,
+                l2_da_validator_commitment_schema as u8,
                 chain_diamond_proxy_on_gateway,
                 refund_recipient,
                 mode.should_send(),
@@ -630,7 +630,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
         l1_rpc_url,
         &format!(
             "setting DA validator pair (SL = {:#?}, L2 = {:#?}) via gateway",
-            l1_da_validator, l2_da_validator
+            l1_da_validator, l2_da_validator_commitment_schema
         ),
     )
     .await

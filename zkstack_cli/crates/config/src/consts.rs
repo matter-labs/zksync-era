@@ -106,6 +106,9 @@ pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";
 
 /// Path to l1 contracts foundry folder inside zksync-era
+pub const CONTRACTS_PATH: &str = "contracts/";
+/// Path to l1 contracts foundry folder inside zksync-era
+///
 pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts";
 /// Path to proving networks contracts
 pub(crate) const PROVING_NETWORKS_PATH: &str = "proof-manager-contracts";

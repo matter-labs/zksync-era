@@ -34,14 +34,13 @@ use zksync_web3_decl::{
 
 use crate::{
     abi::ZkChainAbi,
-    admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
+    admin_functions::start_migrate_chain_from_gateway,
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
             gateway_common::extract_and_wait_for_priority_ops,
         },
-        init::get_l1_da_validator,
         utils::send_tx,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
@@ -188,30 +187,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    let l1_da_validator_addr = get_l1_da_validator(&chain_config)
-        .await
-        .context("l1_da_validator_addr")?;
-
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
-    set_da_validator_pair(
-        shell,
-        &args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
-        crate::admin_functions::AdminScriptMode::Broadcast(
-            chain_config.get_wallets_config()?.governor,
-        ),
-        chain_config.chain_id.as_u64(),
-        chain_contracts_config
-            .ecosystem_contracts
-            .bridgehub_proxy_addr,
-        l1_da_validator_addr,
-        chain_contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
-        l1_url.clone(),
-    )
-    .await?;
     spinner.finish();
     Ok(())
 }

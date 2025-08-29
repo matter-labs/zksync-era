@@ -63,13 +63,13 @@ impl<'a> IntegrationTestRunner<'a> {
 
     pub async fn build_command(self) -> anyhow::Result<xshell::Cmd<'a>> {
         let ecosystem_config = self.ecosystem_config;
-        self.shell
-            .change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
         if !self.no_deps {
             install_and_build_dependencies(self.shell, &ecosystem_config.link_to_code)?;
             build_contracts(self.shell, &ecosystem_config.link_to_code)?;
         }
+        self.shell
+            .change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
 
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
             &["-t", pattern]

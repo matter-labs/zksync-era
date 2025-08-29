@@ -26,7 +26,7 @@ use zksync_test_contracts::{
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
-    commitment::PubdataParams,
+    commitment::{L2DACommitmentScheme, PubdataParams},
     ethabi::Token,
     get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
@@ -270,7 +270,15 @@ impl Tester {
             self.config.validation_computational_gas_limit;
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
-        (batch_params, system_params, PubdataParams::default())
+        (
+            batch_params,
+            system_params,
+            PubdataParams {
+                l2_da_validator_address: None,
+                l2_da_commitment_scheme: Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+                pubdata_type: Default::default(),
+            },
+        )
     }
 
     /// Performs the genesis in the storage.

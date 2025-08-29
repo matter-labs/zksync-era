@@ -135,7 +135,6 @@ async fn no_governance_prepare(
             .await?
             .l1_rpc_url()?
     };
-    dbg!(&l1_rpc_url);
 
     let genesis_config_path = ecosystem_config
         .get_default_configs_path()

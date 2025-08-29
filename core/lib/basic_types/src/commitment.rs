@@ -98,8 +98,64 @@ impl FromStr for PubdataType {
     }
 }
 
-#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Display)]
+#[repr(u8)]
+pub enum L2DACommitmentScheme {
+    #[default]
+    None = 0,
+    EmptyNoDA = 1,
+    PubdataKeccak256 = 2,
+    BlobsAndPubdataKeccak256 = 3,
+}
+
+impl TryFrom<u8> for L2DACommitmentScheme {
+    type Error = &'static str;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(L2DACommitmentScheme::None),
+            1 => Ok(L2DACommitmentScheme::EmptyNoDA),
+            2 => Ok(L2DACommitmentScheme::PubdataKeccak256),
+            3 => Ok(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            _ => Err("Invalid L2DACommitmentScheme value"),
+        }
+    }
+}
+
+impl FromStr for L2DACommitmentScheme {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "None" => Ok(Self::None),
+            "EmptyNoDA" => Ok(Self::EmptyNoDA),
+            "PubdataKeccak256" => Ok(Self::PubdataKeccak256),
+            "BlobsAndPubdataKeccak256" => Ok(Self::BlobsAndPubdataKeccak256),
+            _ => Err("Incorrect L2 DA commitment scheme; expected one of `None`, `EmptyNoDA`, `PubdataKeccak256`, `BlobsAndPubdataKeccak256`"),
+        }
+    }
+}
+
+#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
-    pub l2_da_validator_address: Address,
+    pub l2_da_validator_address: Option<Address>,
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
     pub pubdata_type: PubdataType,
+}
+
+impl PubdataParams {
+    pub fn genesis() -> Self {
+        PubdataParams {
+            l2_da_validator_address: None,
+            l2_da_commitment_scheme: Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            pubdata_type: PubdataType::Rollup,
+        }
+    }
+
+    pub fn pre_gateway() -> Self {
+        PubdataParams {
+            l2_da_validator_address: Some(Address::zero()),
+            l2_da_commitment_scheme: Some(L2DACommitmentScheme::None),
+            pubdata_type: Default::default(),
+        }
+    }
 }

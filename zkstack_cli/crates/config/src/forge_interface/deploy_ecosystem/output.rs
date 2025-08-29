@@ -19,7 +19,6 @@ pub struct DeployL1Output {
     pub owner_address: Address,
     pub contracts_config: DeployL1ContractsConfigOutput,
     pub deployed_addresses: DeployL1DeployedAddressesOutput,
-    pub expected_rollup_l2_da_validator_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
