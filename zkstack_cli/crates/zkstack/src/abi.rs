@@ -11,6 +11,7 @@ abigen!(
     function baseTokenAssetId(uint256)(bytes32)
     function chainTypeManager(uint256)(address)
     function chainAssetHandler() external view returns (address)
+    function owner()(address)
 ]"
 );
 

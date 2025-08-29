@@ -85,7 +85,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 logger::info(
                     "The server is ready to start the migration. Preparing the calldata...",
                 );
-                logger::warn("Important! It may take awhile for Gateway to detect the migration transaction. If you are sure you've already sent it, no need to resend it");
+                logger::warn("Important! It may take a while for Gateway to detect the migration transaction. If you are sure you've already sent it, no need to resend it");
                 // It is the expected case, it will be handled later in the file
             }
             GatewayMigrationProgressState::AwaitingFinalization => {

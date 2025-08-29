@@ -96,6 +96,47 @@ zkstack ecosystem init --dev
 If the process gets stuck, resume it with `--resume`. This flag keeps track of already sent transactions and sends new
 ones with provided params.
 
+To create only the ecosystem:
+
+```bash
+zkstack ecosystem init-core-contracts --l1-rpc-url <L1_RPC_ENDPOINT>
+```
+
+If the ecosystem has already been initialized, you can create a new ctm and rigester it in the existing bridgehub.
+
+This command create a new ctm and all related contracts:
+
+```bash
+zkstack ecosystem init-new-ctm --l1-rpc-url <L1_RPC_ENDPOINT> --bridgehub <BRIDGEHUB_CONTRACT_ADDRESS>
+```
+
+This should be called afterwards to register the created ctm in the bridgehub:
+
+```bash
+zkstack ecosystem register-ctm --l1-rpc-url <L1_RPC_ENDPOINT>
+```
+
+#### Gateway
+
+If the want to convert the newly created gateway chain to become the settlement layer for local testing:
+
+```bash
+zkstack chain gateway convert-to-gateway --chain <GATEWAY_CHAIN_NAME>
+```
+
+If we want to deploy a CTM on gateway for an existing settlement layer, please provide the bridgehub address and id of
+the chain, whose ctm you want to deploy:
+
+```bash
+zkstack chain gateway convert-to-gateway --chain <GATEWAY_CHAIN_NAME> --ignore-prerequisites --bridgehub-addr <BRIDGEHUB_CONTRACT_ADDRESS> --ctm-chain-id <CHAIN_ID_FOR_CTM>
+```
+
+To migrate the chain on top of gateway afterwards:
+
+```bash
+zkstack chain gateway migrate-to-gateway --chain <NAME_OF_CHAIN_TO_MIGRATE> --gateway-chain-name <GATEWAY_CHAIN_NAME>
+```
+
 #### Verifying Contracts
 
 To verify contracts, use the `--verify` flag.
