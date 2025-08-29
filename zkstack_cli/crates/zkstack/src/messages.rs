@@ -81,6 +81,8 @@ pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path"
 pub(super) const MSG_GENESIS_DATABASE_ERR: &str = "Unable to perform genesis on the database";
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
+pub(super) const MSG_INITIALIZING_CTM: &str = "Initializing CTM";
+pub(super) const MSG_REGISTERING_CTM: &str = "Registering CTM";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
@@ -107,6 +109,7 @@ pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
+pub(super) const MSG_BRIDGEHUB: &str = "Bridgehub address of existing ecosystem";
 
 pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
     format!("Not found preexisting ecosystem Contracts with chains {chains}")

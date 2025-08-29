@@ -20,7 +20,7 @@ use zksync_basic_types::H160;
 use zksync_types::{L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    admin_functions::governance_execute_calls,
+    admin_functions::{governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
         types::UpgradeVersions,
@@ -262,7 +262,7 @@ async fn governance_stage_0(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(&ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
@@ -304,7 +304,7 @@ async fn governance_stage_1(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(&ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
@@ -386,7 +386,7 @@ async fn governance_stage_2(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(&ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
