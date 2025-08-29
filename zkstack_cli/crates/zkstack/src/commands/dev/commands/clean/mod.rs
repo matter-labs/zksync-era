@@ -4,7 +4,7 @@ use anyhow::Context;
 use clap::Subcommand;
 use xshell::Shell;
 use zkstack_cli_common::{docker, logger};
-use zkstack_cli_config::{ZkStackConfig, DOCKER_COMPOSE_FILE};
+use zkstack_cli_config::{ZkStackConfig, CONTRACTS_PATH, DOCKER_COMPOSE_FILE};
 
 use crate::commands::dev::messages::{
     MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
@@ -44,8 +44,9 @@ pub fn containers(shell: &Shell) -> anyhow::Result<()> {
 pub fn contracts(
     shell: &Shell,
     path_to_foundry: PathBuf,
-    contracts_path: PathBuf,
+    link_to_code: PathBuf,
 ) -> anyhow::Result<()> {
+    let contracts_path = link_to_code.join(CONTRACTS_PATH);
     logger::info(MSG_CONTRACTS_CLEANING);
     shell
         .remove_path(path_to_foundry.join("broadcast"))
