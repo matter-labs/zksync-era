@@ -51,40 +51,11 @@ pub struct SharedStateKeeperConfig {
     pub protective_reads_persistence_enabled: bool,
 }
 
-/// State keeper config.
-///
-/// # Developer notes
-///
-/// Place here params specific for block creation (i.e., state keeper operation on the main node).
-/// Params relevant to all nodes should be placed in [`SharedStateKeeperConfig`].
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-pub struct StateKeeperConfig {
-    #[config(flatten)]
-    pub shared: SharedStateKeeperConfig,
+pub struct SealCriteriaConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     #[config(default_t = 8_192)]
     pub transaction_slots: usize,
-
-    /// Deadline after which an L1 batch is going to be unconditionally sealed.
-    #[config(deprecated = "block_commit_deadline")]
-    #[config(default_t = Duration::from_millis(2_500))]
-    pub l1_batch_commit_deadline: Duration,
-    /// Deadline after which an L2 block should be sealed by the timeout sealer.
-    #[config(deprecated = "miniblock_commit_deadline")]
-    #[config(default_t = Duration::from_secs(1))]
-    pub l2_block_commit_deadline: Duration,
-    /// The max payload size threshold that triggers sealing of an L2 block.
-    #[config(deprecated = "miniblock_max_payload_size")]
-    #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
-    pub l2_block_max_payload_size: ByteSize,
-
-    /// The max amount of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
-    #[config(default_t = 15_000_000)]
-    pub max_single_tx_gas: u32,
-    /// Max allowed gas limit for L2 transactions. Also applied on the API server.
-    #[config(default_t = 15_000_000_000)]
-    pub max_allowed_l2_tx_gas_limit: u64,
-
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
     #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
@@ -106,6 +77,71 @@ pub struct StateKeeperConfig {
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub close_block_at_gas_percentage: f64,
+    /// The maximum amount of pubdata that can be used by the batch.
+    /// This variable should not exceed:
+    /// - 128kb for calldata-based rollups
+    /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
+    /// - the DA layer's blob size limit for the DA layer-based validiums
+    /// - 100 MB for the object store-based or no-da validiums
+    #[config(with = Fallback(SizeUnit::Bytes))]
+    pub max_pubdata_per_batch: ByteSize,
+    /// The maximum number of circuits that a batch can support.
+    /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
+    /// the recursion layers' circuits.
+    #[config(default_t = 31_100)]
+    pub max_circuits_per_batch: usize,
+}
+
+impl SealCriteriaConfig {
+    /// Creates a config object suitable for use in unit tests.
+    /// Values mostly repeat the values used in the localhost environment.
+    pub fn for_tests() -> Self {
+        SealCriteriaConfig {
+            transaction_slots: 250,
+            max_pubdata_per_batch: ByteSize(100_000),
+            reject_tx_at_geometry_percentage: 0.95,
+            reject_tx_at_eth_params_percentage: 0.95,
+            reject_tx_at_gas_percentage: 0.95,
+            close_block_at_geometry_percentage: 0.95,
+            close_block_at_eth_params_percentage: 0.95,
+            close_block_at_gas_percentage: 0.95,
+            max_circuits_per_batch: 24100,
+        }
+    }
+}
+
+/// State keeper config.
+///
+/// # Developer notes
+///
+/// Place here params specific for block creation (i.e., state keeper operation on the main node).
+/// Params relevant to all nodes should be placed in [`SharedStateKeeperConfig`].
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct StateKeeperConfig {
+    #[config(flatten)]
+    pub shared: SharedStateKeeperConfig,
+    #[config(flatten)]
+    pub seal_criteria: SealCriteriaConfig,
+
+    /// Deadline after which an L1 batch is going to be unconditionally sealed.
+    #[config(deprecated = "block_commit_deadline")]
+    #[config(default_t = Duration::from_millis(2_500))]
+    pub l1_batch_commit_deadline: Duration,
+    /// Deadline after which an L2 block should be sealed by the timeout sealer.
+    #[config(deprecated = "miniblock_commit_deadline")]
+    #[config(default_t = Duration::from_secs(1))]
+    pub l2_block_commit_deadline: Duration,
+    /// The max payload size threshold that triggers sealing of an L2 block.
+    #[config(deprecated = "miniblock_max_payload_size")]
+    #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
+    pub l2_block_max_payload_size: ByteSize,
+
+    /// The max amount of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
+    #[config(default_t = 15_000_000)]
+    pub max_single_tx_gas: u32,
+    /// Max allowed gas limit for L2 transactions. Also applied on the API server.
+    #[config(default_t = 15_000_000_000)]
+    pub max_allowed_l2_tx_gas_limit: u64,
 
     // Parameters without defaults.
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
@@ -125,25 +161,12 @@ pub struct StateKeeperConfig {
     pub batch_overhead_l1_gas: u64,
     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
     pub max_gas_per_batch: u64,
-    /// The maximum amount of pubdata that can be used by the batch.
-    /// This variable should not exceed:
-    /// - 128kb for calldata-based rollups
-    /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
-    /// - the DA layer's blob size limit for the DA layer-based validiums
-    /// - 100 MB for the object store-based or no-da validiums
-    #[config(with = Fallback(SizeUnit::Bytes))]
-    pub max_pubdata_per_batch: ByteSize,
     /// The version of the fee model to use.
     #[config(default_t = FeeModelVersion::V2, with = Serde![str])]
     pub fee_model_version: FeeModelVersion,
     /// Max number of computational gas that validation step is allowed to take. Also applied on the API server.
     #[config(default_t = 300_000)]
     pub validation_computational_gas_limit: u32,
-    /// The maximum number of circuits that a batch can support.
-    /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
-    /// the recursion layers' circuits.
-    #[config(default_t = 31_100)]
-    pub max_circuits_per_batch: usize,
     /// Allowed deployers for L2 transactions.
     #[config(nest)]
     pub deployment_allowlist: Option<DeploymentAllowlist>,
@@ -155,27 +178,19 @@ impl StateKeeperConfig {
     pub fn for_tests() -> Self {
         Self {
             shared: SharedStateKeeperConfig::default(),
-            transaction_slots: 250,
+            seal_criteria: SealCriteriaConfig::for_tests(),
             l1_batch_commit_deadline: Duration::from_millis(2500),
             l2_block_commit_deadline: Duration::from_secs(1),
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
-            reject_tx_at_geometry_percentage: 0.95,
-            reject_tx_at_eth_params_percentage: 0.95,
-            reject_tx_at_gas_percentage: 0.95,
-            close_block_at_geometry_percentage: 0.95,
-            close_block_at_eth_params_percentage: 0.95,
-            close_block_at_gas_percentage: 0.95,
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
-            max_pubdata_per_batch: ByteSize(100_000),
             minimal_l2_gas_price: 100000000,
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
-            max_circuits_per_batch: 24100,
             deployment_allowlist: None,
         }
     }
@@ -269,27 +284,29 @@ mod tests {
                 save_call_traces: false,
                 protective_reads_persistence_enabled: true,
             },
-            transaction_slots: 50,
+            seal_criteria: SealCriteriaConfig {
+                transaction_slots: 50,
+                close_block_at_eth_params_percentage: 0.2,
+                close_block_at_gas_percentage: 0.8,
+                close_block_at_geometry_percentage: 0.5,
+                reject_tx_at_eth_params_percentage: 0.8,
+                reject_tx_at_geometry_percentage: 0.3,
+                reject_tx_at_gas_percentage: 0.5,
+                max_pubdata_per_batch: ByteSize(131_072),
+                max_circuits_per_batch: 24100,
+            },
             l1_batch_commit_deadline: Duration::from_millis(2500),
             l2_block_commit_deadline: Duration::from_millis(1000),
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
-            close_block_at_eth_params_percentage: 0.2,
-            close_block_at_gas_percentage: 0.8,
-            close_block_at_geometry_percentage: 0.5,
-            reject_tx_at_eth_params_percentage: 0.8,
-            reject_tx_at_geometry_percentage: 0.3,
-            reject_tx_at_gas_percentage: 0.5,
             minimal_l2_gas_price: 100000000,
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
-            max_pubdata_per_batch: ByteSize(131_072),
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
-            max_circuits_per_batch: 24100,
             deployment_allowlist: Some(DeploymentAllowlist::Dynamic(DeploymentAllowlistDynamic {
                 http_file_url: "http://deployment-allowlist/".to_owned(),
                 refresh_interval: Duration::from_secs(120),

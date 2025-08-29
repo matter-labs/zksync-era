@@ -1,4 +1,4 @@
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
@@ -17,7 +17,7 @@ pub struct CircuitsCriterion;
 impl SealCriterion for CircuitsCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -72,7 +72,7 @@ impl SealCriterion for CircuitsCriterion {
 
     fn capacity_filled(
         &self,
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -99,12 +99,12 @@ mod tests {
 
     const MAX_CIRCUITS_PER_BATCH: usize = 27_000;
 
-    fn get_config() -> StateKeeperConfig {
-        StateKeeperConfig {
+    fn get_config() -> SealCriteriaConfig {
+        SealCriteriaConfig {
             close_block_at_geometry_percentage: 0.9,
             reject_tx_at_geometry_percentage: 0.9,
             max_circuits_per_batch: MAX_CIRCUITS_PER_BATCH,
-            ..StateKeeperConfig::for_tests()
+            ..SealCriteriaConfig::for_tests()
         }
     }
 

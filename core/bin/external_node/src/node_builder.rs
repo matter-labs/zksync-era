@@ -191,7 +191,10 @@ impl ExternalNodeBuilder {
                     .protective_reads_persistence_enabled,
             );
 
-        let io_layer = ExternalIOLayer::new(self.config.local.networks.l2_chain_id);
+        let io_layer = ExternalIOLayer::new(
+            self.config.local.networks.l2_chain_id,
+            self.config.local.node_sync.validate_seal_criteria,
+        );
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
         // TODO(PLA-1153): this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.

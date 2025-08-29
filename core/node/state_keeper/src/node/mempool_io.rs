@@ -152,7 +152,7 @@ impl WiringLayer for MempoolIOLayer {
         )?;
 
         // Create sealer.
-        let sealer = Arc::new(SequencerSealer::new(self.state_keeper_config));
+        let sealer = Arc::new(SequencerSealer::new(self.state_keeper_config.seal_criteria));
 
         Ok(Output {
             state_keeper_io: io.into(),

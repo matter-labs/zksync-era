@@ -1,7 +1,7 @@
 use zksync_types::{l2_to_l1_log::l2_to_l1_logs_tree_size, ProtocolVersionId};
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    SealCriteriaConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -10,7 +10,7 @@ pub(crate) struct L2L1LogsCriterion;
 impl SealCriterion for L2L1LogsCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -39,7 +39,7 @@ impl SealCriterion for L2L1LogsCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -65,7 +65,7 @@ mod tests {
     use super::*;
 
     fn query_criterion(
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         block_data_logs: usize,
         tx_data_logs: usize,
         protocol_version_id: ProtocolVersionId,
@@ -96,10 +96,10 @@ mod tests {
     #[test_casing(2, [ProtocolVersionId::Version25, ProtocolVersionId::Version27])]
     fn test_l2_l1_logs_seal_criterion(protocol_version: ProtocolVersionId) {
         let max_allowed_logs = l2_to_l1_logs_tree_size(protocol_version);
-        let config = StateKeeperConfig {
+        let config = SealCriteriaConfig {
             close_block_at_geometry_percentage: 0.95,
             reject_tx_at_geometry_percentage: 0.9,
-            ..StateKeeperConfig::for_tests()
+            ..SealCriteriaConfig::for_tests()
         };
 
         let reject_bound =

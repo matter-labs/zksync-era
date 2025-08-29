@@ -2,7 +2,7 @@ use zksync_multivm::utils::gas_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    SealCriteriaConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 /// Checks whether we should exclude the transaction because we don't have enough gas for batch tip.
@@ -12,7 +12,7 @@ pub struct GasForBatchTipCriterion;
 impl SealCriterion for GasForBatchTipCriterion {
     fn should_seal(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         tx_count: usize,
         _l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -48,7 +48,7 @@ mod tests {
     #[test]
     fn test_gas_for_batch_tip_seal_criterion() {
         // Create an empty config.
-        let config = StateKeeperConfig::for_tests();
+        let config = SealCriteriaConfig::for_tests();
 
         let criterion = GasForBatchTipCriterion;
         let protocol_version = ProtocolVersionId::latest();
