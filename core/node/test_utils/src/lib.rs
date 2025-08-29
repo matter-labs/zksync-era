@@ -10,7 +10,7 @@ use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{
         AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
-        L1BatchMetadata,
+        L1BatchMetadata, PubdataParams,
     },
     fee::Fee,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
@@ -87,7 +87,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         virtual_blocks: 1,
         gas_limit: 0,
         logs_bloom: Default::default(),
-        pubdata_params: Default::default(),
+        pubdata_params: PubdataParams::genesis(),
         rolling_txs_hash: Some(fake_rolling_txs_hash_for_block(number)),
     }
 }
@@ -260,7 +260,7 @@ impl Snapshot {
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             rolling_txs_hash: Some(H256::zero()),
         };
         Snapshot {

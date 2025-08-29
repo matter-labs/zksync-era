@@ -871,7 +871,18 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             ),
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                vec![
+                    vec![7u8; 32],
+                    H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
+                        .0
+                        .to_vec(),
+                ]
+                .concat(),
+            ),
+        ]),
         // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
         Token::Tuple(vec![
             Token::Bool(true),

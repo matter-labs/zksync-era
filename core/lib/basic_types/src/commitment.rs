@@ -135,9 +135,27 @@ impl FromStr for L2DACommitmentScheme {
     }
 }
 
-#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
     pub l2_da_validator_address: Option<Address>,
     pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
     pub pubdata_type: PubdataType,
+}
+
+impl PubdataParams {
+    pub fn genesis() -> Self {
+        PubdataParams {
+            l2_da_validator_address: None,
+            l2_da_commitment_scheme: Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            pubdata_type: PubdataType::Rollup,
+        }
+    }
+
+    pub fn pre_gateway() -> Self {
+        PubdataParams {
+            l2_da_validator_address: Some(Address::zero()),
+            l2_da_commitment_scheme: Some(L2DACommitmentScheme::None),
+            pubdata_type: Default::default(),
+        }
+    }
 }

@@ -54,7 +54,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             .collect(),
         last_in_batch: rng.gen(),
         pubdata_params: if protocol_version.is_pre_gateway() {
-            PubdataParams::default()
+            PubdataParams::pre_gateway()
         } else {
             PubdataParams {
                 pubdata_type: match rng.gen_range(0..2) {

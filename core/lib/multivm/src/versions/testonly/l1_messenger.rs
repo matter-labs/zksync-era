@@ -4,8 +4,8 @@ use ethabi::Token;
 use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode};
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
-    address_to_h256, u256_to_h256, web3::keccak256, Address, Execute, ProtocolVersionId,
-    L1_MESSENGER_ADDRESS, U256,
+    commitment::L2DACommitmentScheme, u256_to_h256, web3::keccak256, Address, Execute,
+    ProtocolVersionId, H256, L1_MESSENGER_ADDRESS, U256,
 };
 
 use super::{ContractToDeploy, TestedVm, VmTesterBuilder};
@@ -115,7 +115,8 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    let pubdata_builder = FullPubdataBuilder::new(Some(l2_da_validator_address), None);
+    let pubdata_builder =
+        FullPubdataBuilder::new(None, Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256));
     let batch_result = vm.vm.finish_batch(Rc::new(pubdata_builder));
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),
@@ -147,7 +148,7 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
         keccak256(&expected_header).into()
     );
 
-    let l2_used_da_validator_address = batch_result
+    let da_commitment_schema = batch_result
         .block_tip_execution_result
         .logs
         .system_l2_to_l1_logs
@@ -158,7 +159,7 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
         .value;
 
     assert_eq!(
-        l2_used_da_validator_address,
-        address_to_h256(&l2_da_validator_address)
+        da_commitment_schema,
+        H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
     );
 }

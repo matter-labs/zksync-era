@@ -803,7 +803,7 @@ impl StateKeeperIO for TestIO {
             operator_address: self.fee_account,
             fee_input: self.fee_input,
             first_l2_block: L2BlockParams::new(self.timestamp * 1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
         };
         self.l2_block_number += 1;

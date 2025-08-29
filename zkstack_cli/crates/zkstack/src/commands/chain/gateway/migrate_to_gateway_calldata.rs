@@ -4,15 +4,12 @@ use std::path::Path;
 
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{encode, Token},
-    providers::{Middleware, Provider},
-};
+use ethers::providers::Middleware;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::ProtocolVersionId;
 
 use super::{
