@@ -255,6 +255,11 @@ impl PanicSealer {
             }
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn with_sealers(sealers: Vec<Box<dyn SealCriterion>>) -> Self {
+        Self { sealers }
+    }
 }
 
 impl PanicSealer {
