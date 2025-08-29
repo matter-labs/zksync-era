@@ -50,7 +50,7 @@ pub async fn deploy_l1(
     sender: Option<String>,
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: H160,
+    bridgehub_address: Option<H160>,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
     let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
@@ -71,7 +71,7 @@ pub async fn deploy_l1(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_L1_FUNCTIONS
-        .encode("runWithBridgehub", (bridgehub_address,))
+        .encode("runWithBridgehub", (bridgehub_address.unwrap_or_default(),)) // Script works with zero address
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
