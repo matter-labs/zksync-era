@@ -195,6 +195,8 @@ impl DeployL1Config {
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
                 avail_l1_da_validator_addr: l1_network.avail_l1_da_validator_addr(),
+                eigenda_l1_validator_addr: l1_network.eigenda_l1_validator_addr(),
+                eigenda_risc_zero_verifier_addr: l1_network.eigenda_risc_zero_verifier_addr(),
             },
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -231,6 +233,10 @@ pub struct ContractsDeployL1Config {
     pub evm_emulator_hash: Option<H256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avail_l1_da_validator_addr: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eigenda_l1_validator_addr: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eigenda_risc_zero_verifier_addr: Option<Address>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

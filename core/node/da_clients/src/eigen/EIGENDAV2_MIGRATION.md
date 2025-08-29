@@ -60,10 +60,16 @@ da_client:
   blob_version: 0
 ```
 
+> Note: There is a missing field, `eigenda_prover_service_rpc`, this determines wheter the client will use secure mode
+> or not.
+
 Check the [README.md](./README.md) for more details on the new fields.
 
 ### Note
 
 - Remember to run `zkstackup --local` before running the new server after this changes
 
-- Be sure that your private key has the needed permissions set on the V2 client.
+- Some form of [payment](https://docs.eigencloud.xyz/products/eigenda/core-concepts/payments) needs to have been
+  performed onchain for your private key
+
+- You can find the addresses for mainnet [here](https://docs.eigencloud.xyz/products/eigenda/networks/mainnet)

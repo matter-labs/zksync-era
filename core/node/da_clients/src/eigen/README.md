@@ -8,14 +8,6 @@ For more information you can check the [docs](https://docs.eigenda.xyz/).
 
 To set up an eigenda client, you need to modify `etc/env/file_based/overrides/validium.yaml`:
 
-First you need to set the `use_dummy_inclusion_data` field to `true`. This is a pending solution until the necessary
-contract changes are done (M1 milestone).
-
-```yaml
-da_dispatcher:
-  use_dummy_inclusion_data: true
-```
-
 Then set up the client by modifying the field `da_client`, add the following fields:
 
 - `disperser_rpc` (string): URL of the EigenDA Disperser RPC server.
@@ -25,6 +17,7 @@ Then set up the client by modifying the field `da_client`, add the following fie
 - `operator_state_retriever_addr` Address of the Eigen operator state retriever contract
 - `registry_coordinator_addr` Address of the Eigen registry coordinator contract
 - `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
+- `eigenda_prover_service_rpc` RPC of the EigenDA prover service that generates the proofs
 
 You also need to modify `etc/env/file_based/secrets.yaml` to include the private key of the account that will be used.
 You need to add the following field:
@@ -37,13 +30,13 @@ da_client:
 
 > Note: the private key should be in hex format, without the `0x` prefix.
 
-So, for example, a client setup that uses the holesky EigenDA V2 client would look like this:
+A client setup that uses the holesky EigenDA V2 client would look like this:
 
 `etc/env/file_based/overrides/validium.yaml`:
 
 ```yaml
 da_dispatcher:
-  use_dummy_inclusion_data: true
+  use_dummy_inclusion_data: false
 da_client:
   client: Eigen
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
@@ -52,4 +45,11 @@ da_client:
   operator_state_retriever_addr: 0xB4baAfee917fb4449f5ec64804217bccE9f46C67
   registry_coordinator_addr: 0x53012C69A189cfA2D9d29eb6F19B32e0A2EA3490
   blob_version: 0
+  eigenda_prover_service_rpc: http://localhost:9999
+```
+
+Then, when running `zkstack ecosystem init` set the validium parameter as follows:
+
+```bash
+--validium-type eigen-da
 ```

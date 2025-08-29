@@ -35,6 +35,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub rollup_l1_da_validator_addr: Address,
     pub no_da_validium_l1_validator_addr: Address,
     pub avail_l1_da_validator_addr: Address,
+    pub eigenda_l1_validator_addr: Address,
     pub l1_rollup_da_manager: Address,
     pub native_token_vault_addr: Address,
     pub server_notifier_proxy_addr: Address,
