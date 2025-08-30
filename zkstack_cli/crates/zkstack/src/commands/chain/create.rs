@@ -16,7 +16,6 @@ use crate::{
         MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER, MSG_EVM_EMULATOR_HASH_MISSING_ERR,
         MSG_SELECTED_CONFIG,
     },
-    utils::link_to_code::resolve_link_to_code,
 };
 
 pub async fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -94,14 +93,8 @@ pub(crate) async fn create_chain_inner(
         "ecosystem_config.list_of_chains() after: {:?}",
         ecosystem_config.list_of_chains()
     );
-    let link_to_code = resolve_link_to_code(
-        shell,
-        &chain_path,
-        args.link_to_code.clone(),
-        args.update_submodules,
-    )?;
     let genesis_config_path =
-        EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
+        EcosystemConfig::default_configs_path(&ecosystem_config.link_to_code).join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
