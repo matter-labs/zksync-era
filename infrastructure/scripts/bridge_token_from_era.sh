@@ -1,8 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-CONFIG_CONTRACTS="chains/era/configs/contracts.yaml"
+# === Get chain name (from input or default to "era") ===
+CHAIN_NAME="${1:-era}"
+export CHAIN_NAME
 
+echo "STARTING BRIDGE TOKEN FROM $CHAIN_NAME"
+
+CONFIG_CONTRACTS="chains/$CHAIN_NAME/configs/contracts.yaml"
 
 # === Set contract addresses ===
 export NTV_ADDRESS="0x0000000000000000000000000000000000010004"
@@ -13,7 +18,7 @@ export PRIVATE_KEY=0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82
 export SENDER=0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 
 # === Load RPC URL from config ===
-export RPC_URL=$(yq '.api.web3_json_rpc.http_url' chains/era/configs/general.yaml)
+export RPC_URL=$(yq '.api.web3_json_rpc.http_url' chains/$CHAIN_NAME/configs/general.yaml)
 echo "RPC URL: $RPC_URL"
 
 # === Move into the contracts directory ===
@@ -26,8 +31,10 @@ export TOKEN_ADDRESS=$(forge create ./contracts/dev-contracts/TestnetERC20Token.
   --gas-price 1000000000000000 \
   --zksync \
   -r "$RPC_URL" \
+  --zk-gas-per-pubdata 8000 \
   --constructor-args L2TestToken TT 18 | grep "Deployed to:" | awk '{print $3}'
 )
+echo "TOKEN_ADDRESS: $TOKEN_ADDRESS"
 # export TOKEN_ADDRESS="" // for speed the token deployment can be skipped if running multiple times.
 
 # === Calculate token asset ID ===

@@ -1,9 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+# === Get chain name (from input or default to "era") ===
+CHAIN_NAME="${1:-era}"
+export CHAIN_NAME
+
+echo "STARTING BRIDGE TOKEN TO $CHAIN_NAME"
+
 # === Load addresses from config ===
-CONFIG_CONTRACTS="chains/era/configs/contracts.yaml"
-CONFIG_GENERAL="chains/era/configs/general.yaml"
+CONFIG_CONTRACTS="chains/$CHAIN_NAME/configs/contracts.yaml"
+CONFIG_GENERAL="chains/$CHAIN_NAME/configs/general.yaml"
 
 export NTV_ADDRESS=$(yq '.ecosystem_contracts.native_token_vault_addr' "$CONFIG_CONTRACTS")
 export BH_ADDRESS=$(yq '.ecosystem_contracts.bridgehub_proxy_addr' "$CONFIG_CONTRACTS")
@@ -13,13 +19,10 @@ export L1_CHAIN_ID=$(cast chain-id)
 export PRIVATE_KEY=0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110
 export SENDER=0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 
-# === Get chain ID (from input or query) ===
-CHAIN_ID="${1:-}"
-if [[ -z "$CHAIN_ID" ]]; then
-  export CHAIN_ID=$(cast chain-id -r "$RPC_URL")
-else
-  export CHAIN_ID="$CHAIN_ID"
-fi
+# === Load RPC URL from config ===
+export RPC_URL=$(yq '.api.web3_json_rpc.http_url' chains/$CHAIN_NAME/configs/general.yaml)
+export CHAIN_ID=$(cast chain-id -r "$RPC_URL")
+echo "CHAIN_ID: $CHAIN_ID"
 
 # === Deploy test token ===
 export TOKEN_ADDRESS=$(
@@ -30,6 +33,8 @@ export TOKEN_ADDRESS=$(
     --constructor-args "TestToken" "TT" 18 |
     grep "Deployed to:" | awk '{print $3}'
 )
+echo "TOKEN_ADDRESS: $TOKEN_ADDRESS"
+# export TOKEN_ADDRESS=0x9Db47305e174395f6275Ea268bE99Ab06b9b03f0;
 
 # === Calculate asset ID ===
 export TOKEN_ASSET_ID=$(cast keccak $(cast abi-encode "selectorNotUsed(uint256,address,address)" \

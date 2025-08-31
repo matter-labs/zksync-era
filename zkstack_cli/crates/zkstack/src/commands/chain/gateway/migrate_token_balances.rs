@@ -53,6 +53,9 @@ pub struct MigrateTokenBalancesArgs {
     pub run_initial: Option<bool>,
 
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub skip_funding: Option<bool>,
+
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub to_gateway: Option<bool>,
 }
 
@@ -99,6 +102,7 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
     migrate_token_balances_from_gateway(
         shell,
         args.run_initial.unwrap_or(true),
+        args.skip_funding.unwrap_or(false),
         &args.forge_args.clone(),
         args.to_gateway.unwrap_or(true),
         &ecosystem_config.path_to_l1_foundry(),
@@ -125,6 +129,7 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
 pub async fn migrate_token_balances_from_gateway(
     shell: &Shell,
     run_initial: bool,
+    skip_funding: bool,
     forge_args: &ForgeScriptArgs,
     to_gateway: bool,
     foundry_scripts_path: &Path,
@@ -139,7 +144,7 @@ pub async fn migrate_token_balances_from_gateway(
     println!("l2_chain_id: {}", l2_chain_id);
     println!("wallet.address: {}", wallet.address);
 
-    if run_initial {
+    if run_initial && !skip_funding {
         rich_account::run(
             shell,
             RichAccountArgs {
@@ -202,6 +207,7 @@ pub async fn migrate_token_balances_from_gateway(
         .with_broadcast()
         .with_zksync()
         .with_slow()
+        .with_gas_per_pubdata(8000)
         .with_calldata(&calldata);
 
     // Governor private key is required for this script
@@ -236,6 +242,7 @@ pub async fn migrate_token_balances_from_gateway(
         .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast()
         .with_slow()
+        .with_gas_per_pubdata(8000)
         .with_calldata(&calldata);
 
     // Governor private key is required for this script
@@ -266,6 +273,7 @@ pub async fn migrate_token_balances_from_gateway(
         .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast()
         .with_slow()
+        .with_gas_per_pubdata(8000)
         .with_calldata(&calldata);
 
     // Governor private key is required for this script
@@ -293,6 +301,7 @@ pub async fn migrate_token_balances_from_gateway(
         .with_broadcast()
         .with_zksync()
         .with_slow()
+        .with_gas_per_pubdata(8000)
         .with_calldata(&calldata);
 
     // Governor private key is required for this script
