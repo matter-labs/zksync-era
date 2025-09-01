@@ -514,6 +514,7 @@ mod tests {
         commitment::PubdataParams,
         h256_to_u256,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        settlement::SettlementLayer,
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
         StorageLogKind, StorageLogWithPreviousValue,
     };
@@ -595,6 +596,7 @@ mod tests {
             pubdata_params: PubdataParams::default(),
             insert_header: false, // Doesn't matter for this test.
             rolling_txs_hash: Default::default(),
+            settlement_layer: SettlementLayer::for_tests(),
         };
 
         // Run.
@@ -657,6 +659,7 @@ mod tests {
             logs_bloom: Default::default(),
             pubdata_params: l2_block_seal_command.pubdata_params,
             rolling_txs_hash: Some(l2_block_seal_command.rolling_txs_hash),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         connection
             .protocol_versions_dal()
