@@ -115,9 +115,6 @@ impl EventHandler for ProofRequestProvenHandler {
             event.assigned_to,
         );
 
-        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
-
         let batch_number = L1BatchNumber(event.block_number.as_u32());
 
         let verification_result = match verify_proof(
@@ -177,9 +174,12 @@ impl EventHandler for ProofRequestProvenHandler {
 async fn verify_proof(
     connection_pool: ConnectionPool<Core>,
     batch_number: L1BatchNumber,
-    proof: L1BatchProofForL1,
+    proof_bytes: Vec<u8>,
     verification_key: FflonkFinalVerificationKey,
 ) -> anyhow::Result<()> {
+    let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
+
     let verification_result = match proof.inner() {
         TypedL1BatchProofForL1::Fflonk(proof) => {
             let proof = proof.scheduler_proof;
