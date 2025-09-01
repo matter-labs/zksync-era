@@ -4,7 +4,11 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L2ChainId;
 
-use crate::{client::EthProofManagerClient, types::ProofRequestIdentifier};
+use crate::{
+    client::EthProofManagerClient,
+    metrics::{TxType, METRICS},
+    types::ProofRequestIdentifier,
+};
 
 pub struct SubmitProofValidationSubmitter {
     client: Box<dyn EthProofManagerClient>,
@@ -78,11 +82,17 @@ impl SubmitProofValidationSubmitter {
                     return Ok(());
                 }
                 Err(e) => {
+                    METRICS.failed_to_send_tx[&TxType::ValidationResult].inc();
                     tracing::error!(
                         "Failed to submit proof validation for batch {}: {}",
                         batch_number,
                         e
                     );
+                    return Err(anyhow::anyhow!(
+                        "Failed to submit proof validation for batch {}: {}",
+                        batch_number,
+                        e
+                    ));
                 }
             }
         }

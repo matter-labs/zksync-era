@@ -18,6 +18,7 @@ use zksync_types::{
 };
 
 use crate::{
+    metrics::{ValidationResult, METRICS},
     types::{FflonkFinalVerificationKey, ProvingNetwork},
     watcher::events::EventHandler,
 };
@@ -153,6 +154,11 @@ impl EventHandler for ProofRequestProvenHandler {
                 .proof_generation_dal()
                 .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
                 .await?;
+
+            METRICS.validated_batches[&ValidationResult::Success].inc();
+            METRICS.proven_batches[&event.assigned_to].inc();
+        } else {
+            METRICS.validated_batches[&ValidationResult::Failed].inc();
         }
 
         tracing::info!(
