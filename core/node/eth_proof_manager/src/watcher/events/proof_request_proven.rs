@@ -125,8 +125,23 @@ impl EventHandler for ProofRequestProvenHandler {
         )
         .await
         {
-            Ok(_) => {
+            Ok(proof) => {
                 tracing::info!("Proof for batch {} verified successfully", batch_number);
+
+                let proof_blob_url = self
+                    .blob_store
+                    .put(
+                        L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
+                        &proof,
+                    )
+                    .await?;
+
+                self.connection_pool
+                    .connection()
+                    .await?
+                    .proof_generation_dal()
+                    .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
+                    .await?;
                 true
             }
             Err(e) => {
@@ -134,23 +149,6 @@ impl EventHandler for ProofRequestProvenHandler {
                 false
             }
         };
-
-        if verification_result {
-            let proof_blob_url = self
-                .blob_store
-                .put(
-                    L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
-                    &proof,
-                )
-                .await?;
-
-            self.connection_pool
-                .connection()
-                .await?
-                .proof_generation_dal()
-                .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
-                .await?;
-        }
 
         tracing::info!(
             "Batch {}, chain_id: {}, assigned_to: {:?}, verification_result: {:?}",
@@ -176,7 +174,7 @@ async fn verify_proof(
     batch_number: L1BatchNumber,
     proof_bytes: Vec<u8>,
     verification_key: FflonkFinalVerificationKey,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<L1BatchProofForL1> {
     let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
 
@@ -275,5 +273,5 @@ async fn verify_proof(
         ));
     }
 
-    Ok(())
+    Ok(proof)
 }
