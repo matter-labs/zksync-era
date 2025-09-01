@@ -154,7 +154,7 @@ impl EventHandler for ProofRequestProvenHandler {
                 false
             }
         };
-      
+
         tracing::info!(
             "Batch {}, chain_id: {}, assigned_to: {:?}, verification_result: {:?}",
             batch_number,
