@@ -175,7 +175,7 @@ async fn verify_proof(
     proof_bytes: Vec<u8>,
     verification_key: FflonkFinalVerificationKey,
 ) -> anyhow::Result<L1BatchProofForL1> {
-    let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
+    let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof_bytes)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
 
     let verification_result = match proof.inner() {
