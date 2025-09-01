@@ -9,6 +9,7 @@ use zksync_types::L2ChainId;
 use crate::client::EthProofManagerClient;
 
 mod client;
+mod metrics;
 pub mod node;
 mod sender;
 #[cfg(test)]

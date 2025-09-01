@@ -247,6 +247,7 @@ jobs:
           --chain gateway \
           --validium-type no-da
           
+          ci_run zkstack chain gateway create-tx-filterer --chain gateway --ignore-prerequisites
           ci_run zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway

@@ -33,7 +33,7 @@ use zkstack_cli_types::ProverMode;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls},
+    admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
         types::UpgradeVersion,
@@ -364,10 +364,11 @@ async fn governance_stage_0(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
+        None,
     )
     .await?;
     spinner.finish();
@@ -406,10 +407,11 @@ async fn governance_stage_1(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
+        None,
     )
     .await?;
 
@@ -468,10 +470,11 @@ async fn governance_stage_2(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
+        None,
     )
     .await?;
 

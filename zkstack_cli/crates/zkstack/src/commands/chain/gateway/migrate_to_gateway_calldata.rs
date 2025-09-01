@@ -1,5 +1,3 @@
-// src/commands/chain/migrate_to_gateway_calldata.rs
-
 use std::path::Path;
 
 use anyhow::Context;
