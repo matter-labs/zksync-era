@@ -23,7 +23,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
+    ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -53,7 +53,7 @@ pub async fn deploy_l1(
     bridgehub_address: Option<H160>,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
-    let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
+    let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
@@ -125,7 +125,7 @@ pub async fn deploy_l1_core_contracts(
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path =
         DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
-    let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
+    let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let wallets_config = config.get_wallets()?;

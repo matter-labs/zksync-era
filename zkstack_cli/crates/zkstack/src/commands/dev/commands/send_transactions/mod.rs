@@ -14,7 +14,7 @@ use serde::Deserialize;
 use tokio::time::sleep;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::create_ethers_client, logger};
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{H160, U256};
 
 use crate::commands::dev::{
@@ -66,7 +66,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
 
     let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
     let log_file = chain_config
-        .link_to_code
+        .link_to_code()
         .join(DEFAULT_UNSIGNED_TRANSACTIONS_DIR)
         .join(format!("{}_receipt.log", timestamp));
 

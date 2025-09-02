@@ -8,7 +8,7 @@ use ethers::{
 };
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
-use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
+use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
 use zksync_types::ProtocolVersionId;
@@ -25,10 +25,7 @@ use crate::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
         set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
-    commands::chain::{
-        admin_call_builder::AdminCall,
-        utils::{display_admin_script_output, get_default_foundry_path},
-    },
+    commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
     utils::addresses::apply_l1_to_l2_alias,
 };
 
@@ -342,7 +339,7 @@ impl MigrateToGatewayCalldataArgs {
 ///
 pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow::Result<()> {
     let forge_args = Default::default();
-    let contracts_foundry_path = get_default_foundry_path(shell)?;
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
 
     let should_cross_check = !params.no_cross_check.unwrap_or_default();
 

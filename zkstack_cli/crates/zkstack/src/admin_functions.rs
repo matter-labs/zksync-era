@@ -18,7 +18,7 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
     traits::{FileConfigTrait, ReadConfig},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfigTrait,
 };
 use zksync_basic_types::U256;
 

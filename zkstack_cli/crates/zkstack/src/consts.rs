@@ -36,8 +36,7 @@ pub const CIRCUIT_PROVER_BINARY_NAME: &str = "zksync_circuit_prover";
 pub const COMPRESSOR_BINARY_NAME: &str = "zksync_proof_fri_compressor";
 pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";
 
-pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str =
-    "etc/env/file_based/overrides/only_real_proofs.yaml";
-pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/validium.yaml";
+pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str = "/overrides/only_real_proofs.yaml";
+pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "/overrides/validium.yaml";
 
-pub const PATH_TO_GATEWAY_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/gateway.yaml";
+pub const PATH_TO_GATEWAY_OVERRIDE_CONFIG: &str = "/overrides/gateway.yaml";

@@ -8,7 +8,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     traits::{FileConfigTrait, ReadConfig},
-    ZkStackConfig,
+    ZkStackConfig, ZkStackConfigTrait,
 };
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
@@ -24,7 +24,7 @@ use crate::{
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
-            utils::{get_default_foundry_path, send_tx},
+            utils::send_tx,
         },
         dev::commands::upgrades::{
             args::chain::{ChainUpgradeParams, DefaultChainUpgradeArgs, UpgradeArgsInner},
@@ -248,14 +248,14 @@ pub(crate) async fn run_chain_upgrade(
     upgrade_version: UpgradeVersion,
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
-    let foundry_contracts_path = get_default_foundry_path(shell)?;
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let mut args = args_input.clone().fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
         args.upgrade_description_path = Some(
             chain_config
-                .link_to_code
+                .contracts_path()
                 .join(upgrade_version.get_default_upgrade_description_path())
                 .to_string_lossy()
                 .to_string(),
@@ -321,7 +321,7 @@ pub(crate) async fn run_chain_upgrade(
             .prepare_upgrade_chain_on_gateway_calls(
                 shell,
                 forge_args,
-                &foundry_contracts_path,
+                &contracts_foundry_path,
                 args.chain_id.expect("chain_id is required"),
                 args.gw_chain_id.expect("gw_chain_id is required"),
                 upgrade_info
@@ -348,7 +348,7 @@ pub(crate) async fn run_chain_upgrade(
             let enable_validator_calls = crate::admin_functions::enable_validator_via_gateway(
                 shell,
                 forge_args,
-                &foundry_contracts_path,
+                &contracts_foundry_path,
                 crate::admin_functions::AdminScriptMode::OnlySave,
                 upgrade_info
                     .deployed_addresses
@@ -399,7 +399,7 @@ pub(crate) async fn run_chain_upgrade(
                 let enable_validator_calls = crate::admin_functions::enable_validator(
                     shell,
                     forge_args,
-                    &foundry_contracts_path,
+                    &contracts_foundry_path,
                     crate::admin_functions::AdminScriptMode::OnlySave,
                     upgrade_info
                         .deployed_addresses

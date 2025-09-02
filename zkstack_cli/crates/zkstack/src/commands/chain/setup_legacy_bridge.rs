@@ -9,7 +9,7 @@ use zkstack_cli_config::{
         script_params::SETUP_LEGACY_BRIDGE, setup_legacy_bridge::SetupLegacyBridgeInput,
     },
     traits::SaveConfig,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfigTrait,
 };
 
 use crate::{

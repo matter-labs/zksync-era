@@ -9,7 +9,7 @@ use zkstack_cli_common::{
     logger,
     spinner::Spinner,
 };
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use crate::commands::dev::messages::{
     MSG_BUILDING_CONTRACTS, MSG_BUILDING_CONTRACTS_SUCCESS, MSG_BUILDING_L1_CONTRACTS_SPINNER,
@@ -79,27 +79,27 @@ struct ContractBuilder {
 }
 
 impl ContractBuilder {
-    fn new(link_to_code: PathBuf, contract_type: ContractType) -> Self {
+    fn new(link_to_contracts: PathBuf, contract_type: ContractType) -> Self {
         match contract_type {
             ContractType::L1 => Self {
                 cmd: Box::new(build_l1_contracts),
                 msg: MSG_BUILDING_L1_CONTRACTS_SPINNER.to_string(),
-                link_to_code,
+                link_to_code: link_to_contracts,
             },
             ContractType::L1DA => Self {
                 cmd: Box::new(build_l1_da_contracts),
                 msg: MSG_BUILDING_L1_DA_CONTRACTS_SPINNER.to_string(),
-                link_to_code,
+                link_to_code: link_to_contracts,
             },
             ContractType::L2 => Self {
                 cmd: Box::new(build_l2_contracts),
                 msg: MSG_BUILDING_L2_CONTRACTS_SPINNER.to_string(),
-                link_to_code,
+                link_to_code: link_to_contracts,
             },
             ContractType::SystemContracts => Self {
                 cmd: Box::new(build_system_contracts),
                 msg: MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER.to_string(),
-                link_to_code,
+                link_to_code: link_to_contracts,
             },
         }
     }
@@ -121,11 +121,11 @@ pub fn run(shell: &Shell, args: ContractsArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_BUILDING_CONTRACTS);
 
-    let link_to_code = ZkStackConfig::from_file(shell)?.link_to_code();
+    let contracts_path = ZkStackConfig::from_file(shell)?.contracts_path();
 
     contracts
         .iter()
-        .map(|contract| ContractBuilder::new(link_to_code.clone(), *contract))
+        .map(|contract| ContractBuilder::new(contracts_path.clone(), *contract))
         .try_for_each(|builder| builder.build(shell.clone()))?;
 
     logger::outro(MSG_BUILDING_CONTRACTS_SUCCESS);

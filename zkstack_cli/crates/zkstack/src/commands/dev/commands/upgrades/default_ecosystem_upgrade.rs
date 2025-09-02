@@ -27,7 +27,8 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
@@ -53,7 +54,7 @@ pub async fn run(
     println!("Running ecosystem gateway upgrade args");
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    git::submodule_update(shell, &ecosystem_config.link_to_code)?;
+    git::submodule_update(shell, &ecosystem_config.link_to_code())?;
 
     let upgrade_version = args.upgrade_version;
 
@@ -137,9 +138,7 @@ async fn no_governance_prepare(
     };
     dbg!(&l1_rpc_url);
 
-    let genesis_config_path = ecosystem_config
-        .get_default_configs_path()
-        .join(GENESIS_FILE);
+    let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;

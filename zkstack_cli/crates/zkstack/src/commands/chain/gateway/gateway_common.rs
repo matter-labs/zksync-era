@@ -15,7 +15,7 @@ use zkstack_cli_common::{
     forge::ForgeScriptArgs,
     logger,
 };
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{

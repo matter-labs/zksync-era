@@ -19,7 +19,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
 use crate::{
@@ -132,7 +132,7 @@ async fn build_and_deploy(
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
     call_forge(
         shell,
         chain_config,

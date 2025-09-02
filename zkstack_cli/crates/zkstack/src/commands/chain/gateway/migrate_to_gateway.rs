@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger,
 };
-use zkstack_cli_config::{GatewayChainConfigPatch, ZkStackConfig};
+use zkstack_cli_config::{GatewayChainConfigPatch, ZkStackConfig, ZkStackConfigTrait};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::U256;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;

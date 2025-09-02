@@ -3,10 +3,7 @@ use std::path::PathBuf;
 use anyhow::bail;
 use xshell::Shell;
 
-use crate::{
-    consts::L1_CONTRACTS_FOUNDRY, ChainConfig, ChainConfigInternal, EcosystemConfig,
-    EcosystemConfigFromFileError,
-};
+use crate::{ChainConfig, ChainConfigInternal, EcosystemConfig, EcosystemConfigFromFileError};
 
 pub enum ZkStackConfig {
     EcosystemConfig(EcosystemConfig),
@@ -40,14 +37,44 @@ impl ZkStackConfig {
     pub fn ecosystem(shell: &Shell) -> Result<EcosystemConfig, EcosystemConfigFromFileError> {
         EcosystemConfig::from_file(shell)
     }
+}
 
-    pub fn link_to_code(&self) -> PathBuf {
+impl ZkStackConfigTrait for ZkStackConfig {
+    fn link_to_code(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code.clone(),
-            ZkStackConfig::ChainConfig(chain) => chain.link_to_code.clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code().clone(),
+            ZkStackConfig::ChainConfig(chain) => chain.link_to_code().clone(),
         }
     }
-    pub fn path_to_l1_foundry(&self) -> PathBuf {
-        self.link_to_code().join(L1_CONTRACTS_FOUNDRY)
+
+    fn default_configs_path(&self) -> PathBuf {
+        match self {
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.default_configs_path().clone(),
+            ZkStackConfig::ChainConfig(chain) => chain.default_configs_path().clone(),
+        }
     }
+
+    fn contracts_path(&self) -> PathBuf {
+        match self {
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.contracts_path().clone(),
+            ZkStackConfig::ChainConfig(chain) => chain.contracts_path().clone(),
+        }
+    }
+
+    fn path_to_l1_foundry(&self) -> PathBuf {
+        match self {
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.path_to_l1_foundry().clone(),
+            ZkStackConfig::ChainConfig(chain) => chain.path_to_l1_foundry().clone(),
+        }
+    }
+}
+
+pub trait ZkStackConfigTrait {
+    /// Link to the repository, please use it with a caution and prefer specific links
+    fn link_to_code(&self) -> PathBuf;
+
+    fn default_configs_path(&self) -> PathBuf;
+    fn contracts_path(&self) -> PathBuf;
+
+    fn path_to_l1_foundry(&self) -> PathBuf;
 }

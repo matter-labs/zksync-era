@@ -11,7 +11,7 @@ use zkstack_cli_config::{
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
 use crate::{

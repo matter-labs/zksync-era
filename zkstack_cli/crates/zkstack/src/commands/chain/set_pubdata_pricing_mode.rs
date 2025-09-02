@@ -12,6 +12,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 use zksync_basic_types::Address;
 

@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{check_prerequisites, cmd::Cmd, logger, PROVER_CLI_PREREQUISITE};
-use zkstack_cli_config::{get_link_to_prover, ZkStackConfig};
+use zkstack_cli_config::{get_link_to_prover, ZkStackConfig, ZkStackConfigTrait};
 
 use crate::commands::dev::commands::prover::{
     args::insert_batch::{InsertBatchArgs, InsertBatchArgsFinal},
@@ -13,7 +13,8 @@ pub async fn run(shell: &Shell, args: InsertBatchArgs) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let version =
-        info::get_protocol_version(shell, &get_link_to_prover(&chain_config.link_to_code)).await?;
+        info::get_protocol_version(shell, &get_link_to_prover(&chain_config.link_to_code()))
+            .await?;
     let prover_url = info::get_database_url(&chain_config).await?.to_string();
 
     let InsertBatchArgsFinal { number, version } = args.fill_values_with_prompts(version);
