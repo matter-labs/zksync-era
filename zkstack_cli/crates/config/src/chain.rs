@@ -93,6 +93,7 @@ impl Serialize for ChainConfig {
 }
 
 impl ChainConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: u32,
         name: String,

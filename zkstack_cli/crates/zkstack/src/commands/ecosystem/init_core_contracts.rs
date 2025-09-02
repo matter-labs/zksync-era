@@ -84,7 +84,7 @@ async fn init_ecosystem(
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     if !init_args.skip_contract_compilation_override {
-        install_yarn_dependencies(shell, &ecosystem_config.contracts_path())?;
+        install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
         build_da_contracts(shell, &ecosystem_config.contracts_path())?;
         build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
         build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
