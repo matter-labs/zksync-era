@@ -69,13 +69,17 @@ sh ./infrastructure/scripts/bridge_eth_to_era.sh era
 sh ./infrastructure/scripts/bridge_token_to_era.sh era
 
 sh ./infrastructure/scripts/bridge_token_from_era.sh era
+sleep 30
+
 pkill -9 zksync_server
-sleep 10
+sleep 30
 
 zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium1.log &
 zkstack server wait --ignore-prerequisites --verbose --chain validium
 # we need to fund the address before migration. todo enable base token transfers.
 sh ./infrastructure/scripts/bridge_eth_to_era.sh validium
+sleep 30
+
 pkill -9 zksync_server
 sleep 10
 
@@ -86,7 +90,7 @@ zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &
 
 zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-sleep 10
+sleep 20
 
 zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
 zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
