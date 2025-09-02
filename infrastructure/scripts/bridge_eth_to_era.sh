@@ -9,10 +9,11 @@ echo "STARTING BRIDGE ETH TO $CHAIN_NAME"
 
 # === Load addresses from config ===
 CONFIG="chains/$CHAIN_NAME/configs/contracts.yaml"
+GENESIS_CONFIG="chains/$CHAIN_NAME/configs/genesis.yaml"
 
 # === Load RPC URL from config ===
 export RPC_URL=$(yq '.api.web3_json_rpc.http_url' chains/$CHAIN_NAME/configs/general.yaml)
-export CHAIN_ID=$(cast chain-id -r "$RPC_URL")
+export CHAIN_ID=$(yq '.l2_chain_id' "$GENESIS_CONFIG")
 echo "CHAIN_ID: $CHAIN_ID"
 
 export BH_ADDRESS=$(yq '.ecosystem_contracts.bridgehub_proxy_addr' "$CONFIG")

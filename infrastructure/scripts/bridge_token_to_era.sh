@@ -10,6 +10,8 @@ echo "STARTING BRIDGE TOKEN TO $CHAIN_NAME"
 # === Load addresses from config ===
 CONFIG_CONTRACTS="chains/$CHAIN_NAME/configs/contracts.yaml"
 CONFIG_GENERAL="chains/$CHAIN_NAME/configs/general.yaml"
+GENESIS_CONFIG="chains/$CHAIN_NAME/configs/genesis.yaml"
+
 
 export NTV_ADDRESS=$(yq '.ecosystem_contracts.native_token_vault_addr' "$CONFIG_CONTRACTS")
 export BH_ADDRESS=$(yq '.ecosystem_contracts.bridgehub_proxy_addr' "$CONFIG_CONTRACTS")
@@ -21,7 +23,7 @@ export SENDER=0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 
 # === Load RPC URL from config ===
 export RPC_URL=$(yq '.api.web3_json_rpc.http_url' chains/$CHAIN_NAME/configs/general.yaml)
-export CHAIN_ID=$(cast chain-id -r "$RPC_URL")
+export CHAIN_ID=$(yq '.l2_chain_id' "$GENESIS_CONFIG")
 echo "CHAIN_ID: $CHAIN_ID"
 
 # === Deploy test token ===

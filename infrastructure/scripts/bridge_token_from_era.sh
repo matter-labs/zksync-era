@@ -8,6 +8,7 @@ export CHAIN_NAME
 echo "STARTING BRIDGE TOKEN FROM $CHAIN_NAME"
 
 CONFIG_CONTRACTS="chains/$CHAIN_NAME/configs/contracts.yaml"
+GENESIS_CONFIG="chains/$CHAIN_NAME/configs/genesis.yaml"
 
 # === Set contract addresses ===
 export NTV_ADDRESS="0x0000000000000000000000000000000000010004"
@@ -38,7 +39,7 @@ echo "TOKEN_ADDRESS: $TOKEN_ADDRESS"
 # export TOKEN_ADDRESS="" // for speed the token deployment can be skipped if running multiple times.
 
 # === Calculate token asset ID ===
-CHAIN_ID=$(cast chain-id -r "$RPC_URL")
+export CHAIN_ID=$(yq '.l2_chain_id' "$GENESIS_CONFIG")
 CHAIN_ID_HEX=$(printf "0x%02x\n" "$CHAIN_ID")
 
 export TOKEN_ASSET_ID=$(cast keccak $(cast abi-encode "selectorNotUsed(uint256,address,address)" \
