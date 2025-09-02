@@ -7,7 +7,7 @@ use zkstack_cli_common::{
     logger,
 };
 use zkstack_cli_config::{
-    traits::{ReadConfig, ZkStackConfigTrait},
+    traits::{FileConfigTrait, ReadConfig},
     ZkStackConfig,
 };
 use zksync_basic_types::{
@@ -199,7 +199,7 @@ pub struct UpgradeInfo {
     pub(crate) chain_upgrade_diamond_cut: Bytes,
 }
 
-impl ZkStackConfigTrait for UpgradeInfo {}
+impl FileConfigTrait for UpgradeInfo {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContractsConfig {

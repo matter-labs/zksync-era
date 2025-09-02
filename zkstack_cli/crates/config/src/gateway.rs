@@ -8,7 +8,7 @@ use zksync_basic_types::{web3::Bytes, Address, SLChainId};
 use crate::{
     forge_interface::gateway_vote_preparation::output::DeployGatewayCTMOutput,
     raw::{PatchedConfig, RawConfig},
-    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
     GATEWAY_FILE,
 };
 
@@ -28,7 +28,7 @@ impl FileConfigWithDefaultName for GatewayConfig {
     const FILE_NAME: &'static str = GATEWAY_FILE;
 }
 
-impl ZkStackConfigTrait for GatewayConfig {}
+impl FileConfigTrait for GatewayConfig {}
 
 impl From<DeployGatewayCTMOutput> for GatewayConfig {
     fn from(output: DeployGatewayCTMOutput) -> Self {

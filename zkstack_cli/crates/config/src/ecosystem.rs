@@ -21,7 +21,7 @@ use crate::{
         input::{Erc20DeploymentConfig, InitialDeploymentConfig},
         output::{ERC20Tokens, Erc20Token},
     },
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfigTrait},
+    traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
     PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
@@ -95,9 +95,9 @@ impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl ZkStackConfigTrait for EcosystemConfigInternal {}
+impl FileConfigTrait for EcosystemConfigInternal {}
 
-impl ZkStackConfigTrait for EcosystemConfig {}
+impl FileConfigTrait for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {
