@@ -663,3 +663,4 @@ pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
 pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
 pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";
 pub(super) const MSG_ZKSYNC_OS: &str = "Deploy CTM for zksync os flag";
+pub(super) const MSG_NO_GENESIS: &str = "Do not run genesis";

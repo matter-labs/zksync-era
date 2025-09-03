@@ -15,9 +15,10 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_GENESIS,
+        MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
+        MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
+        MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
     },
 };
 
@@ -127,6 +128,8 @@ pub struct EcosystemInitArgs {
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
+    #[clap(long, short, action, help = MSG_NO_GENESIS)]
+    pub no_genesis: bool,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
 }

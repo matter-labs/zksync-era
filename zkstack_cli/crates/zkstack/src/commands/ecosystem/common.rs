@@ -313,6 +313,7 @@ pub async fn init_chains(
             validium_args: final_init_args.validium_args.clone(),
             server_command: genesis_args.server_command.clone(),
             make_permanent_rollup: init_args.make_permanent_rollup,
+            no_genesis: init_args.no_genesis,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
