@@ -131,13 +131,16 @@ pub async fn init_configs(
     secrets.save().await?;
 
     let override_validium_config = false; // We've initialized validium params above.
-    genesis::database::update_configs(
-        init_args.genesis_args.clone(),
-        shell,
-        chain_config,
-        override_validium_config,
-    )
-    .await?;
+    if let Some(genesis_args) = &init_args.genesis_args {
+        // Initialize genesis database if needed
+        genesis::database::update_configs(
+            genesis_args,
+            shell,
+            chain_config,
+            override_validium_config,
+        )
+        .await?;
+    }
 
     update_portal_config(shell, chain_config)
         .await
