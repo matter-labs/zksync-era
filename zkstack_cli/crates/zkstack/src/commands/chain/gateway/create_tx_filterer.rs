@@ -60,7 +60,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     set_transaction_filterer(
         shell,
         &args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
         chain_config.chain_id.as_u64(),
         chain_contracts_config
@@ -89,10 +89,10 @@ pub async fn deploy_gateway_tx_filterer(
 ) -> anyhow::Result<GatewayTxFiltererOutput> {
     input.save(
         shell,
-        DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_l1_foundry()),
+        DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_foundry_scripts()),
     )?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(&DEPLOY_GATEWAY_TX_FILTERER.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -110,6 +110,6 @@ pub async fn deploy_gateway_tx_filterer(
 
     GatewayTxFiltererOutput::read(
         shell,
-        DEPLOY_GATEWAY_TX_FILTERER.output(&chain_config.path_to_l1_foundry()),
+        DEPLOY_GATEWAY_TX_FILTERER.output(&chain_config.path_to_foundry_scripts()),
     )
 }

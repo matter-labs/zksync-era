@@ -50,10 +50,10 @@ pub async fn setup_legacy_bridge(
         create2factory_salt: contracts_config.create2_factory_salt,
         create2factory_addr: contracts_config.create2_factory_addr,
     };
-    let foundry_contracts_path = chain_config.path_to_l1_foundry();
+    let foundry_contracts_path = chain_config.path_to_foundry_scripts();
     input.save(
         shell,
-        SETUP_LEGACY_BRIDGE.input(&chain_config.path_to_l1_foundry()),
+        SETUP_LEGACY_BRIDGE.input(&chain_config.path_to_foundry_scripts()),
     )?;
     let secrets = chain_config.get_secrets_config().await?;
 

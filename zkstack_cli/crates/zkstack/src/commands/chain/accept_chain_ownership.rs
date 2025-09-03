@@ -19,7 +19,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
-        chain_config.path_to_l1_foundry(),
+        chain_config.path_to_foundry_scripts(),
         contracts.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,

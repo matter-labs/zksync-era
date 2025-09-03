@@ -112,7 +112,7 @@ pub async fn deploy_new_ctm(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -125,7 +125,7 @@ pub async fn deploy_new_ctm(
 
     accept_admin(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

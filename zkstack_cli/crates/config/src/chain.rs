@@ -312,7 +312,7 @@ impl ZkStackConfigTrait for ChainConfig {
         self.link_to_code().join(CONTRACTS_PATH)
     }
 
-    fn path_to_l1_foundry(&self) -> PathBuf {
+    fn path_to_foundry_scripts(&self) -> PathBuf {
         self.contracts_path()
             .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
     }

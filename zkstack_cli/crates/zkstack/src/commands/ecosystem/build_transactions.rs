@@ -16,7 +16,7 @@ use crate::messages::{
 };
 
 const DEPLOY_TRANSACTIONS_FILE_SRC: &str =
-    "cl1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
+    "contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
 const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/config-deploy-l1.toml";

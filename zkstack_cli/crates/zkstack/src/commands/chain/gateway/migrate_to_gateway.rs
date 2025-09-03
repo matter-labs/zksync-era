@@ -75,7 +75,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         MigrateToGatewayParams {
             l1_rpc_url: l1_url.clone(),
             l1_bridgehub_addr: chain_contracts_config

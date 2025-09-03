@@ -470,7 +470,7 @@ pub(crate) async fn notify_server(
     let calls = get_notify_server_calls(
         shell,
         &args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             l2_chain_id: chain_config.chain_id.as_u64(),

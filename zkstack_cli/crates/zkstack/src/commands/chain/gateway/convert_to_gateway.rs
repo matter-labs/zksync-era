@@ -133,7 +133,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let mut output = grant_gateway_whitelist(
         shell,
         &args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         mode_chain_governor.clone(),
         chain_config.chain_id.as_u64(),
         chain_contracts_config
@@ -198,7 +198,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         revoke_gateway_whitelist(
             shell,
             &args,
-            &chain_config.path_to_l1_foundry(),
+            &chain_config.path_to_foundry_scripts(),
             mode_chain_governor,
             chain_config.chain_id.as_u64(),
             chain_contracts_config
@@ -230,7 +230,7 @@ pub async fn gateway_vote_preparation(
 ) -> anyhow::Result<DeployGatewayCTMOutput> {
     input.save(
         shell,
-        GATEWAY_VOTE_PREPARATION.input(&chain_config.path_to_l1_foundry()),
+        GATEWAY_VOTE_PREPARATION.input(&chain_config.path_to_foundry_scripts()),
     )?;
 
     let calldata = GATEWAY_VOTE_PREPARATION_ABI
@@ -238,7 +238,7 @@ pub async fn gateway_vote_preparation(
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =
-        Forge::new(&config.path_to_l1_foundry())
+        Forge::new(&config.path_to_foundry_scripts())
             .script(&GATEWAY_VOTE_PREPARATION.script(), forge_args.clone())
             .with_ffi()
             .with_rpc_url(l1_rpc_url)
@@ -252,6 +252,6 @@ pub async fn gateway_vote_preparation(
 
     DeployGatewayCTMOutput::read(
         shell,
-        GATEWAY_VOTE_PREPARATION.output(&chain_config.path_to_l1_foundry()),
+        GATEWAY_VOTE_PREPARATION.output(&chain_config.path_to_foundry_scripts()),
     )
 }

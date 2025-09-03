@@ -130,7 +130,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -140,7 +140,7 @@ pub async fn deploy_ecosystem(
     .await?;
     accept_admin(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -153,7 +153,7 @@ pub async fn deploy_ecosystem(
     // need to accept it
     accept_owner(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -164,7 +164,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

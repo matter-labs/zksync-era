@@ -84,7 +84,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             .await?
             .as_u64();
         let refund_recipient = chain_config.get_wallets_config()?.governor.address;
-        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
         set_da_validator_pair_via_gateway(
             shell,
@@ -128,7 +128,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         set_da_validator_pair(
             shell,
             &args.forge_args.clone(),
-            &chain_config.path_to_l1_foundry(),
+            &chain_config.path_to_foundry_scripts(),
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             chain_id,
             diamond_proxy_address,

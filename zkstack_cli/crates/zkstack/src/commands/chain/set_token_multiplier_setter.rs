@@ -47,7 +47,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
     set_token_multiplier_setter(
         shell,
-        chain_config.path_to_l1_foundry(),
+        chain_config.path_to_foundry_scripts(),
         &chain_config.get_wallets_config()?.governor,
         contracts_config
             .l1

@@ -56,10 +56,7 @@ impl EcosystemCreateArgs {
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
-        let chain = self
-            .chain
-            // TODO link to code unwrap should be handled better
-            .fill_values_with_prompt(0, &l1_network, vec![], link_to_code.clone().unwrap())?;
+        let chain = self.chain.fill_values_with_prompt(0, &l1_network, vec![])?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
             PromptConfirm::new(MSG_START_CONTAINERS_PROMPT)
