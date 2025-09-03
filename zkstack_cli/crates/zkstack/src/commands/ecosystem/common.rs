@@ -305,14 +305,8 @@ pub async fn init_chains(
 
         let chain_init_args = chain::args::init::InitArgs {
             forge_args: args.forge_args.clone(),
-            server_db_url: genesis_args
-                .as_ref()
-                .map(|a| a.server_db_url.clone())
-                .flatten(),
-            server_db_name: genesis_args
-                .as_ref()
-                .map(|a| a.server_db_name.clone())
-                .flatten(),
+            server_db_url: genesis_args.as_ref().and_then(|a| a.server_db_url.clone()),
+            server_db_name: genesis_args.as_ref().and_then(|a| a.server_db_name.clone()),
             dont_drop: genesis_args
                 .as_ref()
                 .map(|a| a.dont_drop)
@@ -323,10 +317,7 @@ pub async fn init_chains(
             update_submodules: args.update_submodules,
             dev: args.dev,
             validium_args: args.validium_args.clone(),
-            server_command: genesis_args
-                .as_ref()
-                .map(|a| a.server_command.clone())
-                .flatten(),
+            server_command: genesis_args.as_ref().and_then(|a| a.server_command.clone()),
             make_permanent_rollup: args.make_permanent_rollup,
             no_genesis: genesis_args.is_none(),
         };

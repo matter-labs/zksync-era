@@ -86,6 +86,7 @@ async fn init_ctm(
     Ok(contracts)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn deploy_new_ctm(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
