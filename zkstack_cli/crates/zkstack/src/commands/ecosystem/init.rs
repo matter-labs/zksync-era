@@ -53,7 +53,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     let mut final_ecosystem_args = args
-        .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
@@ -91,7 +90,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     // Initialize chain(s)
     let mut chains: Vec<String> = vec![];
     if !final_ecosystem_args.ecosystem_only {
-        chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
+        chains = init_chains(final_ecosystem_args.clone(), shell, &ecosystem_config).await?;
     }
     logger::outro(msg_ecosystem_initialized(&chains.join(",")));
 

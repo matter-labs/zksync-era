@@ -27,7 +27,7 @@ use zkstack_cli_config::{
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
-use super::args::init::{EcosystemInitArgs, EcosystemInitArgsFinal};
+use super::args::init::EcosystemInitArgsFinal;
 use crate::{
     commands::chain::{self},
     messages::{msg_chain_load_err, msg_initializing_chain, MSG_DEPLOYING_ERC20_SPINNER},
@@ -271,8 +271,7 @@ pub async fn deploy_erc20(
 }
 
 pub async fn init_chains(
-    init_args: &EcosystemInitArgs,
-    final_init_args: &EcosystemInitArgsFinal,
+    mut args: EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<Vec<String>> {
@@ -283,15 +282,19 @@ pub async fn init_chains(
         ecosystem_config.list_of_chains()
     };
     // Set default values for dev mode
-    let mut deploy_paymaster = init_args.deploy_paymaster;
-    let mut genesis_args = init_args.get_genesis_args().clone();
-    if final_init_args.dev {
+    let mut deploy_paymaster = args.deploy_paymaster;
+    let genesis_args = &mut args.genesis_args;
+    if args.dev {
         deploy_paymaster = Some(true);
-        genesis_args.dev = true;
+        if let Some(genesis) = genesis_args {
+            genesis.dev = true;
+        }
     }
     // Can't initialize multiple chains with the same DB
     if list_of_chains.len() > 1 {
-        genesis_args.reset_db_names();
+        if let Some(genesis) = genesis_args {
+            genesis.reset_db_names();
+        }
     }
     // Initialize chains
     for chain_name in &list_of_chains {
@@ -301,19 +304,31 @@ pub async fn init_chains(
             .context(msg_chain_load_err(chain_name))?;
 
         let chain_init_args = chain::args::init::InitArgs {
-            forge_args: final_init_args.forge_args.clone(),
-            server_db_url: genesis_args.server_db_url.clone(),
-            server_db_name: genesis_args.server_db_name.clone(),
-            dont_drop: genesis_args.dont_drop,
+            forge_args: args.forge_args.clone(),
+            server_db_url: genesis_args
+                .as_ref()
+                .map(|a| a.server_db_url.clone())
+                .flatten(),
+            server_db_name: genesis_args
+                .as_ref()
+                .map(|a| a.server_db_name.clone())
+                .flatten(),
+            dont_drop: genesis_args
+                .as_ref()
+                .map(|a| a.dont_drop)
+                .unwrap_or_default(),
             deploy_paymaster,
-            l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
-            no_port_reallocation: final_init_args.no_port_reallocation,
-            update_submodules: init_args.update_submodules,
-            dev: final_init_args.dev,
-            validium_args: final_init_args.validium_args.clone(),
-            server_command: genesis_args.server_command.clone(),
-            make_permanent_rollup: init_args.make_permanent_rollup,
-            no_genesis: init_args.no_genesis,
+            l1_rpc_url: Some(args.ecosystem.l1_rpc_url.clone()),
+            no_port_reallocation: args.no_port_reallocation,
+            update_submodules: args.update_submodules,
+            dev: args.dev,
+            validium_args: args.validium_args.clone(),
+            server_command: genesis_args
+                .as_ref()
+                .map(|a| a.server_command.clone())
+                .flatten(),
+            make_permanent_rollup: args.make_permanent_rollup,
+            no_genesis: genesis_args.is_none(),
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

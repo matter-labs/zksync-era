@@ -135,13 +135,17 @@ pub struct EcosystemInitArgs {
 }
 
 impl EcosystemInitArgs {
-    pub fn get_genesis_args(&self) -> GenesisArgs {
-        GenesisArgs {
-            server_db_url: self.server_db_url.clone(),
-            server_db_name: self.server_db_name.clone(),
-            dev: self.dev,
-            dont_drop: self.dont_drop,
-            server_command: self.server_command.clone(),
+    pub fn get_genesis_args(&self) -> Option<GenesisArgs> {
+        if self.no_genesis || self.zksync_os {
+            None
+        } else {
+            Some(GenesisArgs {
+                server_db_url: self.server_db_url.clone(),
+                server_db_name: self.server_db_name.clone(),
+                dev: self.dev,
+                dont_drop: self.dont_drop,
+                server_command: self.server_command.clone(),
+            })
         }
     }
 
@@ -149,6 +153,7 @@ impl EcosystemInitArgs {
         self,
         l1_network: L1Network,
     ) -> anyhow::Result<EcosystemInitArgsFinal> {
+        let genesis_args = self.get_genesis_args();
         let EcosystemInitArgs {
             forge_args,
             dev,
@@ -159,6 +164,9 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test,
             bridgehub,
             zksync_os,
+            make_permanent_rollup,
+            update_submodules,
+            deploy_paymaster,
             ..
         } = self;
 
@@ -219,6 +227,10 @@ impl EcosystemInitArgs {
                 .unwrap_or_default(),
             bridgehub_address,
             deploy_ecosystem,
+            deploy_paymaster,
+            make_permanent_rollup,
+            update_submodules,
+            genesis_args,
             zksync_os,
         })
     }
@@ -238,6 +250,10 @@ pub struct EcosystemInitArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
     pub deploy_ecosystem: bool,
+    pub deploy_paymaster: Option<bool>,
+    pub make_permanent_rollup: Option<bool>,
+    pub update_submodules: Option<bool>,
+    pub genesis_args: Option<GenesisArgs>,
     pub zksync_os: bool,
 }
 
