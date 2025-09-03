@@ -134,6 +134,7 @@ async fn init_ecosystem(
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
         init_args.bridgehub_address,
+        init_args.zksync_os,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;

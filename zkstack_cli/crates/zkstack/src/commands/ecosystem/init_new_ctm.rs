@@ -79,6 +79,7 @@ async fn init_ctm(
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
         init_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
+        init_args.zksync_os,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -93,6 +94,7 @@ pub async fn deploy_new_ctm(
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: Option<H160>,
+    zksync_os: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
@@ -106,6 +108,7 @@ pub async fn deploy_new_ctm(
         true,
         support_l2_legacy_shared_bridge_test,
         bridgehub_address,
+        zksync_os,
     )
     .await?;
     spinner.finish();

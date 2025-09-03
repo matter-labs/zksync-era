@@ -51,6 +51,7 @@ pub async fn deploy_l1(
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: Option<H160>,
+    zksync_os: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
@@ -67,6 +68,7 @@ pub async fn deploy_l1(
         config.prover_version == ProverMode::NoProofs,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
+        zksync_os,
     );
     deploy_config.save(shell, deploy_config_path)?;
 
@@ -138,6 +140,8 @@ pub async fn deploy_l1_core_contracts(
         config.prover_version == ProverMode::NoProofs,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
+        // ZKSync OS flag is not used in core contracts deployment
+        false,
     );
 
     deploy_config.save(shell, deploy_config_path)?;

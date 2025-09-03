@@ -17,7 +17,7 @@ use crate::{
         MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
         MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
     },
 };
 
@@ -127,6 +127,8 @@ pub struct EcosystemInitArgs {
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
+    #[clap(long, help = MSG_ZKSYNC_OS)]
+    pub zksync_os: bool,
 }
 
 impl EcosystemInitArgs {
@@ -153,6 +155,7 @@ impl EcosystemInitArgs {
             validium_args,
             support_l2_legacy_shared_bridge_test,
             bridgehub,
+            zksync_os,
             ..
         } = self;
 
@@ -213,6 +216,7 @@ impl EcosystemInitArgs {
                 .unwrap_or_default(),
             bridgehub_address,
             deploy_ecosystem,
+            zksync_os,
         })
     }
 }
@@ -231,6 +235,7 @@ pub struct EcosystemInitArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
     pub deploy_ecosystem: bool,
+    pub zksync_os: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -302,6 +307,8 @@ pub struct InitNewCTMArgs {
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
+    #[clap(long, help = MSG_ZKSYNC_OS)]
+    pub zksync_os: bool,
 }
 
 impl InitNewCTMArgs {
@@ -316,6 +323,7 @@ impl InitNewCTMArgs {
             skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
             bridgehub,
+            zksync_os,
         } = self;
 
         // Fill ecosystem args
@@ -340,6 +348,7 @@ impl InitNewCTMArgs {
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or(false),
             bridgehub_address,
+            zksync_os,
         })
     }
 }
@@ -352,6 +361,7 @@ pub struct InitNewCTMArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
+    pub zksync_os: bool,
 }
 
 impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
@@ -363,6 +373,7 @@ impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
             skip_contract_compilation_override: args.skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
             bridgehub_address: args.bridgehub_address,
+            zksync_os: args.zksync_os,
         }
     }
 }
