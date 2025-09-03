@@ -142,11 +142,13 @@ pub struct DeployL1Config {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
+    pub is_zk_sync_os: bool,
 }
 
 impl FileConfigTrait for DeployL1Config {}
 
 impl DeployL1Config {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         genesis_input: &GenesisInput,
         wallets_config: &WalletsConfig,
@@ -155,8 +157,10 @@ impl DeployL1Config {
         testnet_verifier: bool,
         l1_network: L1Network,
         support_l2_legacy_shared_bridge_test: bool,
+        zksync_os: bool,
     ) -> Self {
         Self {
+            is_zk_sync_os: zksync_os,
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,

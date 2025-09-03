@@ -93,6 +93,12 @@ params, use:
 zkstack ecosystem init --dev
 ```
 
+For working with zksync os contracts, use:
+
+```bash
+zkstack ecosystem init  --dev --no-genesis --zksync-os
+```
+
 If the process gets stuck, resume it with `--resume`. This flag keeps track of already sent transactions and sends new
 ones with provided params.
 

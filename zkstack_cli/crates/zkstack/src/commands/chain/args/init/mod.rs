@@ -69,7 +69,11 @@ impl InitArgs {
     }
 
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
-        let genesis = self.get_genesis_args();
+        let genesis = if !config.zksync_os {
+            self.get_genesis_args()
+        } else {
+            None
+        };
 
         let deploy_paymaster = if self.dev {
             true
