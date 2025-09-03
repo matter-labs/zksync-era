@@ -16,10 +16,10 @@ use crate::messages::{
 };
 
 const DEPLOY_TRANSACTIONS_FILE_SRC: &str =
-    "contracts/l1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
+    "cl1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
 const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
 
-const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
+const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/config-deploy-l1.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
 pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -37,7 +37,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
 
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-    build_system_contracts(shell, &ecosystem_config.link_to_code())?;
+    build_system_contracts(shell, &ecosystem_config.contracts_path())?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
@@ -64,13 +64,15 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
 
     shell.copy_file(
         ecosystem_config
-            .link_to_code()
+            .contracts_path()
             .join(DEPLOY_TRANSACTIONS_FILE_SRC),
         args.out.join(DEPLOY_TRANSACTIONS_FILE_DST),
     )?;
 
     shell.copy_file(
-        ecosystem_config.link_to_code().join(SCRIPT_CONFIG_FILE_SRC),
+        ecosystem_config
+            .contracts_path()
+            .join(SCRIPT_CONFIG_FILE_SRC),
         args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;
     spinner.finish();

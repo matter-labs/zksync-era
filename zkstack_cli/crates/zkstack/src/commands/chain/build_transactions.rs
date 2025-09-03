@@ -19,10 +19,10 @@ use crate::{
 };
 
 pub const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
-    "contracts/l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json";
+    "l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json";
 pub const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-zk-chain-txns.json";
 
-const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/register-zk-chain.toml";
+const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/register-zk-chain.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "register-zk-chain.toml";
 
 pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -75,12 +75,12 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         .context(MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config.link_to_code().join(REGISTER_CHAIN_TXNS_FILE_SRC),
+        config.contracts_path().join(REGISTER_CHAIN_TXNS_FILE_SRC),
         args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
     shell.copy_file(
-        config.link_to_code().join(SCRIPT_CONFIG_FILE_SRC),
+        config.contracts_path().join(SCRIPT_CONFIG_FILE_SRC),
         args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;
     spinner.finish();
