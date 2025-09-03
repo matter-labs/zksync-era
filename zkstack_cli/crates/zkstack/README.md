@@ -564,7 +564,7 @@ Setup keys
 
 - `--mode`
 
-  Possible valuess: `download`, `generate`
+  Possible values: `download`, `generate`
 
 - `--region`
 
@@ -589,7 +589,7 @@ Run prover
 
 - `--tag' - Tag of the docker image to run.
 
-  Default value is `latest2.0` but you can specify your prefered one.
+  Default value is `latest2.0` but you can specify your preferred one.
 
 - `--round <ROUND>`
 
