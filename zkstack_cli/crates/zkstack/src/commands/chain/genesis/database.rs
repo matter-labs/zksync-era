@@ -74,7 +74,7 @@ pub async fn initialize_server_database(
 }
 
 pub async fn update_configs(
-    args: GenesisArgsFinal,
+    args: &GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
     override_validium_config: bool,

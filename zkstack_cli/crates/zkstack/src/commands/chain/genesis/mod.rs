@@ -48,19 +48,19 @@ pub async fn run_genesis(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()>
     let chain_config = ZkStackConfig::current_chain(shell)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    genesis(args, shell, &chain_config).await?;
+    genesis(&args, shell, &chain_config).await?;
     logger::outro(MSG_GENESIS_COMPLETED);
 
     Ok(())
 }
 
 pub async fn genesis(
-    args: GenesisArgsFinal,
+    args: &GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
     let override_validium_config = true;
-    database::update_configs(args.clone(), shell, config, override_validium_config).await?;
+    database::update_configs(args, shell, config, override_validium_config).await?;
 
     logger::note(
         MSG_SELECTED_CONFIG,
@@ -82,7 +82,7 @@ pub async fn genesis(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(args.server_command, config, shell)?;
+    run_server_genesis(args.server_command.clone(), config, shell)?;
     spinner.finish();
 
     Ok(())

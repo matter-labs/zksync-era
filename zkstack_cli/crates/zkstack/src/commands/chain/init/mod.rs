@@ -243,9 +243,11 @@ pub async fn init(
         spinner.finish();
     }
 
-    genesis(init_args.genesis_args.clone(), shell, chain_config)
-        .await
-        .context(MSG_GENESIS_DATABASE_ERR)?;
+    if let Some(genesis_args) = &init_args.genesis_args {
+        genesis(genesis_args, shell, chain_config)
+            .await
+            .context(MSG_GENESIS_DATABASE_ERR)?;
+    }
 
     Ok(())
 }
