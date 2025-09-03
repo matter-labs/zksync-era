@@ -75,9 +75,10 @@ pub trait ZkStackConfigTrait {
     /// Link to the repository, please use it with a caution and prefer specific links
     fn link_to_code(&self) -> PathBuf;
 
-    /// Path to the directory with default configs inside the repository
+    /// Path to the directory with default configs inside the repository.
+    /// It's the configs, that used as templates for new chains, in era they are placed `etc/env/file_based`
     fn default_configs_path(&self) -> PathBuf;
-    /// Path to the directory with contracts
+    /// Path to the directory with contracts, that represents era-contracts repo
     fn contracts_path(&self) -> PathBuf;
 
     /// Path to the directory with L1 Foundry contracts
