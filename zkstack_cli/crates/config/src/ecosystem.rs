@@ -12,17 +12,17 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
-        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
-        ERC20_CONFIGS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY,
-        LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, WALLETS_FILE,
+        CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, CONTRACTS_PATH, ECOSYSTEM_PATH, ERA_CHAIN_ID,
+        ERC20_CONFIGS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE,
+        L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS, LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, WALLETS_FILE,
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::{
         input::{Erc20DeploymentConfig, InitialDeploymentConfig},
         output::{ERC20Tokens, Erc20Token},
     },
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfigTrait},
-    ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
+    traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig, ZkStackConfigTrait,
     PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
@@ -48,15 +48,15 @@ struct EcosystemConfigInternal {
 pub struct EcosystemConfig {
     pub name: String,
     pub l1_network: L1Network,
-    pub link_to_code: PathBuf,
     pub bellman_cuda_dir: Option<PathBuf>,
     pub chains: PathBuf,
     pub config: PathBuf,
-    pub default_chain: String,
     pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
-    pub shell: OnceCell<Shell>,
+    default_chain: String,
+    link_to_code: PathBuf,
+    shell: OnceCell<Shell>,
 }
 
 impl Serialize for EcosystemConfig {
@@ -95,11 +95,40 @@ impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl ZkStackConfigTrait for EcosystemConfigInternal {}
+impl FileConfigTrait for EcosystemConfigInternal {}
 
-impl ZkStackConfigTrait for EcosystemConfig {}
+impl FileConfigTrait for EcosystemConfig {}
 
 impl EcosystemConfig {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        name: String,
+        l1_network: L1Network,
+        link_to_code: PathBuf,
+        bellman_cuda_dir: Option<PathBuf>,
+        chains: PathBuf,
+        config: PathBuf,
+        default_chain: String,
+        era_chain_id: L2ChainId,
+        prover_version: ProverMode,
+        wallet_creation: WalletCreation,
+        shell: OnceCell<Shell>,
+    ) -> Self {
+        Self {
+            name,
+            l1_network,
+            link_to_code,
+            bellman_cuda_dir,
+            chains,
+            config,
+            default_chain,
+            era_chain_id,
+            prover_version,
+            wallet_creation,
+            shell,
+        }
+    }
+
     fn get_shell(&self) -> &Shell {
         self.shell.get().expect("Must be initialized")
     }
@@ -140,6 +169,10 @@ impl EcosystemConfig {
         Ok(ecosystem)
     }
 
+    pub fn set_default_chain(&mut self, name: String) {
+        self.default_chain = name
+    }
+
     pub fn current_chain(&self) -> &str {
         global_config()
             .chain_name
@@ -161,29 +194,29 @@ impl EcosystemConfig {
 
         let config = ChainConfigInternal::read(self.get_shell(), path.join(CONFIG_NAME).clone())?;
 
-        Ok(ChainConfig {
-            id: config.id,
-            name: config.name,
-            chain_id: config.chain_id,
-            prover_version: config.prover_version,
-            configs: config.configs,
-            external_node_config_path: config.external_node_config_path,
-            l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
-            l1_network: self.l1_network,
-            self_path: path,
-            link_to_code: config.link_to_code.unwrap_or(self.link_to_code.clone()),
-            base_token: config.base_token,
-            rocks_db_path: config.rocks_db_path,
-            wallet_creation: config.wallet_creation,
-            shell: self.get_shell().clone().into(),
+        Ok(ChainConfig::new(
+            config.id,
+            config.name,
+            config.chain_id,
+            config.prover_version,
+            self.l1_network,
+            path,
+            config.link_to_code.unwrap_or(self.link_to_code.clone()),
+            config.rocks_db_path,
             // It's required for backward compatibility
-            artifacts: config
+            config
                 .artifacts_path
                 .unwrap_or_else(|| self.get_chain_artifacts_path(name)),
-            legacy_bridge: config.legacy_bridge,
-            evm_emulator: config.evm_emulator,
-            tight_ports: config.tight_ports,
-        })
+            config.configs,
+            config.external_node_config_path,
+            config.l1_batch_commit_data_generator_mode,
+            config.base_token,
+            config.wallet_creation,
+            self.get_shell().clone().into(),
+            config.legacy_bridge,
+            config.evm_emulator,
+            config.tight_ports,
+        ))
     }
 
     pub fn get_initial_deployment_config(&self) -> anyhow::Result<InitialDeploymentConfig> {
@@ -217,17 +250,12 @@ impl EcosystemConfig {
         ContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
     }
 
-    pub fn path_to_l1_foundry(&self) -> PathBuf {
-        self.link_to_code.join(L1_CONTRACTS_FOUNDRY)
-    }
-
     pub fn path_to_proving_networks(&self) -> PathBuf {
         self.link_to_code.join(PROVING_NETWORKS_PATH)
     }
 
     pub fn path_to_proving_networks_deploy_script(&self) -> PathBuf {
-        self.link_to_code
-            .join(PROVING_NETWORKS_PATH)
+        self.path_to_proving_networks()
             .join(PROVING_NETWORKS_DEPLOY_SCRIPT_PATH)
     }
 
@@ -244,14 +272,6 @@ impl EcosystemConfig {
                 }
             })
             .collect()
-    }
-
-    pub fn get_default_configs_path(&self) -> PathBuf {
-        Self::default_configs_path(&self.link_to_code)
-    }
-
-    pub fn default_configs_path(link_to_code: &Path) -> PathBuf {
-        link_to_code.join(CONFIGS_PATH)
     }
 
     /// Path to the predefined ecosystem configs
@@ -303,4 +323,23 @@ pub fn get_default_era_chain_id() -> L2ChainId {
 
 pub fn get_link_to_prover(link_to_code: &Path) -> PathBuf {
     link_to_code.join("prover")
+}
+
+impl ZkStackConfigTrait for EcosystemConfig {
+    fn link_to_code(&self) -> PathBuf {
+        self.link_to_code.clone()
+    }
+
+    fn default_configs_path(&self) -> PathBuf {
+        self.link_to_code().join(CONFIGS_PATH)
+    }
+
+    fn contracts_path(&self) -> PathBuf {
+        self.link_to_code().join(CONTRACTS_PATH)
+    }
+
+    fn path_to_l1_foundry(&self) -> PathBuf {
+        self.contracts_path()
+            .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
+    }
 }

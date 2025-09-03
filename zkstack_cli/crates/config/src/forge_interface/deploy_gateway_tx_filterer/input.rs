@@ -2,7 +2,7 @@ use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfigTrait,
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::FileConfigTrait,
     ContractsConfig,
 };
 
@@ -16,7 +16,7 @@ pub struct GatewayTxFiltererInput {
     pub create2_factory_salt: H256,
 }
 
-impl ZkStackConfigTrait for GatewayTxFiltererInput {}
+impl FileConfigTrait for GatewayTxFiltererInput {}
 
 impl GatewayTxFiltererInput {
     pub fn new(

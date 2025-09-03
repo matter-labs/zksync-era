@@ -4,9 +4,10 @@ use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::{Address, L2_BRIDGEHUB_ADDRESS};
 
-use super::utils::{display_admin_script_output, get_default_foundry_path};
+use super::utils::display_admin_script_output;
 use crate::{
     abi::BridgehubAbi,
     admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
@@ -103,11 +104,12 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         if chain_diamond_proxy_on_gateway == Address::zero() {
             anyhow::bail!("The chain does not settle on GW yet, the address is known");
         }
+        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
 
         let output = set_da_validator_pair_via_gateway(
             shell,
             &Default::default(),
-            &get_default_foundry_path(shell)?,
+            &contracts_foundry_path,
             AdminScriptMode::OnlySave,
             args.bridgehub_address,
             args.max_l1_gas_price

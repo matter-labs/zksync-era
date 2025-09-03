@@ -11,7 +11,8 @@ use zkstack_cli_config::{
     docker_compose::{DockerComposeConfig, DockerComposeService},
     private_proxy_compose::{create_private_rpc_service, get_private_rpc_docker_compose_path},
     traits::SaveConfig,
-    ChainConfig, ZkStackConfig, DEFAULT_PRIVATE_RPC_PORT, DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
+    ChainConfig, ZkStackConfig, ZkStackConfigTrait, DEFAULT_PRIVATE_RPC_PORT,
+    DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
 };
 
 use crate::{
@@ -102,7 +103,7 @@ async fn initialize_private_rpc_database(
     let db_url = db_config.full_url();
     let url_str = db_url.as_str();
     let migrations_dir = chain_config
-        .link_to_code
+        .link_to_code()
         .join("private-rpc")
         .join("drizzle")
         .display()
@@ -143,7 +144,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     let chain_name = chain_config.name.clone();
 
-    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("private-rpc"));
+    let _dir_guard = shell.push_dir(chain_config.link_to_code().join("private-rpc"));
 
     logger::info(msg_private_rpc_docker_image_being_built());
     Cmd::new(cmd!(

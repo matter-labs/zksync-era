@@ -3,7 +3,7 @@ use clap::{command, Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig,
+    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_basic_types::Address;
@@ -64,7 +64,7 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-        git::submodule_update(shell, &config.link_to_code)?;
+        git::submodule_update(shell, &config.link_to_code())?;
     }
 
     let args = args.fill_values_with_prompt(&chain_config);

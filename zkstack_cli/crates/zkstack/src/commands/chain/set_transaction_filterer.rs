@@ -2,6 +2,7 @@ use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_config::ZkStackConfigTrait;
 use zksync_types::Address;
 
 use super::utils::display_admin_script_output;

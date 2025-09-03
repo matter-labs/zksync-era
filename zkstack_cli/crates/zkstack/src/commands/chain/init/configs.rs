@@ -4,6 +4,7 @@ use zkstack_cli_common::logger;
 use zkstack_cli_config::{
     copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ConsensusGenesisSpecs,
     ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 use zksync_basic_types::Address;
 
@@ -48,7 +49,11 @@ pub async fn init_configs(
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
-    copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    copy_configs(
+        shell,
+        &ecosystem_config.default_configs_path(),
+        &chain_config.configs,
+    )?;
 
     if !init_args.no_port_reallocation {
         ecosystem_ports.allocate_ports_in_yaml(

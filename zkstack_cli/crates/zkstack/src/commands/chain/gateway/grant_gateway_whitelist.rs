@@ -1,11 +1,12 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::Address;
 
 use crate::{
     admin_functions::{grant_gateway_whitelist, AdminScriptMode},
-    commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
+    commands::chain::utils::display_admin_script_output,
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -21,12 +22,13 @@ pub struct GrantGatewayWhitelistCalldataArgs {
 }
 
 pub async fn run(shell: &Shell, args: GrantGatewayWhitelistCalldataArgs) -> anyhow::Result<()> {
+    let foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
     let result = grant_gateway_whitelist(
         shell,
         // We do not care about forge args that much here, since
         // we only need to obtain the calldata
         &Default::default(),
-        &get_default_foundry_path(shell)?,
+        &foundry_path,
         AdminScriptMode::OnlySave,
         args.gateway_chain_id,
         args.bridgehub_addr,

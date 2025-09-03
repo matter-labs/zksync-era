@@ -17,8 +17,8 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
-    traits::{ReadConfig, ZkStackConfigTrait},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    traits::{FileConfigTrait, ReadConfig},
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfigTrait,
 };
 use zksync_basic_types::U256;
 
@@ -412,7 +412,7 @@ struct AdminScriptOutputInner {
     encoded_data: String,
 }
 
-impl ZkStackConfigTrait for AdminScriptOutputInner {}
+impl FileConfigTrait for AdminScriptOutputInner {}
 
 #[derive(Debug, Clone, Default)]
 pub struct AdminScriptOutput {

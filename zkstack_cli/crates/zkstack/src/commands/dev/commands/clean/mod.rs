@@ -4,7 +4,7 @@ use anyhow::Context;
 use clap::Subcommand;
 use xshell::Shell;
 use zkstack_cli_common::{docker, logger};
-use zkstack_cli_config::{ZkStackConfig, DOCKER_COMPOSE_FILE};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait, DOCKER_COMPOSE_FILE};
 
 use crate::commands::dev::messages::{
     MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
