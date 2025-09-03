@@ -47,7 +47,7 @@ contract InteropCenter {
   // If it fails, it can be called again.
   function executeInteropBundle(interopMessage, proof);
 
-  // If the bundle didn't execute succesfully yet, it can be marked as cancelled.
+  // If the bundle didn't execute successfully yet, it can be marked as cancelled.
   // See details below.
   function cancelInteropBundle(interopMessage, proof);
 }
