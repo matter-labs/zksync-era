@@ -48,15 +48,15 @@ struct EcosystemConfigInternal {
 pub struct EcosystemConfig {
     pub name: String,
     pub l1_network: L1Network,
-    link_to_code: PathBuf,
     pub bellman_cuda_dir: Option<PathBuf>,
     pub chains: PathBuf,
     pub config: PathBuf,
-    default_chain: String,
     pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
-    pub shell: OnceCell<Shell>,
+    default_chain: String,
+    link_to_code: PathBuf,
+    shell: OnceCell<Shell>,
 }
 
 impl Serialize for EcosystemConfig {

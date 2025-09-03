@@ -61,8 +61,6 @@ pub struct ChainConfig {
     pub chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub l1_network: L1Network,
-    pub self_path: PathBuf,
-    link_to_code: PathBuf,
     pub rocks_db_path: PathBuf,
     pub artifacts: PathBuf,
     pub configs: PathBuf,
@@ -70,10 +68,12 @@ pub struct ChainConfig {
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
-    pub shell: OnceCell<Shell>,
     pub legacy_bridge: Option<bool>,
     pub evm_emulator: bool,
     pub tight_ports: bool,
+    shell: OnceCell<Shell>,
+    self_path: PathBuf,
+    link_to_code: PathBuf,
 }
 
 #[derive(Debug, Clone)]
