@@ -339,7 +339,7 @@ impl MigrateToGatewayCalldataArgs {
 ///
 pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow::Result<()> {
     let forge_args = Default::default();
-    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     let should_cross_check = !params.no_cross_check.unwrap_or_default();
 

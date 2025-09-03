@@ -64,7 +64,7 @@ pub struct MigrateFromGatewayCalldataArgs {
 ///
 pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyhow::Result<()> {
     let forge_args = Default::default();
-    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     if !params.no_cross_check {
         let state = get_gateway_migration_state(

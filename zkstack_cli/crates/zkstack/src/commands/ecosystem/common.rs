@@ -52,7 +52,8 @@ pub async fn deploy_l1(
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: Option<H160>,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
+    let deploy_config_path =
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -74,7 +75,7 @@ pub async fn deploy_l1(
         .encode("runWithBridgehub", (bridgehub_address.unwrap_or_default(),)) // Script works with zero address
         .unwrap();
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
@@ -104,7 +105,7 @@ pub async fn deploy_l1(
 
     let script_output = DeployL1Output::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_l1_foundry()),
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
@@ -124,7 +125,7 @@ pub async fn deploy_l1_core_contracts(
     support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path =
-        DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
+        DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -142,7 +143,7 @@ pub async fn deploy_l1_core_contracts(
 
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(
             &DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -174,7 +175,7 @@ pub async fn deploy_l1_core_contracts(
 
     let script_output = DeployL1Output::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_l1_foundry()),
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
@@ -192,7 +193,7 @@ pub async fn register_ctm_on_existing_bh(
 ) -> anyhow::Result<()> {
     let wallets_config = config.get_wallets()?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());
@@ -228,7 +229,7 @@ pub async fn deploy_erc20(
     l1_rpc_url: String,
 ) -> anyhow::Result<ERC20Tokens> {
     let deploy_config_path =
-        DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.path_to_l1_foundry());
+        DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.path_to_foundry_scripts());
     let wallets = ecosystem_config.get_wallets()?;
     DeployErc20Config::new(
         erc20_deployment_config,
@@ -241,7 +242,7 @@ pub async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -260,7 +261,7 @@ pub async fn deploy_erc20(
 
     let result = ERC20Tokens::read(
         shell,
-        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
+        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.path_to_foundry_scripts()),
     )?;
     result.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(result)

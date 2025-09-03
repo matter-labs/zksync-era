@@ -27,7 +27,7 @@ pub async fn deploy_paymaster(
     broadcast: bool,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
-    let foundry_contracts_path = chain_config.path_to_l1_foundry();
+    let foundry_contracts_path = chain_config.path_to_foundry_scripts();
     input.save(
         shell,
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&foundry_contracts_path),

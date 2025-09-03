@@ -22,7 +22,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     enable_evm_emulator(
         shell,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         contracts.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,

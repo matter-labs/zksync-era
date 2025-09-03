@@ -35,7 +35,6 @@ pub async fn create(
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
             tokens,
-            ecosystem_config.link_to_code(),
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 

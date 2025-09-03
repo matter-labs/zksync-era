@@ -61,10 +61,12 @@ impl ZkStackConfigTrait for ZkStackConfig {
         }
     }
 
-    fn path_to_l1_foundry(&self) -> PathBuf {
+    fn path_to_foundry_scripts(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.path_to_l1_foundry().clone(),
-            ZkStackConfig::ChainConfig(chain) => chain.path_to_l1_foundry().clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => {
+                ecosystem.path_to_foundry_scripts().clone()
+            }
+            ZkStackConfig::ChainConfig(chain) => chain.path_to_foundry_scripts().clone(),
         }
     }
 }
@@ -73,8 +75,12 @@ pub trait ZkStackConfigTrait {
     /// Link to the repository, please use it with a caution and prefer specific links
     fn link_to_code(&self) -> PathBuf;
 
+    /// Path to the directory with default configs inside the repository.
+    /// It's the configs, that used as templates for new chains, in era they are placed `etc/env/file_based`
     fn default_configs_path(&self) -> PathBuf;
+    /// Path to the directory with contracts, that represents era-contracts repo
     fn contracts_path(&self) -> PathBuf;
 
-    fn path_to_l1_foundry(&self) -> PathBuf;
+    /// Path to the directory with L1 Foundry contracts
+    fn path_to_foundry_scripts(&self) -> PathBuf;
 }

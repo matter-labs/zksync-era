@@ -22,7 +22,7 @@ pub enum CleanCommands {
 
 pub fn run(shell: &Shell, args: CleanCommands) -> anyhow::Result<()> {
     let config = ZkStackConfig::from_file(shell)?;
-    let path_to_foundry = config.path_to_l1_foundry();
+    let path_to_foundry = config.path_to_foundry_scripts();
     let link_to_code = config.link_to_code();
     match args {
         CleanCommands::All => {

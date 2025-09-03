@@ -205,7 +205,7 @@ impl FileConfigTrait for V28UpgradeInfo {}
 
 pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyhow::Result<()> {
     let forge_args = &Default::default();
-    let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+    let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     // 0. Read the GatewayUpgradeInfo
 

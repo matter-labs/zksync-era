@@ -22,7 +22,7 @@ pub struct GrantGatewayWhitelistCalldataArgs {
 }
 
 pub async fn run(shell: &Shell, args: GrantGatewayWhitelistCalldataArgs) -> anyhow::Result<()> {
-    let foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+    let foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
     let result = grant_gateway_whitelist(
         shell,
         // We do not care about forge args that much here, since

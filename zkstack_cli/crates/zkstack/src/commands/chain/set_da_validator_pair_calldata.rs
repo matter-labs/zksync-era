@@ -83,7 +83,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         set_da_validator_pair(
             shell,
             &Default::default(),
-            &chain_config.path_to_l1_foundry(),
+            &chain_config.path_to_foundry_scripts(),
             AdminScriptMode::OnlySave,
             args.chain_id,
             args.bridgehub_address,
@@ -104,7 +104,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         if chain_diamond_proxy_on_gateway == Address::zero() {
             anyhow::bail!("The chain does not settle on GW yet, the address is known");
         }
-        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
         let output = set_da_validator_pair_via_gateway(
             shell,

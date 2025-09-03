@@ -90,7 +90,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
+        &ecosystem_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::OnlySave,
         chain_contracts_config
             .ecosystem_contracts
@@ -170,7 +170,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     finish_migrate_chain_from_gateway(
         shell,
         args.forge_args.clone(),
-        &ecosystem_config.path_to_l1_foundry(),
+        &ecosystem_config.path_to_foundry_scripts(),
         ecosystem_config
             .get_wallets()?
             .deployer
@@ -194,7 +194,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     set_da_validator_pair(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
+        &ecosystem_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),

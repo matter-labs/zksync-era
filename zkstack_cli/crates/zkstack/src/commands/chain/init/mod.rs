@@ -113,7 +113,7 @@ pub async fn init(
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
@@ -129,7 +129,7 @@ pub async fn init(
         let chain_contracts = chain_config.get_contracts_config()?;
         set_token_multiplier_setter(
             shell,
-            ecosystem_config.path_to_l1_foundry(),
+            ecosystem_config.path_to_foundry_scripts(),
             &chain_config.get_wallets_config()?.governor,
             chain_contracts
                 .l1
@@ -154,7 +154,7 @@ pub async fn init(
     if chain_config.evm_emulator {
         enable_evm_emulator(
             shell,
-            &ecosystem_config.path_to_l1_foundry(),
+            &ecosystem_config.path_to_foundry_scripts(),
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
@@ -184,7 +184,7 @@ pub async fn init(
     set_da_validator_pair(
         shell,
         &init_args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
+        &ecosystem_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),

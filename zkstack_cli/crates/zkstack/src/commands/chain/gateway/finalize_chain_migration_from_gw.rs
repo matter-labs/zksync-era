@@ -99,7 +99,7 @@ pub async fn run(
     let withdrawal_params = gateway_zk_client
         .get_finalize_withdrawal_params(migraiton_tx, 0)
         .await?;
-    let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+    let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     finish_migrate_chain_from_gateway(
         shell,

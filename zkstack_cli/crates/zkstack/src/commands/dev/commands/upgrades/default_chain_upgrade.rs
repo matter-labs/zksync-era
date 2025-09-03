@@ -248,7 +248,7 @@ pub(crate) async fn run_chain_upgrade(
     upgrade_version: UpgradeVersion,
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
-    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_l1_foundry();
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let mut args = args_input.clone().fill_if_empty(shell).await?;
