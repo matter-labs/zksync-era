@@ -148,6 +148,7 @@ pub struct DeployL1Config {
 impl FileConfigTrait for DeployL1Config {}
 
 impl DeployL1Config {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         genesis_input: &GenesisInput,
         wallets_config: &WalletsConfig,
