@@ -178,7 +178,7 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
-    pub settlement_layer: Option<SettlementLayer>,
+    pub settlement_layer: SettlementLayer,
     pub eth_call_gas_cap: Option<u64>,
 }
 
@@ -188,7 +188,7 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
-        settlement_layer: Option<SettlementLayer>,
+        settlement_layer: SettlementLayer,
         dummy_verifier: bool,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
@@ -247,7 +247,7 @@ impl InternalApiConfig {
             l1_contracts_config,
             l1_ecosystem_contracts,
             l2_contracts,
-            Some(settlement_layer),
+            settlement_layer,
             genesis_config.dummy_verifier,
             genesis_config.l1_batch_commit_data_generator_mode,
         )
@@ -404,7 +404,7 @@ impl RpcState {
             connection,
             block,
             &self.start_info,
-            self.api_config.settlement_layer.unwrap(),
+            self.api_config.settlement_layer,
         )
         .await
         .map_err(|err| match err {
