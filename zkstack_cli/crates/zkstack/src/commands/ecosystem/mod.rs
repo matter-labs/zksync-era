@@ -5,7 +5,7 @@ use xshell::Shell;
 use crate::commands::ecosystem::args::{
     change_default::ChangeDefaultChain,
     create::EcosystemCreateArgs,
-    init::{EcosystemInitArgs, InitCoreContractsArgs, InitNewCTMArgs, RegisterCTMArgs},
+    init::{EcosystemInitArgs, InitCoreContractsArgs},
 };
 
 pub mod args;
@@ -16,8 +16,6 @@ mod create;
 pub mod create_configs;
 pub(crate) mod init;
 pub(crate) mod init_core_contracts;
-pub(crate) mod init_new_ctm;
-pub(crate) mod register_ctm;
 pub(crate) mod setup_observability;
 mod utils;
 
@@ -32,8 +30,6 @@ pub enum EcosystemCommands {
     /// Initialize ecosystem and chain,
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
-    /// Initialize new ecosystem on existing bridgehub
-    InitNewCTM(InitNewCTMArgs),
     /// Initialize ecosystem core contracts
     InitCoreContracts(InitCoreContractsArgs),
     /// Change the default chain
@@ -43,8 +39,6 @@ pub enum EcosystemCommands {
     /// downloading Grafana dashboards from the era-observability repo
     #[command(alias = "obs")]
     SetupObservability,
-    /// Register CTM on Existing Bridgehub
-    RegisterCTM(RegisterCTMArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -52,10 +46,8 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Create(args) => create::run(args, shell).await,
         EcosystemCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         EcosystemCommands::Init(args) => init::run(args, shell).await,
-        EcosystemCommands::InitNewCTM(args) => init_new_ctm::run(args, shell).await,
         EcosystemCommands::InitCoreContracts(args) => init_core_contracts::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
-        EcosystemCommands::RegisterCTM(args) => register_ctm::run(args, shell).await,
     }
 }
