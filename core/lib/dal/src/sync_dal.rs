@@ -67,7 +67,9 @@ impl SyncDal<'_, '_> {
                 miniblocks.fee_account_address AS "fee_account_address!",
                 miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
                 miniblocks.pubdata_type AS "pubdata_type!",
-                l1_batches.pubdata_limit
+                l1_batches.pubdata_limit,
+                l1_batches.settlement_layer_type,
+                l1_batches.settlement_layer_chain_id
             FROM
                 miniblocks
             INNER JOIN l1_batch ON true

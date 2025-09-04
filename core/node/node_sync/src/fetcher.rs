@@ -1,16 +1,16 @@
-use super::{
-    metrics::{L1BatchStage, FETCHER_METRICS},
-    sync_action::SyncAction,
-};
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
-use zksync_types::settlement::SettlementLayer;
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, H256,
+    helpers::unix_timestamp_ms, settlement::SettlementLayer, Address, InteropRoot, L1BatchNumber,
+    L2BlockNumber, ProtocolVersionId, SLChainId, H256,
+};
+
+use super::{
+    metrics::{L1BatchStage, FETCHER_METRICS},
+    sync_action::SyncAction,
 };
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
@@ -57,6 +57,7 @@ pub struct FetchedBlock {
     pub pubdata_params: PubdataParams,
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 impl FetchedBlock {
@@ -110,6 +111,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             pubdata_params,
             pubdata_limit: block.pubdata_limit,
             interop_roots: block.interop_roots.clone().unwrap_or_default(),
+            settlement_layer: block.settlement_layer,
         })
     }
 }
@@ -186,8 +188,10 @@ impl IoCursorExt for IoCursor {
                     ),
                     pubdata_params: block.pubdata_params,
                     pubdata_limit: block.pubdata_limit,
-                    // TODO  use proper settlement layer
-                    settlement_layer: SettlementLayer::for_tests(),
+                    // TODO check this default
+                    settlement_layer: block
+                        .settlement_layer
+                        .unwrap_or(SettlementLayer::L1(SLChainId(10))),
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,
