@@ -148,7 +148,7 @@ impl WiringLayer for MempoolIOLayer {
             self.zksync_network_id,
             input.l2_contracts.0.da_validator_addr,
             self.pubdata_type,
-            input.settlement_mode.settlement_layer_for_sending_txs(),
+            input.settlement_mode.settlement_layer(),
         )?;
 
         // Create sealer.

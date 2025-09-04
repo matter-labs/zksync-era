@@ -247,8 +247,7 @@ impl Snapshot {
             l1_batch.0.into(),
             contracts.hashes(),
             protocol_version,
-            // TODO set proper settlement layer
-            SettlementLayer::L1(zksync_types::SLChainId(99)),
+            SettlementLayer::for_tests(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,

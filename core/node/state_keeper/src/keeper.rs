@@ -476,7 +476,7 @@ impl StateKeeperInner {
         tokio::select! {
             hash_result = self.io.load_batch_state_hash(cursor.l1_batch - 1) => {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
-                Ok(params.into_init_params(self.io.chain_id(), contracts, cursor, previous_batch_hash, self.settlement_layer))
+                Ok(params.into_init_params(self.io.chain_id(), contracts, cursor, previous_batch_hash))
             }
             _ = stop_receiver.changed() => Err(OrStopped::Stopped),
         }
