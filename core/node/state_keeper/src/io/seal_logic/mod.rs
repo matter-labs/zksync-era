@@ -134,6 +134,7 @@ impl UpdatesManager {
             fee_address: self.fee_account_address(),
             batch_fee_input: self.batch_fee_input(),
             pubdata_limit: self.pubdata_limit(),
+            settlement_layer: self.settlement_layer(),
         };
 
         let final_bootloader_memory = finished_batch
@@ -406,7 +407,6 @@ impl L2BlockSealCommand {
                 logs_bloom,
                 pubdata_params: self.pubdata_params,
                 rolling_txs_hash: Some(self.rolling_txs_hash),
-                settlement_layer: self.settlement_layer,
             };
 
             let mut connection = strategy.connection().await?;

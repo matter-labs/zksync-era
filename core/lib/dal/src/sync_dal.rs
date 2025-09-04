@@ -138,6 +138,7 @@ impl SyncDal<'_, '_> {
 mod tests {
     use zksync_types::{
         block::{L1BatchHeader, L2BlockHeader},
+        settlement::SettlementLayer,
         Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
@@ -170,6 +171,7 @@ mod tests {
             0,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
@@ -318,6 +320,7 @@ mod tests {
             100,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_l1_batch(l1_batch_header.to_unsealed_header())
