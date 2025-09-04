@@ -3,7 +3,7 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
-use zkstack_cli_config::{get_link_to_prover, EcosystemConfig};
+use zkstack_cli_config::{get_link_to_prover, ZkStackConfig, ZkStackConfigTrait};
 
 use crate::{
     commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
@@ -15,7 +15,8 @@ use crate::{
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
+    let link_to_prover = get_link_to_prover(&ecosystem_config.link_to_code());
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
@@ -26,8 +27,7 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         let proof_compressor_setup_path = general_config
             .proof_compressor_setup_path()
             .context(MSG_SETUP_KEY_PATH_ERROR)?;
-        let prover_path = get_link_to_prover(&ecosystem_config);
-        let proof_compressor_setup_path = prover_path.join(proof_compressor_setup_path);
+        let proof_compressor_setup_path = link_to_prover.join(proof_compressor_setup_path);
 
         if proof_compressor_setup_path.exists() {
             logger::info(format!(
@@ -51,7 +51,6 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
             ));
         }
 
-        let link_to_prover = get_link_to_prover(&ecosystem_config);
         shell.change_dir(&link_to_prover);
 
         let spinner = Spinner::new(MSG_GENERATING_SK_SPINNER);
@@ -74,9 +73,8 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
     } else {
         check_prerequisites(shell, &GCLOUD_PREREQUISITE, false);
 
-        let link_to_setup_keys = get_link_to_prover(&ecosystem_config).join("data/keys");
-        let path_to_keys_buckets =
-            get_link_to_prover(&ecosystem_config).join("setup-data-gpu-keys.json");
+        let link_to_setup_keys = link_to_prover.join("data/keys");
+        let path_to_keys_buckets = link_to_prover.join("setup-data-gpu-keys.json");
 
         let region = args.region.expect("Region is not provided");
 

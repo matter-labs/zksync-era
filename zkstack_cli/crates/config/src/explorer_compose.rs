@@ -20,7 +20,7 @@ use crate::{
         EXPLORER_WORKER_DOCKER_IMAGE, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH,
     },
     docker_compose::{DockerComposeConfig, DockerComposeService},
-    traits::ZkStackConfig,
+    traits::FileConfigTrait,
     EXPLORER_API_DOCKER_IMAGE_TAG, EXPLORER_API_PRIVIDIUM_DOCKER_IMAGE_TAG,
     EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL, EXPLORER_DATA_FETCHER_DOCKER_IMAGE_TAG,
     EXPLORER_DATA_FETCHER_PRIVIDIUM_DOCKER_IMAGE_TAG, EXPLORER_WORKER_DOCKER_IMAGE_TAG,
@@ -112,7 +112,7 @@ pub struct ExplorerBackendComposeConfig {
     pub docker_compose: DockerComposeConfig,
 }
 
-impl ZkStackConfig for ExplorerBackendComposeConfig {}
+impl FileConfigTrait for ExplorerBackendComposeConfig {}
 
 impl ExplorerBackendComposeConfig {
     const API_NAME: &'static str = "api";

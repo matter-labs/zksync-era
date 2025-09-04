@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use url::Url;
 use xshell::Shell;
-use zkstack_cli_config::{EcosystemConfig, SecretsConfig};
+use zkstack_cli_config::{SecretsConfig, ZkStackConfig};
 
-use super::{commands::database::args::DalUrls, messages::MSG_CHAIN_NOT_FOUND_ERR};
+use super::commands::database::args::DalUrls;
 
 pub const CORE_DAL_PATH: &str = "core/lib/dal";
 pub const PROVER_DAL_PATH: &str = "prover/crates/lib/prover_dal";
@@ -77,9 +77,6 @@ pub async fn get_core_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<
 }
 
 async fn get_secrets(shell: &Shell) -> anyhow::Result<SecretsConfig> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    chain_config.get_secrets_config().await
+    let chain = ZkStackConfig::current_chain(shell)?;
+    chain.get_secrets_config().await
 }
