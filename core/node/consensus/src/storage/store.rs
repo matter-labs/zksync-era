@@ -54,6 +54,8 @@ fn to_fetched_block(
             .collect(),
         pubdata_limit: payload.pubdata_limit,
         interop_roots: payload.interop_roots.clone(),
+        // TODO fix conensus
+        settlement_layer: None,
     })
 }
 

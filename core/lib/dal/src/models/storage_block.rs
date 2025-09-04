@@ -735,7 +735,7 @@ impl From<StoragePubdataParams> for PubdataParams {
     }
 }
 
-fn to_settlement_layer(
+pub(crate) fn to_settlement_layer(
     settlement_layer_type: Option<String>,
     settlement_layer_chain_id: Option<i64>,
 ) -> SettlementLayer {
