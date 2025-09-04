@@ -7,7 +7,7 @@ use zksync_basic_types::H160;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
-    commands::ecosystem::args::init::{EcosystemArgs, EcosystemArgsFinal, EcosystemInitArgsFinal},
+    commands::ecosystem::args::init::{EcosystemArgs, EcosystemArgsFinal},
     messages::{MSG_BRIDGEHUB, MSG_DEV_ARG_HELP, MSG_ZKSYNC_OS},
 };
 
@@ -52,16 +52,6 @@ pub struct RegisterCTMArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub update_submodules: Option<bool>,
-}
-
-impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
-    fn from(args: EcosystemInitArgsFinal) -> Self {
-        RegisterCTMArgsFinal {
-            ecosystem: args.ecosystem,
-            forge_args: args.forge_args,
-            update_submodules: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -135,18 +125,4 @@ pub struct InitNewCTMArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
     pub zksync_os: bool,
-}
-
-impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
-    fn from(args: EcosystemInitArgsFinal) -> Self {
-        InitNewCTMArgsFinal {
-            ecosystem: args.ecosystem,
-            forge_args: args.forge_args,
-            update_submodules: None,
-            skip_contract_compilation_override: args.skip_contract_compilation_override,
-            support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
-            bridgehub_address: args.bridgehub_address,
-            zksync_os: args.zksync_os,
-        }
-    }
 }

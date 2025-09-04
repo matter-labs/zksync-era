@@ -27,9 +27,8 @@ use super::{
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::{
-            commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm},
-            RegisterCTMArgsFinal,
+        ctm::commands::{
+            init_new_ctm::deploy_new_ctm_and_accept_admin, register_ctm::register_ctm,
         },
         ecosystem::{
             common::deploy_l1_core_contracts,
@@ -102,7 +101,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 async fn init_ecosystem(
-    init_args: &mut EcosystemInitArgsFinal,
+    init_args: &EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
@@ -119,7 +118,7 @@ async fn init_ecosystem(
 
     let mut contracts = deploy_ecosystem(
         shell,
-        &mut init_args.ecosystem,
+        &init_args.ecosystem,
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
@@ -129,9 +128,9 @@ async fn init_ecosystem(
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-    contracts = deploy_new_ctm(
+    contracts = deploy_new_ctm_and_accept_admin(
         shell,
-        &mut init_args.ecosystem,
+        &init_args.ecosystem,
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
@@ -144,15 +143,22 @@ async fn init_ecosystem(
 
     let forge_args = init_args.forge_args.clone();
 
-    let mut reg_args = RegisterCTMArgsFinal::from((*init_args).clone());
-    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config).await?;
+    register_ctm(
+        shell,
+        &forge_args,
+        &ecosystem_config,
+        &init_args.ecosystem.l1_rpc_url,
+        None,
+        true,
+    )
+    .await?;
 
     Ok(contracts)
 }
 
 async fn deploy_ecosystem(
     shell: &Shell,
-    ecosystem: &mut EcosystemArgsFinal,
+    ecosystem: &EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,

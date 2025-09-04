@@ -27,7 +27,7 @@ use zkstack_cli_types::{L1Network, ProverMode};
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::args::{InitNewCTMArgs, InitNewCTMArgsFinal},
+        ctm::args::InitNewCTMArgs,
         ecosystem::{
             args::init::EcosystemArgsFinal, create_configs::create_initial_deployments_config,
         },
@@ -56,32 +56,15 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut init_ctm_args = args
+    let init_ctm_args = args
         .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
     logger::info(MSG_INITIALIZING_CTM);
 
-    init_ctm(
-        &mut init_ctm_args,
-        shell,
-        &ecosystem_config,
-        &initial_deployment_config,
-    )
-    .await?;
-
-    Ok(())
-}
-
-async fn init_ctm(
-    init_args: &mut InitNewCTMArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    if !init_args.skip_contract_compilation_override {
+    if !init_ctm_args.skip_contract_compilation_override {
         install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
         build_da_contracts(shell, &ecosystem_config.contracts_path())?;
         build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
@@ -90,25 +73,25 @@ async fn init_ctm(
     }
     spinner.finish();
 
-    let contracts = deploy_new_ctm(
+    let contracts = deploy_new_ctm_and_accept_admin(
         shell,
-        &mut init_args.ecosystem,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        initial_deployment_config,
-        init_args.support_l2_legacy_shared_bridge_test,
-        init_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
-        init_args.zksync_os,
+        &init_ctm_args.ecosystem,
+        init_ctm_args.forge_args.clone(),
+        &ecosystem_config,
+        &initial_deployment_config,
+        init_ctm_args.support_l2_legacy_shared_bridge_test,
+        init_ctm_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
+        init_ctm_args.zksync_os,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-    Ok(contracts)
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn deploy_new_ctm(
+pub async fn deploy_new_ctm_and_accept_admin(
     shell: &Shell,
-    ecosystem: &mut EcosystemArgsFinal,
+    ecosystem: &EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
@@ -118,7 +101,7 @@ pub async fn deploy_new_ctm(
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1(
+    let contracts_config = deploy_new_ctm(
         shell,
         &forge_args,
         ecosystem_config,
@@ -163,7 +146,7 @@ pub async fn deploy_new_ctm(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn deploy_l1(
+pub async fn deploy_new_ctm(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -175,7 +158,8 @@ pub async fn deploy_l1(
     bridgehub_address: Option<H160>,
     zksync_os: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
+    let deploy_config_path =
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -198,7 +182,7 @@ pub async fn deploy_l1(
         .encode("runWithBridgehub", (bridgehub_address.unwrap_or_default(),)) // Script works with zero address
         .unwrap();
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
@@ -228,7 +212,7 @@ pub async fn deploy_l1(
 
     let script_output = DeployL1Output::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_l1_foundry()),
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);

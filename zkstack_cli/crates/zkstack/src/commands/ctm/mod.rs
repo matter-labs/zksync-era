@@ -4,7 +4,6 @@ pub(crate) mod commands;
 use clap::Subcommand;
 use xshell::Shell;
 
-pub use crate::commands::ctm::args::RegisterCTMArgsFinal;
 use crate::commands::ctm::{
     args::{InitNewCTMArgs, RegisterCTMArgs},
     commands::{init_new_ctm, register_ctm},

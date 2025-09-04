@@ -10,7 +10,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1Network;
 
 use crate::{
-    commands::ctm::args::{RegisterCTMArgs, RegisterCTMArgsFinal},
+    commands::ctm::args::RegisterCTMArgs,
     messages::MSG_REGISTERING_CTM,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -22,37 +22,18 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         git::submodule_update(shell, &ecosystem_config.link_to_code())?;
     }
 
-    let mut final_ecosystem_args = args
+    let final_ecosystem_args = args
         .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
     logger::info(MSG_REGISTERING_CTM);
 
-    let forge_args = final_ecosystem_args.forge_args.clone();
-
     register_ctm(
-        &mut final_ecosystem_args,
         shell,
-        forge_args,
+        &final_ecosystem_args.forge_args,
         &ecosystem_config,
-    )
-    .await?;
-
-    Ok(())
-}
-
-pub async fn register_ctm(
-    init_args: &mut RegisterCTMArgsFinal,
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    register_ctm_on_existing_bh(
-        shell,
-        &forge_args,
-        ecosystem_config,
-        &init_args.ecosystem.l1_rpc_url,
+        &final_ecosystem_args.ecosystem.l1_rpc_url,
         None,
         true,
     )
@@ -61,7 +42,7 @@ pub async fn register_ctm(
     Ok(())
 }
 
-pub async fn register_ctm_on_existing_bh(
+pub async fn register_ctm(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -71,7 +52,7 @@ pub async fn register_ctm_on_existing_bh(
 ) -> anyhow::Result<()> {
     let wallets_config = config.get_wallets()?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());

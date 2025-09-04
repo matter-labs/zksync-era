@@ -12,7 +12,7 @@ use super::{
     create_configs::create_initial_deployments_config,
 };
 use crate::{
-    commands::ctm::commands::init_new_ctm::deploy_l1,
+    commands::ctm::commands::init_new_ctm::deploy_new_ctm,
     messages::{
         MSG_BUILDING_ECOSYSTEM, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_TXN_OUTRO,
         MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR, MSG_INTALLING_DEPS_SPINNER,
@@ -46,7 +46,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1(
+    let contracts_config = deploy_new_ctm(
         shell,
         &args.forge_args,
         &ecosystem_config,
