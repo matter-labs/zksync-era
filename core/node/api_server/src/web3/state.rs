@@ -400,13 +400,18 @@ impl RpcState {
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<BlockArgs, Web3Error> {
-        BlockArgs::new(connection, block, &self.start_info)
-            .await
-            .map_err(|err| match err {
-                BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
-                BlockArgsError::Missing => Web3Error::NoBlock,
-                BlockArgsError::Database(err) => Web3Error::InternalError(err),
-            })
+        BlockArgs::new(
+            connection,
+            block,
+            &self.start_info,
+            self.api_config.settlement_layer.unwrap(),
+        )
+        .await
+        .map_err(|err| match err {
+            BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
+            BlockArgsError::Missing => Web3Error::NoBlock,
+            BlockArgsError::Database(err) => Web3Error::InternalError(err),
+        })
     }
 
     pub async fn resolve_filter_block_number(

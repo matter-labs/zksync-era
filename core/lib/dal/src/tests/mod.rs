@@ -57,7 +57,6 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         logs_bloom: Default::default(),
         pubdata_params: PubdataParams::default(),
         rolling_txs_hash: Some(H256::zero()),
-        // settlement_layer: SettlementLayer::L1(SLChainId(49)),
     }
 }
 

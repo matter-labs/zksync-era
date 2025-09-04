@@ -266,7 +266,11 @@ impl UnstableNamespace {
         tx_bytes: Bytes,
     ) -> Result<TransactionDetailedResult, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.unwrap(),
+        )
+        .await?;
         drop(connection);
         let (mut tx, tx_hash) = self
             .state
