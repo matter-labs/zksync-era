@@ -1,6 +1,4 @@
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract, types::H160};
-use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
@@ -19,7 +17,7 @@ use zkstack_cli_config::{
         },
         script_params::{
             DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS, DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
-            DEPLOY_ERC20_SCRIPT_PARAMS, REGISTER_CTM_SCRIPT_PARAMS,
+            DEPLOY_ERC20_SCRIPT_PARAMS,
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
@@ -33,87 +31,6 @@ use crate::{
     messages::{msg_chain_load_err, msg_initializing_chain, MSG_DEPLOYING_ERC20_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
-
-lazy_static! {
-    static ref DEPLOY_L1_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&["function runWithBridgehub(address bridgehub) public",]).unwrap(),
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn deploy_l1(
-    shell: &Shell,
-    forge_args: &ForgeScriptArgs,
-    config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    l1_rpc_url: &str,
-    sender: Option<String>,
-    broadcast: bool,
-    support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: Option<H160>,
-    zksync_os: bool,
-) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path =
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
-    let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
-    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
-
-    let wallets_config = config.get_wallets()?;
-    // For deploying ecosystem we only need genesis batch params
-    let deploy_config = DeployL1Config::new(
-        &default_genesis_input,
-        &wallets_config,
-        initial_deployment_config,
-        config.era_chain_id,
-        config.prover_version == ProverMode::NoProofs,
-        config.l1_network,
-        support_l2_legacy_shared_bridge_test,
-        zksync_os,
-    );
-    deploy_config.save(shell, deploy_config_path)?;
-
-    let calldata = DEPLOY_L1_FUNCTIONS
-        .encode("runWithBridgehub", (bridgehub_address.unwrap_or_default(),)) // Script works with zero address
-        .unwrap();
-
-    let mut forge = Forge::new(&config.path_to_foundry_scripts())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_calldata(&calldata)
-        .with_rpc_url(l1_rpc_url.to_string());
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
-
-    if let Some(address) = sender {
-        forge = forge.with_sender(address);
-    } else {
-        forge = fill_forge_private_key(
-            forge,
-            wallets_config.deployer.as_ref(),
-            WalletOwner::Deployer,
-        )?;
-    }
-
-    if broadcast {
-        forge = forge.with_broadcast();
-        check_the_balance(&forge).await?;
-    }
-
-    forge.run(shell)?;
-
-    let script_output = DeployL1Output::read(
-        shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
-    )?;
-    let mut contracts_config = ContractsConfig::default();
-    contracts_config.update_from_l1_output(&script_output);
-
-    Ok(contracts_config)
-}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn deploy_l1_core_contracts(
@@ -185,43 +102,6 @@ pub async fn deploy_l1_core_contracts(
     contracts_config.update_from_l1_output(&script_output);
 
     Ok(contracts_config)
-}
-
-pub async fn register_ctm_on_existing_bh(
-    shell: &Shell,
-    forge_args: &ForgeScriptArgs,
-    config: &EcosystemConfig,
-    l1_rpc_url: &str,
-    sender: Option<String>,
-    broadcast: bool,
-) -> anyhow::Result<()> {
-    let wallets_config = config.get_wallets()?;
-
-    let mut forge = Forge::new(&config.path_to_foundry_scripts())
-        .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url.to_string());
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
-
-    if let Some(address) = sender {
-        forge = forge.with_sender(address);
-    } else {
-        forge =
-            fill_forge_private_key(forge, Some(&wallets_config.governor), WalletOwner::Governor)?;
-    }
-
-    if broadcast {
-        forge = forge.with_broadcast();
-        check_the_balance(&forge).await?;
-    }
-
-    forge.run(shell)?;
-
-    Ok(())
 }
 
 pub async fn deploy_erc20(

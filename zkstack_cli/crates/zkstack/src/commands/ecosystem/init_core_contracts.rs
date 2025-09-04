@@ -1,7 +1,10 @@
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
     forge::ForgeScriptArgs,
     git, logger,
     spinner::Spinner,
@@ -12,10 +15,7 @@ use zkstack_cli_config::{
     ZkStackConfigTrait,
 };
 
-use super::{
-    args::init::EcosystemArgsFinal,
-    utils::{build_da_contracts, install_yarn_dependencies},
-};
+use super::args::init::EcosystemArgsFinal;
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::ecosystem::{

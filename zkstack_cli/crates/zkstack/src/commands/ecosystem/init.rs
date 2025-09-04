@@ -3,7 +3,10 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
     forge::ForgeScriptArgs,
     git, logger,
     spinner::Spinner,
@@ -17,20 +20,21 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1Network;
 
 use super::{
-    args::init::{
-        EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal, RegisterCTMArgsFinal,
-    },
+    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::{deploy_erc20, init_chains},
     setup_observability,
-    utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
     admin_functions::{accept_admin, accept_owner},
-    commands::ecosystem::{
-        common::deploy_l1_core_contracts,
-        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        init_new_ctm::deploy_new_ctm,
-        register_ctm::register_ctm,
+    commands::{
+        ctm::{
+            commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm},
+            RegisterCTMArgsFinal,
+        },
+        ecosystem::{
+            common::deploy_l1_core_contracts,
+            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
+        },
     },
     messages::{
         msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
