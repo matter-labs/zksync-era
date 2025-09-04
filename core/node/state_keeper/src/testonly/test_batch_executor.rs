@@ -820,6 +820,7 @@ impl StateKeeperIO for TestIO {
             first_l2_block: L2BlockParams::new(self.timestamp * 1000),
             pubdata_params: Default::default(),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
