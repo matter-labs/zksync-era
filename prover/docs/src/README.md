@@ -13,4 +13,5 @@ It does not cover topics such as basics of ZK or production deployment for prove
 - [Workspace setup](02_setup.md)
 - [Running prover subsystem](03_launch.md)
 - [Proof generation flow](04_flow.md)
+- [Protocol compatibility matrix](06_compatibility_matrix.md)
 - [Further reading](99_further_reading.md)
