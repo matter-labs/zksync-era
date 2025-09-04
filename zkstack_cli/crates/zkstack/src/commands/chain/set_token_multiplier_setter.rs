@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
@@ -9,15 +11,15 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig,
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 use zksync_basic_types::Address;
 
 use crate::{
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
-        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -32,10 +34,7 @@ lazy_static! {
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let token_multiplier_setter_address = chain_config
@@ -48,7 +47,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
     set_token_multiplier_setter(
         shell,
-        &ecosystem_config,
+        chain_config.path_to_foundry_scripts(),
         &chain_config.get_wallets_config()?.governor,
         contracts_config
             .l1
@@ -74,7 +73,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn set_token_multiplier_setter(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    foundry_contracts_path: PathBuf,
     governor: &Wallet,
     access_control_restriction_address: Address,
     diamond_proxy_address: Address,
@@ -100,7 +99,6 @@ pub async fn set_token_multiplier_setter(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),

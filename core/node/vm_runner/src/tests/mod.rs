@@ -338,7 +338,7 @@ async fn store_l1_batches(
             .collect();
 
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default())
+            .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default(), 1)
             .await?;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)

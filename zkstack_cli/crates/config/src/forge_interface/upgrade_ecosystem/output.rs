@@ -2,7 +2,7 @@ use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::web3::Bytes;
 
-use crate::traits::{FileConfigWithDefaultName, ZkStackConfig};
+use crate::traits::{FileConfigTrait, FileConfigWithDefaultName};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EcosystemUpgradeOutput {
@@ -111,4 +111,4 @@ pub struct GovernanceCalls {
     pub stage2_calls: Bytes,
 }
 
-impl ZkStackConfig for EcosystemUpgradeOutput {}
+impl FileConfigTrait for EcosystemUpgradeOutput {}

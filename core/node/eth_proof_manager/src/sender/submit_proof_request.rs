@@ -12,6 +12,7 @@ use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::{
     client::EthProofManagerClient,
+    metrics::{TxType, METRICS},
     types::{ProofRequestIdentifier, ProofRequestParams},
 };
 
@@ -72,12 +73,7 @@ impl ProofRequestSubmitter {
         if let Some(batch_id) = batch_id {
             match self.submit_request(batch_id).await {
                 Ok(_) => {
-                    self.connection_pool
-                        .connection()
-                        .await?
-                        .eth_proof_manager_dal()
-                        .fallback_batch(batch_id)
-                        .await?;
+                    tracing::info!("Submitted proof request for batch {}", batch_id);
                 }
                 Err(e) => {
                     tracing::error!(
@@ -85,6 +81,7 @@ impl ProofRequestSubmitter {
                         batch_id,
                         e
                     );
+                    METRICS.fallbacked_batches.inc();
                     self.connection_pool
                         .connection()
                         .await?
@@ -151,31 +148,36 @@ impl ProofRequestSubmitter {
             max_reward: self.config.max_reward,
         };
 
-        let tx_hash = self
+        match self
             .client
             .submit_proof_request(proof_request_identifier, proof_request_parameters)
             .await
-            .map_err(|e| {
-                anyhow::anyhow!(
+        {
+            Ok(tx_hash) => {
+                self.connection_pool
+                    .connection()
+                    .await?
+                    .eth_proof_manager_dal()
+                    .mark_batch_as_sent(batch_id, tx_hash)
+                    .await?;
+
+                tracing::info!(
+                    "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
+                    proof_generation_data.l1_batch_number,
+                    proof_generation_data.chain_id,
+                    tx_hash
+                );
+            }
+            Err(e) => {
+                METRICS.failed_to_send_tx[&TxType::ProofRequest].inc();
+                return Err(anyhow::anyhow!(
                     "Failed to submit proof request for batch {}, error: {}",
                     batch_id,
                     e
-                )
-            })?;
+                ));
+            }
+        }
 
-        self.connection_pool
-            .connection()
-            .await?
-            .eth_proof_manager_dal()
-            .mark_batch_as_sent(batch_id, tx_hash)
-            .await?;
-
-        tracing::info!(
-            "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
-            proof_generation_data.l1_batch_number,
-            proof_generation_data.chain_id,
-            tx_hash
-        );
         Ok(())
     }
 }

@@ -7,10 +7,12 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_resources::{api::SyncState, contracts::L1ChainContractsResource};
+use zksync_shared_resources::{
+    api::SyncState, contracts::L1ChainContractsResource, L1BatchCommitmentModeResource,
+};
 use zksync_state_keeper::{
     node::StateKeeperIOResource,
-    seal_criteria::{ConditionalSealer, NoopSealer},
+    seal_criteria::{ConditionalSealer, NoopSealer, PanicSealer},
 };
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, L1, L2};
@@ -22,6 +24,7 @@ use crate::{external_io::PriorityTxVerifierL1, ActionQueue, ExternalIO};
 #[derive(Debug)]
 pub struct ExternalIOLayer {
     chain_id: L2ChainId,
+    should_verify_seal_criteria: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -31,6 +34,7 @@ pub struct Input {
     main_node_client: Box<DynClient<L2>>,
     l1_node: Box<DynClient<L1>>,
     l1_chain_contracts_resource: L1ChainContractsResource,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -42,8 +46,11 @@ pub struct Output {
 }
 
 impl ExternalIOLayer {
-    pub fn new(chain_id: L2ChainId) -> Self {
-        Self { chain_id }
+    pub fn new(chain_id: L2ChainId, should_verify_seal_criteria: bool) -> Self {
+        Self {
+            chain_id,
+            should_verify_seal_criteria,
+        }
     }
 }
 
@@ -88,7 +95,13 @@ impl WiringLayer for ExternalIOLayer {
         .context("Failed initializing I/O for external node state keeper")?;
 
         // Create sealer.
-        let sealer = Arc::new(NoopSealer);
+        let sealer: Arc<dyn ConditionalSealer> = if self.should_verify_seal_criteria {
+            Arc::new(PanicSealer::new(
+                input.l1_batch_commit_data_generator_mode.0,
+            ))
+        } else {
+            Arc::new(NoopSealer)
+        };
 
         Ok(Output {
             sync_state,
