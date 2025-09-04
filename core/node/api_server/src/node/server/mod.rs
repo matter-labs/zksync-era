@@ -193,9 +193,7 @@ impl WiringLayer for Web3ServerLayer {
             &l1_contracts,
             &input.l1_ecosystem_contracts.0,
             &input.l2_contracts.0,
-            input
-                .initial_settlement_mode
-                .settlement_layer_for_sending_txs(),
+            input.initial_settlement_mode.settlement_layer(),
             input.dummy_verifier.0,
             input.l1batch_commitment_mode.0,
         );
