@@ -126,7 +126,6 @@ pub struct L1TxCommonData {
     /// The recipient of the refund of the transaction
     pub refund_recipient: Address,
 
-    // DEPRECATED.
     pub eth_block: u64,
 }
 
@@ -208,6 +207,12 @@ pub struct L1Tx {
     pub execute: Execute,
     pub common_data: L1TxCommonData,
     pub received_timestamp_ms: u64,
+}
+
+impl PartialEq for L1Tx {
+    fn eq(&self, other: &Self) -> bool {
+        self.execute == other.execute && self.common_data == other.common_data
+    }
 }
 
 impl HashEmptySubtree<L1Tx> for KeccakHasher {
@@ -348,7 +353,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
             gas_per_pubdata_limit: req.transaction.gas_per_pubdata_byte_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
-            // DEPRECATED.
+            // It set inside log convertion
             eth_block: 0,
         };
 
@@ -373,7 +378,6 @@ impl TryFrom<Log> for L1Tx {
         let mut tx: L1Tx = abi::NewPriorityRequest::decode(&event.data.0)?
             .try_into()
             .map_err(|err| L1TxParseError::from(ethabi::Error::Other(format!("{err:#}").into())))?;
-        // TODO (PLA-962): start setting it to 0 for all new transactions.
         tx.common_data.eth_block = event
             .block_number
             .expect("Event block number is missing")

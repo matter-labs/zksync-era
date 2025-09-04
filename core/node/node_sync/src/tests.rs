@@ -22,6 +22,7 @@ use zksync_types::{
     api,
     block::{L2BlockHasher, UnsealedL1BatchHeader},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    l1::L1Tx,
     snapshots::SnapshotRecoveryStatus,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
@@ -29,6 +30,7 @@ use zksync_types::{
 use super::{
     fetcher::FetchedTransaction, sync_action::SyncAction, testonly::MockMainNodeClient, *,
 };
+use crate::external_io::{PriorityTransactionVerificationError, PriorityTransactionVerifier};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -90,6 +92,20 @@ impl MockMainNodeClient {
 }
 
 #[derive(Debug)]
+struct MockPriorityTransactionVerifier;
+
+#[async_trait::async_trait]
+impl PriorityTransactionVerifier for MockPriorityTransactionVerifier {
+    async fn verify_transaction(
+        &self,
+        _tx: &L1Tx,
+        _protocol_version_id: ProtocolVersionId,
+    ) -> Result<(), PriorityTransactionVerificationError> {
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub(super) struct StateKeeperHandles {
     pub stop_sender: watch::Sender<bool>,
     pub sync_state: SyncState,
@@ -123,6 +139,7 @@ impl StateKeeperHandles {
             actions,
             Box::new(main_node_client),
             L2ChainId::default(),
+            Box::new(MockPriorityTransactionVerifier),
         )
         .unwrap();
 

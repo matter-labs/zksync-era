@@ -21,6 +21,7 @@ pub use zksync_crypto_primitives::*;
 
 pub use crate::{interop_root::InteropRoot, Nonce, H256, U256, U64};
 use crate::{
+    l1::L1Tx,
     l2::{L2Tx, TransactionType},
     protocol_upgrade::ProtocolUpgradeTxCommonData,
 };
@@ -230,6 +231,17 @@ impl Transaction {
             paymaster_input_len as u64,
             0,
         )
+    }
+
+    pub fn l1_tx(&self) -> Option<L1Tx> {
+        match &self.common_data {
+            ExecuteTransactionCommon::L1(data) => Some(L1Tx {
+                common_data: data.clone(),
+                execute: self.execute.clone(),
+                received_timestamp_ms: self.received_timestamp_ms,
+            }),
+            _ => None,
+        }
     }
 }
 
