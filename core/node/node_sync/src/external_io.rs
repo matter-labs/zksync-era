@@ -18,6 +18,7 @@ use zksync_types::{
     block::UnsealedL1BatchHeader,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
+    settlement::SettlementLayer,
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
@@ -322,6 +323,8 @@ impl StateKeeperIO for ExternalIO {
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
                         pubdata_limit: params.pubdata_limit,
+                        // TODO set proper sl
+                        settlement_layer: SettlementLayer::for_tests(),
                     })
                     .await?;
                 Ok(Some(params))

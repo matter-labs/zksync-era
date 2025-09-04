@@ -671,6 +671,10 @@ impl MempoolIO {
                     fee_address: self.fee_account,
                     fee_input: self.filter.fee_input,
                     pubdata_limit,
+                    // TODO set correct sl when none
+                    settlement_layer: self
+                        .settlement_layer
+                        .unwrap_or(SettlementLayer::for_tests()),
                 })
                 .await?;
 

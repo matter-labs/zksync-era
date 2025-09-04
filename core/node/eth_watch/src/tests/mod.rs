@@ -888,6 +888,7 @@ async fn setup_batch_roots(
             i as u64,
             Default::default(),
             (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            SettlementLayer::for_tests(),
         );
         connection
             .blocks_dal()

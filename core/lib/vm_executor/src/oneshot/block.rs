@@ -151,7 +151,8 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
-            settlement_layer: l2_block_header.settlement_layer,
+            // TODO set proper settlement layer
+            settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(99)),
         })
     }
 

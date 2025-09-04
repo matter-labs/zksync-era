@@ -374,7 +374,6 @@ impl UpdatesManager {
             logs_bloom,
             pubdata_params: self.pubdata_params,
             rolling_txs_hash: Some(self.rolling_tx_hash_updates.rolling_hash),
-            settlement_layer: self.settlement_layer,
         }
     }
 
@@ -437,6 +436,10 @@ impl UpdatesManager {
 impl UpdatesManager {
     pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
+    }
+
+    pub fn settlement_layer(&self) -> SettlementLayer {
+        self.settlement_layer
     }
 
     pub fn previous_batch_protocol_version(&self) -> ProtocolVersionId {

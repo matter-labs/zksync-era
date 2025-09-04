@@ -13,7 +13,6 @@ use zksync_types::{
     api,
     block::L2BlockHeader,
     bytecode::{BytecodeHash, BytecodeMarker},
-    settlement::SettlementLayer,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
@@ -186,7 +185,6 @@ pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHea
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
         rolling_txs_hash: Some(H256::zero()),
-        settlement_layer: SettlementLayer::for_tests(),
     }
 }
 

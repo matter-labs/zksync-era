@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit,\n                settlement_layer_type,\n                settlement_layer_chain_id\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -97,6 +97,16 @@
         "ordinal": 18,
         "name": "pubdata_limit",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "settlement_layer_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "settlement_layer_chain_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -123,8 +133,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "653ede3029966b6b2e66c341adb43def1f0043efd4fd086261c940a7405bbf93"
+  "hash": "45e9184145f631d90d569d468494adda476573312021803ba6a46be0f8479f9e"
 }
