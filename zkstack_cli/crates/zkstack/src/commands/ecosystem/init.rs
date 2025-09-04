@@ -3,7 +3,10 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
     forge::ForgeScriptArgs,
     git, logger,
     spinner::Spinner,
@@ -17,20 +20,20 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1Network;
 
 use super::{
-    args::init::{
-        EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal, RegisterCTMArgsFinal,
-    },
+    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::{deploy_erc20, init_chains},
     setup_observability,
-    utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
     admin_functions::{accept_admin, accept_owner},
-    commands::ecosystem::{
-        common::deploy_l1_core_contracts,
-        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        init_new_ctm::deploy_new_ctm,
-        register_ctm::register_ctm,
+    commands::{
+        ctm::commands::{
+            init_new_ctm::deploy_new_ctm_and_accept_admin, register_ctm::register_ctm,
+        },
+        ecosystem::{
+            common::deploy_l1_core_contracts,
+            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
+        },
     },
     messages::{
         msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
@@ -98,7 +101,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 async fn init_ecosystem(
-    init_args: &mut EcosystemInitArgsFinal,
+    init_args: &EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
@@ -115,7 +118,7 @@ async fn init_ecosystem(
 
     let mut contracts = deploy_ecosystem(
         shell,
-        &mut init_args.ecosystem,
+        &init_args.ecosystem,
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
@@ -125,9 +128,9 @@ async fn init_ecosystem(
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-    contracts = deploy_new_ctm(
+    contracts = deploy_new_ctm_and_accept_admin(
         shell,
-        &mut init_args.ecosystem,
+        &init_args.ecosystem,
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
@@ -140,15 +143,22 @@ async fn init_ecosystem(
 
     let forge_args = init_args.forge_args.clone();
 
-    let mut reg_args = RegisterCTMArgsFinal::from((*init_args).clone());
-    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config).await?;
+    register_ctm(
+        shell,
+        &forge_args,
+        &ecosystem_config,
+        &init_args.ecosystem.l1_rpc_url,
+        None,
+        true,
+    )
+    .await?;
 
     Ok(contracts)
 }
 
 async fn deploy_ecosystem(
     shell: &Shell,
-    ecosystem: &mut EcosystemArgsFinal,
+    ecosystem: &EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
