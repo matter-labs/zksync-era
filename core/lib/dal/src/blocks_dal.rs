@@ -24,7 +24,6 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
-    settlement::SettlementLayer,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -35,8 +34,9 @@ use crate::{
     models::{
         parse_protocol_version,
         storage_block::{
-            CommonStorageL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
-            StoragePubdataParams, UnsealedStorageL1Batch,
+            from_settlement_layer, CommonStorageL1BatchHeader, StorageL1Batch,
+            StorageL1BatchHeader, StorageL2BlockHeader, StoragePubdataParams,
+            UnsealedStorageL1Batch,
         },
         storage_eth_tx::L2BlockWithEthTx,
         storage_event::StorageL2ToL1Log,
@@ -181,7 +181,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
+            
             FROM
                 l1_batches
             ORDER BY
@@ -218,7 +221,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
+            
             FROM
                 l1_batches
             WHERE number = $1
@@ -556,7 +562,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
+            
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -601,7 +610,9 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 l1_batches
             WHERE
@@ -947,6 +958,8 @@ impl BlocksDal<'_, '_> {
         unsealed_batch_header: UnsealedL1BatchHeader,
         conn: &mut Connection<'_, Core>,
     ) -> DalResult<()> {
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            from_settlement_layer(&unsealed_batch_header.settlement_layer);
         sqlx::query!(
             r#"
             INSERT INTO
@@ -967,7 +980,9 @@ impl BlocksDal<'_, '_> {
                 used_contract_hashes,
                 created_at,
                 updated_at,
-                is_sealed
+                is_sealed,
+                settlement_layer_type,
+                settlement_layer_chain_id
             )
             VALUES
             (
@@ -987,7 +1002,9 @@ impl BlocksDal<'_, '_> {
                 '{}'::jsonb,
                 NOW(),
                 NOW(),
-                FALSE
+                FALSE,
+                $9,
+                $10
             )
             "#,
             i64::from(unsealed_batch_header.number.0),
@@ -998,6 +1015,8 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
+            settlement_layer_type,
+            settlement_layer_chain_id as i32
         )
         .instrument("insert_l1_batch")
         .with_arg("number", &unsealed_batch_header.number)
@@ -1226,7 +1245,9 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM (
                 SELECT
                     number,
@@ -1237,7 +1258,9 @@ impl BlocksDal<'_, '_> {
                     l2_fair_gas_price,
                     fair_pubdata_price,
                     pubdata_limit,
-                    is_sealed
+                    is_sealed,
+                    settlement_layer_type,
+                    settlement_layer_chain_id
                 FROM l1_batches
                 ORDER BY number DESC
                 LIMIT 1
@@ -1263,12 +1286,6 @@ impl BlocksDal<'_, '_> {
                     anyhow::anyhow!("doesn't fit in u64"),
                 )
             })?;
-
-        let (settlement_layer_type, settlement_layer_chain_id) =
-            match l2_block_header.settlement_layer {
-                SettlementLayer::L1(chain_id) => ("L1", chain_id.0 as i64),
-                SettlementLayer::Gateway(chain_id) => ("Gateway", chain_id.0 as i64),
-            };
 
         let query = sqlx::query!(
             r#"
@@ -1296,9 +1313,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_type,
                 rolling_txs_hash,
                 created_at,
-                updated_at,
-                settlement_layer_type,
-                settlement_layer_chain_id
+                updated_at
             )
             VALUES
             (
@@ -1324,9 +1339,7 @@ impl BlocksDal<'_, '_> {
                 $20,
                 $21,
                 NOW(),
-                NOW(),
-                $22,
-                $23
+                NOW()
             )
             "#,
             i64::from(l2_block_header.number.0),
@@ -1365,8 +1378,6 @@ impl BlocksDal<'_, '_> {
             l2_block_header
                 .rolling_txs_hash
                 .map(|h| h.as_bytes().to_vec()),
-            settlement_layer_type,
-            settlement_layer_chain_id
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1398,9 +1409,7 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash,
-                settlement_layer_type,
-                settlement_layer_chain_id
+                rolling_txs_hash
             FROM
                 miniblocks
             ORDER BY
@@ -1444,9 +1453,7 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
-                rolling_txs_hash,
-                settlement_layer_type,
-                settlement_layer_chain_id
+                rolling_txs_hash
             FROM
                 miniblocks
             WHERE
@@ -1684,7 +1691,9 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1945,7 +1954,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
+            
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2038,7 +2050,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
+            
             FROM
                 (
                     SELECT
@@ -2122,7 +2137,9 @@ impl BlocksDal<'_, '_> {
                         l1_gas_price,
                         l2_fair_gas_price,
                         fair_pubdata_price,
-                        pubdata_limit
+                        pubdata_limit,
+                        settlement_layer_chain_id,
+                        settlement_layer_type
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2295,7 +2312,9 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
-                    pubdata_limit
+                    pubdata_limit,
+                    settlement_layer_chain_id,
+                    settlement_layer_type
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2372,7 +2391,9 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2463,7 +2484,9 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

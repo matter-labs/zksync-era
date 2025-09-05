@@ -127,6 +127,7 @@ pub struct L1BatchParams {
     pub pubdata_params: PubdataParams,
     /// Pubdata limit for the batch. It's set only if protocol version >= v29.
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 #[derive(Debug)]
@@ -145,7 +146,6 @@ impl L1BatchParams {
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-        settlement_layer: SettlementLayer,
     ) -> BatchInitParams {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
@@ -160,7 +160,7 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
-            settlement_layer,
+            self.settlement_layer,
             self.first_l2_block.interop_roots.clone(),
         );
 

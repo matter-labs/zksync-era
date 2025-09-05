@@ -25,11 +25,15 @@ use super::{env::OneshotEnvParameters, ContractsKind};
 pub struct BlockInfo {
     resolved_block_number: L2BlockNumber,
     l1_batch_timestamp_s: Option<u64>,
+    settlement_layer: SettlementLayer,
 }
 
 impl BlockInfo {
     /// Fetches information for a pending block.
-    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    pub async fn pending(
+        connection: &mut Connection<'_, Core>,
+        settlement_layer: SettlementLayer,
+    ) -> anyhow::Result<Self> {
         let resolved_block_number = connection
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -39,6 +43,7 @@ impl BlockInfo {
         Ok(Self {
             resolved_block_number,
             l1_batch_timestamp_s: None,
+            settlement_layer,
         })
     }
 
@@ -58,9 +63,14 @@ impl BlockInfo {
             .await
             .map_err(DalError::generalize)?
             .context("missing timestamp for non-pending block")?;
+        let settlement_layer = connection
+            .blocks_web3_dal()
+            .get_expected_settlement_layer(&l1_batch)
+            .await?;
         Ok(Self {
             resolved_block_number: number,
             l1_batch_timestamp_s: Some(l1_batch_timestamp),
+            settlement_layer,
         })
     }
 
@@ -151,7 +161,7 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
-            settlement_layer: l2_block_header.settlement_layer,
+            settlement_layer: self.settlement_layer,
         })
     }
 

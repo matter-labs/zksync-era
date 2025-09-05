@@ -34,19 +34,20 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
         ArtifactInteropCenter.abi,
         wallet.providerL1!
     );
-    const assetTrackerAddress = await interopCenter.assetTracker();
+
     // console.log('assetTrackerAddress', assetTrackerAddress);
     const assetRouter = new zksync.Contract(
         await bridgehub.assetRouter(),
         ArtifactL1AssetRouter.abi,
         wallet.providerL1!
     );
-    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactL1AssetTracker.abi, wallet.providerL1!);
     const nativeTokenVault = new zksync.Contract(
         await assetRouter.nativeTokenVault(),
         ArtifactNativeTokenVault.abi,
         wallet.providerL1!
     );
+    const assetTrackerAddress = await nativeTokenVault.assetTracker();
+    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactL1AssetTracker.abi, wallet.providerL1!);
     return {
         bridgehub,
         assetRouter,

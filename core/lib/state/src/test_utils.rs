@@ -81,7 +81,6 @@ pub(crate) async fn create_l2_block(
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
         rolling_txs_hash: Some(H256::zero()),
-        settlement_layer: SettlementLayer::for_tests(),
     };
 
     conn.blocks_dal()
@@ -101,7 +100,13 @@ pub(crate) async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
+    let header = L1BatchHeader::new(
+        l1_batch_number,
+        0,
+        Default::default(),
+        Default::default(),
+        SettlementLayer::for_tests(),
+    );
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
         .await

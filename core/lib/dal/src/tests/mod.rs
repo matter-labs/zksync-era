@@ -16,7 +16,7 @@ use zksync_types::{
     settlement::SettlementLayer,
     snapshots::SnapshotRecoveryStatus,
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
-    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, SLChainId, H160, H256, U256,
+    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
 };
 use zksync_vm_interface::{
     tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
@@ -57,7 +57,6 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         logs_bloom: Default::default(),
         pubdata_params: PubdataParams::default(),
         rolling_txs_hash: Some(H256::zero()),
-        settlement_layer: SettlementLayer::L1(SLChainId(49)),
     }
 }
 
@@ -71,6 +70,7 @@ pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
             evm_emulator: Some(H256::repeat_byte(43)),
         },
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     )
 }
 

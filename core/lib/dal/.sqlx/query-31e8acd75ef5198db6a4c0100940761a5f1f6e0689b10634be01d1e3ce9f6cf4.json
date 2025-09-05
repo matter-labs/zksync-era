@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    l1_tx_count,\n                    l2_tx_count,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    commitment,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_merkle_root,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    evm_emulator_code_hash,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment,\n                    pubdata_input,\n                    fee_address,\n                    aggregation_root,\n                    local_root,\n                    state_diff_hash,\n                    data_availability.inclusion_data,\n                    l1_gas_price,\n                    l2_fair_gas_price,\n                    fair_pubdata_price,\n                    pubdata_limit,\n                    settlement_layer_chain_id,\n                    settlement_layer_type\n                FROM\n                    l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                LEFT JOIN\n                    data_availability\n                    ON data_availability.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
   "describe": {
     "columns": [
       {
@@ -115,13 +115,13 @@
       },
       {
         "ordinal": 22,
-        "name": "system_logs",
-        "type_info": "ByteaArray"
+        "name": "compressed_state_diffs",
+        "type_info": "Bytea"
       },
       {
         "ordinal": 23,
-        "name": "compressed_state_diffs",
-        "type_info": "Bytea"
+        "name": "system_logs",
+        "type_info": "ByteaArray"
       },
       {
         "ordinal": 24,
@@ -182,10 +182,22 @@
         "ordinal": 35,
         "name": "pubdata_limit",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 36,
+        "name": "settlement_layer_chain_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 37,
+        "name": "settlement_layer_type",
+        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
+        "Int8",
+        "Int8",
         "Int8"
       ]
     },
@@ -212,21 +224,23 @@
       true,
       true,
       true,
+      true,
+      false,
+      true,
+      true,
+      true,
       false,
       true,
       true,
       true,
       true,
       false,
-      true,
-      true,
-      true,
-      true,
       false,
       false,
-      false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "05bce0189aa53b121d31cc937ba459e07081269d1714411234271d9cdf5889f3"
+  "hash": "31e8acd75ef5198db6a4c0100940761a5f1f6e0689b10634be01d1e3ce9f6cf4"
 }
