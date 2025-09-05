@@ -94,7 +94,7 @@ export function getToken(
             baseToken = token;
         }
     }
-    return {token, baseToken};
+    return { token, baseToken };
 }
 
 function getTokensNew(pathToHome: string): Tokens {
