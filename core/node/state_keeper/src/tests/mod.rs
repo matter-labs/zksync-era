@@ -7,7 +7,7 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
     interface::{
         Halt, SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs,
@@ -27,7 +27,10 @@ use zksync_types::{
 use crate::{
     io::{BatchInitParams, PendingBatchData},
     keeper::{StateKeeperInner, POLL_WAIT_DURATION},
-    seal_criteria::{criteria::SlotsCriterion, SequencerSealer, UnexecutableReason},
+    seal_criteria::{
+        criteria::SlotsCriterion, PanicSealer, SealCriterion, SealData, SealResolution,
+        SequencerSealer, UnexecutableReason,
+    },
     testonly::{
         successful_exec,
         test_batch_executor::{
@@ -144,9 +147,9 @@ impl Query {
 
 #[tokio::test]
 async fn sealed_by_number_of_txs() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -159,15 +162,95 @@ async fn sealed_by_number_of_txs() {
         .next_tx("Second tx", random_tx(2), successful_exec())
         .l2_block_sealed("L2 block 2")
         .batch_sealed("Batch 1")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// Test slots criterion that seals if we have >= 2 transactions
+#[derive(Debug)]
+struct TestSlotsCriterion;
+
+impl SealCriterion for TestSlotsCriterion {
+    fn should_seal(
+        &self,
+        _config: &SealCriteriaConfig,
+        tx_count: usize,
+        _l1_tx_count: usize,
+        _interop_roots_count: usize,
+        _block_data: &SealData,
+        _tx_data: &SealData,
+        _protocol_version: ProtocolVersionId,
+    ) -> SealResolution {
+        match tx_count {
+            0 => panic!("Impossible"),
+            1 => SealResolution::NoSeal,
+            2 => SealResolution::IncludeAndSeal,
+            _ => SealResolution::ExcludeAndSeal,
+        }
+    }
+
+    fn capacity_filled(
+        &self,
+        _config: &SealCriteriaConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        _interop_roots_count: usize,
+        _block_data: &SealData,
+        _protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        None
+    }
+
+    fn prom_criterion_name(&self) -> &'static str {
+        "test_slots"
+    }
+}
+
+#[tokio::test]
+async fn panic_sealer_normal_scenario() {
+    let sealer = PanicSealer::with_sealers(vec![Box::new(TestSlotsCriterion)]);
+
+    TestScenario::new()
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
+        .next_tx("First tx", random_tx(1), successful_exec())
+        .l2_block_sealed("L2 block 1")
+        .next_tx("Second tx", random_tx(2), successful_exec())
+        .l2_block_sealed("L2 block 2")
+        .no_txs_until_next_action("Still no tx")
+        .batch_sealed("Batch 1")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+#[tokio::test]
+async fn panic_sealer_panic_scenario() {
+    let sealer = PanicSealer::with_sealers(vec![Box::new(TestSlotsCriterion)]);
+
+    TestScenario::new()
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
+        .next_tx("First tx", random_tx(1), successful_exec())
+        .l2_block_sealed("L2 block 1")
+        .next_tx("Second tx", random_tx(2), successful_exec())
+        .l2_block_sealed("L2 block 2")
+        .next_tx("Third tx", random_tx(3), successful_exec())
+        .l2_block_sealed("L2 block 3")
+        .batch_sealed("Batch 1")
+        .run_panic(
+            Arc::new(sealer),
+            "Transaction should have been excluded, but was sequenced",
+        )
         .await;
 }
 
 #[tokio::test]
 async fn batch_sealed_before_l2_block_does() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -186,15 +269,15 @@ async fn batch_sealed_before_l2_block_does() {
             );
         })
         .batch_sealed("Batch 1")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 #[tokio::test]
 async fn rejected_tx() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -218,15 +301,15 @@ async fn rejected_tx() {
         .next_tx("Second successful tx", random_tx(3), successful_exec())
         .l2_block_sealed("Second L2 block")
         .batch_sealed("Batch with 2 successful txs")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 #[tokio::test]
 async fn bootloader_tip_out_of_gas_flow() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -258,15 +341,15 @@ async fn bootloader_tip_out_of_gas_flow() {
         .next_tx("Second tx of the 2nd batch", third_tx, successful_exec())
         .l2_block_sealed("L2 block with 2nd tx")
         .batch_sealed("2nd batch sealed")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 #[tokio::test]
 async fn pending_batch_is_applied() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 3,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -315,7 +398,7 @@ async fn pending_batch_is_applied() {
                 "There should be 3 transactions in the batch"
             );
         })
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
@@ -374,9 +457,9 @@ async fn unconditional_sealing() {
     let start = Instant::now();
     let seal_l2_block_after = POLL_WAIT_DURATION; // Seal after 2 state keeper polling duration intervals.
 
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -397,16 +480,16 @@ async fn unconditional_sealing() {
         .l2_block_sealed("L2 block is sealed with just one tx")
         .no_txs_until_next_action("Still no tx")
         .batch_sealed("Batch is sealed with just one tx")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 /// Checks the next L2 block sealed after pending batch has a correct timestamp
 #[tokio::test]
 async fn l2_block_timestamp_after_pending_batch() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -438,7 +521,7 @@ async fn l2_block_timestamp_after_pending_batch() {
             );
         })
         .batch_sealed("Batch is sealed with two transactions")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
@@ -452,9 +535,9 @@ async fn time_is_monotonic() {
     let timestamp_second_l2_block = timestamp_first_l2_block.clone();
     let timestamp_third_l2_block = timestamp_first_l2_block.clone();
 
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -508,15 +591,15 @@ async fn time_is_monotonic() {
                 Ordering::Relaxed,
             );
         })
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 #[tokio::test]
 async fn protocol_upgrade() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -547,16 +630,16 @@ async fn protocol_upgrade() {
         .next_tx("Fourth tx", random_tx(4), successful_exec())
         .l2_block_sealed("L2 block 4")
         .batch_sealed("Batch 2")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 /// Checks the next L2 block timestamp is updated upon receiving a transaction
 #[tokio::test]
 async fn l2_block_timestamp_updated_after_first_tx() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
     let new_timestamp_ms = 555000;
@@ -576,16 +659,16 @@ async fn l2_block_timestamp_updated_after_first_tx() {
                 "L2 block timestamp must be updated"
             );
         })
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }
 
 /// Basic test for L2 block rollback.
 #[tokio::test]
 async fn l2_block_rollback_basics() {
-    let config = StateKeeperConfig {
+    let config = SealCriteriaConfig {
         transaction_slots: 3,
-        ..StateKeeperConfig::for_tests()
+        ..SealCriteriaConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
     let tx1 = random_tx(1);
@@ -611,6 +694,6 @@ async fn l2_block_rollback_basics() {
         .next_tx("Third tx", random_tx(3), successful_exec())
         .l2_block_sealed("L2 block 3")
         .batch_sealed("Batch 1")
-        .run(sealer)
+        .run_success(Arc::new(sealer))
         .await;
 }

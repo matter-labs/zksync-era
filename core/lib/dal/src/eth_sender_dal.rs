@@ -10,12 +10,13 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
+    server_notification::GatewayMigrationNotification,
     Address, L1BatchNumber, L2BlockNumber, SLChainId, H256, U256,
 };
 
 use crate::{
     models::storage_eth_tx::{BlocksEthSenderStats, StorageEthTx, StorageTxHistory},
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
@@ -289,6 +290,72 @@ impl EthSenderDal<'_, '_> {
             }
         }
         Ok(stats)
+    }
+
+    /// This query returns the number and sent_at_block of the latest commited batch.
+    /// Query should be primary used for L1, not for gateway settlement layer.
+    pub async fn get_number_and_sent_at_block_for_latest_commited_batch(
+        &mut self,
+        latest_block_number: u32,
+    ) -> DalResult<(u32, u32)> {
+        // if no commited batch found, return first batch number and latest block number
+        let result = sqlx::query!(
+            r#"
+            SELECT number, eth_txs_history.sent_at_block, eth_txs.is_gateway
+            FROM l1_batches
+            INNER JOIN
+                eth_txs_history
+                ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
+            INNER JOIN eth_txs ON eth_txs_history.eth_tx_id = eth_txs.id
+            WHERE eth_txs_history.finality_status = 'finalized'
+            ORDER BY number DESC
+            LIMIT 1
+            "#,
+        )
+        .instrument("get_number_and_sent_at_block_for_latest_commited_batch")
+        .fetch_optional(self.storage)
+        .await?;
+
+        // Here we are returning final values based on the following logic:
+        // - If there is no commited batch, we are returning 1 and latest block number
+        // - If the commited batch is not a gateway batch, we are returning the batch number and the sent at block
+        // - If the commited batch was a gateway batch, we are checking, if there was a gateway migration GW -> L1,
+        // if so, we are returning the block number of the gateway migration, otherwise we are returning the latest block number
+        match result {
+            Some(row) => {
+                let batch_number = row.number as u32;
+                let sent_at_block = if !row.is_gateway {
+                    let block = row.sent_at_block.map(|v| v as u32);
+
+                    if let Some(block) = block {
+                        block
+                    } else {
+                        tracing::error!("There is a commited batch, but no sent at block");
+                        latest_block_number
+                    }
+                } else {
+                    let latest_notification = self
+                        .storage
+                        .server_notifications_dal()
+                        .get_latest_gateway_migration_notification_and_block_number()
+                        .await?;
+
+                    if let Some((
+                        GatewayMigrationNotification::FromGateway,
+                        notification_block_number,
+                    )) = latest_notification
+                    {
+                        notification_block_number.0
+                    } else {
+                        tracing::error!("No latest GW -> L1 migration notification, but trying to calculate blob prices");
+                        latest_block_number
+                    }
+                };
+
+                Ok((batch_number, sent_at_block))
+            }
+            None => Ok((1, latest_block_number)),
+        }
     }
 
     pub async fn get_eth_tx(&mut self, eth_tx_id: u32) -> sqlx::Result<Option<EthTx>> {

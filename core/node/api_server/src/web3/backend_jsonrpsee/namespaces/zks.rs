@@ -134,7 +134,7 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
-        Ok(self.get_fee_params_impl())
+        Ok(self.get_fee_params_impl().await)
     }
 
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput> {

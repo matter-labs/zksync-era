@@ -8,7 +8,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
-use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
+use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{
     gateway_common::{
@@ -19,7 +19,7 @@ use super::{
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
-    commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
+    commands::chain::utils::display_admin_script_output,
 };
 
 lazy_static! {
@@ -64,7 +64,7 @@ pub struct MigrateFromGatewayCalldataArgs {
 ///
 pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyhow::Result<()> {
     let forge_args = Default::default();
-    let contracts_foundry_path = get_default_foundry_path(shell)?;
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     if !params.no_cross_check {
         let state = get_gateway_migration_state(
@@ -85,7 +85,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 logger::info(
                     "The server is ready to start the migration. Preparing the calldata...",
                 );
-                logger::warn("Important! It may take awhile for Gateway to detect the migration transaction. If you are sure you've already sent it, no need to resend it");
+                logger::warn("Important! It may take a while for Gateway to detect the migration transaction. If you are sure you've already sent it, no need to resend it");
                 // It is the expected case, it will be handled later in the file
             }
             GatewayMigrationProgressState::AwaitingFinalization => {

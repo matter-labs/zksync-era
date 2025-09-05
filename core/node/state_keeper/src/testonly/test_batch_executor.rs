@@ -13,7 +13,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::watch;
+use tokio::{sync::watch, task::JoinError};
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
@@ -34,7 +34,7 @@ use zksync_types::{
 
 use crate::{
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
+    seal_criteria::{ConditionalSealer, IoSealCriteria, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
     OutputHandler, StateKeeperBuilder, StateKeeperOutputHandler,
@@ -219,9 +219,10 @@ impl TestScenario {
         self
     }
 
-    /// Launches the test.
-    /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: SequencerSealer) {
+    async fn run(
+        self,
+        sealer: Arc<dyn ConditionalSealer>,
+    ) -> Result<anyhow::Result<()>, JoinError> {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor = TestBatchExecutorBuilder::new(&self);
@@ -242,7 +243,7 @@ impl TestScenario {
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(sealer),
+            sealer,
             Arc::new(MockReadStorageFactory),
             None,
             SettlementLayer::L1(zksync_types::SLChainId(69)),
@@ -268,15 +269,28 @@ impl TestScenario {
         let start = Instant::now();
         while start.elapsed() <= hard_timeout {
             if sk_thread.is_finished() {
-                sk_thread
-                    .await
-                    .unwrap_or_else(|_| panic!("State keeper thread panicked"))
-                    .unwrap();
-                return;
+                return sk_thread.await;
             }
             tokio::time::sleep(poll_interval).await;
         }
         panic!("State keeper test did not exit until the hard timeout, probably it got stuck");
+    }
+
+    /// Launches the test and checks sequencer completes successfully.
+    /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
+    pub(crate) async fn run_success(self, sealer: Arc<dyn ConditionalSealer>) {
+        self.run(sealer)
+            .await
+            .unwrap_or_else(|_| panic!("State keeper thread panicked"))
+            .unwrap();
+    }
+
+    /// Launches the test and checks for sequencer panic with message.
+    /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
+    pub(crate) async fn run_panic(self, sealer: Arc<dyn ConditionalSealer>, message: &str) {
+        let join_error = self.run(sealer).await.expect_err("Not paniced");
+        let panic_message = join_error.into_panic().downcast::<&'static str>().unwrap();
+        assert!(panic_message.contains(message), "Different panic message");
     }
 }
 

@@ -1,4 +1,4 @@
-use vise::{Histogram, Metrics};
+use vise::{Counter, Histogram, Metrics};
 use zksync_object_store::bincode;
 use zksync_prover_interface::inputs::WitnessInputData;
 
@@ -14,6 +14,7 @@ pub(super) struct ProofDataHandlerMetrics {
     pub eip_4844_blob_size_in_mb: Histogram<u64>,
     #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
     pub total_blob_size_in_mb: Histogram<u64>,
+    pub fallbacked_batches: Counter<u64>,
 }
 
 impl ProofDataHandlerMetrics {

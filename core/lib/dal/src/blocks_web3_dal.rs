@@ -316,6 +316,7 @@ impl BlocksWeb3Dal<'_, '_> {
                                 miniblocks.eth_precommit_tx_id = eth_txs_history.eth_tx_id
                             WHERE
                                 eth_txs_history.finality_status = 'finalized'
+                            AND miniblocks.eth_precommit_tx_id is not null
                         ),
                         (
                             SELECT MAX(number)

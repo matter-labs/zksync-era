@@ -4,7 +4,7 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
-use zkstack_cli_config::traits::{ReadConfig, ZkStackConfigTrait};
+use zkstack_cli_config::traits::{FileConfigTrait, ReadConfig};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
@@ -142,7 +142,7 @@ pub struct V27UpgradeInfo {
     old_protocol_version: u64,
 }
 
-impl ZkStackConfigTrait for V27UpgradeInfo {}
+impl FileConfigTrait for V27UpgradeInfo {}
 
 pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> anyhow::Result<()> {
     // 0. Read the GatewayUpgradeInfo

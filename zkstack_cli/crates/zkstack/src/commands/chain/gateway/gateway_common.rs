@@ -15,7 +15,7 @@ use zkstack_cli_common::{
     forge::ForgeScriptArgs,
     logger,
 };
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
@@ -470,7 +470,7 @@ pub(crate) async fn notify_server(
     let calls = get_notify_server_calls(
         shell,
         &args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             l2_chain_id: chain_config.chain_id.as_u64(),

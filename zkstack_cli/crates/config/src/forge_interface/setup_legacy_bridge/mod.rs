@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L2ChainId, H256};
 
-use crate::traits::ZkStackConfigTrait;
+use crate::traits::FileConfigTrait;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetupLegacyBridgeInput {
@@ -19,4 +19,4 @@ pub struct SetupLegacyBridgeInput {
     pub create2factory_addr: Address,
 }
 
-impl ZkStackConfigTrait for SetupLegacyBridgeInput {}
+impl FileConfigTrait for SetupLegacyBridgeInput {}

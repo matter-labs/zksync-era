@@ -61,7 +61,7 @@ impl L1GasLayer {
                 pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
                 batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
                 max_gas_per_batch: state_keeper_config.max_gas_per_batch,
-                max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch.0,
+                max_pubdata_per_batch: state_keeper_config.seal_criteria.max_pubdata_per_batch.0,
             }),
         }
     }
