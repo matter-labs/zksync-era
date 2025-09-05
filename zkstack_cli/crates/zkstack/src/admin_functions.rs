@@ -16,9 +16,7 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::{
-        ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ACCEPT_OWNERSHIP_SCRIPT_PARAMS,
-    },
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
     traits::{ReadConfig, ZkStackConfig},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
@@ -406,7 +404,8 @@ async fn accept_ownership(
         }
     };
 
-    let output_path = ACCEPT_OWNERSHIP_SCRIPT_PARAMS.output(&ecosystem_config.path_to_l1_foundry());
+    let output_path =
+        ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&ecosystem_config.path_to_l1_foundry());
 
     let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
     forge.run(shell)?;

@@ -66,12 +66,6 @@ pub const DEPLOY_PAYMASTER_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     script_path: "deploy-scripts/DeployPaymaster.s.sol",
 };
 
-pub const ACCEPT_OWNERSHIP_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-accept-ownership.toml",
-    output: "script-out/output-accept-ownership.toml",
-    script_path: "deploy-scripts/AdminFunctions.s.sol",
-};
-
 pub const ACCEPT_GOVERNANCE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-admin-functions.toml",
     output: "script-out/output-admin-functions.toml",
