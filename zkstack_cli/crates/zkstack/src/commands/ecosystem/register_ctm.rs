@@ -6,7 +6,7 @@ use super::{
     args::init::{RegisterCTMArgs, RegisterCTMArgsFinal},
     common::register_ctm_on_existing_bh,
 };
-use crate::messages::MSG_REGISTERING_CTM;
+use crate::{commands::chain::utils::display_admin_script_output, messages::MSG_REGISTERING_CTM};
 
 pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -41,15 +41,17 @@ pub async fn register_ctm(
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
-    register_ctm_on_existing_bh(
+    let output = register_ctm_on_existing_bh(
         shell,
         &forge_args,
         ecosystem_config,
         &init_args.ecosystem.l1_rpc_url,
         None,
-        true,
+        false,
     )
     .await?;
+
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), output);
 
     Ok(())
 }

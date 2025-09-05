@@ -29,6 +29,7 @@ use zkstack_cli_types::{L1Network, ProverMode};
 
 use super::args::init::{EcosystemInitArgs, EcosystemInitArgsFinal};
 use crate::{
+    admin_functions::{AdminScriptOutput, AdminScriptOutputInner},
     commands::chain::{self},
     messages::{msg_chain_load_err, msg_initializing_chain, MSG_DEPLOYING_ERC20_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
@@ -184,7 +185,7 @@ pub async fn register_ctm_on_existing_bh(
     l1_rpc_url: &str,
     sender: Option<String>,
     broadcast: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<AdminScriptOutput> {
     let wallets_config = config.get_wallets()?;
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -209,9 +210,10 @@ pub async fn register_ctm_on_existing_bh(
         check_the_balance(&forge).await?;
     }
 
+    let output_path = REGISTER_CTM_SCRIPT_PARAMS.output(&config.path_to_l1_foundry());
     forge.run(shell)?;
 
-    Ok(())
+    Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
 pub async fn deploy_erc20(

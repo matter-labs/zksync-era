@@ -17,7 +17,7 @@ use super::{
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
-    admin_functions::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner, AdminScriptMode},
     commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
@@ -119,6 +119,7 @@ pub async fn deploy_new_ctm(
             .state_transition_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
+        AdminScriptMode::OnlySave,
     )
     .await?;
 
@@ -132,6 +133,7 @@ pub async fn deploy_new_ctm(
             .state_transition_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
+        AdminScriptMode::OnlySave,
     )
     .await?;
 

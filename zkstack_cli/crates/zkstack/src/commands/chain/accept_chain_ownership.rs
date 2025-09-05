@@ -4,7 +4,7 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
-    admin_functions::accept_admin,
+    admin_functions::{accept_admin, AdminScriptMode},
     messages::{
         MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_OWNERSHIP_TRANSFERRED,
     },
@@ -28,6 +28,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         contracts.l1.diamond_proxy_addr,
         &args,
         l1_rpc_url,
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
     )
     .await?;
     spinner.finish();

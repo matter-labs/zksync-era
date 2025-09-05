@@ -7,7 +7,9 @@ use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_basic_types::Address;
 
 use crate::{
-    admin_functions::{accept_admin, make_permanent_rollup, set_da_validator_pair},
+    admin_functions::{
+        accept_admin, make_permanent_rollup, set_da_validator_pair, AdminScriptMode,
+    },
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
@@ -117,6 +119,7 @@ pub async fn init(
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args,
         init_args.l1_rpc_url.clone(),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
     )
     .await?;
     spinner.finish();
