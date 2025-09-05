@@ -16,7 +16,7 @@ use zkstack_cli_config::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
             ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
-            ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            V28_1_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{
             input::{
@@ -190,7 +190,7 @@ async fn no_governance_prepare(
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
     // This part is needed for v28 upgrades only.
-    if upgrade_version == &UpgradeVersion::V28_1Vk {
+    if upgrade_version == &UpgradeVersion::V28_1Vk || upgrade_version == &UpgradeVersion::V28_1ZkOs {
         new_version.patch += 1;
     }
     new_genesis.protocol_version = new_version;
@@ -199,7 +199,7 @@ async fn no_governance_prepare(
         get_gateway_state_transition_config(shell, ecosystem_config).await?;
 
     let upgrade_specific_config = match upgrade_version {
-        UpgradeVersion::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
+        UpgradeVersion::V28_1Vk || UpgradeVersion::V28_1ZkOs => EcosystemUpgradeSpecificConfig::V28,
         UpgradeVersion::V29InteropAFf => {
             let gateway_chain_config = get_local_gateway_chain_config(ecosystem_config)?;
             let gateway_validator_timelock_addr = gateway_chain_config
@@ -605,7 +605,8 @@ async fn no_governance_stage_2(
 
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
     match upgrade_version {
-        UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V28_1Vk => V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V28_1ZkOs => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }

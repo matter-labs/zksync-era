@@ -68,7 +68,7 @@ async fn verify_next_batch_new_version(
         )
     })?;
     match upgrade_versions {
-        UpgradeVersion::V28_1Vk => {
+        UpgradeVersion::V28_1Vk, UpgradeVersion::V28_1ZkOs => {
             ensure!(
                 protocol_version >= ProtocolVersionId::Version28,
                 "THe block does not yet contain the v28 upgrade"
