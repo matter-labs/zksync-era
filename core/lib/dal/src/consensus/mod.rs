@@ -3,10 +3,9 @@ use std::collections::BTreeMap;
 use zksync_concurrency::net;
 use zksync_consensus_engine::Last;
 use zksync_consensus_roles::{node, validator};
-use zksync_types::settlement::SettlementLayer;
 use zksync_types::{
-    commitment::PubdataParams, ethabi, Address, InteropRoot, L1BatchNumber, ProtocolVersionId,
-    Transaction, H256,
+    commitment::PubdataParams, ethabi, settlement::SettlementLayer, Address, InteropRoot,
+    L1BatchNumber, ProtocolVersionId, Transaction, H256,
 };
 
 mod conv;
