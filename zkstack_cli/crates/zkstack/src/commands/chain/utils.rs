@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use ethers::{
     abi::encode,
@@ -9,9 +7,7 @@ use ethers::{
     types::{TransactionReceipt, TransactionRequest},
     utils::hex,
 };
-use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zkstack_cli_config::ZkStackConfig;
 use zksync_types::{web3::keccak256, Address, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256};
 
 use crate::{
@@ -26,10 +22,6 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     ]);
 
     H256(keccak256(&encoded_data))
-}
-
-pub fn get_default_foundry_path(shell: &Shell) -> anyhow::Result<PathBuf> {
-    Ok(ZkStackConfig::ecosystem(shell)?.path_to_l1_foundry())
 }
 
 pub fn display_admin_script_output(result: AdminScriptOutput) {

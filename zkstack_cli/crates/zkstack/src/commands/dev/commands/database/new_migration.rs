@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::new_migration::{DatabaseNewMigrationArgs, SelectedDatabase};
 use crate::commands::dev::{

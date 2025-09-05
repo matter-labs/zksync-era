@@ -3,7 +3,9 @@ use std::path::Path;
 use anyhow::{anyhow, Context};
 use xshell::Shell;
 use zkstack_cli_common::{docker, logger, spinner::Spinner};
-use zkstack_cli_config::{ZkStackConfig, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE};
+use zkstack_cli_config::{
+    ZkStackConfig, ZkStackConfigTrait, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE,
+};
 
 use super::args::ContainersArgs;
 use crate::{
@@ -19,7 +21,7 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let chain = ZkStackConfig::current_chain(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 
-    initialize_docker(shell, &chain.link_to_code)?;
+    initialize_docker(shell, &chain.link_to_code())?;
 
     logger::info(MSG_STARTING_CONTAINERS);
 

@@ -11,6 +11,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     copy_configs, get_link_to_prover, ObjectStoreConfig, ObjectStoreMode, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 
 use super::{
@@ -36,7 +37,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    let default_compressor_key_path = get_default_compressor_keys_path(&chain_config.link_to_code)?;
+    let default_compressor_key_path =
+        get_default_compressor_keys_path(&chain_config.link_to_code())?;
 
     let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 
@@ -45,7 +47,11 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         || chain_config.get_wallets_config().is_err()
         || chain_config.get_contracts_config().is_err()
     {
-        copy_configs(shell, &chain_config.link_to_code, &chain_config.configs)?;
+        copy_configs(
+            shell,
+            &chain_config.default_configs_path(),
+            &chain_config.configs,
+        )?;
     }
 
     let mut general_config = chain_config.get_general_config().await?.patched();
@@ -81,7 +87,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         initialize_prover_database(
             shell,
             &prover_db.database_config,
-            &chain_config.link_to_code,
+            &chain_config.link_to_code(),
             prover_db.dont_drop,
         )
         .await?;

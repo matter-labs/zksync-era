@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zkstack_cli_config::{get_link_to_prover, GeneralConfigPatch, ZkStackConfig};
+use zkstack_cli_config::{
+    get_link_to_prover, GeneralConfigPatch, ZkStackConfig, ZkStackConfigTrait,
+};
 
 use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER, MSG_SETUP_KEY_PATH_ERROR};
@@ -12,7 +14,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
     let chain_config = ZkStackConfig::current_chain(shell)?;
     let mut general_config = chain_config.get_general_config().await?.patched();
 
-    let default_path = get_default_compressor_keys_path(&chain_config.link_to_code)?;
+    let default_path = get_default_compressor_keys_path(&chain_config.link_to_code())?;
     let args = args.fill_values_with_prompt(&default_path);
 
     let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;

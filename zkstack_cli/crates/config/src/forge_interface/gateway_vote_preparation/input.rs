@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
-    traits::ZkStackConfigTrait,
+    traits::FileConfigTrait,
     ContractsConfig,
 };
 
@@ -56,7 +56,7 @@ pub struct GatewayVotePreparationConfig {
     pub force_deployments_data: String,
 }
 
-impl ZkStackConfigTrait for GatewayVotePreparationConfig {}
+impl FileConfigTrait for GatewayVotePreparationConfig {}
 
 impl GatewayVotePreparationConfig {
     #[allow(clippy::too_many_arguments)]

@@ -4,7 +4,7 @@ use zkstack_cli_common::wallets::Wallet;
 
 use crate::{
     consts::WALLETS_FILE,
-    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +59,6 @@ pub(crate) struct EthMnemonicConfig {
     pub(crate) base_path: String,
 }
 
-impl ZkStackConfigTrait for EthMnemonicConfig {}
+impl FileConfigTrait for EthMnemonicConfig {}
 
-impl ZkStackConfigTrait for WalletsConfig {}
+impl FileConfigTrait for WalletsConfig {}

@@ -9,6 +9,7 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, ContractsConfig, EcosystemConfig, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 
 use super::{
@@ -28,7 +29,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-        git::submodule_update(shell, &ecosystem_config.link_to_code)?;
+        git::submodule_update(shell, &ecosystem_config.link_to_code())?;
     }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
@@ -62,11 +63,11 @@ async fn init_ctm(
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     if !init_args.skip_contract_compilation_override {
-        install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
-        build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-        build_l1_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
-        build_system_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
-        build_l2_contracts(shell.clone(), &ecosystem_config.link_to_code)?;
+        install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
+        build_da_contracts(shell, &ecosystem_config.contracts_path())?;
+        build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+        build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+        build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
     }
     spinner.finish();
 
@@ -111,7 +112,7 @@ pub async fn deploy_new_ctm(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -124,7 +125,7 @@ pub async fn deploy_new_ctm(
 
     accept_admin(
         shell,
-        ecosystem_config.path_to_l1_foundry(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

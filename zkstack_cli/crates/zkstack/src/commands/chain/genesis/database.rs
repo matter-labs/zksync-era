@@ -7,7 +7,9 @@ use zkstack_cli_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
 };
-use zkstack_cli_config::{override_config, ChainConfig, FileArtifacts, ZkStackConfig};
+use zkstack_cli_config::{
+    override_config, ChainConfig, FileArtifacts, ZkStackConfig, ZkStackConfigTrait,
+};
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
@@ -35,7 +37,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     initialize_server_database(
         shell,
         &args.server_db,
-        &chain_config.link_to_code,
+        &chain_config.link_to_code(),
         args.dont_drop,
     )
     .await?;
@@ -72,7 +74,7 @@ pub async fn initialize_server_database(
 }
 
 pub async fn update_configs(
-    args: GenesisArgsFinal,
+    args: &GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
     override_validium_config: bool,
@@ -93,11 +95,12 @@ pub async fn update_configs(
     general.set_file_artifacts(file_artifacts)?;
     general.save().await?;
 
-    let link_to_code = &config.link_to_code;
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,
-            &link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
+            &config
+                .default_configs_path()
+                .join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
             config,
         )?;
     }
@@ -106,7 +109,9 @@ pub async fn update_configs(
     {
         override_config(
             shell,
-            &link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
+            &config
+                .default_configs_path()
+                .join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
             config,
         )?;
     }
