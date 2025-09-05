@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, spinner::Spinner};
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::sql_fmt::format_sql;
 use crate::commands::dev::{commands::lint_utils::Target, messages::msg_running_fmt_spinner};

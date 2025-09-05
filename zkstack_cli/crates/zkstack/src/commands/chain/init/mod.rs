@@ -3,7 +3,7 @@ use clap::{command, Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_basic_types::Address;
@@ -64,7 +64,7 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-        git::submodule_update(shell, &config.link_to_code())?;
+        git::submodule_update(shell, &config.link_to_code)?;
     }
 
     let args = args.fill_values_with_prompt(&chain_config);
@@ -113,7 +113,7 @@ pub async fn init(
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_l1_foundry(),
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
@@ -129,7 +129,7 @@ pub async fn init(
         let chain_contracts = chain_config.get_contracts_config()?;
         set_token_multiplier_setter(
             shell,
-            ecosystem_config.path_to_foundry_scripts(),
+            ecosystem_config.path_to_l1_foundry(),
             &chain_config.get_wallets_config()?.governor,
             chain_contracts
                 .l1
@@ -154,7 +154,7 @@ pub async fn init(
     if chain_config.evm_emulator {
         enable_evm_emulator(
             shell,
-            &ecosystem_config.path_to_foundry_scripts(),
+            &ecosystem_config.path_to_l1_foundry(),
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
@@ -184,7 +184,7 @@ pub async fn init(
     set_da_validator_pair(
         shell,
         &init_args.forge_args,
-        &ecosystem_config.path_to_foundry_scripts(),
+        &ecosystem_config.path_to_l1_foundry(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),
@@ -243,11 +243,9 @@ pub async fn init(
         spinner.finish();
     }
 
-    if let Some(genesis_args) = &init_args.genesis_args {
-        genesis(genesis_args, shell, chain_config)
-            .await
-            .context(MSG_GENESIS_DATABASE_ERR)?;
-    }
+    genesis(init_args.genesis_args.clone(), shell, chain_config)
+        .await
+        .context(MSG_GENESIS_DATABASE_ERR)?;
 
     Ok(())
 }

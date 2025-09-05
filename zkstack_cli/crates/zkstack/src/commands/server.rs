@@ -8,7 +8,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, WalletsConfig, ZkStackConfig,
-    ZkStackConfigTrait, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 
 use crate::{
@@ -30,7 +30,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
 }
 
 fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(chain_config.link_to_code().join("core"));
+    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("core"));
 
     logger::info(MSG_BUILDING_SERVER);
 
@@ -48,7 +48,7 @@ async fn run_server(
     let server = Server::new(
         args.server_command,
         args.components.clone(),
-        chain_config.link_to_code(),
+        chain_config.link_to_code.clone(),
         args.uring,
     );
 

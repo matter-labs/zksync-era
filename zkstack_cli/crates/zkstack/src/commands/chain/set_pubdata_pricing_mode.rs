@@ -12,7 +12,6 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 use zksync_basic_types::Address;
 
@@ -43,7 +42,7 @@ pub async fn run(args: SetPubdataPricingModeArgs, shell: &Shell) -> anyhow::Resu
     let spinner = Spinner::new(MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER);
     set_pubdata_pricing_mode(
         shell,
-        chain_config.path_to_foundry_scripts(),
+        chain_config.path_to_l1_foundry(),
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.chain_admin_addr,
         contracts_config.l1.diamond_proxy_addr,

@@ -30,7 +30,7 @@ pub struct InitConfigsArgs {
 
 #[derive(Debug, Clone)]
 pub struct InitConfigsArgsFinal {
-    pub genesis_args: Option<GenesisArgsFinal>,
+    pub genesis_args: GenesisArgsFinal,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
@@ -53,7 +53,7 @@ impl InitConfigsArgs {
         });
 
         InitConfigsArgsFinal {
-            genesis_args: Some(self.genesis_args.fill_values_with_prompt(config)),
+            genesis_args: self.genesis_args.fill_values_with_prompt(config),
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config: Some(ValidiumType::read()),

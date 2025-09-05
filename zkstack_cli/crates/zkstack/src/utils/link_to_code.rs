@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::bail;
 use strum::{EnumIter, IntoEnumIterator};
@@ -29,7 +32,8 @@ impl std::fmt::Display for LinkToCodeSelection {
     }
 }
 
-fn check_link_to_code(shell: &Shell, path: &Path) -> anyhow::Result<()> {
+fn check_link_to_code(shell: &Shell, path: &str) -> anyhow::Result<()> {
+    let path = Path::new(path);
     if !shell.path_exists(path) {
         bail!(msg_path_to_zksync_does_not_exist_err(
             path.to_str().unwrap()
@@ -50,8 +54,8 @@ fn check_link_to_code(shell: &Shell, path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn pick_new_link_to_code(shell: &Shell) -> PathBuf {
-    let link_to_code: PathBuf = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
+fn pick_new_link_to_code(shell: &Shell) -> String {
+    let link_to_code: String = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
     match check_link_to_code(shell, &link_to_code) {
         Ok(_) => link_to_code,
         Err(err) => {
@@ -65,20 +69,20 @@ fn pick_new_link_to_code(shell: &Shell) -> PathBuf {
     }
 }
 
-pub(crate) fn get_link_to_code(shell: &Shell) -> Option<PathBuf> {
+pub(crate) fn get_link_to_code(shell: &Shell) -> String {
     let link_to_code_selection =
         PromptSelect::new(MSG_REPOSITORY_ORIGIN_PROMPT, LinkToCodeSelection::iter()).ask();
     match link_to_code_selection {
-        LinkToCodeSelection::Clone => None,
+        LinkToCodeSelection::Clone => "".to_string(),
         LinkToCodeSelection::Path => {
-            let mut path: PathBuf = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
+            let mut path: String = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
             if let Err(err) = check_link_to_code(shell, &path) {
                 logger::warn(err);
                 if !PromptConfirm::new(MSG_CONFIRM_STILL_USE_FOLDER).ask() {
                     path = pick_new_link_to_code(shell);
                 }
             }
-            Some(path)
+            path
         }
     }
 }
@@ -86,15 +90,10 @@ pub(crate) fn get_link_to_code(shell: &Shell) -> Option<PathBuf> {
 pub(crate) fn resolve_link_to_code(
     shell: &Shell,
     base_path: &Path,
-    link_to_code: Option<PathBuf>,
+    link_to_code: String,
     update_submodules: Option<bool>,
 ) -> anyhow::Result<PathBuf> {
-    if let Some(link_to_code) = link_to_code {
-        if update_submodules.is_none() || update_submodules == Some(true) {
-            git::submodule_update(shell, &link_to_code)?;
-        }
-        Ok(link_to_code)
-    } else {
+    if link_to_code.is_empty() {
         if base_path.join("zksync-era").exists() {
             return Ok(base_path.join("zksync-era"));
         }
@@ -105,5 +104,11 @@ pub(crate) fn resolve_link_to_code(
         let link_to_code = git::clone(shell, base_path, ZKSYNC_ERA_GIT_REPO, "zksync-era")?;
         spinner.finish();
         Ok(link_to_code)
+    } else {
+        let path = PathBuf::from_str(&link_to_code)?;
+        if update_submodules.is_none() || update_submodules == Some(true) {
+            git::submodule_update(shell, &path)?;
+        }
+        Ok(path)
     }
 }

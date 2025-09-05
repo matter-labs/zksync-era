@@ -4,9 +4,7 @@ use zkstack_cli_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
-use zkstack_cli_config::{
-    ChainConfig, SecretsConfig, ZkStackConfig, ZkStackConfigTrait, SECRETS_FILE,
-};
+use zkstack_cli_config::{ChainConfig, SecretsConfig, ZkStackConfig, SECRETS_FILE};
 
 use crate::{
     consts::SERVER_MIGRATIONS,
@@ -44,7 +42,7 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         &chain_config.rocks_db_path,
         RocksDBDirOption::ExternalNode,
     )?;
-    let path_to_server_migration = chain_config.link_to_code().join(SERVER_MIGRATIONS);
+    let path_to_server_migration = chain_config.link_to_code.join(SERVER_MIGRATIONS);
     migrate_db(shell, &path_to_server_migration, &db_config.full_url()).await?;
     spin.finish();
     Ok(())

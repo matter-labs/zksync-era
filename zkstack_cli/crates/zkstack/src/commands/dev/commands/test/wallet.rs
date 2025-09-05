@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::utils::{TestWallets, TEST_WALLETS_PATH};
 use crate::commands::dev::messages::{
@@ -15,7 +15,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let config = ZkStackConfig::current_chain(shell)?;
 
-    let wallets_path: PathBuf = config.link_to_code().join(TEST_WALLETS_PATH);
+    let wallets_path: PathBuf = config.link_to_code.join(TEST_WALLETS_PATH);
     let wallets: TestWallets = serde_json::from_str(shell.read_file(wallets_path)?.as_ref())
         .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 

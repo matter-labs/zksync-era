@@ -7,7 +7,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, WalletsConfig, ZkStackConfig,
-    ZkStackConfigTrait, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 
 use crate::messages::{
@@ -33,7 +33,7 @@ pub fn run_server_genesis(
     let server = Server::new(
         server_command,
         None,
-        chain_config.link_to_code().clone(),
+        chain_config.link_to_code.clone(),
         false,
     );
     server

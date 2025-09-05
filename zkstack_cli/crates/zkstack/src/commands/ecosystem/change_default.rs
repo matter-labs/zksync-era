@@ -20,6 +20,6 @@ pub fn run(args: ChangeDefaultChain, shell: &Shell) -> anyhow::Result<()> {
     if !chains.contains(&chain_name) {
         anyhow::bail!(msg_chain_doesnt_exist_err(&chain_name, &chains));
     }
-    ecosystem_config.set_default_chain(chain_name);
+    ecosystem_config.default_chain = chain_name;
     ecosystem_config.save_with_base_path(shell, ".")
 }

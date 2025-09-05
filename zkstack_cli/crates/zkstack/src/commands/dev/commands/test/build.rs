@@ -1,5 +1,5 @@
 use xshell::Shell;
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::utils::{build_contracts, install_and_build_dependencies};
 

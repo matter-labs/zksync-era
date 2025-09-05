@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::messages::MSG_L1_CONTRACTS_TEST_SUCCESS;
 

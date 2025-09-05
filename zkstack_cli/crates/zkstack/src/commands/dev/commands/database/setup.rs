@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::args::DatabaseCommonArgs;
 use crate::commands::dev::{

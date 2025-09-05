@@ -15,7 +15,7 @@ use crate::{
         },
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfigTrait, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -215,7 +215,7 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
-impl FileConfigTrait for ContractsConfig {}
+impl ZkStackConfigTrait for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
@@ -248,7 +248,7 @@ pub struct EcosystemContracts {
     pub server_notifier_proxy_addr: Option<Address>,
 }
 
-impl FileConfigTrait for EcosystemContracts {}
+impl ZkStackConfigTrait for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

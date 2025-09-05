@@ -4,7 +4,6 @@ use zkstack_cli_common::logger;
 use zkstack_cli_config::{
     copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ConsensusGenesisSpecs,
     ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 use zksync_basic_types::Address;
 
@@ -49,11 +48,7 @@ pub async fn init_configs(
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
-    copy_configs(
-        shell,
-        &ecosystem_config.default_configs_path(),
-        &chain_config.configs,
-    )?;
+    copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     if !init_args.no_port_reallocation {
         ecosystem_ports.allocate_ports_in_yaml(
@@ -131,16 +126,13 @@ pub async fn init_configs(
     secrets.save().await?;
 
     let override_validium_config = false; // We've initialized validium params above.
-    if let Some(genesis_args) = &init_args.genesis_args {
-        // Initialize genesis database if needed
-        genesis::database::update_configs(
-            genesis_args,
-            shell,
-            chain_config,
-            override_validium_config,
-        )
-        .await?;
-    }
+    genesis::database::update_configs(
+        init_args.genesis_args.clone(),
+        shell,
+        chain_config,
+        override_validium_config,
+    )
+    .await?;
 
     update_portal_config(shell, chain_config)
         .await

@@ -8,7 +8,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
-use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
 
 use super::{
     gateway_common::{
@@ -19,7 +19,7 @@ use super::{
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
-    commands::chain::utils::display_admin_script_output,
+    commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
 };
 
 lazy_static! {
@@ -64,7 +64,7 @@ pub struct MigrateFromGatewayCalldataArgs {
 ///
 pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyhow::Result<()> {
     let forge_args = Default::default();
-    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
+    let contracts_foundry_path = get_default_foundry_path(shell)?;
 
     if !params.no_cross_check {
         let state = get_gateway_migration_state(

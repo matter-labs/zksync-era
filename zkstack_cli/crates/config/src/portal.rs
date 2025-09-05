@@ -9,7 +9,7 @@ use crate::{
         LOCAL_APPS_PATH, LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH, PORTAL_CONFIG_FILE,
         PORTAL_JS_CONFIG_FILE,
     },
-    traits::{FileConfigTrait, ReadConfig, SaveConfig},
+    traits::{ReadConfig, SaveConfig, ZkStackConfigTrait},
 };
 
 /// Portal JSON configuration file. This file contains configuration for the portal app.
@@ -172,4 +172,4 @@ impl Default for PortalConfig {
     }
 }
 
-impl FileConfigTrait for PortalConfig {}
+impl ZkStackConfigTrait for PortalConfig {}

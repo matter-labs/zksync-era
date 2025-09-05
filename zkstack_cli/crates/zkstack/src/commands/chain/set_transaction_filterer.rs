@@ -2,7 +2,6 @@ use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_config::ZkStackConfigTrait;
 use zksync_types::Address;
 
 use super::utils::display_admin_script_output;
@@ -28,7 +27,7 @@ pub async fn run(shell: &Shell, args: SetTransactionFiltererArgs) -> anyhow::Res
     let result = set_transaction_filterer(
         shell,
         &Default::default(),
-        &chain_config.path_to_foundry_scripts(),
+        &chain_config.path_to_l1_foundry(),
         AdminScriptMode::OnlySave,
         args.chain_id,
         args.bridgehub_address,

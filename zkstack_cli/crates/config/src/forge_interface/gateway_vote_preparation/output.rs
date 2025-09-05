@@ -1,7 +1,7 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::FileConfigTrait;
+use crate::traits::ZkStackConfigTrait;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMOutput {
@@ -14,7 +14,7 @@ pub struct DeployGatewayCTMOutput {
     pub ecosystem_admin_calls_to_execute: String,
 }
 
-impl FileConfigTrait for DeployGatewayCTMOutput {}
+impl ZkStackConfigTrait for DeployGatewayCTMOutput {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StateTransitionDeployedAddresses {

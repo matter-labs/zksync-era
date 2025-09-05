@@ -4,12 +4,12 @@ use anyhow::Context as _;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{get_link_to_prover, ChainConfig, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{ChainConfig, ZkStackConfig};
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let link_to_prover = get_link_to_prover(&chain_config.link_to_code());
+    let link_to_prover = chain_config.link_to_code.join("prover");
 
     let protocol_version = get_protocol_version(shell, &link_to_prover).await?;
     let snark_wrapper = get_snark_wrapper(&link_to_prover).await?;

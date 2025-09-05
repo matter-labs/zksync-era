@@ -8,7 +8,7 @@ use anyhow::{bail, Context};
 use clap::Parser;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::{
     autocomplete::{autocomplete_file_name, generate_completions},

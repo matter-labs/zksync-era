@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use walkdir::WalkDir;
 use xshell::{cmd, Shell};
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::dev::messages::msg_file_is_not_formatted;
 

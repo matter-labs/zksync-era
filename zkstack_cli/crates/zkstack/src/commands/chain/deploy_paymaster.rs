@@ -6,7 +6,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait,
+    ChainConfig, ContractsConfig, ZkStackConfig,
 };
 
 use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
@@ -27,10 +27,10 @@ pub async fn deploy_paymaster(
     broadcast: bool,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
-    let foundry_contracts_path = chain_config.path_to_foundry_scripts();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     input.save(
         shell,
-        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&foundry_contracts_path),
+        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.path_to_l1_foundry()),
     )?;
     let secrets = chain_config.get_secrets_config().await?;
 
@@ -58,7 +58,7 @@ pub async fn deploy_paymaster(
 
     let output = DeployPaymasterOutput::read(
         shell,
-        DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&foundry_contracts_path),
+        DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
     )?;
 
     contracts_config.l2.testnet_paymaster_addr = output.paymaster;

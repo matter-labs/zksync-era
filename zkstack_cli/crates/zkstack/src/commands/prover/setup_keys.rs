@@ -3,7 +3,7 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
-use zkstack_cli_config::{get_link_to_prover, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{get_link_to_prover, ZkStackConfig};
 
 use crate::{
     commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
@@ -16,7 +16,7 @@ use crate::{
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let link_to_prover = get_link_to_prover(&ecosystem_config.link_to_code());
+    let link_to_prover = get_link_to_prover(&ecosystem_config.link_to_code);
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
@@ -27,7 +27,8 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         let proof_compressor_setup_path = general_config
             .proof_compressor_setup_path()
             .context(MSG_SETUP_KEY_PATH_ERROR)?;
-        let proof_compressor_setup_path = link_to_prover.join(proof_compressor_setup_path);
+        let prover_path = get_link_to_prover(&ecosystem_config.link_to_code);
+        let proof_compressor_setup_path = prover_path.join(proof_compressor_setup_path);
 
         if proof_compressor_setup_path.exists() {
             logger::info(format!(

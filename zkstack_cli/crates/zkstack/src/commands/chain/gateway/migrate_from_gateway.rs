@@ -15,6 +15,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
+    config::global_config,
     ethereum::{get_ethers_provider, get_zk_client},
     forge::{Forge, ForgeScriptArgs},
     logger,
@@ -23,7 +24,7 @@ use zkstack_cli_common::{
     zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, ZkStackConfig, ZkStackConfigTrait,
+    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, ZkStackConfig,
 };
 use zksync_basic_types::{H256, U256};
 use zksync_web3_decl::{
@@ -70,8 +71,9 @@ lazy_static! {
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
+    let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
-        .load_current_chain()
+        .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let gateway_chain_config = ecosystem_config
@@ -90,7 +92,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_foundry_scripts(),
+        &ecosystem_config.path_to_l1_foundry(),
         crate::admin_functions::AdminScriptMode::OnlySave,
         chain_contracts_config
             .ecosystem_contracts
@@ -170,7 +172,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     finish_migrate_chain_from_gateway(
         shell,
         args.forge_args.clone(),
-        &ecosystem_config.path_to_foundry_scripts(),
+        &ecosystem_config.path_to_l1_foundry(),
         ecosystem_config
             .get_wallets()?
             .deployer
@@ -194,7 +196,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     set_da_validator_pair(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_foundry_scripts(),
+        &ecosystem_config.path_to_l1_foundry(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),

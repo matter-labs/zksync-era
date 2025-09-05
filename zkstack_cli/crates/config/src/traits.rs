@@ -8,7 +8,7 @@ use zkstack_cli_common::files::{
 };
 
 // Configs that we use only inside ZK Stack CLI, we don't have protobuf implementation for them.
-pub trait FileConfigTrait {}
+pub trait ZkStackConfigTrait {}
 
 pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
@@ -18,7 +18,7 @@ pub trait FileConfigWithDefaultName {
     }
 }
 
-impl<T: Serialize + FileConfigTrait> SaveConfig for T {
+impl<T: Serialize + ZkStackConfigTrait> SaveConfig for T {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         save_with_comment(shell, path, self, "")
     }
@@ -48,7 +48,7 @@ pub trait ReadConfig: Sized {
 
 impl<T> ReadConfig for T
 where
-    T: DeserializeOwned + Clone + FileConfigTrait,
+    T: DeserializeOwned + Clone + ZkStackConfigTrait,
 {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());

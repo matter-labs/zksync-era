@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::{args::DatabaseCommonArgs, drop::drop_database, setup::setup_database};
 use crate::commands::dev::{
