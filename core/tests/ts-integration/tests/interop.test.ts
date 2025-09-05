@@ -174,6 +174,7 @@ describe('Interop behavior checks', () => {
         if (skipInteropTests) {
             return;
         }
+        
 
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
