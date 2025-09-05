@@ -239,7 +239,6 @@ impl UnstableNamespace {
         })
     }
 
-    /// TODO this method required an ability to know about the transition state a.k. settilement layer is none
     pub async fn gateway_migration_status_impl(&self) -> Result<GatewayMigrationStatus, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
 
@@ -250,14 +249,21 @@ impl UnstableNamespace {
             .map_err(DalError::generalize)?;
 
         let state = GatewayMigrationState::from_sl_and_notification(
-            Some(self.state.api_config.settlement_layer),
+            self.state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
             latest_notification,
         );
 
         Ok(GatewayMigrationStatus {
             latest_notification,
             state,
-            settlement_layer: Some(self.state.api_config.settlement_layer),
+            settlement_layer: self
+                .state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
         })
     }
 
@@ -267,8 +273,11 @@ impl UnstableNamespace {
         tx_bytes: Bytes,
     ) -> Result<TransactionDetailedResult, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let block_args =
-            BlockArgs::pending(&mut connection, self.state.api_config.settlement_layer).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let (mut tx, tx_hash) = self
             .state

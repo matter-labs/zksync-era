@@ -62,8 +62,11 @@ impl ZksNamespace {
         }
 
         let mut connection = self.state.acquire_connection().await?;
-        let block_args =
-            BlockArgs::pending(&mut connection, self.state.api_config.settlement_layer).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
@@ -97,8 +100,11 @@ impl ZksNamespace {
         }
 
         let mut connection = self.state.acquire_connection().await?;
-        let block_args =
-            BlockArgs::pending(&mut connection, self.state.api_config.settlement_layer).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let tx = L1Tx::from_request(
             request_with_gas_per_pubdata_overridden,
