@@ -467,12 +467,12 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_expected_settlement_layer(
         &mut self,
         resolved_l1batch_for_l2block: &ResolvedL1BatchForL2Block,
-    ) -> DalResult<Option<SettlementLayer>> {
+    ) -> DalResult<SettlementLayer> {
         let pending = resolved_l1batch_for_l2block.block_l1_batch.is_none();
         let l1_batch = resolved_l1batch_for_l2block
             .block_l1_batch
             .unwrap_or_default();
-        let settlement_layer = sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
                 settlement_layer_type,
@@ -489,12 +489,13 @@ impl BlocksWeb3Dal<'_, '_> {
         )
         .instrument("get_expected_settlement_layer")
         .with_arg("block_number", &l1_batch)
-        .fetch_optional(self.storage)
+        .fetch_one(self.storage)
         .await?;
 
-        Ok(settlement_layer.map(|row| {
-            to_settlement_layer(row.settlement_layer_type, row.settlement_layer_chain_id)
-        }))
+        Ok(to_settlement_layer(
+            row.settlement_layer_type,
+            row.settlement_layer_chain_id,
+        ))
     }
 
     pub async fn get_l2_block_hash(

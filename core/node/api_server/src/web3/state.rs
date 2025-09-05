@@ -29,7 +29,7 @@ use zksync_shared_resources::{
     tree::TreeApiClient,
 };
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::WorkingSettlementLayer,
     transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     H256, U256, U64,
 };
@@ -178,7 +178,7 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
-    pub settlement_layer: SettlementLayer,
+    pub settlement_layer: WorkingSettlementLayer,
     pub eth_call_gas_cap: Option<u64>,
 }
 
@@ -188,7 +188,7 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
-        settlement_layer: SettlementLayer,
+        settlement_layer: WorkingSettlementLayer,
         dummy_verifier: bool,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
@@ -238,7 +238,7 @@ impl InternalApiConfig {
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
         l1_to_l2_txs_paused: bool,
-        settlement_layer: SettlementLayer,
+        settlement_layer: WorkingSettlementLayer,
     ) -> Self {
         let base = InternalApiConfigBase::new(genesis_config, web3_config)
             .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
@@ -404,7 +404,7 @@ impl RpcState {
             connection,
             block,
             &self.start_info,
-            self.api_config.settlement_layer,
+            self.api_config.settlement_layer.settlement_layer(),
         )
         .await
         .map_err(|err| match err {

@@ -162,6 +162,7 @@ impl SyncBlock {
             pubdata_params: self.pubdata_params,
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots,
+            settlement_layer: Some(self.settlement_layer),
         }
     }
 }

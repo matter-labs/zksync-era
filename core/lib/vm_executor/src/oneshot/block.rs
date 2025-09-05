@@ -66,9 +66,7 @@ impl BlockInfo {
         let settlement_layer = connection
             .blocks_web3_dal()
             .get_expected_settlement_layer(&l1_batch)
-            // TODO handle unwrap
-            .await?
-            .unwrap();
+            .await?;
         Ok(Self {
             resolved_block_number: number,
             l1_batch_timestamp_s: Some(l1_batch_timestamp),
