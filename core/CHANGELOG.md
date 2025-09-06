@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.2.1](https://github.com/matter-labs/zksync-era/compare/core-v29.2.0...core-v29.2.1) (2025-09-06)
+
+
+### Bug Fixes
+
+* **eth-proof-manager:** don't fail component if proof was incorrect ([#4444](https://github.com/matter-labs/zksync-era/issues/4444)) ([daa1161](https://github.com/matter-labs/zksync-era/commit/daa11611032350e67b44ad56bd8d7181bc15af4a))
+
 ## [29.2.0](https://github.com/matter-labs/zksync-era/compare/core-v29.1.2...core-v29.2.0) (2025-09-01)
 
 
