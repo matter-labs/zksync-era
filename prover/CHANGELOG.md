@@ -1,5 +1,12 @@
 # Changelog
 
+## [22.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v22.0.0...prover-v22.1.0) (2025-09-06)
+
+
+### Features
+
+* bump to v29.0.1 contracts + provers 29.1 ([#4452](https://github.com/matter-labs/zksync-era/issues/4452)) ([5e7d0e2](https://github.com/matter-labs/zksync-era/commit/5e7d0e283e9b39d61bae3f9bd771849d7085b751))
+
 ## [22.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.2.0...prover-v22.0.0) (2025-08-25)
 
 
