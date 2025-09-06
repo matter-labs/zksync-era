@@ -31,7 +31,7 @@ async fn run_server_inner(
 ) -> anyhow::Result<()> {
     tracing::info!(
         ?bind_address,
-        "Starting healthcheck server with checks some {app_health_check:?}"
+        "Starting healthcheck server with checks some2 {app_health_check:?}"
     );
 
     app_health_check.expose_metrics();
