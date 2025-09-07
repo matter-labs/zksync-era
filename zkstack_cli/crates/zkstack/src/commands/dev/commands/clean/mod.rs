@@ -4,7 +4,7 @@ use anyhow::Context;
 use clap::Subcommand;
 use xshell::Shell;
 use zkstack_cli_common::{docker, logger};
-use zkstack_cli_config::{ZkStackConfig, DOCKER_COMPOSE_FILE};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait, DOCKER_COMPOSE_FILE};
 
 use crate::commands::dev::messages::{
     MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
@@ -22,7 +22,7 @@ pub enum CleanCommands {
 
 pub fn run(shell: &Shell, args: CleanCommands) -> anyhow::Result<()> {
     let config = ZkStackConfig::from_file(shell)?;
-    let path_to_foundry = config.path_to_l1_foundry();
+    let path_to_foundry = config.path_to_foundry_scripts();
     let link_to_code = config.link_to_code();
     match args {
         CleanCommands::All => {

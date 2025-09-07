@@ -686,6 +686,28 @@ pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
     }
 }
 
+pub fn get_max_vm_pubdata_per_batch(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration
+        | VmVersion::Vm1_4_1
+        | VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_VM_PUBDATA_PER_BATCH,
+        VmVersion::Vm1_5_0SmallBootloaderMemory
+        | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | VmVersion::VmGateway
+        | VmVersion::VmEvmEmulator
+        | VmVersion::VmEcPrecompiles
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+    }
+}
+
 /// Holds information about number of cycles used per circuit type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct CircuitCycleStatistic {

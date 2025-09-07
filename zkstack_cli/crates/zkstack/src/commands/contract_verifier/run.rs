@@ -1,7 +1,7 @@
 use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use crate::messages::{MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR, MSG_RUNNING_CONTRACT_VERIFIER};
 
@@ -11,7 +11,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    let _dir_guard = shell.push_dir(&chain.link_to_code);
+    let _dir_guard = shell.push_dir(chain.link_to_code());
 
     logger::info(MSG_RUNNING_CONTRACT_VERIFIER);
 

@@ -5,6 +5,7 @@
 use std::{collections::HashMap, fmt::Formatter};
 
 use anyhow::Context as _;
+use kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
@@ -521,7 +522,14 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
     transaction
         .blocks_dal()
-        .mark_l1_batch_as_sealed(&genesis_l1_batch_header, &[], &[], &[], Default::default())
+        .mark_l1_batch_as_sealed(
+            &genesis_l1_batch_header,
+            &[],
+            &[],
+            &[],
+            Default::default(),
+            ZK_SYNC_BYTES_PER_BLOB as u64,
+        )
         .await?;
     transaction
         .blocks_dal()

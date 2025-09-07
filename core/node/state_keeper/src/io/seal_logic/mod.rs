@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Context as _;
 use itertools::Itertools;
+use kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
@@ -148,6 +149,7 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.storage_refunds,
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
+                ZK_SYNC_BYTES_PER_BLOB as u64,
             )
             .await?;
         progress.observe(None);

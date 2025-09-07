@@ -1,5 +1,6 @@
 [package]
 name = "zksync_settlement_layer_data"
+description = "ZKsync settlement layer data"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -15,6 +15,7 @@ use zkstack_cli_common::{
     logger,
     wallets::Wallet,
 };
+use zkstack_cli_config::ZkStackConfigTrait;
 use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, ZkStackConfig,
 };
@@ -105,7 +106,7 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
         args.skip_funding.unwrap_or(false),
         &args.forge_args.clone(),
         args.to_gateway.unwrap_or(true),
-        &ecosystem_config.path_to_l1_foundry(),
+        &ecosystem_config.path_to_foundry_scripts(),
         ecosystem_config
             .get_wallets()?
             .deployer

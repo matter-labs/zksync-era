@@ -1,6 +1,6 @@
 use zksync_types::ProtocolVersionId;
 
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
+use crate::seal_criteria::{SealCriteriaConfig, SealCriterion, SealData, SealResolution};
 
 #[derive(Debug)]
 pub(crate) struct L1L2TxsCriterion;
@@ -11,7 +11,7 @@ const L1_L2_TX_COUNT_LIMIT: usize = 600;
 impl SealCriterion for L1L2TxsCriterion {
     fn should_seal(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -34,7 +34,7 @@ impl SealCriterion for L1L2TxsCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         l1_tx_count: usize,
         _interop_roots_count: usize,
@@ -58,16 +58,14 @@ mod tests {
 
     #[test]
     fn test_l1_l2_txs_seal_criterion() {
-        let max_single_tx_gas = 15_000_000;
         let close_block_at_gas_percentage = 0.95;
 
         let l1_tx_count_bound = 599;
 
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
-            max_single_tx_gas,
+        let config = SealCriteriaConfig {
             close_block_at_gas_percentage,
-            ..StateKeeperConfig::for_tests()
+            ..SealCriteriaConfig::for_tests()
         };
 
         let criterion = L1L2TxsCriterion;

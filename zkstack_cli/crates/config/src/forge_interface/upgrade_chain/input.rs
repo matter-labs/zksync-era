@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::L2ChainId;
 
-use crate::{traits::ZkStackConfigTrait, ChainConfig};
+use crate::{ChainConfig, ZkStackConfigTrait};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainUpgradeInput {
@@ -13,7 +13,7 @@ pub struct ChainUpgradeInput {
     pub owner_address: Address,
     pub chain: ChainUpgradeChain,
 }
-impl ZkStackConfigTrait for ChainUpgradeInput {}
+// impl ZkStackConfigTrait for ChainUpgradeInput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainUpgradeChain {

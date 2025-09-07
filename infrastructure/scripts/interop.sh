@@ -4,9 +4,9 @@ zkstack dev clean containers && zkstack up -o false
 zkstack dev contracts
 
 # zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-#     --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-#     --server-db-name=zksync_server_localhost_era \
+#     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
+#     --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
+#     --server-db-name=zksync_server_127.0.0.1_era \
 #     --ignore-prerequisites --observability=false \
 #     --chain era \
 #     --update-submodules false
@@ -14,9 +14,9 @@ zkstack dev contracts
 zkstack dev generate-genesis
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-    --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-    --server-db-name=zksync_server_localhost_era \
+    --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
+    --server-db-name=zksync_server_127.0.0.1_era \
     --ignore-prerequisites --observability=false \
     --chain era \
     --update-submodules false
@@ -36,9 +36,9 @@ zkstack chain create \
 
 zkstack chain init \
             --deploy-paymaster \
-            --l1-rpc-url=http://localhost:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_validium \
+            --l1-rpc-url=http://127.0.0.1:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
+            --server-db-name=zksync_server_127.0.0.1_validium \
             --chain validium --update-submodules false \
             --validium-type no-da
 
@@ -57,9 +57,9 @@ zkstack chain create \
 
 zkstack chain init \
             --deploy-paymaster \
-            --l1-rpc-url=http://localhost:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_gateway \
+            --l1-rpc-url=http://127.0.0.1:8545 \
+            --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
+            --server-db-name=zksync_server_127.0.0.1_gateway \
             --chain gateway --update-submodules false
 
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era1.log &
@@ -83,6 +83,7 @@ sleep 30
 pkill -9 zksync_server
 sleep 10
 
+zkstack chain gateway create-tx-filterer --chain gateway --ignore-prerequisites
 zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
 zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &

@@ -52,10 +52,16 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let da_client = input.da_client;
         if let Some(limit) = da_client.blob_size_limit() {
-            if self.state_keeper_config.max_pubdata_per_batch.0 > limit as u64 {
+            if self
+                .state_keeper_config
+                .seal_criteria
+                .max_pubdata_per_batch
+                .0
+                > limit as u64
+            {
                 return Err(WiringError::Configuration(format!(
                     "Max pubdata per batch is greater than the blob size limit: {} > {} B",
-                    self.state_keeper_config.max_pubdata_per_batch, limit
+                    self.state_keeper_config.seal_criteria.max_pubdata_per_batch, limit
                 )));
             }
         }

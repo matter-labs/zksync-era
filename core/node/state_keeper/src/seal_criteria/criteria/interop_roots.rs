@@ -1,7 +1,7 @@
 use zksync_multivm::utils::get_bootloader_max_interop_roots_in_batch;
 use zksync_types::ProtocolVersionId;
 
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
+use crate::seal_criteria::{SealCriteriaConfig, SealCriterion, SealData, SealResolution};
 
 /// Checks whether we should seal the block because we've run out of transaction slots.
 #[derive(Debug)]
@@ -10,7 +10,7 @@ pub struct InteropRootsCriterion;
 impl SealCriterion for InteropRootsCriterion {
     fn should_seal(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         interop_roots_count: usize,
@@ -39,7 +39,7 @@ impl SealCriterion for InteropRootsCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         interop_roots_count: usize,
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_interop_roots_seal_criterion() {
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig::for_tests();
+        let config = SealCriteriaConfig::for_tests();
         let max_interop_roots_in_batch =
             get_bootloader_max_interop_roots_in_batch(ProtocolVersionId::latest().into());
 
