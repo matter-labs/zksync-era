@@ -703,7 +703,8 @@ pub fn get_max_vm_pubdata_per_batch(version: VmVersion) -> usize {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
     }
 }
 

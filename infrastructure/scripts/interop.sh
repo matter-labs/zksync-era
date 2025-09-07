@@ -83,6 +83,7 @@ sleep 30
 pkill -9 zksync_server
 sleep 10
 
+zkstack chain gateway create-tx-filterer --chain gateway --ignore-prerequisites
 zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
 zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &
