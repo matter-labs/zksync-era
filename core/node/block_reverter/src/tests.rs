@@ -71,7 +71,6 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
             rolling_txs_hash: Some(H256::zero()),
-            settlement_layer: SettlementLayer::for_tests(),
         };
         storage
             .blocks_dal()
@@ -95,6 +94,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         storage
             .blocks_dal()

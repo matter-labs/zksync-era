@@ -35,7 +35,6 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
         ArtifactL1AssetRouter.abi,
         wallet.providerL1!
     );
-
     const nativeTokenVault = new zksync.Contract(
         await assetRouter.nativeTokenVault(),
         ArtifactNativeTokenVault.abi,

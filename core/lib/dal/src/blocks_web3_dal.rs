@@ -8,6 +8,7 @@ use zksync_types::{
     debug_flat_call::CallTraceMeta,
     fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
+    settlement::SettlementLayer,
     web3::{BlockHeader, Bytes},
     Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
@@ -17,8 +18,8 @@ use crate::{
     models::{
         bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
-            ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
-            LEGACY_BLOCK_GAS_LIMIT,
+            to_settlement_layer, ResolvedL1BatchForL2Block, StorageBlockDetails,
+            StorageL1BatchDetails, LEGACY_BLOCK_GAS_LIMIT,
         },
         storage_transaction::CallTrace,
     },
@@ -461,6 +462,40 @@ impl BlocksWeb3Dal<'_, '_> {
             .await?
             .map(|row| row.timestamp as u64))
         }
+    }
+
+    pub async fn get_expected_settlement_layer(
+        &mut self,
+        resolved_l1batch_for_l2block: &ResolvedL1BatchForL2Block,
+    ) -> DalResult<SettlementLayer> {
+        let pending = resolved_l1batch_for_l2block.block_l1_batch.is_none();
+        let l1_batch = resolved_l1batch_for_l2block
+            .block_l1_batch
+            .unwrap_or_default();
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                settlement_layer_type,
+                settlement_layer_chain_id
+            FROM
+                l1_batches
+            WHERE
+                ($1 AND is_sealed = false) OR (number = $2)
+            ORDER BY number DESC
+            LIMIT 1
+            "#,
+            pending,
+            i64::from(l1_batch.0)
+        )
+        .instrument("get_expected_settlement_layer")
+        .with_arg("block_number", &l1_batch)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(to_settlement_layer(
+            row.settlement_layer_type,
+            row.settlement_layer_chain_id,
+        ))
     }
 
     pub async fn get_l2_block_hash(

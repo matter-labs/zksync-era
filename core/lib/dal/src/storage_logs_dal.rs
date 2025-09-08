@@ -826,7 +826,8 @@ impl StorageLogsDal<'_, '_> {
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
-        block::L1BatchHeader, AccountTreeId, ProtocolVersion, ProtocolVersionId, StorageKey,
+        block::L1BatchHeader, settlement::SettlementLayer, AccountTreeId, ProtocolVersion,
+        ProtocolVersionId, StorageKey,
     };
 
     use super::*;
@@ -838,6 +839,7 @@ mod tests {
             0,
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&header)

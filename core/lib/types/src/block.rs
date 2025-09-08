@@ -88,6 +88,7 @@ pub struct L1BatchHeader {
     pub fee_address: Address,
     pub batch_fee_input: BatchFeeInput,
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl L1BatchHeader {
@@ -99,6 +100,7 @@ impl L1BatchHeader {
             fee_address: self.fee_address,
             fee_input: self.batch_fee_input,
             pubdata_limit: self.pubdata_limit,
+            settlement_layer: self.settlement_layer,
         }
     }
 }
@@ -112,6 +114,7 @@ pub struct UnsealedL1BatchHeader {
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 /// Holder for the metadata that is relevant for both sealed and unsealed batches.
@@ -123,6 +126,7 @@ pub struct CommonL1BatchHeader {
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -151,7 +155,6 @@ pub struct L2BlockHeader {
     pub logs_bloom: Bloom,
     pub pubdata_params: PubdataParams,
     pub rolling_txs_hash: Option<H256>,
-    pub settlement_layer: SettlementLayer,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -179,10 +182,12 @@ impl L1BatchHeader {
         timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
+        settlement_layer: SettlementLayer,
     ) -> L1BatchHeader {
         Self {
             number,
             timestamp,
+            settlement_layer,
             l1_tx_count: 0,
             l2_tx_count: 0,
             priority_ops_onchain_data: vec![],
