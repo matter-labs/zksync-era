@@ -23,7 +23,10 @@ use zkstack_cli_config::{
 use zksync_basic_types::U256;
 
 use crate::{
-    commands::chain::admin_call_builder::{decode_admin_calls, AdminCall},
+    commands::chain::{
+        admin_call_builder::{decode_admin_calls, AdminCall},
+        utils::display_admin_script_output,
+    },
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -31,8 +34,8 @@ use crate::{
 lazy_static! {
     static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function governanceAcceptOwner(address governor, address target) public",
-            "function chainAdminAcceptAdmin(address admin, address target) public",
+            "function governanceAcceptOwner(address governor, address target, bool shouldSend) public",
+            "function chainAdminAcceptAdmin(address admin, address target, bool shouldSend) public",
             "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, address _l2DaValidator, bool _shouldSend) public",
             "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
@@ -63,6 +66,7 @@ pub async fn accept_admin(
     target_address: Address,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
+    mode: AdminScriptMode,
 ) -> anyhow::Result<()> {
     // Resume for accept admin doesn't work properly. Foundry assumes that if signature of the function is the same,
     // than it's the same call, but because we are calling this function multiple times during the init process,
@@ -70,8 +74,15 @@ pub async fn accept_admin(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
+    let should_send = match mode {
+        AdminScriptMode::OnlySave => false,
+        AdminScriptMode::Broadcast(_) => true,
+    };
     let calldata = ADMIN_FUNCTIONS
-        .encode("chainAdminAcceptAdmin", (admin, target_address))
+        .encode(
+            "chainAdminAcceptAdmin",
+            (admin, target_address, should_send),
+        )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -81,9 +92,10 @@ pub async fn accept_admin(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    let output = accept_ownership(shell, ecosystem_config, mode, governor, forge).await?;
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), output);
+    Ok(())
 }
 
 pub async fn accept_owner(
@@ -94,13 +106,21 @@ pub async fn accept_owner(
     target_address: Address,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
+    mode: AdminScriptMode,
 ) -> anyhow::Result<()> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
+    let should_send = match mode {
+        AdminScriptMode::OnlySave => false,
+        AdminScriptMode::Broadcast(_) => true,
+    };
     let calldata = ADMIN_FUNCTIONS
-        .encode("governanceAcceptOwner", (governor_contract, target_address))
+        .encode(
+            "governanceAcceptOwner",
+            (governor_contract, target_address, should_send),
+        )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -110,9 +130,10 @@ pub async fn accept_owner(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    let output = accept_ownership(shell, ecosystem_config, mode, governor, forge).await?;
+    display_admin_script_output(ecosystem_config.link_to_code.clone(), output);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -145,7 +166,15 @@ pub async fn make_permanent_rollup(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(
+        shell,
+        ecosystem_config,
+        AdminScriptMode::Broadcast((*governor).clone()),
+        governor,
+        forge,
+    )
+    .await;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -249,7 +278,15 @@ pub async fn admin_execute_upgrade(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(
+        shell,
+        ecosystem_config,
+        AdminScriptMode::Broadcast((*governor).clone()),
+        governor,
+        forge,
+    )
+    .await;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -294,7 +331,15 @@ pub async fn admin_schedule_upgrade(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(
+        shell,
+        ecosystem_config,
+        AdminScriptMode::Broadcast((*governor).clone()),
+        governor,
+        forge,
+    )
+    .await?;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -344,20 +389,42 @@ pub async fn admin_update_validator(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(
+        shell,
+        ecosystem_config,
+        AdminScriptMode::Broadcast((*governor).clone()),
+        governor,
+        forge,
+    )
+    .await?;
+    Ok(())
 }
 
 async fn accept_ownership(
     shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    mode: AdminScriptMode,
     governor: &Wallet,
     mut forge: ForgeScript,
-) -> anyhow::Result<()> {
-    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
-    check_the_balance(&forge).await?;
+) -> anyhow::Result<AdminScriptOutput> {
+    let (forge, spiner_text) = match mode {
+        AdminScriptMode::OnlySave => (forge, "Preparing calldata for accepting ownership"),
+        AdminScriptMode::Broadcast(wallet) => {
+            let forge = forge.with_broadcast();
+            let forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Governor)?;
+            check_the_balance(&forge).await?;
+
+            (forge, "Executing accepting ownership")
+        }
+    };
+
+    let output_path =
+        ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&ecosystem_config.path_to_l1_foundry());
+
     let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
     forge.run(shell)?;
     spinner.finish();
-    Ok(())
+    Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
 #[derive(Clone)]
@@ -373,7 +440,7 @@ impl AdminScriptMode {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct AdminScriptOutputInner {
+pub(crate) struct AdminScriptOutputInner {
     admin_address: Address,
     encoded_data: String,
 }

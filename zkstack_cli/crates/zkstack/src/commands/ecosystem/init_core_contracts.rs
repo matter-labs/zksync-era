@@ -16,7 +16,7 @@ use super::{
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
-    admin_functions::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner, AdminScriptMode},
     commands::ecosystem::{
         args::init::{InitCoreContractsArgs, InitCoreContractsArgsFinal},
         common::{deploy_erc20, deploy_l1_core_contracts},
@@ -135,6 +135,7 @@ pub async fn deploy_ecosystem(
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
     )
     .await?;
     accept_admin(
@@ -145,6 +146,7 @@ pub async fn deploy_ecosystem(
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
     )
     .await?;
 
@@ -158,6 +160,7 @@ pub async fn deploy_ecosystem(
         contracts_config.bridges.shared.l1_address,
         &forge_args,
         l1_rpc_url.clone(),
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
     )
     .await?;
 
@@ -172,6 +175,7 @@ pub async fn deploy_ecosystem(
             .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
         l1_rpc_url,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
     )
     .await?;
 

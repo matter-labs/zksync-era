@@ -17,10 +17,10 @@ use super::{
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
-    admin_functions::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner, AdminScriptMode},
     commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
+        MSG_DEPLOYING_CTM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
     },
 };
 
@@ -78,6 +78,7 @@ async fn init_ctm(
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
         init_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
+        init_args.only_save_calldata,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -92,9 +93,10 @@ pub async fn deploy_new_ctm(
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: Option<H160>,
+    only_save_calldata: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
-    let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
+    let spinner = Spinner::new(MSG_DEPLOYING_CTM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
         shell,
         &forge_args,
@@ -109,6 +111,12 @@ pub async fn deploy_new_ctm(
     .await?;
     spinner.finish();
 
+    let mode_chain_governor = if only_save_calldata {
+        AdminScriptMode::OnlySave
+    } else {
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor)
+    };
+
     accept_owner(
         shell,
         ecosystem_config,
@@ -119,6 +127,7 @@ pub async fn deploy_new_ctm(
             .state_transition_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
+        mode_chain_governor.clone(),
     )
     .await?;
 
@@ -132,6 +141,7 @@ pub async fn deploy_new_ctm(
             .state_transition_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
+        mode_chain_governor,
     )
     .await?;
 

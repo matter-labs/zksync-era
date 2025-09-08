@@ -23,6 +23,7 @@ use zkstack_cli_config::{
         },
         script_params::GATEWAY_VOTE_PREPARATION,
     },
+    override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GatewayConfig,
 };
@@ -35,13 +36,14 @@ use crate::{
         AdminScriptMode,
     },
     commands::chain::utils::display_admin_script_output,
+    consts::PATH_TO_GATEWAY_OVERRIDE_CONFIG,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
     static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract =
-        BaseContract::from(parse_abi(&["function run() public"]).unwrap(),);
+        BaseContract::from(parse_abi(&["function prepareForGWVoting(uint256) public"]).unwrap(),);
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -81,6 +83,13 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
+    override_config(
+        shell,
+        ecosystem_config
+            .link_to_code
+            .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
+        &chain_config,
+    )?;
 
     let chain_deployer_wallet = chain_config
         .get_wallets_config()?
