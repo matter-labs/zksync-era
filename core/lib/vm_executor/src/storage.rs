@@ -55,6 +55,7 @@ pub struct RestoredL1BatchEnv {
 }
 
 /// Returns the parameters required to initialize the VM for the next L1 batch.
+/// TODO pass first_l2_block as a struct
 #[allow(clippy::too_many_arguments)]
 pub fn l1_batch_params(
     current_l1_batch_number: L1BatchNumber,
@@ -369,7 +370,7 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
-            first_l2_block_in_batch.header.settlement_layer,
+            l1_batch_header.settlement_layer,
             first_l2_block_in_batch.interop_roots.clone(),
         );
 

@@ -16,6 +16,7 @@ use zksync_types::{
     fee::Fee,
     get_intrinsic_constants, h256_to_u256,
     l2::L2Tx,
+    settlement::SettlementLayer,
     u256_to_h256,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
@@ -248,6 +249,7 @@ async fn store_l1_batches(
             l2_block_number.0 as u64, // Matches the first L2 block in the batch
             genesis_params.base_system_contracts().hashes(),
             ProtocolVersionId::default(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_l1_batch(header.to_unsealed_header())
