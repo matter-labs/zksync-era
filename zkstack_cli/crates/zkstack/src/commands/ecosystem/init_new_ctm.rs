@@ -20,7 +20,7 @@ use crate::{
     admin_functions::{accept_admin, accept_owner, AdminScriptMode},
     commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
+        MSG_DEPLOYING_CTM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
     },
 };
 
@@ -96,7 +96,7 @@ pub async fn deploy_new_ctm(
     only_save_calldata: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
-    let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
+    let spinner = Spinner::new(MSG_DEPLOYING_CTM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
         shell,
         &forge_args,
