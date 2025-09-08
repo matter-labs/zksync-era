@@ -29,6 +29,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         forge_args,
         &ecosystem_config,
+        args.only_save_calldata,
     )
     .await?;
 
@@ -40,6 +41,7 @@ pub async fn register_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
+    only_save_calldata: bool,
 ) -> anyhow::Result<()> {
     let output = register_ctm_on_existing_bh(
         shell,
@@ -47,7 +49,7 @@ pub async fn register_ctm(
         ecosystem_config,
         &init_args.ecosystem.l1_rpc_url,
         None,
-        false,
+        only_save_calldata,
     )
     .await?;
 

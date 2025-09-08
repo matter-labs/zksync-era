@@ -39,6 +39,8 @@ lazy_static! {
     static ref DEPLOY_L1_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&["function runWithBridgehub(address bridgehub) public",]).unwrap(),
     );
+    static ref REGISTER_CTM_FUNCTIONS: BaseContract =
+        BaseContract::from(parse_abi(&["function registerCTM(bool shouldSend) public",]).unwrap(),);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -184,13 +186,18 @@ pub async fn register_ctm_on_existing_bh(
     config: &EcosystemConfig,
     l1_rpc_url: &str,
     sender: Option<String>,
-    broadcast: bool,
+    only_save_calldata: bool,
 ) -> anyhow::Result<AdminScriptOutput> {
     let wallets_config = config.get_wallets()?;
+
+    let calldata = REGISTER_CTM_FUNCTIONS
+        .encode("registerCTM", (!only_save_calldata))
+        .unwrap();
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
+        .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
 
     if config.l1_network == L1Network::Localhost {
@@ -205,7 +212,7 @@ pub async fn register_ctm_on_existing_bh(
             fill_forge_private_key(forge, Some(&wallets_config.governor), WalletOwner::Governor)?;
     }
 
-    if broadcast {
+    if !only_save_calldata {
         forge = forge.with_broadcast();
         check_the_balance(&forge).await?;
     }

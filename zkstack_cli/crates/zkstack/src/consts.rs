@@ -36,3 +36,4 @@ pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str =
 pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/validium.yaml";
 
 pub const PATH_TO_PROVER_COMMITMENT: &str = "prover/data/keys/commitments.json";
+pub const PATH_TO_GATEWAY_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/gateway.yaml";

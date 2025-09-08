@@ -34,8 +34,8 @@ use crate::{
 lazy_static! {
     static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function governanceAcceptOwner(address governor, address target) public",
-            "function chainAdminAcceptAdmin(address admin, address target) public",
+            "function governanceAcceptOwner(address governor, address target, bool shouldSend) public",
+            "function chainAdminAcceptAdmin(address admin, address target, bool shouldSend) public",
             "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, address _l2DaValidator, bool _shouldSend) public",
             "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
@@ -74,8 +74,15 @@ pub async fn accept_admin(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
+    let should_send = match mode {
+        AdminScriptMode::OnlySave => false,
+        AdminScriptMode::Broadcast(_) => true,
+    };
     let calldata = ADMIN_FUNCTIONS
-        .encode("chainAdminAcceptAdmin", (admin, target_address))
+        .encode(
+            "chainAdminAcceptAdmin",
+            (admin, target_address, should_send),
+        )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -105,8 +112,15 @@ pub async fn accept_owner(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
+    let should_send = match mode {
+        AdminScriptMode::OnlySave => false,
+        AdminScriptMode::Broadcast(_) => true,
+    };
     let calldata = ADMIN_FUNCTIONS
-        .encode("governanceAcceptOwner", (governor_contract, target_address))
+        .encode(
+            "governanceAcceptOwner",
+            (governor_contract, target_address, should_send),
+        )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -392,7 +406,7 @@ async fn accept_ownership(
     mode: AdminScriptMode,
     governor: &Wallet,
     mut forge: ForgeScript,
-) -> anyhow::Result<(AdminScriptOutput)> {
+) -> anyhow::Result<AdminScriptOutput> {
     let (forge, spiner_text) = match mode {
         AdminScriptMode::OnlySave => (forge, "Preparing calldata for accepting ownership"),
         AdminScriptMode::Broadcast(wallet) => {
