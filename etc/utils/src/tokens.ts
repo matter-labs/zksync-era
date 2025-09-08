@@ -10,6 +10,7 @@ import {
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
+    ArtifactL1NativeTokenVault,
     ArtifactInteropCenter
 } from './constants';
 
@@ -29,13 +30,6 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
     // console.log('bridgehub', await bridgehub.getAddress());
     // console.log('interface', bridgehub.interface);
     // const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
-    const interopCenter = new zksync.Contract(
-        await bridgehub.interopCenter(),
-        ArtifactInteropCenter.abi,
-        wallet.providerL1!
-    );
-
-    // console.log('assetTrackerAddress', assetTrackerAddress);
     const assetRouter = new zksync.Contract(
         await bridgehub.assetRouter(),
         ArtifactL1AssetRouter.abi,
@@ -46,7 +40,13 @@ export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<Ecos
         ArtifactNativeTokenVault.abi,
         wallet.providerL1!
     );
-    const assetTrackerAddress = await nativeTokenVault.assetTracker();
+    const l1NativeTokenVault = new zksync.Contract(
+        await assetRouter.nativeTokenVault(),
+        ArtifactL1NativeTokenVault.abi,
+        wallet.providerL1!
+    );
+    const assetTrackerAddress = await l1NativeTokenVault.l1AssetTracker();
+    // console.log('assetTrackerAddress', assetTrackerAddress);
     const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactL1AssetTracker.abi, wallet.providerL1!);
     return {
         bridgehub,

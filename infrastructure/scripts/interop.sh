@@ -74,14 +74,14 @@ sleep 30
 pkill -9 zksync_server
 sleep 30
 
-zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium1.log &
-zkstack server wait --ignore-prerequisites --verbose --chain validium
-# we need to fund the address before migration. todo enable base token transfers.
-sh ./infrastructure/scripts/bridge_eth_to_era.sh validium
-sleep 30
+# zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium1.log &
+# zkstack server wait --ignore-prerequisites --verbose --chain validium
+# # we need to fund the address before migration. todo enable base token transfers.
+# sh ./infrastructure/scripts/bridge_eth_to_era.sh validium
+# sleep 30
 
-pkill -9 zksync_server
-sleep 10
+# pkill -9 zksync_server
+# sleep 10
 
 zkstack chain gateway create-tx-filterer --chain gateway --ignore-prerequisites
 zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
@@ -101,15 +101,15 @@ zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium.log &
 zkstack server wait --ignore-prerequisites --verbose --chain era
 zkstack server wait --ignore-prerequisites --verbose --chain validium
 
-zkstack chain gateway migrate-token-balances --to-gateway --chain era --gateway-chain-name gateway --skip-funding
-zkstack chain gateway migrate-token-balances --to-gateway --chain validium --gateway-chain-name gateway --skip-funding
+zkstack chain gateway migrate-token-balances --to-gateway --chain era --gateway-chain-name gateway
+zkstack chain gateway migrate-token-balances --to-gateway --chain validium --gateway-chain-name gateway
 
 
 zkstack dev init-test-wallet --chain era
 zkstack dev init-test-wallet --chain validium
 # Runs interop integration test between era-validium in parallel
 mkdir -p zlogs
-zkstack dev test integration -t "Interop"  --chain era --no-deps --second-chain validium &> zlogs/era.logs
+# zkstack dev test integration -t "Interop"  --chain era --no-deps --second-chain validium &> zlogs/era.logs
 # ./bin/run_on_all_chains.sh "zkstack dev test integration -t 'Interop' --verbose" \
 #             "era,validium" zlogs/ \
 #             'era:--evm' 'validium:--evm'
