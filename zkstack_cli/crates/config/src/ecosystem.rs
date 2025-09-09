@@ -216,6 +216,7 @@ impl EcosystemConfig {
             config.legacy_bridge,
             config.evm_emulator,
             config.tight_ports,
+            config.zksync_os,
         ))
     }
 
