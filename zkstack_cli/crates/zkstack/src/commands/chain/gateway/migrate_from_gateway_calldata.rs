@@ -104,10 +104,10 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 }
 
                 let zk_chain = ZkChainAbi::new(zk_chain_address, l1_provider);
-                let (l1_da_validator, l2_da_validator_commitment_schema) =
+                let (l1_da_validator, l2_da_validator_commitment_scheme) =
                     zk_chain.get_da_validator_pair().await?;
-                let l2_da_validator_commitment_schema =
-                    L2DACommitmentScheme::try_from(l2_da_validator_commitment_schema).unwrap();
+                let l2_da_validator_commitment_scheme =
+                    L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme).unwrap();
 
                 // We always output the original message, but we provide additional helper log in case
                 // the DA validator is not yet set
@@ -118,7 +118,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 logger::info(&basic_message);
 
                 if l1_da_validator == Address::zero()
-                    || l2_da_validator_commitment_schema == L2DACommitmentScheme::None
+                    || l2_da_validator_commitment_scheme == L2DACommitmentScheme::None
                 {
                     logger::warn("The DA validators are not yet set on the diamond proxy.");
                     logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);

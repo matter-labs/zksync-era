@@ -599,7 +599,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     l2_chain_id: u64,
     gateway_chain_id: u64,
     l1_da_validator: Address,
-    l2_da_validator_commitment_schema: L2DACommitmentScheme,
+    l2_da_validator_commitment_scheme: L2DACommitmentScheme,
     chain_diamond_proxy_on_gateway: Address,
     refund_recipient: Address,
     l1_rpc_url: String,
@@ -613,7 +613,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
                 l1_da_validator,
-                l2_da_validator_commitment_schema as u8,
+                l2_da_validator_commitment_scheme as u8,
                 chain_diamond_proxy_on_gateway,
                 refund_recipient,
                 mode.should_send(),
@@ -630,7 +630,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
         l1_rpc_url,
         &format!(
             "setting DA validator pair (SL = {:#?}, L2 = {:#?}) via gateway",
-            l1_da_validator, l2_da_validator_commitment_schema
+            l1_da_validator, l2_da_validator_commitment_scheme
         ),
     )
     .await

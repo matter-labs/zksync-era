@@ -20,7 +20,7 @@ pub struct SetDAValidatorPairCalldataArgs {
     pub sl_da_validator: Address,
 
     /// Gateway transaction filterer
-    pub l2_da_validator_commitment_schema: L2DACommitmentScheme,
+    pub l2_da_validator_commitment_scheme: L2DACommitmentScheme,
 
     /// Bridgehub address
     pub bridgehub_address: Address,
@@ -88,7 +88,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
             args.chain_id,
             args.bridgehub_address,
             args.sl_da_validator,
-            args.l2_da_validator_commitment_schema,
+            args.l2_da_validator_commitment_scheme,
             args.l1_rpc_url,
         )
         .await?
@@ -117,7 +117,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
             args.chain_id,
             used_settlement_layer,
             args.sl_da_validator,
-            args.l2_da_validator_commitment_schema,
+            args.l2_da_validator_commitment_scheme,
             chain_diamond_proxy_on_gateway,
             args.refund_recipient
                 .context("Must provide `--refund-recipient` when preparing L1->GW transaction")?,

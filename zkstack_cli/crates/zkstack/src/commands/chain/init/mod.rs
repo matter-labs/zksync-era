@@ -180,7 +180,7 @@ pub async fn init(
         .await
         .context("l1_da_validator_addr")?;
 
-    let commitment_schema =
+    let commitment_scheme =
         if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
             L2DACommitmentScheme::BlobsAndPubdataKeccak256
         } else {
@@ -205,7 +205,7 @@ pub async fn init(
         chain_config.chain_id.as_u64(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         l1_da_validator_addr,
-        commitment_schema,
+        commitment_scheme,
         init_args.l1_rpc_url.clone(),
     )
     .await?;

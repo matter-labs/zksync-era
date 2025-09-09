@@ -148,10 +148,10 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     )
     .await?;
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
-    let (_, l2_da_validator_commitment_schema) = l1_zk_chain.get_da_validator_pair().await?;
+    let (_, l2_da_validator_commitment_scheme) = l1_zk_chain.get_da_validator_pair().await?;
 
-    let l2_da_validator_commitment_schema =
-        L2DACommitmentScheme::try_from(l2_da_validator_commitment_schema)
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
             .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
     result.extend(finalize_migrate_to_gateway_output.calls);
 
@@ -175,7 +175,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l2_chain_id,
         params.gateway_chain_id,
         params.new_sl_da_validator,
-        l2_da_validator_commitment_schema,
+        l2_da_validator_commitment_scheme,
         zk_chain_gw_address,
         refund_recipient,
         params.l1_rpc_url.clone(),

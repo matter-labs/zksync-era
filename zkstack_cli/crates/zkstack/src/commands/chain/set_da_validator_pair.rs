@@ -33,7 +33,7 @@ pub struct SetDAValidatorPairArgs {
     /// It is a contract that is deployed on the corresponding settlement layer (either L1 or GW).
     pub l1_da_validator: Address,
 
-    pub l2_da_commitment_schema: L2DACommitmentScheme,
+    pub l2_da_commitment_scheme: L2DACommitmentScheme,
 
     /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
     pub max_l1_gas_price: Option<u64>,
@@ -99,7 +99,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             chain_id,
             gw_chain_id,
             args.l1_da_validator,
-            args.l2_da_commitment_schema,
+            args.l2_da_commitment_scheme,
             chain_diamond_proxy_on_gateway,
             refund_recipient,
             l1_rpc_url,
@@ -130,7 +130,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             chain_id,
             diamond_proxy_address,
             args.l1_da_validator,
-            args.l2_da_commitment_schema,
+            args.l2_da_commitment_scheme,
             l1_rpc_url,
         )
         .await?;

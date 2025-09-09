@@ -193,7 +193,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .await
         .context("l1_da_validator_addr")?;
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
-    let (_, l2_da_validator_commitment_schema) =
+    let (_, l2_da_validator_commitment_scheme) =
         get_zkchain_da_validator_pair(gateway_provider.clone(), chain_config.chain_id.as_u64())
             .await
             .context("Fetching the DA validator pair from Gateway failed")?;
@@ -210,7 +210,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .ecosystem_contracts
             .bridgehub_proxy_addr,
         l1_da_validator_addr,
-        l2_da_validator_commitment_schema,
+        l2_da_validator_commitment_scheme,
         l1_url.clone(),
     )
     .await?;
@@ -328,11 +328,11 @@ pub async fn get_zkchain_da_validator_pair(
         anyhow::bail!("The chain does not settle on GW yet, the address is unknown");
     }
     let zk_chain = ZkChainAbi::new(diamond_proxy, gateway_provider);
-    let (l1_da_validator, l2_da_validator_commitment_schema) =
+    let (l1_da_validator, l2_da_validator_commitment_scheme) =
         zk_chain.get_da_validator_pair().await?;
 
-    let l2_da_validator_commitment_schema =
-        L2DACommitmentScheme::try_from(l2_da_validator_commitment_schema).unwrap();
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme).unwrap();
 
-    Ok((l1_da_validator, l2_da_validator_commitment_schema))
+    Ok((l1_da_validator, l2_da_validator_commitment_scheme))
 }

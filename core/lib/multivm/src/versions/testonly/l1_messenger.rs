@@ -141,7 +141,7 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
         keccak256(&expected_header).into()
     );
 
-    let da_commitment_schema = batch_result
+    let da_commitment_scheme = batch_result
         .block_tip_execution_result
         .logs
         .system_l2_to_l1_logs
@@ -152,7 +152,7 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
         .value;
 
     assert_eq!(
-        da_commitment_schema,
+        da_commitment_scheme,
         H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
     );
 }
