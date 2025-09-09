@@ -54,13 +54,12 @@ jobs:
           ci_run run_retried rustup show
 
       - name: Install foundry-zksync
-        if: env.BUILD_CONTRACTS == 'true'
         run: |
-          mkdir ./foundry-zksync
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
-          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
-          chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
-          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+          ci_run mkdir ./foundry-zksync
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
+          ci_run tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          ci_run chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          ci_run echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
       - name: Build contracts
         run: |
