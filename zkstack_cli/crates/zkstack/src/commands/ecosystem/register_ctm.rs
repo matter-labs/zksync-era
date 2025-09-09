@@ -53,7 +53,8 @@ pub async fn register_ctm(
     )
     .await?;
 
-    display_admin_script_output(output);
-
+    if only_save_calldata {
+        display_admin_script_output(output);
+    }
     Ok(())
 }
