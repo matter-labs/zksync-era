@@ -71,16 +71,9 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
 pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     // In this test, we check whether the L2 DA output hash is as expected.
 
-    let l2_da_validator_address = Address::repeat_byte(0x12);
     let mut vm = VmTesterBuilder::new()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
-        .with_custom_contracts(vec![ContractToDeploy {
-            bytecode: l2_rollup_da_validator_bytecode(),
-            address: l2_da_validator_address,
-            is_account: false,
-            is_funded: false,
-        }])
         .build::<VM>();
 
     let account = &mut vm.rich_accounts[0];
