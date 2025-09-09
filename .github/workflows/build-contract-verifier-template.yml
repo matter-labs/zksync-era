@@ -100,8 +100,8 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           mkdir ./foundry-zksync
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-63d81adeceb7412682a2b6826f0564614bbbc6cc/foundry_zksync_nightly_linux_amd64.tar.gz
-          tar zxf foundry_zksync_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
