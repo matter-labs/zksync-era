@@ -6,7 +6,7 @@ use super::{
     args::init::{RegisterCTMArgs, RegisterCTMArgsFinal},
     common::register_ctm_on_existing_bh,
 };
-use crate::messages::MSG_REGISTERING_CTM;
+use crate::{commands::chain::utils::display_admin_script_output, messages::MSG_REGISTERING_CTM};
 
 pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
@@ -29,6 +29,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         forge_args,
         &ecosystem_config,
+        args.only_save_calldata,
     )
     .await?;
 
@@ -40,16 +41,19 @@ pub async fn register_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
+    only_save_calldata: bool,
 ) -> anyhow::Result<()> {
-    register_ctm_on_existing_bh(
+    let output = register_ctm_on_existing_bh(
         shell,
         &forge_args,
         ecosystem_config,
         &init_args.ecosystem.l1_rpc_url,
         None,
-        true,
+        only_save_calldata,
     )
     .await?;
+
+    display_admin_script_output(output);
 
     Ok(())
 }

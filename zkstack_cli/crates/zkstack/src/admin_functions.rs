@@ -407,7 +407,7 @@ impl AdminScriptMode {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct AdminScriptOutputInner {
+pub(crate) struct AdminScriptOutputInner {
     admin_address: Address,
     encoded_data: String,
 }
