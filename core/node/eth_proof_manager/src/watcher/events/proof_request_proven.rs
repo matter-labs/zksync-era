@@ -224,7 +224,7 @@ async fn verify_proof(
         .protocol_version
         .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
-    if protocol_version != proof.protocol_version() {
+    if protocol_version != proof.protocol_version().minor {
         return Err(anyhow::anyhow!(
             "Protocol version doesn't match, server values: {protocol_version}, prover values: {}",
             proof.protocol_version()
