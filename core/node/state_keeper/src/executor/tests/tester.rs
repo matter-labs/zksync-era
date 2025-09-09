@@ -299,7 +299,7 @@ impl Tester {
             .unwrap();
 
             // Also setting up the DA for tests
-            Self::setup_da(&mut storage).await;
+            // Self::setup_da(&mut storage).await;
         }
     }
 
