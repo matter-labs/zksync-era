@@ -50,6 +50,8 @@ pub struct ChainConfigInternal {
     pub evm_emulator: bool,
     #[serde(default)] // for backward compatibility
     pub tight_ports: bool,
+    #[serde(default)] // for backward compatibility
+    pub zksync_os: bool,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -71,6 +73,7 @@ pub struct ChainConfig {
     pub legacy_bridge: Option<bool>,
     pub evm_emulator: bool,
     pub tight_ports: bool,
+    pub zksync_os: bool,
     shell: OnceCell<Shell>,
     self_path: PathBuf,
     link_to_code: PathBuf,
@@ -113,6 +116,7 @@ impl ChainConfig {
         legacy_bridge: Option<bool>,
         evm_emulator: bool,
         tight_ports: bool,
+        zksync_os: bool,
     ) -> Self {
         Self {
             id,
@@ -133,6 +137,7 @@ impl ChainConfig {
             legacy_bridge,
             evm_emulator,
             tight_ports,
+            zksync_os,
         }
     }
 
@@ -234,6 +239,7 @@ impl ChainConfig {
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
             tight_ports: self.tight_ports,
+            zksync_os: self.zksync_os,
         }
     }
     pub(crate) fn from_internal(
@@ -267,6 +273,7 @@ impl ChainConfig {
             tight_ports: chain_internal.tight_ports,
             self_path: shell.current_dir(),
             shell: shell.into(),
+            zksync_os: chain_internal.zksync_os,
         })
     }
 }

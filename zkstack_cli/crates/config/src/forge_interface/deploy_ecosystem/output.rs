@@ -45,7 +45,7 @@ impl FileConfigTrait for DeployL1Output {}
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1ContractsConfigOutput {
     pub diamond_cut_data: String,
-    pub force_deployments_data: String,
+    pub force_deployments_data: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
