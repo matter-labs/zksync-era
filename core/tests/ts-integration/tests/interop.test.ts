@@ -13,6 +13,53 @@ import { RetryableWallet } from '../src/retry-provider';
 
 import { scaledGasPrice, deployContract, waitUntilBlockFinalized } from '../src/helpers';
 
+/**
+ * Formats an Ethereum address as ERC-7930 InteroperableAddress bytes
+ * Format: version (2 bytes) + chain type (2 bytes) + chain ref len (1 byte) + chain ref + addr len (1 byte) + address
+ */
+function formatEvmV1Address(address: string, chainId?: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    if (chainId !== undefined) {
+        // Convert chainId to minimal bytes representation
+        const chainIdHex = chainId.toString(16);
+        const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+        const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+        result += chainRefLen + chainIdBytes;
+    } else {
+        result += '00'; // Empty chain reference
+    }
+
+    result += '14'; // Address length (20 bytes)
+    result += address.slice(2); // Remove '0x' prefix
+
+    return '0x' + result;
+}
+
+/**
+ * Formats a chain ID as ERC-7930 InteroperableAddress bytes (without specific address)
+ * This is used for destination chain specification in sendBundle
+ */
+function formatEvmV1Chain(chainId: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    // Convert chainId to minimal bytes representation
+    const chainIdHex = chainId.toString(16);
+    const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+    const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+    result += chainRefLen + chainIdBytes;
+
+    result += '00'; // Empty address (0 length)
+
+    return '0x' + result;
+}
+
 import {
     L2_ASSET_ROUTER_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
@@ -184,7 +231,7 @@ describe('Interop behavior checks', () => {
         // Perform a withdrawal and wait for it to be processed
         const withdrawalPromise = await alice.withdraw({
             token: tokenDetails.l2Address,
-            amount: 1n
+            amount: 1
         });
         await expect(withdrawalPromise).toBeAccepted();
         const withdrawalTx = await withdrawalPromise;
@@ -199,7 +246,7 @@ describe('Interop behavior checks', () => {
         await waitForInteropRootNonZero(alice.provider, alice, GW_CHAIN_ID, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
-            (await alice.provider.getNetwork()).chainId,
+            Number((await alice.provider.getNetwork()).chainId),
             params.l1BatchNumber,
             params.l2MessageIndex,
             { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
@@ -229,7 +276,7 @@ describe('Interop behavior checks', () => {
 
         // We use the same proof that was verified in L2-A
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
-            (await alice.provider.getNetwork()).chainId,
+            Number((await alice.provider.getNetwork()).chainId),
             params.l1BatchNumber,
             params.l2MessageIndex,
             { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
@@ -330,7 +377,7 @@ describe('Interop behavior checks', () => {
             // Fee payment call starters
             [
                 {
-                    to: ethers.ZeroAddress,
+                    to: formatEvmV1Address(ethers.ZeroAddress),
                     data: '0x',
                     callAttributes: [
                         await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
@@ -340,9 +387,9 @@ describe('Interop behavior checks', () => {
             // Execution call starters for token transfer
             [
                 {
-                    to: L2_ASSET_ROUTER_ADDRESS,
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
-                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])]
+                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
                 }
             ]
         );
@@ -367,7 +414,7 @@ describe('Interop behavior checks', () => {
 
     // Types for interop call starters and gas fields.
     interface InteropCallStarter {
-        to: string;
+        to: string; // ERC-7930 formatted address bytes
         data: string;
         callAttributes: string[];
     }
@@ -383,7 +430,11 @@ describe('Interop behavior checks', () => {
         // note skipping feeCallStarters for now:
 
         const txFinalizeReceipt = (
-            await interop1InteropCenter.sendBundle((await interop2Provider.getNetwork()).chainId, execCallStarters, [])
+            await interop1InteropCenter.sendBundle(
+                formatEvmV1Chain((await interop2Provider.getNetwork()).chainId),
+                execCallStarters,
+                []
+            )
         ).wait();
         return txFinalizeReceipt;
 
