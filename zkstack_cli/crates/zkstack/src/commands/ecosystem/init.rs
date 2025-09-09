@@ -55,7 +55,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut final_ecosystem_args = args
+    let final_ecosystem_args = args
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
@@ -66,7 +66,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     }
 
     let contracts_config = init_ecosystem(
-        &mut final_ecosystem_args,
+        &final_ecosystem_args,
         shell,
         &ecosystem_config,
         &initial_deployment_config,
@@ -146,7 +146,7 @@ async fn init_ecosystem(
     register_ctm(
         shell,
         &forge_args,
-        &ecosystem_config,
+        ecosystem_config,
         &init_args.ecosystem.l1_rpc_url,
         None,
         true,
