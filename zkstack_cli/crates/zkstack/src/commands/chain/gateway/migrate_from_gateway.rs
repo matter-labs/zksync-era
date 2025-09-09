@@ -26,21 +26,23 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, ZkStackConfig,
 };
-use zksync_basic_types::{H256, U256};
+use zksync_basic_types::{commitment::L2DACommitmentScheme, H256, U256};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::EthNamespaceClient,
 };
 
 use crate::{
-    abi::ZkChainAbi,
-    admin_functions::start_migrate_chain_from_gateway,
+    abi::{BridgehubAbi, ZkChainAbi},
+    admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
             gateway_common::extract_and_wait_for_priority_ops,
         },
+        init::get_l1_da_validator,
         utils::send_tx,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
@@ -142,7 +144,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .get_contracts_config()?
             .l1
             .diamond_proxy_addr,
-        gateway_provider,
+        gateway_provider.clone(),
     )
     .await?;
 
@@ -187,7 +189,32 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
+    let l1_da_validator_addr = get_l1_da_validator(&chain_config)
+        .await
+        .context("l1_da_validator_addr")?;
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+    let (_, l2_da_validator_commitment_schema) =
+        get_zkchain_da_validator_pair(gateway_provider.clone(), chain_config.chain_id.as_u64())
+            .await
+            .context("Fetching the DA validator pair from Gateway failed")?;
+
+    set_da_validator_pair(
+        shell,
+        &args.forge_args,
+        &ecosystem_config.path_to_l1_foundry(),
+        crate::admin_functions::AdminScriptMode::Broadcast(
+            chain_config.get_wallets_config()?.governor,
+        ),
+        chain_config.chain_id.as_u64(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        l1_da_validator_addr,
+        l2_da_validator_commitment_schema,
+        l1_url.clone(),
+    )
+    .await?;
+
     spinner.finish();
     Ok(())
 }
@@ -289,4 +316,23 @@ pub(crate) async fn finish_migrate_chain_from_gateway(
     forge.run(shell)?;
 
     Ok(())
+}
+
+pub async fn get_zkchain_da_validator_pair(
+    gateway_provider: Arc<Provider<Http>>,
+    chain_id: u64,
+) -> anyhow::Result<(Address, L2DACommitmentScheme)> {
+    let bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider.clone());
+    let diamond_proxy = bridgehub.get_zk_chain(chain_id.into()).await?;
+    if diamond_proxy.is_zero() {
+        anyhow::bail!("The chain does not settle on GW yet, the address is unknown");
+    }
+    let zk_chain = ZkChainAbi::new(diamond_proxy, gateway_provider);
+    let (l1_da_validator, l2_da_validator_commitment_schema) =
+        zk_chain.get_da_validator_pair().await?;
+
+    let l2_da_validator_commitment_schema =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_schema).unwrap();
+
+    Ok((l1_da_validator, l2_da_validator_commitment_schema))
 }

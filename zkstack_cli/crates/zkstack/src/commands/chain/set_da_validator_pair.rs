@@ -117,11 +117,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
 
         logger::note(
             "DA validator pair on Gateway:",
-            format!(
-                "L1: {}, L2: {}",
-                hex::encode(l1_da_validator),
-                hex::encode(l2_da_validator)
-            ),
+            format!("L1: {:?}, L2: {:?}", l1_da_validator, l2_da_validator),
         );
     } else {
         let diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;

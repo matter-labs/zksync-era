@@ -70,12 +70,9 @@ pub fn build_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()>
 }
 
 pub fn install_and_build_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    dbg!(shell.current_dir());
-    dbg!(link_to_code);
     let _dir_guard = shell.push_dir(link_to_code);
     let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
 
-    dbg!(shell.current_dir());
     Cmd::new(cmd!(shell, "yarn install")).run()?;
     Cmd::new(cmd!(shell, "yarn utils build")).run()?;
 

@@ -8,9 +8,8 @@ use ethers::providers::Middleware;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
-use zksync_basic_types::{Address, H256, U256};
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
-use zksync_types::ProtocolVersionId;
 
 use super::{
     gateway_common::{
@@ -22,18 +21,17 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        AdminScriptOutput,
+        set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
     commands::chain::{
         admin_call_builder::AdminCall,
         utils::{display_admin_script_output, get_default_foundry_path},
     },
+    utils::{
+        addresses::{apply_l1_to_l2_alias, precompute_chain_address_on_gateway},
+        protocol_version::get_minor_protocol_version,
+    },
 };
-
-fn get_minor_protocol_version(protocol_version: U256) -> anyhow::Result<ProtocolVersionId> {
-    ProtocolVersionId::try_from_packed_semver(protocol_version)
-        .map_err(|err| anyhow::format_err!("Failed to unpack semver for protocol version: {err}"))
-}
 
 #[derive(Parser, Debug)]
 pub(crate) struct MigrateToGatewayParams {
@@ -113,6 +111,28 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let chain_admin_address = l1_zk_chain.get_admin().await?;
 
+    let zk_chain_gw_address = {
+        let recorded_zk_chain_gw_address =
+            gw_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
+        if recorded_zk_chain_gw_address == Address::zero() {
+            precompute_chain_address_on_gateway(
+                params.l2_chain_id,
+                H256(
+                    l1_bridgehub
+                        .base_token_asset_id(params.l2_chain_id.into())
+                        .await?,
+                ),
+                apply_l1_to_l2_alias(l1_zk_chain.get_admin().await?),
+                protocol_version,
+                params.gateway_diamond_cut.clone(),
+                gw_ctm,
+            )
+            .await?
+        } else {
+            recorded_zk_chain_gw_address
+        }
+    };
+
     let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
         shell,
         forge_args,
@@ -127,7 +147,12 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l1_rpc_url.clone(),
     )
     .await?;
+    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
+    let (_, l2_da_validator_commitment_schema) = l1_zk_chain.get_da_validator_pair().await?;
 
+    let l2_da_validator_commitment_schema =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_schema)
+            .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
     result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
@@ -139,6 +164,25 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
         logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
     }
+
+    let da_validator_encoding_result = set_da_validator_pair_via_gateway(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        crate::admin_functions::AdminScriptMode::OnlySave,
+        params.l1_bridgehub_addr,
+        params.max_l1_gas_price.into(),
+        params.l2_chain_id,
+        params.gateway_chain_id,
+        params.new_sl_da_validator,
+        l2_da_validator_commitment_schema,
+        zk_chain_gw_address,
+        refund_recipient,
+        params.l1_rpc_url.clone(),
+    )
+    .await?;
+
+    result.extend(da_validator_encoding_result.calls.into_iter());
 
     let is_validator_enabled =
         if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
