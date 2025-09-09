@@ -118,6 +118,8 @@ pub(crate) async fn create_chain_inner(
         legacy_bridge,
         args.evm_emulator,
         args.tight_ports,
+        // TODO support creating zksync OS chains
+        false,
     );
 
     create_wallets(
