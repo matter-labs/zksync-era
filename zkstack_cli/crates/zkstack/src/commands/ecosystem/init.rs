@@ -53,7 +53,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     let mut final_ecosystem_args = args
-        .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
@@ -91,7 +90,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     // Initialize chain(s)
     let mut chains: Vec<String> = vec![];
     if !final_ecosystem_args.ecosystem_only {
-        chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
+        chains = init_chains(final_ecosystem_args.clone(), shell, &ecosystem_config).await?;
     }
     logger::outro(msg_ecosystem_initialized(&chains.join(",")));
 
@@ -134,6 +133,7 @@ async fn init_ecosystem(
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
         init_args.bridgehub_address,
+        init_args.zksync_os,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -141,7 +141,7 @@ async fn init_ecosystem(
     let forge_args = init_args.forge_args.clone();
 
     let mut reg_args = RegisterCTMArgsFinal::from((*init_args).clone());
-    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config).await?;
+    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
 
     Ok(contracts)
 }

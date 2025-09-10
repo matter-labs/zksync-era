@@ -234,8 +234,8 @@ impl Aggregator {
         restrictions: OperationSkippingRestrictions,
         priority_tree_start_index: Option<usize>,
         precommit_params: Option<&PrecommitParams>,
-        is_gateway: bool, //
         execution_delay: Duration,
+        is_gateway: bool, //
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()

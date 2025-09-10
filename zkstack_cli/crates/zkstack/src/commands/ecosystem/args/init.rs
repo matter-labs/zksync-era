@@ -18,7 +18,7 @@ use crate::{
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_GENESIS,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
         MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
-        MSG_SERVER_DB_URL_HELP,
+        MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
     },
 };
 
@@ -130,16 +130,22 @@ pub struct EcosystemInitArgs {
     pub bridgehub: Option<String>,
     #[clap(long, short, action, help = MSG_NO_GENESIS)]
     pub no_genesis: bool,
+    #[clap(long, help = MSG_ZKSYNC_OS)]
+    pub zksync_os: bool,
 }
 
 impl EcosystemInitArgs {
-    pub fn get_genesis_args(&self) -> GenesisArgs {
-        GenesisArgs {
-            server_db_url: self.server_db_url.clone(),
-            server_db_name: self.server_db_name.clone(),
-            dev: self.dev,
-            dont_drop: self.dont_drop,
-            server_command: self.server_command.clone(),
+    pub fn get_genesis_args(&self) -> Option<GenesisArgs> {
+        if self.no_genesis || self.zksync_os {
+            None
+        } else {
+            Some(GenesisArgs {
+                server_db_url: self.server_db_url.clone(),
+                server_db_name: self.server_db_name.clone(),
+                dev: self.dev,
+                dont_drop: self.dont_drop,
+                server_command: self.server_command.clone(),
+            })
         }
     }
 
@@ -147,6 +153,7 @@ impl EcosystemInitArgs {
         self,
         l1_network: L1Network,
     ) -> anyhow::Result<EcosystemInitArgsFinal> {
+        let genesis_args = self.get_genesis_args();
         let EcosystemInitArgs {
             forge_args,
             dev,
@@ -156,6 +163,10 @@ impl EcosystemInitArgs {
             validium_args,
             support_l2_legacy_shared_bridge_test,
             bridgehub,
+            zksync_os,
+            make_permanent_rollup,
+            update_submodules,
+            deploy_paymaster,
             ..
         } = self;
 
@@ -216,6 +227,11 @@ impl EcosystemInitArgs {
                 .unwrap_or_default(),
             bridgehub_address,
             deploy_ecosystem,
+            deploy_paymaster,
+            make_permanent_rollup,
+            update_submodules,
+            genesis_args,
+            zksync_os,
         })
     }
 }
@@ -234,6 +250,11 @@ pub struct EcosystemInitArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
     pub deploy_ecosystem: bool,
+    pub deploy_paymaster: Option<bool>,
+    pub make_permanent_rollup: Option<bool>,
+    pub update_submodules: Option<bool>,
+    pub genesis_args: Option<GenesisArgs>,
+    pub zksync_os: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -248,6 +269,8 @@ pub struct RegisterCTMArgs {
     pub update_submodules: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub only_save_calldata: bool,
 }
 
 impl RegisterCTMArgs {
@@ -260,6 +283,7 @@ impl RegisterCTMArgs {
             forge_args,
             update_submodules,
             dev,
+            only_save_calldata,
         } = self;
 
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
@@ -268,6 +292,7 @@ impl RegisterCTMArgs {
             ecosystem,
             forge_args,
             update_submodules,
+            only_save_calldata,
         })
     }
 }
@@ -277,6 +302,7 @@ pub struct RegisterCTMArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub update_submodules: Option<bool>,
+    pub only_save_calldata: bool,
 }
 
 impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
@@ -285,6 +311,7 @@ impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
             ecosystem: args.ecosystem,
             forge_args: args.forge_args,
             update_submodules: None,
+            only_save_calldata: false,
         }
     }
 }
@@ -305,6 +332,8 @@ pub struct InitNewCTMArgs {
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
+    #[clap(long, help = MSG_ZKSYNC_OS)]
+    pub zksync_os: bool,
 }
 
 impl InitNewCTMArgs {
@@ -319,6 +348,7 @@ impl InitNewCTMArgs {
             skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
             bridgehub,
+            zksync_os,
         } = self;
 
         // Fill ecosystem args
@@ -343,6 +373,7 @@ impl InitNewCTMArgs {
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or(false),
             bridgehub_address,
+            zksync_os,
         })
     }
 }
@@ -355,6 +386,7 @@ pub struct InitNewCTMArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
+    pub zksync_os: bool,
 }
 
 impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
@@ -366,6 +398,7 @@ impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
             skip_contract_compilation_override: args.skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
             bridgehub_address: args.bridgehub_address,
+            zksync_os: args.zksync_os,
         }
     }
 }
