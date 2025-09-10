@@ -78,7 +78,7 @@ impl ForgeScript {
                 Ok(_) => {}
                 Err(e) => {
                     eprintln!("forge failed: {e}");
-                    if let Some(stderr) = res.std_err() {
+                    if let Some(stderr) = &e.stderr {
                         eprintln!("--- forge stderr ---\n{}", stderr);
                     }
                 }
