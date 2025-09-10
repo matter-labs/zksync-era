@@ -60,7 +60,9 @@ pub struct ChainL1Config {
     pub validator_sender_operator_commit_eth: Address,
     pub validator_sender_operator_blobs_eth: Address,
     /// Additional validators that can be used for prove & execute (when these are handled by different entities).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub validator_sender_operator_prove: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub validator_sender_operator_execute: Option<Address>,
     pub base_token_gas_price_multiplier_nominator: u64,
     pub base_token_gas_price_multiplier_denominator: u64,
