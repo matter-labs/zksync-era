@@ -269,6 +269,8 @@ pub struct RegisterCTMArgs {
     pub update_submodules: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub only_save_calldata: bool,
 }
 
 impl RegisterCTMArgs {
@@ -281,6 +283,7 @@ impl RegisterCTMArgs {
             forge_args,
             update_submodules,
             dev,
+            only_save_calldata,
         } = self;
 
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
@@ -289,6 +292,7 @@ impl RegisterCTMArgs {
             ecosystem,
             forge_args,
             update_submodules,
+            only_save_calldata,
         })
     }
 }
@@ -298,6 +302,7 @@ pub struct RegisterCTMArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub update_submodules: Option<bool>,
+    pub only_save_calldata: bool,
 }
 
 impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
@@ -306,6 +311,7 @@ impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
             ecosystem: args.ecosystem,
             forge_args: args.forge_args,
             update_submodules: None,
+            only_save_calldata: false,
         }
     }
 }

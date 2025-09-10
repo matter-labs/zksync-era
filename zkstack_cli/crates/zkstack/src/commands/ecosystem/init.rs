@@ -141,7 +141,7 @@ async fn init_ecosystem(
     let forge_args = init_args.forge_args.clone();
 
     let mut reg_args = RegisterCTMArgsFinal::from((*init_args).clone());
-    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config).await?;
+    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
 
     Ok(contracts)
 }
