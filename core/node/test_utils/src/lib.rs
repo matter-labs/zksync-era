@@ -91,7 +91,6 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
         rolling_txs_hash: Some(fake_rolling_txs_hash_for_block(number)),
-        settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(89)),
     }
 }
 
@@ -106,6 +105,7 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
             evm_emulator: None,
         },
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     );
     header.l1_tx_count = 3;
     header.l2_tx_count = 5;
@@ -247,6 +247,7 @@ impl Snapshot {
             l1_batch.0.into(),
             contracts.hashes(),
             protocol_version,
+            SettlementLayer::for_tests(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,
@@ -265,7 +266,6 @@ impl Snapshot {
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
             rolling_txs_hash: Some(H256::zero()),
-            settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(99)),
         };
         Snapshot {
             l1_batch,

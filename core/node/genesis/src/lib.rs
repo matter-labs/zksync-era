@@ -486,6 +486,8 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         0,
         base_system_contracts.hashes(),
         protocol_version.minor,
+        // TODO get proper chain id from config
+        SettlementLayer::L1(SLChainId(19)),
     );
     let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
@@ -506,8 +508,6 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         logs_bloom: Bloom::zero(),
         pubdata_params: Default::default(),
         rolling_txs_hash: Some(H256::zero()),
-        // kl todo think through if adding proper genesis settlement layer here is needed.
-        settlement_layer: SettlementLayer::L1(SLChainId(39)),
     };
 
     let mut transaction = storage.start_transaction().await?;

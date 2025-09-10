@@ -15,9 +15,9 @@ use zkstack_cli_common::{
     logger,
     wallets::Wallet,
 };
-use zkstack_cli_config::ZkStackConfigTrait;
 use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 use zksync_basic_types::U256;
 use zksync_types::L2ChainId;

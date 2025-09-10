@@ -39,6 +39,7 @@ impl L1BatchEnv {
             fee_address: self.fee_account,
             fee_input: self.fee_input,
             pubdata_limit,
+            settlement_layer: self.settlement_layer,
         }
     }
 }
