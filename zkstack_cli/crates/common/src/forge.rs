@@ -74,6 +74,15 @@ impl ForgeScript {
             if !res.resume_not_successful_because_has_not_began() {
                 return Ok(res?);
             }
+            match &res {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("forge failed: {e}");
+                    if let Some(stderr) = res.std_err() {
+                        eprintln!("--- forge stderr ---\n{}", stderr);
+                    }
+                }
+            }
         }
 
         // TODO: This line is very helpful for debugging purposes,
