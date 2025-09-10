@@ -60,8 +60,8 @@ pub struct ChainL1Config {
     pub validator_sender_operator_commit_eth: Address,
     pub validator_sender_operator_blobs_eth: Address,
     /// Additional validators that can be used for prove & execute (when these are handled by different entities).
-    pub validator_sender_prove_operator: Option<Address>,
-    pub validator_sender_execute_operator: Option<Address>,
+    pub validator_sender_operator_prove: Option<Address>,
+    pub validator_sender_operator_execute: Option<Address>,
     pub base_token_gas_price_multiplier_nominator: u64,
     pub base_token_gas_price_multiplier_denominator: u64,
     pub governance_security_council_address: Address,
@@ -124,11 +124,11 @@ impl RegisterChainL1Config {
                     == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
-                validator_sender_prove_operator: wallets_config
+                validator_sender_operator_prove: wallets_config
                     .prove_operator
                     .as_ref()
                     .map(|w| w.address),
-                validator_sender_execute_operator: wallets_config
+                validator_sender_operator_execute: wallets_config
                     .execute_operator
                     .as_ref()
                     .map(|w| w.address),
