@@ -96,6 +96,16 @@ impl ForgeScript {
         }
 
         let res = cmd.run();
+
+        match &res {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("forge failed: {e}");
+                if let Some(stderr) = &e.stderr {
+                    eprintln!("--- forge stderr ---\n{}", stderr);
+                }
+            }
+        }
         // We won't catch this error if resume is not set.
         if res.proposal_error() {
             return Ok(());
