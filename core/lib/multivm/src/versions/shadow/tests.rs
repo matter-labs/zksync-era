@@ -614,7 +614,6 @@ mod refunds {
     use crate::versions::testonly::refunds::*;
 
     #[test]
-    #[ignore]
     fn predetermined_refunded_gas() {
         test_predetermined_refunded_gas::<super::ShadowedFastVm>();
     }

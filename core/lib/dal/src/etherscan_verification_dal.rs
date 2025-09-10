@@ -402,7 +402,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_saving_request_for_retry() {
         let request = get_default_verification_request(Some("1.5.7"));
         let pool = ConnectionPool::<Core>::test_pool().await;
