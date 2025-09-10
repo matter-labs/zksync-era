@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
-use zkstack_cli_config::{EcosystemConfig, ZkStackConfig};
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{
     args::integration::IntegrationArgs,
@@ -65,11 +65,11 @@ impl<'a> IntegrationTestRunner<'a> {
         let ecosystem_config = self.ecosystem_config;
 
         if !self.no_deps {
-            install_and_build_dependencies(self.shell, &ecosystem_config.link_to_code)?;
-            build_contracts(self.shell, &ecosystem_config.link_to_code)?;
+            install_and_build_dependencies(self.shell, &ecosystem_config.link_to_code())?;
+            build_contracts(self.shell, &ecosystem_config.link_to_code())?;
         }
         self.shell
-            .change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
+            .change_dir(ecosystem_config.link_to_code().join(TS_INTEGRATION_PATH));
 
         let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
             &["-t", pattern]

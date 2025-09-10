@@ -3,7 +3,7 @@ use std::str::FromStr;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{get_link_to_prover, ZkStackConfig, ZkStackConfigTrait};
 
 use crate::commands::dev::{
     commands::test::db::reset_test_databases,
@@ -20,7 +20,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     }];
     reset_test_databases(shell, &config.link_to_code(), dals).await?;
 
-    let _dir_guard = shell.push_dir(config.link_to_code().join("prover"));
+    let _dir_guard = shell.push_dir(get_link_to_prover(&config.link_to_code()));
     Cmd::new(cmd!(shell, "cargo test --release --workspace --locked"))
         .with_force_run()
         .env("TEST_DATABASE_PROVER_URL", TEST_DATABASE_PROVER_URL)

@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, db::DatabaseConfig, spinner::Spinner};
-use zkstack_cli_config::{SecretsConfig, ZkStackConfig, SECRETS_FILE};
+use zkstack_cli_config::{SecretsConfig, ZkStackConfig, ZkStackConfigTrait, SECRETS_FILE};
 
 use crate::{
     commands::dev::{
@@ -37,8 +37,8 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         Some(secrets.core_database_url()?.unwrap().to_string()),
     )
     .await?;
-    reset_database(shell, chain.link_to_code.clone(), dal).await?;
-    shell.change_dir(chain.link_to_code);
+    reset_database(shell, chain.link_to_code().clone(), dal).await?;
+    shell.change_dir(chain.link_to_code());
     let _dir = shell.push_dir("core");
     Cmd::new(cmd!(shell,"cargo run --package genesis_generator --bin genesis_generator -- --config-path={secrets_path}")).run()?;
     spinner.finish();

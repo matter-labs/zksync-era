@@ -278,6 +278,7 @@ impl EthSenderTester {
                 },
                 pubdata_sending_mode,
                 commitment_mode,
+                connection_pool.clone(),
             )
             .await
             .unwrap(),

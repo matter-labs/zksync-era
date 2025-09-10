@@ -3,6 +3,8 @@ use std::time::Duration;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 
+use crate::metrics::METRICS;
+
 pub struct ProofRouter {
     connection_pool: ConnectionPool<Core>,
     acknowledgment_timeout: Duration,
@@ -47,6 +49,8 @@ impl ProofRouter {
                 .await?;
 
             tracing::info!("Fallbacked {} batches with timeouts: acknowledgment timeout: {:?} and proving timeout: {:?}", amount, self.acknowledgment_timeout, self.proving_timeout);
+
+            METRICS.fallbacked_batches.inc_by(amount as u64);
 
             tokio::time::sleep(Duration::from_secs(10)).await;
         }

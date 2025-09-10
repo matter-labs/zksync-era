@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::{args::upgrade::UpgradeArgs, utils::install_and_build_dependencies};
 use crate::commands::dev::messages::{MSG_UPGRADE_TEST_RUN_INFO, MSG_UPGRADE_TEST_RUN_SUCCESS};
@@ -13,10 +13,10 @@ pub fn run(shell: &Shell, args: UpgradeArgs) -> anyhow::Result<()> {
     logger::info(MSG_UPGRADE_TEST_RUN_INFO);
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &config.link_to_code)?;
+        install_and_build_dependencies(shell, &config.link_to_code())?;
     }
 
-    shell.change_dir(config.link_to_code.join(UPGRADE_TESTS_PATH));
+    shell.change_dir(config.link_to_code().join(UPGRADE_TESTS_PATH));
     run_test(shell, &config.name)?;
     logger::outro(MSG_UPGRADE_TEST_RUN_SUCCESS);
 

@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
-use zkstack_cli_config::{EcosystemConfig, ZkStackConfig};
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{args::recovery::RecoveryArgs, utils::install_and_build_dependencies};
 use crate::commands::dev::messages::{MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS};
@@ -11,13 +11,13 @@ pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
     let config = ZkStackConfig::ecosystem(shell)?;
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);
-    Server::new(None, None, config.link_to_code.clone(), false).build(shell)?;
+    Server::new(None, None, config.link_to_code().clone(), false).build(shell)?;
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &config.link_to_code)?;
+        install_and_build_dependencies(shell, &config.link_to_code())?;
     }
 
-    shell.change_dir(config.link_to_code.join(RECOVERY_TESTS_PATH));
+    shell.change_dir(config.link_to_code().join(RECOVERY_TESTS_PATH));
     run_test(shell, &args, &config).await?;
     logger::outro(MSG_RECOVERY_TEST_RUN_SUCCESS);
 

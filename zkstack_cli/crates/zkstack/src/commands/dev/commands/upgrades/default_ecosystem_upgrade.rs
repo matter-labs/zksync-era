@@ -27,13 +27,14 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls},
+    admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
         types::UpgradeVersion,
@@ -53,7 +54,7 @@ pub async fn run(
     println!("Running ecosystem gateway upgrade args");
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    git::submodule_update(shell, &ecosystem_config.link_to_code)?;
+    git::submodule_update(shell, &ecosystem_config.link_to_code())?;
 
     let upgrade_version = args.upgrade_version;
 
@@ -136,9 +137,7 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    let genesis_config_path = ecosystem_config
-        .get_default_configs_path()
-        .join(GENESIS_FILE);
+    let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
@@ -183,8 +182,8 @@ async fn no_governance_prepare(
 
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
-    let ecosystem_upgrade_config_path =
-        get_ecosystem_upgrade_params(upgrade_version).input(&ecosystem_config.path_to_l1_foundry());
+    let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(upgrade_version)
+        .input(&ecosystem_config.path_to_foundry_scripts());
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
@@ -240,7 +239,7 @@ async fn no_governance_prepare(
         ecosystem_upgrade_config_path
     ));
     ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
-    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts())
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
             forge_args.clone(),
@@ -267,7 +266,7 @@ async fn no_governance_prepare(
 
     let broadcast_file: BroadcastFile = {
         let file_content =
-            std::fs::read_to_string(ecosystem_config.path_to_l1_foundry().join(format!(
+            std::fs::read_to_string(ecosystem_config.path_to_foundry_scripts().join(format!(
                 "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
                 l1_chain_id
             )))
@@ -278,7 +277,7 @@ async fn no_governance_prepare(
     let mut output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_l1_foundry()),
+            .output(&ecosystem_config.path_to_foundry_scripts()),
     )?;
 
     // Add all the transaction hashes.
@@ -302,7 +301,7 @@ async fn ecosystem_admin(
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_l1_foundry()),
+            .output(&ecosystem_config.path_to_foundry_scripts()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -344,7 +343,7 @@ async fn governance_stage_0(
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_l1_foundry()),
+            .output(&ecosystem_config.path_to_foundry_scripts()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -363,10 +362,11 @@ async fn governance_stage_0(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
+        None,
     )
     .await?;
     spinner.finish();
@@ -386,7 +386,7 @@ async fn governance_stage_1(
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_l1_foundry()),
+            .output(&ecosystem_config.path_to_foundry_scripts()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -405,10 +405,11 @@ async fn governance_stage_1(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
+        None,
     )
     .await?;
 
@@ -467,10 +468,11 @@ async fn governance_stage_2(
     governance_execute_calls(
         shell,
         ecosystem_config,
-        &ecosystem_config.get_wallets()?.governor,
+        AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
+        None,
     )
     .await?;
 
@@ -574,7 +576,7 @@ async fn no_governance_stage_2(
         .unwrap();
 
     logger::info("Initiing chains!");
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()

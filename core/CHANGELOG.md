@@ -1,5 +1,22 @@
 # Changelog
 
+## [29.2.0](https://github.com/matter-labs/zksync-era/compare/core-v29.1.2...core-v29.2.0) (2025-09-01)
+
+
+### Features
+
+* **en:** seal criteria ([#4429](https://github.com/matter-labs/zksync-era/issues/4429)) ([3d02076](https://github.com/matter-labs/zksync-era/commit/3d02076d8bcea94e56c9f7e579b0897feae18358))
+* **eth_sender:** Properly calculate  blob price  ([#4406](https://github.com/matter-labs/zksync-era/issues/4406)) ([a8e5952](https://github.com/matter-labs/zksync-era/commit/a8e595265642f07232c1802618c61017a1d21fab))
+* **eth-proof-manager:** Add proper metrics ([#4439](https://github.com/matter-labs/zksync-era/issues/4439)) ([1045edc](https://github.com/matter-labs/zksync-era/commit/1045edc450e9b65cc0efc863df96b510b909cd50))
+* interop roots batch ordering ([#4434](https://github.com/matter-labs/zksync-era/issues/4434)) ([831f985](https://github.com/matter-labs/zksync-era/commit/831f985c376d3e66d3848beee8de712de74436c7))
+
+
+### Bug Fixes
+
+* **db:** Precommit query ([#4436](https://github.com/matter-labs/zksync-era/issues/4436)) ([4b64e6e](https://github.com/matter-labs/zksync-era/commit/4b64e6ead4d63df3c46ed8e0a82018d72025d99c))
+* **eth-proof-manager:** Fallbacking batch if successfully submitted ([#4379](https://github.com/matter-labs/zksync-era/issues/4379)) ([bfda346](https://github.com/matter-labs/zksync-era/commit/bfda346c260825a47dda6265340a03facbf34aab))
+* **eth-proof-manager:** use correct status while fallbacking ([#4396](https://github.com/matter-labs/zksync-era/issues/4396)) ([a5337de](https://github.com/matter-labs/zksync-era/commit/a5337de9a8caaccac14d2120efc343edff11abca))
+
 ## [29.1.2](https://github.com/matter-labs/zksync-era/compare/core-v29.1.1...core-v29.1.2) (2025-08-26)
 
 

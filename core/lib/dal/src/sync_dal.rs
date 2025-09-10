@@ -272,7 +272,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default())
+            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default(), 1)
             .await
             .unwrap();
         conn.blocks_dal()

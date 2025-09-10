@@ -18,6 +18,7 @@ use zksync_types::{
 };
 
 use crate::{
+    metrics::{ValidationResult, METRICS},
     types::{FflonkFinalVerificationKey, ProvingNetwork},
     watcher::events::EventHandler,
 };
@@ -115,9 +116,6 @@ impl EventHandler for ProofRequestProvenHandler {
             event.assigned_to,
         );
 
-        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof)
-            .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
-
         let batch_number = L1BatchNumber(event.block_number.as_u32());
 
         let verification_result = match verify_proof(
@@ -128,32 +126,34 @@ impl EventHandler for ProofRequestProvenHandler {
         )
         .await
         {
-            Ok(_) => {
+            Ok(proof) => {
                 tracing::info!("Proof for batch {} verified successfully", batch_number);
+
+                let proof_blob_url = self
+                    .blob_store
+                    .put(
+                        L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
+                        &proof,
+                    )
+                    .await?;
+
+                self.connection_pool
+                    .connection()
+                    .await?
+                    .proof_generation_dal()
+                    .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
+                    .await?;
+
+                METRICS.validated_batches[&ValidationResult::Success].inc();
+                METRICS.proven_batches[&event.assigned_to].inc();
                 true
             }
             Err(e) => {
                 tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
+                METRICS.validated_batches[&ValidationResult::Failed].inc();
                 false
             }
         };
-
-        if verification_result {
-            let proof_blob_url = self
-                .blob_store
-                .put(
-                    L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
-                    &proof,
-                )
-                .await?;
-
-            self.connection_pool
-                .connection()
-                .await?
-                .proof_generation_dal()
-                .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
-                .await?;
-        }
 
         tracing::info!(
             "Batch {}, chain_id: {}, assigned_to: {:?}, verification_result: {:?}",
@@ -177,9 +177,12 @@ impl EventHandler for ProofRequestProvenHandler {
 async fn verify_proof(
     connection_pool: ConnectionPool<Core>,
     batch_number: L1BatchNumber,
-    proof: L1BatchProofForL1,
+    proof_bytes: Vec<u8>,
     verification_key: FflonkFinalVerificationKey,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<L1BatchProofForL1> {
+    let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof_bytes)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
+
     let verification_result = match proof.inner() {
         TypedL1BatchProofForL1::Fflonk(proof) => {
             let proof = proof.scheduler_proof;
@@ -275,5 +278,5 @@ async fn verify_proof(
         ));
     }
 
-    Ok(())
+    Ok(proof)
 }

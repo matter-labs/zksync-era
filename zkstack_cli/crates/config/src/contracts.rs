@@ -15,7 +15,7 @@ use crate::{
         },
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -79,12 +79,11 @@ impl ContractsConfig {
                 .bridgehub
                 .ctm_deployment_tracker_proxy_addr,
         );
-        self.ecosystem_contracts.force_deployments_data = Some(
-            deploy_l1_output
-                .contracts_config
-                .force_deployments_data
-                .clone(),
-        );
+        self.ecosystem_contracts.force_deployments_data = deploy_l1_output
+            .contracts_config
+            .force_deployments_data
+            .clone();
+
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -201,7 +200,7 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
-impl ZkStackConfigTrait for ContractsConfig {}
+impl FileConfigTrait for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
@@ -234,7 +233,7 @@ pub struct EcosystemContracts {
     pub server_notifier_proxy_addr: Option<Address>,
 }
 
-impl ZkStackConfigTrait for EcosystemContracts {}
+impl FileConfigTrait for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

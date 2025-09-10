@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{ChainConfig, ZkStackConfig};
+use zkstack_cli_config::{ChainConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::utils::install_and_build_dependencies;
 use crate::commands::dev::{
@@ -12,13 +12,14 @@ const GATEWAY_SWITCH_TESTS_PATH: &str = "core/tests/gateway-migration-test";
 
 pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
+
     logger::info(MSG_GATEWAY_UPGRADE_TEST_RUN_INFO);
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &chain_config.link_to_code)?;
+        install_and_build_dependencies(shell, &chain_config.link_to_code())?;
     }
 
-    shell.change_dir(chain_config.link_to_code.join(GATEWAY_SWITCH_TESTS_PATH));
+    shell.change_dir(chain_config.link_to_code().join(GATEWAY_SWITCH_TESTS_PATH));
     run_test(
         shell,
         &chain_config,

@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::{EcosystemConfig, ZkStackConfig};
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{args::revert::RevertArgs, utils::install_and_build_dependencies};
 use crate::commands::dev::messages::{MSG_REVERT_TEST_RUN_INFO, MSG_REVERT_TEST_RUN_SUCCESS};
@@ -13,10 +13,10 @@ pub async fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
     logger::info(MSG_REVERT_TEST_RUN_INFO);
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &ecosystem_config.link_to_code)?;
+        install_and_build_dependencies(shell, &ecosystem_config.link_to_code())?;
     }
 
-    shell.change_dir(ecosystem_config.link_to_code.join(REVERT_TESTS_PATH));
+    shell.change_dir(ecosystem_config.link_to_code().join(REVERT_TESTS_PATH));
     run_test(shell, &args, &ecosystem_config).await?;
     logger::outro(MSG_REVERT_TEST_RUN_SUCCESS);
 

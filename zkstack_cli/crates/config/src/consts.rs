@@ -42,6 +42,7 @@ pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";
 pub(crate) const LOCAL_GENERATED_PATH: &str = ".generated/";
 pub(crate) const LOCAL_DB_PATH: &str = "db/";
 pub(crate) const LOCAL_ARTIFACTS_PATH: &str = "artifacts/";
+pub(crate) const CONTRACTS_PATH: &str = "contracts/";
 
 /// Name of apps config file
 pub const APPS_CONFIG_FILE: &str = "apps.yaml";
@@ -105,11 +106,8 @@ pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;
 /// Path to ecosystem contacts
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";
 
-/// Path to l1 contracts foundry folder inside zksync-era
-pub const CONTRACTS_PATH: &str = "contracts/";
-/// Path to l1 contracts foundry folder inside zksync-era
-///
-pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts";
+pub(crate) const L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS: &str = "l1-contracts";
+
 /// Path to proving networks contracts
 pub(crate) const PROVING_NETWORKS_PATH: &str = "proof-manager-contracts";
 /// Path to proving networks contracts deploy script

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::ERC20_CONFIGS_FILE,
-    traits::{FileConfigWithDefaultName, ZkStackConfigTrait},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -39,12 +39,12 @@ pub struct DeployL1DeployedAddressesOutput {
     pub server_notifier_proxy_addr: Address,
 }
 
-impl ZkStackConfigTrait for DeployL1Output {}
+impl FileConfigTrait for DeployL1Output {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1ContractsConfigOutput {
     pub diamond_cut_data: String,
-    pub force_deployments_data: String,
+    pub force_deployments_data: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -102,4 +102,4 @@ impl FileConfigWithDefaultName for ERC20Tokens {
     const FILE_NAME: &'static str = ERC20_CONFIGS_FILE;
 }
 
-impl ZkStackConfigTrait for ERC20Tokens {}
+impl FileConfigTrait for ERC20Tokens {}

@@ -8,7 +8,7 @@ use zksync_types::{
     ProtocolVersionId, H256, L1_MESSENGER_ADDRESS, U256,
 };
 
-use super::{ContractToDeploy, TestedVm, VmTesterBuilder};
+use super::{TestedVm, VmTesterBuilder};
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},

@@ -528,7 +528,7 @@ impl MempoolIO {
             l2_da_validator_address,
             l2_da_commitment_scheme,
             pubdata_type,
-            pubdata_limit: config.max_pubdata_per_batch.0,
+            pubdata_limit: config.seal_criteria.max_pubdata_per_batch.0,
             last_batch_protocol_version: None,
             settlement_layer,
         })
