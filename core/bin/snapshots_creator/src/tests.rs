@@ -16,6 +16,7 @@ use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData, L2BlockHeader},
+    settlement::SettlementLayer,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
@@ -196,7 +197,13 @@ async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
+    let header = L1BatchHeader::new(
+        l1_batch_number,
+        0,
+        Default::default(),
+        Default::default(),
+        SettlementLayer::for_tests(),
+    );
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
         .await

@@ -49,6 +49,9 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
         }],
         priority_ops_proofs: Vec::new(),
         dependency_roots: vec![vec![], vec![]],
+        logs: vec![vec![], vec![]],
+        messages: vec![vec![vec![], vec![]]],
+        message_roots: vec![],
     }))
 }
 

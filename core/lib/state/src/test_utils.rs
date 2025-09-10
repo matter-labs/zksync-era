@@ -5,6 +5,7 @@ use std::ops;
 use zksync_dal::{pruning_dal::HardPruningStats, Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
+    settlement::SettlementLayer,
     snapshots::SnapshotRecoveryStatus,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     StorageKey, StorageLog, H256,
@@ -99,7 +100,13 @@ pub(crate) async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
+    let header = L1BatchHeader::new(
+        l1_batch_number,
+        0,
+        Default::default(),
+        Default::default(),
+        SettlementLayer::for_tests(),
+    );
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
         .await
