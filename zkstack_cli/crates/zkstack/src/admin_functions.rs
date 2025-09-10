@@ -513,7 +513,7 @@ pub async fn set_da_validator_pair(
     chain_id: u64,
     bridgehub: Address,
     l1_da_validator_address: Address,
-    l2_da_commitment_chema: L2DACommitmentScheme,
+    l2_da_commitment_scheme: L2DACommitmentScheme,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
@@ -523,7 +523,7 @@ pub async fn set_da_validator_pair(
                 bridgehub,
                 U256::from(chain_id),
                 l1_da_validator_address,
-                l2_da_commitment_chema as u8,
+                l2_da_commitment_scheme as u8,
                 mode.should_send(),
             ),
         )
@@ -538,7 +538,7 @@ pub async fn set_da_validator_pair(
         l1_rpc_url,
         &format!(
             "setting data availability validator pair ({:#?}, {:#?}) for chain {}",
-            l1_da_validator_address, l2_da_commitment_chema, chain_id
+            l1_da_validator_address, l2_da_commitment_scheme, chain_id
         ),
     )
     .await
