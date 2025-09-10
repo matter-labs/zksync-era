@@ -74,15 +74,6 @@ impl ForgeScript {
             if !res.resume_not_successful_because_has_not_began() {
                 return Ok(res?);
             }
-            match &res {
-                Ok(_) => {}
-                Err(e) => {
-                    eprintln!("forge failed: {e}");
-                    if let Some(stderr) = &e.stderr {
-                        eprintln!("--- forge stderr ---\n{}", stderr);
-                    }
-                }
-            }
         }
 
         // TODO: This line is very helpful for debugging purposes,
@@ -108,6 +99,16 @@ impl ForgeScript {
         // We won't catch this error if resume is not set.
         if res.proposal_error() {
             return Ok(());
+        }
+
+        match &res {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("forge failed: {e}");
+                if let Some(stderr) = &e.stderr {
+                    eprintln!("--- forge stderr ---\n{}", stderr);
+                }
+            }
         }
         Ok(res?)
     }
