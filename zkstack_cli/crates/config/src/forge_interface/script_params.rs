@@ -30,6 +30,18 @@ pub const DEPLOY_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     script_path: "deploy-scripts/DeployL1.s.sol",
 };
 
+pub const DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-l1.toml",
+    output: "script-out/output-deploy-l1.toml",
+    script_path: "deploy-scripts/DeployL1CoreContracts.s.sol",
+};
+
+pub const REGISTER_CTM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-l1.toml",
+    output: "script-out/register-ctm-l1.toml",
+    script_path: "deploy-scripts/RegisterCTM.s.sol",
+};
+
 pub const DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l2-contracts.toml",
     output: "script-out/output-deploy-l2-contracts.toml",

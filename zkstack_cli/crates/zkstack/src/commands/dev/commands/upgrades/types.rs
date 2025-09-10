@@ -15,15 +15,11 @@ pub enum UpgradeVersion {
 impl UpgradeVersion {
     pub const fn get_default_upgrade_description_path(&self) -> &'static str {
         match self {
-            UpgradeVersion::V29InteropAFf => {
-                "./contracts/l1-contracts/script-out/v29-upgrade-ecosystem.toml"
-            }
+            UpgradeVersion::V29InteropAFf => "./l1-contracts/script-out/v29-upgrade-ecosystem.toml",
             UpgradeVersion::V28_1Vk => {
-                "./contracts/l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
+                "./l1-contracts/script-out/zk-os-v28-1-upgrade-ecosystem.toml"
             }
-            UpgradeVersion::V28_1VkEra => {
-                "./contracts/l1-contracts/script-out/v28-1-upgrade-ecosystem.toml"
-            }
+            UpgradeVersion::V28_1VkEra => "./l1-contracts/script-out/v28-1-upgrade-ecosystem.toml",
         }
     }
 }

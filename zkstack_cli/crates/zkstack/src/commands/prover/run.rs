@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{anyhow, Context};
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
-use zkstack_cli_config::{get_link_to_prover, ChainConfig, ZkStackConfig};
+use zkstack_cli_config::{get_link_to_prover, ChainConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{
@@ -16,11 +16,12 @@ use crate::messages::{
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt()?;
-    let chain = ZkStackConfig::current_chain(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
+    let chain = ecosystem.load_current_chain()?;
 
     let path_to_ecosystem = shell.current_dir();
 
-    let link_to_prover = get_link_to_prover(&chain.link_to_code);
+    let link_to_prover = get_link_to_prover(&chain.link_to_code());
     shell.change_dir(link_to_prover.clone());
 
     let component = args.component.context(anyhow!(MSG_MISSING_COMPONENT_ERR))?;
@@ -46,7 +47,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
                 check_prerequisites(shell, &GPU_PREREQUISITES, false);
                 shell.set_var(
                     "BELLMAN_CUDA_DIR",
-                    ZkStackConfig::ecosystem(shell)?
+                    ecosystem
                         .bellman_cuda_dir
                         .clone()
                         .expect(MSG_BELLMAN_CUDA_DIR_ERR),
@@ -63,7 +64,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     if in_docker {
         let path_to_configs = chain.configs.clone();
-        let path_to_prover = get_link_to_prover(&chain.link_to_code);
+        let path_to_prover = get_link_to_prover(&chain.link_to_code());
         update_setup_data_path(&chain, "prover/data/keys").await?;
         run_dockerized_component(
             shell,

@@ -4,7 +4,10 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
-use zkstack_cli_config::traits::{ReadConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{
+    traits::{FileConfigTrait, ReadConfig},
+    ZkStackConfig, ZkStackConfigTrait,
+};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
@@ -17,10 +20,7 @@ use zksync_web3_decl::{
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     commands::{
-        chain::{
-            admin_call_builder::{AdminCall, AdminCallBuilder},
-            utils::get_default_foundry_path,
-        },
+        chain::admin_call_builder::{AdminCall, AdminCallBuilder},
         dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
     },
     utils::addresses::apply_l1_to_l2_alias,
@@ -201,11 +201,11 @@ pub struct V28UpgradeInfo {
     gateway_upgrade_diamond_cut: Bytes,
 }
 
-impl ZkStackConfigTrait for V28UpgradeInfo {}
+impl FileConfigTrait for V28UpgradeInfo {}
 
 pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyhow::Result<()> {
     let forge_args = &Default::default();
-    let foundry_contracts_path = get_default_foundry_path(shell)?;
+    let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     // 0. Read the GatewayUpgradeInfo
 

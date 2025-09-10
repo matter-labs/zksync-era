@@ -1828,12 +1828,14 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
-        tracing::debug!(
-            "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
-            result.rows_affected(),
-            stashed_addresses.len(),
-            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
-        );
+        if result.rows_affected() > 0 {
+            tracing::trace!(
+                "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
+                result.rows_affected(),
+                stashed_addresses.len(),
+                stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
+            );
+        }
 
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
         let result = sqlx::query!(
@@ -1849,12 +1851,13 @@ impl TransactionsDal<'_, '_> {
         .with_arg("purged_addresses.len", &purged_addresses.len())
         .execute(self.storage)
         .await?;
-
-        tracing::debug!(
-            "Updated {} transactions for purged accounts, purged accounts amount: {}",
-            result.rows_affected(),
-            purged_addresses.len()
-        );
+        if result.rows_affected() > 0 {
+            tracing::trace!(
+                "Updated {} transactions for purged accounts, purged accounts amount: {}",
+                result.rows_affected(),
+                purged_addresses.len()
+            );
+        }
 
         // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
         let transactions = sqlx::query_as!(

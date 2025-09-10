@@ -3,7 +3,7 @@ use std::str::FromStr;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::ZkStackConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::rust::RustArgs;
 use crate::commands::dev::{
@@ -16,7 +16,7 @@ use crate::commands::dev::{
 pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     let chain = ZkStackConfig::current_chain(shell)?;
     let general_config = chain.get_general_config().await;
-    let link_to_code = chain.link_to_code;
+    let link_to_code = chain.link_to_code();
 
     let (test_server_url, test_prover_url) = if let Ok(general_config) = general_config {
         (

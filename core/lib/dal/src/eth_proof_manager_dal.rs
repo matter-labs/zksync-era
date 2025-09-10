@@ -283,7 +283,7 @@ impl EthProofManagerDal<'_, '_> {
                 (status = $2 AND submit_proof_request_tx_sent_at < NOW() - $3::INTERVAL)
                 OR (
                     status = $4
-                    AND validated_proof_request_tx_sent_at < NOW() - $5::INTERVAL
+                    AND submit_proof_request_tx_sent_at < NOW() - $5::INTERVAL
                 )
                 OR (status = $6 AND proof_validation_result IS false)
                 OR (status = $7 AND updated_at < NOW() - $8::INTERVAL)
@@ -344,7 +344,7 @@ impl EthProofManagerDal<'_, '_> {
             UPDATE eth_proof_manager SET status = $1, updated_at = NOW()
             WHERE l1_batch_number = $2
             "#,
-            EthProofManagerStatus::Unpicked.as_str(),
+            EthProofManagerStatus::Fallbacked.as_str(),
             i64::from(batch_number.0),
         )
         .instrument("fallback_certain_batch")

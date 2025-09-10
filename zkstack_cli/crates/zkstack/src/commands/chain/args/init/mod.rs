@@ -13,8 +13,9 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP, MSG_RPC_URL_PROMPT,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_GENESIS, MSG_NO_PORT_REALLOCATION_HELP,
+        MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
+        MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -49,21 +50,30 @@ pub struct InitArgs {
     pub validium_args: da_configs::ValidiumTypeArgs,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
+    #[clap(long, short, action, help = MSG_NO_GENESIS)]
+    pub no_genesis: bool,
 }
 
 impl InitArgs {
-    pub fn get_genesis_args(&self) -> GenesisArgs {
-        GenesisArgs {
+    fn get_genesis_args(&self) -> Option<GenesisArgs> {
+        if self.no_genesis {
+            return None;
+        }
+        Some(GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
             dont_drop: self.dont_drop,
             server_command: self.server_command.clone(),
-        }
+        })
     }
 
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
-        let genesis = self.get_genesis_args();
+        let genesis = if !config.zksync_os {
+            self.get_genesis_args()
+        } else {
+            None
+        };
 
         let deploy_paymaster = if self.dev {
             true
@@ -107,7 +117,7 @@ impl InitArgs {
 
         InitArgsFinal {
             forge_args: self.forge_args,
-            genesis_args: genesis.fill_values_with_prompt(config),
+            genesis_args: genesis.map(|genesis| genesis.fill_values_with_prompt(config)),
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
@@ -120,7 +130,7 @@ impl InitArgs {
 #[derive(Debug, Clone)]
 pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
-    pub genesis_args: GenesisArgsFinal,
+    pub genesis_args: Option<GenesisArgsFinal>,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,

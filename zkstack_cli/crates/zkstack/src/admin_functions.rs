@@ -17,8 +17,8 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
-    traits::{ReadConfig, ZkStackConfigTrait},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    traits::{FileConfigTrait, ReadConfig},
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfigTrait,
 };
 use zksync_basic_types::U256;
 
@@ -135,7 +135,7 @@ pub async fn make_permanent_rollup(
             (chain_admin_addr, diamond_proxy_address),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -152,16 +152,25 @@ pub async fn make_permanent_rollup(
 pub async fn governance_execute_calls(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    governor: &Wallet,
+    mode: AdminScriptMode,
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
-) -> anyhow::Result<()> {
+    governance_address: Option<Address>,
+) -> anyhow::Result<AdminScriptOutput> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let governance_address = ecosystem_config.get_contracts_config()?.l1.governance_addr;
+    let governance_address = match governance_address {
+        Some(addr) => addr,
+        None => {
+            let cfg = ecosystem_config
+                .get_contracts_config()
+                .context("Failed to fetch contracts config to resolve governance address")?;
+            cfg.l1.governance_addr
+        }
+    };
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -169,7 +178,7 @@ pub async fn governance_execute_calls(
             (Token::Bytes(encoded_calls), governance_address),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -177,9 +186,25 @@ pub async fn governance_execute_calls(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+
+    let description = "executing governance calls";
+    let (forge, spinner_text) = match mode {
+        AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
+        AdminScriptMode::Broadcast(wallet) => {
+            let forge = forge.with_broadcast();
+            let forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Governor)?;
+            check_the_balance(&forge).await?;
+            (forge, format!("Executing {description}"))
+        }
+    };
+
+    let spinner = Spinner::new(&spinner_text);
+    forge.run(shell)?;
+    spinner.finish();
+
+    let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&foundry_contracts_path);
+    Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -203,7 +228,7 @@ pub async fn ecosystem_admin_execute_calls(
             (Token::Bytes(encoded_calls), ecosystem_admin_addr),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -248,7 +273,7 @@ pub async fn admin_execute_upgrade(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -293,7 +318,7 @@ pub async fn admin_schedule_upgrade(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -343,7 +368,7 @@ pub async fn admin_update_validator(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -369,6 +394,7 @@ async fn accept_ownership(
     Ok(())
 }
 
+#[derive(Clone)]
 pub enum AdminScriptMode {
     OnlySave,
     Broadcast(Wallet),
@@ -381,12 +407,12 @@ impl AdminScriptMode {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct AdminScriptOutputInner {
+pub(crate) struct AdminScriptOutputInner {
     admin_address: Address,
     encoded_data: String,
 }
 
-impl ZkStackConfigTrait for AdminScriptOutputInner {}
+impl FileConfigTrait for AdminScriptOutputInner {}
 
 #[derive(Debug, Clone, Default)]
 pub struct AdminScriptOutput {
