@@ -9,6 +9,7 @@ echo "STARTING BRIDGE TOKEN FROM $CHAIN_NAME"
 
 CONFIG_CONTRACTS="chains/$CHAIN_NAME/configs/contracts.yaml"
 GENESIS_CONFIG="chains/$CHAIN_NAME/configs/genesis.yaml"
+GENERAL_CONFIG="chains/$CHAIN_NAME/configs/general.yaml"
 
 # === Set contract addresses ===
 export NTV_ADDRESS="0x0000000000000000000000000000000000010004"
@@ -19,8 +20,13 @@ export PRIVATE_KEY=0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82
 export SENDER=0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 
 # === Load RPC URL from config ===
-export RPC_URL=$(yq '.api.web3_json_rpc.http_url' chains/$CHAIN_NAME/configs/general.yaml)
+export RPC_URL=$(yq '.api.web3_json_rpc.http_url' $GENERAL_CONFIG)
 echo "RPC URL: $RPC_URL"
+
+export CHAIN_ID=$(yq '.l2_chain_id' $GENESIS_CONFIG)
+echo "CHAIN_ID: $CHAIN_ID"
+CHAIN_ID_HEX=$(printf "0x%02x\n" "$CHAIN_ID")
+echo "CHAIN_ID_HEX: $CHAIN_ID_HEX"
 
 # === Move into the contracts directory ===
 cd contracts/l1-contracts/
@@ -39,13 +45,13 @@ echo "TOKEN_ADDRESS: $TOKEN_ADDRESS"
 # export TOKEN_ADDRESS="" // for speed the token deployment can be skipped if running multiple times.
 
 # === Calculate token asset ID ===
-export CHAIN_ID=$(yq '.l2_chain_id' "$GENESIS_CONFIG")
-CHAIN_ID_HEX=$(printf "0x%02x\n" "$CHAIN_ID")
 
 export TOKEN_ASSET_ID=$(cast keccak $(cast abi-encode "selectorNotUsed(uint256,address,address)" \
   "$CHAIN_ID_HEX" \
   "$NTV_ADDRESS" \
   "$TOKEN_ADDRESS"))
+
+echo "TOKEN_ASSET_ID: $TOKEN_ASSET_ID"
 
 # === Encode token burn data ===
 export TOKEN_BURN_DATA=$(cast abi-encode "selectorNotUsed(uint256,address,address)" \
