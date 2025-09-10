@@ -2,14 +2,21 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 use tokio::sync::oneshot;
+use zksync_config::configs::contracts::{
+    chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
-    api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,
+    api, api::BridgeAddresses, block::L2BlockHeader, ethabi, Address, L2BlockNumber,
+    ProtocolVersionId, H256,
 };
-use zksync_web3_decl::client::{MockClient, L1};
+use zksync_web3_decl::{
+    client::{MockClient, L1, L2},
+    types::EcosystemContractsDto,
+};
 
 use super::*;
 
@@ -57,6 +64,7 @@ pub(super) struct TestEnvironment {
     pub(super) config: ExternalNodeConfig,
     pub(super) genesis_root_hash: H256,
     pub(super) genesis_l2_block: L2BlockHeader,
+    pub(super) settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
 }
 
 impl TestEnvironment {
@@ -106,6 +114,18 @@ impl TestEnvironment {
             config,
             genesis_root_hash,
             genesis_l2_block,
+            settlement_layer_specific_contracts: SettlementLayerSpecificContracts {
+                ecosystem_contracts: EcosystemCommonContracts {
+                    bridgehub_proxy_addr: Some(Address::repeat_byte(8)),
+                    state_transition_proxy_addr: None,
+                    message_root_proxy_addr: None,
+                    multicall3: None,
+                    validator_timelock_addr: None,
+                },
+                chain_contracts_config: ChainContracts {
+                    diamond_proxy_addr: Address::repeat_byte(1),
+                },
+            },
         };
         let handles = TestEnvironmentHandles {
             sigint_sender,
@@ -117,8 +137,13 @@ impl TestEnvironment {
 
     pub(super) fn spawn_node(self, l2_client: MockClient<L2>) -> JoinHandle<anyhow::Result<()>> {
         let eth_client = mock_eth_client(
-            self.config.l1_diamond_proxy_address(),
-            self.config.remote.l1_bridgehub_proxy_addr.unwrap(),
+            self.settlement_layer_specific_contracts
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            self.settlement_layer_specific_contracts
+                .ecosystem_contracts
+                .bridgehub_proxy_addr
+                .unwrap(),
         );
 
         spawn_node(move || {
@@ -238,6 +263,7 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
     let genesis_root_hash = env.genesis_root_hash;
     let genesis_l2_block_hash = env.genesis_l2_block.hash;
 
+    let contracts = env.settlement_layer_specific_contracts.clone();
     MockClient::builder(L2::default())
         .method("eth_chainId", || Ok(U64::from(270)))
         .method("zks_L1ChainId", || Ok(U64::from(9)))
@@ -265,21 +291,33 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         )
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .build()
-}
-
-/// Creates a mock L2 client that will mimic request timeouts on block info requests.
-pub(super) fn mock_l2_client_hanging() -> MockClient<L2> {
-    MockClient::builder(L2::default())
-        .method("eth_chainId", || Ok(U64::from(270)))
-        .method("zks_L1ChainId", || Ok(U64::from(9)))
-        .method("zks_L1BatchNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
+        .method("en_getEcosystemContracts", move || {
+            Ok(EcosystemContractsDto {
+                bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr.unwrap(),
+                state_transition_proxy_addr: contracts
+                    .ecosystem_contracts
+                    .state_transition_proxy_addr,
+                message_root_proxy_addr: contracts.ecosystem_contracts.message_root_proxy_addr,
+                transparent_proxy_admin_addr: Default::default(),
+                l1_bytecodes_supplier_addr: None,
+                l1_wrapped_base_token_store: None,
+                server_notifier_addr: None,
+            })
         })
-        .method("eth_blockNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
+        .method("zks_getBridgeContracts", || {
+            Ok(BridgeAddresses {
+                l1_shared_default_bridge: Some(Address::repeat_byte(1)),
+                l2_shared_default_bridge: Some(Address::repeat_byte(3)),
+                l1_erc20_default_bridge: Some(Address::repeat_byte(4)),
+                l2_erc20_default_bridge: Some(Address::repeat_byte(3)),
+                l1_weth_bridge: None,
+                l2_weth_bridge: None,
+                l2_legacy_shared_bridge: Some(Address::repeat_byte(5)),
+            })
         })
-        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
-        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .method("zks_getTestnetPaymaster", || Ok(Address::repeat_byte(15)))
+        .method("zks_getMainContract", move || {
+            Ok(contracts.chain_contracts_config.diamond_proxy_addr)
+        })
         .build()
 }

@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkStackConfig;
+use crate::traits::FileConfigTrait;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainOutput {
@@ -13,4 +13,4 @@ pub struct RegisterChainOutput {
     pub chain_proxy_admin_addr: Address,
 }
 
-impl ZkStackConfig for RegisterChainOutput {}
+impl FileConfigTrait for RegisterChainOutput {}

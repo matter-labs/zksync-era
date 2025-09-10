@@ -4,7 +4,7 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
-    traits::ZkStackConfig,
+    traits::FileConfigTrait,
     ContractsConfig,
 };
 
@@ -37,7 +37,7 @@ pub struct EcosystemUpgradeInput {
     pub specific_config: EcosystemUpgradeSpecificConfig,
 }
 
-impl ZkStackConfig for EcosystemUpgradeInput {}
+impl FileConfigTrait for EcosystemUpgradeInput {}
 
 impl EcosystemUpgradeInput {
     #[allow(clippy::too_many_arguments)]

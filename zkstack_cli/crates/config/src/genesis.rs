@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use xshell::Shell;
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId, H256};
@@ -12,7 +12,7 @@ use crate::{
 pub struct GenesisConfig(pub(crate) RawConfig);
 
 impl GenesisConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)
     }
 

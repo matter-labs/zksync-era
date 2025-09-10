@@ -1,5 +1,39 @@
 # Changelog
 
+## [22.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v22.0.0...prover-v22.1.0) (2025-09-06)
+
+
+### Features
+
+* bump to v29.0.1 contracts + provers 29.1 ([#4452](https://github.com/matter-labs/zksync-era/issues/4452)) ([5e7d0e2](https://github.com/matter-labs/zksync-era/commit/5e7d0e283e9b39d61bae3f9bd771849d7085b751))
+
+## [22.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.2.0...prover-v22.0.0) (2025-08-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* Release v29 for provers ([#4410](https://github.com/matter-labs/zksync-era/issues/4410))
+
+### Features
+
+* Draft v29 ([#3960](https://github.com/matter-labs/zksync-era/issues/3960)) ([91843a2](https://github.com/matter-labs/zksync-era/commit/91843a2781768a75a59a907409f2472630c59877))
+* **en:** Cache remote config for en ([#4367](https://github.com/matter-labs/zksync-era/issues/4367)) ([20bc4a8](https://github.com/matter-labs/zksync-era/commit/20bc4a8bee67a7896e37117493d16ad0c7de258f))
+* Eth proof manager sender ([#4266](https://github.com/matter-labs/zksync-era/issues/4266)) ([93b2086](https://github.com/matter-labs/zksync-era/commit/93b20860dc2b1bf8671ea3187e4bcebc6913552b))
+* **prover:** --threads feature to WVGs ([#4291](https://github.com/matter-labs/zksync-era/issues/4291)) ([846f6e4](https://github.com/matter-labs/zksync-era/commit/846f6e449e9a65b629795f49ede7df4fa91b67af))
+* **prover:** Witness generator service ([#4219](https://github.com/matter-labs/zksync-era/issues/4219)) ([65f7d4e](https://github.com/matter-labs/zksync-era/commit/65f7d4ebffd8c59bdd276b70e184c6771dbac2b2))
+* Release v29 for provers ([#4410](https://github.com/matter-labs/zksync-era/issues/4410)) ([9c341f2](https://github.com/matter-labs/zksync-era/commit/9c341f2823f667dcc9becfcb87094eaa7171547b))
+* update contracts to latest v29 ([#4386](https://github.com/matter-labs/zksync-era/issues/4386)) ([f75e021](https://github.com/matter-labs/zksync-era/commit/f75e0215aaf6a2898baf2bd3dc29386c16ad4c67))
+
+
+### Bug Fixes
+
+* **consensus:** Debug page server port reuse ([#4273](https://github.com/matter-labs/zksync-era/issues/4273)) ([77d043f](https://github.com/matter-labs/zksync-era/commit/77d043fa136fbbbdd6c059aba6c1d3d7dcdd2abd))
+* Copy proof manager contracts to server dockerfile ([#4385](https://github.com/matter-labs/zksync-era/issues/4385)) ([a179dee](https://github.com/matter-labs/zksync-era/commit/a179dee347680526a5a211de35a58efca4b9b40d))
+* **prover-gateway:** Check for batch existence in DB & add tracing for axum ([#4270](https://github.com/matter-labs/zksync-era/issues/4270)) ([7433b51](https://github.com/matter-labs/zksync-era/commit/7433b51ef29e3314eb3e5690c2bec13250a4c5c6))
+* **prover:** Fixing sequence_number assigning ([#4319](https://github.com/matter-labs/zksync-era/issues/4319)) ([3e360e1](https://github.com/matter-labs/zksync-era/commit/3e360e1c42049f999635f2e509d946c1d0c5f865))
+* **prover:** Make scale_errors sticky for scale_errors_duration ([#4387](https://github.com/matter-labs/zksync-era/issues/4387)) ([491c3a1](https://github.com/matter-labs/zksync-era/commit/491c3a1d6a9062e375cd2d762dbfe25eefa5270e))
+* **prover:** Propagating errors for CP & Compressor ([#4288](https://github.com/matter-labs/zksync-era/issues/4288)) ([ea68532](https://github.com/matter-labs/zksync-era/commit/ea6853281f37ad1367a5c7128b2c881373782dd9))
+
 ## [21.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.1.0...prover-v21.2.0) (2025-07-03)
 
 

@@ -13,7 +13,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::{AdvanceInput, L2TxFilter};
 use zksync_multivm::{
     interface::Halt,
-    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_interop_roots_in_batch},
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
@@ -225,7 +225,7 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+        let limit = get_bootloader_max_interop_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
         let gateway_migration_state = self.gateway_status(&mut storage).await;
@@ -525,7 +525,7 @@ impl MempoolIO {
             chain_id,
             l2_da_validator_address,
             pubdata_type,
-            pubdata_limit: config.max_pubdata_per_batch.0,
+            pubdata_limit: config.seal_criteria.max_pubdata_per_batch.0,
             last_batch_protocol_version: None,
             settlement_layer,
         })
@@ -553,19 +553,12 @@ impl MempoolIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
         // Check if there is an existing unsealed batch
-        if let Some(unsealed_storage_batch) = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await?
-            .blocks_dal()
-            .get_unsealed_l1_batch()
-            .await?
-        {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        if let Some(unsealed_storage_batch) = storage.blocks_dal().get_unsealed_l1_batch().await? {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
 
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let interop_roots = storage
                 .interop_root_dal()
                 .get_interop_roots_for_first_l2_block_in_pending_batch()
@@ -589,14 +582,13 @@ impl MempoolIO {
 
         let deadline = Instant::now() + max_wait;
 
-        let previous_protocol_version = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await?
+        let previous_protocol_version = storage
             .blocks_dal()
             .pending_protocol_version()
             .await
             .context("Failed loading previous protocol version")?;
+        drop(storage);
+
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
@@ -689,7 +681,7 @@ impl MempoolIO {
             } else {
                 let mut storage = self.pool.connection_tagged("state_keeper").await?;
                 let gateway_migration_state = self.gateway_status(&mut storage).await;
-                let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
+                let limit = get_bootloader_max_interop_roots_in_batch(protocol_version.into());
                 // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
                 let interop_roots =
                     if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))

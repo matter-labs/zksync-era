@@ -149,9 +149,72 @@ jobs:
           path: |
             ./contracts
 
+  prepare-proof-manager-contracts:
+    name: Prepare proof manager contracts
+    runs-on: matterlabs-ci-runner-high-performance
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: "recursive"
+
+      - name: Prepare ENV
+        shell: bash
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
+
+      - name: Clone & checkout proof manager contracts
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          # for now these contracts will be pinned to specific commit
+          git checkout cc7a521
+          git submodule update --init --recursive
+      
+      - name: Install foundry-zksync
+        run: |
+          mkdir ./foundry-zksync
+          # downloading newer version of foundry-zksync since the latest nightly is not working
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.24/foundry_zksync_v0.0.24_linux_amd64.tar.gz
+          tar zxf foundry_zksync_v0.0.24_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      - name: Build proof manager contracts(with zksync)
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          forge --version
+          forge build --zksync
+
+      - name: Upload contracts(with zksync)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proof-manager-contracts-zkout
+          path: |
+            ./proof-manager-contracts/zkout
+
+      - name: Build proof manager contracts
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          forge --version
+          forge build
+
+      - name: Upload contracts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proof-manager-contracts-out
+          path: |
+            ./proof-manager-contracts/out
+          
   build-images:
     name: Build and Push Docker Images
-    needs: prepare-contracts
+    needs: [prepare-contracts, prepare-proof-manager-contracts]
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
@@ -212,6 +275,20 @@ jobs:
           name: contacts
           path: |
             ./contracts
+
+      - name: Download proof manager contracts output(zkout)
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: proof-manager-contracts-zkout
+          path: |
+            ./proof-manager-contracts/zkout
+
+      - name: Download proof manager contracts output(out)
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: proof-manager-contracts-out
+          path: |
+            ./proof-manager-contracts/out
 
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}

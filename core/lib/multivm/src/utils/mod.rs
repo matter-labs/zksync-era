@@ -318,7 +318,7 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
     }
 }
 
-pub fn get_bootloader_max_msg_roots_in_batch(version: VmVersion) -> usize {
+pub fn get_bootloader_max_interop_roots_in_batch(version: VmVersion) -> usize {
     match version {
         VmVersion::M5WithRefunds
         | VmVersion::M5WithoutRefunds
@@ -650,6 +650,27 @@ pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
         | VmVersion::VmInterop) => {
             crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
         }
+    }
+}
+
+pub fn get_max_vm_pubdata_per_batch(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration
+        | VmVersion::Vm1_4_1
+        | VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_VM_PUBDATA_PER_BATCH,
+        VmVersion::Vm1_5_0SmallBootloaderMemory
+        | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | VmVersion::VmGateway
+        | VmVersion::VmEvmEmulator
+        | VmVersion::VmEcPrecompiles
+        | VmVersion::VmInterop => crate::vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
     }
 }
 

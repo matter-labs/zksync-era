@@ -465,7 +465,7 @@ impl EthTxManager {
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            tracing::info!(
+            tracing::trace!(
                 "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
                 tx.id,
                 operator_nonce,
@@ -508,17 +508,12 @@ impl EthTxManager {
 
             tracing::trace!(
                 "Sender's nonce on finalized block is greater than current tx's nonce. \
-                 Checking transaction with id {}. Tx nonce is equal to {}",
+                 Checking transaction with id {} and type {}. Tx nonce is equal to {}",
                 tx.id,
+                tx.tx_type,
                 tx.nonce,
             );
 
-            tracing::info!(
-                "Updating status of tx {} of type {} with nonce {}",
-                tx.id,
-                tx.tx_type,
-                tx.nonce
-            );
             match self.check_all_sending_attempts(storage, &tx).await {
                 Ok(Some(tx_status)) => {
                     self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers)
@@ -621,6 +616,26 @@ impl EthTxManager {
             .mark_failed_transaction(tx.id)
             .await
             .unwrap();
+
+        if let Some(batch_number) = storage
+            .blocks_dal()
+            .get_batch_number_of_prove_tx_id(tx.id)
+            .await
+            .unwrap()
+        {
+            storage
+                .eth_proof_manager_dal()
+                .mark_batch_as_proven(batch_number, false)
+                .await
+                .unwrap();
+            storage
+                .eth_proof_manager_dal()
+                .fallback_batch(batch_number)
+                .await
+                .unwrap();
+            tracing::info!("Batch {} proven with false result", batch_number);
+        }
+
         let failure_reason = self
             .l1_interface
             .failure_reason(tx_status.receipt.transaction_hash, self.operator_type(tx))

@@ -6,7 +6,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger, spinner::Spinner,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::Address;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
@@ -14,7 +14,6 @@ use zksync_web3_decl::jsonrpsee::core::Serialize;
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
-    commands::chain::utils::get_default_foundry_path,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
         MSG_GATEWAY_URL_MUST_BE_PRESET, MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
@@ -40,10 +39,7 @@ pub struct SetDAValidatorPairArgs {
 }
 
 pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell).context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let chain_id = chain_config.chain_id.as_u64();
 
@@ -88,10 +84,12 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             .await?
             .as_u64();
         let refund_recipient = chain_config.get_wallets_config()?.governor.address;
+        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
+
         set_da_validator_pair_via_gateway(
             shell,
             &args.forge_args.clone(),
-            &get_default_foundry_path(shell)?,
+            &contracts_foundry_path,
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
             args.max_l1_gas_price
@@ -130,7 +128,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         set_da_validator_pair(
             shell,
             &args.forge_args.clone(),
-            &get_default_foundry_path(shell)?,
+            &chain_config.path_to_foundry_scripts(),
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             chain_id,
             diamond_proxy_address,

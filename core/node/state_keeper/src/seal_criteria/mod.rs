@@ -12,7 +12,7 @@
 
 use std::fmt;
 
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, Halt, TransactionExecutionMetrics, VmExecutionMetrics},
     vm_latest::TransactionVmExt,
@@ -20,7 +20,7 @@ use zksync_multivm::{
 use zksync_types::{ProtocolVersionId, Transaction};
 
 pub use self::{
-    conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer},
+    conditional_sealer::{ConditionalSealer, NoopSealer, PanicSealer, SequencerSealer},
     io_criteria::IoSealCriteria,
 };
 use crate::metrics::AGGREGATION_METRICS;
@@ -188,9 +188,10 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
     #[allow(clippy::too_many_arguments)]
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         tx_count: usize,
         l1_tx_count: usize,
+        interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -200,9 +201,10 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
     /// If it can't be calculated for the criterion, then it should return `None`.
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         _block_data: &SealData,
         _protocol_version: ProtocolVersionId,
     ) -> Option<f64> {

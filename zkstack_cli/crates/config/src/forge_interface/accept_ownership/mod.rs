@@ -1,9 +1,9 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkStackConfig;
+use crate::traits::FileConfigTrait;
 
-impl ZkStackConfig for AcceptOwnershipInput {}
+impl FileConfigTrait for AcceptOwnershipInput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AcceptOwnershipInput {

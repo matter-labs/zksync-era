@@ -5,6 +5,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::Address;
 
 use super::{
@@ -18,7 +19,7 @@ use crate::{
         notify_server_migration_from_gateway, notify_server_migration_to_gateway, AdminScriptMode,
         AdminScriptOutput,
     },
-    commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
+    commands::chain::utils::display_admin_script_output,
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -108,13 +109,14 @@ pub async fn run(
             }
         }
     }
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
     let result = get_notify_server_calls(
         shell,
         // We do not care about forge args that much here, since
         // we only need to obtain the calldata
         &Default::default(),
-        &get_default_foundry_path(shell)?,
+        &contracts_foundry_path,
         args.params,
         direction,
     )

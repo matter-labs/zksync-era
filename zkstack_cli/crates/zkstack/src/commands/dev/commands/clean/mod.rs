@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use clap::Subcommand;
 use xshell::Shell;
 use zkstack_cli_common::{docker, logger};
-use zkstack_cli_config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait, DOCKER_COMPOSE_FILE};
 
 use crate::commands::dev::messages::{
     MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
@@ -19,14 +21,16 @@ pub enum CleanCommands {
 }
 
 pub fn run(shell: &Shell, args: CleanCommands) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::from_file(shell)?;
+    let path_to_foundry = config.path_to_foundry_scripts();
+    let link_to_code = config.link_to_code();
     match args {
         CleanCommands::All => {
             containers(shell)?;
-            contracts(shell, &ecosystem)?;
+            contracts(shell, path_to_foundry, link_to_code)?;
         }
         CleanCommands::Containers => containers(shell)?,
-        CleanCommands::ContractsCache => contracts(shell, &ecosystem)?,
+        CleanCommands::ContractsCache => contracts(shell, path_to_foundry, link_to_code)?,
     }
     Ok(())
 }
@@ -37,9 +41,11 @@ pub fn containers(shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let path_to_foundry = ecosystem_config.path_to_l1_foundry();
-    let contracts_path = ecosystem_config.link_to_code.join("contracts");
+pub fn contracts(
+    shell: &Shell,
+    path_to_foundry: PathBuf,
+    contracts_path: PathBuf,
+) -> anyhow::Result<()> {
     logger::info(MSG_CONTRACTS_CLEANING);
     shell
         .remove_path(path_to_foundry.join("broadcast"))

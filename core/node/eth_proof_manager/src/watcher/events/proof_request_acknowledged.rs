@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
-use zksync_types::{api::Log, ethabi, h256_to_u256, H256, U256};
+use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
+use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
 
-use crate::{types::ProvingNetwork, watcher::events::EventHandler};
+use crate::{metrics::METRICS, types::ProvingNetwork, watcher::events::EventHandler};
 
 //event ProofRequestAcknowledged(
 //     uint256 indexed chainId,
@@ -24,7 +21,15 @@ pub struct ProofRequestAcknowledged {
 }
 
 #[derive(Debug)]
-pub struct ProofRequestAcknowledgedHandler;
+pub struct ProofRequestAcknowledgedHandler {
+    connection_pool: ConnectionPool<Core>,
+}
+
+impl ProofRequestAcknowledgedHandler {
+    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
+        Self { connection_pool }
+    }
+}
 
 #[async_trait]
 impl EventHandler for ProofRequestAcknowledgedHandler {
@@ -41,12 +46,11 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         )
     }
 
-    async fn handle(
-        &self,
-        log: Log,
-        _connection_pool: ConnectionPool<Core>,
-        _blob_store: Arc<dyn ObjectStore>,
-    ) -> anyhow::Result<()> {
+    fn event_type(&self) -> EventType {
+        EventType::ProofRequestAcknowledged
+    }
+
+    async fn handle(&self, log: Log) -> anyhow::Result<()> {
         if log.topics.len() != 4 {
             return Err(anyhow::anyhow!(
                 "invalid number of topics: {:?}, expected 4",
@@ -86,6 +90,33 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         };
 
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
+
+        METRICS.acknowledged_batches[&event.assigned_to].inc();
+
+        if accepted {
+            self.connection_pool
+                .connection()
+                .await?
+                .eth_proof_manager_dal()
+                .acknowledge_batch(
+                    L1BatchNumber(event.block_number.as_u32()),
+                    event.assigned_to.into(),
+                )
+                .await?;
+        } else {
+            tracing::info!(
+                "Proof request for batch {} not accepted, moving to prover cluster",
+                event.block_number
+            );
+            METRICS.fallbacked_batches.inc();
+            self.connection_pool
+                .connection()
+                .await?
+                .eth_proof_manager_dal()
+                .fallback_batch(L1BatchNumber(event.block_number.as_u32()))
+                .await?;
+        }
+
         Ok(())
     }
 }

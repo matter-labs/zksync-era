@@ -7,8 +7,8 @@ use zkstack_cli_common::{
     logger,
 };
 use zkstack_cli_config::{
-    traits::{ReadConfig, ZkStackConfig},
-    EcosystemConfig,
+    traits::{FileConfigTrait, ReadConfig},
+    ZkStackConfig, ZkStackConfigTrait,
 };
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
@@ -24,7 +24,7 @@ use crate::{
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
-            utils::{get_default_foundry_path, send_tx},
+            utils::send_tx,
         },
         dev::commands::upgrades::{
             args::chain::{ChainUpgradeParams, DefaultChainUpgradeArgs, UpgradeArgsInner},
@@ -68,7 +68,7 @@ async fn verify_next_batch_new_version(
         )
     })?;
     match upgrade_versions {
-        UpgradeVersion::V28_1Vk => {
+        UpgradeVersion::V28_1Vk | UpgradeVersion::V28_1VkEra => {
             ensure!(
                 protocol_version >= ProtocolVersionId::Version28,
                 "THe block does not yet contain the v28 upgrade"
@@ -199,6 +199,8 @@ pub struct UpgradeInfo {
     pub(crate) chain_upgrade_diamond_cut: Bytes,
 }
 
+impl FileConfigTrait for UpgradeInfo {}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContractsConfig {
     pub(crate) new_protocol_version: u64,
@@ -228,23 +230,14 @@ pub struct GatewayStateTransition {
     pub(crate) validator_timelock_addr: Address,
 }
 
-impl ZkStackConfig for UpgradeInfo {}
-
 pub struct UpdatedValidators {
     pub operator: Option<Address>,
     pub blob_operator: Option<Address>,
 }
 
+#[derive(Default)]
 pub struct AdditionalUpgradeParams {
     pub updated_validators: Option<UpdatedValidators>,
-}
-
-impl Default for AdditionalUpgradeParams {
-    fn default() -> Self {
-        Self {
-            updated_validators: None,
-        }
-    }
 }
 
 pub(crate) async fn run_chain_upgrade(
@@ -255,14 +248,14 @@ pub(crate) async fn run_chain_upgrade(
     upgrade_version: UpgradeVersion,
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
-    let foundry_contracts_path = get_default_foundry_path(shell)?;
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let mut args = args_input.clone().fill_if_empty(shell).await?;
     if args.upgrade_description_path.is_none() {
         args.upgrade_description_path = Some(
-            ecosystem_config
-                .link_to_code
+            chain_config
+                .contracts_path()
                 .join(upgrade_version.get_default_upgrade_description_path())
                 .to_string_lossy()
                 .to_string(),
@@ -328,7 +321,7 @@ pub(crate) async fn run_chain_upgrade(
             .prepare_upgrade_chain_on_gateway_calls(
                 shell,
                 forge_args,
-                &foundry_contracts_path,
+                &contracts_foundry_path,
                 args.chain_id.expect("chain_id is required"),
                 args.gw_chain_id.expect("gw_chain_id is required"),
                 upgrade_info
@@ -339,8 +332,11 @@ pub(crate) async fn run_chain_upgrade(
                 upgrade_info.contracts_config.old_protocol_version,
                 chain_info.gw_hyperchain_addr,
                 chain_info.l1_asset_router_proxy,
-                // TODO: the funds go to nowhere as this is not the aliased address.
-                chain_info.chain_admin_addr,
+                args_input
+                    .refund_recipient
+                    .context("refund_recipient is required")?
+                    .parse()
+                    .context("refund recipient is not a valid address")?,
                 upgrade_info.gateway.upgrade_cut_data.0.into(),
                 args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
             )
@@ -352,7 +348,7 @@ pub(crate) async fn run_chain_upgrade(
             let enable_validator_calls = crate::admin_functions::enable_validator_via_gateway(
                 shell,
                 forge_args,
-                &foundry_contracts_path,
+                &contracts_foundry_path,
                 crate::admin_functions::AdminScriptMode::OnlySave,
                 upgrade_info
                     .deployed_addresses
@@ -403,7 +399,7 @@ pub(crate) async fn run_chain_upgrade(
                 let enable_validator_calls = crate::admin_functions::enable_validator(
                     shell,
                     forge_args,
-                    &foundry_contracts_path,
+                    &contracts_foundry_path,
                     crate::admin_functions::AdminScriptMode::OnlySave,
                     upgrade_info
                         .deployed_addresses
@@ -432,10 +428,7 @@ pub(crate) async fn run_chain_upgrade(
     };
 
     if run_upgrade {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let chain_config = ecosystem_config
-            .load_current_chain()
-            .context("Chain not found")?;
+        let chain_config = ZkStackConfig::current_chain(shell)?;
         logger::info("Running upgrade");
 
         let receipt1 = send_tx(

@@ -11,7 +11,7 @@ use zkstack_cli_config::{
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
@@ -56,12 +56,12 @@ pub async fn register_chain(
     sender: Option<String>,
     broadcast: bool,
 ) -> anyhow::Result<()> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
 
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url);
@@ -85,7 +85,7 @@ pub async fn register_chain(
 
     let register_chain_output = RegisterChainOutput::read(
         shell,
-        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
+        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.path_to_foundry_scripts()),
     )?;
     contracts.set_chain_contracts(&register_chain_output);
     Ok(())

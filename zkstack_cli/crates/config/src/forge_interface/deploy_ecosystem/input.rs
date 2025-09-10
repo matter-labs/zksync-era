@@ -11,7 +11,7 @@ use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
     ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
@@ -89,7 +89,7 @@ impl FileConfigWithDefaultName for InitialDeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
 
-impl ZkStackConfig for InitialDeploymentConfig {}
+impl FileConfigTrait for InitialDeploymentConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
@@ -100,7 +100,7 @@ impl FileConfigWithDefaultName for Erc20DeploymentConfig {
     const FILE_NAME: &'static str = ERC20_DEPLOYMENT_FILE;
 }
 
-impl ZkStackConfig for Erc20DeploymentConfig {}
+impl FileConfigTrait for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {
@@ -142,11 +142,13 @@ pub struct DeployL1Config {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
+    pub is_zk_sync_os: bool,
 }
 
-impl ZkStackConfig for DeployL1Config {}
+impl FileConfigTrait for DeployL1Config {}
 
 impl DeployL1Config {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         genesis_input: &GenesisInput,
         wallets_config: &WalletsConfig,
@@ -155,8 +157,10 @@ impl DeployL1Config {
         testnet_verifier: bool,
         l1_network: L1Network,
         support_l2_legacy_shared_bridge_test: bool,
+        zksync_os: bool,
     ) -> Self {
         Self {
+            is_zk_sync_os: zksync_os,
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,
@@ -247,7 +251,7 @@ pub struct DeployErc20Config {
     pub additional_addresses_for_minting: Vec<Address>,
 }
 
-impl ZkStackConfig for DeployErc20Config {}
+impl FileConfigTrait for DeployErc20Config {}
 
 impl DeployErc20Config {
     pub fn new(
