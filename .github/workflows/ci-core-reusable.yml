@@ -63,6 +63,10 @@ jobs:
       - name: Install yarn
         run: |
           npm install -g yarn
+      - name: Check contracts hashes
+        working-directory: contracts
+        run: |
+          yarn calculate-hashes:check
 
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
@@ -146,7 +150,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
-        tested_chain_type: [ "era", "validium", "custom_token"]
+        tested_chain_type: [ "era", "validium", "custom_token" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:

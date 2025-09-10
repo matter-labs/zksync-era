@@ -7,7 +7,6 @@ use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::l2_rollup_da_validator_bytecode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
@@ -297,9 +296,6 @@ impl Tester {
             )
             .await
             .unwrap();
-
-            // Also setting up the DA for tests
-            // Self::setup_da(&mut storage).await;
         }
     }
 
@@ -354,15 +350,6 @@ impl Tester {
             .insert_factory_deps(L2BlockNumber(0), &factory_deps)
             .await
             .unwrap();
-    }
-
-    async fn setup_da(conn: &mut Connection<'_, Core>) {
-        Self::setup_contract(
-            conn,
-            Address::repeat_byte(0x23),
-            l2_rollup_da_validator_bytecode(),
-        )
-        .await;
     }
 
     pub(super) async fn wait_for_tasks(&mut self) {

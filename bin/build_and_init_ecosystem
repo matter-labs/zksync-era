@@ -30,9 +30,6 @@ initialize_ecosystem() {
 ################################################################################
 # Run all jobs in parallel and capture their PIDs
 ################################################################################
-# TODO Remove generate genesis. IT should be done only once, not every time
-zkstack dev contracts
-zkstack dev generate-genesis -v
 build_tested_binaries      & PID_BUILD_BINARIES=$!
 initialize_ecosystem        & PID_INIT_ECO=$!
 
