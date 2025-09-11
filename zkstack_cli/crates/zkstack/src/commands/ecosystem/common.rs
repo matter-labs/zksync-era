@@ -15,7 +15,7 @@ use zkstack_cli_config::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, GenesisInput,
                 InitialDeploymentConfig,
             },
-            output::{DeployL1Output, ERC20Tokens},
+            output::{DeployL1CoreContractsOutput, DeployL1Output, ERC20Tokens},
         },
         script_params::{
             DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS, DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
@@ -23,7 +23,8 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfigTrait, GENESIS_FILE,
+    ContractsConfig, ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig,
+    GenesisConfig, ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -37,10 +38,10 @@ use crate::{
 
 lazy_static! {
     static ref DEPLOY_L1_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&["function runWithBridgehub(address bridgehub) public",]).unwrap(),
+        parse_abi(&["function runWithBridgehub(address bridgehub, bool reuseGovAndAdmin) public",]).unwrap(),
     );
     static ref REGISTER_CTM_FUNCTIONS: BaseContract =
-        BaseContract::from(parse_abi(&["function registerCTM(bool shouldSend) public",]).unwrap(),);
+        BaseContract::from(parse_abi(&["function registerCTM(address bridgehub, address chainTypeManagerProxy, bool shouldSend) public",]).unwrap(),);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -53,8 +54,9 @@ pub async fn deploy_l1(
     sender: Option<String>,
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: Option<H160>,
+    bridgehub_address: H160,
     zksync_os: bool,
+    reuse_gov_and_admin: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path =
         DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
@@ -77,7 +79,7 @@ pub async fn deploy_l1(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_L1_FUNCTIONS
-        .encode("runWithBridgehub", (bridgehub_address.unwrap_or_default(),)) // Script works with zero address
+        .encode("runWithBridgehub", (bridgehub_address, reuse_gov_and_admin)) // Script works with zero address
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_foundry_scripts())
@@ -128,7 +130,7 @@ pub async fn deploy_l1_core_contracts(
     sender: Option<String>,
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let deploy_config_path =
         DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
@@ -180,11 +182,11 @@ pub async fn deploy_l1_core_contracts(
 
     forge.run(shell)?;
 
-    let script_output = DeployL1Output::read(
+    let script_output = DeployL1CoreContractsOutput::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
+        DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
-    let mut contracts_config = ContractsConfig::default();
+    let mut contracts_config = CoreContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
 
     Ok(contracts_config)
@@ -196,12 +198,17 @@ pub async fn register_ctm_on_existing_bh(
     config: &EcosystemConfig,
     l1_rpc_url: &str,
     sender: Option<String>,
+    bridgehub_address: H160,
+    ctm_address: H160,
     only_save_calldata: bool,
 ) -> anyhow::Result<AdminScriptOutput> {
     let wallets_config = config.get_wallets()?;
 
     let calldata = REGISTER_CTM_FUNCTIONS
-        .encode("registerCTM", !only_save_calldata)
+        .encode(
+            "registerCTM",
+            (bridgehub_address, ctm_address, !only_save_calldata),
+        )
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_foundry_scripts())
@@ -237,7 +244,7 @@ pub async fn deploy_erc20(
     shell: &Shell,
     erc20_deployment_config: &Erc20DeploymentConfig,
     ecosystem_config: &EcosystemConfig,
-    contracts_config: &ContractsConfig,
+    contracts_config: &ContractsConfigForDeployERC20,
     forge_args: ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<ERC20Tokens> {

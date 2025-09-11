@@ -19,6 +19,8 @@ pub(crate) const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
 /// Name of the erc20 deployments config file
 pub(crate) const ERC20_DEPLOYMENT_FILE: &str = "erc20_deployments.yaml";
 /// Name of the contracts file
+pub const CORE_CONTRACTS_FILE: &str = "core_contracts.yaml";
+/// Name of the contracts file
 pub const CONTRACTS_FILE: &str = "contracts.yaml";
 /// Name of the gateway contracts file
 pub const GATEWAY_FILE: &str = "gateway.yaml";

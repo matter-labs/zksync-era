@@ -9,6 +9,30 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeployL1CoreContractsOutput {
+    pub create2_factory_addr: Address,
+    pub create2_factory_salt: H256,
+    pub deployer_addr: Address,
+    pub era_chain_id: u32,
+    pub l1_chain_id: u32,
+    pub owner_address: Address,
+    pub deployed_addresses: DeployL1CoreContractsDeployedAddressesOutput,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeployL1CoreContractsDeployedAddressesOutput {
+    pub governance_addr: Address,
+    pub transparent_proxy_admin_addr: Address,
+    pub chain_admin: Address,
+    pub access_control_restriction_addr: Address,
+    pub bridgehub: L1BridgehubOutput,
+    pub bridges: L1BridgesOutput,
+    pub native_token_vault_addr: Address,
+}
+
+impl FileConfigTrait for DeployL1CoreContractsOutput {}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1Output {
     pub create2_factory_addr: Address,
     pub create2_factory_salt: H256,

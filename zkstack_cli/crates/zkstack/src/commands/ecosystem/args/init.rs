@@ -14,8 +14,8 @@ use crate::{
     commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_GENESIS,
+        MSG_BRIDGEHUB, MSG_CTM, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT,
+        MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
         MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
         MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
@@ -127,8 +127,6 @@ pub struct EcosystemInitArgs {
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
-    pub bridgehub: Option<String>,
-    #[clap(long, short, action, help = MSG_NO_GENESIS)]
     pub no_genesis: bool,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
@@ -162,7 +160,6 @@ impl EcosystemInitArgs {
             skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test,
-            bridgehub,
             zksync_os,
             make_permanent_rollup,
             update_submodules,
@@ -203,16 +200,6 @@ impl EcosystemInitArgs {
             }
         });
 
-        let bridgehub_address = if let Some(ref addr_str) = bridgehub {
-            Some(
-                addr_str
-                    .parse::<H160>()
-                    .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
-            )
-        } else {
-            None
-        };
-
         Ok(EcosystemInitArgsFinal {
             deploy_erc20,
             observability,
@@ -225,7 +212,6 @@ impl EcosystemInitArgs {
             validium_args,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
-            bridgehub_address,
             deploy_ecosystem,
             deploy_paymaster,
             make_permanent_rollup,
@@ -248,7 +234,6 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: Option<H160>,
     pub deploy_ecosystem: bool,
     pub deploy_paymaster: Option<bool>,
     pub make_permanent_rollup: Option<bool>,
@@ -271,6 +256,10 @@ pub struct RegisterCTMArgs {
     pub dev: bool,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub only_save_calldata: bool,
+    #[clap(long, help = MSG_BRIDGEHUB)]
+    pub bridgehub: String,
+    #[clap(long, help = MSG_CTM)]
+    pub ctm: String,
 }
 
 impl RegisterCTMArgs {
@@ -284,15 +273,28 @@ impl RegisterCTMArgs {
             update_submodules,
             dev,
             only_save_calldata,
+            bridgehub,
+            ctm,
         } = self;
 
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+
+        // Parse bridgehub address
+        let bridgehub_address = bridgehub
+            .parse::<H160>()
+            .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?;
+        // Parse ctm address
+        let ctm_address = ctm
+            .parse::<H160>()
+            .with_context(|| format!("Invalid ctm address format: {}", ctm))?;
 
         Ok(RegisterCTMArgsFinal {
             ecosystem,
             forge_args,
             update_submodules,
             only_save_calldata,
+            bridgehub_address,
+            ctm_address,
         })
     }
 }
@@ -303,15 +305,19 @@ pub struct RegisterCTMArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub update_submodules: Option<bool>,
     pub only_save_calldata: bool,
+    pub bridgehub_address: H160,
+    pub ctm_address: H160,
 }
 
-impl From<EcosystemInitArgsFinal> for RegisterCTMArgsFinal {
-    fn from(args: EcosystemInitArgsFinal) -> Self {
+impl From<(EcosystemInitArgsFinal, H160, H160)> for RegisterCTMArgsFinal {
+    fn from((args, bridgehub_address, ctm_address): (EcosystemInitArgsFinal, H160, H160)) -> Self {
         RegisterCTMArgsFinal {
             ecosystem: args.ecosystem,
             forge_args: args.forge_args,
             update_submodules: None,
             only_save_calldata: false,
+            bridgehub_address,
+            ctm_address,
         }
     }
 }
@@ -331,9 +337,11 @@ pub struct InitNewCTMArgs {
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
-    pub bridgehub: Option<String>,
+    pub bridgehub: String,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
+    #[clap(long, default_value_t = false)]
+    pub reuse_gov_and_admin: bool,
 }
 
 impl InitNewCTMArgs {
@@ -349,21 +357,16 @@ impl InitNewCTMArgs {
             support_l2_legacy_shared_bridge_test,
             bridgehub,
             zksync_os,
+            reuse_gov_and_admin,
         } = self;
 
         // Fill ecosystem args
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, true).await?;
 
         // Parse bridgehub address
-        let bridgehub_address = if let Some(ref addr_str) = bridgehub {
-            Some(
-                addr_str
-                    .parse::<H160>()
-                    .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
-            )
-        } else {
-            None
-        };
+        let bridgehub_address = bridgehub
+            .parse::<H160>()
+            .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?;
 
         Ok(InitNewCTMArgsFinal {
             ecosystem,
@@ -374,6 +377,7 @@ impl InitNewCTMArgs {
                 .unwrap_or(false),
             bridgehub_address,
             zksync_os,
+            reuse_gov_and_admin,
         })
     }
 }
@@ -385,22 +389,9 @@ pub struct InitNewCTMArgsFinal {
     pub update_submodules: Option<bool>,
     pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: Option<H160>,
+    pub bridgehub_address: H160,
     pub zksync_os: bool,
-}
-
-impl From<EcosystemInitArgsFinal> for InitNewCTMArgsFinal {
-    fn from(args: EcosystemInitArgsFinal) -> Self {
-        InitNewCTMArgsFinal {
-            ecosystem: args.ecosystem,
-            forge_args: args.forge_args,
-            update_submodules: None,
-            skip_contract_compilation_override: args.skip_contract_compilation_override,
-            support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
-            bridgehub_address: args.bridgehub_address,
-            zksync_os: args.zksync_os,
-        }
-    }
+    pub reuse_gov_and_admin: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
