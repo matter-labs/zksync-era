@@ -127,7 +127,7 @@ async fn init_ecosystem(
         .await?;
         core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let mut contracts = deploy_new_ctm(
+        let contracts = deploy_new_ctm(
             shell,
             &mut init_args.ecosystem,
             init_args.forge_args.clone(),
@@ -140,7 +140,6 @@ async fn init_ecosystem(
         )
         .await?;
 
-        contracts.merge_from_core(&core_contracts);
         contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
         let forge_args = init_args.forge_args.clone();
