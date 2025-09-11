@@ -104,17 +104,21 @@ impl SyncBlock {
             pubdata_params: PubdataParams {
                 pubdata_type: PubdataType::from_str(&block.pubdata_type)
                     .decode_column("Invalid pubdata type")?,
-                l2_da_commitment_scheme: block
-                    .l2_da_commitment_scheme
-                    .map(|a| {
-                        L2DACommitmentScheme::try_from(a as u8)
-                            .decode_column("l2_da_commitment_scheme")
-                    })
-                    .transpose()?,
-                l2_da_validator_address: block
-                    .l2_da_validator_address
-                    .map(|a| parse_h160(&a).decode_column("l2_da_validator_address"))
-                    .transpose()?,
+                pubdata_validator: (
+                    block
+                        .l2_da_validator_address
+                        .map(|a| parse_h160(&a).decode_column("l2_da_validator_address"))
+                        .transpose()?,
+                    block
+                        .l2_da_commitment_scheme
+                        .map(|a| {
+                            L2DACommitmentScheme::try_from(a as u8)
+                                .decode_column("l2_da_commitment_scheme")
+                        })
+                        .transpose()?,
+                )
+                    .try_into()
+                    .decode_column("Invalid pubdata validator")?,
             },
             pubdata_limit: block.pubdata_limit.map(|l| l as u64),
             interop_roots,

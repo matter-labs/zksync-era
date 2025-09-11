@@ -18,7 +18,7 @@ use zksync_multivm::{
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx,
     server_notification::GatewayMigrationState,
@@ -535,19 +535,18 @@ impl MempoolIO {
     }
 
     fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
+        // Starting from v30 we have to use commitment schema instead of address
         let pubdata_params = match (
             protocol_version.is_pre_interop_fast_blocks(),
             self.l2_da_validator_address,
             self.l2_da_commitment_scheme,
         ) {
             (true, Some(l2_da_validator_address), _) => PubdataParams {
-                l2_da_validator_address: Some(l2_da_validator_address),
-                l2_da_commitment_scheme: None,
+                pubdata_validator: L2PubdataValidator::Address(l2_da_validator_address),
                 pubdata_type: self.pubdata_type,
             },
             (false, _, Some(l2_da_commitment_scheme)) => PubdataParams {
-                l2_da_validator_address: None,
-                l2_da_commitment_scheme: Some(l2_da_commitment_scheme),
+                pubdata_validator: L2PubdataValidator::CommitmentScheme(l2_da_commitment_scheme),
                 pubdata_type: self.pubdata_type,
             },
             (_, _, _) => anyhow::bail!(

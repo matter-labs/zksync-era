@@ -1378,18 +1378,18 @@ impl BlocksDal<'_, '_> {
             l2_block_header.logs_bloom.as_bytes(),
             l2_block_header
                 .pubdata_params
-                .l2_da_validator_address
-                .as_ref()
-                .map(|addr| addr.as_bytes()),
+                .pubdata_validator
+                .l2_da_validator()
+                .map(|addr| addr.as_bytes().to_vec()),
             l2_block_header.pubdata_params.pubdata_type.to_string(),
             l2_block_header
                 .rolling_txs_hash
                 .map(|h| h.as_bytes().to_vec()),
             l2_block_header
                 .pubdata_params
-                .l2_da_commitment_scheme
-                .as_ref()
-                .map(|l2_da_commitment_scheme| *l2_da_commitment_scheme as i32)
+                .pubdata_validator
+                .l2_da_commitment_scheme()
+                .map(|l2_da_commitment_scheme| l2_da_commitment_scheme as i32)
         );
 
         instrumentation.with(query).execute(self.storage).await?;

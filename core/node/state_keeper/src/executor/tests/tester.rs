@@ -7,7 +7,7 @@ use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -24,10 +24,8 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     block::L2BlockHasher,
-    bytecode::BytecodeHash,
-    commitment::{L2DACommitmentScheme, PubdataParams},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams},
     ethabi::Token,
-    get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     system_contracts::get_system_smart_contracts,
@@ -41,7 +39,7 @@ use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    testonly::{self, apply_genesis_logs, BASE_SYSTEM_CONTRACTS},
+    testonly::{self, BASE_SYSTEM_CONTRACTS},
     AsyncRocksdbCache,
 };
 
@@ -273,8 +271,9 @@ impl Tester {
             batch_params,
             system_params,
             PubdataParams {
-                l2_da_validator_address: None,
-                l2_da_commitment_scheme: Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+                pubdata_validator: L2PubdataValidator::CommitmentScheme(
+                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                ),
                 pubdata_type: Default::default(),
             },
         )
@@ -332,24 +331,6 @@ impl Tester {
                     .unwrap();
             }
         }
-    }
-
-    async fn setup_contract(conn: &mut Connection<'_, Core>, address: Address, code: Vec<u8>) {
-        let hash: H256 = BytecodeHash::for_bytecode(&code).value();
-        let known_code_key = get_known_code_key(&hash);
-        let code_key = get_code_key(&address);
-
-        let logs = [
-            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1)),
-            StorageLog::new_write_log(code_key, hash),
-        ];
-        apply_genesis_logs(conn, &logs).await;
-
-        let factory_deps = HashMap::from([(hash, code)]);
-        conn.factory_deps_dal()
-            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-            .await
-            .unwrap();
     }
 
     pub(super) async fn wait_for_tasks(&mut self) {

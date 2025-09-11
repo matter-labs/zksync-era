@@ -310,7 +310,7 @@ mod tests {
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
-    use zksync_types::commitment::L2DACommitmentScheme;
+    use zksync_types::commitment::{L2DACommitmentScheme, L2PubdataValidator};
 
     use super::*;
 
@@ -366,8 +366,9 @@ mod tests {
                 chain_id: Default::default(),
             },
             PubdataParams {
-                l2_da_validator_address: None,
-                l2_da_commitment_scheme: Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+                pubdata_validator: L2PubdataValidator::CommitmentScheme(
+                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                ),
                 pubdata_type: Default::default(),
             },
         );

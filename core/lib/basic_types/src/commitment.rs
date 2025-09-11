@@ -136,25 +136,65 @@ impl FromStr for L2DACommitmentScheme {
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum L2PubdataValidator {
+    Address(Address),
+    CommitmentScheme(L2DACommitmentScheme),
+}
+
+impl TryFrom<(Option<Address>, Option<L2DACommitmentScheme>)> for L2PubdataValidator {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: (Option<Address>, Option<L2DACommitmentScheme>),
+    ) -> Result<Self, Self::Error> {
+        match value {
+            (None, Some(scheme)) => Ok(L2PubdataValidator::CommitmentScheme(scheme)),
+            (Some(address), None) => Ok(L2PubdataValidator::Address(address)),
+            (Some(_), Some(_)) => anyhow::bail!(
+                "Address and L2DACommitmentScheme are specified, should be chosen only one"
+            ),
+            (None, None) => anyhow::bail!(
+                "Address and L2DACommitmentScheme are not specified, should be chosen at least one"
+            ),
+        }
+    }
+}
+
+impl L2PubdataValidator {
+    pub fn l2_da_validator(&self) -> Option<Address> {
+        match self {
+            L2PubdataValidator::Address(addr) => Some(*addr),
+            L2PubdataValidator::CommitmentScheme(_) => None,
+        }
+    }
+
+    pub fn l2_da_commitment_scheme(&self) -> Option<L2DACommitmentScheme> {
+        match self {
+            L2PubdataValidator::Address(_) => None,
+            L2PubdataValidator::CommitmentScheme(scheme) => Some(*scheme),
+        }
+    }
+}
+
+#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
-    pub l2_da_validator_address: Option<Address>,
-    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
+    pub pubdata_validator: L2PubdataValidator,
     pub pubdata_type: PubdataType,
 }
 
 impl PubdataParams {
     pub fn genesis() -> Self {
         PubdataParams {
-            l2_da_validator_address: None,
-            l2_da_commitment_scheme: Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            pubdata_validator: L2PubdataValidator::CommitmentScheme(
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+            ),
             pubdata_type: PubdataType::Rollup,
         }
     }
 
     pub fn pre_gateway() -> Self {
         PubdataParams {
-            l2_da_validator_address: Some(Address::zero()),
-            l2_da_commitment_scheme: Some(L2DACommitmentScheme::None),
+            pubdata_validator: L2PubdataValidator::Address(Address::zero()),
             pubdata_type: Default::default(),
         }
     }

@@ -10,7 +10,7 @@ use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::commitment::{
-    L1BatchCommitmentMode, L2DACommitmentScheme, PubdataParams, PubdataType,
+    L1BatchCommitmentMode, L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};

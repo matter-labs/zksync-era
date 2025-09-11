@@ -113,18 +113,19 @@ impl ProtoRepr for proto::PubdataParams {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            l2_da_validator_address: self
-                .l2_da_validator_address
-                .as_ref()
-                .map(|a| parse_h160(a))
-                .transpose()
-                .context("l2_da_validator_address")?,
-            l2_da_commitment_scheme: self
-                .l2_da_commitment_scheme
-                .as_ref()
-                .map(|a| L2DACommitmentScheme::try_from(*a as u8))
-                .transpose()
-                .unwrap(),
+            pubdata_validator: (
+                self.l2_da_validator_address
+                    .as_ref()
+                    .map(|a| parse_h160(a))
+                    .transpose()
+                    .context("l2_da_validator_address")?,
+                self.l2_da_commitment_scheme
+                    .as_ref()
+                    .map(|a| L2DACommitmentScheme::try_from(*a as u8))
+                    .transpose()
+                    .unwrap(),
+            )
+                .try_into()?,
 
             pubdata_type: required(&self.pubdata_info)
                 .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
@@ -136,11 +137,13 @@ impl ProtoRepr for proto::PubdataParams {
     fn build(this: &Self::Type) -> Self {
         Self {
             l2_da_validator_address: this
-                .l2_da_validator_address
+                .pubdata_validator
+                .l2_da_validator()
                 .as_ref()
                 .map(|addr| addr.as_bytes().to_vec()),
             l2_da_commitment_scheme: this
-                .l2_da_commitment_scheme
+                .pubdata_validator
+                .l2_da_commitment_scheme()
                 .as_ref()
                 .map(|addr| *addr as u32),
 

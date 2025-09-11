@@ -4,8 +4,10 @@ use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
-    commitment::L2DACommitmentScheme, u256_to_h256, web3::keccak256, Address, Execute,
-    ProtocolVersionId, H256, L1_MESSENGER_ADDRESS, U256,
+    commitment::{L2DACommitmentScheme, L2PubdataValidator},
+    u256_to_h256,
+    web3::keccak256,
+    Address, Execute, ProtocolVersionId, H256, L1_MESSENGER_ADDRESS, U256,
 };
 
 use super::{TestedVm, VmTesterBuilder};
@@ -41,8 +43,8 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
     let uncompressed_state_diffs = encoded_uncompressed_state_diffs(&input);
     let uncompressed_state_diffs_hash = keccak256(&uncompressed_state_diffs);
     full_header.extend(uncompressed_state_diffs_hash);
+    let pubdata_builder = FullPubdataBuilder::new(L2PubdataValidator::Address(Address::zero()));
 
-    let pubdata_builder = FullPubdataBuilder::new(Some(Address::zero()), None);
     let mut full_pubdata =
         pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::latest());
     let full_pubdata_hash = keccak256(&full_pubdata);
@@ -108,8 +110,9 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    let pubdata_builder =
-        FullPubdataBuilder::new(None, Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256));
+    let pubdata_builder = FullPubdataBuilder::new(L2PubdataValidator::CommitmentScheme(
+        L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+    ));
     let batch_result = vm.vm.finish_batch(Rc::new(pubdata_builder));
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),
