@@ -2,6 +2,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
 use serde::{de::DeserializeOwned, Serialize};
+use serde_json::{
+    Value as JsonValue,
+    Value::{Array, Object},
+};
 use xshell::Shell;
 use zkstack_cli_common::files::{
     read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
@@ -155,4 +159,72 @@ fn save_with_comment(
         _ => bail!("Unsupported file extension for config file."),
     }
     Ok(())
+}
+
+/// Merge & save: reads existing file (any of yaml/yml/toml/json), deep-merges `self` into it,
+/// then writes back in the same format. If the file doesn't exist, behaves like `save`.
+pub trait MergeAndSaveWithBasePath:
+    Serialize + FileConfigWithDefaultName + ReadConfigWithBasePath + Clone + SaveConfig
+{
+    fn merge_and_save_with_base_path(
+        &self,
+        shell: &Shell,
+        base_path: impl AsRef<Path>,
+    ) -> anyhow::Result<()> {
+        let path = base_path.as_ref().join(Self::FILE_NAME);
+
+        if path.exists() {
+            let existing = read_value(shell, &path)?;
+            let incoming = serde_json::to_value(self)?;
+            let merged = deep_merge_json(existing, incoming);
+            save_with_comment(shell, &path, merged, "") // still works fine with empty comment
+        } else {
+            <Self as SaveConfig>::save(self, shell, &path)
+        }
+    }
+}
+
+impl<T> MergeAndSaveWithBasePath for T where
+    T: Serialize + FileConfigWithDefaultName + ReadConfigWithBasePath + Clone + SaveConfig
+{
+}
+
+// ---------- Deep-merge helper (object-wise) ----------
+fn deep_merge_json(base: JsonValue, patch: JsonValue) -> JsonValue {
+    match (base, patch) {
+        (Object(mut a), Object(b)) => {
+            for (k, v_new) in b {
+                let v_merged = match (a.remove(&k), v_new) {
+                    (Some(old @ Object(_)), new @ Object(_)) => deep_merge_json(old, new),
+                    (Some(old @ Array(_)), new @ Array(_)) => {
+                        let mut arr = old.as_array().unwrap().clone();
+                        arr.extend(new.as_array().unwrap().iter().cloned());
+                        JsonValue::Array(arr)
+                    }
+                    (_, new) => new, // replace scalars / mismatched types
+                };
+                a.insert(k, v_merged);
+            }
+            JsonValue::Object(a)
+        }
+        // default: replace base with patch
+        (_, b) => b,
+    }
+}
+
+// ---------- Format-agnostic read-as-Value ----------
+fn read_value(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<JsonValue> {
+    let p = path.as_ref();
+    let error_context = || format!("Failed to parse config file {:?}.", p);
+    match p.extension().and_then(|ext| ext.to_str()) {
+        Some("yaml") | Some("yml") => {
+            read_yaml_file::<JsonValue>(shell, &p).with_context(error_context)
+        }
+        Some("toml") => read_toml_file::<JsonValue>(shell, &p).with_context(error_context),
+        Some("json") => read_json_file::<JsonValue>(shell, &p).with_context(error_context),
+        _ => bail!(format!(
+            "Unsupported file extension for config file {:?}.",
+            p
+        )),
+    }
 }

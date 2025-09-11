@@ -344,7 +344,7 @@ pub struct InitNewCTMArgs {
     pub bridgehub: String,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
-    #[clap(long, default_value_t = false)]
+    #[clap(long, default_missing_value = "true")]
     pub reuse_gov_and_admin: bool,
 }
 

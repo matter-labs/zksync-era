@@ -1,5 +1,4 @@
 use anyhow::Context;
-use ethers::types::H160;
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait};
@@ -17,14 +16,14 @@ use crate::messages::{
 };
 
 const DEPLOY_TRANSACTIONS_FILE_SRC: &str =
-    "l1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
+    "l1-contracts/broadcast/DeployCTM.s.sol/9/dry-run/run-latest.json";
 const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/config-deploy-l1.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
 pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt();
+    let args = args.fill_values_with_prompt()?;
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
@@ -51,7 +50,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
         Some(args.sender),
         false,
         false,
-        H160::default(), // What's the purpose of build_transactions?
+        args.bridgehub_address,
         false,
         false,
     )

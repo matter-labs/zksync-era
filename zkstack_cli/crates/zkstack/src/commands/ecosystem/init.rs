@@ -11,7 +11,9 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
+    traits::{
+        FileConfigWithDefaultName, MergeAndSaveWithBasePath, ReadConfig, SaveConfigWithBasePath,
+    },
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::L1Network;
@@ -139,18 +141,18 @@ async fn init_ecosystem(
             true,
         )
         .await?;
-        contracts.save_with_base_path(shell, &ecosystem_config.config)?;
+        contracts.merge_and_save_with_base_path(shell, &ecosystem_config.config)?;
+
+        let forge_args = init_args.forge_args.clone();
+        let mut reg_args = RegisterCTMArgsFinal::from_init_args(
+            (*init_args).clone(),
+            contracts.ecosystem_contracts.bridgehub_proxy_addr,
+            contracts.ecosystem_contracts.state_transition_proxy_addr,
+        );
+        register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
+
         contracts
     };
-
-    let forge_args = init_args.forge_args.clone();
-
-    let mut reg_args = RegisterCTMArgsFinal::from_init_args(
-        (*init_args).clone(),
-        contracts.ecosystem_contracts.bridgehub_proxy_addr,
-        contracts.ecosystem_contracts.state_transition_proxy_addr,
-    );
-    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
 
     Ok(contracts)
 }

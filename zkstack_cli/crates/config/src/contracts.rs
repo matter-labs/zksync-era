@@ -8,7 +8,7 @@ use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADD
 use crate::{
     consts::{CONTRACTS_FILE, CORE_CONTRACTS_FILE},
     forge_interface::{
-        deploy_ecosystem::output::{DeployL1CoreContractsOutput, DeployL1Output},
+        deploy_ecosystem::output::{DeployCTMOutput, DeployL1CoreContractsOutput},
         deploy_l2_contracts::output::{
             ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
             L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
@@ -107,7 +107,7 @@ pub struct ContractsConfig {
 }
 
 impl ContractsConfig {
-    pub fn update_from_l1_output(&mut self, deploy_l1_output: &DeployL1Output) {
+    pub fn update_from_l1_output(&mut self, deploy_l1_output: &DeployCTMOutput) {
         self.create2_factory_addr = deploy_l1_output.create2_factory_addr;
         self.create2_factory_salt = deploy_l1_output.create2_factory_salt;
         self.bridges.erc20.l1_address = deploy_l1_output

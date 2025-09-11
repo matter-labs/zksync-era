@@ -33,7 +33,7 @@ pub struct DeployL1CoreContractsDeployedAddressesOutput {
 impl FileConfigTrait for DeployL1CoreContractsOutput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DeployL1Output {
+pub struct DeployCTMOutput {
     pub create2_factory_addr: Address,
     pub create2_factory_salt: H256,
     pub deployer_addr: Address,
@@ -41,13 +41,13 @@ pub struct DeployL1Output {
     pub l1_chain_id: u32,
     pub multicall3_addr: Address,
     pub owner_address: Address,
-    pub contracts_config: DeployL1ContractsConfigOutput,
-    pub deployed_addresses: DeployL1DeployedAddressesOutput,
+    pub contracts_config: DeployCTMContractsConfigOutput,
+    pub deployed_addresses: DeployCTMDeployedAddressesOutput,
     pub expected_rollup_l2_da_validator_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DeployL1DeployedAddressesOutput {
+pub struct DeployCTMDeployedAddressesOutput {
     pub governance_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
@@ -64,10 +64,10 @@ pub struct DeployL1DeployedAddressesOutput {
     pub server_notifier_proxy_addr: Address,
 }
 
-impl FileConfigTrait for DeployL1Output {}
+impl FileConfigTrait for DeployCTMOutput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DeployL1ContractsConfigOutput {
+pub struct DeployCTMContractsConfigOutput {
     pub diamond_cut_data: String,
     pub force_deployments_data: Option<String>,
 }

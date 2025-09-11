@@ -15,10 +15,10 @@ use zkstack_cli_config::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, GenesisInput,
                 InitialDeploymentConfig,
             },
-            output::{DeployL1CoreContractsOutput, DeployL1Output, ERC20Tokens},
+            output::{DeployCTMOutput, DeployL1CoreContractsOutput, ERC20Tokens},
         },
         script_params::{
-            DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS, DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
+            DEPLOY_CTM_SCRIPT_PARAMS, DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS,
             DEPLOY_ERC20_SCRIPT_PARAMS, REGISTER_CTM_SCRIPT_PARAMS,
         },
     },
@@ -58,8 +58,7 @@ pub async fn deploy_ctm(
     zksync_os: bool,
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path =
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
+    let deploy_config_path = DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -83,7 +82,7 @@ pub async fn deploy_ctm(
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_foundry_scripts())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
+        .script(&DEPLOY_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
@@ -110,9 +109,9 @@ pub async fn deploy_ctm(
 
     forge.run(shell)?;
 
-    let script_output = DeployL1Output::read(
+    let script_output = DeployCTMOutput::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
+        DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);

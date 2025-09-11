@@ -24,15 +24,15 @@ impl ForgeScriptParams {
     }
 }
 
-pub const DEPLOY_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+pub const DEPLOY_CTM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l1.toml",
     output: "script-out/output-deploy-l1.toml",
-    script_path: "deploy-scripts/DeployL1.s.sol",
+    script_path: "deploy-scripts/DeployCTM.s.sol",
 };
 
 pub const DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l1.toml",
-    output: "script-out/output-deploy-l1-core-contracts.toml",
+    output: "script-out/output-deploy-l1.toml",
     script_path: "deploy-scripts/DeployL1CoreContracts.s.sol",
 };
 
