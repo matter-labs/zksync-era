@@ -2088,6 +2088,33 @@ dependencies = [
 
 [[package]]
 name = "axum"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
+dependencies = [
+ "async-trait",
+ "axum-core 0.4.5",
+ "bytes",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "itoa",
+ "matchit 0.7.3",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "sync_wrapper 1.0.2",
+ "tower 0.5.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "021e862c184ae977658b36c4500f7feac3221ca5da43e3f25bd04ab6c79a29b5"
@@ -2134,6 +2161,26 @@ dependencies = [
  "http-body 0.4.6",
  "mime",
  "rustversion",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09f2bd6146b97ae3359fa0cc6d6b376d9539582c7b4220f041a33ec24c226199"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper 1.0.2",
  "tower-layer",
  "tower-service",
 ]
@@ -2817,10 +2864,51 @@ dependencies = [
 ]
 
 [[package]]
-name = "celestia-proto"
-version = "0.9.0"
+name = "celestia-grpc"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b45e24b1edcfef14c47001bde6cab70c45044e1de9cad9ff500f778d00a9bfb"
+checksum = "f1249e60176c8bcda5564167f18fed229d13a15ba4f6a5c35abd1a9f65e8e72f"
+dependencies = [
+ "bytes",
+ "celestia-grpc-macros",
+ "celestia-proto",
+ "celestia-types 0.15.0",
+ "futures 0.3.31",
+ "getrandom 0.2.16",
+ "gloo-timers 0.3.0",
+ "hex",
+ "http-body 1.0.1",
+ "ics23",
+ "k256 0.13.4",
+ "lumina-utils",
+ "prost 0.13.5",
+ "send_wrapper 0.6.0",
+ "serde",
+ "signature 2.2.0",
+ "tendermint",
+ "tendermint-proto",
+ "thiserror 1.0.69",
+ "tokio",
+ "tonic 0.12.3",
+ "tonic-web-wasm-client",
+]
+
+[[package]]
+name = "celestia-grpc-macros"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d861f3850b5e959510f2ba43cd20453d09947802b2e480bda1c6844c21d76734"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "celestia-proto"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6c8da7e4e1d4ae492170a9c551419e89e314c1438652bb512e00091b39bdf0b"
 dependencies = [
  "bytes",
  "prost 0.13.5",
@@ -2830,6 +2918,8 @@ dependencies = [
  "serde",
  "subtle-encoding",
  "tendermint-proto",
+ "tonic 0.12.3",
+ "tonic-build 0.12.3",
 ]
 
 [[package]]
@@ -2852,6 +2942,37 @@ dependencies = [
  "libp2p-identity",
  "lumina-utils",
  "multiaddr",
+ "multihash",
+ "nmt-rs",
+ "prost 0.13.5",
+ "rust_decimal",
+ "serde",
+ "serde_repr",
+ "sha2 0.10.8",
+ "tendermint",
+ "tendermint-proto",
+ "thiserror 1.0.69",
+ "time",
+]
+
+[[package]]
+name = "celestia-types"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c7d91261985b0c799a3e2a0a818509adc5a9a0fd25c480f23de97f8fe379f20"
+dependencies = [
+ "base64 0.22.1",
+ "bech32",
+ "bitvec",
+ "blockstore",
+ "bytes",
+ "celestia-proto",
+ "cid",
+ "const_format",
+ "enum_dispatch",
+ "k256 0.13.4",
+ "leopard-codec",
+ "lumina-utils",
  "multihash",
  "nmt-rs",
  "prost 0.13.5",
@@ -3702,7 +3823,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.104",
 ]
 
 [[package]]
@@ -4293,13 +4414,13 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b653a9f2f71966b1316e14cb1569e36f6dd0da197c0324144868dd5d0bd8b8b9"
 dependencies = [
- "celestia-types",
+ "celestia-types 0.14.0",
  "prometheus-client",
  "prost 0.12.6",
  "serde",
  "thiserror 2.0.12",
  "tonic 0.11.0",
- "tonic-build",
+ "tonic-build 0.11.0",
 ]
 
 [[package]]
@@ -4309,7 +4430,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "410b56e7f586b78e853c475d7aff39d9e59065bf100f133df6c9070752a4d491"
 dependencies = [
  "base64 0.22.1",
- "celestia-types",
+ "celestia-types 0.14.0",
  "eq-common",
  "serde",
  "tokio",
@@ -5713,6 +5834,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ics23"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73b17f1a5bd7d12ad30a21445cfa5f52fd7651cb3243ba866f9916b1ec112f12"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "hex",
+ "informalsystems-pbjson",
+ "prost 0.13.5",
+ "serde",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5896,6 +6031,16 @@ checksum = "fe4cd85333e22411419a0bcae1297d25e58c9443848b11dc6a86fefe8c78a661"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.4",
+ "serde",
+]
+
+[[package]]
+name = "informalsystems-pbjson"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9aa4a0980c8379295100d70854354e78df2ee1c6ca0f96ffe89afeb3140e3a3d"
+dependencies = [
+ "base64 0.21.7",
  "serde",
 ]
 
@@ -6625,7 +6770,13 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e43f1559f5e0bb89979c0f3753840ca645929085ab6be2372f77391d92f2faf"
 dependencies = [
+ "futures 0.3.31",
+ "gloo-timers 0.3.0",
  "js-sys",
+ "pin-project",
+ "send_wrapper 0.6.0",
+ "tokio",
+ "web-time",
 ]
 
 [[package]]
@@ -9775,6 +9926,9 @@ name = "send_wrapper"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
+dependencies = [
+ "futures-core",
+]
 
 [[package]]
 name = "sentry"
@@ -11575,6 +11729,39 @@ dependencies = [
 
 [[package]]
 name = "tonic"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum 0.7.9",
+ "base64 0.22.1",
+ "bytes",
+ "h2 0.4.11",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-timeout 0.5.2",
+ "hyper-util",
+ "percent-encoding",
+ "pin-project",
+ "prost 0.13.5",
+ "rustls-native-certs 0.8.1",
+ "rustls-pemfile 2.2.0",
+ "socket2",
+ "tokio",
+ "tokio-rustls 0.26.2",
+ "tokio-stream",
+ "tower 0.4.13",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tonic"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e581ba15a835f4d9ea06c55ab1bd4dce26fc53752c69a04aac00703bfb49ba9"
@@ -11605,6 +11792,45 @@ dependencies = [
  "prost-build 0.12.6",
  "quote 1.0.40",
  "syn 2.0.104",
+]
+
+[[package]]
+name = "tonic-build"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
+dependencies = [
+ "prettyplease",
+ "proc-macro2 1.0.95",
+ "prost-build 0.13.5",
+ "prost-types 0.13.5",
+ "quote 1.0.40",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "tonic-web-wasm-client"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8957be1a1c7aa12d4c9d67882060dd57aed816bbc553fa60949312e839f4a8ea"
+dependencies = [
+ "base64 0.22.1",
+ "byteorder",
+ "bytes",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "httparse",
+ "js-sys",
+ "pin-project",
+ "thiserror 1.0.69",
+ "tonic 0.12.3",
+ "tower-service",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-streams",
+ "web-sys",
 ]
 
 [[package]]
@@ -13835,7 +14061,8 @@ dependencies = [
  "blake2 0.10.6",
  "blake2b_simd",
  "bytes",
- "celestia-types",
+ "celestia-grpc",
+ "celestia-types 0.14.0",
  "chrono",
  "eq-sdk",
  "flate2",
@@ -13861,7 +14088,7 @@ dependencies = [
  "subxt-metadata",
  "subxt-signer",
  "tokio",
- "tonic 0.11.0",
+ "tonic 0.12.3",
  "tracing",
  "url",
  "vise",

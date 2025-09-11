@@ -6,6 +6,8 @@ use std::{
 
 use async_trait::async_trait;
 use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
+use celestia_grpc::GrpcClient;
+use tonic::transport::Channel;
 use chrono::{DateTime, Utc};
 use eq_sdk::{
     get_zk_stack_response::{
@@ -40,7 +42,6 @@ use crate::{
             BinaryMerkleProof, CelestiaZKStackInput, DataRootInclusionProof,
             DataRootInclusionProofResponse, DataRootTuple, TendermintRPCClient,
         },
-        sdk::{BlobTxHash, RawCelestiaClient},
     },
     utils::{to_non_retriable_da_error, to_retriable_da_error},
 };
@@ -51,7 +52,7 @@ pub struct CelestiaClient {
     config: CelestiaConfig,
     verify_inclusion: bool,
     eq_client: Option<Arc<EqClient>>,
-    celestia_client: Arc<RawCelestiaClient>,
+    celestia_client: Arc<GrpcClient<Channel>>,
     eth_client: Box<DynClient<L1>>,
     l2_chain_id: L2ChainId,
 }
