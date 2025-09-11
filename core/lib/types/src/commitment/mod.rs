@@ -44,7 +44,10 @@ pub enum CommitmentValidationError {
     #[error("State diff hash mismatch: expected {expected}, got {actual}")]
     StateDiffHashMismatch { expected: H256, actual: H256 },
     #[error("Blob linear hashes mismatch: expected {expected:?}, got {actual:?}")]
-    BlobLinearHashesMismatch { expected: Vec<H256>, actual: Vec<H256> },
+    BlobLinearHashesMismatch {
+        expected: Vec<H256>,
+        actual: Vec<H256>,
+    },
     #[error("L2 L1 logs tree root mismatch: expected {expected}, got {actual}")]
     L2L1LogsTreeRootMismatch { expected: H256, actual: H256 },
     #[error("Serialized size for BlockPassThroughData is bigger than expected: expected {expected}, got {actual}")]
