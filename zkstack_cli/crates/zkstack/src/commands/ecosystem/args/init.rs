@@ -309,9 +309,13 @@ pub struct RegisterCTMArgsFinal {
     pub ctm_address: H160,
 }
 
-impl From<(EcosystemInitArgsFinal, H160, H160)> for RegisterCTMArgsFinal {
-    fn from((args, bridgehub_address, ctm_address): (EcosystemInitArgsFinal, H160, H160)) -> Self {
-        RegisterCTMArgsFinal {
+impl RegisterCTMArgsFinal {
+    pub fn from_init_args(
+        args: EcosystemInitArgsFinal,
+        bridgehub_address: H160,
+        ctm_address: H160,
+    ) -> Self {
+        Self {
             ecosystem: args.ecosystem,
             forge_args: args.forge_args,
             update_submodules: None,

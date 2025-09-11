@@ -6,7 +6,7 @@ use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackC
 
 use super::{
     args::build_transactions::BuildTransactionsArgs,
-    common::deploy_l1,
+    common::deploy_ctm,
     create_configs::create_initial_deployments_config,
     utils::{build_system_contracts, install_yarn_dependencies},
 };
@@ -42,7 +42,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1(
+    let contracts_config = deploy_ctm(
         shell,
         &args.forge_args,
         &ecosystem_config,

@@ -14,7 +14,7 @@ use zkstack_cli_config::{
 
 use super::{
     args::init::{EcosystemArgsFinal, InitNewCTMArgs, InitNewCTMArgsFinal},
-    common::deploy_l1,
+    common::deploy_ctm,
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
@@ -101,7 +101,7 @@ pub async fn deploy_new_ctm(
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1(
+    let contracts_config = deploy_ctm(
         shell,
         &forge_args,
         ecosystem_config,

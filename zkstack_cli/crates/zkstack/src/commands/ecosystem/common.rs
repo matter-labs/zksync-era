@@ -37,7 +37,7 @@ use crate::{
 };
 
 lazy_static! {
-    static ref DEPLOY_L1_FUNCTIONS: BaseContract = BaseContract::from(
+    static ref DEPLOY_CTM_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&["function runWithBridgehub(address bridgehub, bool reuseGovAndAdmin) public",]).unwrap(),
     );
     static ref REGISTER_CTM_FUNCTIONS: BaseContract =
@@ -45,7 +45,7 @@ lazy_static! {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn deploy_l1(
+pub async fn deploy_ctm(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -78,7 +78,7 @@ pub async fn deploy_l1(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
-    let calldata = DEPLOY_L1_FUNCTIONS
+    let calldata = DEPLOY_CTM_FUNCTIONS
         .encode("runWithBridgehub", (bridgehub_address, reuse_gov_and_admin)) // Script works with zero address
         .unwrap();
 
@@ -192,6 +192,7 @@ pub async fn deploy_l1_core_contracts(
     Ok(contracts_config)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn register_ctm_on_existing_bh(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
