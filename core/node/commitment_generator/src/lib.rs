@@ -337,9 +337,9 @@ impl CommitmentGenerator {
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
-        let mut commitment = L1BatchCommitment::new(input);
+        let mut commitment = L1BatchCommitment::new(input)?;
         self.post_process_commitment(&mut commitment, commitment_mode);
-        let artifacts = commitment.artifacts();
+        let artifacts = commitment.artifacts()?;
         let latency = latency.observe();
         tracing::debug!(
             "Generated commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
