@@ -282,6 +282,101 @@ impl ContractsConfig {
         self.l2.da_validator_addr = Some(output.l2_da_validator_address);
         Ok(())
     }
+
+    /// Merge fields from a `CoreContractsConfig` into `self`,
+    /// overwriting only when `self` doesn't already have a value.
+    pub fn merge_from_core(&mut self, core: &CoreContractsConfig) {
+        // --- helpers ---
+        fn maybe_set_addr(dst: &mut Address, src: Address) {
+            if *dst == Address::default() && src != Address::default() {
+                *dst = src;
+            }
+        }
+        fn maybe_set_h256(dst: &mut H256, src: H256) {
+            if *dst == H256::default() && src != H256::default() {
+                *dst = src;
+            }
+        }
+        fn maybe_set_opt(dst: &mut Option<Address>, src: Option<Address>) {
+            if dst.is_none() {
+                *dst = src;
+            }
+        }
+
+        // --- top-level ---
+        maybe_set_addr(&mut self.create2_factory_addr, core.create2_factory_addr);
+        maybe_set_h256(&mut self.create2_factory_salt, core.create2_factory_salt);
+
+        // --- bridges ---
+        maybe_set_addr(
+            &mut self.bridges.erc20.l1_address,
+            core.bridges.erc20.l1_address,
+        );
+        maybe_set_addr(
+            &mut self.bridges.shared.l1_address,
+            core.bridges.shared.l1_address,
+        );
+        maybe_set_opt(
+            &mut self.bridges.l1_nullifier_addr,
+            core.bridges.l1_nullifier_addr,
+        );
+
+        // --- ecosystem contracts (core subset) ---
+        maybe_set_addr(
+            &mut self.ecosystem_contracts.bridgehub_proxy_addr,
+            core.core_ecosystem_contracts.bridgehub_proxy_addr,
+        );
+        maybe_set_opt(
+            &mut self.ecosystem_contracts.message_root_proxy_addr,
+            core.core_ecosystem_contracts.message_root_proxy_addr,
+        );
+        maybe_set_addr(
+            &mut self.ecosystem_contracts.transparent_proxy_admin_addr,
+            core.core_ecosystem_contracts.transparent_proxy_admin_addr,
+        );
+        maybe_set_opt(
+            &mut self.ecosystem_contracts.stm_deployment_tracker_proxy_addr,
+            core.core_ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr,
+        );
+        maybe_set_opt(
+            &mut self.ecosystem_contracts.native_token_vault_addr,
+            core.core_ecosystem_contracts.native_token_vault_addr,
+        );
+
+        // --- L1 core (governance/admin/access-control/chain-proxy-admin) ---
+        maybe_set_addr(&mut self.l1.governance_addr, core.l1.governance_addr);
+        maybe_set_addr(&mut self.l1.chain_admin_addr, core.l1.chain_admin_addr);
+        if let Some(acr) = core.l1.access_control_restriction_addr {
+            if self.l1.access_control_restriction_addr.is_none() {
+                self.l1.access_control_restriction_addr = Some(acr);
+            }
+        }
+        if let Some(chain_pa) = core.l1.chain_proxy_admin_addr {
+            if self.l1.chain_proxy_admin_addr.is_none() {
+                self.l1.chain_proxy_admin_addr = Some(chain_pa);
+            }
+        }
+
+        // --- merge `other` maps shallowly ---
+        if !core.other.is_null() {
+            if let Some(self_map) = self.other.as_object_mut() {
+                if let Some(core_map) = core.other.as_object() {
+                    for (k, v) in core_map {
+                        // only insert if `self` doesn't already have it
+                        if !self_map.contains_key(k) {
+                            self_map.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+            } else {
+                // if `self.other` is null/non-object, only set if it's empty
+                if self.other.is_null() {
+                    self.other = core.other.clone();
+                }
+            }
+        }
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {

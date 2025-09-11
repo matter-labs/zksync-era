@@ -11,9 +11,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::{
-        FileConfigWithDefaultName, MergeAndSaveWithBasePath, ReadConfig, SaveConfigWithBasePath,
-    },
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::L1Network;
@@ -129,7 +127,7 @@ async fn init_ecosystem(
         .await?;
         core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let contracts = deploy_new_ctm(
+        let mut contracts = deploy_new_ctm(
             shell,
             &mut init_args.ecosystem,
             init_args.forge_args.clone(),
@@ -141,7 +139,9 @@ async fn init_ecosystem(
             true,
         )
         .await?;
-        contracts.merge_and_save_with_base_path(shell, &ecosystem_config.config)?;
+
+        contracts.merge_from_core(&core_contracts);
+        contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
         let forge_args = init_args.forge_args.clone();
         let mut reg_args = RegisterCTMArgsFinal::from_init_args(
