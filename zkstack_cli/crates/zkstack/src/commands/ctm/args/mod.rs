@@ -69,7 +69,7 @@ pub struct InitNewCTMArgs {
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
-    pub bridgehub: Option<String>,
+    pub bridgehub: String,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
 }
@@ -92,16 +92,16 @@ impl InitNewCTMArgs {
         // Fill ecosystem args
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, true).await?;
 
-        // Parse bridgehub address
-        let bridgehub_address = if let Some(ref addr_str) = bridgehub {
-            Some(
-                addr_str
-                    .parse::<H160>()
-                    .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
-            )
-        } else {
-            None
-        };
+        // // Parse bridgehub address
+        // let bridgehub_address = if let Some(ref addr_str) = bridgehub {
+        //     Some(
+        //         addr_str
+        //             .parse::<H160>()
+        //             .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
+        //     )
+        // } else {
+        //     None
+        // };
 
         Ok(InitNewCTMArgsFinal {
             ecosystem,
@@ -110,7 +110,9 @@ impl InitNewCTMArgs {
             skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or(false),
-            bridgehub_address,
+            bridgehub_address: bridgehub
+                .parse::<H160>()
+                .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?,
             zksync_os,
         })
     }
@@ -123,6 +125,6 @@ pub struct InitNewCTMArgsFinal {
     pub update_submodules: Option<bool>,
     pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: Option<H160>,
+    pub bridgehub_address: H160,
     pub zksync_os: bool,
 }

@@ -14,9 +14,9 @@ use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{DeployL1Config, GenesisInput, InitialDeploymentConfig},
-            output::DeployL1Output,
+            output::DeployCTMOutput,
         },
-        script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
+        script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait,
@@ -96,7 +96,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: Option<H160>,
+    bridgehub_address: H160,
     zksync_os: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
@@ -155,11 +155,10 @@ pub async fn deploy_new_ctm(
     sender: Option<String>,
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: Option<H160>,
+    bridgehub_address: H160,
     zksync_os: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path =
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
+    let deploy_config_path = DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -179,11 +178,11 @@ pub async fn deploy_new_ctm(
     deploy_config.save(shell, deploy_config_path)?;
 
     let calldata = DEPLOY_L1_FUNCTIONS
-        .encode("runWithBridgehub", (bridgehub_address.unwrap_or_default(),)) // Script works with zero address
+        .encode("runWithBridgehub", (bridgehub_address)) // Script works with zero address
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_foundry_scripts())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
+        .script(&DEPLOY_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
@@ -210,9 +209,9 @@ pub async fn deploy_new_ctm(
 
     forge.run(shell)?;
 
-    let script_output = DeployL1Output::read(
+    let script_output = DeployCTMOutput::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
+        DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);

@@ -11,7 +11,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::SaveConfigWithBasePath, ContractsConfig, EcosystemConfig, ZkStackConfig,
+    traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
     ZkStackConfigTrait,
 };
 
@@ -66,7 +66,7 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
             shell,
             &erc20_deployment_config,
             &ecosystem_config,
-            &contracts_config,
+            &contracts_config.into(),
             final_ecosystem_args.forge_args.clone(),
             final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
@@ -81,7 +81,7 @@ async fn init_ecosystem(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     if !init_args.skip_contract_compilation_override {
         install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
@@ -112,7 +112,7 @@ pub async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
@@ -133,7 +133,9 @@ pub async fn deploy_ecosystem(
         ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        contracts_config
+            .core_ecosystem_contracts
+            .bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -143,7 +145,9 @@ pub async fn deploy_ecosystem(
         ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        contracts_config
+            .core_ecosystem_contracts
+            .bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -168,7 +172,7 @@ pub async fn deploy_ecosystem(
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .stm_deployment_tracker_proxy_addr
             .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,

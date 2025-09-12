@@ -14,8 +14,8 @@ use crate::{
     commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_GENESIS,
+        MSG_BRIDGEHUB, MSG_CTM, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT,
+        MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
         MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
         MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
@@ -127,8 +127,6 @@ pub struct EcosystemInitArgs {
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
-    pub bridgehub: Option<String>,
-    #[clap(long, short, action, help = MSG_NO_GENESIS)]
     pub no_genesis: bool,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
@@ -162,7 +160,6 @@ impl EcosystemInitArgs {
             skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test,
-            bridgehub,
             zksync_os,
             make_permanent_rollup,
             update_submodules,
@@ -203,16 +200,6 @@ impl EcosystemInitArgs {
             }
         });
 
-        let bridgehub_address = if let Some(ref addr_str) = bridgehub {
-            Some(
-                addr_str
-                    .parse::<H160>()
-                    .with_context(|| format!("Invalid bridgehub address format: {}", addr_str))?,
-            )
-        } else {
-            None
-        };
-
         Ok(EcosystemInitArgsFinal {
             deploy_erc20,
             observability,
@@ -225,7 +212,6 @@ impl EcosystemInitArgs {
             validium_args,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
-            bridgehub_address,
             deploy_ecosystem,
             deploy_paymaster,
             make_permanent_rollup,
@@ -248,7 +234,6 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: Option<H160>,
     pub deploy_ecosystem: bool,
     pub deploy_paymaster: Option<bool>,
     pub make_permanent_rollup: Option<bool>,
