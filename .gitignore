@@ -17,6 +17,7 @@ tags
 *.orig
 .direnv
 .cache
+cache
 
 # Yarn files
 .yarn/

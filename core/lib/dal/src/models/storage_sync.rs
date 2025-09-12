@@ -4,7 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
     parse_h160, parse_h256, parse_h256_opt, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };
@@ -29,7 +29,8 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
     pub pubdata_limit: Option<i64>,
 }
@@ -103,8 +104,21 @@ impl SyncBlock {
             pubdata_params: PubdataParams {
                 pubdata_type: PubdataType::from_str(&block.pubdata_type)
                     .decode_column("Invalid pubdata type")?,
-                l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
-                    .decode_column("l2_da_validator_address")?,
+                pubdata_validator: (
+                    block
+                        .l2_da_validator_address
+                        .map(|a| parse_h160(&a).decode_column("l2_da_validator_address"))
+                        .transpose()?,
+                    block
+                        .l2_da_commitment_scheme
+                        .map(|a| {
+                            L2DACommitmentScheme::try_from(a as u8)
+                                .decode_column("l2_da_commitment_scheme")
+                        })
+                        .transpose()?,
+                )
+                    .try_into()
+                    .decode_column("Invalid pubdata validator")?,
             },
             pubdata_limit: block.pubdata_limit.map(|l| l as u64),
             interop_roots,

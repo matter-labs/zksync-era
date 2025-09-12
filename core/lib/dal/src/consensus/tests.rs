@@ -9,7 +9,7 @@ use zksync_protobuf::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
 };
@@ -54,9 +54,18 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             .collect(),
         last_in_batch: rng.gen(),
         pubdata_params: if protocol_version.is_pre_gateway() {
-            PubdataParams::default()
+            PubdataParams::pre_gateway()
         } else {
             PubdataParams {
+                pubdata_validator: L2PubdataValidator::CommitmentScheme(
+                    match rng.gen_range(0..2) {
+                        0 => L2DACommitmentScheme::None,
+                        1 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                        2 => L2DACommitmentScheme::EmptyNoDA,
+                        3 => L2DACommitmentScheme::PubdataKeccak256,
+                        _ => unreachable!("Invalid L2DACommitmentScheme value"),
+                    },
+                ),
                 pubdata_type: match rng.gen_range(0..2) {
                     0 => PubdataType::Rollup,
                     1 => PubdataType::NoDA,
@@ -65,7 +74,6 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     4 => PubdataType::Eigen,
                     _ => PubdataType::ObjectStore,
                 },
-                l2_da_validator_address: rng.gen(),
             }
         },
         pubdata_limit: if protocol_version < ProtocolVersionId::Version29 {
