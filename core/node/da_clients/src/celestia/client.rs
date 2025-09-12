@@ -87,13 +87,13 @@ impl CelestiaClient {
         };
 
         let private_key = secrets.private_key.0.expose_secret().to_string();
-        /*let client =
-        RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
-            .expect("could not create Celestia client");*/
+
         let signing_key = SecretKey::from_str(private_key.as_str())?;
         let signing_key_bytes = signing_key.secret_bytes();
         let signing_key_tendermint = SigningKey::from_bytes(&signing_key_bytes.into())?;
+
         let address = Address::from_account_veryfing_key(*signing_key_tendermint.verifying_key());
+
         let client =
             TxClient::with_url_and_keypair(config.api_node_url.clone(), signing_key_tendermint)
                 .await?;
