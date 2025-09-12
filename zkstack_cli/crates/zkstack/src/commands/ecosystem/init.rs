@@ -27,9 +27,9 @@ use super::{
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::commands::{
-            init_new_ctm::{deploy_new_ctm, deploy_new_ctm_and_accept_admin},
-            register_ctm::register_ctm,
+        ctm::{
+            args::RegisterCTMArgsFinal,
+            commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm},
         },
         ecosystem::{
             common::deploy_l1_core_contracts,
@@ -142,21 +142,18 @@ async fn init_ecosystem(
             init_args.support_l2_legacy_shared_bridge_test,
             core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
             init_args.zksync_os,
+            true,
         )
         .await?;
 
         contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let forge_args = init_args.forge_args.clone();
-        register_ctm(
-            shell,
-            &forge_args,
-            ecosystem_config,
-            &init_args.ecosystem.l1_rpc_url,
-            None,
-            true,
-        )
-        .await?;
+        let reg_args = RegisterCTMArgsFinal::from_init_args(
+            init_args.clone(),
+            contracts.ecosystem_contracts.bridgehub_proxy_addr,
+            contracts.ecosystem_contracts.state_transition_proxy_addr,
+        );
+        register_ctm(&reg_args, shell, ecosystem_config).await?;
         contracts
     };
     Ok(contracts)

@@ -39,11 +39,11 @@ use crate::{
 };
 
 lazy_static! {
-    static ref DEPLOY_L1_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&["function runWithBridgehub(address bridgehub) public",]).unwrap(),
+    static ref DEPLOY_CTM_FUNCTIONS: BaseContract = BaseContract::from(
+        parse_abi(&["function runWithBridgehub(address bridgehub, bool reuseGovAndAdmin) public",])
+            .unwrap(),
     );
 }
-
 pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
@@ -82,6 +82,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         init_ctm_args.support_l2_legacy_shared_bridge_test,
         init_ctm_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
         init_ctm_args.zksync_os,
+        init_ctm_args.reuse_gov_and_admin,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -98,6 +99,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: H160,
     zksync_os: bool,
+    reuse_gov_and_admin: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
@@ -112,6 +114,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
         support_l2_legacy_shared_bridge_test,
         bridgehub_address,
         zksync_os,
+        reuse_gov_and_admin,
     )
     .await?;
     spinner.finish();
@@ -157,6 +160,7 @@ pub async fn deploy_new_ctm(
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: H160,
     zksync_os: bool,
+    reuse_gov_and_admin: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
@@ -177,8 +181,8 @@ pub async fn deploy_new_ctm(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
-    let calldata = DEPLOY_L1_FUNCTIONS
-        .encode("runWithBridgehub", (bridgehub_address)) // Script works with zero address
+    let calldata = DEPLOY_CTM_FUNCTIONS
+        .encode("runWithBridgehub", (bridgehub_address, reuse_gov_and_admin))
         .unwrap();
 
     let mut forge = Forge::new(&config.path_to_foundry_scripts())

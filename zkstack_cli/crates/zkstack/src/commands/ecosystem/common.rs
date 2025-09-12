@@ -13,21 +13,20 @@ use zkstack_cli_config::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, GenesisInput,
                 InitialDeploymentConfig,
             },
-            output::{DeployCTMOutput, DeployL1CoreContractsOutput, ERC20Tokens},
+            output::{DeployL1CoreContractsOutput, ERC20Tokens},
         },
         script_params::{
             DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS,
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig,
-    GenesisConfig, ZkStackConfigTrait, GENESIS_FILE,
+    ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
+    ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
 use super::args::init::EcosystemInitArgsFinal;
 use crate::{
-    admin_functions::{AdminScriptOutput, AdminScriptOutputInner},
     commands::chain::{self},
     messages::{msg_chain_load_err, msg_initializing_chain, MSG_DEPLOYING_ERC20_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},

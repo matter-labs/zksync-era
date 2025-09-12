@@ -1,4 +1,4 @@
-mod args;
+pub mod args;
 pub(crate) mod commands;
 
 use clap::Subcommand;

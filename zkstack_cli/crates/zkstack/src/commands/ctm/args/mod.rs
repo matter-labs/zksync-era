@@ -7,8 +7,8 @@ use zksync_basic_types::H160;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
-    commands::ecosystem::args::init::{EcosystemArgs, EcosystemArgsFinal},
-    messages::{MSG_BRIDGEHUB, MSG_DEV_ARG_HELP, MSG_ZKSYNC_OS},
+    commands::ecosystem::args::init::{EcosystemArgs, EcosystemArgsFinal, EcosystemInitArgsFinal},
+    messages::{MSG_BRIDGEHUB, MSG_CTM, MSG_DEV_ARG_HELP, MSG_ZKSYNC_OS},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -23,6 +23,12 @@ pub struct RegisterCTMArgs {
     pub update_submodules: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub only_save_calldata: bool,
+    #[clap(long, help = MSG_BRIDGEHUB)]
+    pub bridgehub: String,
+    #[clap(long, help = MSG_CTM)]
+    pub ctm: String,
 }
 
 impl RegisterCTMArgs {
@@ -35,14 +41,29 @@ impl RegisterCTMArgs {
             forge_args,
             update_submodules,
             dev,
+            only_save_calldata,
+            bridgehub,
+            ctm,
         } = self;
 
         let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+
+        // Parse bridgehub address
+        let bridgehub_address = bridgehub
+            .parse::<H160>()
+            .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?;
+        // Parse ctm address
+        let ctm_address = ctm
+            .parse::<H160>()
+            .with_context(|| format!("Invalid ctm address format: {}", ctm))?;
 
         Ok(RegisterCTMArgsFinal {
             ecosystem,
             forge_args,
             update_submodules,
+            only_save_calldata,
+            bridgehub_address,
+            ctm_address,
         })
     }
 }
@@ -52,8 +73,27 @@ pub struct RegisterCTMArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub update_submodules: Option<bool>,
+    pub only_save_calldata: bool,
+    pub bridgehub_address: H160,
+    pub ctm_address: H160,
 }
 
+impl RegisterCTMArgsFinal {
+    pub fn from_init_args(
+        args: EcosystemInitArgsFinal,
+        bridgehub_address: H160,
+        ctm_address: H160,
+    ) -> Self {
+        Self {
+            ecosystem: args.ecosystem,
+            forge_args: args.forge_args,
+            update_submodules: None,
+            only_save_calldata: false,
+            bridgehub_address,
+            ctm_address,
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitNewCTMArgs {
     #[clap(flatten)]
@@ -72,6 +112,8 @@ pub struct InitNewCTMArgs {
     pub bridgehub: String,
     #[clap(long, help = MSG_ZKSYNC_OS)]
     pub zksync_os: bool,
+    #[clap(long, default_missing_value = "true")]
+    pub reuse_gov_and_admin: bool,
 }
 
 impl InitNewCTMArgs {
@@ -87,6 +129,7 @@ impl InitNewCTMArgs {
             support_l2_legacy_shared_bridge_test,
             bridgehub,
             zksync_os,
+            reuse_gov_and_admin,
         } = self;
 
         // Fill ecosystem args
@@ -114,6 +157,7 @@ impl InitNewCTMArgs {
                 .parse::<H160>()
                 .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?,
             zksync_os,
+            reuse_gov_and_admin,
         })
     }
 }
@@ -127,4 +171,5 @@ pub struct InitNewCTMArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: H160,
     pub zksync_os: bool,
+    pub reuse_gov_and_admin: bool,
 }
