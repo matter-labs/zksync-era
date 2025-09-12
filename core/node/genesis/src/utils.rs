@@ -154,7 +154,7 @@ pub(super) async fn save_genesis_l1_batch_metadata(
         .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
         .await?;
 
-    let mut commitment_artifacts = commitment.artifacts();
+    let mut commitment_artifacts = commitment.artifacts()?;
     // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
     commitment_artifacts.l2_l1_merkle_root = H256::zero();
 
