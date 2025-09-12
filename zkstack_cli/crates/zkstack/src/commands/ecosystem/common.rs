@@ -22,7 +22,7 @@ use zkstack_cli_config::{
             DEPLOY_ERC20_SCRIPT_PARAMS, REGISTER_CTM_SCRIPT_PARAMS,
         },
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig,
     GenesisConfig, ZkStackConfigTrait, GENESIS_FILE,
 };
@@ -113,7 +113,7 @@ pub async fn deploy_ctm(
         shell,
         DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
-    let mut contracts_config = ContractsConfig::read_with_base_path(shell, &config.config)?;
+    let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
 
     Ok(contracts_config)
