@@ -359,24 +359,23 @@ impl Transaction {
                     .iter()
                     .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect();
-                
-                // Ignore check for now, we have factory deps in RegisterZKChain and this doesn't allow it for some reason.
-                // // Check factory dependencies with detailed error output
-                // if tx.factory_deps != factory_deps_hashes {
-                //     anyhow::bail!(
-                //         "Factory dependencies mismatch!\n\
-                //         Transaction expects {} deps: {:?}\n\
-                //         But provided {} deps: {:?}\n\
-                //         Count match: {}\n\
-                //         Content match: {}",
-                //         tx.factory_deps.len(), 
-                //         tx.factory_deps,
-                //         factory_deps_hashes.len(),
-                //         factory_deps_hashes,
-                //         tx.factory_deps.len() == factory_deps_hashes.len(),
-                //         tx.factory_deps == factory_deps_hashes
-                //     );
-                // }
+
+                // Check factory dependencies with detailed error output
+                if tx.factory_deps != factory_deps_hashes {
+                    anyhow::bail!(
+                        "Factory dependencies mismatch!\n\
+                        Transaction expects {} deps: {:?}\n\
+                        But provided {} deps: {:?}\n\
+                        Count match: {}\n\
+                        Content match: {}",
+                        tx.factory_deps.len(),
+                        tx.factory_deps,
+                        factory_deps_hashes.len(),
+                        factory_deps_hashes,
+                        tx.factory_deps.len() == factory_deps_hashes.len(),
+                        tx.factory_deps == factory_deps_hashes
+                    );
+                }
                 for item in &tx.reserved[2..] {
                     anyhow::ensure!(item == &U256::zero());
                 }

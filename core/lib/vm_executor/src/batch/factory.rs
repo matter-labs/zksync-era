@@ -297,8 +297,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         };
 
         if true {
-            use std::fs;
-            use std::time::{SystemTime, UNIX_EPOCH};
+            use std::{
+                fs,
+                time::{SystemTime, UNIX_EPOCH},
+            };
 
             let _ = fs::create_dir_all("traces");
 
