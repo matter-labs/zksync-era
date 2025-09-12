@@ -5,11 +5,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use celestia_types::{nmt::Namespace, AppVersion, Blob, Height, state::Address};
 use celestia_grpc::{TxClient, TxConfig};
-use tendermint::crypto::default::ecdsa_secp256k1::{SigningKey};
-use secp256k1::SecretKey;
-use tonic::transport::Channel;
+use celestia_types::{nmt::Namespace, state::Address, AppVersion, Blob, Height};
 use chrono::{DateTime, Utc};
 use eq_sdk::{
     get_zk_stack_response::{
@@ -18,7 +15,10 @@ use eq_sdk::{
     types::BlobId,
     EqClient,
 };
+use secp256k1::SecretKey;
 use secrecy::ExposeSecret;
+use tendermint::crypto::default::ecdsa_secp256k1::SigningKey;
+use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use zksync_basic_types::L2ChainId;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
@@ -38,12 +38,10 @@ use zksync_types::{
 };
 
 use crate::{
-    celestia::{
-        blobstream::{
-            find_block_range, get_latest_blobstream_relayed_height, AttestationProof,
-            BinaryMerkleProof, CelestiaZKStackInput, DataRootInclusionProof,
-            DataRootInclusionProofResponse, DataRootTuple, TendermintRPCClient,
-        },
+    celestia::blobstream::{
+        find_block_range, get_latest_blobstream_relayed_height, AttestationProof,
+        BinaryMerkleProof, CelestiaZKStackInput, DataRootInclusionProof,
+        DataRootInclusionProofResponse, DataRootTuple, TendermintRPCClient,
     },
     utils::{to_non_retriable_da_error, to_retriable_da_error},
 };
@@ -90,13 +88,15 @@ impl CelestiaClient {
 
         let private_key = secrets.private_key.0.expose_secret().to_string();
         /*let client =
-            RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
-                .expect("could not create Celestia client");*/
+        RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
+            .expect("could not create Celestia client");*/
         let signing_key = SecretKey::from_str(private_key.as_str())?;
         let signing_key_bytes = signing_key.secret_bytes();
         let signing_key_tendermint = SigningKey::from_bytes(&signing_key_bytes.into())?;
         let address = Address::from_account_veryfing_key(*signing_key_tendermint.verifying_key());
-        let client = TxClient::with_url_and_keypair(config.api_node_url.clone(), signing_key_tendermint).await?;
+        let client =
+            TxClient::with_url_and_keypair(config.api_node_url.clone(), signing_key_tendermint)
+                .await?;
 
         Ok(Self {
             verify_inclusion,
@@ -372,7 +372,9 @@ impl DataAvailabilityClient for CelestiaClient {
                 .map_err(to_non_retriable_da_error)?,
         )
         .map_err(to_non_retriable_da_error)?;*/
-        let tx_info =self.celestia_client.submit_blobs(&[blob], TxConfig::default())
+        let tx_info = self
+            .celestia_client
+            .submit_blobs(&[blob], TxConfig::default())
             .await
             .map_err(to_retriable_da_error)?;
         let height = tx_info.height.into();
@@ -482,7 +484,9 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn balance(&self) -> Result<u64, DAError> {
-        Ok(self.celestia_client.get_balance(&self.address, "utia")
+        Ok(self
+            .celestia_client
+            .get_balance(&self.address, "utia")
             .await
             .map_err(to_retriable_da_error)?
             .amount())
