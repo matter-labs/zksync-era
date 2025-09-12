@@ -5,8 +5,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
-use celestia_grpc::GrpcClient;
+use celestia_types::{nmt::Namespace, AppVersion, Blob, Height, state::Address};
+use celestia_grpc::{TxClient, TxConfig};
+use tendermint::crypto::default::ecdsa_secp256k1::{SigningKey};
+use secp256k1::SecretKey;
 use tonic::transport::Channel;
 use chrono::{DateTime, Utc};
 use eq_sdk::{
@@ -52,9 +54,10 @@ pub struct CelestiaClient {
     config: CelestiaConfig,
     verify_inclusion: bool,
     eq_client: Option<Arc<EqClient>>,
-    celestia_client: Arc<GrpcClient<Channel>>,
+    celestia_client: Arc<TxClient<Channel, SigningKey>>,
     eth_client: Box<DynClient<L1>>,
     l2_chain_id: L2ChainId,
+    address: Address,
 }
 
 impl CelestiaClient {
@@ -85,15 +88,15 @@ impl CelestiaClient {
             None
         };
 
-        let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
-            .timeout(config.timeout)
-            .connect()
-            .await?;
-
         let private_key = secrets.private_key.0.expose_secret().to_string();
-        let client =
+        /*let client =
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
-                .expect("could not create Celestia client");
+                .expect("could not create Celestia client");*/
+        let signing_key = SecretKey::from_str(private_key.as_str())?;
+        let signing_key_bytes = signing_key.secret_bytes();
+        let signing_key_tendermint = SigningKey::from_bytes(&signing_key_bytes.into())?;
+        let address = Address::from_account_veryfing_key(*signing_key_tendermint.verifying_key());
+        let client = TxClient::with_url_and_keypair(config.api_node_url.clone(), signing_key_tendermint).await?;
 
         Ok(Self {
             verify_inclusion,
@@ -102,6 +105,7 @@ impl CelestiaClient {
             eq_client: eq_client,
             eth_client,
             l2_chain_id,
+            address,
         })
     }
 
@@ -354,7 +358,7 @@ impl DataAvailabilityClient for CelestiaClient {
             Blob::new(namespace, data, AppVersion::latest()).map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
-        let blob_tx = self
+        /*let blob_tx = self
             .celestia_client
             .prepare(vec![blob])
             .await
@@ -367,7 +371,11 @@ impl DataAvailabilityClient for CelestiaClient {
                 .await
                 .map_err(to_non_retriable_da_error)?,
         )
-        .map_err(to_non_retriable_da_error)?;
+        .map_err(to_non_retriable_da_error)?;*/
+        let tx_info =self.celestia_client.submit_blobs(&[blob], TxConfig::default())
+            .await
+            .map_err(to_retriable_da_error)?;
+        let height = tx_info.height.into();
 
         let blob_id = BlobId {
             commitment,
@@ -474,10 +482,10 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn balance(&self) -> Result<u64, DAError> {
-        self.celestia_client
-            .balance()
+        Ok(self.celestia_client.get_balance(&self.address, "utia")
             .await
-            .map_err(to_non_retriable_da_error)
+            .map_err(to_retriable_da_error)?
+            .amount())
     }
 }
 

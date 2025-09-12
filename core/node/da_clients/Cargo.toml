@@ -50,6 +50,7 @@ url.workspace = true
 
 # Celestia dependencies
 eq-sdk = { workspace = true }
+tendermint = { version = "0.40.4", default-features = false }
 base64.workspace = true
 http.workspace = true
 bincode.workspace = true

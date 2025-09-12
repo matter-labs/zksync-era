@@ -2872,7 +2872,7 @@ dependencies = [
  "bytes",
  "celestia-grpc-macros",
  "celestia-proto",
- "celestia-types 0.15.0",
+ "celestia-types",
  "futures 0.3.31",
  "getrandom 0.2.16",
  "gloo-timers 0.3.0",
@@ -2919,40 +2919,7 @@ dependencies = [
  "subtle-encoding",
  "tendermint-proto",
  "tonic 0.12.3",
- "tonic-build 0.12.3",
-]
-
-[[package]]
-name = "celestia-types"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7406c815e56e612e0305b58d9e9796e59ebf53a4da7fdbf9f347a898b9f592eb"
-dependencies = [
- "base64 0.22.1",
- "bech32",
- "bitvec",
- "blockstore",
- "bytes",
- "celestia-proto",
- "cid",
- "const_format",
- "enum_dispatch",
- "k256 0.13.4",
- "leopard-codec",
- "libp2p-identity",
- "lumina-utils",
- "multiaddr",
- "multihash",
- "nmt-rs",
- "prost 0.13.5",
- "rust_decimal",
- "serde",
- "serde_repr",
- "sha2 0.10.8",
- "tendermint",
- "tendermint-proto",
- "thiserror 1.0.69",
- "time",
+ "tonic-build",
 ]
 
 [[package]]
@@ -2972,7 +2939,9 @@ dependencies = [
  "enum_dispatch",
  "k256 0.13.4",
  "leopard-codec",
+ "libp2p-identity",
  "lumina-utils",
+ "multiaddr",
  "multihash",
  "nmt-rs",
  "prost 0.13.5",
@@ -4411,30 +4380,26 @@ dependencies = [
 [[package]]
 name = "eq-common"
 version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b653a9f2f71966b1316e14cb1569e36f6dd0da197c0324144868dd5d0bd8b8b9"
 dependencies = [
- "celestia-types 0.14.0",
+ "celestia-types",
  "prometheus-client",
- "prost 0.12.6",
+ "prost 0.13.5",
  "serde",
  "thiserror 2.0.12",
- "tonic 0.11.0",
- "tonic-build 0.11.0",
+ "tonic 0.12.3",
+ "tonic-build",
 ]
 
 [[package]]
 name = "eq-sdk"
 version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410b56e7f586b78e853c475d7aff39d9e59065bf100f133df6c9070752a4d491"
 dependencies = [
  "base64 0.22.1",
- "celestia-types 0.14.0",
+ "celestia-types",
  "eq-common",
  "serde",
  "tokio",
- "tonic 0.11.0",
+ "tonic 0.12.3",
 ]
 
 [[package]]
@@ -11783,19 +11748,6 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4ef6dd70a610078cb4e338a0f79d06bc759ff1b22d2120c2ff02ae264ba9c2"
-dependencies = [
- "prettyplease",
- "proc-macro2 1.0.95",
- "prost-build 0.12.6",
- "quote 1.0.40",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "tonic-build"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
@@ -14062,7 +14014,7 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-grpc",
- "celestia-types 0.14.0",
+ "celestia-types",
  "chrono",
  "eq-sdk",
  "flate2",
@@ -14087,6 +14039,7 @@ dependencies = [
  "sha2 0.10.8",
  "subxt-metadata",
  "subxt-signer",
+ "tendermint",
  "tokio",
  "tonic 0.12.3",
  "tracing",
