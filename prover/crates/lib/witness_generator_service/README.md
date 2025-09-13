@@ -1,7 +1,7 @@
 # Witness generator Service
 
 This crate provides the building blocks for running Witness generator. It consists of five rounds: BasicCircuits,
-LeafAggregation, NodeAggregation, RecursionTip and Scheduler. Each round has its own implemenatation of `JobManager` and
+LeafAggregation, NodeAggregation, RecursionTip and Scheduler. Each round has its own implementation of `JobManager` and
 `ArtifactsManager`.
 
 The primitive exported by this lib is witness_generator_runner.
@@ -22,7 +22,7 @@ database.
 
 ## Witness generator Runner
 
-Runner is tied to correspoding tables depending on a round:
+Runner is tied to corresponding tables depending on a round:
 
 - BasicCircuits - `witness_inputs_fri`
 - LeafAggregation - `leaf_aggregation_witness_jobs_fri`

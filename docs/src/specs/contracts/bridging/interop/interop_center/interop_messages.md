@@ -39,7 +39,7 @@ contract InteropCenter {
    uint256 messageNum; // a 'nonce' to guarantee different hashes.
  }
 
- // Verifies if such interop message was ever producted.
+ // Verifies if such interop message was ever produced.
  function verifyInteropMessage(bytes32 interopHash, Proof merkleProof) return bool;
 }
 ```

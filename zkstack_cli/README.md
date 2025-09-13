@@ -531,7 +531,7 @@ Format code:
 zkstack dev fmt
 ```
 
-By default, this command runs all formatters. To run a specific fomatter use the following subcommands:
+By default, this command runs all formatters. To run a specific formatter use the following subcommands:
 
 - `rustfmt`: Runs `cargo fmt`.
 - `prettier`: Runs `prettier`.

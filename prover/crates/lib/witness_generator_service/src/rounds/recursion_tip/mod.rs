@@ -185,7 +185,7 @@ impl JobManager for RecursionTip {
         assert_eq!(
             leaf_vk_commits.len(),
             EXPECTED_RECURSION_TIP_LEAVES,
-            "expected 16 leaf vk commits, which corresponds to the numebr of circuits, got {}",
+            "expected 16 leaf vk commits, which corresponds to the number of circuits, got {}",
             leaf_vk_commits.len()
         );
         let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>;

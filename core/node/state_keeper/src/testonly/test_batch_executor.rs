@@ -287,7 +287,7 @@ impl TestScenario {
     /// Launches the test and checks for sequencer panic with message.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
     pub(crate) async fn run_panic(self, sealer: Arc<dyn ConditionalSealer>, message: &str) {
-        let join_error = self.run(sealer).await.expect_err("Not paniced");
+        let join_error = self.run(sealer).await.expect_err("Not panicked");
         let panic_message = join_error.into_panic().downcast::<&'static str>().unwrap();
         assert!(panic_message.contains(message), "Different panic message");
     }
