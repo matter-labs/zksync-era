@@ -56,17 +56,14 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         pubdata_params: if protocol_version.is_pre_gateway() {
             PubdataParams::pre_gateway()
         } else {
-            PubdataParams {
-                pubdata_validator: L2PubdataValidator::CommitmentScheme(
-                    match rng.gen_range(0..2) {
-                        0 => L2DACommitmentScheme::None,
-                        1 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
-                        2 => L2DACommitmentScheme::EmptyNoDA,
-                        3 => L2DACommitmentScheme::PubdataKeccak256,
-                        _ => unreachable!("Invalid L2DACommitmentScheme value"),
-                    },
-                ),
-                pubdata_type: match rng.gen_range(0..2) {
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(match rng.gen_range(1..3) {
+                    1 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                    2 => L2DACommitmentScheme::EmptyNoDA,
+                    3 => L2DACommitmentScheme::PubdataKeccak256,
+                    _ => unreachable!("Invalid L2DACommitmentScheme value"),
+                }),
+                match rng.gen_range(0..2) {
                     0 => PubdataType::Rollup,
                     1 => PubdataType::NoDA,
                     2 => PubdataType::Avail,
@@ -74,7 +71,8 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     4 => PubdataType::Eigen,
                     _ => PubdataType::ObjectStore,
                 },
-            }
+            )
+            .unwrap()
         },
         pubdata_limit: if protocol_version < ProtocolVersionId::Version29 {
             None

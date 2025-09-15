@@ -139,6 +139,7 @@ impl WiringLayer for MempoolIOLayer {
             .get_singleton()
             .await
             .context("Get master pool")?;
+
         let io = MempoolIO::new(
             mempool_guard,
             batch_fee_input_provider,

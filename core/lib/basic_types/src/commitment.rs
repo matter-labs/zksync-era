@@ -178,11 +178,33 @@ impl L2PubdataValidator {
 
 #[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
-    pub pubdata_validator: L2PubdataValidator,
-    pub pubdata_type: PubdataType,
+    pubdata_validator: L2PubdataValidator,
+    pubdata_type: PubdataType,
 }
 
 impl PubdataParams {
+    pub fn new(
+        pubdata_validator: L2PubdataValidator,
+        pubdata_type: PubdataType,
+    ) -> anyhow::Result<Self> {
+        if L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::None) == pubdata_validator {
+            anyhow::bail!("L2DACommitmentScheme::None is not allowed as a legit pubdata parameter");
+        };
+
+        Ok(PubdataParams {
+            pubdata_validator,
+            pubdata_type,
+        })
+    }
+
+    pub fn pubdata_validator(&self) -> L2PubdataValidator {
+        self.pubdata_validator
+    }
+
+    pub fn pubdata_type(&self) -> PubdataType {
+        self.pubdata_type
+    }
+
     pub fn genesis() -> Self {
         PubdataParams {
             pubdata_validator: L2PubdataValidator::CommitmentScheme(

@@ -74,7 +74,7 @@ use zksync_state_keeper::node::{
 };
 use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataType},
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme, PubdataType},
     pubdata_da::PubdataSendingMode,
     Address, L2ChainId,
 };
@@ -126,6 +126,20 @@ impl MainNodeBuilder {
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
+        }
+    }
+
+    pub fn l2_da_commitment_scheme(&self) -> L2DACommitmentScheme {
+        match self.configs.da_client_config {
+            Some(DAClientConfig::NoDA) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::Avail(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Celestia(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Eigen(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::ObjectStore(_)) => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+            None => {
+                tracing::info!("DAClientConfig is not specified, setting L2DACommitmentScheme to BlobsAndPubdataKeccak256");
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            }
         }
     }
 
@@ -326,6 +340,7 @@ impl MainNodeBuilder {
                     .genesis_config
                     .l1_batch_commit_data_generator_mode,
                 dummy_verifier: self.genesis_config.dummy_verifier,
+                config_l2_da_commitment_scheme: self.l2_da_commitment_scheme(),
             }));
         Ok(self)
     }

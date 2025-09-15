@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     settlement::{SettlementLayer, WorkingSettlementLayer},
     url::SensitiveUrl,
     Address, L2ChainId,
@@ -55,6 +55,7 @@ pub struct MainNodeConfig {
     pub eth_sender_config: SenderConfig,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
+    pub config_l2_da_commitment_scheme: L2DACommitmentScheme,
 }
 
 /// Wiring layer for [`SettlementLayerData`].
@@ -164,7 +165,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             }
         };
 
-        let (mut sl_chain_contracts, zkchain_on_chain_config) = match &sl_client {
+        let (mut sl_chain_contracts, mut zkchain_on_chain_config) = match &sl_client {
             SettlementLayerClient::L1(client) => {
                 let zkchain_on_chain_config = get_zk_chain_on_chain_params(
                     client,
@@ -214,6 +215,16 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             self.config.eth_sender_config,
             final_settlement_mode.settlement_layer(),
         );
+
+        if let Some(l2_da_commitment_scheme) = zkchain_on_chain_config.l2_da_commitment_scheme {
+            if l2_da_commitment_scheme == L2DACommitmentScheme::None {
+                tracing::warn!("L2 DA commitment scheme from on-chain config is None, falling back to the config value");
+                zkchain_on_chain_config.l2_da_commitment_scheme =
+                    Some(self.config.config_l2_da_commitment_scheme)
+            } else if l2_da_commitment_scheme != self.config.config_l2_da_commitment_scheme {
+                tracing::warn!("L2 DA commitment scheme from on-chain config ({l2_da_commitment_scheme:?}) does not match the config value ({:?}), using the on-chain value", self.config.config_l2_da_commitment_scheme);
+            }
+        }
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource::new(final_settlement_mode.clone()),

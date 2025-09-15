@@ -674,8 +674,8 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .logs_bloom
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
-            pubdata_params: PubdataParams {
-                pubdata_validator: (
+            pubdata_params: PubdataParams::new(
+                (
                     row.l2_da_validator_address.map(|a| Address::from_slice(&a)),
                     row.l2_da_commitment_scheme
                         .map(|a| L2DACommitmentScheme::try_from(a as u8))
@@ -684,8 +684,9 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 )
                     .try_into()
                     .unwrap(),
-                pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
-            },
+                PubdataType::from_str(&row.pubdata_type).unwrap(),
+            )
+            .expect("invalid pubdata params"),
             rolling_txs_hash: row.rolling_txs_hash.as_deref().map(H256::from_slice),
         }
     }
@@ -717,8 +718,8 @@ pub(crate) struct StoragePubdataParams {
 
 impl From<StoragePubdataParams> for PubdataParams {
     fn from(row: StoragePubdataParams) -> Self {
-        Self {
-            pubdata_validator: (
+        Self::new(
+            (
                 row.l2_da_validator_address.map(|a| Address::from_slice(&a)),
                 row.l2_da_commitment_scheme.map(|a| {
                     L2DACommitmentScheme::try_from(a as u8).expect("wrong l2_da_commitment_scheme")
@@ -726,7 +727,8 @@ impl From<StoragePubdataParams> for PubdataParams {
             )
                 .try_into()
                 .unwrap(),
-            pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
-        }
+            PubdataType::from_str(&row.pubdata_type).unwrap(),
+        )
+        .unwrap()
     }
 }

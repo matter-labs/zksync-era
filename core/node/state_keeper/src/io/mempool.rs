@@ -541,14 +541,14 @@ impl MempoolIO {
             self.l2_da_validator_address,
             self.l2_da_commitment_scheme,
         ) {
-            (true, Some(l2_da_validator_address), _) => PubdataParams {
-                pubdata_validator: L2PubdataValidator::Address(l2_da_validator_address),
-                pubdata_type: self.pubdata_type,
-            },
-            (false, _, Some(l2_da_commitment_scheme)) => PubdataParams {
-                pubdata_validator: L2PubdataValidator::CommitmentScheme(l2_da_commitment_scheme),
-                pubdata_type: self.pubdata_type,
-            },
+            (true, Some(l2_da_validator_address), _) => PubdataParams::new(
+                L2PubdataValidator::Address(l2_da_validator_address),
+                self.pubdata_type,
+            )?,
+            (false, _, Some(l2_da_commitment_scheme)) => PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(l2_da_commitment_scheme),
+                self.pubdata_type,
+            )?,
             (_, _, _) => anyhow::bail!(
                 "Inconsistent   pubdata parameters: \
                 l2_da_validator_address: {:?}, l2_da_commitment_scheme: {:?}, protocol_version: {:?}",

@@ -101,10 +101,8 @@ impl SyncBlock {
                 .decode_column("virtual_blocks")?,
             hash: parse_h256(&block.hash).decode_column("hash")?,
             protocol_version: parse_protocol_version(block.protocol_version)?,
-            pubdata_params: PubdataParams {
-                pubdata_type: PubdataType::from_str(&block.pubdata_type)
-                    .decode_column("Invalid pubdata type")?,
-                pubdata_validator: (
+            pubdata_params: PubdataParams::new(
+                (
                     block
                         .l2_da_validator_address
                         .map(|a| parse_h160(&a).decode_column("l2_da_validator_address"))
@@ -119,7 +117,9 @@ impl SyncBlock {
                 )
                     .try_into()
                     .decode_column("Invalid pubdata validator")?,
-            },
+                PubdataType::from_str(&block.pubdata_type).decode_column("Invalid pubdata type")?,
+            )
+            .decode_column("pubdata_params")?,
             pubdata_limit: block.pubdata_limit.map(|l| l as u64),
             interop_roots,
         })

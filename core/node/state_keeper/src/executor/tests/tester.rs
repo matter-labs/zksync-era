@@ -270,12 +270,13 @@ impl Tester {
         (
             batch_params,
             system_params,
-            PubdataParams {
-                pubdata_validator: L2PubdataValidator::CommitmentScheme(
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(
                     L2DACommitmentScheme::BlobsAndPubdataKeccak256,
                 ),
-                pubdata_type: Default::default(),
-            },
+                Default::default(),
+            )
+            .unwrap(),
         )
     }
 
