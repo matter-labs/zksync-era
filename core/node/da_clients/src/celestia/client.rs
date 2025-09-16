@@ -95,9 +95,12 @@ impl CelestiaClient {
 
         let address = Address::from_account_veryfing_key(*signing_key_tendermint.verifying_key());
 
+        tracing::debug!("creating celestia client");
         let client =
             TxClient::with_url_and_keypair(config.api_node_url.clone(), signing_key_tendermint)
                 .await?;
+
+        tracing::debug!("celestia client created");
 
         Ok(Self {
             verify_inclusion,

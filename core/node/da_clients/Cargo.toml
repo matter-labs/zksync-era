@@ -61,7 +61,7 @@ sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true
 ripemd.workspace = true
-tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
+tonic = { workspace = true, features = ["tls-roots", "tls", "transport", "prost", "codegen"] }
 pbjson-types.workspace = true
 zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 lazy_static.workspace = true
