@@ -55,7 +55,8 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             app_health,
         } = input;
 
-        let updater = BatchStatusUpdater::new(self.l1_chain_id, main_node_client, pool.get().await?);
+        let updater =
+            BatchStatusUpdater::new(self.l1_chain_id, main_node_client, pool.get().await?);
 
         // Insert healthcheck
         app_health
