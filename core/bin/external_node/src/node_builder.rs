@@ -278,7 +278,8 @@ impl ExternalNodeBuilder {
     }
 
     fn add_batch_transaction_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(BatchStatusUpdaterLayer);
+        self.node
+            .add_layer(BatchStatusUpdaterLayer::new(self.config.local.networks.l1_chain_id));
         Ok(self)
     }
 
