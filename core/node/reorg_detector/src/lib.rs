@@ -107,6 +107,12 @@ impl From<EnrichedClientError> for Error {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct L1BatchHashedData {
+    pub root_hash: Option<H256>,
+    pub commitment: Option<H256>,
+}
+
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
@@ -115,15 +121,10 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
     async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
-    async fn l1_batch_root_hash(
+    async fn l1_batch_data(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>>;
-
-    async fn l1_batch_commitment(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>>;
+    ) -> EnrichedClientResult<Result<L1BatchHashedData, MissingData>>;
 }
 
 #[async_trait]
@@ -159,10 +160,10 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .map(|block| block.hash))
     }
 
-    async fn l1_batch_root_hash(
+    async fn l1_batch_data(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+    ) -> EnrichedClientResult<Result<L1BatchHashedData, MissingData>> {
         let Some(batch) = self
             .get_l1_batch_details(number)
             .rpc_context("l1_batch_root_hash")
@@ -171,22 +172,12 @@ impl MainNodeClient for Box<DynClient<L2>> {
         else {
             return Ok(Err(MissingData::Batch));
         };
-        Ok(batch.base.root_hash.ok_or(MissingData::RootHash))
-    }
-
-    async fn l1_batch_commitment(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
-        let Some(batch) = self
-            .get_l1_batch_details(number)
-            .rpc_context("l1_batch_commitment")
-            .with_arg("number", &number)
-            .await?
-        else {
-            return Ok(Err(MissingData::Batch));
-        };
-        Ok(batch.commitment.ok_or(MissingData::Commitment))
+        let root_hash = batch.base.root_hash;
+        let commitment = batch.commitment;
+        Ok(Ok(L1BatchHashedData {
+            root_hash,
+            commitment,
+        }))
     }
 }
 
@@ -317,9 +308,14 @@ impl ReorgDetector {
         let remote_l2_block = self.client.sealed_l2_block_number().await?;
         let checked_l1_batch = local_l1_batch.min(remote_l1_batch);
         let checked_l2_block = local_l2_block.min(remote_l2_block);
-        let root_hashes_match = self.root_hashes_match(checked_l1_batch).await?;
+        let l1batch_hashed_data = self.client.l1_batch_data(checked_l1_batch).await??;
+        let root_hashes_match = self
+            .root_hashes_match(checked_l1_batch, l1batch_hashed_data)
+            .await?;
         let l2_block_hashes_match = self.l2_block_hashes_match(checked_l2_block).await?;
-        let commitments_match = self.commitment_match(checked_l1_batch).await?;
+        let commitments_match = self
+            .commitment_match(checked_l1_batch, l1batch_hashed_data)
+            .await?;
 
         // The events that triggers re-org detection and node rollback are if the
         // hash mismatch at the same block height is detected, be it L2 blocks or batches or commitment mismatch for l1 batch.
@@ -354,7 +350,15 @@ impl ReorgDetector {
             .await?
             .context("all L1 batches disappeared")?;
         drop(storage);
-        match self.root_hashes_match(first_l1_batch).await {
+        let l1batch_hashed_data = self
+            .client
+            .l1_batch_data(first_l1_batch)
+            .await?
+            .map_err(|_| Error::EarliestL1BatchTruncated(first_l1_batch))?;
+        match self
+            .root_hashes_match(first_l1_batch, l1batch_hashed_data)
+            .await
+        {
             Ok(true) => {}
             Ok(false) => return Err(Error::EarliestL1BatchMismatch(first_l1_batch)),
             Err(HashMatchError::MissingData(_)) => {
@@ -398,7 +402,11 @@ impl ReorgDetector {
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
-    async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
+    async fn root_hashes_match(
+        &self,
+        l1_batch: L1BatchNumber,
+        l1batch_hashed_data: L1BatchHashedData,
+    ) -> Result<bool, HashMatchError> {
         let mut storage = self.pool.connection().await?;
         let local_hash = storage
             .blocks_dal()
@@ -407,7 +415,10 @@ impl ReorgDetector {
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let remote_hash = self.client.l1_batch_root_hash(l1_batch).await??;
+        let Some(remote_hash) = l1batch_hashed_data.root_hash else {
+            tracing::info!("Remote L1 batch #{l1_batch} is missing root hash");
+            return Err(MissingData::RootHash.into());
+        };
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
@@ -418,10 +429,12 @@ impl ReorgDetector {
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
-    async fn commitment_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
-        let remote_commitment = self.client.l1_batch_commitment(l1_batch).await?;
-
-        let Ok(remote_commitment) = remote_commitment else {
+    async fn commitment_match(
+        &self,
+        local_l1_batch: L1BatchNumber,
+        l1batch_hashed_data: L1BatchHashedData,
+    ) -> Result<bool, HashMatchError> {
+        let Some(remote_commitment) = l1batch_hashed_data.commitment else {
             // If the commitment is missing on the main node (the version is not yet expose the commitment),
             // we treat it as a match.
             return Ok(true);
@@ -430,17 +443,17 @@ impl ReorgDetector {
         let mut storage = self.pool.connection().await?;
         let local_commitment = storage
             .blocks_dal()
-            .get_commitment_for_l1_batch(l1_batch)
+            .get_commitment_for_l1_batch(local_l1_batch)
             .await?
             .context(format!(
-                "Commitment does not exist for local batch #{l1_batch}"
+                "Commitment does not exist for local batch #{local_l1_batch}"
             ))?;
         drop(storage);
 
         if remote_commitment != local_commitment {
             tracing::warn!(
                 "Reorg detected: local commitment {local_commitment:?} doesn't match the state hash from \
-                main node {remote_commitment:?} (L1 batch #{l1_batch})"
+                main node {remote_commitment:?} (L1 batch #{local_l1_batch})"
             );
         }
         Ok(remote_commitment == local_commitment)
@@ -457,7 +470,11 @@ impl ReorgDetector {
         &self,
         l1_batch: L1BatchNumber,
     ) -> Result<bool, HashMatchError> {
-        let root_hashes_match = self.root_hashes_match(l1_batch).await?;
+        let l1batch_hashed_data = self.client.l1_batch_data(l1_batch).await??;
+
+        let root_hashes_match = self
+            .root_hashes_match(l1_batch, l1batch_hashed_data)
+            .await?;
         if !root_hashes_match {
             return Ok(false);
         }

@@ -125,24 +125,22 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.l2_block_hashes.get(&number).copied())
     }
 
-    async fn l1_batch_root_hash(
+    async fn l1_batch_data(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+    ) -> EnrichedClientResult<Result<L1BatchHashedData, MissingData>> {
         self.check_error("l1_batch_root_hash")
             .map_err(|err| err.with_arg("number", &number))?;
-        let state_hash = self.l1_batch_root_hashes.get(&number).copied();
-        Ok(state_hash.unwrap_or(Err(MissingData::Batch)))
-    }
+        let state_hash = self.l1_batch_root_hashes.get(&number).copied().transpose();
 
-    async fn l1_batch_commitment(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
-        self.check_error("l1_batch_root_hash")
-            .map_err(|err| err.with_arg("number", &number))?;
-        let state_hash = self.l1_batch_root_hashes.get(&number).copied();
-        Ok(state_hash.unwrap_or(Err(MissingData::Batch)))
+        let Ok(state_hash) = state_hash else {
+            return Ok(Err(MissingData::Batch));
+        };
+
+        Ok(Ok(L1BatchHashedData {
+            root_hash: state_hash,
+            commitment: state_hash,
+        }))
     }
 }
 
@@ -688,27 +686,10 @@ impl MainNodeClient for SlowMainNode {
         })
     }
 
-    async fn l1_batch_root_hash(
+    async fn l1_batch_data(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
-        if number > L1BatchNumber(0) {
-            return Ok(Err(MissingData::Batch));
-        }
-        let count = self
-            .l1_batch_root_hash_call_count
-            .fetch_add(1, Ordering::Relaxed);
-        Ok(if count >= self.delay_call_count {
-            Ok(self.genesis_root_hash)
-        } else {
-            Err(MissingData::RootHash)
-        })
-    }
-
-    async fn l1_batch_commitment(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+    ) -> EnrichedClientResult<Result<L1BatchHashedData, MissingData>> {
         if number > L1BatchNumber(0) {
             return Ok(Err(MissingData::Batch));
         }
@@ -716,7 +697,10 @@ impl MainNodeClient for SlowMainNode {
             .l1_batch_commitment_call_count
             .fetch_add(1, Ordering::Relaxed);
         Ok(if count >= self.delay_call_count {
-            Ok(self.genesis_root_hash)
+            Ok(L1BatchHashedData {
+                root_hash: Some(self.genesis_root_hash),
+                commitment: Some(self.genesis_root_hash),
+            })
         } else {
             Err(MissingData::RootHash)
         })
