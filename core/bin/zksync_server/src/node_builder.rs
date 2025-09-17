@@ -147,7 +147,7 @@ impl MainNodeBuilder {
             return L2DACommitmentScheme::EmptyNoDA;
         }
 
-        match (&self.configs.da_client_config) {
+        match &self.configs.da_client_config {
             Some(DAClientConfig::NoDA) => L2DACommitmentScheme::EmptyNoDA,
             Some(DAClientConfig::ObjectStore(_)) => L2DACommitmentScheme::EmptyNoDA,
             Some(DAClientConfig::Avail(_)) => L2DACommitmentScheme::PubdataKeccak256,
