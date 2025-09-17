@@ -134,6 +134,16 @@ impl MainNodeClient for MockMainNodeClient {
         let state_hash = self.l1_batch_root_hashes.get(&number).copied();
         Ok(state_hash.unwrap_or(Err(MissingData::Batch)))
     }
+
+    async fn l1_batch_commitment(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+        self.check_error("l1_batch_root_hash")
+            .map_err(|err| err.with_arg("number", &number))?;
+        let state_hash = self.l1_batch_root_hashes.get(&number).copied();
+        Ok(state_hash.unwrap_or(Err(MissingData::Batch)))
+    }
 }
 
 impl HandleReorgDetectorEvent for mpsc::UnboundedSender<(L2BlockNumber, L1BatchNumber)> {
@@ -644,6 +654,7 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
 #[derive(Debug)]
 struct SlowMainNode {
     l1_batch_root_hash_call_count: Arc<AtomicUsize>,
+    l1_batch_commitment_call_count: Arc<AtomicUsize>,
     delay_call_count: usize,
     genesis_root_hash: H256,
 }
@@ -652,6 +663,7 @@ impl SlowMainNode {
     fn new(genesis_root_hash: H256, delay_call_count: usize) -> Self {
         Self {
             l1_batch_root_hash_call_count: Arc::default(),
+            l1_batch_commitment_call_count: Arc::default(),
             delay_call_count,
             genesis_root_hash,
         }
@@ -685,6 +697,23 @@ impl MainNodeClient for SlowMainNode {
         }
         let count = self
             .l1_batch_root_hash_call_count
+            .fetch_add(1, Ordering::Relaxed);
+        Ok(if count >= self.delay_call_count {
+            Ok(self.genesis_root_hash)
+        } else {
+            Err(MissingData::RootHash)
+        })
+    }
+
+    async fn l1_batch_commitment(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+        if number > L1BatchNumber(0) {
+            return Ok(Err(MissingData::Batch));
+        }
+        let count = self
+            .l1_batch_commitment_call_count
             .fetch_add(1, Ordering::Relaxed);
         Ok(if count >= self.delay_call_count {
             Ok(self.genesis_root_hash)

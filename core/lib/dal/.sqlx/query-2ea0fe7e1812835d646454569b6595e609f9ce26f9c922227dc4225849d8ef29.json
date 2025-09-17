@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(number) AS \"number\"\n            FROM\n                l1_batches\n            WHERE\n                commitment IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2ea0fe7e1812835d646454569b6595e609f9ce26f9c922227dc4225849d8ef29"
+}

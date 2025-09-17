@@ -30,6 +30,9 @@ pub enum MissingData {
     /// The main node lacks a root hash for a requested L1 batch; the batch itself is present on the node.
     #[error("no root hash for L1 batch")]
     RootHash,
+    /// The main node lacks a root hash for a requested L1 batch; the batch itself is present on the node.
+    #[error("no commitment for L1 batch")]
+    Commitment,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -116,6 +119,11 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
         &self,
         number: L1BatchNumber,
     ) -> EnrichedClientResult<Result<H256, MissingData>>;
+
+    async fn l1_batch_commitment(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>>;
 }
 
 #[async_trait]
@@ -164,6 +172,21 @@ impl MainNodeClient for Box<DynClient<L2>> {
             return Ok(Err(MissingData::Batch));
         };
         Ok(batch.base.root_hash.ok_or(MissingData::RootHash))
+    }
+
+    async fn l1_batch_commitment(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+        let Some(batch) = self
+            .get_l1_batch_details(number)
+            .rpc_context("l1_batch_commitment")
+            .with_arg("number", &number)
+            .await?
+        else {
+            return Ok(Err(MissingData::Batch));
+        };
+        Ok(batch.commitment.ok_or(MissingData::Commitment))
     }
 }
 
@@ -278,7 +301,7 @@ impl ReorgDetector {
             .await?;
         let Some(local_l1_batch) = storage_tx
             .blocks_dal()
-            .get_last_l1_batch_number_with_tree_data()
+            .get_last_l1_batch_number_with_commitment()
             .await?
         else {
             return Ok(None);
@@ -296,22 +319,25 @@ impl ReorgDetector {
         let checked_l2_block = local_l2_block.min(remote_l2_block);
         let root_hashes_match = self.root_hashes_match(checked_l1_batch).await?;
         let l2_block_hashes_match = self.l2_block_hashes_match(checked_l2_block).await?;
+        let commitments_match = self.commitment_match(checked_l1_batch).await?;
 
-        // The only event that triggers re-org detection and node rollback is if the
-        // hash mismatch at the same block height is detected, be it L2 blocks or batches.
+        // The events that triggers re-org detection and node rollback are if the
+        // hash mismatch at the same block height is detected, be it L2 blocks or batches or commitment mismatch for l1 batch.
         //
         // In other cases either there is only a height mismatch which means that one of
         // the nodes needs to do catching up; however, it is not certain that there is actually
         // a re-org taking place.
-        Ok(if root_hashes_match && l2_block_hashes_match {
-            self.event_handler
-                .update_correct_block(checked_l2_block, checked_l1_batch);
-            None
-        } else {
-            let diverged_l1_batch = checked_l1_batch + (root_hashes_match as u32);
-            self.event_handler.report_divergence(diverged_l1_batch);
-            Some(diverged_l1_batch)
-        })
+        Ok(
+            if root_hashes_match && l2_block_hashes_match && commitments_match {
+                self.event_handler
+                    .update_correct_block(checked_l2_block, checked_l1_batch);
+                None
+            } else {
+                let diverged_l1_batch = checked_l1_batch;
+                self.event_handler.report_divergence(diverged_l1_batch);
+                Some(diverged_l1_batch)
+            },
+        )
     }
 
     async fn check_consistency(&mut self) -> Result<(), Error> {
@@ -324,7 +350,7 @@ impl ReorgDetector {
         let mut storage = self.pool.connection().await?;
         let first_l1_batch = storage
             .blocks_dal()
-            .get_earliest_l1_batch_number_with_metadata()
+            .get_earliest_l1_batch_number_with_commitment()
             .await?
             .context("all L1 batches disappeared")?;
         drop(storage);
@@ -389,6 +415,35 @@ impl ReorgDetector {
             );
         }
         Ok(remote_hash == local_hash)
+    }
+
+    /// Compares root hashes of the latest local batch and of the same batch from the main node.
+    async fn commitment_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
+        let remote_commitment = self.client.l1_batch_commitment(l1_batch).await?;
+
+        let Ok(remote_commitment) = remote_commitment else {
+            // If the commitment is missing on the main node (the version is not yet expose the commitment),
+            // we treat it as a match.
+            return Ok(true);
+        };
+
+        let mut storage = self.pool.connection().await?;
+        let local_commitment = storage
+            .blocks_dal()
+            .get_commitment_for_l1_batch(l1_batch)
+            .await?
+            .context(format!(
+                "Commitment does not exist for local batch #{l1_batch}"
+            ))?;
+        drop(storage);
+
+        if remote_commitment != local_commitment {
+            tracing::warn!(
+                "Reorg detected: local commitment {local_commitment:?} doesn't match the state hash from \
+                main node {remote_commitment:?} (L1 batch #{l1_batch})"
+            );
+        }
+        Ok(remote_commitment == local_commitment)
     }
 
     /// Because the node can fetch L1 batch root hash from an external source using the tree data fetcher, there's no strict guarantee

@@ -272,6 +272,7 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
             assert_eq!(number, L1BatchNumber(0));
             Ok(api::L1BatchDetails {
                 number: L1BatchNumber(0),
+                commitment: Some(H256::zero()),
                 base: utils::block_details_base(genesis_root_hash),
             })
         })
