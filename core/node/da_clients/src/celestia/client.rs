@@ -12,7 +12,9 @@ use eq_sdk::{
         ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
     },
     types::BlobId,
+    types::JobId,
     EqClient,
+
 };
 use secrecy::ExposeSecret;
 use tonic::transport::Endpoint;
@@ -115,7 +117,7 @@ impl CelestiaClient {
             .eq_client
             .as_ref()
             .unwrap()
-            .get_zk_stack(&blob_id_struct)
+            .get_zk_stack(&JobId::new(blob_id_struct, self.l2_chain_id.as_u64(), 0))
             .await
             .map_err(to_retriable_da_error)?;
 
@@ -372,8 +374,6 @@ impl DataAvailabilityClient for CelestiaClient {
             commitment,
             namespace,
             height,
-            batch_number,
-            l2_chain_id: self.l2_chain_id.as_u64(),
         };
 
         Ok(DispatchResponse {
@@ -443,7 +443,7 @@ impl DataAvailabilityClient for CelestiaClient {
             .eq_client
             .as_ref()
             .unwrap()
-            .get_zk_stack(&blob_id)
+            .get_zk_stack(&JobId::new(blob_id, self.l2_chain_id.as_u64(), 0))
             .await
         {
             // gRPC error, should be retriable, could be something on the eq-service side

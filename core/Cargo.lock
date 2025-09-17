@@ -2088,6 +2088,33 @@ dependencies = [
 
 [[package]]
 name = "axum"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
+dependencies = [
+ "async-trait",
+ "axum-core 0.4.5",
+ "bytes",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "itoa",
+ "matchit 0.7.3",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "sync_wrapper 1.0.2",
+ "tower 0.5.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "021e862c184ae977658b36c4500f7feac3221ca5da43e3f25bd04ab6c79a29b5"
@@ -2134,6 +2161,26 @@ dependencies = [
  "http-body 0.4.6",
  "mime",
  "rustversion",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09f2bd6146b97ae3359fa0cc6d6b376d9539582c7b4220f041a33ec24c226199"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper 1.0.2",
  "tower-layer",
  "tower-service",
 ]
@@ -2818,9 +2865,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b45e24b1edcfef14c47001bde6cab70c45044e1de9cad9ff500f778d00a9bfb"
+checksum = "b6c8da7e4e1d4ae492170a9c551419e89e314c1438652bb512e00091b39bdf0b"
 dependencies = [
  "bytes",
  "prost 0.13.5",
@@ -2834,9 +2881,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7406c815e56e612e0305b58d9e9796e59ebf53a4da7fdbf9f347a898b9f592eb"
+checksum = "4c7d91261985b0c799a3e2a0a818509adc5a9a0fd25c480f23de97f8fe379f20"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -3702,7 +3749,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.104",
 ]
 
 [[package]]
@@ -4290,30 +4337,26 @@ dependencies = [
 [[package]]
 name = "eq-common"
 version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b653a9f2f71966b1316e14cb1569e36f6dd0da197c0324144868dd5d0bd8b8b9"
 dependencies = [
  "celestia-types",
- "prometheus-client",
- "prost 0.12.6",
+ "prometheus-client 0.24.0",
+ "prost 0.13.5",
  "serde",
  "thiserror 2.0.12",
- "tonic 0.11.0",
+ "tonic 0.12.3",
  "tonic-build",
 ]
 
 [[package]]
 name = "eq-sdk"
 version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410b56e7f586b78e853c475d7aff39d9e59065bf100f133df6c9070752a4d491"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
  "eq-common",
  "serde",
  "tokio",
- "tonic 0.11.0",
+ "tonic 0.12.3",
 ]
 
 [[package]]
@@ -8059,7 +8102,19 @@ dependencies = [
  "dtoa",
  "itoa",
  "parking_lot",
- "prometheus-client-derive-encode",
+ "prometheus-client-derive-encode 0.4.2",
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4500adecd7af8e0e9f4dbce15cfee07ce913fbf6ad605cc468b83f2d531ee94"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode 0.5.0",
 ]
 
 [[package]]
@@ -8067,6 +8122,17 @@ name = "prometheus-client-derive-encode"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "440f724eba9f6996b75d63681b0a92b06947f1457076d503a4d2e2c8f56442b8"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "prometheus-client-derive-encode"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9adf1691c04c0a5ff46ff8f262b58beb07b0dbb61f96f9f54f6cbd82106ed87f"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -11575,6 +11641,39 @@ dependencies = [
 
 [[package]]
 name = "tonic"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum 0.7.9",
+ "base64 0.22.1",
+ "bytes",
+ "h2 0.4.11",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-timeout 0.5.2",
+ "hyper-util",
+ "percent-encoding",
+ "pin-project",
+ "prost 0.13.5",
+ "rustls-native-certs 0.8.1",
+ "rustls-pemfile 2.2.0",
+ "socket2",
+ "tokio",
+ "tokio-rustls 0.26.2",
+ "tokio-stream",
+ "tower 0.4.13",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tonic"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e581ba15a835f4d9ea06c55ab1bd4dce26fc53752c69a04aac00703bfb49ba9"
@@ -11596,13 +11695,14 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.11.0"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4ef6dd70a610078cb4e338a0f79d06bc759ff1b22d2120c2ff02ae264ba9c2"
+checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
 dependencies = [
  "prettyplease",
  "proc-macro2 1.0.95",
- "prost-build 0.12.6",
+ "prost-build 0.13.5",
+ "prost-types 0.13.5",
  "quote 1.0.40",
  "syn 2.0.104",
 ]
@@ -12128,7 +12228,7 @@ dependencies = [
  "ctor",
  "elsa",
  "once_cell",
- "prometheus-client",
+ "prometheus-client 0.23.1",
  "vise-macros",
 ]
 
@@ -13861,7 +13961,7 @@ dependencies = [
  "subxt-metadata",
  "subxt-signer",
  "tokio",
- "tonic 0.11.0",
+ "tonic 0.12.3",
  "tracing",
  "url",
  "vise",
