@@ -2,7 +2,6 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use crate::{MempoolGuard, MempoolIO};
 use zksync_config::{
     configs::{chain::StateKeeperConfig, wallets::Wallets},
     GasAdjusterConfig,
@@ -27,10 +26,9 @@ use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
 };
-use zksync_types::commitment::L2DACommitmentScheme;
 use zksync_types::{
     block::L2BlockHeader,
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
@@ -40,6 +38,8 @@ use zksync_types::{
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, SLChainId,
     TransactionTimeRangeConstraint, H256,
 };
+
+use crate::{MempoolGuard, MempoolIO};
 
 #[derive(Debug)]
 pub struct Tester {
