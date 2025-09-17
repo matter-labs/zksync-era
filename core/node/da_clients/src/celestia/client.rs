@@ -96,11 +96,13 @@ impl CelestiaClient {
         let address = Address::from_account_veryfing_key(*signing_key_tendermint.verifying_key());
 
         tracing::debug!("creating celestia client");
-        let client =
-            GrpcClient::builder()
-                .pubkey_and_signer(*signing_key_tendermint.verifying_key(), signing_key_tendermint)
-                .url(config.api_node_url.clone())
-                .build()?;
+        let client = GrpcClient::builder()
+            .pubkey_and_signer(
+                *signing_key_tendermint.verifying_key(),
+                signing_key_tendermint,
+            )
+            .url(config.api_node_url.clone())
+            .build()?;
 
         tracing::debug!("celestia client created");
 
@@ -360,8 +362,8 @@ impl DataAvailabilityClient for CelestiaClient {
             hex::decode(&self.config.namespace).map_err(to_non_retriable_da_error)?;
         let namespace =
             Namespace::new_v0(namespace_bytes.as_slice()).map_err(to_non_retriable_da_error)?;
-        let blob =
-            Blob::new(namespace, data, None, AppVersion::latest()).map_err(to_non_retriable_da_error)?;
+        let blob = Blob::new(namespace, data, None, AppVersion::latest())
+            .map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
         /*let blob_tx = self
