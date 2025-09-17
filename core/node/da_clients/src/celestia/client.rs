@@ -5,7 +5,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use celestia_grpc::{TxClient, TxConfig};
+use celestia_grpc::{GrpcClient, TxConfig};
 use celestia_types::{nmt::Namespace, state::Address, AppVersion, Blob, Height};
 use chrono::{DateTime, Utc};
 use eq_sdk::{
@@ -53,7 +53,7 @@ pub struct CelestiaClient {
     config: CelestiaConfig,
     verify_inclusion: bool,
     eq_client: Option<Arc<EqClient>>,
-    celestia_client: Arc<TxClient<Channel, SigningKey>>,
+    celestia_client: Arc<GrpcClient>,
     eth_client: Box<DynClient<L1>>,
     l2_chain_id: L2ChainId,
     address: Address,
@@ -97,8 +97,10 @@ impl CelestiaClient {
 
         tracing::debug!("creating celestia client");
         let client =
-            TxClient::with_url_and_keypair(config.api_node_url.clone(), signing_key_tendermint)
-                .await?;
+            GrpcClient::builder()
+                .pubkey_and_signer(*signing_key_tendermint.verifying_key(), signing_key_tendermint)
+                .url(config.api_node_url.clone())
+                .build()?;
 
         tracing::debug!("celestia client created");
 
@@ -359,7 +361,7 @@ impl DataAvailabilityClient for CelestiaClient {
         let namespace =
             Namespace::new_v0(namespace_bytes.as_slice()).map_err(to_non_retriable_da_error)?;
         let blob =
-            Blob::new(namespace, data, AppVersion::latest()).map_err(to_non_retriable_da_error)?;
+            Blob::new(namespace, data, None, AppVersion::latest()).map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
         /*let blob_tx = self
