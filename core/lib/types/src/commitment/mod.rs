@@ -351,7 +351,10 @@ pub enum L1BatchAuxiliaryOutput {
 }
 
 impl L1BatchAuxiliaryOutput {
-    fn new(input: CommitmentInput) -> Result<Self, CommitmentValidationError> {
+    fn new(
+        input: CommitmentInput,
+        disable_sanity_checks: bool,
+    ) -> Result<Self, CommitmentValidationError> {
         match input {
             CommitmentInput::PreBoojum {
                 common: common_input,
@@ -426,7 +429,7 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
-                if !system_logs.is_empty() {
+                if !system_logs.is_empty() && !disable_sanity_checks {
                     if common_input.protocol_version.is_pre_gateway() {
                         let state_diff_hash_from_logs = system_logs
                             .iter()
@@ -650,7 +653,12 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
-    pub fn new(input: CommitmentInput) -> Result<Self, CommitmentValidationError> {
+    pub fn new(
+        input: CommitmentInput,
+        // Sanity checks are disabled for external node, because it's a sign of incorrect
+        // state inside external node, the commitment correctness will be double checked on l1
+        disable_sanity_checks: bool,
+    ) -> Result<Self, CommitmentValidationError> {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: input.common().bootloader_code_hash,
@@ -673,7 +681,7 @@ impl L1BatchCommitment {
                     },
                 ],
             },
-            auxiliary_output: L1BatchAuxiliaryOutput::new(input)?,
+            auxiliary_output: L1BatchAuxiliaryOutput::new(input, disable_sanity_checks)?,
             meta_parameters,
         })
     }

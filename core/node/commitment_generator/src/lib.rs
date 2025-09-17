@@ -43,16 +43,18 @@ pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     parallelism: NonZeroU32,
+    disable_sanity_checks: bool,
 }
 
 impl CommitmentGenerator {
     /// Creates a commitment generator with the provided mode.
-    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(connection_pool: ConnectionPool<Core>, disable_sanity_checks: bool) -> Self {
         Self {
             computer: Arc::new(RealCommitmentComputer),
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
             parallelism: Self::default_parallelism(),
+            disable_sanity_checks,
         }
     }
 
@@ -337,7 +339,7 @@ impl CommitmentGenerator {
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
-        let mut commitment = L1BatchCommitment::new(input)?;
+        let mut commitment = L1BatchCommitment::new(input, self.disable_sanity_checks)?;
         self.post_process_commitment(&mut commitment, commitment_mode);
         let artifacts = commitment.artifacts()?;
         let latency = latency.observe();
