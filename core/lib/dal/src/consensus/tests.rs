@@ -63,7 +63,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     3 => L2DACommitmentScheme::PubdataKeccak256,
                     _ => unreachable!("Invalid L2DACommitmentScheme value"),
                 }),
-                match rng.gen_range(0..2) {
+                match rng.gen_range(0..4) {
                     0 => PubdataType::Rollup,
                     1 => PubdataType::NoDA,
                     2 => PubdataType::Avail,
