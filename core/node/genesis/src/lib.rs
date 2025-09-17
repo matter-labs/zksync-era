@@ -218,7 +218,7 @@ pub fn make_genesis_batch_params(
         base_system_contract_hashes,
         protocol_version,
     );
-    let block_commitment = L1BatchCommitment::new(commitment_input)?;
+    let block_commitment = L1BatchCommitment::new(commitment_input, true)?;
     let commitment = block_commitment.hash()?.commitment;
 
     Ok((
