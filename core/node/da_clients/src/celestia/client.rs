@@ -14,7 +14,6 @@ use eq_sdk::{
     types::BlobId,
     types::JobId,
     EqClient,
-
 };
 use secrecy::ExposeSecret;
 use tonic::transport::Endpoint;
