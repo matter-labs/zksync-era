@@ -8,7 +8,7 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     pubdata_da::PubdataSendingMode,
     transaction_status_commitment::TransactionStatusCommitment,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    L1BatchNumber, L2BlockNumber,
 };
 
 #[allow(clippy::large_enum_variant)]
@@ -81,14 +81,6 @@ impl L1BatchAggregatedOperation {
             Self::Commit(..) => "commit",
             Self::PublishProofOnchain(_) => "proof",
             Self::Execute(_) => "execute",
-        }
-    }
-
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        match self {
-            Self::Commit(_, l1_batches, _, _) => l1_batches[0].header.protocol_version.unwrap(),
-            Self::PublishProofOnchain(op) => op.l1_batches[0].header.protocol_version.unwrap(),
-            Self::Execute(op) => op.l1_batches[0].header.protocol_version.unwrap(),
         }
     }
 }

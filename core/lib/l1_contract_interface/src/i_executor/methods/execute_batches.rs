@@ -20,28 +20,24 @@ impl ExecuteBatches {
     // However, we can send batches with older protocol versions just by changing the encoding.
     // This makes the migration simpler.
     pub fn encode_for_eth_tx(&self, chain_protocol_version: ProtocolVersionId) -> Vec<Token> {
-        let internal_protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
-
-        if internal_protocol_version.is_pre_gateway() && chain_protocol_version.is_pre_gateway() {
+        if chain_protocol_version.is_pre_gateway() {
             vec![Token::Array(
                 self.l1_batches
                     .iter()
                     .map(|batch| {
                         StoredBatchInfo::from(batch)
-                            .into_token_with_protocol_version(internal_protocol_version)
+                            .into_token_with_protocol_version(chain_protocol_version)
                     })
                     .collect(),
             )]
-        } else if internal_protocol_version.is_pre_interop_fast_blocks()
-            && chain_protocol_version.is_pre_interop_fast_blocks()
-        {
+        } else if chain_protocol_version.is_pre_interop_fast_blocks() {
             let encoded_data = encode(&[
                 Token::Array(
                     self.l1_batches
                         .iter()
                         .map(|batch| {
                             StoredBatchInfo::from(batch)
-                                .into_token_with_protocol_version(internal_protocol_version)
+                                .into_token_with_protocol_version(chain_protocol_version)
                         })
                         .collect(),
                 ),
@@ -53,7 +49,7 @@ impl ExecuteBatches {
                 ),
             ]);
             let execute_data = [
-                [get_encoding_version(internal_protocol_version)].to_vec(),
+                [get_encoding_version(chain_protocol_version)].to_vec(),
                 encoded_data,
             ]
             .concat()
@@ -71,7 +67,7 @@ impl ExecuteBatches {
                         .iter()
                         .map(|batch| {
                             StoredBatchInfo::from(batch)
-                                .into_token_with_protocol_version(internal_protocol_version)
+                                .into_token_with_protocol_version(chain_protocol_version)
                         })
                         .collect(),
                 ),
@@ -96,7 +92,7 @@ impl ExecuteBatches {
                 ),
             ]);
             let execute_data = [
-                [get_encoding_version(internal_protocol_version)].to_vec(),
+                [get_encoding_version(chain_protocol_version)].to_vec(),
                 encoded_data,
             ]
             .concat()

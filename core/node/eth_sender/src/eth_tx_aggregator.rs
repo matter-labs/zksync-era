@@ -944,9 +944,7 @@ impl EthTxAggregator {
     ) -> TxData {
         match op {
             AggregatedOperation::L1Batch(op) => {
-                let protocol_version = op.protocol_version();
-
-                let mut args = if protocol_version.is_pre_interop_fast_blocks() {
+                let mut args = if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                     vec![Token::Uint(self.rollup_chain_id.as_u64().into())]
                 } else {
                     vec![Token::Address(self.state_transition_chain_contract)]
@@ -969,9 +967,9 @@ impl EthTxAggregator {
 
                         args.extend(commit_data_base);
                         let commit_data = args;
-                        let encoding_fn = if protocol_version.is_pre_gateway() {
+                        let encoding_fn = if chain_protocol_version_id.is_pre_gateway() {
                             &self.functions.post_shared_bridge_commit
-                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                        } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_commit
                         } else {
                             &self.functions.post_v29_interop_commit
@@ -987,9 +985,9 @@ impl EthTxAggregator {
                     }
                     L1BatchAggregatedOperation::PublishProofOnchain(op) => {
                         args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
-                        let encoding_fn = if protocol_version.is_pre_gateway() {
+                        let encoding_fn = if chain_protocol_version_id.is_pre_gateway() {
                             &self.functions.post_shared_bridge_prove
-                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                        } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_prove
                         } else {
                             &self.functions.post_v29_timelock_interop_prove
@@ -1001,9 +999,7 @@ impl EthTxAggregator {
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
                         args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
-                        let encoding_fn = if protocol_version.is_pre_gateway()
-                            && chain_protocol_version_id.is_pre_gateway()
-                        {
+                        let encoding_fn = if chain_protocol_version_id.is_pre_gateway() {
                             &self.functions.post_shared_bridge_execute
                         } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
