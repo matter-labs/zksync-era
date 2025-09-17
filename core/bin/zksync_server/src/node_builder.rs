@@ -129,7 +129,7 @@ impl MainNodeBuilder {
         }
     }
 
-    pub fn l2_da_commitment_scheme(&self) -> anyhow::Result<L2DACommitmentScheme> {
+    pub fn l2_da_commitment_scheme(&self) -> L2DACommitmentScheme {
         let use_dummy_inclusion_data = self
             .configs
             .da_dispatcher_config
@@ -137,22 +137,27 @@ impl MainNodeBuilder {
             .map(|a| a.use_dummy_inclusion_data)
             .unwrap_or_default();
 
-        Ok(
-            match (&self.configs.da_client_config, use_dummy_inclusion_data) {
-                (Some(DAClientConfig::NoDA), _) => L2DACommitmentScheme::EmptyNoDA,
-                (_, true) => L2DACommitmentScheme::EmptyNoDA,
-                (Some(DAClientConfig::Avail(_)), false) => L2DACommitmentScheme::PubdataKeccak256,
-                (Some(DAClientConfig::Celestia(_)), false) => {
-                    L2DACommitmentScheme::PubdataKeccak256
-                }
-                (Some(DAClientConfig::Eigen(_)), false) => L2DACommitmentScheme::PubdataKeccak256,
-                (Some(DAClientConfig::ObjectStore(_)), _) => L2DACommitmentScheme::EmptyNoDA,
-                (None, _) => {
-                    tracing::info!("DAClientConfig is not specified, setting L2DACommitmentScheme to BlobsAndPubdataKeccak256");
-                    L2DACommitmentScheme::BlobsAndPubdataKeccak256
-                }
-            },
-        )
+        // For DA clients we have two options verify the pubdata inclusion on SL or not.
+        // If we do not verify it, we can use EmptyNoDA commitment scheme in this case
+        // use_dummy_inclusion_data is true.
+        // If the DA client is not specified, we assume that we publish all data to SL
+        // and we have to verify it
+
+        if use_dummy_inclusion_data {
+            return L2DACommitmentScheme::EmptyNoDA;
+        }
+
+        match (&self.configs.da_client_config) {
+            Some(DAClientConfig::NoDA) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::ObjectStore(_)) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::Avail(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Celestia(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Eigen(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            None => {
+                tracing::info!("DAClientConfig is not specified, setting L2DACommitmentScheme to BlobsAndPubdataKeccak256");
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            }
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -352,7 +357,7 @@ impl MainNodeBuilder {
                     .genesis_config
                     .l1_batch_commit_data_generator_mode,
                 dummy_verifier: self.genesis_config.dummy_verifier,
-                config_l2_da_commitment_scheme: self.l2_da_commitment_scheme()?,
+                config_l2_da_commitment_scheme: self.l2_da_commitment_scheme(),
             }));
         Ok(self)
     }
