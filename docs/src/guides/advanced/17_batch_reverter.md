@@ -2,8 +2,8 @@
 
 ### Motivation
 
-In extremly rare circumstances due to an operator mistake or a bug zksync-era you may revert unexecuted L1 batches. This
-could be usefull if an unprovable batch would be committed or a commit tranasction failed due to mismatch between server
+In extremely rare circumstances due to an operator mistake or a bug zksync-era you may revert unexecuted L1 batches. This
+could be useful if an unprovable batch would be committed or a commit transaction failed due to mismatch between server
 and blockchain state.
 
 ### Overview
@@ -52,7 +52,7 @@ Suggested values for rollback: SuggestedRollbackValues {
 ```
 
 - Rollback blocks on contract: run `send-eth-transaction` (Only if revert on L1 is needed). Note: here and later
-  `--l1-batch-number` is the number of latest batch **remining** after revert.
+  `--l1-batch-number` is the number of latest batch **remaining** after revert.
 
 ```bash
 root@server-0:/# RUST_LOG=info ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY=CHANGE_ME ./usr/bin/block_reverter send-eth-transaction \
