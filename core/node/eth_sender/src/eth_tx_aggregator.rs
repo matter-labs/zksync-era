@@ -549,7 +549,7 @@ impl EthTxAggregator {
 
         let l1_validator = Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]);
 
-        let pair = if protocol_version_id.is_pre_interop_fast_blocks() {
+        let pair = if protocol_version_id.is_pre_medium_interop() {
             DAValidatorPair {
                 l1_validator,
                 l2_validator: Some(Address::from_slice(
@@ -751,7 +751,7 @@ impl EthTxAggregator {
         // // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
         // // send new commit transactions before the da validator pair is updated
 
-        if chain_protocol_version_id.is_pre_interop_fast_blocks() {
+        if chain_protocol_version_id.is_pre_medium_interop() {
             if da_validator_pair.l1_validator == Address::zero()
                 || da_validator_pair.l2_validator == Some(Address::zero())
             {

@@ -222,7 +222,7 @@ fn bootloader_memory_input(
 ) -> Vec<u8> {
     let operator_input = pubdata_builder.l1_messenger_operator_input(input, protocol_version);
 
-    if protocol_version.is_pre_interop_fast_blocks() {
+    if protocol_version.is_pre_medium_interop() {
         ethabi::encode(&[
             ethabi::Token::Address(
                 pubdata_builder

@@ -147,7 +147,7 @@ pub(crate) fn mock_multicall_response(
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 let non_zero_address = vec![6u8; 32];
 
-                if protocol_version_id.is_pre_interop_fast_blocks() {
+                if protocol_version_id.is_pre_medium_interop() {
                     [non_zero_address.clone(), non_zero_address].concat()
                 } else {
                     [
