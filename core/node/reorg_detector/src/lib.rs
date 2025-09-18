@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fmt, future::Future, time::Duration};
+use std::{cmp::max, convert::Infallible, fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -329,7 +329,8 @@ impl ReorgDetector {
                     .update_correct_block(checked_l2_block, checked_l1_batch);
                 None
             } else {
-                let diverged_l1_batch = checked_l1_batch;
+                let diverged_l1_batch =
+                    checked_l1_batch + max(root_hashes_match, commitments_match) as u32;
                 self.event_handler.report_divergence(diverged_l1_batch);
                 Some(diverged_l1_batch)
             },
