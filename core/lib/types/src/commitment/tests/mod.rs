@@ -17,7 +17,7 @@ fn run_test(test_name: &str) {
     let contents = read_to_string(format!("src/commitment/tests/{test_name}.json")).unwrap();
     let commitment_test: CommitmentTest = serde_json::from_str(&contents).unwrap();
 
-    let commitment = L1BatchCommitment::new(commitment_test.input).unwrap();
+    let commitment = L1BatchCommitment::new(commitment_test.input, true).unwrap();
 
     assert_eq!(
         commitment.pass_through_data,
