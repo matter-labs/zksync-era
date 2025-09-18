@@ -520,7 +520,7 @@ mod tests {
     fn mock_patch_set(start: u64, leaf_count: u64) -> PatchSet {
         assert!(start <= leaf_count);
 
-        let manifest = Manifest::new(UPDATED_VERSION, &());
+        let manifest = Manifest::new(UPDATED_VERSION + 1, &());
         let mut root_node = InternalNode::default();
         root_node.insert_child_ref(0, ChildRef::leaf(UPDATED_VERSION));
         let root = Root::new(leaf_count, Node::Internal(root_node));
