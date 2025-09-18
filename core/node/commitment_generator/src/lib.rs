@@ -360,7 +360,7 @@ impl CommitmentGenerator {
             .get_l1_batch_pubdata_params(l1_batch_number)
             .await?
             .context("pubdata params are missing for L1 batch")?;
-        Ok(pubdata_params.pubdata_type.into())
+        Ok(pubdata_params.pubdata_type().into())
     }
 
     #[tracing::instrument(skip(self))]

@@ -611,7 +611,7 @@ impl Aggregator {
 
         match pubdata_params {
             Some(p) => {
-                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type);
+                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type());
 
                 if commitment_mode == L1BatchCommitmentMode::Rollup
                     && self.pubdata_da == PubdataSendingMode::Custom

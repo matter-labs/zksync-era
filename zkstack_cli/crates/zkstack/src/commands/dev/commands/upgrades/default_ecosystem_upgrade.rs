@@ -136,7 +136,6 @@ async fn no_governance_prepare(
             .await?
             .l1_rpc_url()?
     };
-    dbg!(&l1_rpc_url);
 
     let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
