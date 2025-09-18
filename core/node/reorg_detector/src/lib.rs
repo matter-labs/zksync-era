@@ -480,6 +480,11 @@ impl ReorgDetector {
             return Ok(false);
         }
 
+        let commitment_match = self.commitment_match(l1_batch, l1batch_hashed_data).await?;
+        if !commitment_match {
+            return Ok(false);
+        }
+
         let mut storage = self.pool.connection().await?;
         let (_, last_l2_block_in_batch) = storage
             .blocks_dal()
