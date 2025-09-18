@@ -1,5 +1,23 @@
 # Changelog
 
+## [29.3.0](https://github.com/matter-labs/zksync-era/compare/core-v29.2.0...core-v29.3.0) (2025-09-18)
+
+
+### Features
+
+* **en:** Check commitment allonside with roothashes ([#4492](https://github.com/matter-labs/zksync-era/issues/4492)) ([6e8f526](https://github.com/matter-labs/zksync-era/commit/6e8f526fa87350829ef8d56ee4edf0dfa1421a80))
+* **en:** Improved en commitment generation error handling ([#4483](https://github.com/matter-labs/zksync-era/issues/4483)) ([1bb82d6](https://github.com/matter-labs/zksync-era/commit/1bb82d6a1cf5c8ed357a6387f371f08415516358))
+
+
+### Bug Fixes
+
+* **en:** Add check for commitment in diverged batch ([#4493](https://github.com/matter-labs/zksync-era/issues/4493)) ([e693fd0](https://github.com/matter-labs/zksync-era/commit/e693fd0ec83eac6d227b083a3be9c0437b0eb351))
+* **en:** allow to disable sanity checks for commitment generation ([#4487](https://github.com/matter-labs/zksync-era/issues/4487)) ([7692f31](https://github.com/matter-labs/zksync-era/commit/7692f319ad7ef7934532f0480aafcabf18837339))
+* **EN:** properly set chain_id for old batch transactions ([#4488](https://github.com/matter-labs/zksync-era/issues/4488)) ([634b6dd](https://github.com/matter-labs/zksync-era/commit/634b6dd5cf0d65c689cd3021d33adc9980aa82d0))
+* **eth-proof-manager:** don't fail component if proof was incorrect ([#4444](https://github.com/matter-labs/zksync-era/issues/4444)) ([daa1161](https://github.com/matter-labs/zksync-era/commit/daa11611032350e67b44ad56bd8d7181bc15af4a))
+* **eth-proof-manager:** verify protocol version and proving mode alignment ([#4473](https://github.com/matter-labs/zksync-era/issues/4473)) ([99e0423](https://github.com/matter-labs/zksync-era/commit/99e0423a3dc78794e4addec948c785ffcb2ca94f))
+* **eth-sender:** Fix selector for old batches ([#4489](https://github.com/matter-labs/zksync-era/issues/4489)) ([bb42dcf](https://github.com/matter-labs/zksync-era/commit/bb42dcf781939a9363414703d6a77adcc97adb68))
+
 ## [29.2.0](https://github.com/matter-labs/zksync-era/compare/core-v29.1.2...core-v29.2.0) (2025-09-01)
 
 
