@@ -78,7 +78,7 @@ impl L2Parameters {
             .method("zks_getL1BatchDetails", move |number: L1BatchNumber| {
                 let root_hash = self.l1_batch_root_hashes.get(number.0 as usize);
                 Ok(root_hash.map(|&hash| api::L1BatchDetails {
-                    commitment: Some(H256::repeat_byte(0xAA)),
+                    commitment: root_hash.copied(),
                     number,
                     base: mock_block_details_base(number.0, Some(hash)),
                 }))

@@ -16,6 +16,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     block::{L2BlockHasher, L2BlockHeader},
+    commitment::L1BatchCommitmentArtifacts,
     ProtocolVersion,
 };
 use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
@@ -56,6 +57,13 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32, hash: H2
         .set_l1_batch_hash(L1BatchNumber(number), hash)
         .await
         .unwrap();
+    let mut commitment_artifact = L1BatchCommitmentArtifacts::default();
+    commitment_artifact.commitment_hash.commitment = hash;
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(L1BatchNumber(number), &commitment_artifact)
+        .await
+        .unwrap()
 }
 
 /// Tests the binary search algorithm.
@@ -87,6 +95,7 @@ impl From<RpcErrorKind> for RpcError {
 struct MockMainNodeClient {
     l2_block_hashes: BTreeMap<L2BlockNumber, H256>,
     l1_batch_root_hashes: BTreeMap<L1BatchNumber, Result<H256, MissingData>>,
+    l1_batch_commitment: BTreeMap<L1BatchNumber, Result<H256, MissingData>>,
     error_kind: Arc<Mutex<Option<RpcErrorKind>>>,
 }
 
@@ -136,10 +145,16 @@ impl MainNodeClient for MockMainNodeClient {
         let Ok(state_hash) = state_hash else {
             return Ok(Err(MissingData::Batch));
         };
+        let commitment = self
+            .l1_batch_commitment
+            .get(&number)
+            .copied()
+            .transpose()
+            .unwrap_or_default();
 
         Ok(Ok(L1BatchHashedData {
             root_hash: state_hash,
-            commitment: state_hash,
+            commitment,
         }))
     }
 }
@@ -204,6 +219,9 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
         client
             .l1_batch_root_hashes
             .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
+        client
+            .l1_batch_commitment
+            .insert(L1BatchNumber(0), Ok(genesis_batch.commitment));
     }
 
     let l1_batch_numbers = if snapshot_recovery {
@@ -222,6 +240,9 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
             let l1_batch_hash = H256::repeat_byte(number as u8);
             client
                 .l1_batch_root_hashes
+                .insert(L1BatchNumber(number), Ok(l1_batch_hash));
+            client
+                .l1_batch_commitment
                 .insert(L1BatchNumber(number), Ok(l1_batch_hash));
             (number, l2_block_hash, l1_batch_hash)
         })
@@ -298,6 +319,9 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(0), Ok(genesis_batch.commitment));
 
     let l2_block_hash = H256::from_low_u64_be(23);
     client
@@ -307,10 +331,17 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
         .l1_batch_root_hashes
         .insert(L1BatchNumber(1), Ok(H256::repeat_byte(1)));
     client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(1), Ok(H256::repeat_byte(1)));
+
+    client
         .l2_block_hashes
         .insert(L2BlockNumber(2), l2_block_hash);
     client
         .l1_batch_root_hashes
+        .insert(L1BatchNumber(2), Ok(H256::repeat_byte(2)));
+    client
+        .l1_batch_commitment
         .insert(L1BatchNumber(2), Ok(H256::repeat_byte(2)));
 
     let mut detector = create_mock_detector(client, pool.clone());
@@ -353,6 +384,9 @@ async fn reorg_is_detected_on_l2_block_hash_mismatch() {
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(0), Ok(genesis_batch.commitment));
 
     let l2_block_hash = H256::from_low_u64_be(23);
     client
@@ -361,6 +395,10 @@ async fn reorg_is_detected_on_l2_block_hash_mismatch() {
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(1), Ok(H256::repeat_byte(1)));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(1), Ok(H256::repeat_byte(1)));
+
     client
         .l2_block_hashes
         .insert(L2BlockNumber(2), l2_block_hash);
@@ -429,6 +467,9 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(earliest_l1_batch_number), Ok(H256::zero()));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(earliest_l1_batch_number), Ok(H256::zero()));
 
     let l2_block_and_l1_batch_hashes = l1_batch_numbers.clone().map(|number| {
         let mut l2_block_hash = H256::from_low_u64_be(number.into());
@@ -438,6 +479,9 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
         let mut l1_batch_hash = H256::repeat_byte(number as u8);
         client
             .l1_batch_root_hashes
+            .insert(L1BatchNumber(number), Ok(l1_batch_hash));
+        client
+            .l1_batch_commitment
             .insert(L1BatchNumber(number), Ok(l1_batch_hash));
 
         if number > last_correct_batch {
@@ -516,6 +560,10 @@ async fn detector_errors_on_earliest_batch_hash_mismatch() {
         .l1_batch_root_hashes
         .insert(L1BatchNumber(0), Ok(H256::zero()));
     client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(0), Ok(H256::zero()));
+
+    client
         .l2_block_hashes
         .insert(L2BlockNumber(0), H256::zero());
 
@@ -533,6 +581,10 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(3), Ok(H256::zero()));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(3), Ok(H256::zero()));
+
     client
         .l2_block_hashes
         .insert(L2BlockNumber(3), H256::zero());
@@ -576,6 +628,10 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(0), Ok(genesis_batch.commitment));
+
     for number in 1..3 {
         client
             .l2_block_hashes
@@ -589,6 +645,9 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
         .insert(L2BlockNumber(3), H256::zero());
     client
         .l1_batch_root_hashes
+        .insert(L1BatchNumber(3), Ok(H256::repeat_byte(0xff)));
+    client
+        .l1_batch_commitment
         .insert(L1BatchNumber(3), Ok(H256::repeat_byte(0xff)));
 
     let mut detector = create_mock_detector(client, pool);
@@ -616,6 +675,9 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
+    client
+        .l1_batch_commitment
+        .insert(L1BatchNumber(0), Ok(genesis_batch.commitment));
     for number in 1..L1_BATCH_COUNT {
         let l2_block_hash = H256::from_low_u64_le(number.into());
         store_l2_block(&mut storage, number, l2_block_hash).await;
@@ -632,6 +694,9 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
         seal_l1_batch(&mut storage, number, l1_batch_root_hash).await;
         client
             .l1_batch_root_hashes
+            .insert(L1BatchNumber(number), Ok(l1_batch_root_hash));
+        client
+            .l1_batch_commitment
             .insert(L1BatchNumber(number), Ok(l1_batch_root_hash));
     }
     drop(storage);
@@ -651,19 +716,19 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
 
 #[derive(Debug)]
 struct SlowMainNode {
-    l1_batch_root_hash_call_count: Arc<AtomicUsize>,
-    l1_batch_commitment_call_count: Arc<AtomicUsize>,
+    l1_batch_data_count: Arc<AtomicUsize>,
     delay_call_count: usize,
     genesis_root_hash: H256,
+    genesis_commitment: H256,
 }
 
 impl SlowMainNode {
-    fn new(genesis_root_hash: H256, delay_call_count: usize) -> Self {
+    fn new(genesis_root_hash: H256, genesis_commitment: H256, delay_call_count: usize) -> Self {
         Self {
-            l1_batch_root_hash_call_count: Arc::default(),
-            l1_batch_commitment_call_count: Arc::default(),
+            l1_batch_data_count: Arc::default(),
             delay_call_count,
             genesis_root_hash,
+            genesis_commitment,
         }
     }
 }
@@ -693,13 +758,11 @@ impl MainNodeClient for SlowMainNode {
         if number > L1BatchNumber(0) {
             return Ok(Err(MissingData::Batch));
         }
-        let count = self
-            .l1_batch_commitment_call_count
-            .fetch_add(1, Ordering::Relaxed);
+        let count = self.l1_batch_data_count.fetch_add(1, Ordering::Relaxed);
         Ok(if count >= self.delay_call_count {
             Ok(L1BatchHashedData {
                 root_hash: Some(self.genesis_root_hash),
-                commitment: Some(self.genesis_root_hash),
+                commitment: Some(self.genesis_commitment),
             })
         } else {
             Err(MissingData::RootHash)
@@ -716,8 +779,8 @@ async fn detector_waits_for_state_hash_on_main_node() {
         .unwrap();
     drop(storage);
 
-    let client = SlowMainNode::new(genesis_batch.root_hash, 5);
-    let l1_batch_root_hash_call_count = client.l1_batch_root_hash_call_count.clone();
+    let client = SlowMainNode::new(genesis_batch.root_hash, genesis_batch.commitment, 5);
+    let l1_batch_root_hash_call_count = client.l1_batch_data_count.clone();
     let mut detector = create_mock_detector(client, pool);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     detector.run_once(stop_receiver).await.unwrap();
