@@ -156,6 +156,7 @@ impl L1BatchStagesMap {
 fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
     api::L1BatchDetails {
         number: L1BatchNumber(number),
+        commitment: Some(H256::repeat_byte(0xAA)),
         base: api::BlockDetailsBase {
             timestamp: number.into(),
             l1_tx_count: 0,
