@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# zkstackup -g --local
+
 zkstack dev clean containers && zkstack up -o false
 zkstack dev contracts
 
@@ -10,7 +12,9 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --observability=false \
     --chain era \
     --update-submodules false
-    
+
+# zkstack server
+
 zkstack dev generate-genesis
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
