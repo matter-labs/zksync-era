@@ -7,6 +7,10 @@ pub mod celestia_proto {
     include!("generated/celestia.blob.v1.rs");
 }
 
+pub mod blobstream;
+
+pub mod metrics;
+
 pub mod cosmos {
     pub mod auth {
         include!("generated/cosmos.auth.v1beta1.rs");
