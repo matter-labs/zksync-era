@@ -1,5 +1,5 @@
 use anyhow::Context;
-use ethers::utils::hex::ToHex;
+use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
 use zkstack_cli_config::{

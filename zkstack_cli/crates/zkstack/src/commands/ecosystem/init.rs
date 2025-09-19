@@ -3,7 +3,10 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
     forge::ForgeScriptArgs,
     git, logger,
     spinner::Spinner,
@@ -17,20 +20,21 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1Network;
 
 use super::{
-    args::init::{
-        EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal, RegisterCTMArgsFinal,
-    },
+    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::{deploy_erc20, init_chains},
     setup_observability,
-    utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
     admin_functions::{accept_admin, accept_owner},
-    commands::ecosystem::{
-        common::deploy_l1_core_contracts,
-        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-        init_new_ctm::deploy_new_ctm,
-        register_ctm::register_ctm,
+    commands::{
+        ctm::{
+            args::RegisterCTMArgsFinal,
+            commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm},
+        },
+        ecosystem::{
+            common::deploy_l1_core_contracts,
+            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
+        },
     },
     messages::{
         msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
@@ -52,7 +56,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut final_ecosystem_args = args
+    let final_ecosystem_args = args
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
 
@@ -63,7 +67,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     }
 
     let contracts_config = init_ecosystem(
-        &mut final_ecosystem_args,
+        &final_ecosystem_args,
         shell,
         &ecosystem_config,
         &initial_deployment_config,
@@ -98,7 +102,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 async fn init_ecosystem(
-    init_args: &mut EcosystemInitArgsFinal,
+    init_args: &EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
@@ -114,11 +118,11 @@ async fn init_ecosystem(
     spinner.finish();
 
     let contracts = if !init_args.deploy_ecosystem {
-        return_ecosystem_contracts(shell, &mut init_args.ecosystem, ecosystem_config).await?
+        return_ecosystem_contracts(shell, &init_args.ecosystem, ecosystem_config).await?
     } else {
         let core_contracts = deploy_ecosystem(
             shell,
-            &mut init_args.ecosystem,
+            &init_args.ecosystem,
             init_args.forge_args.clone(),
             ecosystem_config,
             initial_deployment_config,
@@ -129,10 +133,12 @@ async fn init_ecosystem(
 
         let contracts = deploy_new_ctm(
             shell,
-            &mut init_args.ecosystem,
-            init_args.forge_args.clone(),
+            &init_args.forge_args,
             ecosystem_config,
             initial_deployment_config,
+            init_args.ecosystem.l1_rpc_url.as_str(),
+            None,
+            true,
             init_args.support_l2_legacy_shared_bridge_test,
             core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
             init_args.zksync_os,
@@ -142,23 +148,20 @@ async fn init_ecosystem(
 
         contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let forge_args = init_args.forge_args.clone();
-        let mut reg_args = RegisterCTMArgsFinal::from_init_args(
-            (*init_args).clone(),
+        let reg_args = RegisterCTMArgsFinal::from_init_args(
+            init_args.clone(),
             contracts.ecosystem_contracts.bridgehub_proxy_addr,
             contracts.ecosystem_contracts.state_transition_proxy_addr,
         );
-        register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
-
+        register_ctm(&reg_args, shell, ecosystem_config).await?;
         contracts
     };
-
     Ok(contracts)
 }
 
 async fn return_ecosystem_contracts(
     shell: &Shell,
-    ecosystem: &mut EcosystemArgsFinal,
+    ecosystem: &EcosystemArgsFinal,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
@@ -214,7 +217,7 @@ async fn return_ecosystem_contracts(
 
 async fn deploy_ecosystem(
     shell: &Shell,
-    ecosystem: &mut EcosystemArgsFinal,
+    ecosystem: &EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
