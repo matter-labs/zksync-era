@@ -236,6 +236,7 @@ fn l2_block_details(
 fn l1_batch_details(number: L1BatchNumber, root_hash: H256) -> api::L1BatchDetails {
     api::L1BatchDetails {
         number,
+        commitment: Some(H256::repeat_byte(number.0 as u8)),
         base: block_details_base(root_hash),
     }
 }

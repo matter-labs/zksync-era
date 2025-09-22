@@ -1040,7 +1040,7 @@ impl EthTxAggregator {
                             && chain_protocol_version_id.is_pre_gateway()
                         {
                             &self.functions.post_shared_bridge_execute
-                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                        } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
                         } else {
                             &self.functions.post_v29_interop_execute

@@ -527,6 +527,7 @@ pub(crate) struct StorageL1BatchDetails {
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub evm_emulator_code_hash: Option<Vec<u8>>,
+    pub commitment: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
@@ -600,6 +601,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
         };
         api::L1BatchDetails {
             base,
+            commitment: details.commitment.map(|c| H256::from_slice(&c)),
             number: L1BatchNumber(details.number as u32),
         }
     }

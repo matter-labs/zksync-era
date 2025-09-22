@@ -855,7 +855,7 @@ async fn wait_for_l1_batch_with_metadata(
         let mut storage = pool.connection().await?;
         let sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_earliest_l1_batch_number_with_metadata()
+            .get_earliest_l1_batch_number_with_commitment()
             .await?;
         drop(storage);
 
