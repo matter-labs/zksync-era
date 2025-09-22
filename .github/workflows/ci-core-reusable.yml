@@ -179,10 +179,14 @@ jobs:
       # TODO: Remove once merged into main
       - name: (TEMPORARY) Update foundry
         run: |
-          ci_run foundryup -r matter-labs/foundry-zksync -C 34fe0bc655c6b15e869ffd465addde001f6b474d
-          ci_run cp ~/.foundry/bin/* /usr/local/cargo/bin/
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.26/foundry_zksync_v0.0.26_linux_amd64.tar.gz
+          ci_run mkdir ./foundry-temp
+          ci_run tar zxf foundry_v0.0.26_linux_amd64.tar.gz -C ./foundry-temp
+          ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
+          ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
           echo "Foundry version after update:"
           ci_run forge --version
+          ci_run rm -rf ./foundry-temp foundry_v0.0.26_linux_amd64.tar.gz
 
       - name: Build test dependencies
         run: |
