@@ -179,10 +179,10 @@ jobs:
       # TODO: Remove once merged into main
       - name: Update foundry
         run: |
-          ci_run "foundryup -r matter-labs/foundry-zksync -C 34fe0bc655c6b15e869ffd465addde001f6b474d"
-          ci_run "cp ~/.foundry/bin/* /usr/local/cargo/bin/"
+          ci_run foundryup -r matter-labs/foundry-zksync -C 34fe0bc655c6b15e869ffd465addde001f6b474d
+          ci_run cp ~/.foundry/bin/* /usr/local/cargo/bin/
           echo "Foundry version after update:"
-          ci_run "forge --version"
+          ci_run forge --version
 
       - name: Build test dependencies
         run: |
