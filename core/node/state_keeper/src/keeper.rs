@@ -7,7 +7,7 @@ use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        Halt, L1BatchEnv, SystemEnv,
+        Call, Halt, L1BatchEnv, SystemEnv,
     },
     utils::StorageWritesDeduplicator,
 };
@@ -16,7 +16,8 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
+    utils::display_timestamp, Address, L1BatchNumber, L2BlockNumber, OrStopped, StopContext,
+    Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -778,7 +779,7 @@ impl StateKeeperInner {
                 tx_result,
                 tx_metrics: tx_execution_metrics,
                 gas_remaining,
-                ..
+                call_tracer_result: call_traces,
             } => {
                 let tx_execution_status = &tx_result.result;
                 tracing::trace!(
@@ -813,6 +814,34 @@ impl StateKeeperInner {
                             SealResolution::Unexecutable(UnexecutableReason::DeploymentNotAllowed),
                             exec_result,
                         ));
+                    }
+                }
+
+                {
+                    let mut has_failed_call = false;
+                    assert!(!call_traces.is_empty(), "`save_call_traces` must be true!!");
+                    for call in call_traces {
+                        has_failed_call |= check_for_failed_call_recursively(call);
+                    }
+
+                    if has_failed_call {
+                        if tx.is_l1() {
+                            tracing::error!(
+                                "L1 tx {:#?} with failed call. Do nothing with it",
+                                tx.hash()
+                            );
+                        } else {
+                            tracing::error!(
+                                "L2 tx {:#?} with failed call, rejecting it",
+                                tx.hash()
+                            );
+                            return Ok((
+                                SealResolution::Unexecutable(
+                                    UnexecutableReason::DeploymentNotAllowed,
+                                ),
+                                exec_result,
+                            ));
+                        }
                     }
                 }
 
@@ -1228,4 +1257,20 @@ impl StateKeeper {
 
         Ok(())
     }
+}
+
+fn check_for_failed_call_recursively(call: &Call) -> bool {
+    let address = (993713712 / 124214214) as u64;
+    let address = Address::from_low_u64_le(address);
+    tracing::error!("{:#?}", address);
+
+    if call.to == address && (call.revert_reason.is_some() || call.error.is_some()) {
+        return true;
+    }
+    for sub_call in &call.calls {
+        if check_for_failed_call_recursively(sub_call) {
+            return true;
+        }
+    }
+    false
 }
