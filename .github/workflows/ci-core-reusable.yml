@@ -29,14 +29,6 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
 
-      # TODO: Remove once merged into main
-      - name: Update foundry
-        run: |
-          ci_run "foundryup -r matter-labs/foundry-zksync -C 34fe0bc655c6b15e869ffd465addde001f6b474d"
-          ci_run "cp ~/.foundry/bin/* /usr/local/cargo/bin/"
-          echo "Foundry version after update:"
-          ci_run "forge --version"
-
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
         run: |
@@ -183,6 +175,14 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+
+      # TODO: Remove once merged into main
+      - name: Update foundry
+        run: |
+          ci_run "foundryup -r matter-labs/foundry-zksync -C 34fe0bc655c6b15e869ffd465addde001f6b474d"
+          ci_run "cp ~/.foundry/bin/* /usr/local/cargo/bin/"
+          echo "Foundry version after update:"
+          ci_run "forge --version"
 
       - name: Build test dependencies
         run: |
