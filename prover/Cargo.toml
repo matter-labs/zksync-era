@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "22.1.0" # x-release-please-version
+version = "22.1.0"                                        # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -68,22 +68,26 @@ url = "2.5.2"
 vise = "0.3.2"
 smart-config = "=0.2.0-pre"
 
-circuit_definitions = "=0.152.4"
-circuit_sequencer_api = "=0.152.4"
-zkevm_test_harness = "=0.152.4"
+# zksync-crypto dependencies
+fflonk = "=0.32.3"
+franklin-crypto = "=0.32.3"
 
-fflonk = "=0.32.1"
-franklin-crypto = "=0.32.1"
+# zksync-protocol dependencies
+circuit_definitions = "=0.153.1"
+circuit_sequencer_api = "=0.153.1"
+zkevm_test_harness = "=0.153.1"
 
-# GPU proving dependencies
-
-proof-compression-gpu = { package = "proof-compression", version = "=0.154.5" }
-
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.5" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.5" }
-
-shivini = "=0.154.5"
-boojum-cuda = "=0.154.5"
+# zksync-crypto-gpu dependencies
+proof-compression-gpu = { package = "proof-compression", version = "=0.155.1" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.1" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.1" }
+shivini = "=0.155.1"
+boojum-cuda = "=0.155.1"
+# proof-compression-gpu = { package = "proof-compression", path = "../../zksync-crypto-gpu/crates/proof-compression" }
+# fflonk-gpu = { package = "fflonk-cuda", path = "../../zksync-crypto-gpu/crates/fflonk" }
+# wrapper_prover = { package = "zksync-wrapper-prover", path = "../zksync-crypto-gpu/crates/wrapper-prover" }
+# shivini = { path = "../../zksync-crypto-gpu/crates/shivini" }
+# boojum-cuda = { path = "../zksync-crypto-gpu/crates/boojum-cuda" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }

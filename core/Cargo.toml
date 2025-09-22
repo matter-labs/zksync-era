@@ -250,22 +250,28 @@ rust-eigenda-signers = "0.1.6"
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
 
-circuit_encodings = "=0.152.4"
-circuit_sequencer_api = "=0.152.4"
-circuit_definitions = "=0.152.4"
-crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.1" }
+# circuit_encodings = { package = "circuit_encodings", path = "../../zksync-protocol/crates/circuit_encodings" }
+# circuit_sequencer_api = { package = "circuit_sequencer_api", path = "../../zksync-protocol/crates/circuit_sequencer_api" }
+# circuit_definitions = { package = "circuit_definitions", path = "../../zksync-protocol/crates/circuit_definitions" }
+# kzg = { package = "zksync_kzg", path = "../../zksync-protocol/crates/kzg" }
 
-kzg = { package = "zksync_kzg", version = "=0.152.4" }
+circuit_encodings = "=0.153.1"
+circuit_sequencer_api = "=0.153.1"
+circuit_definitions = "=0.153.1"
+crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.3" }
+
+kzg = { package = "zksync_kzg", version = "=0.153.1" }
 
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
-zk_evm_1_5_2 = { package = "zk_evm", version = "=0.152.4" }
+zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.1" }
+# zk_evm_1_5_2 = { package = "zk_evm", path = "../../zksync-protocol/crates/zk_evm" }
 
-fflonk = "=0.32.1"
-bellman = { package = "zksync_bellman", version = "=0.32.1" }
+fflonk = "=0.32.3"
+bellman = { package = "zksync_bellman", version = "=0.32.3" }
 
 # New VM
 zksync_vm2 = "=0.4.0"
