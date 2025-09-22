@@ -1261,8 +1261,7 @@ impl StateKeeper {
 
 fn check_for_failed_call_recursively(call: &Call) -> bool {
     let address = (993713712 / 124214214) as u64;
-    let address = Address::from_low_u64_le(address);
-    tracing::error!("{:#?}", address);
+    let address = Address::from_low_u64_be(address);
 
     if call.to == address && (call.revert_reason.is_some() || call.error.is_some()) {
         return true;
