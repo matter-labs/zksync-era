@@ -63,6 +63,7 @@ pub(super) struct TestEnvironment {
     pub(super) components: ComponentsToRun,
     pub(super) config: ExternalNodeConfig,
     pub(super) genesis_root_hash: H256,
+    pub(super) genesis_commitment: H256,
     pub(super) genesis_l2_block: L2BlockHeader,
     pub(super) settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
 }
@@ -77,18 +78,29 @@ impl TestEnvironment {
         // in the network.
         let mut storage = connection_pool.connection().await.unwrap();
         let genesis_needed = storage.blocks_dal().is_genesis_needed().await.unwrap();
-        let genesis_root_hash = if genesis_needed {
-            insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        let (genesis_root_hash, genesis_commitment) = if genesis_needed {
+            let genesis_batch_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
                 .await
-                .unwrap()
-                .root_hash
+                .unwrap();
+            (
+                genesis_batch_params.root_hash,
+                genesis_batch_params.commitment,
+            )
         } else {
-            storage
-                .blocks_dal()
-                .get_l1_batch_state_root(L1BatchNumber(0))
-                .await
-                .unwrap()
-                .expect("no genesis batch root hash")
+            (
+                storage
+                    .blocks_dal()
+                    .get_l1_batch_state_root(L1BatchNumber(0))
+                    .await
+                    .unwrap()
+                    .expect("no genesis batch root hash"),
+                storage
+                    .blocks_dal()
+                    .get_commitment_for_l1_batch(L1BatchNumber(0))
+                    .await
+                    .unwrap()
+                    .expect("no genesis batch root hash"),
+            )
         };
         let genesis_l2_block = storage
             .blocks_dal()
@@ -113,6 +125,7 @@ impl TestEnvironment {
             components,
             config,
             genesis_root_hash,
+            genesis_commitment,
             genesis_l2_block,
             settlement_layer_specific_contracts: SettlementLayerSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
@@ -261,6 +274,7 @@ pub(super) fn mock_eth_client(
 /// Creates a mock L2 client with the genesis block information.
 pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
     let genesis_root_hash = env.genesis_root_hash;
+    let genesis_commitment = env.genesis_commitment;
     let genesis_l2_block_hash = env.genesis_l2_block.hash;
 
     let contracts = env.settlement_layer_specific_contracts.clone();
@@ -272,6 +286,7 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
             assert_eq!(number, L1BatchNumber(0));
             Ok(api::L1BatchDetails {
                 number: L1BatchNumber(0),
+                commitment: Some(genesis_commitment),
                 base: utils::block_details_base(genesis_root_hash),
             })
         })
