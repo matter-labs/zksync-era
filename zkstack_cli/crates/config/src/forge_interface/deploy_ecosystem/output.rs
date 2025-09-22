@@ -41,8 +41,8 @@ pub struct DeployCTMOutput {
     pub l1_chain_id: u32,
     pub multicall3_addr: Address,
     pub owner_address: Address,
-    pub contracts_config: DeployL1ContractsConfigOutput,
-    pub deployed_addresses: DeployL1DeployedAddressesOutput,
+    pub contracts_config: DeployCTMContractsConfigOutput,
+    pub deployed_addresses: DeployCTMDeployedAddressesOutput,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
