@@ -7,6 +7,7 @@ use chrono::Utc;
 use ethers::{
     providers::{Http, Middleware, Provider},
     types::{Filter, TransactionReceipt},
+    utils::keccak256,
 };
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -14,9 +15,8 @@ use zkstack_cli_common::{
     forge::ForgeScriptArgs,
     logger,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::bridgehub_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
@@ -30,10 +30,9 @@ use super::{
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
+    abi::{BridgehubAbi, ChainTypeManagerAbi, IChainAssetHandlerAbi, ZkChainAbi},
     commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
-    messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -118,10 +117,13 @@ pub(crate) async fn get_migration_transaction(
         .expect("Failed to fetch latest block")
         .as_u64();
 
-    let bridgehub_contract = bridgehub_contract();
+    let bridgehub = BridgehubAbi::new(bridgehub_address, provider.clone());
+    let chain_asset_handler_addr = bridgehub.chain_asset_handler().await?;
+    let chain_asset_handler =
+        IChainAssetHandlerAbi::new(chain_asset_handler_addr, provider.clone());
 
     let max_interval_to_search = Utc::now() - MAX_SEARCHING_MIGRATION_TXS_INTERVAL;
-    let latest_event_log = loop {
+    let latest_tx_hash: Option<H256> = loop {
         let lower_bound = search_upper_bound.saturating_sub(DEFAULT_EVENTS_BLOCK_RANGE);
 
         logger::info(format!(
@@ -129,21 +131,15 @@ pub(crate) async fn get_migration_transaction(
             lower_bound, search_upper_bound
         ));
 
-        let filter = Filter::new()
-            .address(bridgehub_address)
-            .topic0(
-                bridgehub_contract
-                    .event("MigrationStarted")
-                    .unwrap()
-                    .signature(),
-            )
+        let ev = chain_asset_handler
+            .migration_started_filter()
+            .topic1(U256::from(l2_chain_id))
             .from_block(lower_bound)
-            .topic1(u256_to_h256(U256::from(l2_chain_id)))
             .to_block(search_upper_bound);
 
-        let result_logs = provider.get_logs(&filter).await?;
-        if !result_logs.is_empty() {
-            break result_logs.last().cloned();
+        let results = ev.query_with_meta().await?;
+        if let Some((_, meta)) = results.last() {
+            break Some(meta.transaction_hash);
         }
 
         if lower_bound == 0 {
@@ -162,11 +158,7 @@ pub(crate) async fn get_migration_transaction(
         search_upper_bound = lower_bound - 1;
     };
 
-    let Some(log) = latest_event_log else {
-        return Ok(None);
-    };
-
-    Ok(log.transaction_hash)
+    Ok(latest_tx_hash)
 }
 
 async fn get_batch_execution_status(
@@ -470,10 +462,7 @@ pub(crate) async fn notify_server(
     shell: &Shell,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let contracts = chain_config.get_contracts_config()?;
@@ -481,7 +470,7 @@ pub(crate) async fn notify_server(
     let calls = get_notify_server_calls(
         shell,
         &args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             l2_chain_id: chain_config.chain_id.as_u64(),
@@ -532,8 +521,9 @@ pub(crate) async fn extract_priority_ops(
     receipt: TransactionReceipt,
     expected_diamond_proxy: Address,
 ) -> anyhow::Result<Vec<H256>> {
-    let contract = zksync_contracts::hyperchain_contract();
-    let expected_topic_0 = contract.event("NewPriorityRequest").unwrap().signature();
+    let expected_topic_0: ethers::types::H256 = ethers::types::H256::from(keccak256(
+        b"NewPriorityRequest(uint256,bytes32,uint64,(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256[4],bytes,bytes,uint256[],bytes,bytes),bytes[])",
+    ));
 
     let priority_ops = receipt
         .logs

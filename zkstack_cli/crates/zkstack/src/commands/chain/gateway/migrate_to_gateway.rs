@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger,
 };
-use zkstack_cli_config::{EcosystemConfig, GatewayChainConfigPatch};
+use zkstack_cli_config::{GatewayChainConfigPatch, ZkStackConfig, ZkStackConfigTrait};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::U256;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
@@ -33,7 +33,7 @@ pub struct MigrateToGatewayArgs {
 }
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
@@ -75,7 +75,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
-        &chain_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         MigrateToGatewayParams {
             l1_rpc_url: l1_url.clone(),
             l1_bridgehub_addr: chain_contracts_config
@@ -130,7 +130,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
     let mut gateway_chain_config =
-        GatewayChainConfigPatch::empty(shell, chain_config.path_to_gateway_chain_config());
+        GatewayChainConfigPatch::empty(shell, &chain_config.path_to_gateway_chain_config());
     gateway_chain_config.init(
         &gateway_gateway_config,
         gw_bridgehub

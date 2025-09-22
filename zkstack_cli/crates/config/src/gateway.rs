@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use zksync_basic_types::{web3::Bytes, Address, SLChainId};
 use crate::{
     forge_interface::gateway_vote_preparation::output::DeployGatewayCTMOutput,
     raw::{PatchedConfig, RawConfig},
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
     GATEWAY_FILE,
 };
 
@@ -28,7 +28,7 @@ impl FileConfigWithDefaultName for GatewayConfig {
     const FILE_NAME: &'static str = GATEWAY_FILE;
 }
 
-impl ZkStackConfig for GatewayConfig {}
+impl FileConfigTrait for GatewayConfig {}
 
 impl From<DeployGatewayCTMOutput> for GatewayConfig {
     fn from(output: DeployGatewayCTMOutput) -> Self {
@@ -50,7 +50,7 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
 pub struct GatewayChainConfig(RawConfig);
 
 impl GatewayChainConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)
     }
 
@@ -70,7 +70,7 @@ impl GatewayChainConfig {
 pub struct GatewayChainConfigPatch(PatchedConfig);
 
 impl GatewayChainConfigPatch {
-    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
+    pub fn empty(shell: &Shell, path: &Path) -> Self {
         Self(PatchedConfig::empty(shell, path))
     }
 

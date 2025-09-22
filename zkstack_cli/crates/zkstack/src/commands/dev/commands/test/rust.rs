@@ -1,27 +1,22 @@
 use std::str::FromStr;
 
-use anyhow::Context;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::rust::RustArgs;
 use crate::commands::dev::{
     commands::test::db::reset_test_databases,
     dals::{Dal, CORE_DAL_PATH, PROVER_DAL_PATH},
     defaults::{TEST_DATABASE_PROVER_URL, TEST_DATABASE_SERVER_URL},
-    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST},
+    messages::{MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST},
 };
 
 pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem
-        .clone()
-        .load_chain(Some(ecosystem.default_chain))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain = ZkStackConfig::current_chain(shell)?;
     let general_config = chain.get_general_config().await;
-    let link_to_code = ecosystem.link_to_code;
+    let link_to_code = chain.link_to_code();
 
     let (test_server_url, test_prover_url) = if let Ok(general_config) = general_config {
         (
@@ -63,6 +58,8 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
         .env("TEST_DATABASE_URL", test_server_url)
         .env("TEST_PROVER_DATABASE_URL", test_prover_url);
     cmd.run()?;
+
+    drop(_dir_guard); // Exit the core directory
 
     // Run unit tests for ZK Stack CLI
     let _dir_guard = shell.push_dir(link_to_code.join("zkstack_cli"));

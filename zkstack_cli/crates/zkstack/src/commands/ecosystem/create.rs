@@ -3,7 +3,8 @@ use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
-    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 
 use crate::{
@@ -28,7 +29,7 @@ use crate::{
 };
 
 pub async fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    match EcosystemConfig::from_file(shell) {
+    match ZkStackConfig::ecosystem(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
@@ -55,7 +56,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let link_to_code = resolve_link_to_code(
         shell,
-        shell.current_dir(),
+        &shell.current_dir(),
         args.link_to_code.clone(),
         args.update_submodules,
     )?;
@@ -69,25 +70,25 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
     create_erc20_deployment_config(shell, &configs_path)?;
     create_apps_config(shell, &configs_path)?;
 
-    let ecosystem_config = EcosystemConfig {
-        name: ecosystem_name.clone(),
-        l1_network: args.l1_network,
-        link_to_code: link_to_code.clone(),
-        bellman_cuda_dir: None,
-        chains: chains_path.clone(),
-        config: configs_path,
-        era_chain_id: get_default_era_chain_id(),
-        default_chain: default_chain_name.clone(),
-        prover_version: chain_config.prover_version,
-        wallet_creation: args.wallet_creation,
-        shell: shell.clone().into(),
-    };
+    let ecosystem_config = EcosystemConfig::new(
+        ecosystem_name.clone(),
+        args.l1_network,
+        link_to_code,
+        None,
+        chains_path.clone(),
+        configs_path,
+        default_chain_name.clone(),
+        get_default_era_chain_id(),
+        chain_config.prover_version,
+        args.wallet_creation,
+        shell.clone().into(),
+    );
 
     // Use 0 id for ecosystem  wallets
     create_wallets(
         shell,
         &ecosystem_config.config,
-        &ecosystem_config.link_to_code,
+        &ecosystem_config.link_to_code(),
         0,
         args.wallet_creation,
         args.wallet_path,
@@ -101,7 +102,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
-        initialize_docker(shell, &ecosystem_config)?;
+        initialize_docker(shell, &ecosystem_config.link_to_code())?;
         start_containers(shell, false)?;
         spinner.finish();
     }

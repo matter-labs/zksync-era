@@ -4,9 +4,10 @@ use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::{Address, L2_BRIDGEHUB_ADDRESS};
 
-use super::utils::{display_admin_script_output, get_default_foundry_path};
+use super::utils::display_admin_script_output;
 use crate::{
     abi::BridgehubAbi,
     admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
@@ -33,14 +34,28 @@ pub struct SetDAValidatorPairCalldataArgs {
     pub explicit_settlement_layer_chain_id: Option<u64>,
 
     /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
+    #[clap(
+        long,
+        help = "Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)"
+    )]
     pub max_l1_gas_price: Option<u64>,
     /// The refund recipient for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
+    #[clap(
+        long,
+        help = "The refund recipient for L1->GW transaction (in case the chain is settling on top of ZK Gateway)"
+    )]
     pub refund_recipient: Option<Address>,
     /// The ZK Gateway RPC URL (only used in case the chain is settling on top of ZK Gateway)
+    #[clap(
+        long,
+        help = "The ZK Gateway RPC URL (only used in case the chain is settling on top of ZK Gateway)"
+    )]
     pub gw_rpc_url: Option<String>,
 }
 
 pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow::Result<()> {
+    let chain_config = zkstack_cli_config::ZkStackConfig::current_chain(shell)
+        .context("Failed to load the current chain configuration")?;
     let l1_provider = get_ethers_provider(&args.l1_rpc_url)?;
     let l1_bridgehub = BridgehubAbi::new(args.bridgehub_address, l1_provider.clone());
     let l1_chain_id = l1_provider.get_chainid().await?.as_u64();
@@ -68,7 +83,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         set_da_validator_pair(
             shell,
             &Default::default(),
-            &get_default_foundry_path(shell)?,
+            &chain_config.path_to_foundry_scripts(),
             AdminScriptMode::OnlySave,
             args.chain_id,
             args.bridgehub_address,
@@ -89,11 +104,12 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         if chain_diamond_proxy_on_gateway == Address::zero() {
             anyhow::bail!("The chain does not settle on GW yet, the address is known");
         }
+        let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
         let output = set_da_validator_pair_via_gateway(
             shell,
             &Default::default(),
-            &get_default_foundry_path(shell)?,
+            &contracts_foundry_path,
             AdminScriptMode::OnlySave,
             args.bridgehub_address,
             args.max_l1_gas_price

@@ -2,15 +2,16 @@ use std::path::{Path, PathBuf};
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::{init::InitContractVerifierArgs, releases::Version};
 use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};
 
 pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt(shell)?;
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let link_to_code = ecosystem.link_to_code;
+    // Todo allow to provide link to code as an argument
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
+    let link_to_code = ecosystem.link_to_code();
 
     download_binaries(
         shell,

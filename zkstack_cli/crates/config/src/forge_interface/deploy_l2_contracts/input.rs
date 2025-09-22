@@ -2,9 +2,9 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId, U256};
 
-use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig, DAValidatorType};
+use crate::{traits::FileConfigTrait, ChainConfig, ContractsConfig, DAValidatorType};
 
-impl ZkStackConfig for DeployL2ContractsInput {}
+impl FileConfigTrait for DeployL2ContractsInput {}
 
 /// Fields corresponding to `contracts/l1-contracts/deploy-script-config-template/config-deploy-l2-config.toml`
 /// which are read by `contracts/l1-contracts/deploy-scripts/DeployL2Contracts.sol`.
