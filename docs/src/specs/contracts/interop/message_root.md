@@ -119,9 +119,31 @@ It is the responsibility of the chain to ensure that each message has a unique i
 
 Another notable example of the redundancy of data, is that we also have total `MessageRoot` on L1, which contains the aggregated root of all chains, while for chains that settle on L1, we still store the `ChainBatchRoot` for the efficiency.
 
+<!-- The `sendToL1` method is part of a system contract that gathers all messages during a batch, constructs a Merkle tree
+from them at the end of the batch, and sends this tree to the SettlementLayer (Gateway) when the batch is committed.
+
+![sendtol1.png](./img/merkle_chain_root.png)
+
+The settlement layer receives the messages and once the proof for the batch is submitted (or more accurately, during the
+"execute" step), it will add the root of the Merkle tree to its `messageRoot` (sometimes called `globalRoot`).
+
+![globalroot.png](./img/merkle_message_root.png)
+
+The `messageRoot` is the root of the Merkle tree that includes all messages from all chains. Each chain regularly reads
+the messageRoot value from the Gateway to stay synchronized.
+
+![gateway.png](./img/gateway.png)
+
+If a user wants to call `verifyInteropMessage` on a chain, they first need to query the Gateway for the Merkle path from
+the batch they are interested in up to the `messageRoot`. Once they have this path, they can provide it as an argument
+when calling a method on the destination chain (such as the `openSignup` method in our example).
+
+![proofmerklepath.png](./img/gateway_chains.png)
+
 #### What if Chain doesn’t provide the proof
 
-If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on its settlement layer.
+If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
+interopMessage is also sent to L1.
 
 #### Message roots change frequently
 

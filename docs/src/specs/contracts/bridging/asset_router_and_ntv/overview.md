@@ -17,7 +17,13 @@ Custom asset bridging is a new bridging model that allows to:
 
 ### Normal flow
 
+Assets Handlers are registered in the Routers based on their assetId. The assetId is used to identify the asset when bridging, it is sent with the cross-chain transaction data and Router routes the data to the appropriate Handler. If the asset handler is not registered in the L2 Router, then the L1->L2 bridging transaction will fail on the L2 (expect for NTV assets, see below).
+
+Asset registration is handled by the AssetDeploymentTracker. It is expected that this contract is deployed on the L1. Registration of the assetHandler on a ZKChain can be permissionless depending on the Asset (e.g. the AssetHandler can be deployed on the chain at a predefined address, this can message the L1 ADT, which can then register the asset in the Router). Registering the L1 Handler in the L1 Router can be done via a direct function call from the L1 Deployment Tracker. Registration in the L2 Router is done indirectly via the L1 Router.
+
 #### Registering a custom asset
+
+`assetId = keccak256(chainId, asset deployment tracker = msg.sender, additionalData)`
 
 - AssetHandler Registration for New Tokens
   Before you can bridge a new token, you must register its AssetHandler in both routers. However, for NTV (Native Token Vault) assets this step isn’t required. If an L1→L2 transaction is submitted without a registered AssetHandler, it won’t fail—instead, the message is automatically forwarded to the L2NTV contract. The L2NTV then verifies that the asset was deployed by the L1NTV by checking that the `assetId` embeds the correct ADT address (for NTV assets, the ADT is the NTV and the relevant address is the L2NTV address). If the `assetId` is valid, the token contract is deployed on L2.
