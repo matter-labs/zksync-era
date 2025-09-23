@@ -1,11 +1,14 @@
 use zksync_config::configs::contracts::{
-    chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
+    chain::{ChainContracts, ZkChainOnChainConfig},
+    ecosystem::EcosystemCommonContracts,
+    SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{
     bridgehub_contract, getters_facet_contract, hyperchain_contract,
     state_transition_manager_contract,
 };
 use zksync_types::{
+    commitment::L2DACommitmentScheme,
     ethabi::{Contract, Token},
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
@@ -176,4 +179,34 @@ pub async fn is_settlement_layer(
     .call(eth_client)
     .await?;
     Ok(is_settlement_layer)
+}
+
+pub async fn get_zk_chain_on_chain_params(
+    eth_client: &dyn EthInterface,
+    diamond_proxy_addr: Address,
+) -> Result<ZkChainOnChainConfig, ContractCallError> {
+    let abi = getters_facet_contract();
+    let l2_da_commitment_scheme: Token = CallFunctionArgs::new("getDAValidatorPair", ())
+        .for_contract(diamond_proxy_addr, &abi)
+        .call(eth_client)
+        .await?;
+    let l2_da_commitment_scheme =
+        if let Token::Tuple(l2_da_commitment_scheme) = l2_da_commitment_scheme {
+            if let [Token::Address(_), Token::Uint(l2_da_commitment_scheme)] =
+                l2_da_commitment_scheme.as_slice()
+            {
+                Some(
+                    L2DACommitmentScheme::try_from(l2_da_commitment_scheme.as_u64() as u8)
+                        .expect("wrong l2_da_commitment_scheme"),
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+    Ok(ZkChainOnChainConfig {
+        l2_da_commitment_scheme,
+    })
 }

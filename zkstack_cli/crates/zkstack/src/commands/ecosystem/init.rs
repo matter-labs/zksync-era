@@ -12,7 +12,7 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
-    ContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::L1Network;
 
@@ -80,7 +80,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             shell,
             &erc20_deployment_config,
             &ecosystem_config,
-            &contracts_config,
+            &contracts_config.into(),
             final_ecosystem_args.forge_args.clone(),
             final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
@@ -113,60 +113,54 @@ async fn init_ecosystem(
     }
     spinner.finish();
 
-    let mut contracts = deploy_ecosystem(
-        shell,
-        &mut init_args.ecosystem,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        initial_deployment_config,
-        init_args.support_l2_legacy_shared_bridge_test,
-        init_args.deploy_ecosystem,
-    )
-    .await?;
-    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
+    let contracts = if !init_args.deploy_ecosystem {
+        return_ecosystem_contracts(shell, &mut init_args.ecosystem, ecosystem_config).await?
+    } else {
+        let core_contracts = deploy_ecosystem(
+            shell,
+            &mut init_args.ecosystem,
+            init_args.forge_args.clone(),
+            ecosystem_config,
+            initial_deployment_config,
+            init_args.support_l2_legacy_shared_bridge_test,
+        )
+        .await?;
+        core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-    contracts = deploy_new_ctm(
-        shell,
-        &mut init_args.ecosystem,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        initial_deployment_config,
-        init_args.support_l2_legacy_shared_bridge_test,
-        init_args.bridgehub_address,
-        init_args.zksync_os,
-    )
-    .await?;
-    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
+        let contracts = deploy_new_ctm(
+            shell,
+            &mut init_args.ecosystem,
+            init_args.forge_args.clone(),
+            ecosystem_config,
+            initial_deployment_config,
+            init_args.support_l2_legacy_shared_bridge_test,
+            core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
+            init_args.zksync_os,
+            true,
+        )
+        .await?;
 
-    let forge_args = init_args.forge_args.clone();
+        contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-    let mut reg_args = RegisterCTMArgsFinal::from((*init_args).clone());
-    register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
+        let forge_args = init_args.forge_args.clone();
+        let mut reg_args = RegisterCTMArgsFinal::from_init_args(
+            (*init_args).clone(),
+            contracts.ecosystem_contracts.bridgehub_proxy_addr,
+            contracts.ecosystem_contracts.state_transition_proxy_addr,
+        );
+        register_ctm(&mut reg_args, shell, forge_args, ecosystem_config, false).await?;
+
+        contracts
+    };
 
     Ok(contracts)
 }
 
-async fn deploy_ecosystem(
+async fn return_ecosystem_contracts(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
-    forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    support_l2_legacy_shared_bridge_test: bool,
-    deploy_ecosystem: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    if deploy_ecosystem {
-        return deploy_ecosystem_inner(
-            shell,
-            forge_args,
-            ecosystem_config,
-            initial_deployment_config,
-            ecosystem.l1_rpc_url.clone(),
-            support_l2_legacy_shared_bridge_test,
-        )
-        .await;
-    }
-
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
         Some(path) => Some(path.clone()),
         None => {
@@ -218,21 +212,21 @@ async fn deploy_ecosystem(
     ContractsConfig::read(shell, ecosystem_contracts_path)
 }
 
-async fn deploy_ecosystem_inner(
+async fn deploy_ecosystem(
     shell: &Shell,
+    ecosystem: &mut EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
+    ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
-    l1_rpc_url: String,
     support_l2_legacy_shared_bridge_test: bool,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
         shell,
         &forge_args,
-        config,
+        ecosystem_config,
         initial_deployment_config,
-        &l1_rpc_url,
+        &ecosystem.l1_rpc_url.clone(),
         None,
         true,
         support_l2_legacy_shared_bridge_test,
@@ -242,22 +236,26 @@ async fn deploy_ecosystem_inner(
 
     accept_owner(
         shell,
-        config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        &ecosystem_config.get_wallets()?.governor,
+        contracts_config
+            .core_ecosystem_contracts
+            .bridgehub_proxy_addr,
         &forge_args,
-        l1_rpc_url.clone(),
+        ecosystem.l1_rpc_url.clone(),
     )
     .await?;
     accept_admin(
         shell,
-        config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
-        &config.get_wallets()?.governor,
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        &ecosystem_config.get_wallets()?.governor,
+        contracts_config
+            .core_ecosystem_contracts
+            .bridgehub_proxy_addr,
         &forge_args,
-        l1_rpc_url.clone(),
+        ecosystem.l1_rpc_url.clone(),
     )
     .await?;
 
@@ -265,26 +263,26 @@ async fn deploy_ecosystem_inner(
     // need to accept it
     accept_owner(
         shell,
-        config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
         &forge_args,
-        l1_rpc_url.clone(),
+        ecosystem.l1_rpc_url.clone(),
     )
     .await?;
 
     accept_owner(
         shell,
-        config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
-        &config.get_wallets()?.governor,
+        &ecosystem_config.get_wallets()?.governor,
         contracts_config
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .stm_deployment_tracker_proxy_addr
             .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
-        l1_rpc_url,
+        ecosystem.l1_rpc_url.clone(),
     )
     .await?;
 

@@ -18,7 +18,7 @@ abigen!(
 abigen!(
     ZkChainAbi,
     r"[
-    function getDAValidatorPair()(address,address)
+    function getDAValidatorPair()(address,uint8)
     function getAdmin()(address)
     function getProtocolVersion()(uint256)
     function getTotalBatchesCommitted()(uint256)

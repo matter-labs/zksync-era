@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit,\n                logs_bloom,\n                l2_da_validator_address,\n                pubdata_type,\n                rolling_txs_hash\n            FROM\n                miniblocks\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit,\n                logs_bloom,\n                l2_da_validator_address,\n                l2_da_commitment_scheme,\n                pubdata_type,\n                rolling_txs_hash\n            FROM\n                miniblocks\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -100,11 +100,16 @@
       },
       {
         "ordinal": 19,
+        "name": "l2_da_commitment_scheme",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
         "name": "pubdata_type",
         "type_info": "Text"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "rolling_txs_hash",
         "type_info": "Bytea"
       }
@@ -131,10 +136,11 @@
       true,
       true,
       true,
-      false,
+      true,
+      true,
       false,
       true
     ]
   },
-  "hash": "9c909e9e814a8141c4a2f9548ba7487f125d538b092bae8fd8013be3f8dc8f44"
+  "hash": "03098c49c4095306306e3389bdce37b570bcd59178836c49bee915d78f4e5d0a"
 }

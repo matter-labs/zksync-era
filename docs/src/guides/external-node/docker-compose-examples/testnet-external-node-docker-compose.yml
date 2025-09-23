@@ -52,7 +52,7 @@ services:
   # Generation of consensus secrets.
   # The secrets are generated iff the secrets file doesn't already exist.
   generate-secrets:
-    image: "matterlabs/external-node:2.0-v28.2.1"
+    image: "matterlabs/external-node:v29.1.2"
     entrypoint:
       [
       "/configs/generate_secrets.sh",
@@ -61,7 +61,7 @@ services:
     volumes:
       - ./configs:/configs
   external-node:
-    image: "matterlabs/external-node:2.0-v28.2.1"
+    image: "matterlabs/external-node:v29.1.2"
     entrypoint:
       [
       "/usr/bin/entrypoint.sh",
@@ -94,6 +94,7 @@ services:
       EN_PROMETHEUS_PORT: 3322
       EN_ETH_CLIENT_URL: https://ethereum-sepolia-rpc.publicnode.com
       EN_MAIN_NODE_URL: https://sepolia.era.zksync.dev
+      EN_GATEWAY_URL: https://rpc.era-gateway-testnet.zksync.dev
       EN_L1_CHAIN_ID: 11155111
       EN_L2_CHAIN_ID: 300
       EN_PRUNING_ENABLED: true

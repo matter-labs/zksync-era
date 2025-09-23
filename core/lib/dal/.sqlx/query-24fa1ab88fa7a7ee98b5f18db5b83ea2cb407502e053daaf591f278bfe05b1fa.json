@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                commitment AS \"commitment!\"\n            FROM\n                l1_batches\n            WHERE\n                number = $1 AND commitment IS NOT NULL\n            ORDER BY\n                number\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "commitment!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "24fa1ab88fa7a7ee98b5f18db5b83ea2cb407502e053daaf591f278bfe05b1fa"
+}
