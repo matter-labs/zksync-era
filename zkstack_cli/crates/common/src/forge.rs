@@ -9,7 +9,7 @@ use ethers::{
     middleware::Middleware,
     prelude::{LocalWallet, Signer},
     types::{Address, H256, U256},
-    utils::{hex, hex::ToHex},
+    utils::{hex, hex::ToHexExt},
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
