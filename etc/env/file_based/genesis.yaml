@@ -1,4 +1,4 @@
-genesis_protocol_semantic_version: 0.29.1
+genesis_protocol_semantic_version: 0.29.2
 genesis_protocol_version: null
 genesis_root: 0x934d46a331e4c617767cade322bc4d262899c0dc5568d2019d4e11301c0cc032
 genesis_rollup_leaf_index: 84
@@ -11,7 +11,7 @@ l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 l1_batch_commit_data_generator_mode: Rollup
 prover:
-  snark_wrapper_vk_hash: 0x64b347c642ea60114c98b3976124ea8a7e0bb778bd7e479aedc02f994486c8a1
-  fflonk_snark_wrapper_vk_hash: 0x6f36a08c517b060fa97308cdb3e23b04842ff839d451a753ec8fae1a5408304a
+  snark_wrapper_vk_hash: 0x1ffc56111a5cfaf5db387f6a31408ad20217e9bc1f31f2f5c1bd38b0d6d7968b
+  fflonk_snark_wrapper_vk_hash: 0x49eae0bf5c7ea580f4979b366e52b386adc5f42e2ce50fc1d3c4de9a86052bff
   dummy_verifier: true
 custom_genesis_state_path: null
