@@ -67,22 +67,22 @@ url = "2.5.2"
 vise = "0.3.2"
 smart-config = "=0.2.0-pre"
 
-circuit_definitions = "=0.152.4"
-circuit_sequencer_api = "=0.152.4"
-zkevm_test_harness = "=0.152.4"
+circuit_definitions = "=0.153.1"
+circuit_sequencer_api = "=0.153.1"
+zkevm_test_harness = "=0.153.1"
 
-fflonk = "=0.32.1"
-franklin-crypto = "=0.32.1"
+fflonk = "=0.32.3"
+franklin-crypto = "=0.32.3"
 
 # GPU proving dependencies
 
-proof-compression-gpu = { package = "proof-compression", version = "=0.154.5" }
+proof-compression-gpu = { package = "proof-compression", version = "=0.155.1" }
 
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.5" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.5" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.1" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.1" }
 
-shivini = "=0.154.5"
-boojum-cuda = "=0.154.5"
+shivini = "=0.155.1"
+boojum-cuda = "=0.155.1"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }

@@ -9,8 +9,8 @@ l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 prover:
   dummy_verifier: true
-  snark_wrapper_vk_hash: 0x64b347c642ea60114c98b3976124ea8a7e0bb778bd7e479aedc02f994486c8a1
-  fflonk_snark_wrapper_vk_hash: 0x6f36a08c517b060fa97308cdb3e23b04842ff839d451a753ec8fae1a5408304a
-genesis_protocol_semantic_version: 0.28.1
+  snark_wrapper_vk_hash: 0x1ffc56111a5cfaf5db387f6a31408ad20217e9bc1f31f2f5c1bd38b0d6d7968b
+  fflonk_snark_wrapper_vk_hash: 0x49eae0bf5c7ea580f4979b366e52b386adc5f42e2ce50fc1d3c4de9a86052bff
+genesis_protocol_semantic_version: 0.28.2
 evm_emulator_hash: 0x01000d83e0329d9144ad041430fafcbc2b388e5434db8cb8a96e80157738a1da
 l1_batch_commit_data_generator_mode: Rollup
