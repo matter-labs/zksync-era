@@ -83,11 +83,6 @@ fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.1" }
 wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.1" }
 shivini = "=0.155.1"
 boojum-cuda = "=0.155.1"
-# proof-compression-gpu = { package = "proof-compression", path = "../../zksync-crypto-gpu/crates/proof-compression" }
-# fflonk-gpu = { package = "fflonk-cuda", path = "../../zksync-crypto-gpu/crates/fflonk" }
-# wrapper_prover = { package = "zksync-wrapper-prover", path = "../zksync-crypto-gpu/crates/wrapper-prover" }
-# shivini = { path = "../../zksync-crypto-gpu/crates/shivini" }
-# boojum-cuda = { path = "../zksync-crypto-gpu/crates/boojum-cuda" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
