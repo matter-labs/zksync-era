@@ -36,7 +36,7 @@ zksync_consensus_crypto = "=0.13"
 
 # External dependencies
 anyhow = "1.0.82"
-alloy = "1.0.0"
+alloy = "1.0"
 clap = { version = "4.4", features = ["derive", "wrap_help", "string"] }
 clap_complete = "4.5.33"
 dirs = "5.0.1"
