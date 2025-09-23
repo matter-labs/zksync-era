@@ -4569,32 +4569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "outage_test"
-version = "22.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap 4.5.37",
- "ctrlc",
- "shivini",
- "tokio",
- "tokio-util",
- "tracing",
- "vise",
- "zksync_basic_types",
- "zksync_circuit_prover_service",
- "zksync_config",
- "zksync_object_store",
- "zksync_prover_dal",
- "zksync_prover_fri_types",
- "zksync_prover_job_processor",
- "zksync_prover_keystore",
- "zksync_task_management",
- "zksync_types",
- "zksync_vlog",
-]
-
-[[package]]
 name = "outref"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
