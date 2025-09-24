@@ -93,9 +93,9 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .await
                 .map_err(EventProcessorError::client)?;
 
-            // TODO remove unwrap
             let latest_protocol_version =
-                ProtocolSemanticVersion::try_from_packed(h256_to_u256(version)).unwrap();
+                ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
+                    .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
             if diamond_cuts.is_empty() {
                 return Err(EventProcessorError::internal(anyhow::anyhow!(
                     "No diamond cuts found for protocol version {latest_protocol_version}"
@@ -117,9 +117,11 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     .map_err(EventProcessorError::internal)?
                 };
 
-                if upgrade.version > latest_protocol_version {
-                    continue;
-                }
+                dbg!(&upgrade.version);
+                dbg!(&latest_protocol_version);
+                // if upgrade.version > latest_protocol_version {
+                //     continue;
+                // }
 
                 // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {

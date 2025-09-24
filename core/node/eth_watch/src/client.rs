@@ -456,15 +456,21 @@ where
             return Ok(vec![]);
         };
 
+        let to_block = self.client.block_number().await?;
+
         let from_block = self
             .block_for_diamond_cut_for_version(u256_to_h256(from_version.pack()))
             .await?
             .ok_or(EnrichedClientError::custom(
                 format!("No diamond cut found for version {from_version}"),
                 "diamond_cuts_since_version",
-            ))?
+            ))
+            .map_err(|e| {
+                tracing::error!("{e}");
+                e
+            })
+            .unwrap_or(to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into()))
             + 1;
-        let to_block = self.client.block_number().await?;
 
         let logs = self
             .get_events_inner(
