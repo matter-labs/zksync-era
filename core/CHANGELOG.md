@@ -1,5 +1,17 @@
 # Changelog
 
+## [29.4.0](https://github.com/matter-labs/zksync-era/compare/core-v29.3.0...core-v29.4.0) (2025-09-24)
+
+
+### Features
+
+* Bump dependencies ([#4495](https://github.com/matter-labs/zksync-era/issues/4495)) ([c27fe90](https://github.com/matter-labs/zksync-era/commit/c27fe90c5f6eab98ab2c1349e9f1017ad62a75d6))
+
+
+### Bug Fixes
+
+* **upgrades:** Read all skipped events  ([#4504](https://github.com/matter-labs/zksync-era/issues/4504)) ([1de5f63](https://github.com/matter-labs/zksync-era/commit/1de5f63633bf60e0da802d15ae8133b2effc5260))
+
 ## [29.3.0](https://github.com/matter-labs/zksync-era/compare/core-v29.2.0...core-v29.3.0) (2025-09-18)
 
 
