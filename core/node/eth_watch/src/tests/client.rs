@@ -1,12 +1,10 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
-use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 use tokio::sync::RwLock;
 use zksync_contracts::{
     chain_admin_contract, hyperchain_contract, state_transition_manager_contract,
 };
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
-use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
@@ -14,12 +12,15 @@ use zksync_types::{
     ethabi::{self, Token},
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolSemanticVersion,
     u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction,
     H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
+
+use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {

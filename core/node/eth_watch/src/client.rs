@@ -11,11 +11,11 @@ use zksync_eth_client::{
     EthInterface,
 };
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
     ethabi::{decode, Contract, ParamType},
+    protocol_version::ProtocolSemanticVersion,
     u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
@@ -313,10 +313,7 @@ where
             )
             .await?;
 
-        Ok(logs
-            .into_iter()
-            .next()
-            .and_then(|log| log.block_number))
+        Ok(logs.into_iter().next().and_then(|log| log.block_number))
     }
 }
 
