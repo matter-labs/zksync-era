@@ -70,7 +70,10 @@ impl FakeEthClientData {
             self.upgrade_timestamp
                 .entry(*eth_block)
                 .or_default()
-                .push(upgrade_timestamp_log(*eth_block));
+                .push(upgrade_timestamp_log(
+                    u256_to_h256(upgrade.version.pack()),
+                    *eth_block,
+                ));
             self.diamond_upgrades
                 .entry(*eth_block)
                 .or_default()
@@ -501,7 +504,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         block_timestamp: None,
     }
 }
-fn upgrade_timestamp_log(eth_block: u64) -> Log {
+fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
     let final_data = ethabi::encode(&[U256::from(12345).into_token()]);
 
     Log {
@@ -511,7 +514,7 @@ fn upgrade_timestamp_log(eth_block: u64) -> Log {
                 .event("UpdateUpgradeTimestamp")
                 .expect("UpdateUpgradeTimestamp event is missing in ABI")
                 .signature(),
-            H256::from_low_u64_be(eth_block),
+            packed_version,
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),

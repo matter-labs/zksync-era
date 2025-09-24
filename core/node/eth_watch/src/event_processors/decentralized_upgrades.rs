@@ -117,11 +117,9 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     .map_err(EventProcessorError::internal)?
                 };
 
-                dbg!(&upgrade.version);
-                dbg!(&latest_protocol_version);
-                // if upgrade.version > latest_protocol_version {
-                //     continue;
-                // }
+                if upgrade.version > latest_protocol_version {
+                    continue;
+                }
 
                 // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
