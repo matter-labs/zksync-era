@@ -3,8 +3,9 @@ name: CI
 on:
   pull_request:
   merge_group:
-  branches:
-    - evl-update-dependencies-prover-23-1-0
+  push:
+    branches:
+      - evl-update-dependencies-prover-23-1-0
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
