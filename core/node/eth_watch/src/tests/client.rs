@@ -1,10 +1,12 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
+use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 use tokio::sync::RwLock;
 use zksync_contracts::{
     chain_admin_contract, hyperchain_contract, state_transition_manager_contract,
 };
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
+use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
@@ -18,8 +20,6 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction,
     H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
-
-use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -258,10 +258,11 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
-    async fn diamond_cut_by_version(
+    async fn diamond_cuts_since_version(
         &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        _since_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Vec<Vec<u8>>> {
+        // TODO find the first block with version > since_version
         let from_block = *self
             .inner
             .read()
@@ -289,12 +290,12 @@ impl EthClient for MockEthClient {
                         .unwrap()
                         .signature(),
                 ),
-                Some(packed_version),
+                None,
                 RETRY_LIMIT,
             )
             .await?;
 
-        Ok(logs.into_iter().next().map(|log| log.data.0))
+        Ok(logs.into_iter().map(|log| log.data.0).collect())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
