@@ -10,6 +10,7 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     bytecode::BytecodeHash,
     ethabi::{self, Token},
+    h256_to_u256,
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolSemanticVersion,
@@ -264,17 +265,23 @@ impl EthClient for MockEthClient {
 
     async fn diamond_cuts_since_version(
         &self,
-        _since_version: ProtocolSemanticVersion,
+        since_version: ProtocolSemanticVersion,
     ) -> EnrichedClientResult<Vec<Vec<u8>>> {
-        // TODO find the first block with version > since_version
-        let from_block = *self
+        let from_block = self
             .inner
             .read()
             .await
             .diamond_upgrades
-            .keys()
-            .min()
-            .unwrap_or(&0);
+            .values()
+            .find_map(|logs| {
+                logs.iter().find_map(|log| {
+                    let version = log.topics.get(1)?;
+                    let version =
+                        ProtocolSemanticVersion::try_from_packed(h256_to_u256(*version)).ok()?;
+                    (version > since_version).then_some(log.block_number?.as_u64())
+                })
+            })
+            .unwrap_or(0);
         let to_block = *self
             .inner
             .read()
@@ -475,6 +482,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     //     address initAddress;
     //     bytes initCalldata;
     // }
+    let version = u256_to_h256(upgrade.version.pack());
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Address::zero()),
@@ -489,7 +497,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
                 .event("NewUpgradeCutData")
                 .unwrap()
                 .signature(),
-            H256::from_low_u64_be(eth_block),
+            version,
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
