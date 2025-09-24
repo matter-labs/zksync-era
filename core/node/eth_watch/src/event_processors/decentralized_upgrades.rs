@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
+use itertools::Itertools;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
@@ -153,6 +154,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             .values()
             .cloned()
             .skip_while(|(v, _, _)| v.version <= self.last_seen_protocol_version)
+            .sorted_by(|(a, _, _), (b, _, _)| a.version.cmp(&b.version))
             .collect();
 
         let Some((last_upgrade, _, _)) = new_upgrades.last() else {

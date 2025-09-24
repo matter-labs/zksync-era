@@ -56,7 +56,9 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError>;
-    /// Returns upgrade diamond cut by packed protocol version.
+
+    /// Returns upgrade diamond cuts since the protocol version.
+    /// It will include all potentially skipped versions
     async fn diamond_cuts_since_version(
         &self,
         version: ProtocolSemanticVersion,

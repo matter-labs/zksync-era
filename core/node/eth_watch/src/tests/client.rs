@@ -273,7 +273,7 @@ impl EthClient for MockEthClient {
             .await
             .diamond_upgrades
             .values()
-            .find_map(|logs| {
+            .map(|logs| {
                 logs.iter().find_map(|log| {
                     let version = log.topics.get(1)?;
                     let version =
@@ -281,6 +281,8 @@ impl EthClient for MockEthClient {
                     (version > since_version).then_some(log.block_number?.as_u64())
                 })
             })
+            .min()
+            .flatten()
             .unwrap_or(0);
         let to_block = *self
             .inner
@@ -488,7 +490,6 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         Token::Address(Address::zero()),
         Token::Bytes(init_calldata(upgrade.clone())),
     ])]);
-    tracing::info!("{:?}", Token::Bytes(init_calldata(upgrade)));
 
     Log {
         address: Address::repeat_byte(0x1),
