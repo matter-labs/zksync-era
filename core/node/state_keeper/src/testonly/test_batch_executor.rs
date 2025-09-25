@@ -288,7 +288,7 @@ impl TestScenario {
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
     pub(crate) async fn run_panic(self, sealer: Arc<dyn ConditionalSealer>, message: &str) {
         let join_error = self.run(sealer).await.expect_err("Not paniced");
-        let panic_message = join_error.into_panic().downcast::<&'static str>().unwrap();
+        let panic_message = join_error.into_panic().downcast::<String>().unwrap();
         assert!(panic_message.contains(message), "Different panic message");
     }
 }
@@ -817,7 +817,7 @@ impl StateKeeperIO for TestIO {
             operator_address: self.fee_account,
             fee_input: self.fee_input,
             first_l2_block: L2BlockParams::new(self.timestamp * 1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
         };
         self.l2_block_number += 1;

@@ -18,6 +18,7 @@ use zksync_multivm::{
 use zksync_node_test_utils::{create_l2_transaction, default_l1_batch_env, default_system_env};
 use zksync_types::{
     block::{L2BlockExecutionData, L2BlockHasher},
+    commitment::PubdataParams,
     u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
     Transaction, H256, U256,
@@ -62,7 +63,7 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
             default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
         },
-        pubdata_params: Default::default(),
+        pubdata_params: PubdataParams::genesis(),
         pubdata_limit: Some(100_000),
         pending_l2_blocks,
     }
@@ -76,7 +77,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
         &BatchInitParams {
             l1_batch_env,
             system_env: default_system_env(),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
             timestamp_ms,
         },
@@ -240,7 +241,7 @@ async fn panic_sealer_panic_scenario() {
         .batch_sealed("Batch 1")
         .run_panic(
             Arc::new(sealer),
-            "Transaction should have been excluded, but was sequenced",
+            "should have been excluded, but was sequenced due to sealer test_slots",
         )
         .await;
 }

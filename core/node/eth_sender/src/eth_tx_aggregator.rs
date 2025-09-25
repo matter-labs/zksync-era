@@ -19,7 +19,7 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxFinalityStatus, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
@@ -45,8 +45,9 @@ use crate::{
 
 #[derive(Debug)]
 pub struct DAValidatorPair {
-    l1_validator: Address,
-    l2_validator: Address,
+    pub l1_validator: Address,
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
+    pub l2_validator: Option<Address>,
 }
 
 /// Data queried from L1 using multicall contract.
@@ -446,6 +447,7 @@ impl EthTxAggregator {
             let da_validator_pair = Self::parse_da_validator_pair(
                 call_results_iterator.next().unwrap(),
                 "contract DA validator pair",
+                chain_protocol_version_id,
             )?;
 
             let execution_delay = Self::parse_execution_delay(
@@ -528,6 +530,7 @@ impl EthTxAggregator {
     fn parse_da_validator_pair(
         data: Token,
         name: &'static str,
+        protocol_version_id: ProtocolVersionId,
     ) -> Result<DAValidatorPair, EthSenderError> {
         // In the first word of the output, the L1 DA validator is present
         const L1_DA_VALIDATOR_OFFSET: usize = 12;
@@ -544,11 +547,34 @@ impl EthTxAggregator {
             )));
         }
 
-        let pair = DAValidatorPair {
-            l1_validator: Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]),
-            l2_validator: Address::from_slice(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]),
-        };
+        let l1_validator = Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]);
 
+        let pair = if protocol_version_id.is_pre_medium_interop() {
+            DAValidatorPair {
+                l1_validator,
+                l2_validator: Some(Address::from_slice(
+                    &multicall_data[L2_DA_VALIDATOR_OFFSET..64],
+                )),
+                l2_da_commitment_scheme: None,
+            }
+        } else {
+            DAValidatorPair {
+                l1_validator,
+                l2_da_commitment_scheme: Some(
+                    L2DACommitmentScheme::try_from(
+                        U256::from_big_endian(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]).as_u64()
+                            as u8,
+                    )
+                    .map_err(|_| {
+                        EthSenderError::Parse(Web3ContractError::InvalidOutputType(format!(
+                            "Invalid L2DACommitmentScheme value in {name}: {:?}",
+                            multicall_data
+                        )))
+                    })?,
+                ),
+                l2_validator: None,
+            }
+        };
         Ok(pair)
     }
 
@@ -722,10 +748,19 @@ impl EthTxAggregator {
             precommit_restriction: commit_restriction,
         };
 
-        // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
-        // send new commit transactions before the da validator pair is updated
-        if da_validator_pair.l1_validator == Address::zero()
-            || da_validator_pair.l2_validator == Address::zero()
+        // // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
+        // // send new commit transactions before the da validator pair is updated
+
+        if chain_protocol_version_id.is_pre_medium_interop() {
+            if da_validator_pair.l1_validator == Address::zero()
+                || da_validator_pair.l2_validator == Some(Address::zero())
+            {
+                let reason = Some("DA validator pair is not set on the settlement layer");
+                op_restrictions.commit_restriction = reason;
+                // We only disable commit operations, the rest are allowed
+            }
+        } else if da_validator_pair.l1_validator == Address::zero()
+            || da_validator_pair.l2_da_commitment_scheme == Some(L2DACommitmentScheme::None)
         {
             let reason = Some("DA validator pair is not set on the settlement layer");
             op_restrictions.commit_restriction = reason;
@@ -1005,7 +1040,7 @@ impl EthTxAggregator {
                             && chain_protocol_version_id.is_pre_gateway()
                         {
                             &self.functions.post_shared_bridge_execute
-                        } else if protocol_version.is_pre_interop_fast_blocks() {
+                        } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
                         } else {
                             &self.functions.post_v29_interop_execute

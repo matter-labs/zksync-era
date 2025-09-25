@@ -19,6 +19,7 @@ use zksync_types::{
     block::L1BatchHeader,
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
+        L2DACommitmentScheme,
     },
     eth_sender::EthTxFinalityStatus,
     ethabi::{self, Token},
@@ -57,7 +58,10 @@ const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Validium,
 ];
 
-pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
+pub(crate) fn mock_multicall_response(
+    call: &web3::CallRequest,
+    protocol_version_id: ProtocolVersionId,
+) -> Token {
     let functions = ZkSyncFunctions::default();
     let evm_emulator_getter_signature = functions
         .get_evm_emulator_bytecode_hash
@@ -129,9 +133,7 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
             }
             selector if selector == functions.get_protocol_version.short_signature() => {
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec()
+                H256::from_low_u64_be(protocol_version_id as u64).0.to_vec()
             }
             selector if selector == validator_timelock_short_selector => {
                 assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
@@ -139,15 +141,25 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
             }
             selector if selector == prototol_version_short_selector => {
                 assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec()
+                H256::from_low_u64_be(protocol_version_id as u64).0.to_vec()
             }
             selector if selector == get_da_validator_pair_selector => {
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 let non_zero_address = vec![6u8; 32];
 
-                [non_zero_address.clone(), non_zero_address].concat()
+                if protocol_version_id.is_pre_medium_interop() {
+                    [non_zero_address.clone(), non_zero_address].concat()
+                } else {
+                    [
+                        non_zero_address.clone(),
+                        H256::from_low_u64_be(
+                            L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64,
+                        )
+                        .0
+                        .to_vec(),
+                    ]
+                    .concat()
+                }
             }
             selector if selector == execution_delay_selector => {
                 // The target is config_timelock_contract_address which is a random address in tests
@@ -859,7 +871,18 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             ),
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                [
+                    vec![7u8; 32],
+                    H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
+                        .0
+                        .to_vec(),
+                ]
+                .concat(),
+            ),
+        ]),
         // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
         Token::Tuple(vec![
             Token::Bool(true),
@@ -980,13 +1003,14 @@ async fn parsing_multicall_data_errors() {
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
 async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
-    let mut tester = EthSenderTester::new(
+    let mut tester = EthSenderTester::new_with_protocol_version(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         true,
         commitment_mode,
         SettlementLayer::L1(10.into()),
+        ProtocolVersionId::Version28,
     )
     .await;
 
@@ -1001,6 +1025,36 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
     );
     assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
+    assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::Version28);
+    assert!(data.da_validator_pair.l2_validator.is_some());
+
+    let commitment_mode = L1BatchCommitmentMode::Rollup;
+    let mut tester = EthSenderTester::new_with_protocol_version(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        commitment_mode,
+        SettlementLayer::L1(10.into()),
+        ProtocolVersionId::default(),
+    )
+    .await;
+
+    let data = tester.aggregator.get_multicall_data().await.unwrap();
+    assert_eq!(
+        data.base_system_contracts_hashes.bootloader,
+        H256::repeat_byte(1)
+    );
+    assert_eq!(
+        data.base_system_contracts_hashes.default_aa,
+        H256::repeat_byte(2)
+    );
+    assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
+    assert_eq!(data.verifier_address, Address::repeat_byte(5));
+    assert_eq!(
+        data.da_validator_pair.l2_da_commitment_scheme.unwrap(),
+        L2DACommitmentScheme::BlobsAndPubdataKeccak256
+    );
     assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::latest());
 }
 

@@ -592,7 +592,7 @@ mod tests {
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_data: false,
-            pubdata_params: PubdataParams::default(),
+            pubdata_params: PubdataParams::genesis(),
             insert_header: false, // Doesn't matter for this test.
             rolling_txs_hash: Default::default(),
         };

@@ -18,7 +18,7 @@ use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_types::{
     block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     bytecode::BytecodeHash,
-    commitment::{CommitmentInput, L1BatchCommitment},
+    commitment::{CommitmentInput, L1BatchCommitment, PubdataParams},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
@@ -74,6 +74,8 @@ pub enum GenesisError {
     Other(#[from] anyhow::Error),
     #[error("Field: {0} required for genesis")]
     MalformedConfig(&'static str),
+    #[error("Commitment validation error: {0}")]
+    CommitmentValidation(#[from] zksync_types::commitment::CommitmentValidationError),
 }
 
 #[derive(Debug, Clone)]
@@ -191,7 +193,7 @@ pub fn make_genesis_batch_params(
     deduped_log_queries: Vec<LogQuery>,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
-) -> (GenesisBatchParams, L1BatchCommitment) {
+) -> Result<(GenesisBatchParams, L1BatchCommitment), GenesisError> {
     let storage_logs = deduped_log_queries
         .into_iter()
         .filter(|log_query| log_query.rw_flag) // only writes
@@ -216,17 +218,17 @@ pub fn make_genesis_batch_params(
         base_system_contract_hashes,
         protocol_version,
     );
-    let block_commitment = L1BatchCommitment::new(commitment_input);
-    let commitment = block_commitment.hash().commitment;
+    let block_commitment = L1BatchCommitment::new(commitment_input, true)?;
+    let commitment = block_commitment.hash()?.commitment;
 
-    (
+    Ok((
         GenesisBatchParams {
             root_hash,
             commitment,
             rollup_last_leaf_index,
         },
         block_commitment,
-    )
+    ))
 }
 
 pub async fn insert_genesis_batch_with_custom_state(
@@ -297,7 +299,7 @@ pub async fn insert_genesis_batch_with_custom_state(
         deduped_log_queries,
         base_system_contract_hashes,
         genesis_params.minor_protocol_version(),
-    );
+    )?;
 
     save_genesis_l1_batch_metadata(
         &mut transaction,
@@ -503,7 +505,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
-        pubdata_params: Default::default(),
+        pubdata_params: PubdataParams::genesis(),
         rolling_txs_hash: Some(H256::zero()),
     };
 

@@ -9,6 +9,7 @@ use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
 use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait};
+use zksync_basic_types::commitment::L2DACommitmentScheme;
 
 use super::{
     gateway_common::{
@@ -103,7 +104,10 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 }
 
                 let zk_chain = ZkChainAbi::new(zk_chain_address, l1_provider);
-                let (l1_da_validator, l2_da_validator) = zk_chain.get_da_validator_pair().await?;
+                let (l1_da_validator, l2_da_validator_commitment_scheme) =
+                    zk_chain.get_da_validator_pair().await?;
+                let l2_da_validator_commitment_scheme =
+                    L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme).unwrap();
 
                 // We always output the original message, but we provide additional helper log in case
                 // the DA validator is not yet set
@@ -113,7 +117,9 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 );
                 logger::info(&basic_message);
 
-                if l1_da_validator == Address::zero() || l2_da_validator == Address::zero() {
+                if l1_da_validator == Address::zero()
+                    || l2_da_validator_commitment_scheme == L2DACommitmentScheme::None
+                {
                     logger::warn("The DA validators are not yet set on the diamond proxy.");
                     logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
                 }

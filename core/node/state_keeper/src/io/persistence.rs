@@ -438,8 +438,8 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::{default_l1_batch_env, default_system_env};
     use zksync_types::{
-        api::TransactionStatus, h256_to_u256, writes::StateDiffRecord, L1BatchNumber,
-        L2BlockNumber, StorageLogKind, H256, U256,
+        api::TransactionStatus, commitment::PubdataParams, h256_to_u256, writes::StateDiffRecord,
+        L1BatchNumber, L2BlockNumber, StorageLogKind, H256, U256,
     };
 
     use super::*;
@@ -549,7 +549,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 pubdata_limit,
                 timestamp_ms,
             },
@@ -791,7 +791,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 timestamp_ms,
                 pubdata_limit,
             },

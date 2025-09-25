@@ -74,7 +74,7 @@ use zksync_state_keeper::node::{
 };
 use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataType},
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme, PubdataType},
     pubdata_da::PubdataSendingMode,
     Address, L2ChainId,
 };
@@ -126,6 +126,37 @@ impl MainNodeBuilder {
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
+        }
+    }
+
+    pub fn l2_da_commitment_scheme(&self) -> L2DACommitmentScheme {
+        let use_dummy_inclusion_data = self
+            .configs
+            .da_dispatcher_config
+            .as_ref()
+            .map(|a| a.use_dummy_inclusion_data)
+            .unwrap_or_default();
+
+        // For DA clients we have two options verify the pubdata inclusion on SL or not.
+        // If we do not verify it, we can use EmptyNoDA commitment scheme in this case
+        // use_dummy_inclusion_data is true.
+        // If the DA client is not specified, we assume that we publish all data to SL
+        // and we have to verify it
+
+        if use_dummy_inclusion_data {
+            return L2DACommitmentScheme::EmptyNoDA;
+        }
+
+        match &self.configs.da_client_config {
+            Some(DAClientConfig::NoDA) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::ObjectStore(_)) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::Avail(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Celestia(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Eigen(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            None => {
+                tracing::info!("DAClientConfig is not specified, setting L2DACommitmentScheme to BlobsAndPubdataKeccak256");
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            }
         }
     }
 
@@ -326,6 +357,7 @@ impl MainNodeBuilder {
                     .genesis_config
                     .l1_batch_commit_data_generator_mode,
                 dummy_verifier: self.genesis_config.dummy_verifier,
+                config_l2_da_commitment_scheme: self.l2_da_commitment_scheme(),
             }));
         Ok(self)
     }

@@ -17,6 +17,7 @@ use crate::CommitmentGenerator;
 #[derive(Debug, Default)]
 pub struct CommitmentGeneratorLayer {
     max_parallelism: Option<NonZero<u32>>,
+    disable_sanity_checks: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -37,6 +38,11 @@ impl CommitmentGeneratorLayer {
         self.max_parallelism = max_parallelism;
         self
     }
+
+    pub fn disable_sanity_checks(mut self) -> Self {
+        self.disable_sanity_checks = true;
+        self
+    }
 }
 
 #[async_trait::async_trait]
@@ -55,7 +61,8 @@ impl WiringLayer for CommitmentGeneratorLayer {
             .get();
         let main_pool = input.master_pool.get_custom(pool_size).await?;
 
-        let mut commitment_generator = CommitmentGenerator::new(main_pool);
+        let mut commitment_generator =
+            CommitmentGenerator::new(main_pool, self.disable_sanity_checks);
         if let Some(max_parallelism) = self.max_parallelism {
             commitment_generator.set_max_parallelism(max_parallelism);
         }

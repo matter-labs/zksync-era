@@ -1,7 +1,9 @@
 //! Contract info injected into various ZKsync components.
 
 use zksync_config::configs::contracts::{
-    chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+    chain::{L2Contracts, ZkChainOnChainConfig},
+    ecosystem::L1SpecificContracts,
+    SettlementLayerSpecificContracts,
 };
 use zksync_node_framework::Resource;
 
@@ -38,5 +40,14 @@ pub struct L1ChainContractsResource(pub SettlementLayerSpecificContracts);
 impl Resource for L1ChainContractsResource {
     fn name() -> String {
         "common/l1_contracts".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ZkChainOnChainConfigResource(pub ZkChainOnChainConfig);
+
+impl Resource for ZkChainOnChainConfigResource {
+    fn name() -> String {
+        "common/zk_chain_on_chain_config".into()
     }
 }

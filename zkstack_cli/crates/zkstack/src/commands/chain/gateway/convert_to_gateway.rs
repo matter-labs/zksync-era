@@ -164,13 +164,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             ecosystem_config.prover_version == ProverMode::NoProofs,
             chain_config.zksync_os,
             chain_deployer_wallet.address,
-            ecosystem_config
-                .get_contracts_config()?
-                .ecosystem_contracts
-                .expected_rollup_l2_da_validator
-                .context("No expected rollup l2 da validator")?,
-            // This address is not present on local deployments
-            Address::zero(),
         ),
         l1_url.clone(),
         convert_to_gw_args
