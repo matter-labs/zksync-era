@@ -97,6 +97,10 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             let latest_protocol_version =
                 ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
                     .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
+            if latest_protocol_version <= self.last_seen_protocol_version {
+                // This version has been already processed, skip it.
+                continue;
+            }
             if diamond_cuts.is_empty() {
                 return Err(EventProcessorError::internal(anyhow::anyhow!(
                     "No diamond cuts found for protocol version {latest_protocol_version}"
