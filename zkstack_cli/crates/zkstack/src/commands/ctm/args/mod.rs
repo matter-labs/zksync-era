@@ -89,10 +89,10 @@ pub struct InitNewCTMArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
-    #[clap(long)]
-    pub update_submodules: Option<bool>,
-    #[clap(long, default_value_t = false)]
-    pub skip_contract_compilation_override: bool,
+    // #[clap(long)]
+    // pub update_submodules: Option<bool>,
+    // #[clap(long, default_value_t = false)]
+    // pub skip_contract_compilation_override: bool,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
@@ -111,9 +111,10 @@ impl InitNewCTMArgs {
         let InitNewCTMArgs {
             ecosystem,
             forge_args,
-            update_submodules,
-            skip_contract_compilation_override,
+            // update_submodules,
+            // skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
+            // update_submodules,
             bridgehub,
             zksync_os,
             reuse_gov_and_admin,
@@ -125,8 +126,8 @@ impl InitNewCTMArgs {
         Ok(InitNewCTMArgsFinal {
             ecosystem,
             forge_args,
-            update_submodules,
-            skip_contract_compilation_override,
+            // update_submodules,
+            // skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or(false),
             bridgehub_address: bridgehub
@@ -145,8 +146,8 @@ impl InitNewCTMArgs {
 pub struct InitNewCTMArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
-    pub update_submodules: Option<bool>,
-    pub skip_contract_compilation_override: bool,
+    // pub update_submodules: Option<bool>,
+    // pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
     pub zksync_os: bool,

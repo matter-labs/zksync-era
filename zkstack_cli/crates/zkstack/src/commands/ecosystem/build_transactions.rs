@@ -31,7 +31,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
     let args = args.fill_values_with_prompt()?;
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
-    git::submodule_update(shell, &ecosystem_config.link_to_code())?;
+    // git::submodule_update(shell, &ecosystem_config.link_to_code())?;
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -40,10 +40,10 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
 
     logger::info(MSG_BUILDING_ECOSYSTEM);
 
-    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-    build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    spinner.finish();
+    // let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
+    // install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
+    // build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    // spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_new_ctm(

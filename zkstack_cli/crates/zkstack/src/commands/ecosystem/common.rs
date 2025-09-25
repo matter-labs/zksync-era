@@ -195,7 +195,7 @@ pub async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: args.no_port_reallocation,
-            update_submodules: args.update_submodules,
+            // update_submodules: args.update_submodules,
             dev: args.dev,
             validium_args: args.validium_args.clone(),
             server_command: genesis_args.as_ref().and_then(|a| a.server_command.clone()),

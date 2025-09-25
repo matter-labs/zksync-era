@@ -54,7 +54,7 @@ pub async fn run(
     println!("Running ecosystem gateway upgrade args");
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    git::submodule_update(shell, &ecosystem_config.link_to_code())?;
+    // git::submodule_update(shell, &ecosystem_config.link_to_code())?;
 
     let upgrade_version = args.upgrade_version;
 

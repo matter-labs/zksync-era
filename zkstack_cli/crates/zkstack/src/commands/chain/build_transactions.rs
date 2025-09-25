@@ -33,7 +33,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     let args = args.fill_values_with_prompt(chain_config.name.clone());
 
-    git::submodule_update(shell, &config.link_to_code())?;
+    // git::submodule_update(shell, &config.link_to_code())?;
 
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     copy_configs(shell, &config.default_configs_path(), &chain_config.configs)?;
