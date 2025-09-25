@@ -151,44 +151,49 @@ impl EcosystemInitArgs {
     ) -> anyhow::Result<EcosystemInitArgsFinal> {
         let genesis_args = self.get_genesis_args();
         let EcosystemInitArgs {
+            deploy_ecosystem,
+            deploy_erc20,
+            ecosystem,
             forge_args,
+            server_db_url,
+            server_db_name,
+            dont_drop,
             dev,
             ecosystem_only,
+            observability,
             no_port_reallocation,
             // skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test,
+            server_command,
+            no_genesis,
             zksync_os,
             make_permanent_rollup,
             // update_submodules,
             deploy_paymaster,
-            ..
         } = self;
 
-        let deploy_erc20 = if self.dev {
+        let deploy_erc20 = if dev {
             true
         } else {
-            self.deploy_erc20.unwrap_or_else(|| {
+            deploy_erc20.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
                     .default(true)
                     .ask()
             })
         };
-        let ecosystem = self
-            .ecosystem
-            .fill_values_with_prompt(l1_network, self.dev)
-            .await?;
-        let observability = if self.dev {
+        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+        let observability = if dev {
             true
         } else {
-            self.observability.unwrap_or_else(|| {
+            observability.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
                     .default(true)
                     .ask()
             })
         };
 
-        let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
+        let deploy_ecosystem = deploy_ecosystem.unwrap_or_else(|| {
             if dev {
                 true
             } else {
