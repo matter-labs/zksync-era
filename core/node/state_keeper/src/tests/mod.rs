@@ -240,7 +240,7 @@ async fn panic_sealer_panic_scenario() {
         .batch_sealed("Batch 1")
         .run_panic(
             Arc::new(sealer),
-            "Transaction should have been excluded, but was sequenced",
+            "should have been excluded, but was sequenced due to sealer test_slots",
         )
         .await;
 }
