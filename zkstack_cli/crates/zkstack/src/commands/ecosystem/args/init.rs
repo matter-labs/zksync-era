@@ -4,6 +4,7 @@ use clap::Parser;
 use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use url::Url;
+use zkstack_cli_common::config::global_config;
 use zkstack_cli_common::{
     ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt, PromptConfirm,
 };
@@ -126,13 +127,11 @@ pub struct EcosystemInitArgs {
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub no_genesis: bool,
-    #[clap(long, help = MSG_ZKSYNC_OS)]
-    pub zksync_os: bool,
 }
 
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> Option<GenesisArgs> {
-        if self.no_genesis || self.zksync_os {
+        if self.no_genesis || global_config().zksync_os {
             None
         } else {
             Some(GenesisArgs {
@@ -167,7 +166,6 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test,
             server_command,
             no_genesis,
-            zksync_os,
             make_permanent_rollup,
             // update_submodules,
             deploy_paymaster,
@@ -220,7 +218,7 @@ impl EcosystemInitArgs {
             make_permanent_rollup,
             // update_submodules,
             genesis_args,
-            zksync_os,
+            zksync_os: global_config().zksync_os,
         })
     }
 }

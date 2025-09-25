@@ -82,6 +82,8 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
         chain_config.prover_version,
         args.wallet_creation,
         shell.clone().into(),
+        None,
+        None,
     );
 
     // Use 0 id for ecosystem  wallets

@@ -25,8 +25,18 @@ pub struct CoreContractsConfig {
     pub core_ecosystem_contracts: CoreEcosystemContracts,
     pub bridges: BridgesContracts,
     pub l1: L1CoreContracts,
-    #[serde(flatten)]
-    pub other: serde_json::Value,
+    pub era_ctm: Option<ChainTransitionManagerContracts>,
+    pub zksync_os_ctm: Option<ChainTransitionManagerContracts>,
+}
+
+impl CoreContractsConfig {
+    pub fn ctm(&self, zksync_os: bool) -> ChainTransitionManagerContracts {
+        if zksync_os {
+            self.zksync_os_ctm.clone().unwrap()
+        } else {
+            self.era_ctm.clone().unwrap()
+        }
+    }
 }
 
 impl CoreContractsConfig {
@@ -84,6 +94,41 @@ impl CoreContractsConfig {
             .deployed_addresses
             .chain_admin;
     }
+
+    pub fn update_from_ctm_output(&mut self, deploy_ctm_output: &DeployCTMOutput, zksync_os: bool) {
+        let ctm = ChainTransitionManagerContracts {
+            state_transition_proxy_addr: deploy_ctm_output
+                .deployed_addresses
+                .state_transition
+                .state_transition_proxy_addr,
+            validator_timelock_addr: deploy_ctm_output.deployed_addresses.validator_timelock_addr,
+            diamond_cut_data: deploy_ctm_output.contracts_config.diamond_cut_data.clone(),
+            force_deployments_data: deploy_ctm_output
+                .contracts_config
+                .force_deployments_data
+                .clone(),
+            bytecodes_supplier_addr: deploy_ctm_output
+                .deployed_addresses
+                .state_transition
+                .bytecodes_supplier_addr,
+            expected_rollup_l2_da_validator: deploy_ctm_output.expected_rollup_l2_da_validator_addr,
+            l1_wrapped_base_token_store: Default::default(),
+            server_notifier_proxy_addr: deploy_ctm_output
+                .deployed_addresses
+                .server_notifier_proxy_addr,
+            // TODO
+            default_upgrade_addr: Default::default(),
+            genesis_upgrade_addr: Default::default(),
+            governance: Default::default(),
+            chain_admin: Default::default(),
+            proxy_admin: Default::default(),
+        };
+        if zksync_os {
+            self.zksync_os_ctm = Some(ctm);
+        } else {
+            self.era_ctm = Some(ctm);
+        }
+    }
 }
 
 impl FileConfigWithDefaultName for CoreContractsConfig {
@@ -107,105 +152,6 @@ pub struct ContractsConfig {
 }
 
 impl ContractsConfig {
-    pub fn update_from_l1_output(&mut self, deploy_l1_output: &DeployCTMOutput) {
-        self.create2_factory_addr = deploy_l1_output.create2_factory_addr;
-        self.create2_factory_salt = deploy_l1_output.create2_factory_salt;
-        self.bridges.erc20.l1_address = deploy_l1_output
-            .deployed_addresses
-            .bridges
-            .erc20_bridge_proxy_addr;
-        self.bridges.shared.l1_address = deploy_l1_output
-            .deployed_addresses
-            .bridges
-            .shared_bridge_proxy_addr;
-        self.bridges.l1_nullifier_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .bridges
-                .l1_nullifier_proxy_addr,
-        );
-        self.ecosystem_contracts.bridgehub_proxy_addr = deploy_l1_output
-            .deployed_addresses
-            .bridgehub
-            .bridgehub_proxy_addr;
-        self.ecosystem_contracts.message_root_proxy_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .bridgehub
-                .message_root_proxy_addr,
-        );
-        self.ecosystem_contracts.state_transition_proxy_addr = deploy_l1_output
-            .deployed_addresses
-            .state_transition
-            .state_transition_proxy_addr;
-        self.ecosystem_contracts.transparent_proxy_admin_addr = deploy_l1_output
-            .deployed_addresses
-            .transparent_proxy_admin_addr;
-        self.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .state_transition
-                .bytecodes_supplier_addr,
-        );
-        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .bridgehub
-                .ctm_deployment_tracker_proxy_addr,
-        );
-        self.ecosystem_contracts.force_deployments_data = deploy_l1_output
-            .contracts_config
-            .force_deployments_data
-            .clone();
-
-        self.ecosystem_contracts.expected_rollup_l2_da_validator =
-            Some(deploy_l1_output.expected_rollup_l2_da_validator_addr);
-        self.l1.default_upgrade_addr = deploy_l1_output
-            .deployed_addresses
-            .state_transition
-            .default_upgrade_addr;
-        self.l1.diamond_proxy_addr = deploy_l1_output
-            .deployed_addresses
-            .state_transition
-            .diamond_proxy_addr;
-        self.l1.governance_addr = deploy_l1_output.deployed_addresses.governance_addr;
-        self.l1.multicall3_addr = deploy_l1_output.multicall3_addr;
-        self.ecosystem_contracts.validator_timelock_addr =
-            deploy_l1_output.deployed_addresses.validator_timelock_addr;
-        self.ecosystem_contracts.native_token_vault_addr =
-            Some(deploy_l1_output.deployed_addresses.native_token_vault_addr);
-        self.l1.verifier_addr = deploy_l1_output
-            .deployed_addresses
-            .state_transition
-            .verifier_addr;
-        self.l1.validator_timelock_addr =
-            deploy_l1_output.deployed_addresses.validator_timelock_addr;
-        self.ecosystem_contracts
-            .diamond_cut_data
-            .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
-        self.l1.rollup_l1_da_validator_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .rollup_l1_da_validator_addr,
-        );
-        self.l1.no_da_validium_l1_validator_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .no_da_validium_l1_validator_addr,
-        );
-        self.l1.avail_l1_da_validator_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .avail_l1_da_validator_addr,
-        );
-        self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
-        self.ecosystem_contracts.server_notifier_proxy_addr = Some(
-            deploy_l1_output
-                .deployed_addresses
-                .server_notifier_proxy_addr,
-        );
-    }
-
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
@@ -328,6 +274,23 @@ pub struct CoreEcosystemContracts {
     pub native_token_vault_addr: Option<Address>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
+pub struct ChainTransitionManagerContracts {
+    pub governance: Address,
+    pub chain_admin: Address,
+    pub proxy_admin: Address,
+    pub state_transition_proxy_addr: Address,
+    pub validator_timelock_addr: Address,
+    pub diamond_cut_data: String,
+    pub force_deployments_data: Option<String>,
+    pub bytecodes_supplier_addr: Address,
+    pub expected_rollup_l2_da_validator: Address,
+    pub l1_wrapped_base_token_store: Address,
+    pub server_notifier_proxy_addr: Address,
+    pub default_upgrade_addr: Address,
+    pub genesis_upgrade_addr: Address,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
@@ -338,8 +301,6 @@ pub struct EcosystemContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stm_deployment_tracker_proxy_addr: Option<Address>,
-    pub validator_timelock_addr: Address,
-    pub diamond_cut_data: String,
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub force_deployments_data: Option<String>,
@@ -349,14 +310,8 @@ pub struct EcosystemContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_bytecodes_supplier_addr: Option<Address>,
-    // `Option` to be able to parse configs from pre-gateway protocol version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_rollup_l2_da_validator: Option<Address>,
-    // `Option` to be able to parse configs from pre-gateway protocol version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub l1_wrapped_base_token_store: Option<Address>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub server_notifier_proxy_addr: Option<Address>,
+    #[serde(flatten)]
+    pub ctm: ChainTransitionManagerContracts,
 }
 
 impl FileConfigTrait for EcosystemContracts {}

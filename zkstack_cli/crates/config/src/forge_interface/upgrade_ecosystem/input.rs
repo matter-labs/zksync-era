@@ -100,9 +100,11 @@ impl EcosystemUpgradeInput {
                     .transparent_proxy_admin_addr,
                 era_diamond_proxy,
                 legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,
-                old_validator_timelock: current_contracts_config
-                    .ecosystem_contracts
-                    .validator_timelock_addr,
+                // TOOD verify if we need to set it to zero
+                old_validator_timelock: Address::zero(),
+                // old_validator_timelock: current_contracts_config
+                //     .ecosystem_contracts
+                //     .validator_timelock_addr,
                 governance_security_council_address: Address::zero(),
                 latest_protocol_version: new_genesis_input.protocol_version.pack(),
                 evm_emulator_hash: new_genesis_input.evm_emulator_hash.unwrap_or_default(),

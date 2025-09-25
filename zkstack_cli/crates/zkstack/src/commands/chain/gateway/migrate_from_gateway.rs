@@ -85,6 +85,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let l1_diamond_cut_data = ecosystem_config
         .get_contracts_config()?
         .ecosystem_contracts
+        .ctm
         .diamond_cut_data;
 
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(

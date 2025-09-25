@@ -1,10 +1,11 @@
+use anyhow::Context;
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{L2ChainId, H256};
 
-use crate::{traits::FileConfigTrait, ChainConfig, ContractsConfig};
+use crate::{traits::FileConfigTrait, ChainConfig, ContractsConfig, CoreContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainL1Config {
@@ -74,26 +75,32 @@ pub struct ChainL1Config {
 impl FileConfigTrait for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
-    pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {
+    pub fn new(
+        chain_config: &ChainConfig,
+        contracts: &CoreContractsConfig,
+    ) -> anyhow::Result<Self> {
         let initialize_legacy_bridge = chain_config.legacy_bridge.unwrap_or_default();
         let wallets_config = chain_config.get_wallets_config()?;
+
+        let ctm = if chain_config.zksync_os {
+            &contracts.zksync_os_ctm.clone().unwrap()
+        } else {
+            &contracts.era_ctm.clone().unwrap()
+        };
         Ok(Self {
             contracts_config: Contracts {
-                diamond_cut_data: contracts.ecosystem_contracts.diamond_cut_data.clone(),
-                force_deployments_data: contracts
-                    .ecosystem_contracts
+                diamond_cut_data: ctm.diamond_cut_data.clone(),
+                force_deployments_data: ctm
                     .force_deployments_data
                     .clone()
                     .expect("force_deployment_data"),
             },
             deployed_addresses: DeployedAddresses {
                 state_transition: StateTransition {
-                    chain_type_manager_proxy_addr: contracts
-                        .ecosystem_contracts
-                        .state_transition_proxy_addr,
+                    chain_type_manager_proxy_addr: ctm.state_transition_proxy_addr,
                 },
                 bridgehub: Bridgehub {
-                    bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
+                    bridgehub_proxy_addr: contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
                 },
                 bridges: Bridges {
                     shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
@@ -103,14 +110,12 @@ impl RegisterChainL1Config {
                         .expect("l1_nullifier_addr"),
                     erc20_bridge_proxy_addr: contracts.bridges.erc20.l1_address,
                 },
-                validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
+                validator_timelock_addr: ctm.validator_timelock_addr,
                 native_token_vault_addr: contracts
-                    .ecosystem_contracts
+                    .core_ecosystem_contracts
                     .native_token_vault_addr
                     .expect("native_token_vault_addr"),
-                server_notifier_proxy_addr: contracts
-                    .ecosystem_contracts
-                    .server_notifier_proxy_addr,
+                server_notifier_proxy_addr: Some(ctm.server_notifier_proxy_addr),
             },
             chain: ChainL1Config {
                 chain_chain_id: chain_config.chain_id,

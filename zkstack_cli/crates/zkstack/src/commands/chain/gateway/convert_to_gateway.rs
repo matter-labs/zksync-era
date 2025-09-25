@@ -166,8 +166,8 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             ecosystem_config
                 .get_contracts_config()?
                 .ecosystem_contracts
-                .expected_rollup_l2_da_validator
-                .context("No expected rollup l2 da validator")?,
+                .ctm
+                .expected_rollup_l2_da_validator,
             // This address is not present on local deployments
             Address::zero(),
         ),

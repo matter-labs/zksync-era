@@ -19,8 +19,8 @@ use zkstack_cli_config::{
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait,
-    GENESIS_FILE,
+    ContractsConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -93,7 +93,8 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         init_ctm_args.reuse_gov_and_admin,
     )
     .await?;
-    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
+    // TODO save contracts
+    // contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(())
 }
 
@@ -108,7 +109,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     bridgehub_address: H160,
     zksync_os: bool,
     reuse_gov_and_admin: bool,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_new_ctm(
@@ -127,14 +128,13 @@ pub async fn deploy_new_ctm_and_accept_admin(
     .await?;
     spinner.finish();
 
+    let ctm = contracts_config.ctm(zksync_os);
     accept_owner(
         shell,
         ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
+        ctm.state_transition_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -145,9 +145,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
         ecosystem_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
+        ctm.state_transition_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -169,7 +167,7 @@ pub async fn deploy_new_ctm(
     bridgehub_address: H160,
     zksync_os: bool,
     reuse_gov_and_admin: bool,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let deploy_config_path = DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
@@ -225,8 +223,9 @@ pub async fn deploy_new_ctm(
         shell,
         DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
-    let mut contracts_config = ContractsConfig::default();
-    contracts_config.update_from_l1_output(&script_output);
+    // TODO read from existing config
+    let mut contracts_config = CoreContractsConfig::default();
+    contracts_config.update_from_ctm_output(&script_output, zksync_os);
 
     Ok(contracts_config)
 }

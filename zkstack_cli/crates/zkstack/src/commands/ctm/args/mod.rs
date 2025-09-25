@@ -1,6 +1,7 @@
 use anyhow::Context;
 use clap::Parser;
 use serde::Deserialize;
+use zkstack_cli_common::config::global_config;
 use zkstack_cli_common::forge::ForgeScriptArgs;
 use zkstack_cli_types::L1Network;
 use zksync_basic_types::H160;
@@ -97,8 +98,6 @@ pub struct InitNewCTMArgs {
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
-    #[clap(long, help = MSG_ZKSYNC_OS)]
-    pub zksync_os: bool,
     #[clap(long, default_missing_value = "true")]
     pub reuse_gov_and_admin: bool,
 }
@@ -116,7 +115,7 @@ impl InitNewCTMArgs {
             support_l2_legacy_shared_bridge_test,
             // update_submodules,
             bridgehub,
-            zksync_os,
+            // zksync_os,
             reuse_gov_and_admin,
         } = self;
 
@@ -136,7 +135,7 @@ impl InitNewCTMArgs {
                         .with_context(|| format!("Invalid bridgehub address format: {}", a))
                 })
                 .transpose()?,
-            zksync_os,
+            zksync_os: global_config().zksync_os,
             reuse_gov_and_admin,
         })
     }

@@ -71,22 +71,22 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
-    if final_ecosystem_args.deploy_erc20 {
-        logger::info(MSG_DEPLOYING_ERC20);
-        let erc20_deployment_config = match ecosystem_config.get_erc20_deployment_config() {
-            Ok(config) => config,
-            Err(_) => create_erc20_deployment_config(shell, &ecosystem_config.config)?,
-        };
-        deploy_erc20(
-            shell,
-            &erc20_deployment_config,
-            &ecosystem_config,
-            &contracts_config.into(),
-            final_ecosystem_args.forge_args.clone(),
-            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-        )
-        .await?;
-    }
+    // if final_ecosystem_args.deploy_erc20 {
+    //     logger::info(MSG_DEPLOYING_ERC20);
+    //     let erc20_deployment_config = match ecosystem_config.get_erc20_deployment_config() {
+    //         Ok(config) => config,
+    //         Err(_) => create_erc20_deployment_config(shell, &ecosystem_config.config)?,
+    //     };
+    //     deploy_erc20(
+    //         shell,
+    //         &erc20_deployment_config,
+    //         &ecosystem_config,
+    //         &contracts_config.into(),
+    //         final_ecosystem_args.forge_args.clone(),
+    //         final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+    //     )
+    //     .await?;
+    // }
 
     // Initialize chain(s)
     let mut chains: Vec<String> = vec![];
@@ -103,7 +103,7 @@ async fn init_ecosystem(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     // if !init_args.skip_contract_compilation_override {
     //     install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
@@ -115,7 +115,8 @@ async fn init_ecosystem(
     spinner.finish();
 
     let contracts = if !init_args.deploy_ecosystem {
-        return_ecosystem_contracts(shell, &init_args.ecosystem, ecosystem_config).await?
+        todo!()
+        // return_ecosystem_contracts(shell, &init_args.ecosystem, ecosystem_config).await?
     } else {
         let core_contracts = deploy_ecosystem(
             shell,
@@ -151,8 +152,10 @@ async fn init_ecosystem(
             ecosystem_config,
             &init_args.ecosystem.l1_rpc_url,
             None,
-            contracts.ecosystem_contracts.bridgehub_proxy_addr,
-            contracts.ecosystem_contracts.state_transition_proxy_addr,
+            contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
+            contracts
+                .ctm(init_args.zksync_os)
+                .state_transition_proxy_addr,
             false,
         )
         .await?;

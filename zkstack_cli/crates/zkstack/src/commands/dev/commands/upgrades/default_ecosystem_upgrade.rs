@@ -209,6 +209,7 @@ async fn no_governance_prepare(
                     Token::Address(
                         current_contracts_config
                             .ecosystem_contracts
+                            .ctm
                             .validator_timelock_addr,
                     ),
                 ])])),

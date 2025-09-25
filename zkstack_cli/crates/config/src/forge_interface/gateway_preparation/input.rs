@@ -59,7 +59,10 @@ impl GatewayPreparationConfig {
                 .l1_nullifier_addr
                 .context("l1_nullifier_addr")?,
             l1_diamond_cut_data: hex::decode(
-                &chain_contracts_config.ecosystem_contracts.diamond_cut_data,
+                &chain_contracts_config
+                    .ecosystem_contracts
+                    .ctm
+                    .diamond_cut_data,
             )
             .context("diamond_cut_data")?
             .into(),

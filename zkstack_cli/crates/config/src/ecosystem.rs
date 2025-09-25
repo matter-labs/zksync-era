@@ -30,16 +30,18 @@ use crate::{
 /// directory before network initialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EcosystemConfigInternal {
-    pub name: String,
-    pub l1_network: L1Network,
-    pub link_to_code: PathBuf,
-    pub bellman_cuda_dir: Option<PathBuf>,
-    pub chains: PathBuf,
-    pub config: PathBuf,
-    pub default_chain: String,
-    pub era_chain_id: L2ChainId,
-    pub prover_version: ProverMode,
-    pub wallet_creation: WalletCreation,
+    name: String,
+    l1_network: L1Network,
+    link_to_code: PathBuf,
+    bellman_cuda_dir: Option<PathBuf>,
+    chains: PathBuf,
+    config: PathBuf,
+    default_chain: String,
+    era_chain_id: L2ChainId,
+    prover_version: ProverMode,
+    wallet_creation: WalletCreation,
+    era_contracts_path: Option<PathBuf>,
+    zksync_os_contracts_path: Option<PathBuf>,
 }
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -56,6 +58,8 @@ pub struct EcosystemConfig {
     pub wallet_creation: WalletCreation,
     default_chain: String,
     link_to_code: PathBuf,
+    era_contracts_path: Option<PathBuf>,
+    zksync_os_contracts_path: Option<PathBuf>,
     shell: OnceCell<Shell>,
 }
 
@@ -79,6 +83,7 @@ impl ReadConfig for EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
             link_to_code: shell.current_dir().join(config.link_to_code),
+            era_contracts_path: config.era_contracts_path,
             bellman_cuda_dir,
             chains: config.chains.clone(),
             config: config.config.clone(),
@@ -87,6 +92,7 @@ impl ReadConfig for EcosystemConfig {
             prover_version: config.prover_version,
             wallet_creation: config.wallet_creation,
             shell: Default::default(),
+            zksync_os_contracts_path: config.zksync_os_contracts_path,
         })
     }
 }
@@ -113,11 +119,14 @@ impl EcosystemConfig {
         prover_version: ProverMode,
         wallet_creation: WalletCreation,
         shell: OnceCell<Shell>,
+        era_contracts_path: Option<PathBuf>,
+        zksync_os_contracts_path: Option<PathBuf>,
     ) -> Self {
         Self {
             name,
             l1_network,
             link_to_code,
+            era_contracts_path,
             bellman_cuda_dir,
             chains,
             config,
@@ -126,6 +135,7 @@ impl EcosystemConfig {
             prover_version,
             wallet_creation,
             shell,
+            zksync_os_contracts_path,
         }
     }
 
@@ -217,6 +227,7 @@ impl EcosystemConfig {
             config.evm_emulator,
             config.tight_ports,
             config.zksync_os,
+            config.era_contracts_path,
         ))
     }
 
@@ -304,6 +315,8 @@ impl EcosystemConfig {
             era_chain_id: self.era_chain_id,
             prover_version: self.prover_version,
             wallet_creation: self.wallet_creation,
+            era_contracts_path: self.era_contracts_path.clone(),
+            zksync_os_contracts_path: self.zksync_os_contracts_path.clone(),
         }
     }
 }
@@ -336,7 +349,19 @@ impl ZkStackConfigTrait for EcosystemConfig {
     }
 
     fn contracts_path(&self) -> PathBuf {
-        self.link_to_code().join(CONTRACTS_PATH)
+        match (
+            global_config().zksync_os,
+            self.zksync_os_contracts_path.as_ref(),
+            self.era_contracts_path.as_ref(),
+        ) {
+            (true, Some(path), _) => path.clone(),
+            (false, _, Some(path)) => path.clone(),
+            (false, _, _) => self.link_to_code().join(CONTRACTS_PATH),
+            (true, _, _) => {
+                println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                self.link_to_code().join(CONTRACTS_PATH)
+            }
+        }
     }
 
     fn path_to_foundry_scripts(&self) -> PathBuf {
