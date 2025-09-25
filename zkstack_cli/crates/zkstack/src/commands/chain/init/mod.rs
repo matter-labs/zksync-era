@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
-use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
@@ -86,8 +86,7 @@ pub async fn init(
 ) -> anyhow::Result<()> {
     // Initialize configs
     let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
-    let mut contracts_config =
-        init_configs(&init_configs_args, shell, ecosystem_config, chain_config).await?;
+    init_configs(&init_configs_args, shell, ecosystem_config, chain_config).await?;
 
     // Fund some wallet addresses with ETH or base token (only for Localhost)
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
@@ -95,17 +94,18 @@ pub async fn init(
 
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
-    register_chain(
+    let mut contracts_config = register_chain(
         shell,
         init_args.forge_args.clone(),
         ecosystem_config,
         chain_config,
-        &mut contracts_config,
+        &ecosystem_config.get_contracts_config()?,
         init_args.l1_rpc_url.clone(),
         None,
         true,
     )
     .await?;
+
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 

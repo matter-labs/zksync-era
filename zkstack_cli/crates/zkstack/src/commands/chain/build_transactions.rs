@@ -1,7 +1,7 @@
 use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
-use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait,
 };
@@ -48,13 +48,12 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     let mut contracts_config = config
         .get_contracts_config()
         .context(MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG)?;
-    contracts_config.l1.base_token_addr = chain_config.base_token.address;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
     let governor: String = config.get_wallets()?.governor.address.encode_hex_upper();
 
-    register_chain(
+    let mut contracts = register_chain(
         shell,
         args.forge_args.clone(),
         &config,
@@ -66,7 +65,8 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     )
     .await?;
 
-    contracts_config.save_with_base_path(shell, &args.out)?;
+    contracts.l1.base_token_addr = chain_config.base_token.address;
+    contracts.save_with_base_path(shell, &args.out)?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);

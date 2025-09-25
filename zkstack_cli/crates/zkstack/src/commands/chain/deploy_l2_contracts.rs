@@ -292,7 +292,7 @@ async fn call_forge(
 ) -> anyhow::Result<()> {
     let input = DeployL2ContractsInput::new(
         chain_config,
-        &ecosystem_config.get_contracts_config()?,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
         ecosystem_config.era_chain_id,
     )
     .await?;

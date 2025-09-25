@@ -41,6 +41,7 @@ impl GatewayPreparationConfig {
                 .context("stm_deployment_tracker_proxy_addr")?,
             chain_type_manager_proxy_addr: contracts
                 .ecosystem_contracts
+                .ctm
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
             governance: ecosystem_contracts_config.l1.governance_addr,

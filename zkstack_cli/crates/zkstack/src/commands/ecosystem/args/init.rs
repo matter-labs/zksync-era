@@ -4,9 +4,9 @@ use clap::Parser;
 use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::config::global_config;
 use zkstack_cli_common::{
-    ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt, PromptConfirm,
+    config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt,
+    PromptConfirm,
 };
 use zkstack_cli_types::L1Network;
 
@@ -17,7 +17,7 @@ use crate::{
         MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
         MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -154,9 +154,6 @@ impl EcosystemInitArgs {
             deploy_erc20,
             ecosystem,
             forge_args,
-            server_db_url,
-            server_db_name,
-            dont_drop,
             dev,
             ecosystem_only,
             observability,
@@ -164,11 +161,10 @@ impl EcosystemInitArgs {
             // skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test,
-            server_command,
-            no_genesis,
             make_permanent_rollup,
             // update_submodules,
             deploy_paymaster,
+            ..
         } = self;
 
         let deploy_erc20 = if dev {

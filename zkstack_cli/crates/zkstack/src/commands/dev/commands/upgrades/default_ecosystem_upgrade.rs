@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{
-    ethereum::get_ethers_provider, forge::Forge, git, logger, spinner::Spinner,
+    config::global_config, ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner,
 };
 use zkstack_cli_config::{
     forge_interface::{
@@ -27,10 +27,11 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
     ZkStackConfigTrait, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
+use zksync_basic_types::Address;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
@@ -123,6 +124,8 @@ async fn no_governance_prepare(
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
 ) -> anyhow::Result<()> {
+    // TODO remove from global config
+    let zksync_os = global_config().zksync_os;
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
 
@@ -136,14 +139,13 @@ async fn no_governance_prepare(
             .await?
             .l1_rpc_url()?
     };
-    dbg!(&l1_rpc_url);
 
     let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
-        .ecosystem_contracts
+        .core_ecosystem_contracts
         .bridgehub_proxy_addr;
 
     let bridgehub_proxy_address_str = format!("{:#x}", bridgehub_proxy_address);
@@ -208,8 +210,7 @@ async fn no_governance_prepare(
                 encoded_old_validator_timelocks: hex::encode(encode(&[Token::Array(vec![
                     Token::Address(
                         current_contracts_config
-                            .ecosystem_contracts
-                            .ctm
+                            .ctm(zksync_os)
                             .validator_timelock_addr,
                     ),
                 ])])),
@@ -227,12 +228,11 @@ async fn no_governance_prepare(
         &gateway_upgrade_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
-        ecosystem_config
-            .get_contracts_config()?
-            .l1
-            .diamond_proxy_addr,
+        // TODO NEED TO USE ERA DIAMOND PROXY
+        Address::zero(),
         ecosystem_config.prover_version == ProverMode::NoProofs,
         upgrade_specific_config,
+        zksync_os,
     );
 
     logger::info(format!("ecosystem_upgrade: {:?}", ecosystem_upgrade));
@@ -423,6 +423,8 @@ async fn governance_stage_1(
     update_contracts_config_from_output(
         &mut contracts_config,
         &gateway_ecosystem_preparation_output,
+        // TODO seems it's needed earlier
+        global_config().zksync_os,
     );
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -431,17 +433,22 @@ async fn governance_stage_1(
 }
 
 fn update_contracts_config_from_output(
-    contracts_config: &mut ContractsConfig,
+    contracts_config: &mut CoreContractsConfig,
     output: &EcosystemUpgradeOutput,
+    zksync_os: bool,
 ) {
+    let ctm = if zksync_os {
+        contracts_config.zksync_os_ctm.as_mut().unwrap()
+    } else {
+        contracts_config.era_ctm.as_mut().unwrap()
+    };
+
     // This is force deployment data for creating new contracts, not really relevant here tbh,
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
+    ctm.force_deployments_data = Some(hex::encode(
         &output.contracts_config.force_deployments_data.0,
     ));
-    contracts_config.l1.rollup_l1_da_validator_addr =
-        Some(output.deployed_addresses.rollup_l1_da_validator_addr);
-    contracts_config.l1.no_da_validium_l1_validator_addr =
-        Some(output.deployed_addresses.validium_l1_da_validator_addr);
+    ctm.rollup_l1_da_validator_addr = output.deployed_addresses.rollup_l1_da_validator_addr;
+    ctm.no_da_validium_l1_validator_addr = output.deployed_addresses.validium_l1_da_validator_addr;
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
@@ -555,7 +562,9 @@ async fn no_governance_stage_2(
             "initChains",
             (
                 ethers::abi::Token::Address(
-                    contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+                    contracts_config
+                        .core_ecosystem_contracts
+                        .bridgehub_proxy_addr,
                 ),
                 ethers::abi::Token::Array(chain_ids.clone()),
             ),
@@ -567,7 +576,7 @@ async fn no_governance_stage_2(
             (
                 ethers::abi::Token::Address(
                     contracts_config
-                        .ecosystem_contracts
+                        .core_ecosystem_contracts
                         .native_token_vault_addr
                         .context("native_token_vault_addr")?,
                 ),

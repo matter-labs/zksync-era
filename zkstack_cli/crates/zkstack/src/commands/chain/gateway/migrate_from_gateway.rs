@@ -82,7 +82,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
-    let l1_diamond_cut_data = ecosystem_config
+    let l1_diamond_cut_data = chain_config
         .get_contracts_config()?
         .ecosystem_contracts
         .ctm
@@ -178,7 +178,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .context("Missing deployer wallet")?,
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_id,

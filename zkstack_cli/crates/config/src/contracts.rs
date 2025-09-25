@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
+use zkstack_cli_common::contracts::encode_ntv_asset_id;
 use zksync_basic_types::H160;
 use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
@@ -16,12 +17,14 @@ use crate::{
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigTrait, FileConfigWithDefaultName},
+    ChainConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CoreContractsConfig {
     pub create2_factory_addr: Address,
     pub create2_factory_salt: H256,
+    pub multicall3_addr: Address,
     pub core_ecosystem_contracts: CoreEcosystemContracts,
     pub bridges: BridgesContracts,
     pub l1: L1CoreContracts,
@@ -35,6 +38,57 @@ impl CoreContractsConfig {
             self.zksync_os_ctm.clone().unwrap()
         } else {
             self.era_ctm.clone().unwrap()
+        }
+    }
+
+    pub fn chain_contracts_from_output(
+        &self,
+        register_chain_output: &RegisterChainOutput,
+        chain_config: &ChainConfig,
+    ) -> ContractsConfig {
+        let ctm = self.ctm(chain_config.zksync_os);
+        ContractsConfig {
+            create2_factory_addr: self.create2_factory_addr,
+            create2_factory_salt: self.create2_factory_salt,
+            ecosystem_contracts: EcosystemContracts {
+                bridgehub_proxy_addr: self.core_ecosystem_contracts.bridgehub_proxy_addr,
+                message_root_proxy_addr: self.core_ecosystem_contracts.message_root_proxy_addr,
+                transparent_proxy_admin_addr: self
+                    .core_ecosystem_contracts
+                    .transparent_proxy_admin_addr,
+                stm_deployment_tracker_proxy_addr: self
+                    .core_ecosystem_contracts
+                    .stm_deployment_tracker_proxy_addr,
+                native_token_vault_addr: self.core_ecosystem_contracts.native_token_vault_addr,
+                ctm: ctm.clone(),
+            },
+            bridges: self.bridges.clone(),
+            l1: L1Contracts {
+                default_upgrade_addr: ctm.default_upgrade_addr,
+                diamond_proxy_addr: register_chain_output.diamond_proxy_addr,
+                governance_addr: register_chain_output.governance_addr,
+                chain_admin_addr: register_chain_output.chain_admin_addr,
+                access_control_restriction_addr: Some(
+                    register_chain_output.access_control_restriction_addr,
+                ),
+                chain_proxy_admin_addr: Some(register_chain_output.chain_proxy_admin_addr),
+                validator_timelock_addr: ctm.validator_timelock_addr,
+                base_token_addr: chain_config.base_token.address,
+                rollup_l1_da_validator_addr: Some(ctm.rollup_l1_da_validator_addr),
+                transaction_filterer_addr: self.l1.transaction_filterer_addr,
+                verifier_addr: ctm.verifier_addr,
+                base_token_asset_id: Some(encode_ntv_asset_id(
+                    chain_config.l1_network.chain_id().into(),
+                    chain_config.base_token.address,
+                )),
+
+                multicall3_addr: self.multicall3_addr,
+                avail_l1_da_validator_addr: Some(ctm.avail_l1_da_validator_addr),
+                no_da_validium_l1_validator_addr: Some(ctm.no_da_validium_l1_validator_addr),
+            },
+            proof_manager_contracts: None,
+            l2: Default::default(),
+            other: Default::default(),
         }
     }
 }
@@ -116,13 +170,36 @@ impl CoreContractsConfig {
             server_notifier_proxy_addr: deploy_ctm_output
                 .deployed_addresses
                 .server_notifier_proxy_addr,
-            // TODO
-            default_upgrade_addr: Default::default(),
-            genesis_upgrade_addr: Default::default(),
-            governance: Default::default(),
-            chain_admin: Default::default(),
-            proxy_admin: Default::default(),
+            default_upgrade_addr: deploy_ctm_output
+                .deployed_addresses
+                .state_transition
+                .default_upgrade_addr,
+            genesis_upgrade_addr: deploy_ctm_output
+                .deployed_addresses
+                .state_transition
+                .genesis_upgrade_addr,
+            verifier_addr: deploy_ctm_output
+                .deployed_addresses
+                .state_transition
+                .verifier_addr,
+            chain_admin: deploy_ctm_output.deployed_addresses.chain_admin,
+            proxy_admin: deploy_ctm_output
+                .deployed_addresses
+                .transparent_proxy_admin_addr,
+            governance: deploy_ctm_output.deployed_addresses.governance_addr,
+
+            rollup_l1_da_validator_addr: deploy_ctm_output
+                .deployed_addresses
+                .rollup_l1_da_validator_addr,
+            no_da_validium_l1_validator_addr: deploy_ctm_output
+                .deployed_addresses
+                .no_da_validium_l1_validator_addr,
+            avail_l1_da_validator_addr: deploy_ctm_output
+                .deployed_addresses
+                .avail_l1_da_validator_addr,
+            l1_rollup_da_manager: deploy_ctm_output.deployed_addresses.l1_rollup_da_manager,
         };
+        self.multicall3_addr = deploy_ctm_output.multicall3_addr;
         if zksync_os {
             self.zksync_os_ctm = Some(ctm);
         } else {
@@ -242,15 +319,6 @@ pub struct ContractsConfigForDeployERC20 {
     pub create2_factory_salt: H256,
 }
 
-impl From<ContractsConfig> for ContractsConfigForDeployERC20 {
-    fn from(config: ContractsConfig) -> Self {
-        ContractsConfigForDeployERC20 {
-            create2_factory_addr: config.create2_factory_addr,
-            create2_factory_salt: config.create2_factory_salt,
-        }
-    }
-}
-
 impl From<CoreContractsConfig> for ContractsConfigForDeployERC20 {
     fn from(config: CoreContractsConfig) -> Self {
         ContractsConfigForDeployERC20 {
@@ -289,6 +357,11 @@ pub struct ChainTransitionManagerContracts {
     pub server_notifier_proxy_addr: Address,
     pub default_upgrade_addr: Address,
     pub genesis_upgrade_addr: Address,
+    pub verifier_addr: Address,
+    pub rollup_l1_da_validator_addr: Address,
+    pub no_da_validium_l1_validator_addr: Address,
+    pub avail_l1_da_validator_addr: Address,
+    pub l1_rollup_da_manager: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
@@ -296,20 +369,13 @@ pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_root_proxy_addr: Option<Address>,
-    pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stm_deployment_tracker_proxy_addr: Option<Address>,
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub force_deployments_data: Option<String>,
-    // `Option` to be able to parse configs from pre-gateway protocol version.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub native_token_vault_addr: Option<Address>,
-    // `Option` to be able to parse configs from pre-gateway protocol version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub l1_bytecodes_supplier_addr: Option<Address>,
     #[serde(flatten)]
     pub ctm: ChainTransitionManagerContracts,
 }
@@ -377,6 +443,7 @@ pub struct L1CoreContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_proxy_admin_addr: Option<Address>,
+    pub transaction_filterer_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

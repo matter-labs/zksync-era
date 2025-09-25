@@ -2,12 +2,8 @@ use ethers::{abi::parse_abi, contract::BaseContract, types::H160};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{
-        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
-        install_yarn_dependencies,
-    },
     forge::{Forge, ForgeScriptArgs},
-    git, logger,
+    logger,
     spinner::Spinner,
 };
 use zkstack_cli_config::{
@@ -19,8 +15,8 @@ use zkstack_cli_config::{
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
-    ZkStackConfigTrait, GENESIS_FILE,
+    CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait,
+    GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -32,9 +28,7 @@ use crate::{
             args::init::EcosystemArgsFinal, create_configs::create_initial_deployments_config,
         },
     },
-    messages::{
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
-    },
+    messages::{MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -78,7 +72,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     } else {
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr
     };
     let contracts = deploy_new_ctm_and_accept_admin(
@@ -93,8 +87,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         init_ctm_args.reuse_gov_and_admin,
     )
     .await?;
-    // TODO save contracts
-    // contracts.save_with_base_path(shell, &ecosystem_config.config)?;
+    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(())
 }
 
@@ -168,6 +161,7 @@ pub async fn deploy_new_ctm(
     zksync_os: bool,
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
+    let mut contracts_config = config.get_contracts_config()?;
     let deploy_config_path = DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
     let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
@@ -223,8 +217,6 @@ pub async fn deploy_new_ctm(
         shell,
         DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
     )?;
-    // TODO read from existing config
-    let mut contracts_config = CoreContractsConfig::default();
     contracts_config.update_from_ctm_output(&script_output, zksync_os);
 
     Ok(contracts_config)

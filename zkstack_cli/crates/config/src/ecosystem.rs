@@ -22,7 +22,7 @@ use crate::{
         output::{ERC20Tokens, Erc20Token},
     },
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig, ZkStackConfigTrait,
+    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig, ZkStackConfigTrait,
     PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
@@ -258,8 +258,8 @@ impl EcosystemConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
-    pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
-        ContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
+    pub fn get_contracts_config(&self) -> anyhow::Result<CoreContractsConfig> {
+        CoreContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
     }
 
     pub fn path_to_proving_networks(&self) -> PathBuf {

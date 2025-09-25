@@ -1,11 +1,10 @@
-use anyhow::Context;
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{L2ChainId, H256};
 
-use crate::{traits::FileConfigTrait, ChainConfig, ContractsConfig, CoreContractsConfig};
+use crate::{traits::FileConfigTrait, ChainConfig, CoreContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainL1Config {

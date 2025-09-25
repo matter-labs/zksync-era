@@ -1,10 +1,6 @@
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{
-    contracts::{build_system_contracts, install_yarn_dependencies},
-    git, logger,
-    spinner::Spinner,
-};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{
@@ -15,8 +11,7 @@ use crate::{
     commands::ctm::commands::init_new_ctm::deploy_new_ctm,
     messages::{
         MSG_BUILDING_ECOSYSTEM, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_TXN_OUTRO,
-        MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR, MSG_INTALLING_DEPS_SPINNER,
-        MSG_WRITING_OUTPUT_FILES_SPINNER,
+        MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR, MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
 

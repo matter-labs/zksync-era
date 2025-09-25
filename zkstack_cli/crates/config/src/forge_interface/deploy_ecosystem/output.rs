@@ -37,17 +37,15 @@ pub struct DeployCTMOutput {
     pub contracts_config: DeployCTMContractsConfigOutput,
     pub deployed_addresses: DeployCTMDeployedAddressesOutput,
     pub expected_rollup_l2_da_validator_addr: Address,
+    pub multicall3_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployCTMDeployedAddressesOutput {
-    // pub governance_addr: Address,
-    // pub transparent_proxy_admin_addr: Address,
+    pub governance_addr: Address,
+    pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
-    // pub chain_admin: Address,
-    // pub access_control_restriction_addr: Address,
-    // pub bridgehub: L1BridgehubOutput,
-    // pub bridges: L1BridgesOutput,
+    pub chain_admin: Address,
     pub state_transition: L1StateTransitionOutput,
     pub rollup_l1_da_validator_addr: Address,
     pub no_da_validium_l1_validator_addr: Address,

@@ -1,15 +1,14 @@
 use anyhow::Context;
 use clap::Parser;
 use serde::Deserialize;
-use zkstack_cli_common::config::global_config;
-use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs};
 use zkstack_cli_types::L1Network;
 use zksync_basic_types::H160;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
     commands::ecosystem::args::init::{EcosystemArgs, EcosystemArgsFinal},
-    messages::{MSG_BRIDGEHUB, MSG_CTM, MSG_DEV_ARG_HELP, MSG_ZKSYNC_OS},
+    messages::{MSG_BRIDGEHUB, MSG_CTM, MSG_DEV_ARG_HELP},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]

@@ -2,8 +2,7 @@ use std::cell::OnceCell;
 
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::config::global_config;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
     EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait, GENESIS_FILE,

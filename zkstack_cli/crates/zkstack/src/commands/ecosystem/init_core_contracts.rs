@@ -1,14 +1,6 @@
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{
-    contracts::{
-        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
-        install_yarn_dependencies,
-    },
-    forge::ForgeScriptArgs,
-    git, logger,
-    spinner::Spinner,
-};
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,

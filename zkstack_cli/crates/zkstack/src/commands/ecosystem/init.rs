@@ -2,16 +2,7 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{
-    contracts::{
-        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
-        install_yarn_dependencies,
-    },
-    forge::ForgeScriptArgs,
-    git, logger,
-    spinner::Spinner,
-    Prompt,
-};
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner, Prompt};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
@@ -21,7 +12,7 @@ use zkstack_cli_types::L1Network;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
-    common::{deploy_erc20, init_chains},
+    common::init_chains,
     setup_observability,
 };
 use crate::{
@@ -29,7 +20,7 @@ use crate::{
     commands::{
         ctm::commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm_on_existing_bh},
         ecosystem::{
-            common::deploy_l1_core_contracts,
+            common::{deploy_erc20, deploy_l1_core_contracts},
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
         },
     },
@@ -71,22 +62,22 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
-    // if final_ecosystem_args.deploy_erc20 {
-    //     logger::info(MSG_DEPLOYING_ERC20);
-    //     let erc20_deployment_config = match ecosystem_config.get_erc20_deployment_config() {
-    //         Ok(config) => config,
-    //         Err(_) => create_erc20_deployment_config(shell, &ecosystem_config.config)?,
-    //     };
-    //     deploy_erc20(
-    //         shell,
-    //         &erc20_deployment_config,
-    //         &ecosystem_config,
-    //         &contracts_config.into(),
-    //         final_ecosystem_args.forge_args.clone(),
-    //         final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-    //     )
-    //     .await?;
-    // }
+    if final_ecosystem_args.deploy_erc20 {
+        logger::info(MSG_DEPLOYING_ERC20);
+        let erc20_deployment_config = match ecosystem_config.get_erc20_deployment_config() {
+            Ok(config) => config,
+            Err(_) => create_erc20_deployment_config(shell, &ecosystem_config.config)?,
+        };
+        deploy_erc20(
+            shell,
+            &erc20_deployment_config,
+            &ecosystem_config,
+            &contracts_config.into(),
+            final_ecosystem_args.forge_args.clone(),
+            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     // Initialize chain(s)
     let mut chains: Vec<String> = vec![];

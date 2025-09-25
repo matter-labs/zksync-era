@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
-    git, logger,
+    logger,
 };
 use zkstack_cli_config::{
     forge_interface::script_params::REGISTER_CTM_SCRIPT_PARAMS, traits::ReadConfig,
@@ -43,7 +43,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     } else {
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr
     };
     let output = register_ctm_on_existing_bh(

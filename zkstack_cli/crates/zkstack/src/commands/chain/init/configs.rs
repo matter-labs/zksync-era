@@ -2,11 +2,9 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ConsensusGenesisSpecs,
-    ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted, ZkStackConfig,
-    ZkStackConfigTrait,
+    copy_configs, ChainConfig, ConsensusGenesisSpecs, EcosystemConfig, RawConsensusKeys, Weighted,
+    ZkStackConfig, ZkStackConfigTrait,
 };
-use zksync_basic_types::Address;
 
 use crate::{
     commands::{
@@ -16,7 +14,6 @@ use crate::{
                 da_configs::ValidiumType,
             },
             genesis,
-            utils::encode_ntv_asset_id,
         },
         portal::update_portal_config,
     },
@@ -46,7 +43,7 @@ pub async fn init_configs(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<()> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
     copy_configs(
@@ -107,16 +104,11 @@ pub async fn init_configs(
     genesis_config.save().await?;
 
     // Initialize contracts config
-    let mut contracts_config = ecosystem_config.get_contracts_config()?;
-    contracts_config.l1.diamond_proxy_addr = Address::zero();
-    contracts_config.l1.governance_addr = Address::zero();
-    contracts_config.l1.chain_admin_addr = Address::zero();
-    contracts_config.l1.base_token_addr = chain_config.base_token.address;
-    contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
-        chain_config.l1_network.chain_id().into(),
-        contracts_config.l1.base_token_addr,
-    ));
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+    // let mut contracts_config = ecosystem_config.get_contracts_config()?;
+    // contracts_config.l1.diamond_proxy_addr = Address::zero();
+    // contracts_config.l1.governance_addr = Address::zero();
+    // contracts_config.l1.chain_admin_addr = Address::zero();
+    // contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();
@@ -146,5 +138,5 @@ pub async fn init_configs(
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
-    Ok(contracts_config)
+    Ok(())
 }
