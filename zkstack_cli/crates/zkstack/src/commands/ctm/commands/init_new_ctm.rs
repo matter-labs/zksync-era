@@ -73,6 +73,14 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     }
     spinner.finish();
 
+    let bridgehub_address = if let Some(addr) = init_ctm_args.bridgehub_address {
+        addr
+    } else {
+        ecosystem_config
+            .get_contracts_config()?
+            .ecosystem_contracts
+            .bridgehub_proxy_addr
+    };
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
         &init_ctm_args.ecosystem,
@@ -80,7 +88,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         &ecosystem_config,
         &initial_deployment_config,
         init_ctm_args.support_l2_legacy_shared_bridge_test,
-        init_ctm_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
+        bridgehub_address,
         init_ctm_args.zksync_os,
         init_ctm_args.reuse_gov_and_admin,
     )

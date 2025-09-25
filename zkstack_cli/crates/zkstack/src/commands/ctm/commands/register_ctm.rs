@@ -14,10 +14,7 @@ use zksync_types::H160;
 
 use crate::{
     admin_functions::{AdminScriptOutput, AdminScriptOutputInner},
-    commands::{
-        chain::utils::display_admin_script_output,
-        ctm::args::{RegisterCTMArgs, RegisterCTMArgsFinal},
-    },
+    commands::{chain::utils::display_admin_script_output, ctm::args::RegisterCTMArgs},
     messages::MSG_REGISTERING_CTM,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -41,29 +38,27 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_REGISTERING_CTM);
 
-    register_ctm(&final_ecosystem_args, shell, &ecosystem_config).await?;
-
-    Ok(())
-}
-
-pub async fn register_ctm(
-    init_args: &RegisterCTMArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
+    let bridgehub_address = if let Some(addr) = final_ecosystem_args.bridgehub_address {
+        addr
+    } else {
+        ecosystem_config
+            .get_contracts_config()?
+            .ecosystem_contracts
+            .bridgehub_proxy_addr
+    };
     let output = register_ctm_on_existing_bh(
         shell,
-        &init_args.forge_args,
-        ecosystem_config,
-        &init_args.ecosystem.l1_rpc_url,
+        &final_ecosystem_args.forge_args,
+        &ecosystem_config,
+        &final_ecosystem_args.ecosystem.l1_rpc_url,
         None,
-        init_args.bridgehub_address,
-        init_args.ctm_address,
-        init_args.only_save_calldata,
+        bridgehub_address,
+        final_ecosystem_args.ctm_address,
+        final_ecosystem_args.only_save_calldata,
     )
     .await?;
 
-    if init_args.only_save_calldata {
+    if final_ecosystem_args.only_save_calldata {
         display_admin_script_output(output);
     }
     Ok(())

@@ -27,10 +27,7 @@ use super::{
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::{
-            args::RegisterCTMArgsFinal,
-            commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm},
-        },
+        ctm::commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm_on_existing_bh},
         ecosystem::{
             common::deploy_l1_core_contracts,
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
@@ -148,12 +145,17 @@ async fn init_ecosystem(
 
         contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let reg_args = RegisterCTMArgsFinal::from_init_args(
-            init_args.clone(),
+        register_ctm_on_existing_bh(
+            shell,
+            &init_args.forge_args,
+            ecosystem_config,
+            &init_args.ecosystem.l1_rpc_url,
+            None,
             contracts.ecosystem_contracts.bridgehub_proxy_addr,
             contracts.ecosystem_contracts.state_transition_proxy_addr,
-        );
-        register_ctm(&reg_args, shell, ecosystem_config).await?;
+            false,
+        )
+        .await?;
         contracts
     };
     Ok(contracts)
