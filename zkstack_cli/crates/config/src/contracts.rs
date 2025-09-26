@@ -178,7 +178,7 @@ impl CoreContractsConfig {
                 .contracts_config
                 .force_deployments_data
                 .clone(),
-            bytecodes_supplier_addr: deploy_ctm_output
+            l1_bytecodes_supplier_addr: deploy_ctm_output
                 .deployed_addresses
                 .state_transition
                 .bytecodes_supplier_addr,
@@ -368,7 +368,7 @@ pub struct ChainTransitionManagerContracts {
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
     pub force_deployments_data: Option<String>,
-    pub bytecodes_supplier_addr: Address,
+    pub l1_bytecodes_supplier_addr: Address,
     pub expected_rollup_l2_da_validator: Address,
     pub l1_wrapped_base_token_store: Address,
     pub server_notifier_proxy_addr: Address,

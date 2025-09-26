@@ -102,8 +102,10 @@ pub struct InitNewCTMArgs {
     #[clap(long, default_missing_value = "true")]
     pub reuse_gov_and_admin: bool,
 
-    #[clap(long)]
+    #[arg(long, requires = "default_configs_src_path")]
     pub contracts_src_path: Option<PathBuf>,
+    #[arg(long, requires = "contracts_src_path")]
+    pub default_configs_src_path: Option<PathBuf>,
 }
 
 impl InitNewCTMArgs {
@@ -120,6 +122,7 @@ impl InitNewCTMArgs {
             bridgehub,
             reuse_gov_and_admin,
             contracts_src_path,
+            default_configs_src_path,
         } = self;
 
         // Fill ecosystem args
@@ -141,6 +144,7 @@ impl InitNewCTMArgs {
             zksync_os: global_config().zksync_os,
             reuse_gov_and_admin,
             contracts_src_path,
+            default_configs_src_path,
         })
     }
 }
@@ -156,4 +160,5 @@ pub struct InitNewCTMArgsFinal {
     pub zksync_os: bool,
     pub reuse_gov_and_admin: bool,
     pub contracts_src_path: Option<PathBuf>,
+    pub default_configs_src_path: Option<PathBuf>,
 }

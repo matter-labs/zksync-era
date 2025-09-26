@@ -64,7 +64,11 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
             return Err(anyhow::anyhow!(MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR));
         }
         logger::info(&format!("Using contracts source path: {}", path.display()));
-        ecosystem_config.set_contracts_path(path, global_config().zksync_os);
+        ecosystem_config.set_sources_path(
+            path,
+            init_ctm_args.default_configs_src_path.unwrap(),
+            global_config().zksync_os,
+        );
         ecosystem_config.save_with_base_path(shell, ".")?;
     }
 

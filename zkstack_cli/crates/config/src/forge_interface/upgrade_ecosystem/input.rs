@@ -111,7 +111,7 @@ impl EcosystemUpgradeInput {
                 evm_emulator_hash: new_genesis_input.evm_emulator_hash.unwrap_or_default(),
                 l1_bytecodes_supplier_addr: current_contracts_config
                     .ctm(zksync_os)
-                    .bytecodes_supplier_addr,
+                    .l1_bytecodes_supplier_addr,
                 protocol_upgrade_handler_proxy_address: Address::zero(),
                 rollup_da_manager: Address::zero(),
             },
