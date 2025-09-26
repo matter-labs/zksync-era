@@ -2,7 +2,16 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner, Prompt};
+use zkstack_cli_common::{
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
+    forge::ForgeScriptArgs,
+    logger,
+    spinner::Spinner,
+    Prompt,
+};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
@@ -97,11 +106,11 @@ async fn init_ecosystem(
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     // if !init_args.skip_contract_compilation_override {
-    //     install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-    //     build_da_contracts(shell, &ecosystem_config.contracts_path())?;
-    //     build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    //     build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    //     build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
+    build_da_contracts(shell, &ecosystem_config.contracts_path())?;
+    build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
     // }
     spinner.finish();
 
@@ -159,7 +168,7 @@ async fn return_ecosystem_contracts(
     shell: &Shell,
     ecosystem: &EcosystemArgsFinal,
     ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<CoreContractsConfig> {
     let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
         Some(path) => Some(path.clone()),
         None => {
@@ -208,7 +217,7 @@ async fn return_ecosystem_contracts(
             }
         });
 
-    ContractsConfig::read(shell, ecosystem_contracts_path)
+    CoreContractsConfig::read(shell, ecosystem_contracts_path)
 }
 
 async fn deploy_ecosystem(

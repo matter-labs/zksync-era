@@ -30,6 +30,7 @@ pub struct CoreContractsConfig {
     pub l1: L1CoreContracts,
     pub era_ctm: Option<ChainTransitionManagerContracts>,
     pub zksync_os_ctm: Option<ChainTransitionManagerContracts>,
+    pub proof_manager_contracts: Option<EthProofManagerContracts>,
 }
 
 impl CoreContractsConfig {
@@ -86,10 +87,26 @@ impl CoreContractsConfig {
                 avail_l1_da_validator_addr: Some(ctm.avail_l1_da_validator_addr),
                 no_da_validium_l1_validator_addr: Some(ctm.no_da_validium_l1_validator_addr),
             },
-            proof_manager_contracts: None,
+            proof_manager_contracts: self.proof_manager_contracts.clone(),
+            // L2 fields will be set later, after L2 deployment
             l2: Default::default(),
             other: Default::default(),
         }
+    }
+
+    pub fn set_eth_proof_manager_addresses(
+        &mut self,
+        impl_addr: String,
+        proxy_addr: String,
+        proxy_admin_addr: String,
+    ) -> anyhow::Result<()> {
+        self.proof_manager_contracts = Some(EthProofManagerContracts {
+            proof_manager_addr: H160::from_str(&impl_addr)?,
+            proxy_addr: H160::from_str(&proxy_addr)?,
+            proxy_admin_addr: H160::from_str(&proxy_admin_addr)?,
+        });
+
+        Ok(())
     }
 }
 

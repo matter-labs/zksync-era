@@ -183,14 +183,13 @@ pub(crate) async fn deploy_proving_network(
 
     drop(dir_guard);
 
-    let contracts_config = config.get_contracts_config()?;
+    let mut contracts_config = config.get_contracts_config()?;
 
-    todo!("Re-enable once zkSync supports multiple CTMs");
-    // contracts_config.set_eth_proof_manager_addresses(
-    //     impl_addr.clone(),
-    //     proxy_addr.clone(),
-    //     proxy_admin_addr.clone(),
-    // )?;
+    contracts_config.set_eth_proof_manager_addresses(
+        impl_addr.clone(),
+        proxy_addr.clone(),
+        proxy_admin_addr.clone(),
+    )?;
 
     contracts_config.save_with_base_path(shell, &config.config)?;
 
