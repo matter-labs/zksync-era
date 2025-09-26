@@ -94,8 +94,8 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     };
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
-        &init_ctm_args.ecosystem,
-        init_ctm_args.forge_args.clone(),
+        init_ctm_args.ecosystem.l1_rpc_url.clone(),
+        &init_ctm_args.forge_args,
         &ecosystem_config,
         &initial_deployment_config,
         init_ctm_args.support_l2_legacy_shared_bridge_test,
@@ -111,8 +111,8 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn deploy_new_ctm_and_accept_admin(
     shell: &Shell,
-    ecosystem: &EcosystemArgsFinal,
-    forge_args: ForgeScriptArgs,
+    l1_rpc_url: String,
+    forge_args: &ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
@@ -120,7 +120,6 @@ pub async fn deploy_new_ctm_and_accept_admin(
     zksync_os: bool,
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
-    let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_new_ctm(
         shell,

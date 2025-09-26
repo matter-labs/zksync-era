@@ -24,6 +24,7 @@ use super::{
     common::init_chains,
     setup_observability,
 };
+use crate::commands::ctm::commands::init_new_ctm::deploy_new_ctm_and_accept_admin;
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
@@ -129,14 +130,12 @@ async fn init_ecosystem(
         .await?;
         core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let contracts = deploy_new_ctm(
+        let contracts = deploy_new_ctm_and_accept_admin(
             shell,
+            init_args.ecosystem.l1_rpc_url.clone(),
             &init_args.forge_args,
             ecosystem_config,
             initial_deployment_config,
-            init_args.ecosystem.l1_rpc_url.as_str(),
-            None,
-            true,
             init_args.support_l2_legacy_shared_bridge_test,
             core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
             init_args.zksync_os,
