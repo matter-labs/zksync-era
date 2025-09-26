@@ -1,5 +1,13 @@
 # Changelog
 
+## [29.4.1](https://github.com/matter-labs/zksync-era/compare/core-v29.4.0...core-v29.4.1) (2025-09-26)
+
+
+### Bug Fixes
+
+* **en:** Fix statement timeout errors during cache recovery ([#4248](https://github.com/matter-labs/zksync-era/issues/4248)) ([67a9b82](https://github.com/matter-labs/zksync-era/commit/67a9b82125e3e3742b9a1096fa0c2493279d2251))
+* **eth_watcher:** Do not process upgrades if it's already processed ([#4506](https://github.com/matter-labs/zksync-era/issues/4506)) ([f71cc00](https://github.com/matter-labs/zksync-era/commit/f71cc008d1068ad49d510e0d8619a2bfd3a137fa))
+
 ## [29.4.0](https://github.com/matter-labs/zksync-era/compare/core-v29.3.0...core-v29.4.0) (2025-09-24)
 
 
