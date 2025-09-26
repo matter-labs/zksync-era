@@ -2,9 +2,7 @@ use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
-use zkstack_cli_config::{
-    copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait,
-};
+use zkstack_cli_config::{copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig};
 
 use crate::{
     commands::chain::{
@@ -50,7 +48,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     // FIXME: config isn't saved; why?
 
     // Copy ecosystem contracts
-    let mut contracts_config = config
+    let contracts_config = config
         .get_contracts_config()
         .context(MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG)?;
     spinner.finish();
@@ -63,7 +61,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         args.forge_args.clone(),
         &config,
         &chain_config,
-        &mut contracts_config,
+        &contracts_config,
         args.l1_rpc_url.clone(),
         Some(governor),
         false,

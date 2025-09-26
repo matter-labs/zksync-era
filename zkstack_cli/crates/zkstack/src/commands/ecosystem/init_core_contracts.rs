@@ -1,10 +1,18 @@
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_cli_common::{
+    config::global_config,
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
+    forge::ForgeScriptArgs,
+    logger,
+    spinner::Spinner,
+};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 
 use super::args::init::EcosystemArgsFinal;
@@ -78,11 +86,20 @@ async fn init_ecosystem(
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     // if !init_args.skip_contract_compilation_override {
-    // install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-    // build_da_contracts(shell, &ecosystem_config.contracts_path())?;
-    // build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    // build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    // build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
+    build_da_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+    build_l1_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    build_system_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    build_l2_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
     // }
     spinner.finish();
 

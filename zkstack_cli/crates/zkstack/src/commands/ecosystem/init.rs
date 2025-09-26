@@ -15,9 +15,10 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
-    ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::L1Network;
+use zksync_basic_types::Address;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -145,37 +146,89 @@ async fn init_ecosystem(
         .await?;
         core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
 
-        let contracts = deploy_new_ctm_and_accept_admin(
+        let mut contracts = deploy_and_register_ctm(
             shell,
             init_args.ecosystem.l1_rpc_url.clone(),
-            &init_args.forge_args,
             ecosystem_config,
             initial_deployment_config,
-            init_args.support_l2_legacy_shared_bridge_test,
             core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
-            init_args.zksync_os,
-            true,
-        )
-        .await?;
-
-        contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-
-        register_ctm_on_existing_bh(
-            shell,
+            init_args.support_l2_legacy_shared_bridge_test,
             &init_args.forge_args,
-            ecosystem_config,
-            &init_args.ecosystem.l1_rpc_url,
-            None,
-            contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
-            contracts
-                .ctm(init_args.zksync_os)
-                .state_transition_proxy_addr,
-            false,
             init_args.zksync_os,
         )
         .await?;
+
+        // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
+        if !init_args.zksync_os && ecosystem_config.zksync_os_exist() && init_args.dev {
+            install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
+            build_da_contracts(shell, &ecosystem_config.contracts_path_for_ctm(true))?;
+            build_l1_contracts(
+                shell.clone(),
+                &ecosystem_config.contracts_path_for_ctm(true),
+            )?;
+            build_system_contracts(
+                shell.clone(),
+                &ecosystem_config.contracts_path_for_ctm(true),
+            )?;
+            build_l2_contracts(
+                shell.clone(),
+                &ecosystem_config.contracts_path_for_ctm(true),
+            )?;
+            contracts = deploy_and_register_ctm(
+                shell,
+                init_args.ecosystem.l1_rpc_url.clone(),
+                ecosystem_config,
+                initial_deployment_config,
+                core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
+                init_args.support_l2_legacy_shared_bridge_test,
+                &init_args.forge_args,
+                true,
+            )
+            .await?;
+        }
+
         contracts
     };
+    Ok(contracts)
+}
+
+async fn deploy_and_register_ctm(
+    shell: &Shell,
+    l1_rpc_url: String,
+    ecosystem_config: &EcosystemConfig,
+    initial_deployment_config: &InitialDeploymentConfig,
+    bridgehub_proxy_addr: Address,
+    support_l2_legacy_shared_bridge_test: bool,
+    forge_args: &ForgeScriptArgs,
+    zksync_os: bool,
+) -> anyhow::Result<CoreContractsConfig> {
+    let contracts = deploy_new_ctm_and_accept_admin(
+        shell,
+        l1_rpc_url.clone(),
+        forge_args,
+        ecosystem_config,
+        initial_deployment_config,
+        support_l2_legacy_shared_bridge_test,
+        bridgehub_proxy_addr,
+        zksync_os,
+        true,
+    )
+    .await?;
+
+    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
+
+    register_ctm_on_existing_bh(
+        shell,
+        forge_args,
+        ecosystem_config,
+        &l1_rpc_url,
+        None,
+        bridgehub_proxy_addr,
+        contracts.ctm(zksync_os).state_transition_proxy_addr,
+        false,
+        zksync_os,
+    )
+    .await?;
     Ok(contracts)
 }
 

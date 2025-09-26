@@ -1,7 +1,7 @@
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
-use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig};
 
 use super::{
     args::build_transactions::BuildTransactionsArgs,

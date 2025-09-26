@@ -23,7 +23,7 @@ use crate::{
     },
     source_files::SourceFiles,
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig, ZkStackConfigTrait,
+    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig,
     PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
@@ -342,7 +342,7 @@ impl EcosystemConfig {
         }
     }
 
-    fn get_source_files(&self, zksync_os: bool) -> Option<&SourceFiles> {
+    pub fn get_source_files(&self, zksync_os: bool) -> Option<&SourceFiles> {
         if zksync_os {
             self.zksync_os_source_files.as_ref()
         } else {
@@ -380,6 +380,10 @@ impl EcosystemConfig {
     pub fn link_to_code(&self) -> PathBuf {
         self.link_to_code.clone()
     }
+
+    pub fn zksync_os_exist(&self) -> bool {
+        self.zksync_os_source_files.is_some()
+    }
 }
 
 /// Result of checking if the ecosystem exists.
@@ -399,24 +403,3 @@ pub fn get_default_era_chain_id() -> L2ChainId {
 pub fn get_link_to_prover(link_to_code: &Path) -> PathBuf {
     link_to_code.join("prover")
 }
-
-// impl ZkStackConfigTrait for EcosystemConfig {
-//     fn link_to_code(&self) -> PathBuf {
-//         self.link_to_code.clone()
-//     }
-//
-//     fn default_configs_path(&self) -> PathBuf {
-//         let zksync_os = global_config().zksync_os;
-//         self.default_configs_path_for_ctm(zksync_os)
-//     }
-//
-//     fn contracts_path(&self) -> PathBuf {
-//         let zksync_os = global_config().zksync_os;
-//         self.contracts_path_for_ctm(zksync_os)
-//     }
-//
-//     fn path_to_foundry_scripts(&self) -> PathBuf {
-//         let zksync_os = global_config().zksync_os;
-//         self.path_to_foundry_scripts_for_ctm(zksync_os)
-//     }
-// }

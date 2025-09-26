@@ -46,7 +46,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let output: GatewayTxFiltererOutput = deploy_gateway_tx_filterer(
         shell,
         args.clone(),
-        &ecosystem_config,
         &chain_config,
         &chain_deployer_wallet,
         GatewayTxFiltererInput::new(
@@ -81,7 +80,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn deploy_gateway_tx_filterer(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
     chain_config: &ChainConfig,
     deployer: &Wallet,
     input: GatewayTxFiltererInput,
@@ -92,7 +90,7 @@ pub async fn deploy_gateway_tx_filterer(
         DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_foundry_scripts()),
     )?;
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os))
+    let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&DEPLOY_GATEWAY_TX_FILTERER.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)

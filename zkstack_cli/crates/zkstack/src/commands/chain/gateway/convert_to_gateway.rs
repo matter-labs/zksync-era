@@ -25,7 +25,7 @@ use zkstack_cli_config::{
     },
     override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
+    ChainConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::ProverMode;
 
@@ -153,7 +153,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let vote_preparation_output = gateway_vote_preparation(
         shell,
         args.clone(),
-        &ecosystem_config,
         &chain_config,
         &chain_deployer_wallet,
         GatewayVotePreparationConfig::new(
@@ -223,7 +222,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 pub async fn gateway_vote_preparation(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
     chain_config: &ChainConfig,
     deployer: &Wallet,
     input: GatewayVotePreparationConfig,
@@ -240,7 +238,7 @@ pub async fn gateway_vote_preparation(
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =
-        Forge::new(&config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os))
+        Forge::new(&chain_config.path_to_foundry_scripts())
             .script(&GATEWAY_VOTE_PREPARATION.script(), forge_args.clone())
             .with_ffi()
             .with_rpc_url(l1_rpc_url)

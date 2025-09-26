@@ -20,8 +20,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait,
-    GENESIS_FILE,
+    CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -65,7 +64,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         if !path.exists() || !path.is_dir() {
             return Err(anyhow::anyhow!(MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR));
         }
-        logger::info(&format!("Using contracts source path: {}", path.display()));
+        logger::info(format!("Using contracts source path: {}", path.display()));
         ecosystem_config.set_sources_path(
             path,
             init_ctm_args.default_configs_src_path.unwrap(),
@@ -135,7 +134,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_new_ctm(
         shell,
-        &forge_args,
+        forge_args,
         ecosystem_config,
         initial_deployment_config,
         &l1_rpc_url,
@@ -156,7 +155,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         ctm.state_transition_proxy_addr,
-        &forge_args,
+        forge_args,
         l1_rpc_url.clone(),
     )
     .await?;
@@ -167,7 +166,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         ctm.state_transition_proxy_addr,
-        &forge_args,
+        forge_args,
         l1_rpc_url.clone(),
     )
     .await?;

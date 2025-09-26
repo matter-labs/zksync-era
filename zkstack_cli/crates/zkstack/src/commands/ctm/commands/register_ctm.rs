@@ -8,7 +8,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::REGISTER_CTM_SCRIPT_PARAMS, traits::ReadConfig,
-    EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::L1Network;
 use zksync_types::H160;
@@ -39,7 +39,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_REGISTERING_CTM);
 
-    let bridgehub_address = if let Some(addr) = final_ecosystem_args.bridgehub_address {
+    let bridgehub_address = if let Some(addr) = final_ecosystem_args.bridgehub {
         addr
     } else {
         ecosystem_config
@@ -48,7 +48,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
             .bridgehub_proxy_addr
     };
 
-    let ctm_address = if let Some(addr) = final_ecosystem_args.ctm_address {
+    let ctm_address = if let Some(addr) = final_ecosystem_args.ctm {
         addr
     } else {
         ecosystem_config

@@ -18,7 +18,7 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
     traits::{FileConfigTrait, ReadConfig},
-    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfigTrait,
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use zksync_basic_types::U256;
 
@@ -259,7 +259,7 @@ async fn admin_execute_upgrade(
             ),
         )
         .unwrap();
-    let forge = Forge::new(&path_to_foundry_scripts)
+    let forge = Forge::new(path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -354,7 +354,7 @@ pub async fn admin_update_validator(
             ),
         )
         .unwrap();
-    let forge = Forge::new(&path_to_foundry_scripts)
+    let forge = Forge::new(path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),

@@ -21,7 +21,7 @@ use zkstack_cli_config::{
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
-    ZkStackConfigTrait, GENESIS_FILE,
+    GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 

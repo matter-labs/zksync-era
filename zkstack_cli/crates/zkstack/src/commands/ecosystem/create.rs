@@ -4,7 +4,6 @@ use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 
 use crate::{

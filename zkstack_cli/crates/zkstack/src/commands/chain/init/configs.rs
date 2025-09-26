@@ -25,14 +25,10 @@ use crate::{
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    // TODO Make it possible to run this command without ecosystem config
-    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    init_configs(&args, shell, &chain_config).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
     Ok(())
@@ -41,14 +37,13 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn init_configs(
     init_args: &InitConfigsArgsFinal,
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
     copy_configs(
         shell,
-        &ecosystem_config.default_configs_path_for_ctm(chain_config.zksync_os),
+        &chain_config.default_configs_path(),
         &chain_config.configs,
     )?;
 
@@ -102,13 +97,6 @@ pub async fn init_configs(
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     genesis_config.update_from_chain_config(chain_config)?;
     genesis_config.save().await?;
-
-    // Initialize contracts config
-    // let mut contracts_config = ecosystem_config.get_contracts_config()?;
-    // contracts_config.l1.diamond_proxy_addr = Address::zero();
-    // contracts_config.l1.governance_addr = Address::zero();
-    // contracts_config.l1.chain_admin_addr = Address::zero();
-    // contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();

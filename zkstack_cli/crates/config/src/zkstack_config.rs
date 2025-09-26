@@ -43,8 +43,7 @@ impl ZkStackConfig {
 impl ZkStackConfigTrait for ZkStackConfig {
     fn link_to_code(&self) -> PathBuf {
         match self {
-            // TODO: return link to code
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code.clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code(),
             ZkStackConfig::ChainConfig(chain) => chain.link_to_code().clone(),
         }
     }
@@ -69,9 +68,9 @@ impl ZkStackConfigTrait for ZkStackConfig {
 
     fn path_to_foundry_scripts(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
-                .path_to_foundry_scripts_for_ctm(global_config().zksync_os)
-                .clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => {
+                ecosystem.path_to_foundry_scripts_for_ctm(global_config().zksync_os)
+            }
             ZkStackConfig::ChainConfig(chain) => chain.path_to_foundry_scripts().clone(),
         }
     }
