@@ -2,6 +2,7 @@ use ethers::{abi::parse_abi, contract::BaseContract, types::H160};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
+    config::global_config,
     forge::{Forge, ForgeScriptArgs},
     logger,
     spinner::Spinner,
@@ -28,7 +29,10 @@ use crate::{
             args::init::EcosystemArgsFinal, create_configs::create_initial_deployments_config,
         },
     },
-    messages::{MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM},
+    messages::{
+        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
+        MSG_INITIALIZING_CTM,
+    },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -39,7 +43,7 @@ lazy_static! {
     );
 }
 pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
     //     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
@@ -54,6 +58,15 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
+
+    if let Some(path) = init_ctm_args.contracts_src_path {
+        if !path.exists() || !path.is_dir() {
+            return Err(anyhow::anyhow!(MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR));
+        }
+        logger::info(&format!("Using contracts source path: {}", path.display()));
+        ecosystem_config.set_contracts_path(path, global_config().zksync_os);
+        ecosystem_config.save_with_base_path(shell, ".")?;
+    }
 
     logger::info(MSG_INITIALIZING_CTM);
 

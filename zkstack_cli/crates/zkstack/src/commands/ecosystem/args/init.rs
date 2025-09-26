@@ -113,16 +113,16 @@ pub struct EcosystemInitArgs {
     pub observability: Option<bool>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    // #[clap(long)]
-    // pub update_submodules: Option<bool>,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
     #[clap(flatten)]
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, default_value = "false", num_args = 0..=1)]
     pub make_permanent_rollup: Option<bool>,
-    // #[clap(long, default_value_t = false)]
-    // pub skip_contract_compilation_override: bool,
+    #[clap(long, default_value_t = false)]
+    pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
@@ -158,11 +158,11 @@ impl EcosystemInitArgs {
             ecosystem_only,
             observability,
             no_port_reallocation,
-            // skip_contract_compilation_override,
+            skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test,
             make_permanent_rollup,
-            // update_submodules,
+            update_submodules,
             deploy_paymaster,
             ..
         } = self;
@@ -205,14 +205,14 @@ impl EcosystemInitArgs {
             dev,
             ecosystem_only,
             no_port_reallocation,
-            // skip_contract_compilation_override,
+            skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
             deploy_ecosystem,
             deploy_paymaster,
             make_permanent_rollup,
-            // update_submodules,
+            update_submodules,
             genesis_args,
             zksync_os: global_config().zksync_os,
         })
@@ -228,13 +228,13 @@ pub struct EcosystemInitArgsFinal {
     pub observability: bool,
     pub ecosystem_only: bool,
     pub no_port_reallocation: bool,
-    // pub skip_contract_compilation_override: bool,
+    pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub deploy_ecosystem: bool,
     pub deploy_paymaster: Option<bool>,
     pub make_permanent_rollup: Option<bool>,
-    // pub update_submodules: Option<bool>,
+    pub update_submodules: Option<bool>,
     pub genesis_args: Option<GenesisArgs>,
     pub zksync_os: bool,
 }
@@ -251,10 +251,10 @@ pub struct InitCoreContractsArgs {
     pub forge_args: ForgeScriptArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    // #[clap(long)]
-    // pub update_submodules: Option<bool>,
-    // #[clap(long, default_value_t = false)]
-    // pub skip_contract_compilation_override: bool,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
+    #[clap(long, default_value_t = false)]
+    pub skip_contract_compilation_override: bool,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
 }
@@ -269,8 +269,8 @@ impl InitCoreContractsArgs {
             ecosystem,
             forge_args,
             dev,
-            // update_submodules,
-            // skip_contract_compilation_override,
+            update_submodules,
+            skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
         } = self;
 
@@ -290,8 +290,8 @@ impl InitCoreContractsArgs {
             deploy_erc20,
             ecosystem,
             forge_args,
-            // update_submodules,
-            // skip_contract_compilation_override,
+            update_submodules,
+            skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or(false),
         })
@@ -303,8 +303,8 @@ pub struct InitCoreContractsArgsFinal {
     pub deploy_erc20: bool,
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
-    // pub update_submodules: Option<bool>,
-    // pub skip_contract_compilation_override: bool,
+    pub update_submodules: Option<bool>,
+    pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
 }
 
@@ -314,8 +314,8 @@ impl From<EcosystemInitArgsFinal> for InitCoreContractsArgsFinal {
             deploy_erc20: args.deploy_erc20,
             ecosystem: args.ecosystem,
             forge_args: args.forge_args,
-            // update_submodules: None,
-            // skip_contract_compilation_override: args.skip_contract_compilation_override,
+            update_submodules: None,
+            skip_contract_compilation_override: args.skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
         }
     }

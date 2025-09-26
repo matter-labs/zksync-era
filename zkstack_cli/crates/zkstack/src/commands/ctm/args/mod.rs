@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use clap::Parser;
 use serde::Deserialize;
@@ -89,16 +91,19 @@ pub struct InitNewCTMArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
-    // #[clap(long)]
-    // pub update_submodules: Option<bool>,
-    // #[clap(long, default_value_t = false)]
-    // pub skip_contract_compilation_override: bool,
+    #[clap(long)]
+    pub update_submodules: Option<bool>,
+    #[clap(long, default_value_t = false)]
+    pub skip_contract_compilation_override: bool,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
     #[clap(long, default_missing_value = "true")]
     pub reuse_gov_and_admin: bool,
+
+    #[clap(long)]
+    pub contracts_src_path: Option<PathBuf>,
 }
 
 impl InitNewCTMArgs {
@@ -109,13 +114,12 @@ impl InitNewCTMArgs {
         let InitNewCTMArgs {
             ecosystem,
             forge_args,
-            // update_submodules,
-            // skip_contract_compilation_override,
+            update_submodules,
+            skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
-            // update_submodules,
             bridgehub,
-            // zksync_os,
             reuse_gov_and_admin,
+            contracts_src_path,
         } = self;
 
         // Fill ecosystem args
@@ -124,8 +128,8 @@ impl InitNewCTMArgs {
         Ok(InitNewCTMArgsFinal {
             ecosystem,
             forge_args,
-            // update_submodules,
-            // skip_contract_compilation_override,
+            update_submodules,
+            skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
                 .unwrap_or(false),
             bridgehub_address: bridgehub
@@ -136,6 +140,7 @@ impl InitNewCTMArgs {
                 .transpose()?,
             zksync_os: global_config().zksync_os,
             reuse_gov_and_admin,
+            contracts_src_path,
         })
     }
 }
@@ -144,10 +149,11 @@ impl InitNewCTMArgs {
 pub struct InitNewCTMArgsFinal {
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
-    // pub update_submodules: Option<bool>,
-    // pub skip_contract_compilation_override: bool,
+    pub update_submodules: Option<bool>,
+    pub skip_contract_compilation_override: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<H160>,
     pub zksync_os: bool,
     pub reuse_gov_and_admin: bool,
+    pub contracts_src_path: Option<PathBuf>,
 }

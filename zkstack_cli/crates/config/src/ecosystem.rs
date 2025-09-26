@@ -63,6 +63,16 @@ pub struct EcosystemConfig {
     shell: OnceCell<Shell>,
 }
 
+impl EcosystemConfig {
+    pub fn set_contracts_path(&mut self, path: PathBuf, zksync_os: bool) {
+        if zksync_os {
+            self.zksync_os_contracts_path = Some(path);
+        } else {
+            self.era_contracts_path = Some(path);
+        }
+    }
+}
+
 impl Serialize for EcosystemConfig {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
