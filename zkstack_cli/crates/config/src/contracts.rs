@@ -183,7 +183,7 @@ impl CoreContractsConfig {
                 .state_transition
                 .bytecodes_supplier_addr,
             expected_rollup_l2_da_validator: deploy_ctm_output.expected_rollup_l2_da_validator_addr,
-            l1_wrapped_base_token_store: Default::default(),
+            l1_wrapped_base_token_store: None,
             server_notifier_proxy_addr: deploy_ctm_output
                 .deployed_addresses
                 .server_notifier_proxy_addr,
@@ -370,7 +370,7 @@ pub struct ChainTransitionManagerContracts {
     pub force_deployments_data: Option<String>,
     pub l1_bytecodes_supplier_addr: Address,
     pub expected_rollup_l2_da_validator: Address,
-    pub l1_wrapped_base_token_store: Address,
+    pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_proxy_addr: Address,
     pub default_upgrade_addr: Address,
     pub genesis_upgrade_addr: Address,

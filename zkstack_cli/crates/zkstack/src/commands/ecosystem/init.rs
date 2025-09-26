@@ -24,11 +24,13 @@ use super::{
     common::init_chains,
     setup_observability,
 };
-use crate::commands::ctm::commands::init_new_ctm::deploy_new_ctm_and_accept_admin;
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::commands::{init_new_ctm::deploy_new_ctm, register_ctm::register_ctm_on_existing_bh},
+        ctm::commands::{
+            init_new_ctm::deploy_new_ctm_and_accept_admin,
+            register_ctm::register_ctm_on_existing_bh,
+        },
         ecosystem::{
             common::{deploy_erc20, deploy_l1_core_contracts},
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
