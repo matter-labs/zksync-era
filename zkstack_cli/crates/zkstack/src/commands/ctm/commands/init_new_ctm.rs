@@ -44,6 +44,7 @@ lazy_static! {
     );
 }
 pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
+    let zksync_os = global_config().zksync_os;
     let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
@@ -77,11 +78,20 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     // if !init_ctm_args.skip_contract_compilation_override {
-    install_yarn_dependencies(shell, &ecosystem_config.contracts_path())?;
-    build_da_contracts(shell, &ecosystem_config.contracts_path())?;
-    build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    install_yarn_dependencies(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+    build_da_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+    build_l1_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    build_system_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    build_l2_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
     // }
     spinner.finish();
 
@@ -142,7 +152,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     let ctm = contracts_config.ctm(zksync_os);
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         ctm.state_transition_proxy_addr,
@@ -153,7 +163,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
 
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         ctm.state_transition_proxy_addr,
@@ -180,8 +190,11 @@ pub async fn deploy_new_ctm(
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let mut contracts_config = config.get_contracts_config()?;
-    let deploy_config_path = DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
-    let genesis_config_path = config.default_configs_path().join(GENESIS_FILE);
+    let deploy_config_path =
+        DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(zksync_os));
+    let genesis_config_path = config
+        .default_configs_path_for_ctm(zksync_os)
+        .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
@@ -203,7 +216,7 @@ pub async fn deploy_new_ctm(
         .encode("runWithBridgehub", (bridgehub_address, reuse_gov_and_admin))
         .unwrap();
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(zksync_os))
         .script(&DEPLOY_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
@@ -233,7 +246,7 @@ pub async fn deploy_new_ctm(
 
     let script_output = DeployCTMOutput::read(
         shell,
-        DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts()),
+        DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(zksync_os)),
     )?;
     contracts_config.update_from_ctm_output(&script_output, zksync_os);
 

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
@@ -23,7 +23,7 @@ use crate::{
 
 pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-
+    let zksync_os = global_config().zksync_os;
     // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
     //     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
     // }
@@ -45,6 +45,7 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
         shell,
         &ecosystem_config,
         &initial_deployment_config,
+        zksync_os,
     )
     .await?;
 
@@ -73,6 +74,7 @@ async fn init_ecosystem(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    zksync_os: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     // if !init_args.skip_contract_compilation_override {
@@ -91,6 +93,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
+        zksync_os,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -104,6 +107,7 @@ pub async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
+    zksync_os: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
@@ -116,13 +120,14 @@ pub async fn deploy_ecosystem(
         None,
         true,
         support_l2_legacy_shared_bridge_test,
+        zksync_os,
     )
     .await?;
     spinner.finish();
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -134,7 +139,7 @@ pub async fn deploy_ecosystem(
     .await?;
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -149,7 +154,7 @@ pub async fn deploy_ecosystem(
     // need to accept it
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -160,7 +165,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

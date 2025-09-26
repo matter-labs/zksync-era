@@ -58,7 +58,7 @@ pub struct EcosystemConfig {
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     default_chain: String,
-    link_to_code: PathBuf,
+    pub(crate) link_to_code: PathBuf,
     era_source_files: Option<SourceFiles>,
     zksync_os_source_files: Option<SourceFiles>,
     shell: OnceCell<Shell>,
@@ -349,6 +349,37 @@ impl EcosystemConfig {
             self.era_source_files.as_ref()
         }
     }
+
+    pub fn default_configs_path_for_ctm(&self, zksync_os: bool) -> PathBuf {
+        self.get_source_files(zksync_os)
+            .map(|files| files.default_configs_path.clone())
+            .unwrap_or_else(|| {
+                if zksync_os {
+                    println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                }
+                self.link_to_code.join(CONFIGS_PATH)
+            })
+    }
+
+    pub fn contracts_path_for_ctm(&self, zksync_os: bool) -> PathBuf {
+        self.get_source_files(zksync_os)
+            .map(|files| files.contracts_path.clone())
+            .unwrap_or_else(|| {
+                if zksync_os {
+                    println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                }
+                self.link_to_code.join(CONTRACTS_PATH)
+            })
+    }
+
+    pub fn path_to_foundry_scripts_for_ctm(&self, zksync_os: bool) -> PathBuf {
+        self.contracts_path_for_ctm(zksync_os)
+            .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
+    }
+
+    pub fn link_to_code(&self) -> PathBuf {
+        self.link_to_code.clone()
+    }
 }
 
 /// Result of checking if the ecosystem exists.
@@ -369,37 +400,23 @@ pub fn get_link_to_prover(link_to_code: &Path) -> PathBuf {
     link_to_code.join("prover")
 }
 
-impl ZkStackConfigTrait for EcosystemConfig {
-    fn link_to_code(&self) -> PathBuf {
-        self.link_to_code.clone()
-    }
-
-    fn default_configs_path(&self) -> PathBuf {
-        let zksync_os = global_config().zksync_os;
-        self.get_source_files(zksync_os)
-            .map(|files| files.default_configs_path.clone())
-            .unwrap_or_else(|| {
-                if zksync_os {
-                    println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
-                }
-                self.link_to_code().join(CONFIGS_PATH)
-            })
-    }
-
-    fn contracts_path(&self) -> PathBuf {
-        let zksync_os = global_config().zksync_os;
-        self.get_source_files(zksync_os)
-            .map(|files| files.contracts_path.clone())
-            .unwrap_or_else(|| {
-                if zksync_os {
-                    println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
-                }
-                self.link_to_code().join(CONTRACTS_PATH)
-            })
-    }
-
-    fn path_to_foundry_scripts(&self) -> PathBuf {
-        self.contracts_path()
-            .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
-    }
-}
+// impl ZkStackConfigTrait for EcosystemConfig {
+//     fn link_to_code(&self) -> PathBuf {
+//         self.link_to_code.clone()
+//     }
+//
+//     fn default_configs_path(&self) -> PathBuf {
+//         let zksync_os = global_config().zksync_os;
+//         self.default_configs_path_for_ctm(zksync_os)
+//     }
+//
+//     fn contracts_path(&self) -> PathBuf {
+//         let zksync_os = global_config().zksync_os;
+//         self.contracts_path_for_ctm(zksync_os)
+//     }
+//
+//     fn path_to_foundry_scripts(&self) -> PathBuf {
+//         let zksync_os = global_config().zksync_os;
+//         self.path_to_foundry_scripts_for_ctm(zksync_os)
+//     }
+// }

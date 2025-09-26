@@ -57,12 +57,13 @@ pub async fn register_chain(
     sender: Option<String>,
     broadcast: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts());
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS
+        .input(&config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os));
 
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os))
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url);

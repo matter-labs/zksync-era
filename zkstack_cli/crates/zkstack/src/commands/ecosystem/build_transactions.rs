@@ -1,6 +1,6 @@
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{
@@ -23,6 +23,7 @@ const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/config-deploy-l
 const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
 pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
+    let zksync_os = global_config().zksync_os;
     let args = args.fill_values_with_prompt()?;
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
@@ -66,14 +67,14 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
 
     shell.copy_file(
         ecosystem_config
-            .contracts_path()
+            .contracts_path_for_ctm(zksync_os)
             .join(DEPLOY_TRANSACTIONS_FILE_SRC),
         args.out.join(DEPLOY_TRANSACTIONS_FILE_DST),
     )?;
 
     shell.copy_file(
         ecosystem_config
-            .contracts_path()
+            .contracts_path_for_ctm(zksync_os)
             .join(SCRIPT_CONFIG_FILE_SRC),
         args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;

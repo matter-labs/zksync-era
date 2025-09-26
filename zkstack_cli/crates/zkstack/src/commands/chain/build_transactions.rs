@@ -1,7 +1,7 @@
 use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
 use zkstack_cli_config::{
     copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait,
 };
@@ -26,6 +26,7 @@ const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/register-zk-cha
 const SCRIPT_CONFIG_FILE_DST: &str = "register-zk-chain.toml";
 
 pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
+    let zksync_os = global_config().zksync_os;
     let config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = config
         .load_current_chain()
@@ -36,7 +37,11 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     // git::submodule_update(shell, &config.link_to_code())?;
 
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
-    copy_configs(shell, &config.default_configs_path(), &chain_config.configs)?;
+    copy_configs(
+        shell,
+        &config.default_configs_path_for_ctm(global_config().zksync_os),
+        &chain_config.configs,
+    )?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
 
@@ -75,12 +80,16 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         .context(MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config.contracts_path().join(REGISTER_CHAIN_TXNS_FILE_SRC),
+        config
+            .contracts_path_for_ctm(zksync_os)
+            .join(REGISTER_CHAIN_TXNS_FILE_SRC),
         args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
     shell.copy_file(
-        config.contracts_path().join(SCRIPT_CONFIG_FILE_SRC),
+        config
+            .contracts_path_for_ctm(zksync_os)
+            .join(SCRIPT_CONFIG_FILE_SRC),
         args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;
     spinner.finish();

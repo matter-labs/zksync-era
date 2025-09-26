@@ -48,7 +48,7 @@ pub async fn init_configs(
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
     copy_configs(
         shell,
-        &ecosystem_config.default_configs_path(),
+        &ecosystem_config.default_configs_path_for_ctm(chain_config.zksync_os),
         &chain_config.configs,
     )?;
 

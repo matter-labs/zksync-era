@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::bail;
 use xshell::Shell;
+use zkstack_cli_common::config::global_config;
 
 use crate::{ChainConfig, ChainConfigInternal, EcosystemConfig, EcosystemConfigFromFileError};
 
@@ -42,30 +43,35 @@ impl ZkStackConfig {
 impl ZkStackConfigTrait for ZkStackConfig {
     fn link_to_code(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code().clone(),
+            // TODO: return link to code
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code.clone(),
             ZkStackConfig::ChainConfig(chain) => chain.link_to_code().clone(),
         }
     }
 
     fn default_configs_path(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.default_configs_path().clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
+                .default_configs_path_for_ctm(global_config().zksync_os)
+                .clone(),
             ZkStackConfig::ChainConfig(chain) => chain.default_configs_path().clone(),
         }
     }
 
     fn contracts_path(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.contracts_path().clone(),
-            ZkStackConfig::ChainConfig(chain) => chain.contracts_path().clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => {
+                ecosystem.contracts_path_for_ctm(global_config().zksync_os)
+            }
+            ZkStackConfig::ChainConfig(chain) => chain.contracts_path(),
         }
     }
 
     fn path_to_foundry_scripts(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => {
-                ecosystem.path_to_foundry_scripts().clone()
-            }
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
+                .path_to_foundry_scripts_for_ctm(global_config().zksync_os)
+                .clone(),
             ZkStackConfig::ChainConfig(chain) => chain.path_to_foundry_scripts().clone(),
         }
     }

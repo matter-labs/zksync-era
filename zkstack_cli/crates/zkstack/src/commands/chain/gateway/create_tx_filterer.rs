@@ -92,7 +92,7 @@ pub async fn deploy_gateway_tx_filterer(
         DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_foundry_scripts()),
     )?;
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os))
         .script(&DEPLOY_GATEWAY_TX_FILTERER.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)

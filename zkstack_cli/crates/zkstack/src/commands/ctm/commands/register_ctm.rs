@@ -66,6 +66,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         bridgehub_address,
         ctm_address,
         final_ecosystem_args.only_save_calldata,
+        zksync_os,
     )
     .await?;
 
@@ -85,6 +86,7 @@ pub async fn register_ctm_on_existing_bh(
     bridgehub_address: H160,
     ctm_address: H160,
     only_save_calldata: bool,
+    zksync_os: bool,
 ) -> anyhow::Result<AdminScriptOutput> {
     let wallets_config = config.get_wallets()?;
 
@@ -95,7 +97,7 @@ pub async fn register_ctm_on_existing_bh(
         )
         .unwrap();
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts())
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(zksync_os))
         .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
@@ -118,7 +120,8 @@ pub async fn register_ctm_on_existing_bh(
         check_the_balance(&forge).await?;
     }
 
-    let output_path = REGISTER_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts());
+    let output_path =
+        REGISTER_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(zksync_os));
     forge.run(shell)?;
 
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())

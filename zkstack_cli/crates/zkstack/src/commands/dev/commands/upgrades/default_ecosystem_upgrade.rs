@@ -53,6 +53,7 @@ pub async fn run(
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
+    let zksync_os = global_config().zksync_os;
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     // git::submodule_update(shell, &ecosystem_config.link_to_code())?;
@@ -77,6 +78,7 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                zksync_os,
             )
             .await?;
         }
@@ -86,6 +88,7 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                zksync_os,
             )
             .await?;
         }
@@ -95,14 +98,27 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                zksync_os,
             )
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage2 => {
-            governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+            governance_stage_2(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                zksync_os,
+            )
+            .await?;
         }
         EcosystemUpgradeStage::NoGovernanceStage2 => {
-            no_governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+            no_governance_stage_2(
+                &mut final_ecosystem_args,
+                shell,
+                &ecosystem_config,
+                zksync_os,
+            )
+            .await?;
         }
     }
 
@@ -140,7 +156,9 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
+    let genesis_config_path = ecosystem_config
+        .default_configs_path_for_ctm(zksync_os)
+        .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
@@ -186,7 +204,7 @@ async fn no_governance_prepare(
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
     let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(upgrade_version)
-        .input(&ecosystem_config.path_to_foundry_scripts());
+        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os));
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
@@ -241,7 +259,7 @@ async fn no_governance_prepare(
         ecosystem_upgrade_config_path
     ));
     ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts())
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
             forge_args.clone(),
@@ -266,20 +284,24 @@ async fn no_governance_prepare(
 
     let l1_chain_id = ecosystem_config.l1_network.chain_id();
 
+    // TODO Get rid of BrodacastFile usage
     let broadcast_file: BroadcastFile = {
-        let file_content =
-            std::fs::read_to_string(ecosystem_config.path_to_foundry_scripts().join(format!(
-                "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
-                l1_chain_id
-            )))
-            .context("Failed to read broadcast file")?;
+        let file_content = std::fs::read_to_string(
+            ecosystem_config
+                .path_to_foundry_scripts_for_ctm(zksync_os)
+                .join(format!(
+                    "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
+                    l1_chain_id
+                )),
+        )
+        .context("Failed to read broadcast file")?;
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
     let mut output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
     )?;
 
     // Add all the transaction hashes.
@@ -297,13 +319,14 @@ async fn ecosystem_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing ecosystem admin!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -321,9 +344,10 @@ async fn ecosystem_admin(
 
     ecosystem_admin_execute_calls(
         shell,
-        ecosystem_config,
         // Note, that ecosystem admin and governor use the same wallet.
         &ecosystem_config.get_wallets()?.governor,
+        ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         ecosystem_admin_calls.server_notifier_upgrade.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
@@ -339,13 +363,14 @@ async fn governance_stage_0(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 0!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -363,12 +388,12 @@ async fn governance_stage_0(
 
     governance_execute_calls(
         shell,
-        ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
-        None,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
     .await?;
     spinner.finish();
@@ -382,13 +407,14 @@ async fn governance_stage_1(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
     println!("Executing governance stage 1!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -406,12 +432,12 @@ async fn governance_stage_1(
 
     governance_execute_calls(
         shell,
-        ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
-        None,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
     .await?;
 
@@ -423,8 +449,7 @@ async fn governance_stage_1(
     update_contracts_config_from_output(
         &mut contracts_config,
         &gateway_ecosystem_preparation_output,
-        // TODO seems it's needed earlier
-        global_config().zksync_os,
+        zksync_os,
     );
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -456,6 +481,7 @@ async fn governance_stage_2(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 2!");
 
@@ -476,12 +502,12 @@ async fn governance_stage_2(
 
     governance_execute_calls(
         shell,
-        ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
-        None,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
     .await?;
 
@@ -506,6 +532,7 @@ async fn no_governance_stage_2(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
     let contracts_config = ecosystem_config.get_contracts_config()?;
     let wallets = ecosystem_config.get_wallets()?;
@@ -587,7 +614,7 @@ async fn no_governance_stage_2(
         .unwrap();
 
     logger::info("Initiing chains!");
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os);
     let forge = Forge::new(&foundry_contracts_path)
         .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()

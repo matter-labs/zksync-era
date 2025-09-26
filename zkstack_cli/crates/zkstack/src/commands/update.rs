@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
+    config::global_config,
     db::migrate_db,
     git, logger,
     spinner::Spinner,
@@ -26,6 +27,7 @@ use crate::{
 };
 
 pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
+    let zksync_os = global_config().zksync_os;
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
@@ -33,11 +35,21 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
         update_repo(shell, &ecosystem)?;
     }
 
-    let general_config_path = ecosystem.default_configs_path().join(GENERAL_FILE);
-    let external_node_config_path = ecosystem.default_configs_path().join(EN_CONFIG_FILE);
-    let genesis_config_path = ecosystem.default_configs_path().join(GENESIS_FILE);
-    let contracts_config_path = ecosystem.default_configs_path().join(CONTRACTS_FILE);
-    let secrets_path = ecosystem.default_configs_path().join(SECRETS_FILE);
+    let general_config_path = ecosystem
+        .default_configs_path_for_ctm(zksync_os)
+        .join(GENERAL_FILE);
+    let external_node_config_path = ecosystem
+        .default_configs_path_for_ctm(zksync_os)
+        .join(EN_CONFIG_FILE);
+    let genesis_config_path = ecosystem
+        .default_configs_path_for_ctm(zksync_os)
+        .join(GENESIS_FILE);
+    let contracts_config_path = ecosystem
+        .default_configs_path_for_ctm(zksync_os)
+        .join(CONTRACTS_FILE);
+    let secrets_path = ecosystem
+        .default_configs_path_for_ctm(zksync_os)
+        .join(SECRETS_FILE);
 
     for chain in ecosystem.list_of_chains() {
         logger::step(msg_updating_chain(&chain));

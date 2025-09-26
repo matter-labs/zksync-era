@@ -118,7 +118,7 @@ pub async fn accept_owner(
 #[allow(clippy::too_many_arguments)]
 pub async fn make_permanent_rollup(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    path_to_foundry_scripts: &Path,
     chain_admin_addr: Address,
     governor: &Wallet,
     diamond_proxy_address: Address,
@@ -135,8 +135,7 @@ pub async fn make_permanent_rollup(
             (chain_admin_addr, diamond_proxy_address),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -151,26 +150,16 @@ pub async fn make_permanent_rollup(
 #[allow(clippy::too_many_arguments)]
 pub async fn governance_execute_calls(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    path_to_foundry_scripts: PathBuf,
     mode: AdminScriptMode,
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
-    governance_address: Option<Address>,
+    governance_address: Address,
 ) -> anyhow::Result<AdminScriptOutput> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
-
-    let governance_address = match governance_address {
-        Some(addr) => addr,
-        None => {
-            let cfg = ecosystem_config
-                .get_contracts_config()
-                .context("Failed to fetch contracts config to resolve governance address")?;
-            cfg.l1.governance_addr
-        }
-    };
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -178,8 +167,7 @@ pub async fn governance_execute_calls(
             (Token::Bytes(encoded_calls), governance_address),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(&path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -203,15 +191,16 @@ pub async fn governance_execute_calls(
     forge.run(shell)?;
     spinner.finish();
 
-    let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&foundry_contracts_path);
+    let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&path_to_foundry_scripts);
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn ecosystem_admin_execute_calls(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
     ecosystem_admin: &Wallet,
+    chain_admin_addr: Address,
+    path_to_foundry_scripts: PathBuf,
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
@@ -220,16 +209,13 @@ pub async fn ecosystem_admin_execute_calls(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let ecosystem_admin_addr = ecosystem_config.get_contracts_config()?.l1.chain_admin_addr;
-
     let calldata = ADMIN_FUNCTIONS
         .encode(
             "ecosystemAdminExecuteCalls",
-            (Token::Bytes(encoded_calls), ecosystem_admin_addr),
+            (Token::Bytes(encoded_calls), chain_admin_addr),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(&path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -242,9 +228,9 @@ pub async fn ecosystem_admin_execute_calls(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn admin_execute_upgrade(
+async fn admin_execute_upgrade(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    path_to_foundry_scripts: &Path,
     chain_contracts_config: &ContractsConfig,
     governor: &Wallet,
     upgrade_diamond_cut: Vec<u8>,
@@ -273,8 +259,7 @@ pub async fn admin_execute_upgrade(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(&path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -296,6 +281,7 @@ pub async fn admin_schedule_upgrade(
     governor: &Wallet,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -318,7 +304,7 @@ pub async fn admin_schedule_upgrade(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os);
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -334,7 +320,7 @@ pub async fn admin_schedule_upgrade(
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_update_validator(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    path_to_foundry_scripts: &Path,
     chain_config: &ChainConfig,
     validator_timelock: Address,
     validator: Address,
@@ -368,8 +354,7 @@ pub async fn admin_update_validator(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
-    let forge = Forge::new(&foundry_contracts_path)
+    let forge = Forge::new(&path_to_foundry_scripts)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
             forge_args.clone(),
