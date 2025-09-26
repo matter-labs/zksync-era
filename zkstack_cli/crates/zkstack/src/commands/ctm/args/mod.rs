@@ -30,7 +30,7 @@ pub struct RegisterCTMArgs {
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
     #[clap(long, help = MSG_CTM)]
-    pub ctm: String,
+    pub ctm: Option<String>,
 }
 
 impl RegisterCTMArgs {
@@ -59,8 +59,11 @@ impl RegisterCTMArgs {
             .transpose()?;
         // Parse ctm address
         let ctm_address = ctm
-            .parse::<H160>()
-            .with_context(|| format!("Invalid ctm address format: {}", ctm))?;
+            .map(|a| {
+                a.parse::<H160>()
+                    .with_context(|| format!("Invalid bridgehub address format: {}", a))
+            })
+            .transpose()?;
 
         Ok(RegisterCTMArgsFinal {
             ecosystem,
@@ -80,17 +83,11 @@ pub struct RegisterCTMArgsFinal {
     pub update_submodules: Option<bool>,
     pub only_save_calldata: bool,
     pub bridgehub_address: Option<H160>,
-    pub ctm_address: H160,
+    pub ctm_address: Option<H160>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitNewCTMArgs {
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
     #[clap(long)]
     pub update_submodules: Option<bool>,
     #[clap(long, default_value_t = false)]
@@ -99,13 +96,19 @@ pub struct InitNewCTMArgs {
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: Option<String>,
-    #[clap(long, default_missing_value = "true")]
+    #[clap(long, default_value_t = true)]
     pub reuse_gov_and_admin: bool,
 
     #[arg(long, requires = "default_configs_src_path")]
     pub contracts_src_path: Option<PathBuf>,
     #[arg(long, requires = "contracts_src_path")]
     pub default_configs_src_path: Option<PathBuf>,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub ecosystem: EcosystemArgs,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
 }
 
 impl InitNewCTMArgs {

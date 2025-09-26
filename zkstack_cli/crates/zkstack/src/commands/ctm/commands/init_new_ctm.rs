@@ -3,6 +3,10 @@ use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
     forge::{Forge, ForgeScriptArgs},
     logger,
     spinner::Spinner,
@@ -24,14 +28,11 @@ use zkstack_cli_types::{L1Network, ProverMode};
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::args::InitNewCTMArgs,
-        ecosystem::{
-            args::init::EcosystemArgsFinal, create_configs::create_initial_deployments_config,
-        },
+        ctm::args::InitNewCTMArgs, ecosystem::create_configs::create_initial_deployments_config,
     },
     messages::{
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_INITIALIZING_CTM,
+        MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -74,15 +75,15 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_INITIALIZING_CTM);
 
-    // let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
+    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     // if !init_ctm_args.skip_contract_compilation_override {
-    //     install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-    //     build_da_contracts(shell, &ecosystem_config.contracts_path())?;
-    //     build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    //     build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    //     build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    install_yarn_dependencies(shell, &ecosystem_config.contracts_path())?;
+    build_da_contracts(shell, &ecosystem_config.contracts_path())?;
+    build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
     // }
-    // spinner.finish();
+    spinner.finish();
 
     let bridgehub_address = if let Some(addr) = init_ctm_args.bridgehub_address {
         addr
@@ -92,6 +93,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
             .core_ecosystem_contracts
             .bridgehub_proxy_addr
     };
+
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
         init_ctm_args.ecosystem.l1_rpc_url.clone(),
