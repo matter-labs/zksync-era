@@ -2,8 +2,8 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, ChainConfig, ConsensusGenesisSpecs, EcosystemConfig, RawConsensusKeys, Weighted,
-    ZkStackConfig, ZkStackConfigTrait,
+    copy_configs, ChainConfig, ConsensusGenesisSpecs, RawConsensusKeys, Weighted, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 
 use crate::{
@@ -17,10 +17,7 @@ use crate::{
         },
         portal::update_portal_config,
     },
-    messages::{
-        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
-    },
+    messages::{MSG_CHAIN_CONFIGS_INITIALIZED, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR},
     utils::ports::EcosystemPortsScanner,
 };
 

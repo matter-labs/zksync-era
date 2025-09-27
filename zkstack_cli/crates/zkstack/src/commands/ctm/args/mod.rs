@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use anyhow::Context;
 use clap::Parser;
 use serde::Deserialize;
 use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs};

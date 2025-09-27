@@ -117,8 +117,8 @@ pub struct EcosystemInitArgs {
     pub update_submodules: Option<bool>,
     #[clap(flatten)]
     pub validium_args: ValidiumTypeArgs,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub support_l2_legacy_shared_bridge_test: Option<bool>,
+    #[clap(long,default_value_t = false,  default_missing_value = "true", num_args = 0..=1)]
+    pub support_l2_legacy_shared_bridge_test: bool,
     #[clap(long, default_value = "false", num_args = 0..=1)]
     pub make_permanent_rollup: Option<bool>,
     #[clap(long, default_value_t = false)]
@@ -207,8 +207,7 @@ impl EcosystemInitArgs {
             no_port_reallocation,
             skip_contract_compilation_override,
             validium_args,
-            support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
-                .unwrap_or_default(),
+            support_l2_legacy_shared_bridge_test,
             deploy_ecosystem,
             deploy_paymaster,
             make_permanent_rollup,

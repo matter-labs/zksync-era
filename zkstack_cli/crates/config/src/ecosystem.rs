@@ -41,7 +41,9 @@ struct EcosystemConfigInternal {
     era_chain_id: L2ChainId,
     prover_version: ProverMode,
     wallet_creation: WalletCreation,
+    #[serde(skip_serializing_if = "Option::is_none")]
     era_source_files: Option<SourceFiles>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     zksync_os_source_files: Option<SourceFiles>,
 }
 
@@ -58,7 +60,7 @@ pub struct EcosystemConfig {
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     default_chain: String,
-    pub(crate) link_to_code: PathBuf,
+    link_to_code: PathBuf,
     era_source_files: Option<SourceFiles>,
     zksync_os_source_files: Option<SourceFiles>,
     shell: OnceCell<Shell>,

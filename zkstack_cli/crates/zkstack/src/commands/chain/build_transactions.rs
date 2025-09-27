@@ -37,7 +37,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     copy_configs(
         shell,
-        &config.default_configs_path_for_ctm(global_config().zksync_os),
+        &config.default_configs_path_for_ctm(zksync_os),
         &chain_config.configs,
     )?;
 

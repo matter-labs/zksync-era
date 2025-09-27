@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
 

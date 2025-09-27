@@ -15,7 +15,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_GATEWAY_TX_FILTERER,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    ChainConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
 use crate::{
