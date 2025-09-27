@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
+    config::global_config,
     ethereum::get_ethers_provider,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
@@ -24,7 +25,7 @@ use zkstack_cli_config::{
     },
     override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
+    ChainConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::ProverMode;
 
@@ -73,6 +74,7 @@ fn parse_decimal_u256(s: &str) -> Result<U256, String> {
 }
 
 pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+    let zksync_os = global_config().zksync_os;
     let args = convert_to_gw_args.forge_args;
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
@@ -85,7 +87,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     override_config(
         shell,
         &ecosystem_config
-            .default_configs_path()
+            .default_configs_path_for_ctm(zksync_os)
             .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
         &chain_config,
     )?;
@@ -151,7 +153,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let vote_preparation_output = gateway_vote_preparation(
         shell,
         args.clone(),
-        &ecosystem_config,
         &chain_config,
         &chain_deployer_wallet,
         GatewayVotePreparationConfig::new(
@@ -165,9 +166,9 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             chain_deployer_wallet.address,
             ecosystem_config
                 .get_contracts_config()?
-                .ecosystem_contracts
-                .expected_rollup_l2_da_validator
-                .context("No expected rollup l2 da validator")?,
+                // We always have gateway as era
+                .ctm(false)
+                .expected_rollup_l2_da_validator,
             // This address is not present on local deployments
             Address::zero(),
         ),
@@ -182,12 +183,12 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     // These calls will produce some L1->L2 transactions. However tracking those is hard at this point, so we won't do it here.
     output = governance_execute_calls(
         shell,
-        &ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         mode_ecosystem_governor,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,
         l1_url.clone(),
-        Some(bridgehub_governance_addr),
+        bridgehub_governance_addr,
     )
     .await?;
 
@@ -221,7 +222,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 pub async fn gateway_vote_preparation(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
     chain_config: &ChainConfig,
     deployer: &Wallet,
     input: GatewayVotePreparationConfig,
@@ -238,7 +238,7 @@ pub async fn gateway_vote_preparation(
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =
-        Forge::new(&config.path_to_foundry_scripts())
+        Forge::new(&chain_config.path_to_foundry_scripts())
             .script(&GATEWAY_VOTE_PREPARATION.script(), forge_args.clone())
             .with_ffi()
             .with_rpc_url(l1_rpc_url)

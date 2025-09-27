@@ -132,7 +132,7 @@ async fn build_and_deploy(
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
+    build_l2_contracts(shell.clone(), &chain_config.contracts_path())?;
     call_forge(
         shell,
         chain_config,
@@ -292,7 +292,7 @@ async fn call_forge(
 ) -> anyhow::Result<()> {
     let input = DeployL2ContractsInput::new(
         chain_config,
-        &ecosystem_config.get_contracts_config()?,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
         ecosystem_config.era_chain_id,
     )
     .await?;

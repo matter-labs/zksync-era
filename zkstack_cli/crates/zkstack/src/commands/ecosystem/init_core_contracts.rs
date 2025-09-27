@@ -1,21 +1,21 @@
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
+    config::global_config,
+    contracts::{
+        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
+        install_yarn_dependencies,
+    },
     forge::ForgeScriptArgs,
-    git, logger,
+    logger,
     spinner::Spinner,
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 
-use super::{
-    args::init::EcosystemArgsFinal,
-    utils::{build_da_contracts, install_yarn_dependencies},
-};
+use super::args::init::EcosystemArgsFinal;
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::ecosystem::{
@@ -31,10 +31,10 @@ use crate::{
 
 pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-
-    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-        git::submodule_update(shell, &ecosystem_config.link_to_code())?;
-    }
+    let zksync_os = global_config().zksync_os;
+    // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
+    //     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
+    // }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -53,6 +53,7 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
         shell,
         &ecosystem_config,
         &initial_deployment_config,
+        zksync_os,
     )
     .await?;
 
@@ -81,15 +82,25 @@ async fn init_ecosystem(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    zksync_os: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    if !init_args.skip_contract_compilation_override {
-        install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-        build_da_contracts(shell, &ecosystem_config.contracts_path())?;
-        build_l1_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-        build_system_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-        build_l2_contracts(shell.clone(), &ecosystem_config.contracts_path())?;
-    }
+    // if !init_args.skip_contract_compilation_override {
+    install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
+    build_da_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+    build_l1_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    build_system_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    build_l2_contracts(
+        shell.clone(),
+        &ecosystem_config.contracts_path_for_ctm(zksync_os),
+    )?;
+    // }
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -99,6 +110,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
+        zksync_os,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -112,6 +124,7 @@ pub async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
+    zksync_os: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
@@ -124,13 +137,14 @@ pub async fn deploy_ecosystem(
         None,
         true,
         support_l2_legacy_shared_bridge_test,
+        zksync_os,
     )
     .await?;
     spinner.finish();
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -142,7 +156,7 @@ pub async fn deploy_ecosystem(
     .await?;
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -157,7 +171,7 @@ pub async fn deploy_ecosystem(
     // need to accept it
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -168,7 +182,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

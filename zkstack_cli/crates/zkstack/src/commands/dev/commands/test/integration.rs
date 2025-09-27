@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
-use zkstack_cli_config::{EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig};
 
 use super::{
     args::integration::IntegrationArgs,

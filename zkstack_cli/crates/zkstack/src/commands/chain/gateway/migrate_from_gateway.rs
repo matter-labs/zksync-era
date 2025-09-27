@@ -82,15 +82,16 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
-    let l1_diamond_cut_data = ecosystem_config
+    let l1_diamond_cut_data = chain_config
         .get_contracts_config()?
         .ecosystem_contracts
+        .ctm
         .diamond_cut_data;
 
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_foundry_scripts(),
+        &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::OnlySave,
         chain_contracts_config
             .ecosystem_contracts
@@ -170,14 +171,14 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     finish_migrate_chain_from_gateway(
         shell,
         args.forge_args.clone(),
-        &ecosystem_config.path_to_foundry_scripts(),
+        &chain_config.path_to_foundry_scripts(),
         ecosystem_config
             .get_wallets()?
             .deployer
             .context("Missing deployer wallet")?,
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_id,
@@ -194,7 +195,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     set_da_validator_pair(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_foundry_scripts(),
+        &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),

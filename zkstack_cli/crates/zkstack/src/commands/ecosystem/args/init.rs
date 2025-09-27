@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-use anyhow::Context;
 use clap::Parser;
-use ethers::{providers::Middleware, types::H160};
+use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{
-    ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt, PromptConfirm,
+    config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt,
+    PromptConfirm,
 };
 use zkstack_cli_types::L1Network;
 
@@ -14,11 +14,10 @@ use crate::{
     commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_BRIDGEHUB, MSG_CTM, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT,
-        MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
-        MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
-        MSG_SERVER_DB_URL_HELP, MSG_ZKSYNC_OS,
+        MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
+        MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -128,13 +127,11 @@ pub struct EcosystemInitArgs {
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub no_genesis: bool,
-    #[clap(long, help = MSG_ZKSYNC_OS)]
-    pub zksync_os: bool,
 }
 
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> Option<GenesisArgs> {
-        if self.no_genesis || self.zksync_os {
+        if self.no_genesis || global_config().zksync_os {
             None
         } else {
             Some(GenesisArgs {
@@ -153,44 +150,44 @@ impl EcosystemInitArgs {
     ) -> anyhow::Result<EcosystemInitArgsFinal> {
         let genesis_args = self.get_genesis_args();
         let EcosystemInitArgs {
+            deploy_ecosystem,
+            deploy_erc20,
+            ecosystem,
             forge_args,
             dev,
             ecosystem_only,
+            observability,
             no_port_reallocation,
             skip_contract_compilation_override,
             validium_args,
             support_l2_legacy_shared_bridge_test,
-            zksync_os,
             make_permanent_rollup,
             update_submodules,
             deploy_paymaster,
             ..
         } = self;
 
-        let deploy_erc20 = if self.dev {
+        let deploy_erc20 = if dev {
             true
         } else {
-            self.deploy_erc20.unwrap_or_else(|| {
+            deploy_erc20.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
                     .default(true)
                     .ask()
             })
         };
-        let ecosystem = self
-            .ecosystem
-            .fill_values_with_prompt(l1_network, self.dev)
-            .await?;
-        let observability = if self.dev {
+        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+        let observability = if dev {
             true
         } else {
-            self.observability.unwrap_or_else(|| {
+            observability.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
                     .default(true)
                     .ask()
             })
         };
 
-        let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
+        let deploy_ecosystem = deploy_ecosystem.unwrap_or_else(|| {
             if dev {
                 true
             } else {
@@ -217,7 +214,7 @@ impl EcosystemInitArgs {
             make_permanent_rollup,
             update_submodules,
             genesis_args,
-            zksync_os,
+            zksync_os: global_config().zksync_os,
         })
     }
 }
@@ -240,162 +237,6 @@ pub struct EcosystemInitArgsFinal {
     pub update_submodules: Option<bool>,
     pub genesis_args: Option<GenesisArgs>,
     pub zksync_os: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct RegisterCTMArgs {
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
-    #[clap(long)]
-    pub update_submodules: Option<bool>,
-    #[clap(long, help = MSG_DEV_ARG_HELP)]
-    pub dev: bool,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub only_save_calldata: bool,
-    #[clap(long, help = MSG_BRIDGEHUB)]
-    pub bridgehub: String,
-    #[clap(long, help = MSG_CTM)]
-    pub ctm: String,
-}
-
-impl RegisterCTMArgs {
-    pub async fn fill_values_with_prompt(
-        self,
-        l1_network: L1Network,
-    ) -> anyhow::Result<RegisterCTMArgsFinal> {
-        let RegisterCTMArgs {
-            ecosystem,
-            forge_args,
-            update_submodules,
-            dev,
-            only_save_calldata,
-            bridgehub,
-            ctm,
-        } = self;
-
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
-
-        // Parse bridgehub address
-        let bridgehub_address = bridgehub
-            .parse::<H160>()
-            .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?;
-        // Parse ctm address
-        let ctm_address = ctm
-            .parse::<H160>()
-            .with_context(|| format!("Invalid ctm address format: {}", ctm))?;
-
-        Ok(RegisterCTMArgsFinal {
-            ecosystem,
-            forge_args,
-            update_submodules,
-            only_save_calldata,
-            bridgehub_address,
-            ctm_address,
-        })
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RegisterCTMArgsFinal {
-    pub ecosystem: EcosystemArgsFinal,
-    pub forge_args: ForgeScriptArgs,
-    pub update_submodules: Option<bool>,
-    pub only_save_calldata: bool,
-    pub bridgehub_address: H160,
-    pub ctm_address: H160,
-}
-
-impl RegisterCTMArgsFinal {
-    pub fn from_init_args(
-        args: EcosystemInitArgsFinal,
-        bridgehub_address: H160,
-        ctm_address: H160,
-    ) -> Self {
-        Self {
-            ecosystem: args.ecosystem,
-            forge_args: args.forge_args,
-            update_submodules: None,
-            only_save_calldata: false,
-            bridgehub_address,
-            ctm_address,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct InitNewCTMArgs {
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
-    #[clap(long)]
-    pub update_submodules: Option<bool>,
-    #[clap(long, default_value_t = false)]
-    pub skip_contract_compilation_override: bool,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub support_l2_legacy_shared_bridge_test: Option<bool>,
-    #[clap(long, help = MSG_BRIDGEHUB)]
-    pub bridgehub: String,
-    #[clap(long, help = MSG_ZKSYNC_OS)]
-    pub zksync_os: bool,
-    #[clap(long, default_missing_value = "true")]
-    pub reuse_gov_and_admin: bool,
-}
-
-impl InitNewCTMArgs {
-    pub async fn fill_values_with_prompt(
-        self,
-        l1_network: L1Network,
-    ) -> anyhow::Result<InitNewCTMArgsFinal> {
-        let InitNewCTMArgs {
-            ecosystem,
-            forge_args,
-            update_submodules,
-            skip_contract_compilation_override,
-            support_l2_legacy_shared_bridge_test,
-            bridgehub,
-            zksync_os,
-            reuse_gov_and_admin,
-        } = self;
-
-        // Fill ecosystem args
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, true).await?;
-
-        // Parse bridgehub address
-        let bridgehub_address = bridgehub
-            .parse::<H160>()
-            .with_context(|| format!("Invalid bridgehub address format: {}", bridgehub))?;
-
-        Ok(InitNewCTMArgsFinal {
-            ecosystem,
-            forge_args,
-            update_submodules,
-            skip_contract_compilation_override,
-            support_l2_legacy_shared_bridge_test: support_l2_legacy_shared_bridge_test
-                .unwrap_or(false),
-            bridgehub_address,
-            zksync_os,
-            reuse_gov_and_admin,
-        })
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InitNewCTMArgsFinal {
-    pub ecosystem: EcosystemArgsFinal,
-    pub forge_args: ForgeScriptArgs,
-    pub update_submodules: Option<bool>,
-    pub skip_contract_compilation_override: bool,
-    pub support_l2_legacy_shared_bridge_test: bool,
-    pub bridgehub_address: H160,
-    pub zksync_os: bool,
-    pub reuse_gov_and_admin: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -424,19 +265,19 @@ impl InitCoreContractsArgs {
         l1_network: L1Network,
     ) -> anyhow::Result<InitCoreContractsArgsFinal> {
         let InitCoreContractsArgs {
+            deploy_erc20,
             ecosystem,
             forge_args,
             dev,
             update_submodules,
             skip_contract_compilation_override,
             support_l2_legacy_shared_bridge_test,
-            ..
         } = self;
 
         let deploy_erc20 = if self.dev {
             true
         } else {
-            self.deploy_erc20.unwrap_or_else(|| {
+            deploy_erc20.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
                     .default(true)
                     .ask()

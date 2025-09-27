@@ -135,6 +135,7 @@ impl GatewayVotePreparationConfig {
             gateway_chain_id,
             force_deployments_data: external_contracts_config
                 .ecosystem_contracts
+                .ctm
                 .force_deployments_data
                 .clone()
                 .unwrap_or_default(),

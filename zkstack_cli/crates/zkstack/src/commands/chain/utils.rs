@@ -1,6 +1,5 @@
 use anyhow::Context;
 use ethers::{
-    abi::encode,
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
@@ -8,21 +7,11 @@ use ethers::{
     utils::hex,
 };
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zksync_types::{web3::keccak256, Address, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256};
+use zksync_types::{Address, H256, U256};
 
 use crate::{
     admin_functions::AdminScriptOutput, commands::chain::admin_call_builder::AdminCallBuilder,
 };
-
-pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
-    let encoded_data = encode(&[
-        ethers::abi::Token::Uint(l1_chain_id),
-        ethers::abi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-        ethers::abi::Token::Address(addr),
-    ]);
-
-    H256(keccak256(&encoded_data))
-}
 
 pub fn display_admin_script_output(result: AdminScriptOutput) {
     let builder = AdminCallBuilder::new(result.calls);

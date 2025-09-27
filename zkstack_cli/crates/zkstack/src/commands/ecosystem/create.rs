@@ -1,10 +1,9 @@
 use anyhow::{bail, Context};
 use xshell::Shell;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 
 use crate::{
@@ -41,6 +40,7 @@ pub async fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()>
 }
 
 async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+    let zksync_os = global_config().zksync_os;
     let args = args
         .fill_values_with_prompt(shell)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
@@ -82,6 +82,8 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
         chain_config.prover_version,
         args.wallet_creation,
         shell.clone().into(),
+        None,
+        None,
     );
 
     // Use 0 id for ecosystem  wallets
@@ -97,7 +99,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell).await?;
+    create_chain_inner(chain_config, &ecosystem_config, shell, zksync_os).await?;
     spinner.finish();
 
     if args.start_containers {

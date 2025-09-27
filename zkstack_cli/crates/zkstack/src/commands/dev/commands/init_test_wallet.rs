@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
-use zkstack_cli_config::{traits::SaveConfig, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{traits::SaveConfig, ZkStackConfig};
 
 use crate::commands::dev::{
     commands::test::utils::{TestWallets, TEST_WALLETS_PATH},

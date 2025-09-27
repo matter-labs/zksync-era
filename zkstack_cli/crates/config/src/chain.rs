@@ -52,6 +52,8 @@ pub struct ChainConfigInternal {
     pub tight_ports: bool,
     #[serde(default)] // for backward compatibility
     pub zksync_os: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) era_contracts_path: Option<PathBuf>,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -77,6 +79,7 @@ pub struct ChainConfig {
     shell: OnceCell<Shell>,
     self_path: PathBuf,
     link_to_code: PathBuf,
+    contracts_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -117,6 +120,7 @@ impl ChainConfig {
         evm_emulator: bool,
         tight_ports: bool,
         zksync_os: bool,
+        era_contracts_path: Option<PathBuf>,
     ) -> Self {
         Self {
             id,
@@ -138,6 +142,7 @@ impl ChainConfig {
             evm_emulator,
             tight_ports,
             zksync_os,
+            contracts_path: era_contracts_path,
         }
     }
 
@@ -240,6 +245,7 @@ impl ChainConfig {
             evm_emulator: self.evm_emulator,
             tight_ports: self.tight_ports,
             zksync_os: self.zksync_os,
+            era_contracts_path: self.contracts_path.clone(),
         }
     }
     pub(crate) fn from_internal(
@@ -274,6 +280,7 @@ impl ChainConfig {
             self_path: shell.current_dir(),
             shell: shell.into(),
             zksync_os: chain_internal.zksync_os,
+            contracts_path: chain_internal.era_contracts_path.clone(),
         })
     }
 }
@@ -316,7 +323,11 @@ impl ZkStackConfigTrait for ChainConfig {
     }
 
     fn contracts_path(&self) -> PathBuf {
-        self.link_to_code().join(CONTRACTS_PATH)
+        if let Some(contracts_path) = &self.contracts_path {
+            contracts_path.clone()
+        } else {
+            self.link_to_code().join(CONTRACTS_PATH)
+        }
     }
 
     fn path_to_foundry_scripts(&self) -> PathBuf {

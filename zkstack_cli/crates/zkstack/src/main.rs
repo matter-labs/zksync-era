@@ -15,8 +15,8 @@ use zkstack_cli_common::{
 use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::{
-    args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
-    explorer::ExplorerCommands, external_node::ExternalNodeCommands,
+    args::ServerArgs, chain::ChainCommands, consensus, ctm::CTMCommands,
+    ecosystem::EcosystemCommands, explorer::ExplorerCommands, external_node::ExternalNodeCommands,
     private_rpc::PrivateRpcCommands, prover::ProverCommands,
 };
 
@@ -50,6 +50,9 @@ pub enum ZkStackSubcommands {
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
     Ecosystem(Box<EcosystemCommands>),
+    /// Ecosystem related commands
+    #[command(subcommand)]
+    CTM(Box<CTMCommands>),
     /// Chain related commands
     #[command(subcommand, alias = "c")]
     Chain(Box<ChainCommands>),
@@ -101,6 +104,9 @@ struct ZkStackGlobalArgs {
     /// Ignores prerequisites checks
     #[clap(long, global = true)]
     ignore_prerequisites: bool,
+    /// Use ZKsync OS version
+    #[clap(long, global = true)]
+    zksync_os: bool,
 }
 
 #[tokio::main]
@@ -160,6 +166,9 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::PrivateRPC(args) => {
             commands::private_rpc::run(&shell, args).await?;
         }
+        ZkStackSubcommands::CTM(args) => {
+            commands::ctm::run(&shell, *args).await?;
+        }
     }
     Ok(())
 }
@@ -181,6 +190,7 @@ fn init_global_config_inner(shell: &Shell, zkstack_args: &ZkStackGlobalArgs) -> 
         verbose: zkstack_args.verbose,
         chain_name: zkstack_args.chain.clone(),
         ignore_prerequisites: zkstack_args.ignore_prerequisites,
+        zksync_os: zkstack_args.zksync_os,
     });
     Ok(())
 }
