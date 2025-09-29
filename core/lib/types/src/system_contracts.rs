@@ -270,7 +270,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 45] = [
         UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
         ContractLanguage::Sol,
     ),
-    /// todo FIXME, deploy normally instead using DUMMY_ADDRESS and deploying on genesis
+    // todo FIXME, deploy normally instead using DUMMY_ADDRESS and deploying on genesis
     (
         "../../l1-contracts/zkout/",
         "TransparentUpgradeableProxy",

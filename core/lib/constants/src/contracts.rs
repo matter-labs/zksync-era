@@ -211,7 +211,7 @@ pub const UPGRADEABLE_BEACON_DEPLOYER_ADDRESS: Address = H160([
     0x00, 0x01, 0x00, 0x0b,
 ]);
 
-/// todo FIXME, deploy normally instead using DUMMY_ADDRESS and deploying on genesis
+// todo FIXME, deploy normally instead using DUMMY_ADDRESS and deploying on genesis
 
 pub const DUMMY_ADDRESS_1: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01,
