@@ -10,7 +10,7 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --observability=false \
     --chain era \
     --update-submodules false
-    
+
 zkstack dev generate-genesis
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
