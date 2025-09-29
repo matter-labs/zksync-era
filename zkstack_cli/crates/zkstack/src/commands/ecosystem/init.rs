@@ -101,8 +101,7 @@ async fn init_ecosystem(
     spinner.finish();
 
     let contracts = if !init_args.deploy_ecosystem {
-        todo!()
-        // return_ecosystem_contracts(shell, &init_args.ecosystem, ecosystem_config).await?
+        return_ecosystem_contracts(shell, &init_args.ecosystem, ecosystem_config).await?
     } else {
         let core_contracts = deploy_ecosystem(
             shell,

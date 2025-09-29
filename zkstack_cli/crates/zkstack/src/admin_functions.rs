@@ -228,7 +228,7 @@ pub async fn ecosystem_admin_execute_calls(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn admin_execute_upgrade(
+pub async fn admin_execute_upgrade(
     shell: &Shell,
     path_to_foundry_scripts: &Path,
     chain_contracts_config: &ContractsConfig,
