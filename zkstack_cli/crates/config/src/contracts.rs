@@ -89,7 +89,10 @@ impl CoreContractsConfig {
             },
             proof_manager_contracts: self.proof_manager_contracts.clone(),
             // L2 fields will be set later, after L2 deployment
-            l2: Default::default(),
+            l2: L2Contracts {
+                legacy_shared_bridge_addr: register_chain_output.l2_legacy_shared_bridge_addr,
+                ..Default::default()
+            },
             other: Default::default(),
         }
     }
@@ -246,16 +249,6 @@ pub struct ContractsConfig {
 }
 
 impl ContractsConfig {
-    pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
-        self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
-        self.l1.governance_addr = register_chain_output.governance_addr;
-        self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
-        self.l1.access_control_restriction_addr =
-            Some(register_chain_output.access_control_restriction_addr);
-        self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
-        self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
-    }
-
     pub fn set_eth_proof_manager_addresses(
         &mut self,
         impl_addr: String,
