@@ -5,8 +5,9 @@ use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
     commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
-    parse_h160, parse_h256, parse_h256_opt, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction, H256, settlement::SettlementLayer
+    parse_h160, parse_h256, parse_h256_opt,
+    settlement::SettlementLayer,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
