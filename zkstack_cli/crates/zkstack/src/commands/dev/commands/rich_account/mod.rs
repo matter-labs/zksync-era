@@ -50,7 +50,7 @@ pub async fn run(
     // Instantiate a provider with the signer
     let provider = ProviderBuilder::new()
         .wallet(signer)
-        .on_http(reqwest::Url::parse(&args.l1_rpc_url).unwrap());
+        .connect_http(reqwest::Url::parse(&args.l1_rpc_url).unwrap());
 
     let gas_price = provider.get_gas_price().await?;
 

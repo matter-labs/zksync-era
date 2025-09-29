@@ -8,6 +8,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_types::L1ChainId;
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::batch_transaction_fetcher::BatchStatusUpdater;
@@ -28,7 +29,15 @@ pub struct Output {
 
 /// Wiring layer for `BatchStatusUpdater`, part of the external node.
 #[derive(Debug)]
-pub struct BatchStatusUpdaterLayer;
+pub struct BatchStatusUpdaterLayer {
+    l1_chain_id: L1ChainId,
+}
+
+impl BatchStatusUpdaterLayer {
+    pub fn new(l1_chain_id: L1ChainId) -> Self {
+        Self { l1_chain_id }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for BatchStatusUpdaterLayer {
@@ -46,7 +55,8 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             app_health,
         } = input;
 
-        let updater = BatchStatusUpdater::new(main_node_client, pool.get().await?);
+        let updater =
+            BatchStatusUpdater::new(self.l1_chain_id, main_node_client, pool.get().await?);
 
         // Insert healthcheck
         app_health

@@ -995,7 +995,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                l1_batches.evm_emulator_code_hash
+                l1_batches.evm_emulator_code_hash,
+                l1_batches.commitment
             FROM
                 l1_batches
             INNER JOIN mb ON TRUE
@@ -1104,7 +1105,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                l1_batches.evm_emulator_code_hash
+                l1_batches.evm_emulator_code_hash,
+                l1_batches.commitment
             FROM
                 l1_batches
             INNER JOIN mb ON TRUE

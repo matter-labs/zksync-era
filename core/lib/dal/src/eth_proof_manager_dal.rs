@@ -227,13 +227,18 @@ impl EthProofManagerDal<'_, '_> {
 
         let result: Option<(L1BatchNumber, Option<bool>)> = sqlx::query!(
             r#"
-            SELECT l1_batch_number, proof_validation_result
-            FROM eth_proof_manager
+            SELECT e.l1_batch_number, e.proof_validation_result
+            FROM eth_proof_manager e
+            JOIN proof_generation_details p
+                ON e.l1_batch_number = p.l1_batch_number
             WHERE
-                (status = $1 AND l1_batch_number <= $2)
-                OR (status = $3 AND proof_validation_result = false)
-            ORDER BY l1_batch_number ASC
-            LIMIT 1
+                (
+                    (e.status = $1 AND e.l1_batch_number <= $2)
+                    OR (e.status = $3 AND e.proof_validation_result = false)
+                )
+                AND p.proving_mode = 'proving_network'
+            ORDER BY e.l1_batch_number ASC
+            LIMIT 1;
             "#,
             EthProofManagerStatus::Proven.as_str(),
             i64::from(latest_proven_batch.0),

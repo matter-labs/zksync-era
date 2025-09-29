@@ -13,7 +13,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, api, L1BatchNumber, SLChainId, H256,
+    aggregated_operations::L1BatchAggregatedActionType, api, L1BatchNumber, L1ChainId, SLChainId,
+    H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -41,7 +42,7 @@ struct BatchStatusChange {
     number: L1BatchNumber,
     l1_tx_hash: H256,
     happened_at: DateTime<Utc>,
-    sl_chain_id: Option<SLChainId>,
+    sl_chain_id: SLChainId,
 }
 
 #[derive(Debug, Default)]
@@ -103,10 +104,14 @@ struct UpdaterCursor {
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
     last_committed_l1_batch: L1BatchNumber,
+    default_sl_chain_id: SLChainId,
 }
 
 impl UpdaterCursor {
-    async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    async fn new(
+        storage: &mut Connection<'_, Core>,
+        default_sl_chain_id: SLChainId,
+    ) -> anyhow::Result<Self> {
         let first_l1_batch_number = projected_first_l1_batch(storage).await?;
         // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot. Technically, the snapshot L1 batch
         // is not necessarily proven / executed yet, but since it and earlier batches are not stored, it serves
@@ -132,6 +137,7 @@ impl UpdaterCursor {
             last_executed_l1_batch,
             last_proven_l1_batch,
             last_committed_l1_batch,
+            default_sl_chain_id,
         })
     }
 
@@ -211,7 +217,7 @@ impl UpdaterCursor {
             number: batch_info.number,
             l1_tx_hash,
             happened_at,
-            sl_chain_id,
+            sl_chain_id: sl_chain_id.unwrap_or(self.default_sl_chain_id),
         });
         tracing::info!("Batch {}: {action_str}", batch_info.number);
         FETCHER_METRICS.l1_batch[&stage.into()].set(batch_info.number.0.into());
@@ -230,6 +236,7 @@ impl UpdaterCursor {
 /// L1 transaction information in `zks_getBlockDetails` and `zks_getL1BatchDetails` RPC methods.
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
+    l1_chain_id: SLChainId,
     client: Box<dyn MainNodeClient>,
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
@@ -242,8 +249,13 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(
+        l1_chain_id: L1ChainId,
+        client: Box<DynClient<L2>>,
+        pool: ConnectionPool<Core>,
+    ) -> Self {
         Self::from_parts(
+            l1_chain_id.into(), // needed because this is used when l1 is sl
             Box::new(client.for_component("batch_transaction_fetcher")),
             pool,
             Self::DEFAULT_SLEEP_INTERVAL,
@@ -251,11 +263,13 @@ impl BatchStatusUpdater {
     }
 
     fn from_parts(
+        l1_chain_id: SLChainId,
         client: Box<dyn MainNodeClient>,
         pool: ConnectionPool<Core>,
         sleep_interval: Duration,
     ) -> Self {
         Self {
+            l1_chain_id,
             client,
             pool,
             health_updater: ReactiveHealthCheck::new("batch_transaction_fetcher").1,
@@ -271,7 +285,7 @@ impl BatchStatusUpdater {
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let mut cursor = UpdaterCursor::new(&mut storage).await?;
+        let mut cursor = UpdaterCursor::new(&mut storage, self.l1_chain_id).await?;
         drop(storage);
         tracing::info!("Initialized batch status updater cursor: {cursor:?}");
         self.health_updater
@@ -400,7 +414,7 @@ impl BatchStatusUpdater {
                     change.number,
                     L1BatchAggregatedActionType::Commit,
                     change.l1_tx_hash,
-                    change.sl_chain_id,
+                    Some(change.sl_chain_id),
                 )
                 .await?;
             cursor.last_committed_l1_batch = change.number;
@@ -424,7 +438,7 @@ impl BatchStatusUpdater {
                     change.number,
                     L1BatchAggregatedActionType::PublishProofOnchain,
                     change.l1_tx_hash,
-                    change.sl_chain_id,
+                    Some(change.sl_chain_id),
                 )
                 .await?;
             cursor.last_proven_l1_batch = change.number;
@@ -448,7 +462,7 @@ impl BatchStatusUpdater {
                     change.number,
                     L1BatchAggregatedActionType::Execute,
                     change.l1_tx_hash,
-                    change.sl_chain_id,
+                    Some(change.sl_chain_id),
                 )
                 .await?;
             cursor.last_executed_l1_batch = change.number;

@@ -109,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The main service entrypoint, contains business logic.
 async fn run_inner(
     cancellation_token: CancellationToken,
     metrics_stop_receiver: tokio::sync::watch::Receiver<bool>,

@@ -89,7 +89,13 @@ impl WiringLayer for StateKeeperLayer {
             self.rocksdb_options,
         );
         // The number of connections in the recovery DB pool (~recovery concurrency) is based on the Era mainnet recovery runs.
-        let recovery_pool = input.replica_pool.get_custom(10).await?;
+        let recovery_pool = input
+            .replica_pool
+            .build(|builder| {
+                // Disable the statement timeout since there are potential long-living queries inside recovery logic.
+                builder.set_statement_timeout(None).set_max_size(10);
+            })
+            .await?;
         rocksdb_catchup = rocksdb_catchup.with_recovery_pool(recovery_pool);
 
         let state_keeper_builder = StateKeeperBuilder::new(

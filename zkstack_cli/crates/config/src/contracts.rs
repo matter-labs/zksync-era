@@ -8,15 +8,89 @@ use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADD
 use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
-        deploy_ecosystem::output::DeployL1Output,
+        deploy_ecosystem::output::{DeployCTMOutput, DeployL1CoreContractsOutput},
         deploy_l2_contracts::output::{
-            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, Multicall3Output,
+            TimestampAsserterOutput,
         },
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigTrait, FileConfigWithDefaultName},
 };
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct CoreContractsConfig {
+    pub create2_factory_addr: Address,
+    pub create2_factory_salt: H256,
+    pub core_ecosystem_contracts: CoreEcosystemContracts,
+    pub bridges: BridgesContracts,
+    pub l1: L1CoreContracts,
+    #[serde(flatten)]
+    pub other: serde_json::Value,
+}
+
+impl CoreContractsConfig {
+    pub fn update_from_l1_output(
+        &mut self,
+        deploy_l1_core_contracts_output: &DeployL1CoreContractsOutput,
+    ) {
+        self.create2_factory_addr = deploy_l1_core_contracts_output.create2_factory_addr;
+        self.create2_factory_salt = deploy_l1_core_contracts_output.create2_factory_salt;
+        self.bridges.erc20.l1_address = deploy_l1_core_contracts_output
+            .deployed_addresses
+            .bridges
+            .erc20_bridge_proxy_addr;
+        self.bridges.shared.l1_address = deploy_l1_core_contracts_output
+            .deployed_addresses
+            .bridges
+            .shared_bridge_proxy_addr;
+        self.bridges.l1_nullifier_addr = Some(
+            deploy_l1_core_contracts_output
+                .deployed_addresses
+                .bridges
+                .l1_nullifier_proxy_addr,
+        );
+        self.core_ecosystem_contracts.bridgehub_proxy_addr = deploy_l1_core_contracts_output
+            .deployed_addresses
+            .bridgehub
+            .bridgehub_proxy_addr;
+        self.core_ecosystem_contracts.message_root_proxy_addr = Some(
+            deploy_l1_core_contracts_output
+                .deployed_addresses
+                .bridgehub
+                .message_root_proxy_addr,
+        );
+        self.core_ecosystem_contracts.transparent_proxy_admin_addr =
+            deploy_l1_core_contracts_output
+                .deployed_addresses
+                .transparent_proxy_admin_addr;
+        self.core_ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr = Some(
+            deploy_l1_core_contracts_output
+                .deployed_addresses
+                .bridgehub
+                .ctm_deployment_tracker_proxy_addr,
+        );
+
+        self.l1.governance_addr = deploy_l1_core_contracts_output
+            .deployed_addresses
+            .governance_addr;
+        self.core_ecosystem_contracts.native_token_vault_addr = Some(
+            deploy_l1_core_contracts_output
+                .deployed_addresses
+                .native_token_vault_addr,
+        );
+        self.l1.chain_admin_addr = deploy_l1_core_contracts_output
+            .deployed_addresses
+            .chain_admin;
+    }
+}
+
+impl FileConfigWithDefaultName for CoreContractsConfig {
+    const FILE_NAME: &'static str = CONTRACTS_FILE;
+}
+
+impl FileConfigTrait for CoreContractsConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ContractsConfig {
@@ -33,7 +107,7 @@ pub struct ContractsConfig {
 }
 
 impl ContractsConfig {
-    pub fn update_from_l1_output(&mut self, deploy_l1_output: &DeployL1Output) {
+    pub fn update_from_l1_output(&mut self, deploy_l1_output: &DeployCTMOutput) {
         self.create2_factory_addr = deploy_l1_output.create2_factory_addr;
         self.create2_factory_salt = deploy_l1_output.create2_factory_salt;
         self.bridges.erc20.l1_address = deploy_l1_output
@@ -84,8 +158,6 @@ impl ContractsConfig {
             .force_deployments_data
             .clone();
 
-        self.ecosystem_contracts.expected_rollup_l2_da_validator =
-            Some(deploy_l1_output.expected_rollup_l2_da_validator_addr);
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -157,14 +229,10 @@ impl ContractsConfig {
         Ok(())
     }
 
-    pub fn set_l2_shared_bridge(
-        &mut self,
-        initialize_bridges_output: &InitializeBridgeOutput,
-    ) -> anyhow::Result<()> {
+    pub fn set_l2_shared_bridge(&mut self) -> anyhow::Result<()> {
         self.bridges.shared.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.bridges.erc20.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        self.l2.da_validator_addr = Some(initialize_bridges_output.l2_da_validator_address);
         Ok(())
     }
 
@@ -200,14 +268,6 @@ impl ContractsConfig {
         self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
         Ok(())
     }
-
-    pub fn set_l2_da_validator_address(
-        &mut self,
-        output: &L2DAValidatorAddressOutput,
-    ) -> anyhow::Result<()> {
-        self.l2.da_validator_addr = Some(output.l2_da_validator_address);
-        Ok(())
-    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -215,6 +275,44 @@ impl FileConfigWithDefaultName for ContractsConfig {
 }
 
 impl FileConfigTrait for ContractsConfig {}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ContractsConfigForDeployERC20 {
+    pub create2_factory_addr: Address,
+    pub create2_factory_salt: H256,
+}
+
+impl From<ContractsConfig> for ContractsConfigForDeployERC20 {
+    fn from(config: ContractsConfig) -> Self {
+        ContractsConfigForDeployERC20 {
+            create2_factory_addr: config.create2_factory_addr,
+            create2_factory_salt: config.create2_factory_salt,
+        }
+    }
+}
+
+impl From<CoreContractsConfig> for ContractsConfigForDeployERC20 {
+    fn from(config: CoreContractsConfig) -> Self {
+        ContractsConfigForDeployERC20 {
+            create2_factory_addr: config.create2_factory_addr,
+            create2_factory_salt: config.create2_factory_salt,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct CoreEcosystemContracts {
+    pub bridgehub_proxy_addr: Address,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_root_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Address,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stm_deployment_tracker_proxy_addr: Option<Address>,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native_token_vault_addr: Option<Address>,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
@@ -297,6 +395,19 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct L1CoreContracts {
+    pub governance_addr: Address,
+    #[serde(default)]
+    pub chain_admin_addr: Address,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_control_restriction_addr: Option<Address>,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_proxy_admin_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

@@ -64,5 +64,15 @@ pub fn create_localhost_wallets(
             5,
         )?),
         test_wallet: None,
+        prove_operator: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            6,
+        )?),
+        execute_operator: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            7,
+        )?),
     })
 }

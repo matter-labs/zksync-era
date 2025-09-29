@@ -156,6 +156,7 @@ impl L1BatchStagesMap {
 fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
     api::L1BatchDetails {
         number: L1BatchNumber(number),
+        commitment: Some(H256::repeat_byte(0xAA)),
         base: api::BlockDetailsBase {
             timestamp: number.into(),
             l1_tx_count: 0,
@@ -237,7 +238,7 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
         number,
         l1_tx_hash: H256::zero(),
         happened_at: DateTime::default(),
-        sl_chain_id: Some(SLChainId(0)),
+        sl_chain_id: SLChainId(0),
     }
 }
 
@@ -246,8 +247,12 @@ fn mock_updater(
     pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
-    let mut updater =
-        BatchStatusUpdater::from_parts(Box::new(client), pool, Duration::from_millis(10));
+    let mut updater = BatchStatusUpdater::from_parts(
+        SLChainId(1),
+        Box::new(client),
+        pool,
+        Duration::from_millis(10),
+    );
     updater.changes_sender = changes_sender;
     (updater, changes_receiver)
 }
@@ -263,7 +268,9 @@ async fn updater_cursor_for_storage_with_genesis_block() {
         seal_l1_batch(&mut storage, L1BatchNumber(number)).await;
     }
 
-    let mut cursor = UpdaterCursor::new(&mut storage).await.unwrap();
+    let mut cursor = UpdaterCursor::new(&mut storage, SLChainId(1))
+        .await
+        .unwrap();
     assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(0));
     assert_eq!(cursor.last_proven_l1_batch, L1BatchNumber(0));
     assert_eq!(cursor.last_executed_l1_batch, L1BatchNumber(0));
@@ -283,7 +290,9 @@ async fn updater_cursor_for_storage_with_genesis_block() {
     assert_eq!(cursor.last_proven_l1_batch, L1BatchNumber(1));
     assert_eq!(cursor.last_executed_l1_batch, L1BatchNumber(0));
 
-    let restored_cursor = UpdaterCursor::new(&mut storage).await.unwrap();
+    let restored_cursor = UpdaterCursor::new(&mut storage, SLChainId(1))
+        .await
+        .unwrap();
     assert_eq!(restored_cursor, cursor);
 }
 
@@ -293,7 +302,9 @@ async fn updater_cursor_after_snapshot_recovery() {
     let mut storage = pool.connection().await.unwrap();
     prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
+    let cursor = UpdaterCursor::new(&mut storage, SLChainId(1))
+        .await
+        .unwrap();
     assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(23));
     assert_eq!(cursor.last_proven_l1_batch, L1BatchNumber(23));
     assert_eq!(cursor.last_executed_l1_batch, L1BatchNumber(23));
