@@ -249,7 +249,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         with_compression: bool,
     ) -> BatchTransactionExecutionResult {
         let legacy_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if true {
+        let legacy_tracer = if Tr::TRACE_CALLS {
             vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
@@ -295,25 +295,6 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 fast_traces
             }
         };
-
-        if true {
-            use std::{
-                fs,
-                time::{SystemTime, UNIX_EPOCH},
-            };
-
-            let _ = fs::create_dir_all("traces");
-
-            let ts = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
-            let _ = fs::write(
-                format!("traces/call_traces_{ts}.txt"),
-                format!("{:#?}", &call_traces),
-            );
-        }
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
