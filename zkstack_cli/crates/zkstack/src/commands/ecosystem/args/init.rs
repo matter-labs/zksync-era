@@ -122,8 +122,8 @@ pub struct EcosystemInitArgs {
     pub validium_args: ValidiumTypeArgs,
     #[clap(long,default_value_t = false,  default_missing_value = "true", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: bool,
-    #[clap(long, default_value = "false", num_args = 0..=1)]
-    pub make_permanent_rollup: Option<bool>,
+    #[clap(long, default_value_t =false,default_missing_value = "true",  num_args = 0..=1)]
+    pub make_permanent_rollup: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
@@ -228,7 +228,7 @@ pub struct EcosystemInitArgsFinal {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub deploy_ecosystem: bool,
     pub deploy_paymaster: Option<bool>,
-    pub make_permanent_rollup: Option<bool>,
+    pub make_permanent_rollup: bool,
     pub genesis_args: Option<GenesisArgs>,
     pub zksync_os: bool,
 }

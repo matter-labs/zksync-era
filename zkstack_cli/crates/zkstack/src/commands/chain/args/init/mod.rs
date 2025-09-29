@@ -40,8 +40,8 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub make_permanent_rollup: Option<bool>,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub make_permanent_rollup: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(flatten)]
@@ -120,7 +120,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
-            make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
+            make_permanent_rollup: self.make_permanent_rollup,
         }
     }
 }
