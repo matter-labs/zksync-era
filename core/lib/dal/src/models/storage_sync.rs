@@ -4,10 +4,9 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
-    commitment::{PubdataParams, PubdataType},
-    parse_h160, parse_h256, parse_h256_opt,
-    settlement::SettlementLayer,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
+    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
+    parse_h160, parse_h256, parse_h256_opt, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -33,7 +32,8 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_type: Option<String>,
@@ -107,12 +107,25 @@ impl SyncBlock {
                 .decode_column("virtual_blocks")?,
             hash: parse_h256(&block.hash).decode_column("hash")?,
             protocol_version: parse_protocol_version(block.protocol_version)?,
-            pubdata_params: PubdataParams {
-                pubdata_type: PubdataType::from_str(&block.pubdata_type)
-                    .decode_column("Invalid pubdata type")?,
-                l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
-                    .decode_column("l2_da_validator_address")?,
-            },
+            pubdata_params: PubdataParams::new(
+                (
+                    block
+                        .l2_da_validator_address
+                        .map(|a| parse_h160(&a).decode_column("l2_da_validator_address"))
+                        .transpose()?,
+                    block
+                        .l2_da_commitment_scheme
+                        .map(|a| {
+                            L2DACommitmentScheme::try_from(a as u8)
+                                .decode_column("l2_da_commitment_scheme")
+                        })
+                        .transpose()?,
+                )
+                    .try_into()
+                    .decode_column("Invalid pubdata validator")?,
+                PubdataType::from_str(&block.pubdata_type).decode_column("Invalid pubdata type")?,
+            )
+            .decode_column("pubdata_params")?,
             pubdata_limit: block.pubdata_limit.map(|l| l as u64),
             interop_roots,
             settlement_layer: to_settlement_layer(

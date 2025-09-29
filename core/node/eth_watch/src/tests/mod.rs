@@ -180,24 +180,48 @@ async fn test_gap_in_upgrade_timestamp() {
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
-        .add_upgrade_timestamp(&[(
-            ProtocolUpgrade {
-                version: ProtocolSemanticVersion {
-                    minor: ProtocolVersionId::next(),
-                    patch: 0.into(),
+        .add_upgrade_timestamp(&[
+            (
+                ProtocolUpgrade {
+                    version: ProtocolSemanticVersion {
+                        minor: ProtocolVersionId::next(),
+                        patch: 0.into(),
+                    },
+                    tx: None,
+                    ..Default::default()
                 },
-                tx: None,
-                ..Default::default()
-            },
-            10,
-        )])
+                10,
+            ),
+            (
+                ProtocolUpgrade {
+                    version: ProtocolSemanticVersion {
+                        minor: ProtocolVersionId::next(),
+                        patch: 1.into(),
+                    },
+                    tx: None,
+                    ..Default::default()
+                },
+                11,
+            ),
+            (
+                ProtocolUpgrade {
+                    version: ProtocolSemanticVersion {
+                        minor: ProtocolVersionId::next(),
+                        patch: 2.into(),
+                    },
+                    tx: None,
+                    ..Default::default()
+                },
+                12,
+            ),
+        ])
         .await;
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
 
     let db_versions = storage.protocol_versions_dal().all_versions().await;
     // there should be genesis version and just added version
-    assert_eq!(db_versions.len(), 2);
+    assert_eq!(db_versions.len(), 4);
 
     let previous_version = (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap();
     let next_version = ProtocolVersionId::next();

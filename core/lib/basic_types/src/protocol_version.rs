@@ -212,6 +212,10 @@ impl ProtocolVersionId {
         self >= &ProtocolVersionId::Version23
     }
 
+    pub fn is_pre_medium_interop(&self) -> bool {
+        self < &ProtocolVersionId::Version30
+    }
+
     pub const fn gateway_upgrade() -> Self {
         ProtocolVersionId::Version26
     }

@@ -9,7 +9,6 @@ const UPGRADE_TESTS_PATH: &str = "core/tests/upgrade-test";
 
 pub fn run(shell: &Shell, args: UpgradeArgs) -> anyhow::Result<()> {
     let config = ZkStackConfig::current_chain(shell)?;
-    shell.change_dir(config.link_to_code().join(UPGRADE_TESTS_PATH));
 
     logger::info(MSG_UPGRADE_TEST_RUN_INFO);
 
@@ -17,6 +16,7 @@ pub fn run(shell: &Shell, args: UpgradeArgs) -> anyhow::Result<()> {
         install_and_build_dependencies(shell, &config.link_to_code())?;
     }
 
+    shell.change_dir(config.link_to_code().join(UPGRADE_TESTS_PATH));
     run_test(shell, &config.name)?;
     logger::outro(MSG_UPGRADE_TEST_RUN_SUCCESS);
 

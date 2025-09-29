@@ -10,8 +10,10 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     bytecode::BytecodeHash,
     ethabi::{self, Token},
+    h256_to_u256,
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolSemanticVersion,
     u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
@@ -69,7 +71,10 @@ impl FakeEthClientData {
             self.upgrade_timestamp
                 .entry(*eth_block)
                 .or_default()
-                .push(upgrade_timestamp_log(*eth_block));
+                .push(upgrade_timestamp_log(
+                    u256_to_h256(upgrade.version.pack()),
+                    *eth_block,
+                ));
             self.diamond_upgrades
                 .entry(*eth_block)
                 .or_default()
@@ -258,18 +263,27 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
-    async fn diamond_cut_by_version(
+    async fn diamond_cuts_since_version(
         &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        let from_block = *self
+        since_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Vec<Vec<u8>>> {
+        let from_block = self
             .inner
             .read()
             .await
             .diamond_upgrades
-            .keys()
+            .values()
+            .map(|logs| {
+                logs.iter().find_map(|log| {
+                    let version = log.topics.get(1)?;
+                    let version =
+                        ProtocolSemanticVersion::try_from_packed(h256_to_u256(*version)).ok()?;
+                    (version > since_version).then_some(log.block_number?.as_u64())
+                })
+            })
             .min()
-            .unwrap_or(&0);
+            .flatten()
+            .unwrap_or(0);
         let to_block = *self
             .inner
             .read()
@@ -289,12 +303,12 @@ impl EthClient for MockEthClient {
                         .unwrap()
                         .signature(),
                 ),
-                Some(packed_version),
+                None,
                 RETRY_LIMIT,
             )
             .await?;
 
-        Ok(logs.into_iter().next().map(|log| log.data.0))
+        Ok(logs.into_iter().map(|log| log.data.0).collect())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -470,12 +484,12 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     //     address initAddress;
     //     bytes initCalldata;
     // }
+    let version = u256_to_h256(upgrade.version.pack());
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Address::zero()),
         Token::Bytes(init_calldata(upgrade.clone())),
     ])]);
-    tracing::info!("{:?}", Token::Bytes(init_calldata(upgrade)));
 
     Log {
         address: Address::repeat_byte(0x1),
@@ -484,7 +498,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
                 .event("NewUpgradeCutData")
                 .unwrap()
                 .signature(),
-            H256::from_low_u64_be(eth_block),
+            version,
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
@@ -499,7 +513,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         block_timestamp: None,
     }
 }
-fn upgrade_timestamp_log(eth_block: u64) -> Log {
+fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
     let final_data = ethabi::encode(&[U256::from(12345).into_token()]);
 
     Log {
@@ -509,7 +523,7 @@ fn upgrade_timestamp_log(eth_block: u64) -> Log {
                 .event("UpdateUpgradeTimestamp")
                 .expect("UpdateUpgradeTimestamp event is missing in ABI")
                 .signature(),
-            H256::from_low_u64_be(eth_block),
+            packed_version,
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
