@@ -2,6 +2,6 @@
   "leaf": "0xaaf535d4d02ba198a64bd2434ca2a9fd199641a1ddf37c903b26f649d027ebea",
   "node": "0x96803f6a9b4a92f38284b59c2feb1ce1c1f6335e65ef1f48ee57e14b30adce9d",
   "scheduler": "0x1226cbcb10f42d669821de3ad0a553e5bd38b7b1cc6e796c24fe9f79402a095c",
-  "snark_wrapper": "0x64b347c642ea60114c98b3976124ea8a7e0bb778bd7e479aedc02f994486c8a1",
+  "snark_wrapper": "0x1ffc56111a5cfaf5db387f6a31408ad20217e9bc1f31f2f5c1bd38b0d6d7968b",
   "fflonk_snark_wrapper": "0x6f36a08c517b060fa97308cdb3e23b04842ff839d451a753ec8fae1a5408304a"
 }
