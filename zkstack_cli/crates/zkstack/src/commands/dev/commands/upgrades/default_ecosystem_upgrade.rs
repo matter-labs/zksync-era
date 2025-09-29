@@ -8,9 +8,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{
-    config::global_config, ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner,
-};
+use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
@@ -52,28 +50,28 @@ pub async fn run(
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
-    let zksync_os = global_config().zksync_os;
+    let zksync_os = args.common.zksync_os;
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    // git::submodule_update(shell, &ecosystem_config.link_to_code())?;
 
     let upgrade_version = args.upgrade_version;
 
-    let mut final_ecosystem_args = args.fill_values_with_prompt(run_upgrade);
+    let final_ecosystem_args = args.fill_values_with_prompt(run_upgrade);
 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                zksync_os,
             )
             .await?;
         }
         EcosystemUpgradeStage::EcosystemAdmin => {
             ecosystem_admin(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
@@ -83,7 +81,7 @@ pub async fn run(
         }
         EcosystemUpgradeStage::GovernanceStage0 => {
             governance_stage_0(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
@@ -93,7 +91,7 @@ pub async fn run(
         }
         EcosystemUpgradeStage::GovernanceStage1 => {
             governance_stage_1(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
@@ -102,22 +100,11 @@ pub async fn run(
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage2 => {
-            governance_stage_2(
-                &mut final_ecosystem_args,
-                shell,
-                &ecosystem_config,
-                zksync_os,
-            )
-            .await?;
+            governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, zksync_os).await?;
         }
         EcosystemUpgradeStage::NoGovernanceStage2 => {
-            no_governance_stage_2(
-                &mut final_ecosystem_args,
-                shell,
-                &ecosystem_config,
-                zksync_os,
-            )
-            .await?;
+            no_governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, zksync_os)
+                .await?;
         }
     }
 
@@ -134,13 +121,12 @@ struct BroadcastFileTransactions {
 }
 
 async fn no_governance_prepare(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    zksync_os: bool,
 ) -> anyhow::Result<()> {
-    // TODO remove from global config
-    let zksync_os = global_config().zksync_os;
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
 
@@ -314,7 +300,7 @@ async fn no_governance_prepare(
 }
 
 async fn ecosystem_admin(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
@@ -358,7 +344,7 @@ async fn ecosystem_admin(
 }
 
 async fn governance_stage_0(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
@@ -402,7 +388,7 @@ async fn governance_stage_0(
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 async fn governance_stage_1(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
@@ -477,7 +463,7 @@ fn update_contracts_config_from_output(
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 async fn governance_stage_2(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     zksync_os: bool,
@@ -528,7 +514,7 @@ lazy_static! {
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 // TODO: maybe delete the file?
 async fn no_governance_stage_2(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     zksync_os: bool,

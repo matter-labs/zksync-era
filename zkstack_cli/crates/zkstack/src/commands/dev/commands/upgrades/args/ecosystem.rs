@@ -4,7 +4,10 @@ use strum::EnumIter;
 use zkstack_cli_common::forge::ForgeScriptArgs;
 
 use crate::{
-    commands::dev::commands::upgrades::types::UpgradeVersion,
+    commands::{
+        dev::commands::upgrades::types::UpgradeVersion,
+        ecosystem::args::common::CommonEcosystemArgs,
+    },
     messages::{MSG_L1_RPC_URL_HELP, MSG_SERVER_COMMAND_HELP},
 };
 
@@ -32,14 +35,14 @@ pub enum EcosystemUpgradeStage {
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemUpgradeArgs {
     #[clap(flatten)]
+    pub common: CommonEcosystemArgs,
+    #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
     #[clap(long, value_enum)]
     pub upgrade_version: UpgradeVersion,
     #[clap(long, value_enum)]
     ecosystem_upgrade_stage: EcosystemUpgradeStage,
-    #[clap(long, help = "Whether to update git submodules of repo", default_missing_value = "true", num_args = 0..=1)]
-    pub update_submodules: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]

@@ -1,6 +1,6 @@
 use anyhow::{bail, Context};
 use xshell::Shell;
-use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
@@ -40,7 +40,6 @@ pub async fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()>
 }
 
 async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let zksync_os = global_config().zksync_os;
     let args = args
         .fill_values_with_prompt(shell)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
@@ -54,12 +53,8 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let configs_path = create_local_configs_dir(shell, ".")?;
 
-    let link_to_code = resolve_link_to_code(
-        shell,
-        &shell.current_dir(),
-        args.link_to_code.clone(),
-        args.update_submodules,
-    )?;
+    let link_to_code =
+        resolve_link_to_code(shell, &shell.current_dir(), args.link_to_code.clone())?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();
@@ -99,7 +94,8 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell, zksync_os).await?;
+    // By default, do not use zksync os for the ecosystem chain
+    create_chain_inner(chain_config, &ecosystem_config, shell, false).await?;
     spinner.finish();
 
     if args.start_containers {

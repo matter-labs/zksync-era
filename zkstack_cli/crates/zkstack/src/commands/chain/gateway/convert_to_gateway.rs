@@ -10,7 +10,6 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config,
     ethereum::get_ethers_provider,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
@@ -74,7 +73,6 @@ fn parse_decimal_u256(s: &str) -> Result<U256, String> {
 }
 
 pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let zksync_os = global_config().zksync_os;
     let args = convert_to_gw_args.forge_args;
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
@@ -87,7 +85,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     override_config(
         shell,
         &ecosystem_config
-            .default_configs_path_for_ctm(zksync_os)
+            .default_configs_path_for_ctm(chain_config.zksync_os)
             .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
         &chain_config,
     )?;
@@ -183,7 +181,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     // These calls will produce some L1->L2 transactions. However tracking those is hard at this point, so we won't do it here.
     output = governance_execute_calls(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os),
         mode_ecosystem_governor,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,

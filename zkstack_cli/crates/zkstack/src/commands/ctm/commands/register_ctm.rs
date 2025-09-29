@@ -2,7 +2,6 @@ use ethers::{abi::parse_abi, contract::BaseContract};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config,
     forge::{Forge, ForgeScriptArgs},
     logger,
 };
@@ -27,10 +26,7 @@ lazy_static! {
 
 pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let zksync_os = global_config().zksync_os;
-    // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-    //     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
-    // }
+    let zksync_os = args.common.zksync_os;
 
     let final_ecosystem_args = args
         .clone()

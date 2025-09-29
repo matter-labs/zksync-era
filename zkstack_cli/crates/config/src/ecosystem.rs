@@ -251,7 +251,7 @@ impl EcosystemConfig {
             config.evm_emulator,
             config.tight_ports,
             config.zksync_os,
-            config.era_contracts_path,
+            config.contracts_source_path,
         ))
     }
 

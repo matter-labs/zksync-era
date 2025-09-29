@@ -40,6 +40,16 @@ pub fn build_da_contracts(shell: &Shell, link_to_contracts: &Path) -> anyhow::Re
     Ok(Cmd::new(cmd!(shell, "yarn da build:foundry")).run()?)
 }
 
+pub fn rebuild_all_contracts(shell: &Shell, link_to_contracts: &Path) -> anyhow::Result<()> {
+    install_yarn_dependencies(shell, link_to_contracts)?;
+    build_l1_contracts(shell.clone(), link_to_contracts)?;
+    build_l1_da_contracts(shell.clone(), link_to_contracts)?;
+    build_l2_contracts(shell.clone(), link_to_contracts)?;
+    build_system_contracts(shell.clone(), link_to_contracts)?;
+    build_da_contracts(shell, link_to_contracts)?;
+    Ok(())
+}
+
 pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     let encoded_data = encode(&[
         ethers::abi::Token::Uint(l1_chain_id),

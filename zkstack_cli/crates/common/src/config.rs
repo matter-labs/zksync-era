@@ -17,5 +17,4 @@ pub struct GlobalConfig {
     pub verbose: bool,
     pub chain_name: Option<String>,
     pub ignore_prerequisites: bool,
-    pub zksync_os: bool,
 }

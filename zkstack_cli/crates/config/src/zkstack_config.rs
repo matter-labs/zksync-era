@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::bail;
 use xshell::Shell;
-use zkstack_cli_common::config::global_config;
 
 use crate::{ChainConfig, ChainConfigInternal, EcosystemConfig, EcosystemConfigFromFileError};
 
@@ -51,7 +50,8 @@ impl ZkStackConfigTrait for ZkStackConfig {
     fn default_configs_path(&self) -> PathBuf {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
-                .default_configs_path_for_ctm(global_config().zksync_os)
+                // TODO pass zksync_os from config
+                .default_configs_path_for_ctm(false)
                 .clone(),
             ZkStackConfig::ChainConfig(chain) => chain.default_configs_path().clone(),
         }
@@ -60,7 +60,8 @@ impl ZkStackConfigTrait for ZkStackConfig {
     fn contracts_path(&self) -> PathBuf {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => {
-                ecosystem.contracts_path_for_ctm(global_config().zksync_os)
+                // For default zksync config files we use default paths to foundry scripts
+                ecosystem.contracts_path_for_ctm(false)
             }
             ZkStackConfig::ChainConfig(chain) => chain.contracts_path(),
         }
@@ -69,7 +70,8 @@ impl ZkStackConfigTrait for ZkStackConfig {
     fn path_to_foundry_scripts(&self) -> PathBuf {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => {
-                ecosystem.path_to_foundry_scripts_for_ctm(global_config().zksync_os)
+                // For default zksync config files we use default paths to foundry scripts
+                ecosystem.path_to_foundry_scripts_for_ctm(false)
             }
             ZkStackConfig::ChainConfig(chain) => chain.path_to_foundry_scripts().clone(),
         }

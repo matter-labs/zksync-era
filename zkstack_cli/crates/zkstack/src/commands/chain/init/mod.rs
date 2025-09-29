@@ -63,10 +63,6 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-    //     git::submodule_update(shell, &config.link_to_code())?;
-    // }
-
     let args = args.fill_values_with_prompt(&chain_config);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));

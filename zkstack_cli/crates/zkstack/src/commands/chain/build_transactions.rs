@@ -1,7 +1,7 @@
 use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
-use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig};
 
 use crate::{
@@ -24,15 +24,13 @@ const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/register-zk-cha
 const SCRIPT_CONFIG_FILE_DST: &str = "register-zk-chain.toml";
 
 pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let zksync_os = global_config().zksync_os;
     let config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let zksync_os = chain_config.zksync_os;
 
     let args = args.fill_values_with_prompt(chain_config.name.clone());
-
-    // git::submodule_update(shell, &config.link_to_code())?;
 
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     copy_configs(

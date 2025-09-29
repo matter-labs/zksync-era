@@ -8,6 +8,7 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zksync_basic_types::H160;
 
 use crate::{
+    commands::ecosystem::args::common::CommonEcosystemArgs,
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
     defaults::LOCAL_RPC_URL,
     messages::{
@@ -18,6 +19,9 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct BuildTransactionsArgs {
+    #[command(flatten)]
+    pub common: CommonEcosystemArgs,
+
     /// Address of the transaction sender.
     #[clap(long)]
     pub sender: Option<String>,

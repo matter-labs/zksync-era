@@ -8,6 +8,7 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_types::L1Network;
 
 use crate::{
+    commands::ecosystem::args::common::CommonEcosystemArgs,
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_RPC_URL_PROMPT,
@@ -37,6 +38,9 @@ pub enum GatewayUpgradeStage {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct GatewayUpgradeArgs {
+    #[command(flatten)]
+    pub common: CommonEcosystemArgs,
+
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,

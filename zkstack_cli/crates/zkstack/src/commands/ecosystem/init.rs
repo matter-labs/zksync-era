@@ -3,14 +3,7 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    contracts::{
-        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
-        install_yarn_dependencies,
-    },
-    forge::ForgeScriptArgs,
-    logger,
-    spinner::Spinner,
-    Prompt,
+    contracts::rebuild_all_contracts, forge::ForgeScriptArgs, logger, spinner::Spinner, Prompt,
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
@@ -47,10 +40,6 @@ use crate::{
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-
-    // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-    //     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
-    // }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -109,25 +98,6 @@ async fn init_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    // if !init_args.skip_contract_compilation_override {
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-    build_da_contracts(
-        shell,
-        &ecosystem_config.contracts_path_for_ctm(init_args.zksync_os),
-    )?;
-    build_l1_contracts(
-        shell.clone(),
-        &ecosystem_config.contracts_path_for_ctm(init_args.zksync_os),
-    )?;
-    build_system_contracts(
-        shell.clone(),
-        &ecosystem_config.contracts_path_for_ctm(init_args.zksync_os),
-    )?;
-    build_l2_contracts(
-        shell.clone(),
-        &ecosystem_config.contracts_path_for_ctm(init_args.zksync_os),
-    )?;
-    // }
     spinner.finish();
 
     let contracts = if !init_args.deploy_ecosystem {
@@ -160,20 +130,7 @@ async fn init_ecosystem(
 
         // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
         if !init_args.zksync_os && ecosystem_config.zksync_os_exist() && init_args.dev {
-            install_yarn_dependencies(shell, &ecosystem_config.link_to_code())?;
-            build_da_contracts(shell, &ecosystem_config.contracts_path_for_ctm(true))?;
-            build_l1_contracts(
-                shell.clone(),
-                &ecosystem_config.contracts_path_for_ctm(true),
-            )?;
-            build_system_contracts(
-                shell.clone(),
-                &ecosystem_config.contracts_path_for_ctm(true),
-            )?;
-            build_l2_contracts(
-                shell.clone(),
-                &ecosystem_config.contracts_path_for_ctm(true),
-            )?;
+            rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(true))?;
             contracts = deploy_and_register_ctm(
                 shell,
                 init_args.ecosystem.l1_rpc_url.clone(),

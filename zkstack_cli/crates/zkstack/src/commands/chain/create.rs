@@ -2,7 +2,7 @@ use std::cell::OnceCell;
 
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{config::global_config, logger, spinner::Spinner};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
     EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
@@ -29,7 +29,7 @@ pub async fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let zksync_os = global_config().zksync_os;
+    let zksync_os = args.zksync_os;
     let tokens = ecosystem_config.get_erc20_tokens();
     let args = args
         .fill_values_with_prompt(
@@ -122,7 +122,7 @@ pub(crate) async fn create_chain_inner(
         legacy_bridge,
         args.evm_emulator,
         args.tight_ports,
-        global_config().zksync_os,
+        zksync_os,
         Some(ecosystem_config.contracts_path_for_ctm(zksync_os)),
     );
 

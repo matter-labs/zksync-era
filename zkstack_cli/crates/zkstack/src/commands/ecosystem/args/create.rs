@@ -76,7 +76,6 @@ impl EcosystemCreateArgs {
             wallet_path: chain.wallet_path.clone(),
             chain_args: chain.clone(),
             start_containers,
-            update_submodules: chain.update_submodules,
             era_contracts_path: self.era_contracts_path.clone(),
             zksync_os_contracts_path: self.zksync_os_contracts_path.clone(),
         })
@@ -92,7 +91,6 @@ pub struct EcosystemCreateArgsFinal {
     pub wallet_path: Option<PathBuf>,
     pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
-    pub update_submodules: Option<bool>,
     pub era_contracts_path: Option<PathBuf>,
     pub zksync_os_contracts_path: Option<PathBuf>,
 }

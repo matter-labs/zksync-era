@@ -104,9 +104,6 @@ struct ZkStackGlobalArgs {
     /// Ignores prerequisites checks
     #[clap(long, global = true)]
     ignore_prerequisites: bool,
-    /// Use ZKsync OS version
-    #[clap(long, global = true)]
-    zksync_os: bool,
 }
 
 #[tokio::main]
@@ -190,7 +187,6 @@ fn init_global_config_inner(shell: &Shell, zkstack_args: &ZkStackGlobalArgs) -> 
         verbose: zkstack_args.verbose,
         chain_name: zkstack_args.chain.clone(),
         ignore_prerequisites: zkstack_args.ignore_prerequisites,
-        zksync_os: zkstack_args.zksync_os,
     });
     Ok(())
 }

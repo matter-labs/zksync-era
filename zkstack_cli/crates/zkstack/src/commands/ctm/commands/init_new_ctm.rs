@@ -2,13 +2,9 @@ use ethers::{abi::parse_abi, contract::BaseContract, types::H160};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config,
-    contracts::{
-        build_da_contracts, build_l1_contracts, build_l2_contracts, build_system_contracts,
-        install_yarn_dependencies,
-    },
+    contracts::rebuild_all_contracts,
     forge::{Forge, ForgeScriptArgs},
-    logger,
+    git, logger,
     spinner::Spinner,
 };
 use zkstack_cli_config::{
@@ -43,12 +39,8 @@ lazy_static! {
     );
 }
 pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
-    let zksync_os = global_config().zksync_os;
+    let zksync_os = args.common.zksync_os;
     let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-
-    // if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-    //     git::submodule_update(shell, &ecosystem_config.link_to_code())?;
-    // }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -68,7 +60,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         ecosystem_config.set_sources_path(
             path,
             init_ctm_args.default_configs_src_path.unwrap(),
-            global_config().zksync_os,
+            zksync_os,
         );
         ecosystem_config.save_with_base_path(shell, ".")?;
     }
@@ -76,22 +68,6 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_INITIALIZING_CTM);
 
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    // if !init_ctm_args.skip_contract_compilation_override {
-    install_yarn_dependencies(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
-    build_da_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
-    build_l1_contracts(
-        shell.clone(),
-        &ecosystem_config.contracts_path_for_ctm(zksync_os),
-    )?;
-    build_system_contracts(
-        shell.clone(),
-        &ecosystem_config.contracts_path_for_ctm(zksync_os),
-    )?;
-    build_l2_contracts(
-        shell.clone(),
-        &ecosystem_config.contracts_path_for_ctm(zksync_os),
-    )?;
-    // }
     spinner.finish();
 
     let bridgehub_address = if let Some(addr) = init_ctm_args.bridgehub_address {
@@ -102,6 +78,13 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
             .core_ecosystem_contracts
             .bridgehub_proxy_addr
     };
+
+    if args.common.update_submodules {
+        git::submodule_update(shell, &ecosystem_config.link_to_code())?;
+    }
+    if !args.common.skip_build_dependencies {
+        rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+    }
 
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,

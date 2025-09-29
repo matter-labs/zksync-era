@@ -201,13 +201,11 @@ pub async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: args.no_port_reallocation,
-            // update_submodules: args.update_submodules,
             dev: args.dev,
             validium_args: args.validium_args.clone(),
             server_command: genesis_args.as_ref().and_then(|a| a.server_command.clone()),
             make_permanent_rollup: args.make_permanent_rollup,
             no_genesis: genesis_args.is_none(),
-            update_submodules: None,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

@@ -3,7 +3,6 @@ use std::path::Path;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config,
     db::migrate_db,
     git, logger,
     spinner::Spinner,
@@ -27,7 +26,7 @@ use crate::{
 };
 
 pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
-    let zksync_os = global_config().zksync_os;
+    let zksync_os = args.zksync_os;
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
