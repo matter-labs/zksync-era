@@ -36,9 +36,11 @@ pub struct CoreContractsConfig {
 impl CoreContractsConfig {
     pub fn ctm(&self, zksync_os: bool) -> ChainTransitionManagerContracts {
         if zksync_os {
-            self.zksync_os_ctm.clone().unwrap()
+            self.zksync_os_ctm
+                .clone()
+                .expect("ZkSync OS CTM is not deployed")
         } else {
-            self.era_ctm.clone().unwrap()
+            self.era_ctm.clone().expect("Era CTM is not deployed")
         }
     }
 

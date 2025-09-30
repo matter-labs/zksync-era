@@ -27,7 +27,7 @@ use crate::{
     },
     messages::{
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_INITIALIZING_CTM, MSG_INTALLING_DEPS_SPINNER,
+        MSG_INITIALIZING_CTM,
     },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };

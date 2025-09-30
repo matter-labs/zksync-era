@@ -1,3 +1,4 @@
+use crate::messages::MSG_L1_RPC_URL_HELP;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +10,6 @@ pub struct CommonEcosystemArgs {
     pub(crate) update_submodules: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub(crate) skip_build_dependencies: bool,
-    #[clap(long, help = "L1 RPC URL to use for transactions.")]
+    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub(crate) l1_rpc_url: Option<String>,
 }

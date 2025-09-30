@@ -43,8 +43,6 @@ pub struct EcosystemUpgradeArgs {
     pub upgrade_version: UpgradeVersion,
     #[clap(long, value_enum)]
     ecosystem_upgrade_stage: EcosystemUpgradeStage,
-    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
-    pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
 }
@@ -55,7 +53,7 @@ impl EcosystemUpgradeArgs {
         EcosystemUpgradeArgsFinal {
             forge_args: self.forge_args,
             ecosystem_upgrade_stage: self.ecosystem_upgrade_stage,
-            l1_rpc_url: self.l1_rpc_url,
+            l1_rpc_url: self.common.l1_rpc_url,
             server_command: self.server_command,
             run_upgrade,
         }
