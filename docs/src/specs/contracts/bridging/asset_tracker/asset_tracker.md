@@ -1,28 +1,36 @@
 # Contract-based and Full AssetTracker
 
-## Security assumptions and vocabulary
+## Introduction
 
-- All settlement layers are whitelisted and completely trusted: they are controlled by the decentralized governance and sufficient monitoring and defense in depth mechanisms ensure that their proof system will not be exploited.
+While interop allows for more possibilities for cross chain interaction, it also comes with additional risks: a malicious chain has more ways to impact other chains, since now direct communication between chains is available that does go through L1.
+
+The `AssetTracker` is the main component that is used to ensure that even if a malicious chain is present, it will not affect the broader ecosystem. For now it is implemented in Solidity (and that's why interop is only allowed on top of a ZK Gateway).
+
+## Glossary
+
 - A "completely compromised" chain assumes that not only their proof system, but their facets can change arbitrarily. This is a relevant assumption since zksync os chains CTM will be controlled by a temporary multisig before final transition to the governance. 
 - A "ZK compromised" means that the chain uses a canonical implementation with our Diamond Proxy, facets, etc, but its ZK proving system is compromised.
 
+## Security assumptions
+
+- All settlement layers are whitelisted and completely trusted: they are controlled by the decentralized governance and sufficient monitoring and defense in depth mechanisms ensure that their proof system will not be exploited.
+
+> In the future, we want to allow untrusted settlement layers, however the scope of this release includes only trusted settlement layers. Any places that disallow it for now should be clearly marked in the codebase.
+
 ### Before v30
 
-- Only era-based chains were settling on Gateway, and those are trusted fully (TODO do we trust fully their proofs or just impleentation? We should only assue that they can be ZK compromised).
-- Non-era based chains are possible. They should be assumed to be completely malicious even before the upgrade, but they can not settle on top of ZK based Gateway. Before v30 they only settle on L1.
+- Only era-based chains were settling on Gateway, and those are trusted fully (TODO: do we trust fully their proofs or just implementation? We should only assue that they can be ZK compromised).
+- ZKsync OS based chains are possible. Before their upgrade system is migrated to the decentralized governance, they can be assumed to be potentially completely malicious even before the upgrade, but they can not settle on top of ZK based Gateway. Before v30 they only settle on L1.
 - Only one whitelisted settlement layer exists and it is ZK Gateway. 
 
 ### After v30
 
-- A new zksync os powered settlement layer may be added. The transfer of control to decentralized governance is a prerequisite, i.e. then this settlement layer will also be completely trusted, but also zksync os chains will be able to become "ZK compromised at most".
-- The system should be ready for chains to be able to migrate from one GW to L1, to another Gateway. While it will not be supported in Bridgehub immediately, overall the security model should work with it
+- A new ZKsync OS powered settlement layer may be added. The transfer of control to decentralized governance is a prerequisite before the creation of such a settlement layer, i.e. then this settlement layer will also be completely trusted, but also zksync os chains will be able to become "ZK compromised" at most. Note, that the transfer of the ownership to governance is a prerequisite for ZKsync OS based settlement layer, not v30 upgrade in general.
+- Chains can only migrate between L1 and ZK Gateway that belongs to their CTM (i.e. Era chains wont be able to migrate to ZKsync OS settlement layer and vice versa).
 
-From the above it follows that in the meantime while zksync os chains can be completely malicious, they can only settle on L1, while their settlement on top of a ZK Gateway will be only possible only when they may be "ZK compromised".
+> Future compatibility note 1. In the future we want to allow Era-based chains to migrate on top of ZKsync OS powered Gateway. The codebase should be ready for it in general. Any places that disallow it for now should be clearly marked in the codebase.
 
-
-## Introduction
-
-The `AssetTracker` is a component that provides additional security, by tracking the balance of chains on the chains settlement layer (only Gateway and L1 as of now). This is done by parsing all interop transactions on the SL and updating the balance of the chains.
+> Future compatibility note 2. In the future we would want to support chains from untrusted, potentially completely malicious CTMs settling on top of ZKsync OS powered Gateywa. Any places that disallow it for now should be clearly marked in the codebase. 
 
 ## Before v30 (only L1<>L2 messaging)
 
@@ -30,28 +38,26 @@ Before v30, the chain balance was tracked only inside `L1NativeTokenVault`.
 
 - the balances of the tokens for each chain are stored only on L1.
 - when there is a deposit to the chain we increase it's relevant balance, opposite for withdrawals, we decrease the chain's balance for the token that's being withdrawn.
-- For L2 Native tokens, we store the origin chainId. We don’t track the balance for that token on said chain, since the token can be minted arbitrarily. TODO: do we store it for l1 based tokens???
+- For all tokens, we store the origin chainId. We don’t track the balance for that token on said chain, since the token can be minted arbitrarily.
 
 ```solidity
 mapping(chainId => assetId => balance) chainBalance;
 mapping(bytes32 assetId => uint256 originChainId) public originChainId;
 ```
 
-## After v30 (interop with asset transfers support)
-
-### Contract based AssetTracker
+## Contract based AssetTracker
 
 To enable interop, while keeping the old 2FA mechanism, we would need a contract that would all outcoming messages from a chain (both interop messages and withdrawals) while ensuring that the chain does not spend more funds then it has. This contract is the asset tracker.
 
 There are three types of asset trackers:
 
 - `L1AssetTracker`. It took over the job of tracking chain balances on L1, that was previosuly held by `L1NativeTokenVault`. Note that due to costs, it does not support interop.
-- `GWAssetTracker`. Its job is to ensure that chains that settle on top of ZK Gateway do not send more funds in outgoing messages, then they have.
+- `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages, then they have.
 - `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to this chain. More on it here (TODO).
 
 ### Invariants around `chainBalance`
 
-The topic of migration between settlement layer will be discussed in the later sections. In this section, we'll discuss what the invariants around `chainBalance` and `totalSupplyAcrossAllChains` look like and how they changed compared to the previous version.
+The topic of migration between settlement layer will be discussed in the later sections. In this section, we'll discuss what the invariants around `chainBalance` look like and how they changed compared to the previous version.
 
 #### Motivation
 
@@ -59,8 +65,9 @@ For comparison, in the past, `chainBalance[chainId][assetId]` had the following 
 
 - Every time a chain `chainId` deposits `X` of `assetId` to the L1NativeTokenVault (only possible via L1->L2 communication), the `chainBalance[chainId][assetId]` gets increased by `X`.
 - Every time a chain `chainId` withdraws `X` of `assetId` to the L1NativeTokenVault (either through withdrawals or claiming failed deposits), the `chainBalance[chainId][assetId]` got decreased by `X`.
+- If a chain is the origin chain of the token, its `chainBalance` was not tracked.
 
-Note, that the `chainBalance` for a chain was tracked *lazily*, i.e. the `chainBalance` displayed the difference between deposited and withdrawn funds from the shared bridge, not how much funds the chain actually has internally. This is an important distinction, e.g. a potentially malicious chain (obviously assuming totally compromised ZK) could create "withdraw" messages for more funds than the chain actually has. 
+Note, that the `chainBalance` for a chain was tracked *lazily*, i.e. the `chainBalance` displayed the difference between deposited and withdrawn funds from the shared bridge, not how much funds the chain actually has internally. This is an important distinction, e.g. a potentially malicious chain (obviously assuming totally compromised ZK) could *create*, but *not finalize* "withdraw" messages for more funds than the chain actually has. 
 
 So in case of a compromised ZK, the `L1NativeTokenVault` and its `chainBalance` tracking protected the shared bridge, but it gave no guarantee about the validity of all the messages sent from the chain. The above is very neat for chains that only communicate with L1 as it is very cheap and provides easy isolation between the chains.
 
@@ -82,52 +89,75 @@ Overall, the algorithm for determining whether to reduce the chain balance shoul
 
 ```
 1. If withdrawal is directly from L2 to L1 (chain didnt settle on GW), the chainBalance of the chain should be reduced.
-2. Alternatively, if the chain did settle on GW, check whether if the batch is before the chain has upgraded to v30.
+2. Alternatively, if the chain did settle on GW, check whether the batch is before the chain has upgraded to v30.
     2a. If the batch is before the chain upgraded to v30, the chain's balance is reduced.
     2b. If the batch is after the chain upgraded to v30, the settlement layer's balance is reduced.
 ```
 
 Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessageRoot (TODO add link):
  - We only allow migrations between the same CTMs. This is because we the GW needs to trust the implementation of the zk chain contracts to provide the correct v30 upgrade batch number.
- - So we assume that chains that interact with GWAssetTracker can only be "ZK Compromised"  
+ - So we assume that chains that have non-zero v30 upgrade batch number, belong to either era CTM or ZKsync OS based CTM. For all the other CTMs, when a chain will be spawned, its "v30 upgrade batch number" will be started from 0.
 
 Also, this relies on the fact that message verification needs to always happen against the root of GW that was submitted on L1, basically to ensure that the "Gateway" approved this messages and checked via `GWAssetTracker` that it was correct.
 
 The above ensures that settlement layer has the ability to process interop internally, but also it puts heavy responsibility on it to ensure that each chain only does withdrawals/interops that do not exceed their "true" balance. 
 
-Similarly to how it was done before, when a deposit of `assetId` to `chainId` is done, we attribute the balance to the `chainBalance` of either the chain itself (if it settles on L1) or its settlement layer (if it settles on top of it). More on the process of deposits when chain settles on top of a settlement layer, will be expanded later (here).
+Similarly to how it was done before, when a deposit of `assetId` to `chainId` is done, we attribute the balance to the `chainBalance` of either the chain itself (if it settles on L1) or its settlement layer (if it settles on top of it). More on the process of deposits when chain settles on top of a settlement layer, will be expanded later (here TODO).
 
-> Note, that to avoid any sort of edge cases related to chain migration, we assume that each deposits is always fully processed on the settlement layer, i.e. a chain can only have a message for success or failure of a deposit when settling on top of Gateway only if this deposit was initiated settled on Gateway too and as a result when throguh GWAssetTracker (more on it later). Note, that we can not assume the contrary: a malicious chain MAY publish an arbitrary message when settling failed depoist/successful deposit on L1.
+> Note, that to avoid any sort of edge cases related to chain migration, we assume that each deposits is always fully processed on the settlement layer, i.e. a chain can only have a message for success or failure of a deposit when settling on top of Gateway only if this deposit was initiated settled on Gateway too and as a result when throguh GWAssetTracker (more on it later). Note, that we can not assume the contrary: a malicious chain MAY publish an arbitrary message when settling failed depoist/successful deposit on L1, since L1AssetTracker does not check contents of the message.
 
 When chain migrates on top of GW, it needs to "give" some of its balance for internal usage of Gateway. More on the migration process will be described later (TODO), but basically a chain can tell that a certain amount of funds inside the `chainBalance` is still "active", i.e. maintained within the chain and so can be used for future interop/withdrawals etc.
 
 If a chain is malicious it can provide an incorrect value of "active" balance, but it will only affect this chain:
 - If chain keeps too much `chainBalance` for itself instead of giving it to its new settlement layer, it will miss out on interop/potenitally wont be able to settle correctly if it spends too much.
-- If chain gives too much `chainBalance` for Gateway, then withdrawals for which the chain is responsible wont be able to get processed.
+- If chain gives too much `chainBalance` for Gateway, then unfinalized L1 withdrawals for which the chain is responsible wont be able to get finalized.
 
-When a chain migrates back to L1, GW can provide the amount of funds that the chain had at the time of withdrawal and so all these funds will be moved to the `chainBalance` of the chain. In this case, the chain trusts the settlement layer to provide the correct value.
+When a chain migrates back to L1, GW can provide the amount of funds that the chain had at the time of the migration and so all these funds will be moved to the L1 `chainBalance` of the chain. In this case, the chain trusts the settlement layer to provide the correct value.
 
 More on the processes above will be explained in the migration section (TODO).
 
-#### Minter chains
+#### Total sum invariant
 
-Note, that if a chain is an origin chain for an assetId, its `chainBalance[chainId][assetId]` is meaningless since the chain can mint funds natively and withdraw them. We call such chains "minter chains".
+Some tokens are native to chains (i.e. their original ERC20 contract is deployed there), so chains can not have any particular restrictions with regard 
 
-If a minter chain settles on top of a settlement layer, then this settlement layer would be able to also send arbitrary withdrawals for such a token. 
+Imagine the following scenario (`chain A` is malicious, while the rest of the chains are not):
+- `chain A` mints 2^256-1 tokens and sends it to `chain B`.
+- `chain A` mints 2^256-1 tokens and sends it to `chain C`.
+- Now `chain B` tries to send 1 unit of token of `chain C` via interop. This leads to overflow of chain balance of `chain C`, making settlement of `chain B` impossible.
 
-TODO(not implemented): For simplicity's sake we assume that all settlement layers are trusted, i.e. if a settlement layer claims that there was a withdrawal of a certain token, then we always believe it did indeed happen.
+To prevent the issue from above, we want to ensure that overflows never happen. To do this we introduce the following new invariant:
 
-#### Total sum invariant and `totalSupplyAcrossAllChains`
+*For both `L1AssetTracker` and `GWAssetTracker` for each `assetId` the sum of `chainBalance[chainId][assetId]` over all `chainId` is less than or equal to `type(uint256).max`.*
 
-To ensure that interop always works, we assume that for each `assetId` the sum of `chainBalance` for all non-minter chains does not exceed `2^256`. For that, the `totalSupplyAcrossAllChains` is maintained, note that it tracks the total supply outside the minter chains. This value is always tracked inside the settlement layer where the minter chain settles.
+This invariant is held via the following restrictions:
+- We track `chainBalance` for every chain, including the origin chain for the token, so it is possible that even an origin chain runs out of tokens.
 
-(TODO: not implemented): To ensure that the above is always the case, whenever we migrate balances from `L1NativeTokenVault` to `L1AssetTracker`, we ensure that the total sum of the new chain balance is still smaller than `2^256`. This check should never affect non-malicious tokens, but it would prevent malicious tokens from popping up into the system.
+On L1:
+- All `chainBalance` start with 0. When a token is withdrawn/deposited for the first time (i.e. registered), the `chainBalance` for the responsible chain (either the origin chain or its current settlement layer) it set to `type(uint256).max`.
+- Note, that `chainBalance` is tracked even for tokens whose origin is L1, i.e. their `chainBalance[l1_chain_id][assetId]` starts from the maximal value when it is deposited for the first time.
 
-#### Summary
+On `GWAssetTracker` for each `assetId` the sum of `chainBalance[chainId][assetId]` over all `chainId` is less than or equal to `L1AssetTracker.chainBalance[gw_chain_id][assetId]`. This is enforced by the following:
+- All `chainBalance` start with 0. 
+- When chains do interops, they do not change the sum of `chainBalance[chainId][assetId]`.
+- The only way the sum of `chainBalance[chainId][assetId]` for a certain asset can be increased is when a deposit happens or a chain migrates it balance (TODO: link), i.e. the chain needs to "give" the same portion of its L1 chain balance to ZK Gateway.
 
-For a typical (not settlement layer) chain, its `chainBalance` is increased whenever we deposit to the chain and it does settle on L1. If it does not settle on L1, then the settlement layer is trusted to process this number correctly.
+`L2AssetTracker`'s job is to ensure that a malicious user or token can not cause the chain to fail to settle. For example, if a bad token allows sending multiple interops of `2^256-1` units of the same token, then the chain would violate the invariant (it would be caught inside `GWAssetTracker`) and so would fail to settle. On `L2AssetTracker`:
+- `chainBalance[chainId][assetId]` is tracked only for balances of native assets for the current chain (TODO: is it really the case?). These start from `2^256-1` and then get reduced with each outbound transaction or increased with inbound transaction. This way, even if a token is malicious, it can not withdraw more than `2^256-1`, ensuring that chain always settles.
 
-(TODO not implemented) Settlement layers are always assumed to be trusted and so for them `chainBalance` is never tracked. This is needed to ensure that it can properly serve withdrawals for minter chains in perpetuity.
+#### Migration of pre-v30 past chain balances
+
+The process of the v30 upgrade is described here (TODO: link).
+
+
+
+
+
+
+
+
+
+As mentioned before, before v30 we stored chain balances inside `L1NativeTokenVault`. All the old balances need to be transferred to their respective chains. The full process of the v30 upgrade will be described in a different section (TODO), here we mainly focus on how the `chainBalance` mapping is moved from the old contract to the new one.
+
 
 
 ####
