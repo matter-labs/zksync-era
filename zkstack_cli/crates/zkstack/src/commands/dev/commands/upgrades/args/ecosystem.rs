@@ -48,7 +48,6 @@ pub struct EcosystemUpgradeArgs {
 }
 
 impl EcosystemUpgradeArgs {
-    #[allow(dead_code)]
     pub fn fill_values_with_prompt(self, run_upgrade: bool) -> EcosystemUpgradeArgsFinal {
         EcosystemUpgradeArgsFinal {
             forge_args: self.forge_args,

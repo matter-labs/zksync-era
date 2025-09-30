@@ -57,7 +57,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         &final_ecosystem_args.forge_args,
         &ecosystem_config,
-        &final_ecosystem_args.ecosystem.l1_rpc_url,
+        &final_ecosystem_args.l1_rpc_url,
         None,
         bridgehub_address,
         ctm_address,

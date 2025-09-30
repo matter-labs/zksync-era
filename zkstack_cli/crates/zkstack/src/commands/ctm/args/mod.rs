@@ -8,10 +8,7 @@ use zksync_basic_types::{Address, H160};
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
-    commands::ecosystem::args::{
-        common::CommonEcosystemArgs,
-        init::{EcosystemArgs, EcosystemArgsFinal},
-    },
+    commands::ecosystem::args::common::CommonEcosystemArgs,
     messages::{MSG_BRIDGEHUB, MSG_CTM, MSG_DEV_ARG_HELP},
 };
 
@@ -19,10 +16,6 @@ use crate::{
 pub struct RegisterCTMArgs {
     #[command(flatten)]
     pub common: CommonEcosystemArgs,
-
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
@@ -43,7 +36,6 @@ impl RegisterCTMArgs {
     ) -> anyhow::Result<RegisterCTMArgsFinal> {
         let RegisterCTMArgs {
             common,
-            ecosystem,
             forge_args,
             dev,
             only_save_calldata,
@@ -51,10 +43,10 @@ impl RegisterCTMArgs {
             ctm,
         } = self;
 
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+        let common = common.fill_values_with_prompt(l1_network, dev).await?;
 
         Ok(RegisterCTMArgsFinal {
-            ecosystem,
+            l1_rpc_url: common.l1_rpc_url,
             forge_args,
             zksync_os: common.zksync_os,
             only_save_calldata,
@@ -66,12 +58,12 @@ impl RegisterCTMArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegisterCTMArgsFinal {
-    pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub only_save_calldata: bool,
     pub bridgehub: Option<H160>,
     pub ctm: Option<H160>,
     pub zksync_os: bool,
+    pub l1_rpc_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -91,9 +83,6 @@ pub struct InitNewCTMArgs {
     pub default_configs_src_path: Option<PathBuf>,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
-    #[clap(flatten)]
-    #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
 }
 
@@ -104,7 +93,6 @@ impl InitNewCTMArgs {
     ) -> anyhow::Result<InitNewCTMArgsFinal> {
         let InitNewCTMArgs {
             common,
-            ecosystem,
             forge_args,
             support_l2_legacy_shared_bridge_test,
             bridgehub,
@@ -114,10 +102,10 @@ impl InitNewCTMArgs {
         } = self;
 
         // Fill ecosystem args
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, true).await?;
+        let common = common.fill_values_with_prompt(l1_network, true).await?;
 
         Ok(InitNewCTMArgsFinal {
-            ecosystem,
+            l1_rpc_url: common.l1_rpc_url,
             forge_args,
             support_l2_legacy_shared_bridge_test,
             bridgehub_address: bridgehub,
@@ -131,7 +119,6 @@ impl InitNewCTMArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InitNewCTMArgsFinal {
-    pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<Address>,
@@ -139,6 +126,7 @@ pub struct InitNewCTMArgsFinal {
     pub reuse_gov_and_admin: bool,
     pub contracts_src_path: Option<PathBuf>,
     pub default_configs_src_path: Option<PathBuf>,
+    pub l1_rpc_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]

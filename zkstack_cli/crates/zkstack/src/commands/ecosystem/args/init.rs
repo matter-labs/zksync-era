@@ -1,12 +1,9 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::{
-    ethereum::get_ethers_provider, forge::ForgeScriptArgs, Prompt, PromptConfirm,
-};
+use zkstack_cli_common::{forge::ForgeScriptArgs, PromptConfirm};
 use zkstack_cli_types::L1Network;
 
 use crate::{
@@ -14,72 +11,12 @@ use crate::{
         chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
         ecosystem::args::common::CommonEcosystemArgs,
     },
-    defaults::LOCAL_RPC_URL,
     messages::{
         MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT, MSG_RPC_URL_PROMPT,
+        MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
-
-/// Check if L1 RPC is healthy by calling eth_chainId
-async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
-    let l1_provider = get_ethers_provider(l1_rpc_url)?;
-    let l1_chain_id = l1_provider.get_chainid().await?.as_u64();
-
-    println!("✅ L1 RPC health check passed - chain ID: {}", l1_chain_id);
-    Ok(())
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct EcosystemArgs {
-    /// Path to ecosystem contracts
-    #[clap(long)]
-    pub ecosystem_contracts_path: Option<PathBuf>,
-    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
-    pub l1_rpc_url: Option<String>,
-}
-
-impl EcosystemArgs {
-    pub async fn fill_values_with_prompt(
-        self,
-        l1_network: L1Network,
-        dev: bool,
-    ) -> anyhow::Result<EcosystemArgsFinal> {
-        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
-            if dev {
-                return LOCAL_RPC_URL.to_string();
-            }
-            if l1_network == L1Network::Localhost {
-                prompt = prompt.default(LOCAL_RPC_URL);
-            }
-            prompt
-                .validate_with(|val: &String| -> Result<(), String> {
-                    Url::parse(val)
-                        .map(|_| ())
-                        .map_err(|_| MSG_L1_RPC_URL_INVALID_ERR.to_string())
-                })
-                .ask()
-        });
-
-        // Check L1 RPC health after getting the URL
-        println!("🔍 Checking L1 RPC health...");
-        check_l1_rpc_health(&l1_rpc_url).await?;
-
-        Ok(EcosystemArgsFinal {
-            ecosystem_contracts_path: self.ecosystem_contracts_path,
-            l1_rpc_url,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EcosystemArgsFinal {
-    pub ecosystem_contracts_path: Option<PathBuf>,
-    pub l1_rpc_url: String,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemInitArgs {
@@ -92,9 +29,8 @@ pub struct EcosystemInitArgs {
     /// Deploy ERC20 contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_erc20: Option<bool>,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
+    #[clap(long)]
+    pub ecosystem_contracts_path: Option<PathBuf>,
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
@@ -153,7 +89,6 @@ impl EcosystemInitArgs {
         let EcosystemInitArgs {
             deploy_ecosystem,
             deploy_erc20,
-            ecosystem,
             forge_args,
             dev,
             ecosystem_only,
@@ -163,6 +98,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test,
             make_permanent_rollup,
             deploy_paymaster,
+            ecosystem_contracts_path,
             ..
         } = self;
 
@@ -175,7 +111,7 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+        let common = self.common.fill_values_with_prompt(l1_network, dev).await?;
         let observability = if dev {
             true
         } else {
@@ -199,7 +135,6 @@ impl EcosystemInitArgs {
         Ok(EcosystemInitArgsFinal {
             deploy_erc20,
             observability,
-            ecosystem,
             forge_args,
             dev,
             ecosystem_only,
@@ -210,7 +145,9 @@ impl EcosystemInitArgs {
             deploy_paymaster,
             make_permanent_rollup,
             genesis_args,
-            zksync_os: self.common.zksync_os,
+            zksync_os: common.zksync_os,
+            ecosystem_contracts_path,
+            l1_rpc_url: common.l1_rpc_url,
         })
     }
 }
@@ -218,7 +155,8 @@ impl EcosystemInitArgs {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemInitArgsFinal {
     pub deploy_erc20: bool,
-    pub ecosystem: EcosystemArgsFinal,
+    pub ecosystem_contracts_path: Option<PathBuf>,
+    pub l1_rpc_url: String,
     pub forge_args: ForgeScriptArgs,
     pub dev: bool,
     pub observability: bool,
@@ -241,9 +179,6 @@ pub struct InitCoreContractsArgs {
     pub deploy_erc20: Option<bool>,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
-    #[clap(flatten)]
-    #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
@@ -259,7 +194,6 @@ impl InitCoreContractsArgs {
         let InitCoreContractsArgs {
             common,
             deploy_erc20,
-            ecosystem,
             forge_args,
             dev,
             support_l2_legacy_shared_bridge_test,
@@ -275,12 +209,12 @@ impl InitCoreContractsArgs {
             })
         };
 
-        let ecosystem = ecosystem.fill_values_with_prompt(l1_network, dev).await?;
+        let common = common.fill_values_with_prompt(l1_network, dev).await?;
 
         Ok(InitCoreContractsArgsFinal {
             zksync_os: common.zksync_os,
             deploy_erc20,
-            ecosystem,
+            l1_rpc_url: common.l1_rpc_url,
             forge_args,
             support_l2_legacy_shared_bridge_test,
         })
@@ -291,17 +225,17 @@ impl InitCoreContractsArgs {
 pub struct InitCoreContractsArgsFinal {
     pub zksync_os: bool,
     pub deploy_erc20: bool,
-    pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
+    pub l1_rpc_url: String,
 }
 
 impl From<EcosystemInitArgsFinal> for InitCoreContractsArgsFinal {
     fn from(args: EcosystemInitArgsFinal) -> Self {
         InitCoreContractsArgsFinal {
+            l1_rpc_url: args.l1_rpc_url,
             zksync_os: args.zksync_os,
             deploy_erc20: args.deploy_erc20,
-            ecosystem: args.ecosystem,
             forge_args: args.forge_args,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,
         }

@@ -14,7 +14,7 @@ use zkstack_cli_types::L1Network;
 use zksync_basic_types::Address;
 
 use super::{
-    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    args::init::{EcosystemInitArgs, EcosystemInitArgsFinal},
     common::init_chains,
     setup_observability,
 };
@@ -76,7 +76,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             &ecosystem_config,
             &contracts_config.into(),
             final_ecosystem_args.forge_args.clone(),
-            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+            final_ecosystem_args.l1_rpc_url.clone(),
         )
         .await?;
     }
@@ -101,11 +101,16 @@ async fn init_ecosystem(
     spinner.finish();
 
     let contracts = if !init_args.deploy_ecosystem {
-        return_ecosystem_contracts(shell, &init_args.ecosystem, ecosystem_config).await?
+        return_ecosystem_contracts(
+            shell,
+            init_args.ecosystem_contracts_path.clone(),
+            ecosystem_config,
+        )
+        .await?
     } else {
         let core_contracts = deploy_ecosystem(
             shell,
-            &init_args.ecosystem,
+            init_args.l1_rpc_url.clone(),
             init_args.forge_args.clone(),
             ecosystem_config,
             initial_deployment_config,
@@ -117,7 +122,7 @@ async fn init_ecosystem(
 
         let mut contracts = deploy_and_register_ctm(
             shell,
-            init_args.ecosystem.l1_rpc_url.clone(),
+            init_args.l1_rpc_url.clone(),
             ecosystem_config,
             initial_deployment_config,
             core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
@@ -132,7 +137,7 @@ async fn init_ecosystem(
             rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(true))?;
             contracts = deploy_and_register_ctm(
                 shell,
-                init_args.ecosystem.l1_rpc_url.clone(),
+                init_args.l1_rpc_url.clone(),
                 ecosystem_config,
                 initial_deployment_config,
                 core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
@@ -190,10 +195,10 @@ async fn deploy_and_register_ctm(
 
 async fn return_ecosystem_contracts(
     shell: &Shell,
-    ecosystem: &EcosystemArgsFinal,
+    ecosystem_contracts_path: Option<PathBuf>,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<CoreContractsConfig> {
-    let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
+    let ecosystem_contracts_path = match &ecosystem_contracts_path {
         Some(path) => Some(path.clone()),
         None => {
             let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
@@ -246,7 +251,7 @@ async fn return_ecosystem_contracts(
 
 async fn deploy_ecosystem(
     shell: &Shell,
-    ecosystem: &EcosystemArgsFinal,
+    l1_rpc_url: String,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
@@ -259,7 +264,7 @@ async fn deploy_ecosystem(
         &forge_args,
         ecosystem_config,
         initial_deployment_config,
-        &ecosystem.l1_rpc_url.clone(),
+        &l1_rpc_url,
         None,
         true,
         support_l2_legacy_shared_bridge_test,
@@ -277,7 +282,7 @@ async fn deploy_ecosystem(
             .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         &forge_args,
-        ecosystem.l1_rpc_url.clone(),
+        l1_rpc_url.clone(),
     )
     .await?;
     accept_admin(
@@ -289,7 +294,7 @@ async fn deploy_ecosystem(
             .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         &forge_args,
-        ecosystem.l1_rpc_url.clone(),
+        l1_rpc_url.clone(),
     )
     .await?;
 
@@ -302,7 +307,7 @@ async fn deploy_ecosystem(
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
         &forge_args,
-        ecosystem.l1_rpc_url.clone(),
+        l1_rpc_url.clone(),
     )
     .await?;
 
@@ -316,7 +321,7 @@ async fn deploy_ecosystem(
             .stm_deployment_tracker_proxy_addr
             .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
-        ecosystem.l1_rpc_url.clone(),
+        l1_rpc_url.clone(),
     )
     .await?;
 

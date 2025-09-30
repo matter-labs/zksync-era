@@ -82,7 +82,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
-        init_ctm_args.ecosystem.l1_rpc_url.clone(),
+        init_ctm_args.l1_rpc_url.clone(),
         &init_ctm_args.forge_args,
         &ecosystem_config,
         &initial_deployment_config,

@@ -6,7 +6,6 @@ use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 
-use super::args::init::EcosystemArgsFinal;
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::ecosystem::{
@@ -57,7 +56,7 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
             &ecosystem_config,
             &contracts_config.into(),
             final_ecosystem_args.forge_args.clone(),
-            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+            final_ecosystem_args.l1_rpc_url.clone(),
         )
         .await?;
     }
@@ -77,7 +76,7 @@ async fn init_ecosystem(
 
     let contracts = deploy_ecosystem(
         shell,
-        &mut init_args.ecosystem,
+        init_args.l1_rpc_url.clone(),
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
@@ -91,14 +90,13 @@ async fn init_ecosystem(
 
 pub async fn deploy_ecosystem(
     shell: &Shell,
-    ecosystem: &mut EcosystemArgsFinal,
+    l1_rpc_url: String,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
     zksync_os: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
-    let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
         shell,

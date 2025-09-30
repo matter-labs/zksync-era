@@ -199,7 +199,7 @@ pub async fn init_chains(
                 .map(|a| a.dont_drop)
                 .unwrap_or_default(),
             deploy_paymaster,
-            l1_rpc_url: Some(args.ecosystem.l1_rpc_url.clone()),
+            l1_rpc_url: Some(args.l1_rpc_url.clone()),
             no_port_reallocation: args.no_port_reallocation,
             dev: args.dev,
             validium_args: args.validium_args.clone(),
