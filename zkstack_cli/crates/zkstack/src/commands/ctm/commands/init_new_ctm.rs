@@ -67,9 +67,6 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_INITIALIZING_CTM);
 
-    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    spinner.finish();
-
     let bridgehub_address = if let Some(addr) = init_ctm_args.bridgehub_address {
         addr
     } else {

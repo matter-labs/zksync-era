@@ -1,12 +1,15 @@
 use args::build_transactions::BuildTransactionsArgs;
 use clap::Subcommand;
 use xshell::Shell;
-use zkstack_cli_common::git;
+use zkstack_cli_common::{git, spinner::Spinner};
 
-use crate::commands::ecosystem::args::{
-    change_default::ChangeDefaultChain,
-    create::EcosystemCreateArgs,
-    init::{EcosystemInitArgs, InitCoreContractsArgs},
+use crate::{
+    commands::ecosystem::args::{
+        change_default::ChangeDefaultChain,
+        create::EcosystemCreateArgs,
+        init::{EcosystemInitArgs, InitCoreContractsArgs},
+    },
+    messages::{MSG_BUILDING_CONTRACTS, MSG_UPDATING_SUBMODULES_SPINNER},
 };
 
 pub mod args;
@@ -46,13 +49,17 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
     let ecosystem = zkstack_cli_config::ZkStackConfig::ecosystem(shell);
     if let Ok(ecosystem) = &ecosystem {
         if args.update_submodules() {
+            let spinner = Spinner::new(MSG_UPDATING_SUBMODULES_SPINNER);
             git::submodule_update(shell, &ecosystem.link_to_code())?;
+            spinner.finish();
         }
         if args.rebuild_contracts() {
+            let spinner = Spinner::new(MSG_BUILDING_CONTRACTS);
             zkstack_cli_common::contracts::rebuild_all_contracts(
                 shell,
                 &ecosystem.contracts_path_for_ctm(args.zksync_os()),
             )?;
+            spinner.finish();
         }
     }
 
