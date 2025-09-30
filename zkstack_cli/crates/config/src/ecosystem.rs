@@ -144,14 +144,11 @@ impl EcosystemConfig {
         prover_version: ProverMode,
         wallet_creation: WalletCreation,
         shell: OnceCell<Shell>,
-        era_source_files: Option<SourceFiles>,
-        zksync_os_source_files: Option<SourceFiles>,
     ) -> Self {
         Self {
             name,
             l1_network,
             link_to_code,
-            era_source_files,
             bellman_cuda_dir,
             chains,
             config,
@@ -160,7 +157,8 @@ impl EcosystemConfig {
             prover_version,
             wallet_creation,
             shell,
-            zksync_os_source_files,
+            era_source_files: None,
+            zksync_os_source_files: None,
         }
     }
 

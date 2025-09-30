@@ -32,10 +32,6 @@ pub struct EcosystemCreateArgs {
         long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1
     )]
     pub start_containers: Option<bool>,
-    #[clap(long, help = "Path to the era contracts", value_hint = ValueHint::DirPath)]
-    era_contracts_path: Option<PathBuf>,
-    #[clap(long, help = "Path to the zksync os era contracts", value_hint = ValueHint::DirPath)]
-    zksync_os_contracts_path: Option<PathBuf>,
 }
 
 impl EcosystemCreateArgs {
@@ -76,8 +72,6 @@ impl EcosystemCreateArgs {
             wallet_path: chain.wallet_path.clone(),
             chain_args: chain.clone(),
             start_containers,
-            era_contracts_path: self.era_contracts_path.clone(),
-            zksync_os_contracts_path: self.zksync_os_contracts_path.clone(),
         })
     }
 }
@@ -91,8 +85,6 @@ pub struct EcosystemCreateArgsFinal {
     pub wallet_path: Option<PathBuf>,
     pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
-    pub era_contracts_path: Option<PathBuf>,
-    pub zksync_os_contracts_path: Option<PathBuf>,
 }
 
 impl EcosystemCreateArgsFinal {

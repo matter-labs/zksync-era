@@ -89,9 +89,13 @@ impl EcosystemCommands {
             EcosystemCommands::Create(_) => false,
             EcosystemCommands::ChangeDefaultChain(_) => false,
             EcosystemCommands::SetupObservability => false,
-            EcosystemCommands::BuildTransactions(args) => !args.common.skip_build_dependencies,
-            EcosystemCommands::Init(args) => !args.common.skip_build_dependencies,
-            EcosystemCommands::InitCoreContracts(args) => !args.common.skip_build_dependencies,
+            EcosystemCommands::BuildTransactions(args) => {
+                !args.common.skip_contract_compilation_override
+            }
+            EcosystemCommands::Init(args) => !args.common.skip_contract_compilation_override,
+            EcosystemCommands::InitCoreContracts(args) => {
+                !args.common.skip_contract_compilation_override
+            }
         }
     }
 

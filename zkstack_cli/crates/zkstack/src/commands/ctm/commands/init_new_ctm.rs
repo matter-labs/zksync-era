@@ -76,7 +76,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.common.update_submodules {
         git::submodule_update(shell, &ecosystem_config.link_to_code())?;
     }
-    if !args.common.skip_build_dependencies {
+    if !args.common.skip_contract_compilation_override {
         rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
     }
 

@@ -199,7 +199,7 @@ pub async fn governance_execute_calls(
 pub async fn ecosystem_admin_execute_calls(
     shell: &Shell,
     ecosystem_admin: &Wallet,
-    chain_admin_addr: Address,
+    ecosystem_admin_addr: Address,
     path_to_foundry_scripts: PathBuf,
     encoded_calls: Vec<u8>,
     forge_args: &ForgeScriptArgs,
@@ -212,7 +212,7 @@ pub async fn ecosystem_admin_execute_calls(
     let calldata = ADMIN_FUNCTIONS
         .encode(
             "ecosystemAdminExecuteCalls",
-            (Token::Bytes(encoded_calls), chain_admin_addr),
+            (Token::Bytes(encoded_calls), ecosystem_admin_addr),
         )
         .unwrap();
     let forge = Forge::new(&path_to_foundry_scripts)

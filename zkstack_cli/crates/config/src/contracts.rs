@@ -45,6 +45,7 @@ impl CoreContractsConfig {
         }
     }
 
+    // Create full ContractsConfig for a specific chain from the core config and the output of `register_chain`
     pub fn chain_contracts_from_output(
         &self,
         register_chain_output: &RegisterChainOutput,

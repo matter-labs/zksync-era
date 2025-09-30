@@ -153,6 +153,7 @@ async fn init_ecosystem(
     Ok(contracts)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn deploy_and_register_ctm(
     shell: &Shell,
     l1_rpc_url: String,

@@ -14,10 +14,10 @@ use crate::{
 pub struct CommonEcosystemArgs {
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub(crate) zksync_os: bool,
-    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    #[clap(long, default_value_t = true)]
     pub(crate) update_submodules: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
-    pub(crate) skip_build_dependencies: bool,
+    pub(crate) skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub(crate) l1_rpc_url: Option<String>,
 }
@@ -60,7 +60,7 @@ pub struct CommonEcosystemFinalArgs {
 }
 
 /// Check if L1 RPC is healthy by calling eth_chainId
-pub(crate) async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
+async fn check_l1_rpc_health(l1_rpc_url: &str) -> anyhow::Result<()> {
     // Check L1 RPC health after getting the URL
     logger::info("🔍 Checking L1 RPC health...");
     let l1_provider = get_ethers_provider(l1_rpc_url)?;

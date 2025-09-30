@@ -162,11 +162,12 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             ecosystem_config.get_contracts_config()?.l1.governance_addr,
             ecosystem_config.prover_version == ProverMode::NoProofs,
             chain_deployer_wallet.address,
-            ecosystem_config
+            // Safe to unwrap, because the chain is always post gateway
+            chain_config
                 .get_contracts_config()?
-                // We always have gateway as era
-                .ctm(false)
-                .expected_rollup_l2_da_validator,
+                .l2
+                .da_validator_addr
+                .unwrap(),
             // This address is not present on local deployments
             Address::zero(),
         ),

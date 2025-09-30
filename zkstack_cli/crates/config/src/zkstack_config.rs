@@ -50,7 +50,7 @@ impl ZkStackConfigTrait for ZkStackConfig {
     fn default_configs_path(&self) -> PathBuf {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
-                // TODO pass zksync_os from config
+                // For default zksync config files we use default paths to foundry scripts
                 .default_configs_path_for_ctm(false)
                 .clone(),
             ZkStackConfig::ChainConfig(chain) => chain.default_configs_path().clone(),
