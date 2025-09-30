@@ -20,6 +20,7 @@ use crate::{
     ChainConfig,
 };
 
+// Contracts related to ecosystem, without chain specifics
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CoreContractsConfig {
     pub create2_factory_addr: Address,
@@ -171,6 +172,7 @@ impl CoreContractsConfig {
             .chain_admin;
     }
 
+    // Update CTM related fields from the output of CTM deployment
     pub fn update_from_ctm_output(&mut self, deploy_ctm_output: &DeployCTMOutput, zksync_os: bool) {
         let ctm = ChainTransitionManagerContracts {
             state_transition_proxy_addr: deploy_ctm_output
@@ -354,6 +356,8 @@ pub struct CoreEcosystemContracts {
     pub native_token_vault_addr: Option<Address>,
 }
 
+/// All contracts related to Chain Transition Manager (CTM)
+/// This contracts are deployed only once per CTM, ecosystem can have multiple CTMs
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
 pub struct ChainTransitionManagerContracts {
     pub governance: Address,

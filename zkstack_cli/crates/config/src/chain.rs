@@ -53,7 +53,7 @@ pub struct ChainConfigInternal {
     #[serde(default)] // for backward compatibility
     pub zksync_os: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) contracts_source_path: Option<PathBuf>,
+    pub contracts_source_path: Option<PathBuf>,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -142,7 +142,7 @@ impl ChainConfig {
             evm_emulator,
             tight_ports,
             zksync_os,
-            contracts_source_path: contracts_source_path,
+            contracts_source_path,
         }
     }
 

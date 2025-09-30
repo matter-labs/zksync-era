@@ -50,7 +50,7 @@ pub enum ZkStackSubcommands {
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
     Ecosystem(Box<EcosystemCommands>),
-    /// Ecosystem related commands
+    /// CTM related commands
     #[command(subcommand)]
     CTM(Box<CTMCommands>),
     /// Chain related commands

@@ -21,7 +21,6 @@ pub mod create_configs;
 pub(crate) mod init;
 pub(crate) mod init_core_contracts;
 pub(crate) mod setup_observability;
-mod utils;
 
 #[derive(Subcommand, Debug)]
 #[allow(clippy::large_enum_variant)]
