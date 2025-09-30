@@ -23,12 +23,10 @@ use zkstack_cli_types::{L1Network, ProverMode};
 use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
-        ctm::args::InitNewCTMArgs, ecosystem::create_configs::create_initial_deployments_config,
+        ctm::{args::InitNewCTMArgs, commands::set_new_ctm_contracts::set_new_ctm_contracts},
+        ecosystem::create_configs::create_initial_deployments_config,
     },
-    messages::{
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_INITIALIZING_CTM,
-    },
+    messages::{MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -53,16 +51,15 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
 
     if let Some(path) = init_ctm_args.contracts_src_path {
-        if !path.exists() || !path.is_dir() {
-            return Err(anyhow::anyhow!(MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR));
-        }
-        logger::info(format!("Using contracts source path: {}", path.display()));
-        ecosystem_config.set_sources_path(
+        ecosystem_config = set_new_ctm_contracts(
+            shell,
+            ecosystem_config,
             path,
-            init_ctm_args.default_configs_src_path.unwrap(),
+            init_ctm_args
+                .default_configs_src_path
+                .expect("default_configs_src_path is required, when contracts_src_path is set"),
             zksync_os,
-        );
-        ecosystem_config.save_with_base_path(shell, ".")?;
+        )?;
     }
 
     logger::info(MSG_INITIALIZING_CTM);

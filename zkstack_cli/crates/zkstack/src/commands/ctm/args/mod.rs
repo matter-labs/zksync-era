@@ -140,3 +140,41 @@ pub struct InitNewCTMArgsFinal {
     pub contracts_src_path: Option<PathBuf>,
     pub default_configs_src_path: Option<PathBuf>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
+pub struct SetNewCTMArgs {
+    #[clap(long, help = "Path to contracts sources")]
+    pub contracts_src_path: Option<PathBuf>,
+    #[clap(long, help = "Path to default configs sources")]
+    pub default_configs_src_path: Option<PathBuf>,
+    #[clap(
+        long,
+        help = "Whether to apply it to zksync os",
+        default_value_t = false,
+        default_missing_value = "true"
+    )]
+    pub zksync_os: bool,
+}
+
+impl SetNewCTMArgs {
+    pub fn fill_values_with_prompt(self) -> anyhow::Result<SetNewCTMArgsFinal> {
+        let contracts_src_path = self.contracts_src_path.unwrap_or_else(|| {
+            zkstack_cli_common::Prompt::new("Provide path to contracts sources").ask()
+        });
+        let default_configs_src_path = self.default_configs_src_path.unwrap_or_else(|| {
+            zkstack_cli_common::Prompt::new("Provide path to default configs sources").ask()
+        });
+
+        Ok(SetNewCTMArgsFinal {
+            contracts_src_path,
+            default_configs_src_path,
+            zksync_os: self.zksync_os,
+        })
+    }
+}
+
+pub struct SetNewCTMArgsFinal {
+    pub contracts_src_path: PathBuf,
+    pub default_configs_src_path: PathBuf,
+    pub zksync_os: bool,
+}

@@ -1,6 +1,7 @@
-use crate::messages::MSG_L1_RPC_URL_HELP;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+
+use crate::messages::MSG_L1_RPC_URL_HELP;
 
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 pub struct CommonEcosystemArgs {

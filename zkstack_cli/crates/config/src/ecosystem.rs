@@ -34,6 +34,7 @@ struct EcosystemConfigInternal {
     name: String,
     l1_network: L1Network,
     link_to_code: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
     bellman_cuda_dir: Option<PathBuf>,
     chains: PathBuf,
     config: PathBuf,
@@ -357,7 +358,7 @@ impl EcosystemConfig {
             .map(|files| files.default_configs_path.clone())
             .unwrap_or_else(|| {
                 if zksync_os {
-                    println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                    logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
                 }
                 self.link_to_code.join(CONFIGS_PATH)
             })
@@ -368,7 +369,7 @@ impl EcosystemConfig {
             .map(|files| files.contracts_path.clone())
             .unwrap_or_else(|| {
                 if zksync_os {
-                    println!("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                    logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
                 }
                 self.link_to_code.join(CONTRACTS_PATH)
             })
