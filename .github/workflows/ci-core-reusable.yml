@@ -21,7 +21,7 @@ jobs:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -56,9 +56,9 @@ jobs:
           ci_run zkstack dev contracts
 
       - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 18.20.8
+          node-version: 22.20.0
 
       - name: Install yarn
         run: |
@@ -87,7 +87,7 @@ jobs:
         vm_mode: [ "OLD", "NEW" ]
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -155,7 +155,7 @@ jobs:
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           submodules: "recursive"
           fetch-depth: 0

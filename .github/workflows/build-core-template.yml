@@ -33,7 +33,7 @@ jobs:
     name: Prepare contracts
     runs-on: matterlabs-ci-runner-high-performance
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           submodules: "recursive"
 
@@ -86,9 +86,9 @@ jobs:
 
       - name: Install Node
         if: env.BUILD_CONTRACTS == 'true'
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Yarn
@@ -153,7 +153,7 @@ jobs:
     name: Prepare proof manager contracts
     runs-on: matterlabs-ci-runner-high-performance
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           submodules: "recursive"
 
@@ -234,7 +234,7 @@ jobs:
             platforms: linux/arm64
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           submodules: "recursive"
 
@@ -270,21 +270,21 @@ jobs:
           fi
 
       - name: Download contracts
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: contacts
           path: |
             ./contracts
 
       - name: Download proof manager contracts output(zkout)
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: proof-manager-contracts-zkout
           path: |
             ./proof-manager-contracts/zkout
 
       - name: Download proof manager contracts output(out)
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: proof-manager-contracts-out
           path: |
@@ -347,7 +347,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
 
       - name: login to Docker registries
         run: |
