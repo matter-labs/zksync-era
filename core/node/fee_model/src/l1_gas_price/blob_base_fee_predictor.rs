@@ -152,7 +152,7 @@ mod tests {
 
         let cap = predict_blob_fee_cap(blobs_total, l1_blocks_total, l1_blob_base_fee);
         // Expect only safety margin applied to base fee = 1
-        let expected = ((1u128 * SAFETY_BPS as u128) / 10_000u128) as u64;
+        let expected = ((SAFETY_BPS as u128) / 10_000u128) as u64;
         assert_eq!(
             cap, expected,
             "fee cap should equal base fee * safety when no backlog"

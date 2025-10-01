@@ -271,14 +271,19 @@ impl ExternalNodeBuilder {
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
         let config = &self.config.local.commitment_generator;
-        let layer =
-            CommitmentGeneratorLayer::default().with_max_parallelism(config.max_parallelism);
+        let layer = CommitmentGeneratorLayer::default()
+            .with_max_parallelism(config.max_parallelism)
+            // For external node, we need to disable all sanity checks, because it will allow to generate wrong commitments,
+            // which will eventually lead to consistency errors and node will revert the incorrect state.
+            .disable_sanity_checks();
         self.node.add_layer(layer);
         Ok(self)
     }
 
     fn add_batch_transaction_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(BatchStatusUpdaterLayer);
+        self.node.add_layer(BatchStatusUpdaterLayer::new(
+            self.config.local.networks.l1_chain_id,
+        ));
         Ok(self)
     }
 
