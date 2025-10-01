@@ -235,16 +235,13 @@ parity-scale-codec = { version = "3.6.9", default-features = false }
 subxt-signer = { version = "0.39.0", default-features = false }
 
 # Celestia
-#celestia-types = {git = "https://github.com/eigerco/lumina.git", rev = "e051e2390f410ce44a670a6c3a47603c9f887858"}
-#celestia-grpc = {git = "https://github.com/eigerco/lumina.git", rev = "e051e2390f410ce44a670a6c3a47603c9f887858"}
-celestia-types = {path = "../../lumina/types"}
-celestia-grpc = {path = "../../lumina/grpc"}
+celestia-types = "0.16.0"
+celestia-grpc = "0.8.0"
 bech32 = "0.11.0"
 ripemd = "0.1.3"
 tonic = { version = "0.12.3" }
 pbjson-types = "0.6.0"
-# eq-sdk = "0.1.12"
-eq-sdk = {path = "../../eq-service/sdk"}
+eq-sdk = "0.1.12"
 lazy_static = "1.5.0"
 
 # EigenDA
