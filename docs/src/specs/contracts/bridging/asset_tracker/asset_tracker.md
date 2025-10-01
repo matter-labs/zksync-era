@@ -189,6 +189,8 @@ contract GWAssetTracker {
 
 When a user deposits to a chain settling on GW, an L1->GW transaction is sent, which add the transaction to the chains Priority Queue in the Mailbox facet on Gateway. On L1 the Gateway's `chainBalance` is updated. We will include the balance change in the L1->GW [forwardTransactionOnGatewayWithBalanceChange](https://github.com/matter-labs/era-contracts/blob/ba7b99eee1111fb7b87df7d6cc371aa21ea864b9/l1-contracts/contracts/interop/InteropCenter.sol#L392) function call, so that the `GWAssetTracker` can update the balance of chain. 
 
+You can read about how the deposit flow starts on L1 here (TODO: link).
+
 #### Failed deposits
 
 These L1->GW->L2 deposits might fail. This is handled on the L1 and on GW.
@@ -244,6 +246,18 @@ On Gateway all withdrawals are processed in the `processLogsAndMessages` functio
 - A message is sent to the Gateway to update the `chainBalance` mapping.
 - A message is sent to the L2 to increase the migration number of the token.
 
+#### Disabling deposits during migrations
+
+Let's recall the deposit invariant from here (TODO: link): all deposits that go through GW must be fully processed inside of it: they should be initiated when chain settles there and should be processed inside batches while chain settles there.
+
+It is forced inside `GWAssetTracker` and every deposit that the chain processed inside the batch must've went through GW first. So if a chain accidentally has a deposit unexecuted on L1 and needs to settle on GW, it wont be able to do so. It is the job of the chain's implementation (done inside `AdminFacet.forwardedBridgeBurn`) to ensure that.
+
+`GWAssetTracker` also forces on its own that every deposit that went through GW has been processed there as well.
+
+But the above means that if a chain is permissionless, users could DDoS it with deposits never allowing a chain to actually migrate. To provide a solution suitable for permissionless chains, we added the ability to temporarily disable all incoming priority transactions: `AdminFacet.pauseDepositsAndInitiateMigration`.
+
+This solution works even for permissionless chains, since it requires a cool off period, i.e. the deposits are paused for `PAUSE_DEPOSITS_TIME_WINDOW_START` but a new freeze can not be enabled sooner than `PAUSE_DEPOSITS_TIME_WINDOW_END`. Currently, `PAUSE_DEPOSITS_TIME_WINDOW_START` is equal to 3.5 days, while `PAUSE_DEPOSITS_TIME_WINDOW_END` is equal to 7 days.
+
 #### Replay protection and edge cases with messaging
 
 Our L2->L1 (or GW->L1) messages are valid in perpetuity. Typically, for actions like token withdrawals, we used `L1Nullifier` contract to store the nullifier that ensures that the same message can not be replayed twice.
@@ -264,6 +278,61 @@ The above are just standard scenarios during migration, but what happens if e.g.
 For GW->L1 token balance migrations, we always migrate all the funds, reducing the Gateway chainBalance to zero, independently of how many migrations we missed. 
 
 For L1->GW token balance migration we need to ensure that all the balance have been moved from ZK Gateway. This is enforced `L1AssetTracker`. This is needed for simplicity since `L2AssetTracker` does not know which funds are still left on Gateway and which ones are on L1 already. So we always demand that `assetMigrationNumber` is even, i.e. the migration to L1 has been complete and the chain balance of GW is zero (except for tokens that it needs for pending withdrawals).
+
+### Deposit flow with L1AssetTracker
+
+This section dives deeper into how `L1AssetTracker` is used to perform deposits for chains that settle on top of ZK Gateway. As already said before, when a deposit happens to the chain that settles on top of ZK Gateway, the balance accrual is assigned to ZK Gateway. However, the ZK Gateway also needs to increase the balance of the chain itself inside Gateway.
+
+So when a message is relayed through ZK Gateway, ZK Gateway needs to query somehow how much funds were obtained by Gateway during the deposit. We could pass this data along during the deposit, but it is very hard to do so in a trustless manner without major changes to the codebase, it is the Mailbox of the L2 ZK chain that asks for the message to be relayed and this ZK chain may be potentially malicious and provide wrong values to the chain.
+
+Thus, it was decided that whenever a deposit happens, `L1AssetTracker` should provide an interface for the ZK Gateway to query the deposited data. The approach below is used:
+
+1. When some token is accrued by a chain (`handleChainBalanceIncreaseOnL1` internal function), if a chain settles on top of ZK Gateway, we set in transient storage `_setTransientBalanceChange` the assetId and the amount deposited.
+2. Later, the L1Bridgehub calls the Mailbox of the receiving L2 chain, which would then relay the message to the Gateway's mailbox by calling `requestL2TransactionToGatewayMailboxWithBalanceChange`.
+3. Then, the ZK Gateway's Mailbox would call `L1AssetRouter.consumeBalanceChange` to "consume" this balance increase (i.e. reset it to 0, while reading the assetId and the amount). The ZK Gateway would then know the amount of funds and asset that should be attached with the message.
+
+#### Security notes around the deposits
+
+Firstly, it is important to note that in the current implementation, we trust the chain to provide the correct `baseTokenAmount` to relay, i.e. the transient store scheme from above is only used for consuming ERC20 deposits. This obviously means that only chains the L1 implementation of which ZK Gateway can trust (i.e. the same CTM) are allowed to settle on ZK Gateway.
+
+Next, it is important to discuss the edge cases around the transient storage. To avoid any double spending, the only way to read the transient values is to irreversibly consume them once. So regardless of any actions of malicious actors, a single balance increase will only be relayed to GW only once. From this invariant we know that the sum of chainbalances inside GW will never exceed GW's balance on L1.
+
+However, the above opens doors for another potential error: someone maliciosuly consuming the variable for the chain. To prevent this, only whitelisted settlement layers are allowed to consume the balance. A second potential issue is overwrites: someone could overwrite the variable, but reentering and trying to make the deposit twice.
+
+TODO: explain how we combat overwrites, today it is a "require", but it does not work with l2 bridges deposits. 
+
+### Withdrawal flow with L1AssetTracker
+
+This section dives deeper into how `L1AssetTracker` is used to perform withdrawals for chains. Unlike deposits during which we definitely know the current settlement layer for the chain, a chain might've had a history of moving on and off from a settlement layer (including different ZK Gateways, L1, etc).
+
+Withdrawals are always initiated from L1Nullifier (there may be some legacy methods that eventually end up calling L1Nullfier, so the principle is always the same). Similarly to deposits, where we needed to know the chain to increase the balance of (the chain itself or its settlement layer), we need to know which chain's balance to reduce. 
+
+To get the chain id of the settlement layer for a particular withdrawal (or claimed deposit), we look at the proof for the message. You read more about its recursive format here (TODO: link to message root doc), but in a nutshell, a proof is a recursive structure that starts from the L2 chain's tree root and then (if chain settled on top of some Gateway), it ends with the GW's tree.
+
+If the proof is of depth 1, i.e. it does not have any recursion, it means that the withdrawal belonged to the chain. If not, the withdrawal belonged to its settlement layer (the only exception is based on v30 upgrade, you can read more about in the sections above TODO).
+
+After verifying the correctness of the message, L1Nullifier stores inside `TRANSIENT_SETTLEMENT_LAYER_SLOT` and `TRANSIENT_SETTLEMENT_LAYER_SLOT+1` the settlement layer at the time of withdrawal and the batch number when withdrawal happened (the batch number would be needed for the checks against the time when the chain upgraded to v30).
+
+To ensure secure verification, the `L1MessageRoot` is used (TODO: link to doc).
+
+Then, when processing the decrease of the balance, the `L1AssetTracker` would read the values from above and decide which chain to reduce the balance of:
+- If the withdrawal is from before the chain upgraded to v30, the chain is responsible.
+- Otherwise, the settlement layer is responsible.
+
+#### Security notes around withdrawals
+
+Unlike with deposits, we dont "consume" the transient stored values, i.e. it can always be read.
+
+The invariant that is maintained is that right after the L1Nullifier is called, there can never be any untrusted calls until the `L1AssetTracker` is called (this ensures that nothing overwrites the previous values).
+
+> Note, that it means that for now, only `NativeTokenVault` is supported in conjunction with the asset tracker as the asset handler must have trusted implementation.
+
+Also, we say that the only way `handleChainBalanceIncreaseOnL1` can be called is that it must be preceeded by a valid L1Nullifier call.
+
+#### Claiming failed deposits
+
+With regards to L1AssetRouter, the process of claiming failed deposits is extremely similar to withdrawals, i.e. the same `handleChainBalanceIncreaseOnL1` is called and the same invariants around L1Nullifier transient storage are expected.
+
 
 <!-- ## How full ZK IP could look like with the same user interface (+ migration) could look like
 

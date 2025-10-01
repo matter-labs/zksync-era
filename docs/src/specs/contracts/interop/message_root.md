@@ -35,7 +35,7 @@ Note that the `MessageRoot` appears twice in the structure. So the structure is 
 
 At the end of each batch, the `L1Messenger` system contract would query the `MessageRoot` contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s, which is the `sharedTree` root, the upmost node of the `MessageRoot` on the chain), calculate the `LocalLogsRoot` itself, and finally calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, AggregatedRootHash)` and propagate it to the settlement layer. We store `ChainBatchRoot` for each executed batch on settlement layer.
 
-When ZKsync chain's batch gets executed on the settlement layer, the chain calls the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
+When ZKsync chain's batch gets executed on the settlement layer, the chain calls the `L2AssetRouter.processLogsAndMessages` function, while all the messages within the chain. You can read about it [here](TODO). After all the checks are done, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
 
 ## Proving that a message belongs to a MessageRoot
 
@@ -118,6 +118,24 @@ Currently, we never clear the `MessageRoot` in other words, the aggregated root 
 It is the responsibility of the chain to ensure that each message has a unique id and can not be replayed. Currently a tuple of `chain_batch_number, chain_message_id` is used. While there are multiple message roots from which such a tuple could be proven from, it is still okay as it will be nullified only once.
 
 Another notable example of the redundancy of data, is that we also have total `MessageRoot` on L1, which contains the aggregated root of all chains, while for chains that settle on L1, we still store the `ChainBatchRoot` for the efficiency.
+
+## MessageRoot as global source of batches
+
+Before v30, we used to simply store the chain batch roots for chains inside their DiamondProxy and then whenever someone needed to check whether a message was present, we queried its Mailbox (TODO: link).
+
+However, the logic about relies on the fact that this getter will never be malicious. This is no longer acceptable taking into account that potentially malicious chains could be present. Starting from v30 each chain (whether it settles on L1 or GW) is expected to store its batch roots inside `MessageRoot` (`chainBatchRoots` mapping). To ensure that the chain does append only blocks in the sequential order, we also maintain `currentChainBatchNumber`.
+
+The `currentChainBatchNumber` mapping is expected to always have the up-to-date value on the chain's settlement layer and these are cloned to the new settlement layer whenever a chain migrates.
+
+Maintaining `chainBatchRoots` inside a global contract allows to verify messages within the MessageRoot, which provides an easy interface for verification that always works the standard way and now it is guaranteed that once a batch hash is stored there, it will remain the same in perpetuity.
+
+## `v30UpgradeChainBatchNumber`
+
+For all chains we also store `v30UpgradeChainBatchNumber`, the batch number when the chain has upgraded to v30. You can read more about its usage here (TODO: link to asset_tracker md).
+
+This means that it is important that a settlement layer knows what is the canonical `v30UpgradeChainBatchNumber` is and ensure that any chain's batch that it appends to its shared tree is at least of this number. The original number is stored on `L1MessageRoot`, and copied to all the settlement layers whenever a chain migrates there. Note, that for Era chains it is possible that the value is stored on GW if chains settled there at the time they upgraded to v30. It will then be copied on L1 when a chain migrates to L1.
+
+You can also read more on the v30 upgrade process here (TODO: link).
 
 <!-- The `sendToL1` method is part of a system contract that gathers all messages during a batch, constructs a Merkle tree
 from them at the end of the batch, and sends this tree to the SettlementLayer (Gateway) when the batch is committed.
