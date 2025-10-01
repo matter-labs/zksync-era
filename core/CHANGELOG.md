@@ -1,5 +1,26 @@
 # Changelog
 
+## [29.4.1](https://github.com/matter-labs/zksync-era/compare/core-v29.4.0...core-v29.4.1) (2025-09-29)
+
+
+### Bug Fixes
+
+* **en:** add index for fetching precommits ([#4517](https://github.com/matter-labs/zksync-era/issues/4517)) ([5db1a92](https://github.com/matter-labs/zksync-era/commit/5db1a9291a83cd9518d89049de131773ab78401f))
+* **en:** Fix statement timeout errors during cache recovery ([#4248](https://github.com/matter-labs/zksync-era/issues/4248)) ([67a9b82](https://github.com/matter-labs/zksync-era/commit/67a9b82125e3e3742b9a1096fa0c2493279d2251))
+* **eth_watcher:** Do not process upgrades if it's already processed ([#4506](https://github.com/matter-labs/zksync-era/issues/4506)) ([f71cc00](https://github.com/matter-labs/zksync-era/commit/f71cc008d1068ad49d510e0d8619a2bfd3a137fa))
+
+## [29.4.0](https://github.com/matter-labs/zksync-era/compare/core-v29.3.0...core-v29.4.0) (2025-09-24)
+
+
+### Features
+
+* Bump dependencies ([#4495](https://github.com/matter-labs/zksync-era/issues/4495)) ([c27fe90](https://github.com/matter-labs/zksync-era/commit/c27fe90c5f6eab98ab2c1349e9f1017ad62a75d6))
+
+
+### Bug Fixes
+
+* **upgrades:** Read all skipped events  ([#4504](https://github.com/matter-labs/zksync-era/issues/4504)) ([1de5f63](https://github.com/matter-labs/zksync-era/commit/1de5f63633bf60e0da802d15ae8133b2effc5260))
+
 ## [29.3.0](https://github.com/matter-labs/zksync-era/compare/core-v29.2.0...core-v29.3.0) (2025-09-18)
 
 
