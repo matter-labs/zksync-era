@@ -333,6 +333,43 @@ Also, we say that the only way `handleChainBalanceIncreaseOnL1` can be called is
 
 With regards to L1AssetRouter, the process of claiming failed deposits is extremely similar to withdrawals, i.e. the same `handleChainBalanceIncreaseOnL1` is called and the same invariants around L1Nullifier transient storage are expected.
 
+### L1 and L2 native token registration
+
+As discussed previously in the section about sum invariants (TODO: link), to ensure that that sum of chainBalances for each asset is lower than 2^256-1, all chain balances must originate from L1 (starting from `2^256-1` for origin chain at the start the first time). We will refer to the process of initializing the token's chainBalances for the first as "registration". 
+
+Note, that for this section we will only consider tokens that are interacted with for the first time starting from v30. To explore what the migration for pre-v30 assets looks like, check out the doc (TODO: upgrade link doc).
+
+When a token is bridged for the first time, `registerNewToken` function is called, it would assign the max balance to the origin chain of the token. This function is only used in `L1AssetTracker` and `L2AssetTracker` (not `GWAssetTracker` TODO please check with Kalman).
+
+#### L1AssetTracker
+
+There are 3 ways how a token is registered on L1AssetRouter:
+- For the first time through deposit. This is applicable for L1 native assets, these are only ones for which the first time of registration is deposit, during which `chainBalance[block.chainid][assetId]` is assigned to the maximal value (reduced by the deposited amount of course). 
+- For the first time through withdrawals. This provides nice UX for L2-native assets that are withdrawn for the first time.
+- `registerL2NativeToken`. We will talk about the use case for it later in this section.
+
+The first two approaches work fine for chains that only settle on top of L1. However, chains may settle on top of a ZK Gateway. To use a token inside ZK Gateway, it needs its balance reflected inside ZK Gateway's chain balance. 
+
+Usually, for a token that has been already registered on L1, we would've just used the standard procedure of balance migrations from L1 to Gateway (TODO: link). So in theory the following could be done for a token:
+- Withdrawal of 0 tokens (to formally register it on L1).
+- Chain balance migration to GW (to ensure that GW recognizes its balance).
+
+However, the above flow means that the chain would have to wait 3 hours of the timelock (TODO: link) before settling on L1. Even if the timelock is removed, the waiting time would still be bound by proving and full finalization of GW batches on L1. To provide a much better UX, we introduced a new function: `registerL2NativeToken`:
+- It will ensure that the token is registered for the first time and assign the balance on L1 directly to the ZK Gateway and send confirmation to both ZK Gateway and the chain itself. 
+
+This way, the chain only needs to wait for the L1->GW and L1->GW->L2 tx to get processed, which makes the process a lot faster.
+
+#### L2AssetTracker
+
+The main job of the L2AssetTracker in this context is to ensure that if a chain settles on top of Gateway, it will not be able to withdraw until its balance has been either migrated (TODO: link) or it has been registered via the `registerL2NativeToken` explained above.
+
+It is done by comparing `assetMigrationNumber` of the asset with the chain migration number and if those dont coincide, then not allowing to migrate.
+
+TODO: currently one can register l2 token + finalize withdrawal at the same time, while breaking the invariant.
+
+TODO: check that L2AssetTracker wont actually allow to withdraw such token.
+
+TODO: maybe write down invairants for `assetMigrationNumber` for l2 asset tracker in comments in the code.
 
 <!-- ## How full ZK IP could look like with the same user interface (+ migration) could look like
 

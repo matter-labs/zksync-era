@@ -1,5 +1,7 @@
 # Native Token Vault
 
+> WARNING: the document is outdated after v30.
+
 ### NativeTokenVault (L1/L2)
 
 NativeTokenVault is an asset handler that is available on all chains and is also predeployed. It provides the functionality of the most basic bridging: locking funds on one chain and minting the bridged equivalent on the other one. On L2 chains NTV is predeployed at the `0x10004` address. NativeTokenVault acts as the default AssetHandler, so regular ERC-20 tokens can use it unless custom bridging logic or special features are required.
