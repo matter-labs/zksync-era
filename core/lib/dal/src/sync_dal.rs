@@ -65,7 +65,8 @@ impl SyncDal<'_, '_> {
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
-                miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
+                miniblocks.l2_da_validator_address,
+                miniblocks.l2_da_commitment_scheme,
                 miniblocks.pubdata_type AS "pubdata_type!",
                 l1_batches.pubdata_limit
             FROM

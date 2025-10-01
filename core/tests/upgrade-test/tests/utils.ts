@@ -63,7 +63,7 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 require(`${CONTRACTS_FOLDER}/l2-contracts/zkout/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${CONTRACTS_FOLDER}/l1-contracts/zkout/L2ComplexUpgrader.sol/L2ComplexUpgrader.json`).abi
             ),
             counterBytecode: require(
                 `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
@@ -93,7 +93,7 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 ).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${pathToHome}/contracts/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${pathToHome}/contracts/l1-contracts/zkout/L2ComplexUpgrader.sol/L2ComplexUpgrader.json`).abi
             ),
             counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
                 .deployedBytecode,
