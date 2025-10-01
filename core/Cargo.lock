@@ -2634,18 +2634,6 @@ dependencies = [
 
 [[package]]
 name = "blockstore"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a8962daed8fb337472d9c4215006443acba1e40c6c91c9d4a3f440d1fb30436"
-dependencies = [
- "cid",
- "dashmap 6.1.0",
- "multihash",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "blockstore"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "509096e88e431095763b3f5ee1e1cdb09212e4d5b2eccc91ddea965deefedb7d"
@@ -2883,8 +2871,8 @@ checksum = "a7809cf69c02b02a910bfc21a0e4b501db0d4a39d15925d1929bd7a7a88cd1ee"
 dependencies = [
  "bytes",
  "celestia-grpc-macros",
- "celestia-proto 0.10.0",
- "celestia-types 0.16.0",
+ "celestia-proto",
+ "celestia-types",
  "dyn-clone",
  "futures 0.3.31",
  "getrandom 0.2.16",
@@ -2895,7 +2883,7 @@ dependencies = [
  "http-body-util",
  "ics23",
  "k256 0.13.4",
- "lumina-utils 0.4.0",
+ "lumina-utils",
  "prost 0.13.5",
  "send_wrapper 0.6.0",
  "serde",
@@ -2923,22 +2911,6 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6c8da7e4e1d4ae492170a9c551419e89e314c1438652bb512e00091b39bdf0b"
-dependencies = [
- "bytes",
- "prost 0.13.5",
- "prost-build 0.13.5",
- "prost-types 0.13.5",
- "protox 0.7.2",
- "serde",
- "subtle-encoding",
- "tendermint-proto",
-]
-
-[[package]]
-name = "celestia-proto"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1a6bc833fe0048c158f4740cb4b08cbfb6f407f2bf8ff369d3f6ade932d628f"
@@ -2957,39 +2929,6 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "205328aee984ee96a17988444f766a31da4c7cdff95dfb36d182a80176c984db"
-dependencies = [
- "base64 0.22.1",
- "bech32",
- "bitvec",
- "blockstore 0.7.1",
- "bytes",
- "celestia-proto 0.9.1",
- "cid",
- "const_format",
- "enum_dispatch",
- "k256 0.13.4",
- "leopard-codec 0.1.0",
- "libp2p-identity",
- "lumina-utils 0.3.0",
- "multiaddr",
- "multihash",
- "nmt-rs",
- "prost 0.13.5",
- "rust_decimal",
- "serde",
- "serde_repr",
- "sha2 0.10.8",
- "tendermint",
- "tendermint-proto",
- "thiserror 1.0.69",
- "time",
-]
-
-[[package]]
-name = "celestia-types"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68d248009d2b38857ad5d0b6d6c754754132b19e836ba205bdda14631065fa98"
@@ -2997,17 +2936,17 @@ dependencies = [
  "base64 0.22.1",
  "bech32",
  "bitvec",
- "blockstore 0.8.0",
+ "blockstore",
  "bytes",
- "celestia-proto 0.10.0",
+ "celestia-proto",
  "cid",
  "const_format",
  "enum_dispatch",
  "getrandom 0.2.16",
  "k256 0.13.4",
- "leopard-codec 0.2.0",
+ "leopard-codec",
  "libp2p-identity",
- "lumina-utils 0.4.0",
+ "lumina-utils",
  "multiaddr",
  "multihash",
  "nmt-rs",
@@ -4447,30 +4386,27 @@ dependencies = [
 [[package]]
 name = "eq-common"
 version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b653a9f2f71966b1316e14cb1569e36f6dd0da197c0324144868dd5d0bd8b8b9"
 dependencies = [
- "celestia-types 0.14.1",
- "prometheus-client",
- "prost 0.12.6",
+ "celestia-types",
+ "prometheus-client 0.24.0",
+ "prost 0.13.5",
  "serde",
+ "sha3 0.10.8",
  "thiserror 2.0.12",
- "tonic 0.11.0",
- "tonic-build 0.11.0",
+ "tonic 0.12.3",
+ "tonic-build 0.12.3",
 ]
 
 [[package]]
 name = "eq-sdk"
 version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410b56e7f586b78e853c475d7aff39d9e59065bf100f133df6c9070752a4d491"
 dependencies = [
  "base64 0.22.1",
- "celestia-types 0.14.1",
+ "celestia-types",
  "eq-common",
  "serde",
  "tokio",
- "tonic 0.11.0",
+ "tonic 0.12.3",
 ]
 
 [[package]]
@@ -5702,7 +5638,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -5837,7 +5773,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2",
+ "socket2 0.5.10",
  "system-configuration 0.6.1",
  "tokio",
  "tower-service",
@@ -6546,17 +6482,6 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "leopard-codec"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee58dbc414bd23885d7da915e0457618b36d1fc950a6169ef2cb29829d1b1a1d"
-dependencies = [
- "bytes",
- "lazy_static",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "leopard-codec"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b397c7217467c5e5582fe413bc2f0e9f804367af8bc0f0374dc966f99d00f9c"
@@ -6732,15 +6657,6 @@ dependencies = [
 
 [[package]]
 name = "logos"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7251356ef8cb7aec833ddf598c6cb24d17b689d20b993f9d11a3d764e34e6458"
-dependencies = [
- "logos-derive 0.14.4",
-]
-
-[[package]]
-name = "logos"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff472f899b4ec2d99161c51f60ff7075eeb3097069a36050d8037a6325eb8154"
@@ -6759,21 +6675,6 @@ dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "regex-syntax 0.6.29",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "logos-codegen"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59f80069600c0d66734f5ff52cc42f2dabd6b29d205f333d61fd7832e9e9963f"
-dependencies = [
- "beef",
- "fnv",
- "lazy_static",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "regex-syntax 0.8.5",
  "syn 2.0.104",
 ]
 
@@ -6800,15 +6701,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbfc0d229f1f42d790440136d941afd806bc9e949e2bcb8faa813b0f00d1267e"
 dependencies = [
  "logos-codegen 0.13.0",
-]
-
-[[package]]
-name = "logos-derive"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24fb722b06a9dc12adb0963ed585f19fc61dc5413e6a9be9422ef92c091e731d"
-dependencies = [
- "logos-codegen 0.14.4",
 ]
 
 [[package]]
@@ -6843,15 +6735,6 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
-
-[[package]]
-name = "lumina-utils"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e43f1559f5e0bb89979c0f3753840ca645929085ab6be2372f77391d92f2faf"
-dependencies = [
- "js-sys",
-]
 
 [[package]]
 name = "lumina-utils"
@@ -8300,7 +8183,19 @@ dependencies = [
  "dtoa",
  "itoa",
  "parking_lot",
- "prometheus-client-derive-encode",
+ "prometheus-client-derive-encode 0.4.2",
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4500adecd7af8e0e9f4dbce15cfee07ce913fbf6ad605cc468b83f2d531ee94"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode 0.5.0",
 ]
 
 [[package]]
@@ -8308,6 +8203,17 @@ name = "prometheus-client-derive-encode"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "440f724eba9f6996b75d63681b0a92b06947f1457076d503a4d2e2c8f56442b8"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "prometheus-client-derive-encode"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9adf1691c04c0a5ff46ff8f262b58beb07b0dbb61f96f9f54f6cbd82106ed87f"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8439,19 +8345,6 @@ dependencies = [
 
 [[package]]
 name = "prost-reflect"
-version = "0.14.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b5edd582b62f5cde844716e66d92565d7faf7ab1445c8cebce6e00fba83ddb2"
-dependencies = [
- "logos 0.14.4",
- "miette 7.6.0",
- "once_cell",
- "prost 0.13.5",
- "prost-types 0.13.5",
-]
-
-[[package]]
-name = "prost-reflect"
 version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37587d5a8a1b3dc9863403d084fc2254b91ab75a702207098837950767e2260b"
@@ -8497,21 +8390,6 @@ dependencies = [
 
 [[package]]
 name = "protox"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f352af331bf637b8ecc720f7c87bf903d2571fa2e14a66e9b2558846864b54a"
-dependencies = [
- "bytes",
- "miette 7.6.0",
- "prost 0.13.5",
- "prost-reflect 0.14.7",
- "prost-types 0.13.5",
- "protox-parse 0.7.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protox"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "424c2bd294b69c49b949f3619362bc3c5d28298cd1163b6d1a62df37c16461aa"
@@ -8534,18 +8412,6 @@ dependencies = [
  "logos 0.13.0",
  "miette 5.10.0",
  "prost-types 0.12.6",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protox-parse"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3a462d115462c080ae000c29a47f0b3985737e5d3a995fcdbcaa5c782068dde"
-dependencies = [
- "logos 0.14.4",
- "miette 7.6.0",
- "prost-types 0.13.5",
  "thiserror 1.0.69",
 ]
 
@@ -8651,7 +8517,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls 0.23.28",
- "socket2",
+ "socket2 0.5.10",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
@@ -8688,7 +8554,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -10683,6 +10549,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "socket2"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
+dependencies = [
+ "libc",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "soketto"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11651,9 +11527,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.46.0"
+version = "1.47.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1140bb80481756a8cbe10541f37433b459c5aa1e727b4c020fbfebdc25bf3ec4"
+checksum = "89e49afdadebb872d3145a5638b59eb0691ea23e46ca484037cfab3b76b95038"
 dependencies = [
  "backtrace",
  "bytes",
@@ -11664,9 +11540,9 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
- "socket2",
+ "socket2 0.6.0",
  "tokio-macros",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11879,7 +11755,7 @@ dependencies = [
  "prost 0.13.5",
  "rustls-native-certs 0.8.1",
  "rustls-pemfile 2.2.0",
- "socket2",
+ "socket2 0.5.10",
  "tokio",
  "tokio-rustls 0.26.2",
  "tokio-stream",
@@ -11909,7 +11785,7 @@ dependencies = [
  "pin-project",
  "prost 0.13.5",
  "rustls-native-certs 0.8.1",
- "socket2",
+ "socket2 0.5.10",
  "tokio",
  "tokio-rustls 0.26.2",
  "tokio-stream",
@@ -11921,13 +11797,14 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.11.0"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4ef6dd70a610078cb4e338a0f79d06bc759ff1b22d2120c2ff02ae264ba9c2"
+checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
 dependencies = [
  "prettyplease",
  "proc-macro2 1.0.95",
- "prost-build 0.12.6",
+ "prost-build 0.13.5",
+ "prost-types 0.13.5",
  "quote 1.0.40",
  "syn 2.0.104",
 ]
@@ -12494,7 +12371,7 @@ dependencies = [
  "ctor",
  "elsa",
  "once_cell",
- "prometheus-client",
+ "prometheus-client 0.23.1",
  "vise-macros",
 ]
 
@@ -14202,7 +14079,7 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-grpc",
- "celestia-types 0.16.0",
+ "celestia-types",
  "chrono",
  "eq-sdk",
  "flate2",
