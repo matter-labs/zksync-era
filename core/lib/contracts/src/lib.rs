@@ -39,7 +39,7 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 
-const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
+const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehubBase.sol/IBridgehubBase.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "ChainTypeManager.sol/ChainTypeManager.json",
