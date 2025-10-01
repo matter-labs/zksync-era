@@ -36,7 +36,7 @@ jobs:
       - uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       # before
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           ref: ${{ env.BASE }}
           path: before
@@ -58,7 +58,7 @@ jobs:
           | xargs cat > ./before.binpb
 
       # after
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           ref: ${{ env.HEAD }}
           path: after
