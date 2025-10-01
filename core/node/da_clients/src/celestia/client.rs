@@ -5,7 +5,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
+use celestia_grpc::{GrpcClient, TxConfig};
+use celestia_types::{nmt::Namespace, state::Address, AppVersion, Blob, Height};
 use chrono::{DateTime, Utc};
 use eq_sdk::{
     get_zk_stack_response::{
@@ -15,7 +16,10 @@ use eq_sdk::{
     types::JobId,
     EqClient,
 };
+use secp256k1::SecretKey;
 use secrecy::ExposeSecret;
+use tendermint::crypto::default::ecdsa_secp256k1::SigningKey;
+use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use zksync_basic_types::L2ChainId;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
@@ -35,13 +39,10 @@ use zksync_types::{
 };
 
 use crate::{
-    celestia::{
-        blobstream::{
-            find_block_range, get_latest_blobstream_relayed_height, AttestationProof,
-            BinaryMerkleProof, CelestiaZKStackInput, DataRootInclusionProof,
-            DataRootInclusionProofResponse, DataRootTuple, TendermintRPCClient,
-        },
-        sdk::{BlobTxHash, RawCelestiaClient},
+    celestia::blobstream::{
+        find_block_range, get_latest_blobstream_relayed_height, AttestationProof,
+        BinaryMerkleProof, CelestiaZKStackInput, DataRootInclusionProof,
+        DataRootInclusionProofResponse, DataRootTuple, TendermintRPCClient,
     },
     utils::{to_non_retriable_da_error, to_retriable_da_error},
 };
@@ -52,9 +53,10 @@ pub struct CelestiaClient {
     config: CelestiaConfig,
     verify_inclusion: bool,
     eq_client: Option<Arc<EqClient>>,
-    celestia_client: Arc<RawCelestiaClient>,
+    celestia_client: Arc<GrpcClient>,
     eth_client: Box<DynClient<L1>>,
     l2_chain_id: L2ChainId,
+    address: Address,
 }
 
 impl CelestiaClient {
@@ -85,15 +87,24 @@ impl CelestiaClient {
             None
         };
 
-        let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
-            .timeout(config.timeout)
-            .connect()
-            .await?;
-
         let private_key = secrets.private_key.0.expose_secret().to_string();
-        let client =
-            RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
-                .expect("could not create Celestia client");
+
+        let signing_key = SecretKey::from_str(private_key.as_str())?;
+        let signing_key_bytes = signing_key.secret_bytes();
+        let signing_key_tendermint = SigningKey::from_bytes(&signing_key_bytes.into())?;
+
+        let address = Address::from_account_veryfing_key(*signing_key_tendermint.verifying_key());
+
+        tracing::debug!("creating celestia client");
+        let client = GrpcClient::builder()
+            .pubkey_and_signer(
+                *signing_key_tendermint.verifying_key(),
+                signing_key_tendermint,
+            )
+            .url(config.api_node_url.clone())
+            .build()?;
+
+        tracing::debug!("celestia client created");
 
         Ok(Self {
             verify_inclusion,
@@ -102,6 +113,7 @@ impl CelestiaClient {
             eq_client: eq_client,
             eth_client,
             l2_chain_id,
+            address,
         })
     }
 
@@ -350,11 +362,11 @@ impl DataAvailabilityClient for CelestiaClient {
             hex::decode(&self.config.namespace).map_err(to_non_retriable_da_error)?;
         let namespace =
             Namespace::new_v0(namespace_bytes.as_slice()).map_err(to_non_retriable_da_error)?;
-        let blob =
-            Blob::new(namespace, data, AppVersion::latest()).map_err(to_non_retriable_da_error)?;
+        let blob = Blob::new(namespace, data, None, AppVersion::latest())
+            .map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
-        let blob_tx = self
+        /*let blob_tx = self
             .celestia_client
             .prepare(vec![blob])
             .await
@@ -367,7 +379,13 @@ impl DataAvailabilityClient for CelestiaClient {
                 .await
                 .map_err(to_non_retriable_da_error)?,
         )
-        .map_err(to_non_retriable_da_error)?;
+        .map_err(to_non_retriable_da_error)?;*/
+        let tx_info = self
+            .celestia_client
+            .submit_blobs(&[blob], TxConfig::default())
+            .await
+            .map_err(to_retriable_da_error)?;
+        let height = tx_info.height.into();
 
         let blob_id = BlobId {
             commitment,
@@ -472,10 +490,12 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn balance(&self) -> Result<u64, DAError> {
-        self.celestia_client
-            .balance()
+        Ok(self
+            .celestia_client
+            .get_balance(&self.address, "utia")
             .await
-            .map_err(to_non_retriable_da_error)
+            .map_err(to_retriable_da_error)?
+            .amount())
     }
 }
 

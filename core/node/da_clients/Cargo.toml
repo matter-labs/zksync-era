@@ -50,16 +50,18 @@ url.workspace = true
 
 # Celestia dependencies
 eq-sdk = { workspace = true }
+tendermint = { version = "0.40.4", default-features = false }
 base64.workspace = true
 http.workspace = true
 bincode.workspace = true
 celestia-types.workspace = true
+celestia-grpc.workspace = true
 secp256k1.workspace = true
 sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true
 ripemd.workspace = true
-tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
+tonic = { workspace = true, features = ["tls-roots", "tls", "transport", "prost", "codegen"] }
 pbjson-types.workspace = true
 zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 lazy_static.workspace = true
