@@ -70,10 +70,15 @@ pub struct ChainCreateArgs {
     pub(crate) legacy_bridge: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
-    #[clap(long, help = "Whether to update git submodules of repo")]
-    pub update_submodules: Option<bool>,
     #[clap(long, help = "Use tight ports allocation (no offset between chains)")]
     pub tight_ports: bool,
+    #[clap(
+        long,
+        default_value_t = false,
+        default_missing_value = "true",
+        help = "Use zksync os contracts and settings"
+    )]
+    pub zksync_os: bool,
 }
 
 impl ChainCreateArgs {
@@ -241,7 +246,6 @@ impl ChainCreateArgs {
             set_as_default,
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
-            update_submodules: self.update_submodules,
             tight_ports: self.tight_ports,
         })
     }
@@ -259,7 +263,6 @@ pub struct ChainCreateArgsFinal {
     pub set_as_default: bool,
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
-    pub update_submodules: Option<bool>,
     pub tight_ports: bool,
 }
 

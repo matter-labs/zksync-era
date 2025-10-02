@@ -87,12 +87,9 @@ pub(crate) fn resolve_link_to_code(
     shell: &Shell,
     base_path: &Path,
     link_to_code: Option<PathBuf>,
-    update_submodules: Option<bool>,
 ) -> anyhow::Result<PathBuf> {
     if let Some(link_to_code) = link_to_code {
-        if update_submodules.is_none() || update_submodules == Some(true) {
-            git::submodule_update(shell, &link_to_code)?;
-        }
+        git::submodule_update(shell, &link_to_code)?;
         Ok(link_to_code)
     } else {
         if base_path.join("zksync-era").exists() {

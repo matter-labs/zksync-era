@@ -4,11 +4,11 @@ on:
 
 jobs:
   e2e-test:
-    runs-on: [ matterlabs-ci-gpu-l4-runner-prover-tests ]
+    runs-on: [matterlabs-ci-gpu-l4-runner-prover-tests]
     strategy:
-        fail-fast: false
-        matrix:
-          compressor-mode: ["fflonk", "plonk"]
+      fail-fast: false
+      matrix:
+        compressor-mode: ["fflonk", "plonk"]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
       YQ_VERSION: "4.45.1"
@@ -44,10 +44,9 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default true \
             --ignore-prerequisites \
-            --evm-emulator false \
-            --update-submodules=true
+            --evm-emulator false 
 
-          ci_run zkstack ecosystem init --dev --update-submodules=true --verbose
+          ci_run zkstack ecosystem init --dev  --verbose
 
           ci_run zkstack prover init --dev --verbose
           WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
@@ -90,7 +89,7 @@ jobs:
           ci_run cast send 0x0000000000000000000000000000000000000007 0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000001 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000 
           ci_run cast send 0x0000000000000000000000000000000000000008 0x2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f61fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d92bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f902fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e000000000000000000000000000000000000000000000000000000000000000130644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd451971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc72a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea223a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
           ci_run cast send 0x0000000000000000000000000000000000000008 0x0413aa5b0805215b55a5e2dda0662031aad0f5ef13f28b25df20b8670d1c59a616fb4b64ccff216fa5272e1e987c0616d60d8883d5834229c685949047e9411d2d81dbc969f72bc0454ff8b04735b717b725fee98a2fcbcdcf6c5b51b1dff33f075239888fc8448ab781e2a8bb85eb556469474cd707d4b913bee28679920eb61ef1c268b7c4c78959f099a043ecd5e537fe3069ac9197235f16162372848cba209cfadc22f7e80d399d1886f1c53898521a34c62918ed802305f32b4070a3c4 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000 
-  
+
       - name: Wait for precompiles txs to be included in the batch
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain

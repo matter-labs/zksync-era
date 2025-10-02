@@ -22,11 +22,11 @@ pub struct ChainUpgradeParams {
     pub l2_rpc_url: Option<String>,
     pub gw_rpc_url: Option<String>,
     pub server_upgrade_timestamp: Option<u64>,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     pub dangerous_no_cross_check: Option<bool>,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     pub dangerous_local_default_overrides: Option<bool>,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     pub force_display_finalization_params: Option<bool>,
     #[clap(long)]
     pub refund_recipient: Option<String>,

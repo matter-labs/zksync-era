@@ -71,7 +71,7 @@ To completely reset the dev environment:
     --base-token-price-denominator 1 \
     --set-as-default false \
     --evm-emulator false \
-    --ignore-prerequisites --update-submodules false
+    --ignore-prerequisites
   ```
 
 - Initialise `gateway` chain:

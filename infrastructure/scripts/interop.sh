@@ -32,7 +32,7 @@ zkstack chain create \
         --base-token-price-denominator 1 \
         --set-as-default false \
         --evm-emulator false \
-        --ignore-prerequisites --update-submodules false 
+        --ignore-prerequisites
 
 zkstack chain init \
             --deploy-paymaster \
@@ -53,7 +53,7 @@ zkstack chain create \
         --base-token-price-denominator 1 \
         --set-as-default false \
         --evm-emulator false \
-        --ignore-prerequisites --update-submodules false 
+        --ignore-prerequisites
 
 zkstack chain init \
             --deploy-paymaster \
