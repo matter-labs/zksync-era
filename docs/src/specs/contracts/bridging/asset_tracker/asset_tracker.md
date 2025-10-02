@@ -23,6 +23,12 @@ The `AssetTracker` is the main component that is used to ensure that even if a m
 - ZKsync OS based chains are possible. Before their upgrade system is migrated to the decentralized governance, they can be assumed to be potentially completely malicious even before the upgrade, but they can not settle on top of ZK based Gateway. Before v30 they only settle on L1.
 - Only one whitelisted settlement layer exists and it is ZK Gateway. 
 
+### At the moment of the upgrade
+
+At the moment of the upgrade we will demand that all chains have migrated to L1, i.e. the number of chains that settle on top of ZK Gateway is 0.
+
+> The requirement for all chains moving back to L1 is necessitated by the need to stop any deposits incoming to ZK Gateway during the upgrade. This is why the rest of the code is still prepared for such scenarios in case it is suddenly decided that it is not an option. You can read more about it here (TODO: link to the upgrade process doc).
+
 ### After v30
 
 - A new ZKsync OS powered settlement layer may be added. The transfer of control to decentralized governance is a prerequisite before the creation of such a settlement layer, i.e. then this settlement layer will also be completely trusted, but also zksync os chains will be able to become "ZK compromised" at most. Note, that the transfer of the ownership to governance is a prerequisite for ZKsync OS based settlement layer, not v30 upgrade in general.
