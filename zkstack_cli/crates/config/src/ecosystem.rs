@@ -282,7 +282,11 @@ impl EcosystemConfig {
     }
 
     pub fn get_contracts_config(&self) -> anyhow::Result<CoreContractsConfig> {
-        CoreContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
+        CoreContractsConfig::read_with_fallback(
+            self.get_shell(),
+            self.config.join(CONTRACTS_FILE),
+            false,
+        )
     }
 
     pub fn path_to_proving_networks(&self) -> PathBuf {

@@ -1,7 +1,8 @@
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
+use xshell::Shell;
 use zkstack_cli_common::contracts::encode_ntv_asset_id;
 use zksync_basic_types::H160;
 use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
@@ -16,7 +17,7 @@ use crate::{
         },
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfigTrait, FileConfigWithDefaultName},
+    traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig},
     ChainConfig,
 };
 
@@ -115,9 +116,68 @@ impl CoreContractsConfig {
 
         Ok(())
     }
+
+    pub fn read_with_fallback(
+        shell: &Shell,
+        path: impl AsRef<Path>,
+        zksync_os: bool,
+    ) -> anyhow::Result<CoreContractsConfig> {
+        match CoreContractsConfig::read(shell, &path) {
+            Ok(config) => Ok(config),
+            Err(_) => {
+                let old_config: ContractsConfig = ContractsConfig::read(shell, path)?;
+                Ok(CoreContractsConfig::from_chain_contracts(
+                    old_config, zksync_os,
+                ))
+            }
+        }
+    }
 }
 
 impl CoreContractsConfig {
+    pub fn from_chain_contracts(
+        chain_contracts: ContractsConfig,
+        zksync_os: bool,
+    ) -> CoreContractsConfig {
+        let mut contracts = CoreContractsConfig {
+            create2_factory_addr: chain_contracts.create2_factory_addr,
+            create2_factory_salt: chain_contracts.create2_factory_salt,
+            multicall3_addr: chain_contracts.l1.multicall3_addr,
+            core_ecosystem_contracts: CoreEcosystemContracts {
+                bridgehub_proxy_addr: chain_contracts.ecosystem_contracts.bridgehub_proxy_addr,
+                message_root_proxy_addr: chain_contracts
+                    .ecosystem_contracts
+                    .message_root_proxy_addr,
+                transparent_proxy_admin_addr: chain_contracts
+                    .ecosystem_contracts
+                    .transparent_proxy_admin_addr,
+                stm_deployment_tracker_proxy_addr: chain_contracts
+                    .ecosystem_contracts
+                    .stm_deployment_tracker_proxy_addr,
+                native_token_vault_addr: chain_contracts
+                    .ecosystem_contracts
+                    .native_token_vault_addr,
+            },
+            bridges: chain_contracts.bridges,
+            l1: L1CoreContracts {
+                governance_addr: chain_contracts.l1.governance_addr,
+                chain_admin_addr: chain_contracts.l1.chain_admin_addr,
+                access_control_restriction_addr: chain_contracts.l1.access_control_restriction_addr,
+                chain_proxy_admin_addr: chain_contracts.l1.chain_proxy_admin_addr,
+                transaction_filterer_addr: chain_contracts.l1.transaction_filterer_addr,
+            },
+            era_ctm: None,
+            zksync_os_ctm: None,
+            proof_manager_contracts: chain_contracts.proof_manager_contracts,
+        };
+        if zksync_os {
+            contracts.zksync_os_ctm = Some(chain_contracts.ecosystem_contracts.ctm);
+        } else {
+            contracts.era_ctm = Some(chain_contracts.ecosystem_contracts.ctm);
+        }
+        contracts
+    }
+
     pub fn update_from_l1_output(
         &mut self,
         deploy_l1_core_contracts_output: &DeployL1CoreContractsOutput,
