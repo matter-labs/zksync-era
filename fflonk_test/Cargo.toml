@@ -1,0 +1,14 @@
+[package]
+name = "fflonk_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+proof-compression-gpu = { package = "proof-compression", version = "=0.154.4" }
+zksync_prover_keystore = { path = "../prover/crates/lib/keystore", features = ["gpu"] }
+zksync_object_store = { path = "../core/lib/object_store" }
+zksync_basic_types = { path = "../core/lib/basic_types" }
+zksync_prover_fri_types = { path = "../prover/crates/lib/prover_fri_types" }
+
+
+tokio = { version = "1", features = ["full"] }
