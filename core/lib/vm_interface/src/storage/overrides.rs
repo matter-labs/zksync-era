@@ -9,13 +9,19 @@ use zksync_types::{AccountTreeId, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
+/// Storage overrides.
+#[derive(Debug, Default)]
+pub struct StorageOverrides {
+    pub overridden_slots: HashMap<StorageKey, H256>,
+    pub overridden_factory_deps: HashMap<H256, Vec<u8>>,
+    pub empty_accounts: HashSet<AccountTreeId>,
+}
+
 /// A storage view that allows to override some of the storage values.
 #[derive(Debug)]
 pub struct StorageWithOverrides<S> {
     storage_handle: S,
-    overridden_slots: HashMap<StorageKey, H256>,
-    overridden_factory_deps: HashMap<H256, Vec<u8>>,
-    empty_accounts: HashSet<AccountTreeId>,
+    overrides: StorageOverrides,
 }
 
 impl<S: ReadStorage> StorageWithOverrides<S> {
@@ -23,31 +29,40 @@ impl<S: ReadStorage> StorageWithOverrides<S> {
     pub fn new(storage: S) -> Self {
         Self {
             storage_handle: storage,
-            overridden_slots: HashMap::new(),
-            overridden_factory_deps: HashMap::new(),
-            empty_accounts: HashSet::new(),
+            overrides: StorageOverrides::default(),
         }
     }
 
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
-        self.overridden_slots.insert(key, value);
+        self.overrides.overridden_slots.insert(key, value);
     }
 
     pub fn store_factory_dep(&mut self, hash: H256, code: Vec<u8>) {
-        self.overridden_factory_deps.insert(hash, code);
+        self.overrides.overridden_factory_deps.insert(hash, code);
     }
 
     pub fn insert_erased_account(&mut self, account: AccountTreeId) {
-        self.empty_accounts.insert(account);
+        self.overrides.empty_accounts.insert(account);
+    }
+
+    /// Replaces overrides in this storage.
+    #[must_use]
+    pub fn with_overrides(mut self, overrides: StorageOverrides) -> Self {
+        self.overrides = overrides;
+        self
+    }
+
+    pub fn into_parts(self) -> (S, StorageOverrides) {
+        (self.storage_handle, self.overrides)
     }
 }
 
 impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        if let Some(value) = self.overridden_slots.get(key) {
+        if let Some(value) = self.overrides.overridden_slots.get(key) {
             return *value;
         }
-        if self.empty_accounts.contains(key.account()) {
+        if self.overrides.empty_accounts.contains(key.account()) {
             return H256::zero();
         }
         self.storage_handle.read_value(key)
@@ -58,7 +73,8 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.overridden_factory_deps
+        self.overrides
+            .overridden_factory_deps
             .get(&hash)
             .cloned()
             .or_else(|| self.storage_handle.load_factory_dep(hash))

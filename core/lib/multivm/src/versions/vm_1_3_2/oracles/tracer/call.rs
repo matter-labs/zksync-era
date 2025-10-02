@@ -19,6 +19,7 @@ use crate::{
 };
 
 /// NOTE Auto implementing clone for this tracer can cause stack overflow.
+///
 /// This is because of the stack field which is a Vec with nested vecs inside.
 /// If you will need to implement clone for this tracer, please consider to not copy the stack field.
 /// Method `extract_calls` will extract the necessary stack for you.

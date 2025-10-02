@@ -1,16 +1,16 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{db::DatabaseConfig, Prompt};
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
+use zkstack_cli_common::{db::DatabaseConfig, Prompt};
+use zkstack_cli_config::ChainConfig;
 
 use crate::{
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
     messages::{
-        msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_SERVER_DB_NAME_HELP,
-        MSG_SERVER_DB_URL_HELP, MSG_USE_DEFAULT_DATABASES_HELP,
+        msg_server_db_name_prompt, msg_server_db_url_prompt, MSG_SERVER_COMMAND_HELP,
+        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
 
@@ -24,6 +24,8 @@ pub struct GenesisArgs {
     pub dev: bool,
     #[clap(long, short, action)]
     pub dont_drop: bool,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
 }
 
 impl GenesisArgs {
@@ -34,6 +36,7 @@ impl GenesisArgs {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
                 dont_drop: self.dont_drop,
+                server_command: self.server_command,
             }
         } else {
             let server_db_url = self.server_db_url.unwrap_or_else(|| {
@@ -52,22 +55,21 @@ impl GenesisArgs {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(server_db_url, server_db_name),
                 dont_drop: self.dont_drop,
+                server_command: self.server_command,
             }
         }
     }
 
-    pub fn fill_values_with_secrets(
+    pub async fn fill_values_with_secrets(
         mut self,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<GenesisArgsFinal> {
-        let secrets = chain_config.get_secrets_config()?;
-        let database = secrets
-            .database
-            .context("Database secrets must be present")?;
+        let secrets = chain_config.get_secrets_config().await?;
+        let server_url = secrets.core_database_url()?;
 
-        let (server_db_url, server_db_name) = if let Some(db_full_url) = database.server_url {
-            let db_config = DatabaseConfig::from_url(db_full_url.expose_url())
-                .context("Invalid server database URL")?;
+        let (server_db_url, server_db_name) = if let Some(db_full_url) = &server_url {
+            let db_config =
+                DatabaseConfig::from_url(db_full_url).context("Invalid server database URL")?;
             (Some(db_config.url), Some(db_config.name))
         } else {
             (None, None)
@@ -87,6 +89,7 @@ impl GenesisArgs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenesisArgsFinal {
+    pub server_command: Option<String>,
     pub server_db: DatabaseConfig,
     pub dont_drop: bool,
 }

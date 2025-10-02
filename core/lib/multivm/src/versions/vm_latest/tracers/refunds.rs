@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{ceil_div_u256, H256, U256};
+use zksync_types::H256;
 
 use crate::{
     interface::{
@@ -13,18 +13,16 @@ use crate::{
         tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
-        bootloader_state::BootloaderState,
-        constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
+        bootloader::BootloaderState,
+        constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        tracers::{
-            traits::VmTracer,
-            utils::{get_vm_hook_params, VmHook},
-        },
-        types::internals::ZkSyncVmState,
-        utils::fee::get_batch_base_fee,
+        tracers::{traits::VmTracer, utils::get_vm_hook_params},
+        types::ZkSyncVmState,
+        utils::refund::compute_refund,
         vm::MultiVmSubversion,
+        VmHook,
     },
 };
 
@@ -101,58 +99,15 @@ impl<S> RefundsTracer<S> {
         pubdata_published: u32,
         tx_hash: H256,
     ) -> u64 {
-        let total_gas_spent = tx_gas_limit - bootloader_refund;
-
-        let gas_spent_on_computation = total_gas_spent
-            .checked_sub(gas_spent_on_pubdata)
-            .unwrap_or_else(|| {
-                tracing::error!(
-                    "Gas spent on pubdata is greater than total gas spent. On pubdata: {}, total: {}",
-                    gas_spent_on_pubdata,
-                    total_gas_spent
-                );
-                0
-            });
-
-        // For now, bootloader charges only for base fee.
-        let effective_gas_price = get_batch_base_fee(&self.l1_batch);
-
-        let bootloader_eth_price_per_pubdata_byte =
-            U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
-
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(self.l1_batch.fee_input.fair_pubdata_price());
-
-        // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
-        // so we should take it into account.
-        let eth_price_per_pubdata_byte_for_calculation = std::cmp::min(
-            bootloader_eth_price_per_pubdata_byte,
-            fair_eth_price_per_pubdata_byte,
-        );
-
-        let fair_fee_eth = U256::from(gas_spent_on_computation)
-            * U256::from(self.l1_batch.fee_input.fair_l2_gas_price())
-            + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
-        let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
-        let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
-            tracing::error!(
-                "Fair fee is greater than pre paid. Fair fee: {} wei, pre paid: {} wei",
-                fair_fee_eth,
-                pre_paid_eth
-            );
-            U256::zero()
-        });
-
-        tracing::trace!(
-            "Fee benchmark for transaction with hash {}",
-            hex::encode(tx_hash.as_bytes())
-        );
-        tracing::trace!("Gas Limit: {}", tx_gas_limit);
-        tracing::trace!("Gas spent on computation: {}", gas_spent_on_computation);
-        tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
-        tracing::trace!("Pubdata published: {}", pubdata_published);
-
-        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u64()
+        compute_refund(
+            &self.l1_batch,
+            bootloader_refund,
+            gas_spent_on_pubdata,
+            tx_gas_limit,
+            current_ergs_per_pubdata_byte,
+            pubdata_published,
+            tx_hash,
+        )
     }
 
     pub(crate) fn pubdata_published(&self) -> u32 {
@@ -171,16 +126,16 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
         self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         match hook {
-            VmHook::NotifyAboutRefund => {
-                self.refund_gas = get_vm_hook_params(memory, self.subversion)[0].as_u64()
+            Some(VmHook::NotifyAboutRefund) => {
+                self.refund_gas = get_vm_hook_params(memory, self.subversion)[0].as_u64();
             }
-            VmHook::AskOperatorForRefund => {
+            Some(VmHook::AskOperatorForRefund) => {
                 self.pending_refund_request = Some(RefundRequest {
                     refund: get_vm_hook_params(memory, self.subversion)[0].as_u64(),
                     gas_spent_on_pubdata: get_vm_hook_params(memory, self.subversion)[1].as_u64(),
                     used_gas_per_pubdata_byte: get_vm_hook_params(memory, self.subversion)[2]
                         .as_u32(),
-                })
+                });
             }
             _ => {}
         }
@@ -272,7 +227,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
 
             let refund_to_propose = tx_body_refund + self.block_overhead_refund();
 
-            let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
+            let refund_slot = get_operator_refunds_offset(bootloader_state.get_vm_subversion())
+                + current_tx_index;
 
             // Writing the refund into memory
             state.memory.populate_page(

@@ -21,6 +21,8 @@ pub struct Args {
     pub patch: u32,
     #[clap(short, long)]
     pub snark_wrapper: String,
+    #[clap(short, long)]
+    pub fflonk_snark_wrapper: String,
 }
 
 pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
@@ -39,14 +41,21 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         panic!("Invalid snark wrapper hash");
     });
 
+    let fflonk_snark_wrapper_vk_hash =
+        H256::from_str(&args.fflonk_snark_wrapper).unwrap_or_else(|_| {
+            panic!("Invalid FFLONK snark wrapper hash");
+        });
+
     conn.fri_protocol_versions_dal()
         .save_prover_protocol_version(
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
             L1VerifierConfig {
                 snark_wrapper_vk_hash,
+                fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
             },
         )
-        .await;
+        .await
+        .unwrap();
 
     Ok(())
 }

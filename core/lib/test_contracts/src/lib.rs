@@ -5,11 +5,12 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     abi, address_to_u256, bytecode::BytecodeHash, fee::Fee, l2::L2Tx,
-    utils::deployed_address_create, Address, Execute, K256PrivateKey, L2ChainId, Nonce,
-    Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    transaction_request::TransactionRequest, utils::deployed_address_create, Address, Execute,
+    K256PrivateKey, L2ChainId, Nonce, PackedEthSignature, Transaction, EIP_1559_TX_TYPE, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
 
-pub use self::contracts::{LoadnextContractExecutionParams, TestContract};
+pub use self::contracts::{LoadnextContractExecutionParams, TestContract, TestEvmContract};
 
 mod contracts;
 
@@ -34,6 +35,8 @@ pub struct Account {
     private_key: K256PrivateKey,
     pub address: Address,
     pub nonce: Nonce,
+    // Since transactions produced by the account are ordered by `nonce`, `deploy_nonce` is well-defined as well.
+    pub deploy_nonce: Nonce,
 }
 
 impl Account {
@@ -43,6 +46,7 @@ impl Account {
             private_key,
             address,
             nonce: Nonce(0),
+            deploy_nonce: Nonce(0),
         }
     }
 
@@ -93,6 +97,48 @@ impl Account {
         .into()
     }
 
+    pub fn get_evm_deploy_tx(
+        &mut self,
+        init_bytecode: Vec<u8>,
+        contract: &ethabi::Contract,
+        args: &[Token],
+    ) -> L2Tx {
+        let fee = Self::default_fee();
+        let input = if let Some(constructor) = contract.constructor() {
+            constructor
+                .encode_input(init_bytecode, args)
+                .expect("cannot encode constructor args")
+        } else {
+            assert!(args.is_empty(), "no constructor args expected");
+            init_bytecode
+        };
+
+        let tx_request = TransactionRequest {
+            nonce: self.nonce.0.into(),
+            from: Some(self.address),
+            to: None,
+            value: 0.into(),
+            gas_price: fee.max_fee_per_gas,
+            gas: fee.gas_limit,
+            max_priority_fee_per_gas: Some(fee.max_priority_fee_per_gas),
+            input: input.into(),
+            // EVM deployment txs must not have the default type (EIP-712).
+            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            chain_id: Some(L2ChainId::default().as_u64()),
+            ..TransactionRequest::default()
+        };
+
+        let data = tx_request
+            .get_default_signed_message()
+            .expect("no message to sign");
+        let sig = PackedEthSignature::sign_raw(&self.private_key, &data).unwrap();
+        let raw = tx_request.get_signed_bytes(&sig).unwrap();
+        let (req, hash) = TransactionRequest::from_bytes_unverified(&raw).unwrap();
+        let mut tx = L2Tx::from_request(req, usize::MAX, true).unwrap();
+        tx.set_input(raw, hash);
+        tx
+    }
+
     pub fn default_fee() -> Fee {
         Fee {
             gas_limit: U256::from(2_000_000_000u32),
@@ -128,9 +174,8 @@ impl Account {
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         };
 
-        let address =
-            // For L1Tx we usually use nonce 0
-            deployed_address_create(self.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
+        let address = deployed_address_create(self.address, self.deploy_nonce.0.into());
+        self.deploy_nonce += 1;
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,
@@ -224,7 +269,11 @@ impl Account {
             contract_address: Some(address),
             calldata,
             value: U256::zero(),
-            factory_deps: vec![],
+            factory_deps: if params.deploys == 0 {
+                vec![]
+            } else {
+                TestContract::load_test().factory_deps()
+            },
         };
 
         match tx_type {

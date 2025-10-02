@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
@@ -16,8 +16,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
-    l1::is_l1_tx_type, Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE,
-    MAX_NEW_FACTORY_DEPS, U256,
+    l1::is_l1_tx_type, Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -132,6 +131,8 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
@@ -419,7 +420,7 @@ pub fn init_vm_inner<S: WriteStorage, H: HistoryMode>(
         execution_mode,
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
-        snapshots: Vec::new(),
+        snapshots: VecDeque::new(),
     }
 }
 
@@ -739,10 +740,10 @@ pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
 /// # Current layout
 ///
 /// - 0 byte (MSB): server-side tx execution mode
-///     In the server, we may want to execute different parts of the transaction in the different context
-///     For example, when checking validity, we don't want to actually execute transaction and have side effects.
+///   In the server, we may want to execute different parts of the transaction in the different context
+///   For example, when checking validity, we don't want to actually execute transaction and have side effects.
 ///
-///     Possible values:
+///   Possible values:
 ///     - 0x00: validate & execute (normal mode)
 ///     - 0x01: validate but DO NOT execute
 ///     - 0x02: execute but DO NOT validate

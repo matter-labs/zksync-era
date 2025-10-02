@@ -2,10 +2,10 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { TestEnvironment, TestContext } from './types';
 import { claimEtherBack } from './context-owner';
-import { RetryableWallet, RetryProvider } from './retry-provider';
+import { EthersRetryProvider, RetryableWallet, RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
-import { bigIntReviver } from './helpers';
-import { L1Provider } from './l1-provider';
+import { bigIntReviver, isLocalHost } from './helpers';
+import fetch from 'node-fetch';
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.
@@ -20,10 +20,12 @@ export class TestMaster {
 
     private readonly env: TestEnvironment;
     readonly reporter: Reporter;
-    private readonly l1Provider: L1Provider;
+    private readonly l1Provider: EthersRetryProvider;
     private readonly l2Provider: RetryProvider;
+    private readonly l2ProviderSecondChain: RetryProvider | undefined;
 
-    private readonly mainWallet: zksync.Wallet;
+    private readonly mainWallet: RetryableWallet;
+    private readonly mainWalletSecondChain: RetryableWallet | undefined;
     private readonly subAccounts: zksync.Wallet[] = [];
 
     private constructor(file: string) {
@@ -53,7 +55,7 @@ export class TestMaster {
         if (!suiteWalletPK) {
             throw new Error(`Wallet for ${suiteName} suite was not provided`);
         }
-        this.l1Provider = new L1Provider(this.env.l1NodeUrl, this.reporter);
+        this.l1Provider = new EthersRetryProvider(this.env.l1NodeUrl, 'L1', this.reporter);
         this.l2Provider = new RetryProvider(
             {
                 url: this.env.l2NodeUrl,
@@ -63,7 +65,7 @@ export class TestMaster {
             this.reporter
         );
 
-        if (context.environment.network == 'localhost') {
+        if (isLocalHost(context.environment.network)) {
             // Setup small polling interval on localhost to speed up tests.
             this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
@@ -73,6 +75,31 @@ export class TestMaster {
         }
 
         this.mainWallet = new RetryableWallet(suiteWalletPK, this.l2Provider, this.l1Provider);
+
+        if (this.env.l2ChainIdSecondChain) {
+            // Set up second chain provider if defined
+            this.l2ProviderSecondChain = new RetryProvider(
+                {
+                    url: this.env.l2NodeUrlSecondChain!,
+                    timeout: 1200 * 1000
+                },
+                undefined,
+                this.reporter
+            );
+            this.mainWalletSecondChain = new RetryableWallet(
+                suiteWalletPK,
+                this.l2ProviderSecondChain,
+                this.l1Provider
+            );
+
+            if (isLocalHost(context.environment.network)) {
+                // Setup small polling interval on localhost to speed up tests.
+                this.l2ProviderSecondChain.pollingInterval = 100;
+            } else {
+                // Poll less frequently to not make the server sad.
+                this.l2ProviderSecondChain.pollingInterval = 5000;
+            }
+        }
     }
 
     /**
@@ -81,7 +108,7 @@ export class TestMaster {
      * @returns `true` if the test suite is run on localhost and `false` otherwise.
      */
     isLocalHost(): boolean {
-        return this.env.network == 'localhost';
+        return isLocalHost(this.env.network);
     }
 
     /**
@@ -102,8 +129,16 @@ export class TestMaster {
     /**
      * Getter for the main (funded) account exclusive to the suite.
      */
-    mainAccount(): zksync.Wallet {
+    mainAccount(): RetryableWallet {
         return this.mainWallet;
+    }
+
+    /**
+     * Getter for the main (funded) account in the second chain exclusive to the suite, used for interop tests.
+     * Defaults to the same as `mainAccount` if the second chain is not set.
+     */
+    mainAccountSecondChain(): RetryableWallet | undefined {
+        return this.mainWalletSecondChain;
     }
 
     /**
@@ -119,6 +154,44 @@ export class TestMaster {
     }
 
     /**
+     * Creates a user and returns just the access token.
+     */
+    async privateRpcToken(baseUrl: string, address: string, secret = 'sososecret'): Promise<string> {
+        const res = await fetch(`${baseUrl}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address, secret })
+        });
+
+        if (!res.ok) {
+            throw new Error(`createUser: ${res.status} ${res.statusText} for ${address}`);
+        }
+
+        const { token } = (await res.json()) as { ok: boolean; token: string };
+        return token;
+    }
+
+    async privateRpcProvider(baseUrl: string, address: string, secret = 'sososecret'): Promise<RetryProvider> {
+        const token = await this.privateRpcToken(baseUrl, address, secret);
+        const url = `${baseUrl}/rpc/${token}`;
+        return new RetryProvider({ url, timeout: 120_000 }, undefined, this.reporter) as any;
+    }
+
+    async privateRpcMainAccount(baseUrl: string, secret = 'sososecret'): Promise<RetryableWallet> {
+        const address = this.mainWallet.address;
+        const provider = await this.privateRpcProvider(baseUrl, address, secret);
+        return new RetryableWallet(this.mainWallet.privateKey, provider, this.l1Provider);
+    }
+
+    async privateRpcNewEmptyAccount(baseUrl: string, secret = 'sososecret'): Promise<RetryableWallet> {
+        const randomPK = ethers.Wallet.createRandom().privateKey;
+        const address = new ethers.Wallet(randomPK).address;
+        const provider = await this.privateRpcProvider(baseUrl, address, secret);
+        const newWallet = new RetryableWallet(randomPK, provider, this.l1Provider);
+        this.subAccounts.push(newWallet);
+        return newWallet;
+    }
+    /**
      * Getter for the test environment.
      */
     environment(): TestEnvironment {
@@ -133,6 +206,14 @@ export class TestMaster {
      */
     isFastMode(): boolean {
         return process.env['ZK_INTEGRATION_TESTS_FAST_MODE'] === 'true';
+    }
+
+    /** Returns a vanilla `ethers` provider for L2 with additional retries and logging. This can be useful to check Web3 API compatibility. */
+    ethersProvider(layer: 'L1' | 'L2'): EthersRetryProvider {
+        const url = layer === 'L1' ? this.env.l1NodeUrl : this.env.l2NodeUrl;
+        const provider = new EthersRetryProvider({ url, timeout: 120_000 }, layer, this.reporter);
+        provider.pollingInterval = 1_000; // ms
+        return provider;
     }
 
     /**

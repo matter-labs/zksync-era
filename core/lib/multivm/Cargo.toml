@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zk_evm_1_5_2.workspace = true
 zk_evm_1_5_0.workspace = true
 zk_evm_1_4_1.workspace = true
 zk_evm_1_4_0.workspace = true
@@ -18,11 +19,7 @@ zk_evm_1_3_3.workspace = true
 zk_evm_1_3_1.workspace = true
 zksync_vm2.workspace = true
 
-circuit_sequencer_api_1_3_3.workspace = true
-circuit_sequencer_api_1_4_0.workspace = true
-circuit_sequencer_api_1_4_1.workspace = true
-circuit_sequencer_api_1_4_2.workspace = true
-circuit_sequencer_api_1_5_0.workspace = true
+circuit_sequencer_api.workspace = true
 
 zksync_types.workspace = true
 zksync_contracts.workspace = true
@@ -43,6 +40,7 @@ ethabi.workspace = true
 assert_matches.workspace = true
 pretty_assertions.workspace = true
 rand.workspace = true
+serde_json.workspace = true
 test-casing.workspace = true
-zksync_test_contracts.workspace = true
 zksync_eth_signer.workspace = true
+zksync_test_contracts.workspace = true

@@ -29,9 +29,12 @@ mod gcs;
 mod metrics;
 mod mirror;
 mod mock;
+#[cfg(feature = "node_framework")]
+pub mod node;
 mod objects;
 mod raw;
 mod retries;
+mod s3;
 
 // Re-export `bincode` crate so that client binaries can conveniently use it.
 pub use bincode;

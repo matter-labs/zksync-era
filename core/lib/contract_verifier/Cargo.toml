@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_queued_job_processor.workspace = true
@@ -20,7 +20,7 @@ zksync_utils.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 thiserror.workspace = true
-chrono.workspace = true
+chrono = { workspace = true, default-features = false }
 serde_json.workspace = true
 ethabi.workspace = true
 vise.workspace = true
@@ -34,10 +34,11 @@ semver.workspace = true
 octocrab = { workspace = true, features = ["stream"] }
 futures-util.workspace = true
 rustls.workspace = true
+secrecy.workspace = true
 
 [dev-dependencies]
 zksync_node_test_utils.workspace = true
 zksync_vm_interface.workspace = true
-
 assert_matches.workspace = true
 test-casing.workspace = true
+http.workspace = true

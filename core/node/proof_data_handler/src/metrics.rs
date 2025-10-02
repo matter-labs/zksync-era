@@ -1,9 +1,6 @@
-use std::{fmt, time::Duration};
-
-use vise::{EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
+use vise::{Counter, Histogram, Metrics};
 use zksync_object_store::bincode;
 use zksync_prover_interface::inputs::WitnessInputData;
-use zksync_types::tee_types::TeeType;
 
 const BYTES_IN_MEGABYTE: u64 = 1024 * 1024;
 
@@ -17,24 +14,7 @@ pub(super) struct ProofDataHandlerMetrics {
     pub eip_4844_blob_size_in_mb: Histogram<u64>,
     #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
     pub total_blob_size_in_mb: Histogram<u64>,
-    #[metrics(buckets = vise::Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub tee_proof_roundtrip_time: Family<MetricsTeeType, Histogram<Duration>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
-#[metrics(label = "tee_type")]
-pub(crate) struct MetricsTeeType(pub TeeType);
-
-impl fmt::Display for MetricsTeeType {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
-impl From<TeeType> for MetricsTeeType {
-    fn from(value: TeeType) -> Self {
-        Self(value)
-    }
+    pub fallbacked_batches: Counter<u64>,
 }
 
 impl ProofDataHandlerMetrics {

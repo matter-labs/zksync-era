@@ -11,16 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_vlog.workspace = true
-
-tokio = { workspace = true, features = ["time"] }
-tracing.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 anyhow.workspace = true
-futures.workspace = true
-reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 once_cell.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
 assert_matches.workspace = true

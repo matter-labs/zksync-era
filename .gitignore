@@ -16,6 +16,7 @@ cobertura.xml
 tags
 *.orig
 .direnv
+.cache
 
 # Yarn files
 .yarn/
@@ -25,12 +26,6 @@ tags
 zksync_pk.key
 dist
 todo
-
-Cargo.lock
-!/Cargo.lock
-!/infrastructure/zksync-crypto/Cargo.lock
-!/prover/Cargo.lock
-!/zkstack_cli/Cargo.lock
 
 /etc/env/target/*
 /etc/env/.current
@@ -111,11 +106,11 @@ hyperchain-*.yml
 # Prover keys that should not be commited
 prover/crates/bin/vk_setup_data_generator_server_fri/data/setup_*
 prover/data/keys/setup_*
+prover/data/keys/fflonk_setup_snark_data.bin
+prover/data/keys/plonk_setup_snark_data.bin
 
 # ZK Stack CLI
-chains/era/configs/*
-chains/gateway/*
-chains/avail/*
+chains/*
 configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
@@ -123,3 +118,8 @@ transactions/
 
 # foundry-zksync
 install
+
+
+.format_sql_snapshot
+.prettier_cache.json
+.prettier_cache_contracts.json

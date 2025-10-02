@@ -3,10 +3,10 @@ use core::fmt::Debug;
 use blake2::{Blake2s256, Digest};
 pub use log::*;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::keccak256, L2ChainId};
+use zksync_basic_types::{web3::keccak256_concat, L2ChainId};
 pub use zksync_system_constants::*;
 
-use crate::{address_to_h256, u256_to_h256, AccountTreeId, Address, H160, H256, U256};
+use crate::{address_to_h256, AccountTreeId, Address, H160, H256, U256};
 
 pub mod log;
 pub mod witness_block_state;
@@ -56,11 +56,9 @@ impl StorageKey {
 
 // Returns the storage key where the value for mapping(address => x)
 // at position `position` is stored.
-fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
+pub fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
     let padded_address = address_to_h256(address);
-    H256(keccak256(
-        &[padded_address.as_bytes(), position.as_bytes()].concat(),
-    ))
+    keccak256_concat(padded_address, position)
 }
 
 pub fn get_nonce_key(account: &Address) -> StorageKey {
@@ -77,8 +75,12 @@ pub fn get_code_key(account: &Address) -> StorageKey {
     StorageKey::new(account_code_storage, address_to_h256(account))
 }
 
-pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
-    get_deployer_key(get_address_mapping_key(account, u256_to_h256(1.into())))
+/// Gets a slot holding EVM-compatible bytecode hash (i.e., `keccak256` of the non-padded EVM bytecode).
+pub fn get_evm_code_hash_key(versioned_bytecode_hash: H256) -> StorageKey {
+    StorageKey::new(
+        AccountTreeId::new(EVM_HASHES_STORAGE_ADDRESS),
+        versioned_bytecode_hash,
+    )
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {
@@ -108,6 +110,21 @@ pub fn get_is_account_key(account: &Address) -> StorageKey {
     let key = get_address_mapping_key(account, H256::zero());
 
     StorageKey::new(deployer, key)
+}
+
+pub fn get_immutable_simulator_key(account: &Address, immutable_key: H256) -> StorageKey {
+    // All the immutable variables are stored as inside the ImmutableSimulator system contracts
+    // in a mapping of the following form:
+    // mapping(uint256 contractAddress => mapping(uint256 index => bytes32 value)) internal immutableDataStorage;
+
+    let immutable_simulator = AccountTreeId::new(IMMUTABLE_SIMULATOR_STORAGE_ADDRESS);
+
+    let padded_address = address_to_h256(account);
+
+    let inner_mapping_slot = keccak256_concat(padded_address, IMMUTABLE_SIMULATOR_MAPPING_SLOT);
+    let key = keccak256_concat(immutable_key, inner_mapping_slot);
+
+    StorageKey::new(immutable_simulator, key)
 }
 
 pub type StorageValue = H256;

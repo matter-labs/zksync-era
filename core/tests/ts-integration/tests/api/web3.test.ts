@@ -5,11 +5,12 @@ import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
 import { types } from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
+import { anyTransaction, deployContract, getTestContract } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
 import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
 import { NodeMode } from '../../src/types';
+import { waitForNewL1Batch } from 'utils';
 
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
@@ -137,14 +138,6 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test some zks web3 methods', async () => {
-        // zks_getAllAccountBalances
-        // NOTE: `getAllBalances` will not work on external node,
-        // since TokenListFetcher is not running
-        if (testMaster.environment().nodeMode !== NodeMode.External) {
-            const balances = await alice.getAllBalances();
-            const tokenBalance = await alice.getBalance(l2Token);
-            expect(balances[l2Token.toLowerCase()] == tokenBalance);
-        }
         // zks_L1ChainId
         const l1ChainId = (await alice.providerL1!.getNetwork()).chainId;
         const l1ChainIdFromL2Provider = BigInt(await alice.provider.l1ChainId());
@@ -195,7 +188,6 @@ describe('web3 API compatibility tests', () => {
         ['net_peerCount', [], '0x0'],
         ['net_listening', [], false],
         ['web3_clientVersion', [], 'zkSync/v2.0'],
-        ['eth_protocolVersion', [], 'zks/1'],
         ['eth_accounts', [], []],
         ['eth_coinbase', [], '0x0000000000000000000000000000000000000000'],
         ['eth_getCompilers', [], []],
@@ -203,7 +195,7 @@ describe('web3 API compatibility tests', () => {
         ['eth_mining', [], false],
         ['eth_getUncleCountByBlockNumber', ['0x0'], '0x0'],
         ['eth_maxPriorityFeePerGas', [], '0x0']
-    ])('Should test bogus web3 methods (%s)', async (method: string, input: string[], output: string) => {
+    ])('Should test bogus web3 methods (%s)', async (method: string, input: string[], output: any) => {
         await expect(alice.provider.send(method, input)).resolves.toEqual(output);
     });
 
@@ -214,13 +206,17 @@ describe('web3 API compatibility tests', () => {
         await expect(alice.provider.send('eth_getUncleCountByBlockHash', [firstBlockHash])).resolves.toEqual('0x0');
     });
 
+    test('Should test current protocol version', async () => {
+        // Node should report well-formed semantic protocol version
+        await expect(alice.provider.send('eth_protocolVersion', [])).resolves.toMatch(/^zks\/0\.\d+\.\d+$/);
+    });
+
     test('Should test web3 response extensions', async () => {
         if (testMaster.isFastMode()) {
             // This test requires a new L1 batch to be created, which may be very time-consuming on stage.
             return;
         }
 
-        const EIP1559_TX_TYPE = 2;
         const amount = 1;
         const erc20ABI = ['function transfer(address to, uint256 amount)'];
         const erc20contract = new ethers.Contract(l2Token, erc20ABI, alice);
@@ -243,8 +239,9 @@ describe('web3 API compatibility tests', () => {
         expect(tx1.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(tx1.chainId).toEqual(chainId);
-        expect(tx1.type).toEqual(EIP1559_TX_TYPE);
+        expect(tx1.type).toEqual(EIP712_TX_TYPE);
 
+        const EIP1559_TX_TYPE = 2;
         expect(receipt!.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt!.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
         expect(receipt!.logs[0].l1BatchNumber).toEqual(receipt!.l1BatchNumber);
@@ -253,6 +250,7 @@ describe('web3 API compatibility tests', () => {
         expect(block.l1BatchTimestamp).toEqual(expect.anything());
         expect(blockWithTransactions.l1BatchNumber).toEqual(receipt!.l1BatchNumber);
         expect(blockWithTransactions.l1BatchTimestamp).toEqual(expect.anything());
+
         for (const tx of blockWithTransactions.prefetchedTransactions) {
             expect(tx.l1BatchNumber).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.
             expect(tx.l1BatchTxIndex).toEqual(expect.anything()); // Can be anything except `null` or `undefined`.

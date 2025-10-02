@@ -1,50 +1,58 @@
 use std::path::Path;
 
-use anyhow::Context as _;
 use xshell::Shell;
-use zksync_basic_types::L1ChainId;
-pub use zksync_config::GenesisConfig;
-use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId, H256};
 
 use crate::{
-    consts::GENESIS_FILE,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    raw::{PatchedConfig, RawConfig},
     ChainConfig,
 };
 
-pub fn update_from_chain_config(
-    genesis: &mut GenesisConfig,
-    config: &ChainConfig,
-) -> anyhow::Result<()> {
-    genesis.l2_chain_id = config.chain_id;
-    // TODO(EVM-676): for now, the settlement layer is always the same as the L1 network
-    genesis.l1_chain_id = L1ChainId(config.l1_network.chain_id());
-    genesis.l1_batch_commit_data_generator_mode = config.l1_batch_commit_data_generator_mode;
-    genesis.evm_emulator_hash = if config.evm_emulator {
-        Some(genesis.evm_emulator_hash.context(
-            "impossible to initialize a chain with EVM emulator: the template genesis config \
-             does not contain EVM emulator hash",
-        )?)
-    } else {
-        None
-    };
-    Ok(())
-}
+#[derive(Debug)]
+pub struct GenesisConfig(pub(crate) RawConfig);
 
-impl FileConfigWithDefaultName for GenesisConfig {
-    const FILE_NAME: &'static str = GENESIS_FILE;
-}
+impl GenesisConfig {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
+        RawConfig::read(shell, path).await.map(Self)
+    }
 
-impl SaveConfig for GenesisConfig {
-    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(self)?;
-        Ok(shell.write_file(path, bytes)?)
+    pub fn l1_chain_id(&self) -> anyhow::Result<L1ChainId> {
+        self.0.get("l1_chain_id")
+    }
+
+    pub fn l2_chain_id(&self) -> anyhow::Result<L2ChainId> {
+        self.0.get("l2_chain_id")
+    }
+
+    pub fn l1_batch_commitment_mode(&self) -> anyhow::Result<L1BatchCommitmentMode> {
+        self.0.get("l1_batch_commit_data_generator_mode")
+    }
+
+    pub fn evm_emulator_hash(&self) -> anyhow::Result<Option<H256>> {
+        self.0.get_opt("evm_emulator_hash")
+    }
+
+    pub fn patched(self) -> GenesisConfigPatch {
+        GenesisConfigPatch(self.0.patched())
     }
 }
 
-impl ReadConfig for GenesisConfig {
-    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let path = shell.current_dir().join(path);
-        read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path, false)
+#[derive(Debug)]
+pub struct GenesisConfigPatch(PatchedConfig);
+
+impl GenesisConfigPatch {
+    pub fn update_from_chain_config(&mut self, config: &ChainConfig) -> anyhow::Result<()> {
+        self.0.insert("l2_chain_id", config.chain_id.as_u64())?;
+        // TODO(EVM-676): for now, the settlement layer is always the same as the L1 network
+        self.0.insert("l1_chain_id", config.l1_network.chain_id())?;
+        self.0.insert_yaml(
+            "l1_batch_commit_data_generator_mode",
+            config.l1_batch_commit_data_generator_mode,
+        )?;
+        Ok(())
+    }
+
+    pub async fn save(self) -> anyhow::Result<()> {
+        self.0.save().await
     }
 }

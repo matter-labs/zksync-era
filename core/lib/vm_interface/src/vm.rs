@@ -22,7 +22,6 @@ use crate::{
 };
 
 pub trait VmInterface {
-    /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher: Default;
 
     /// Pushes a transaction to bootloader memory for future execution with bytecode compression (if it's supported by the VM).
@@ -108,6 +107,10 @@ pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Pop the latest snapshot from memory and destroy it. If there are no snapshots, this should be a no-op
     /// (i.e., the VM must not panic in this case).
     fn pop_snapshot_no_rollback(&mut self);
+
+    /// Pop the earliest snapshot from memory and destroy it. If there are no snapshots, this should be a no-op
+    /// (i.e., the VM must not panic in this case).
+    fn pop_front_snapshot_no_rollback(&mut self);
 }
 
 /// VM that tracks decommitment of bytecodes during execution. This is required to create a [`VmDump`].

@@ -1,9 +1,6 @@
 //! Tests for the contract verifier.
 
-use std::{
-    collections::{HashMap, HashSet},
-    iter,
-};
+use std::collections::{HashMap, HashSet};
 
 use test_casing::{test_casing, Product};
 use tokio::sync::watch;
@@ -11,8 +8,10 @@ use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     address_to_h256,
-    bytecode::BytecodeHash,
-    contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
+    bytecode::{pad_evm_bytecode, BytecodeHash},
+    contract_verification::api::{
+        CompilerVersions, ImmutableReference, SourceCodeData, VerificationIncomingRequest,
+    },
     get_code_key, get_known_code_key,
     l2::L2Tx,
     tx::IncludedTxLocation,
@@ -89,6 +88,21 @@ object "Empty" {
     }
 }
 "#;
+const COUNTER_CONTRACT_WITH_IMMUTABLE: &str = r#"
+    contract CounterWithImmutable {
+        uint256 public immutable base;
+        uint256 public value;
+
+        constructor(uint256 _base, uint256 _value) {
+            base = _base;
+            value = _value;
+        }
+
+        function increment(uint256 x) external {
+            value += (base + x);
+        }
+    }
+"#;
 
 #[derive(Debug, Clone, Copy)]
 enum TestContract {
@@ -112,28 +126,6 @@ impl TestContract {
             Self::CounterWithConstructor => &[Token::Uint(U256([42, 0, 0, 0]))],
         }
     }
-}
-
-/// Pads an EVM bytecode in the same ways it's done by system contracts.
-fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
-    let mut padded = Vec::with_capacity(deployed_bytecode.len() + 32);
-    let len = U256::from(deployed_bytecode.len());
-    padded.extend_from_slice(&[0; 32]);
-    len.to_big_endian(&mut padded);
-    padded.extend_from_slice(deployed_bytecode);
-
-    // Pad to the 32-byte word boundary.
-    if padded.len() % 32 != 0 {
-        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
-    }
-    assert_eq!(padded.len() % 32, 0);
-
-    // Pad to contain the odd number of words.
-    if (padded.len() / 32) % 2 != 1 {
-        padded.extend_from_slice(&[0; 32]);
-    }
-    assert_eq!((padded.len() / 32) % 2, 1);
-    padded
 }
 
 async fn mock_deployment(
@@ -163,7 +155,7 @@ async fn mock_evm_deployment(
         factory_deps: vec![],
     };
     let bytecode = pad_evm_bytecode(deployed_bytecode);
-    let bytecode_hash = BytecodeHash::for_evm_bytecode(&bytecode).value();
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(deployed_bytecode.len(), &bytecode).value();
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
 
@@ -213,7 +205,6 @@ async fn mock_deployment_inner(
     let location = IncludedTxLocation {
         tx_hash: deploy_tx.hash(),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: deployer_address,
     };
     let deploy_event = VmEvent {
         location: (L1BatchNumber(0), 0),
@@ -360,6 +351,7 @@ fn test_request(address: Address, source: &str) -> VerificationIncomingRequest {
         constructor_arguments: Default::default(),
         is_system: false,
         force_evmla: false,
+        evm_specific: Default::default(),
     }
 }
 
@@ -433,12 +425,14 @@ async fn contract_verifier_basics(contract: TestContract) {
             bytecode: vec![0; 32],
             deployed_bytecode: None,
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -460,7 +454,7 @@ async fn contract_verifier_basics(contract: TestContract) {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &expected_bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &expected_bytecode, &[]).await;
 }
 
 async fn assert_request_success(
@@ -468,6 +462,7 @@ async fn assert_request_success(
     request_id: usize,
     address: Address,
     expected_bytecode: &[u8],
+    verification_problems: &[VerificationProblem],
 ) -> VerificationInfo {
     let status = storage
         .contract_verification_dal()
@@ -490,6 +485,11 @@ async fn assert_request_success(
         without_internal_types(verification_info.artifacts.abi.clone()),
         without_internal_types(counter_contract_abi())
     );
+    assert_eq!(
+        &verification_info.verification_problems,
+        verification_problems
+    );
+
     verification_info
 }
 
@@ -546,6 +546,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         bytecode: creation_bytecode.clone(),
         deployed_bytecode: Some(deployed_bytecode),
         abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
     };
     let mock_resolver = MockCompilerResolver::solc(move |input| {
         assert_eq!(input.standard_json.language, "Solidity");
@@ -559,6 +560,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -566,7 +568,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &creation_bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
 }
 
 #[tokio::test]
@@ -588,11 +590,13 @@ async fn bytecode_mismatch_error() {
         bytecode: vec![0; 32],
         deployed_bytecode: None,
         abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -668,17 +672,20 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
             bytecode: bytecode.clone(),
             deployed_bytecode: None,
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }),
         BytecodeMarker::Evm => MockCompilerResolver::solc(move |_| CompilationArtifacts {
             bytecode: vec![3_u8; 48],
             deployed_bytecode: Some(bytecode.clone()),
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }),
     };
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -733,15 +740,19 @@ async fn creation_bytecode_mismatch() {
         .await
         .unwrap();
 
-    let mock_resolver = MockCompilerResolver::solc(move |_| CompilationArtifacts {
-        bytecode: vec![4; 20], // differs from `creation_bytecode`
-        deployed_bytecode: Some(deployed_bytecode.clone()),
-        abi: counter_contract_abi(),
+    let mock_resolver = MockCompilerResolver::solc(move |_| {
+        CompilationArtifacts {
+            bytecode: vec![4; 20], // differs from `creation_bytecode`
+            deployed_bytecode: Some(deployed_bytecode.clone()),
+            abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
+        }
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -791,6 +802,7 @@ async fn no_compiler_version() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -808,4 +820,72 @@ async fn no_compiler_version() {
     assert!(status.compilation_errors.is_none(), "{status:?}");
     let error = status.error.unwrap();
     assert!(error.contains("solc version"), "{error}");
+}
+
+#[tokio::test]
+async fn verifying_evm_with_immutables() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let creation_bytecode = vec![0x03; 10];
+    let mut deployed_bytecode = vec![0x05; 10];
+    // Place the immutables deployed_bytecode code at offsets 4..6:
+    deployed_bytecode[4..6].copy_from_slice(&[0xAA, 0xBB]);
+
+    let address = Address::repeat_byte(1);
+    mock_evm_deployment(
+        &mut storage,
+        address,
+        creation_bytecode.clone(),
+        &deployed_bytecode,
+        &[],
+    )
+    .await;
+
+    let mut req = test_request(address, COUNTER_CONTRACT_WITH_IMMUTABLE);
+    req.compiler_versions = CompilerVersions::Solc {
+        compiler_solc_version: SOLC_VERSION.to_owned(),
+        compiler_zksolc_version: None,
+    };
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let mut deployed_bytecode_compiled = vec![0x05; 10];
+    deployed_bytecode_compiled[4..6].copy_from_slice(&[0x00, 0x00]);
+
+    let mut imm_map = HashMap::new();
+    imm_map.insert(
+        "somePlaceholder".to_string(),
+        vec![ImmutableReference {
+            start: 4,
+            length: 2,
+        }],
+    );
+
+    let artifacts = CompilationArtifacts {
+        bytecode: creation_bytecode.clone(),
+        deployed_bytecode: Some(deployed_bytecode_compiled),
+        abi: counter_contract_abi(),
+        immutable_refs: imm_map,
+    };
+
+    let mock_resolver = MockCompilerResolver::solc(move |_| artifacts.clone());
+
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
 }

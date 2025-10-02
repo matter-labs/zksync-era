@@ -1,11 +1,7 @@
 use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 
 /// Consensus registry contract operations.
-/// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::{config::global_config, logger, wallets::Wallet};
-use config::EcosystemConfig;
-use conv::*;
 use ethers::{
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
@@ -16,149 +12,157 @@ use ethers::{
 };
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
+use zkstack_cli_config::ZkStackConfig;
+use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 
-use crate::{commands::args::WaitArgs, messages, utils::consensus::parse_attester_committee};
-
-mod conv;
-mod proto;
-#[cfg(test)]
-mod tests;
+use crate::{
+    commands::args::WaitArgs,
+    messages,
+    utils::consensus::{read_validator_schedule_yaml, LeaderSelectionInFile, ValidatorWithPop},
+};
 
 #[allow(warnings)]
 mod abi {
     include!(concat!(env!("OUT_DIR"), "/consensus_registry_abi.rs"));
 }
 
-fn decode_attester_key(k: &abi::Secp256K1PublicKey) -> anyhow::Result<attester::PublicKey> {
-    let mut x = vec![];
-    x.extend(k.tag);
-    x.extend(k.x);
-    ByteFmt::decode(&x)
-}
-
-fn decode_weighted_attester(
-    a: &abi::CommitteeAttester,
-) -> anyhow::Result<attester::WeightedAttester> {
-    Ok(attester::WeightedAttester {
-        weight: a.weight.into(),
-        key: decode_attester_key(&a.pub_key).context("key")?,
-    })
-}
-
-fn encode_attester_key(k: &attester::PublicKey) -> abi::Secp256K1PublicKey {
-    let b: [u8; 33] = ByteFmt::encode(k).try_into().unwrap();
-    abi::Secp256K1PublicKey {
-        tag: b[0..1].try_into().unwrap(),
-        x: b[1..33].try_into().unwrap(),
-    }
-}
-
-fn encode_validator_key(k: &validator::PublicKey) -> abi::Bls12381PublicKey {
-    let b: [u8; 96] = ByteFmt::encode(k).try_into().unwrap();
-    abi::Bls12381PublicKey {
-        a: b[0..32].try_into().unwrap(),
-        b: b[32..64].try_into().unwrap(),
-        c: b[64..96].try_into().unwrap(),
-    }
-}
-
-fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Signature {
-    let b: [u8; 48] = ByteFmt::encode(pop).try_into().unwrap();
-    abi::Bls12381Signature {
-        a: b[0..32].try_into().unwrap(),
-        b: b[32..48].try_into().unwrap(),
-    }
-}
-
-#[derive(clap::Args, Debug)]
-#[group(required = true, multiple = false)]
-pub struct SetAttesterCommitteeCommand {
-    /// Sets the attester committee in the consensus registry contract to
-    /// `consensus.genesis_spec.attesters` in general.yaml.
-    #[clap(long)]
-    from_genesis: bool,
-    /// Sets the attester committee in the consensus registry contract to
-    /// the committee in the yaml file.
-    /// File format is definied in `commands/consensus/proto/mod.proto`.
-    #[clap(long)]
-    from_file: Option<PathBuf>,
-}
-
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
-    /// Sets the attester committee in the consensus registry contract to
-    /// `consensus.genesis_spec.attesters` in general.yaml.
-    SetAttesterCommittee(SetAttesterCommitteeCommand),
-    /// Fetches the attester committee from the consensus registry contract.
-    GetAttesterCommittee,
+    /// Sets the validator schedule in the consensus registry contract to
+    /// the schedule in the yaml file.
+    /// File format is defined in `SetValidatorScheduleFile` in this crate.
+    SetValidatorSchedule(SetValidatorScheduleCommand),
+    /// Sets the committee activation delay in the consensus registry contract.
+    SetScheduleActivationDelay(SetScheduleActivationDelayCommand),
+    /// Fetches the current validator schedule from the consensus registry contract.
+    GetValidatorSchedule,
+    /// Fetches the pending validator schedule from the consensus registry contract, if any.
+    GetPendingValidatorSchedule,
     /// Wait until the consensus registry contract is deployed to L2.
     WaitForRegistry(WaitArgs),
 }
 
-/// Collection of sent transactions.
-#[derive(Default)]
-pub struct TxSet(Vec<(H256, &'static str)>);
+#[derive(clap::Args, Debug)]
+#[group(required = true)]
+pub struct SetValidatorScheduleCommand {
+    /// The file to read the validator schedule from.
+    #[clap(long)]
+    pub from_file: PathBuf,
+}
 
-impl TxSet {
-    /// Sends a transactions and stores the transaction hash.
-    pub async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
-        &mut self,
-        name: &'static str,
-        call: FunctionCall<B, M, D>,
-    ) -> anyhow::Result<()> {
-        let h = call.send().await.context(name)?.tx_hash();
-        self.0.push((h, name));
-        Ok(())
-    }
+#[derive(clap::Args, Debug)]
+pub struct SetScheduleActivationDelayCommand {
+    /// The activation delay in blocks.
+    #[clap(long)]
+    pub delay: u64,
+}
 
-    /// Waits for all stored transactions to complete.
-    pub async fn wait<P: JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
-        for (h, name) in self.0 {
-            async {
-                let status = PendingTransaction::new(h, provider)
-                    .await
-                    .context("await")?
-                    .context(messages::MSG_RECEIPT_MISSING)?
-                    .status
-                    .context(messages::MSG_STATUS_MISSING)?;
-                anyhow::ensure!(status == 1.into(), messages::MSG_TRANSACTION_FAILED);
-                Ok(())
+impl Command {
+    pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
+        let setup = Setup::new(shell).await?;
+        match self {
+            Self::SetValidatorSchedule(opts) => {
+                let (schedule_want, validators_want, leader_selection_want) = setup
+                    .read_validator_schedule_file(&opts)
+                    .context("read_validator_schedule_file()")?;
+                setup
+                    .set_validator_schedule(validators_want, leader_selection_want)
+                    .await?;
+
+                // Check if the schedule was set correctly (check pending first, then current)
+                let pending_schedule = setup.get_pending_validator_schedule().await;
+                let (schedule_got, is_pending) = match pending_schedule {
+                    Ok(pending) => {
+                        if pending == schedule_want {
+                            (pending, true)
+                        } else {
+                            anyhow::bail!(
+                                "Pending schedule does not match expected schedule. Got: {:?}, Expected: {:?}",
+                                pending,
+                                schedule_want
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        // If it errors, is because there is no pending schedule. Which means that
+                        // the activation delay must be zero.
+                        let current_schedule = setup.get_validator_schedule().await?;
+                        anyhow::ensure!(
+                            current_schedule == schedule_want,
+                            messages::msg_setting_validator_schedule_failed(
+                                &current_schedule,
+                                &schedule_want
+                            )
+                        );
+                        (current_schedule, false)
+                    }
+                };
+
+                print_schedule(&schedule_got, is_pending);
             }
-            .await
-            .context(name)?;
+            Self::SetScheduleActivationDelay(opts) => {
+                setup.set_schedule_activation_delay(opts.delay).await?;
+                logger::success(format!(
+                    "Successfully set schedule activation delay to {} blocks",
+                    opts.delay
+                ));
+            }
+            Self::GetValidatorSchedule => {
+                let got = setup.get_validator_schedule().await?;
+                print_schedule(&got, false);
+            }
+            Self::GetPendingValidatorSchedule => {
+                let got = setup.get_pending_validator_schedule().await?;
+                print_schedule(&got, true);
+            }
+            Self::WaitForRegistry(args) => {
+                let verbose = global_config().verbose;
+                setup.wait_for_registry_contract(&args, verbose).await?;
+            }
         }
         Ok(())
     }
 }
 
-fn print_attesters(committee: &attester::Committee) {
-    logger::success(
-        committee
-            .iter()
-            .map(|a| format!("{a:?}"))
-            .collect::<Vec<_>>()
-            .join("\n"),
-    );
-}
-
 struct Setup {
-    chain: config::ChainConfig,
-    contracts: config::ContractsConfig,
-    general: config::GeneralConfig,
-    genesis: config::GenesisConfig,
+    chain: zkstack_cli_config::ChainConfig,
+    contracts: zkstack_cli_config::ContractsConfig,
+    l2_chain_id: L2ChainId,
+    l2_http_url: String,
 }
 
 impl Setup {
+    async fn new(shell: &Shell) -> anyhow::Result<Self> {
+        let chain = ZkStackConfig::current_chain(shell)?;
+        let contracts = chain
+            .get_contracts_config()
+            .context("get_contracts_config()")?;
+        let l2_chain_id = chain
+            .get_genesis_config()
+            .await
+            .context("get_genesis_config()")?
+            .l2_chain_id()
+            .context("l2_chain_id()")?;
+        let l2_http_url = chain
+            .get_general_config()
+            .await
+            .context("get_general_config()")?
+            .l2_http_url()
+            .context("l2_http_url()")?;
+
+        Ok(Self {
+            chain,
+            contracts,
+            l2_chain_id,
+            l2_http_url,
+        })
+    }
+
     fn provider(&self) -> anyhow::Result<Provider<Http>> {
-        let l2_url = &self
-            .general
-            .api_config
-            .as_ref()
-            .context(messages::MSG_API_CONFIG_MISSING)?
-            .web3_json_rpc
-            .http_url;
+        let l2_url = &self.l2_http_url;
         Provider::try_from(l2_url).with_context(|| format!("Provider::try_from({l2_url})"))
     }
 
@@ -173,7 +177,7 @@ impl Setup {
                     .multicall3
                     .context(messages::MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED)?,
             ),
-            Some(self.genesis.l2_chain_id.as_u64()),
+            Some(self.l2_chain_id.as_u64()),
         )?)
     }
 
@@ -186,31 +190,12 @@ impl Setup {
     }
 
     fn signer(&self, wallet: LocalWallet) -> anyhow::Result<Arc<impl Middleware>> {
-        let wallet = wallet.with_chain_id(self.genesis.l2_chain_id.as_u64());
+        let wallet = wallet.with_chain_id(self.l2_chain_id.as_u64());
         let provider = self.provider().context("provider()")?;
         let signer = SignerMiddleware::new(provider, wallet.clone());
         // Allows us to send next transaction without waiting for the previous to complete.
         let signer = NonceManagerMiddleware::new(signer, wallet.address());
         Ok(Arc::new(signer))
-    }
-
-    fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let ecosystem_config =
-            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
-        let chain = ecosystem_config
-            .load_current_chain()
-            .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
-        let contracts = chain
-            .get_contracts_config()
-            .context("get_contracts_config()")?;
-        let genesis = chain.get_genesis_config().context("get_genesis_config()")?;
-        let general = chain.get_general_config().context("get_general_config()")?;
-        Ok(Self {
-            chain,
-            contracts,
-            general,
-            genesis,
-        })
     }
 
     fn consensus_registry_addr(&self) -> anyhow::Result<Address> {
@@ -228,6 +213,19 @@ impl Setup {
         Ok(abi::ConsensusRegistry::new(addr, m))
     }
 
+    fn read_validator_schedule_file(
+        &self,
+        opts: &SetValidatorScheduleCommand,
+    ) -> anyhow::Result<(
+        validator::Schedule,
+        Vec<ValidatorWithPop>,
+        LeaderSelectionInFile,
+    )> {
+        let yaml = std::fs::read_to_string(opts.from_file.clone()).context("read_to_string()")?;
+        let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
+        read_validator_schedule_yaml(yaml)
+    }
+
     async fn last_block(&self, m: &(impl 'static + Middleware)) -> anyhow::Result<BlockId> {
         Ok(m.get_block_number()
             .await
@@ -235,51 +233,16 @@ impl Setup {
             .into())
     }
 
-    async fn get_attester_committee(&self) -> anyhow::Result<attester::Committee> {
-        let provider = Arc::new(self.provider()?);
-        let consensus_registry = self
-            .consensus_registry(provider)
-            .context("consensus_registry()")?;
-        let attesters = consensus_registry
-            .get_attester_committee()
-            .call()
-            .await
-            .context("get_attester_committee()")?;
-        let attesters: Vec<_> = attesters
-            .iter()
-            .map(decode_weighted_attester)
-            .collect::<Result<_, _>>()
-            .context("decode_weighted_attester()")?;
-        attester::Committee::new(attesters.into_iter()).context("attester::Committee::new()")
-    }
-
-    fn read_attester_committee(
+    async fn wait_for_registry_contract(
         &self,
-        opts: &SetAttesterCommitteeCommand,
-    ) -> anyhow::Result<attester::Committee> {
-        // Fetch the desired state.
-        if let Some(path) = &opts.from_file {
-            let yaml = std::fs::read_to_string(path).context("read_to_string()")?;
-            let file: SetAttesterCommitteeFile = zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt_from_yaml(&yaml)
-            .context("proto_fmt_from_yaml()")?;
-            return Ok(file.attesters);
-        }
-        let attesters = (|| {
-            Some(
-                &self
-                    .general
-                    .consensus_config
-                    .as_ref()?
-                    .genesis_spec
-                    .as_ref()?
-                    .attesters,
-            )
-        })()
-        .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?;
-        parse_attester_committee(attesters).context("parse_attester_committee()")
+        args: &WaitArgs,
+        verbose: bool,
+    ) -> anyhow::Result<()> {
+        args.poll_with_timeout(
+            messages::MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT,
+            self.wait_for_registry_contract_inner(args, verbose),
+        )
+        .await
     }
 
     async fn wait_for_registry_contract_inner(
@@ -309,7 +272,7 @@ impl Setup {
                 }
                 Err(err) => {
                     return Err(anyhow::Error::new(err)
-                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR))
+                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR));
                 }
             };
             if !code.is_empty() {
@@ -317,27 +280,102 @@ impl Setup {
                     addr,
                     code.len(),
                 ));
-                return Ok(());
+                break;
             }
         }
+
+        if verbose {
+            logger::debug(format!("Registry contract was deployed on {addr:?}"));
+        }
+
+        let provider = Arc::new(provider);
+        let registry = self
+            .consensus_registry(provider.clone())
+            .context("consensus_registry")?;
+        let registry_owner = registry.owner().call().await.context("registry.owner()")?;
+        if verbose {
+            logger::debug(format!(
+                "Registry contract has an owner: {registry_owner:?}"
+            ));
+        }
+        loop {
+            let balance = provider
+                .get_balance(registry_owner, None)
+                .await
+                .context("get_balance(registry_owner)")?;
+            if !balance.is_zero() {
+                logger::debug(format!(
+                    "Registry contract owner has non-zero balance: {balance}"
+                ));
+                break;
+            }
+            interval.tick().await;
+        }
+        Ok(())
     }
 
-    async fn wait_for_registry_contract(
+    async fn get_validator_schedule(&self) -> anyhow::Result<validator::Schedule> {
+        let provider = Arc::new(self.provider()?);
+        let consensus_registry = self
+            .consensus_registry(provider)
+            .context("consensus_registry()")?;
+        let (validators, leader_selection) = consensus_registry
+            .get_validator_committee()
+            .call()
+            .await
+            .context("get_validator_committee()")?;
+        let validators: Vec<_> = validators
+            .iter()
+            .map(decode_committee_validator)
+            .collect::<Result<_, _>>()
+            .context("decode_committee_validator()")?;
+        let leader_selection =
+            decode_leader_selection(&leader_selection).context("decode_leader_selection()")?;
+        validator::Schedule::new(validators, leader_selection)
+    }
+
+    async fn get_pending_validator_schedule(&self) -> anyhow::Result<validator::Schedule> {
+        let provider = Arc::new(self.provider()?);
+        let consensus_registry = self
+            .consensus_registry(provider)
+            .context("consensus_registry()")?;
+        let (validators, leader_selection) = consensus_registry
+            .get_next_validator_committee()
+            .call()
+            .await
+            .context("get_next_validator_committee()")?;
+        let validators: Vec<_> = validators
+            .iter()
+            .map(decode_committee_validator)
+            .collect::<Result<_, _>>()
+            .context("decode_committee_validator()")?;
+        let leader_selection =
+            decode_leader_selection(&leader_selection).context("decode_leader_selection()")?;
+        validator::Schedule::new(validators, leader_selection)
+    }
+
+    async fn set_validator_schedule(
         &self,
-        args: &WaitArgs,
-        verbose: bool,
+        validators_want: Vec<ValidatorWithPop>,
+        leader_selection_want: LeaderSelectionInFile,
     ) -> anyhow::Result<()> {
-        args.poll_with_timeout(
-            messages::MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT,
-            self.wait_for_registry_contract_inner(args, verbose),
-        )
-        .await
-    }
+        if global_config().verbose {
+            logger::debug(format!(
+                "Setting validator schedule:\n{validators_want:?}\n{leader_selection_want:?}"
+            ));
+        }
 
-    async fn set_attester_committee(&self, want: &attester::Committee) -> anyhow::Result<()> {
         let provider = self.provider().context("provider()")?;
         let block_id = self.last_block(&provider).await.context("last_block()")?;
+        if global_config().verbose {
+            logger::debug(format!("Fetched latest L2 block: {block_id:?}"));
+        }
+
         let governor = self.governor().context("governor()")?;
+        if global_config().verbose {
+            logger::debug(format!("Using governor: {:?}", governor.address));
+        }
+
         let signer = self.signer(
             governor
                 .private_key
@@ -348,6 +386,13 @@ impl Setup {
             .consensus_registry(signer.clone())
             .context("consensus_registry()")?;
         let mut multicall = self.multicall(signer).context("multicall()")?;
+        if global_config().verbose {
+            logger::debug(format!(
+                "Using consensus registry at {:?}, multicall at {:?}",
+                consensus_registry.address(),
+                multicall.contract.address()
+            ));
+        }
 
         let owner = consensus_registry.owner().call().await.context("owner()")?;
         if owner != governor.address {
@@ -360,119 +405,318 @@ impl Setup {
 
         // Fetch contract state.
         let n: usize = consensus_registry
-            .num_nodes()
+            .num_validators()
             .call_raw()
             .block(block_id)
             .await
-            .context("num_nodes()")?
+            .context("num_validators()")?
             .try_into()
             .ok()
-            .context("num_nodes() overflow")?;
+            .context("num_validators() overflow")?;
+        if global_config().verbose {
+            logger::debug(format!(
+                "Fetched number of validators from consensus registry: {n}"
+            ));
+        }
 
         multicall.block = Some(block_id);
-        let node_owners: Vec<Address> = multicall
+        let validator_owners: Vec<Address> = multicall
             .add_calls(
                 false,
-                (0..n).map(|i| consensus_registry.node_owners(i.into())),
+                (0..n).map(|i| consensus_registry.validator_owners(i.into())),
             )
             .call_array()
             .await
-            .context("node_owners()")?;
+            .context("validator_owners()")?;
         multicall.clear_calls();
-        let nodes: Vec<abi::NodesReturn> = multicall
-            .add_calls(
-                false,
-                node_owners
-                    .iter()
-                    .map(|addr| consensus_registry.nodes(*addr)),
-            )
-            .call_array()
-            .await
-            .context("nodes()")?;
-        multicall.clear_calls();
+        if global_config().verbose {
+            logger::debug(format!(
+                "Fetched validator owners from consensus registry: {validator_owners:?}"
+            ));
+        }
 
-        // Update the state.
+        let validators: Vec<abi::ValidatorsReturn> = multicall
+            .add_calls(
+                false,
+                validator_owners
+                    .iter()
+                    .map(|addr| consensus_registry.validators(*addr)),
+            )
+            .call_array()
+            .await
+            .context("validators()")?;
+        multicall.clear_calls();
+        if global_config().verbose {
+            logger::debug(format!(
+                "Fetched validator info from consensus registry: {validators:?}"
+            ));
+        }
+
+        // Update the validators.
         let mut txs = TxSet::default();
-        let mut to_insert: HashMap<_, _> = want.iter().map(|a| (a.key.clone(), a.weight)).collect();
-        for (i, node) in nodes.into_iter().enumerate() {
-            if node.attester_latest.removed {
+        // The final state that we want to set.
+        let mut to_insert: HashMap<_, _> = validators_want
+            .iter()
+            .map(|a| (a.key.clone(), (a.pop.clone(), a.weight, a.leader)))
+            .collect();
+
+        // We'll go through each existing validator in the contract and see which changes need to be made.
+        for (i, validator) in validators.into_iter().enumerate() {
+            if validator.latest.removed {
                 continue;
             }
-            let got = attester::WeightedAttester {
-                key: decode_attester_key(&node.attester_latest.pub_key)
-                    .context("decode_attester_key()")?,
-                weight: node.attester_latest.weight.into(),
+
+            // Decode this validator info from the consensus registry.
+            let validator_owner = validator_owners[i];
+            let got = validator::ValidatorInfo {
+                key: decode_validator_key(&validator.latest.pub_key)
+                    .context("decode_validator_key()")?,
+                weight: validator.latest.weight.into(),
+                leader: validator.latest.leader,
             };
-            if let Some(weight) = to_insert.remove(&got.key) {
+
+            if let Some((_, weight, leader)) = to_insert.remove(&got.key) {
+                // If the weight has changed, we need to change it.
                 if weight != got.weight {
                     txs.send(
-                        "changed_attester_weight",
-                        consensus_registry.change_attester_weight(
-                            node_owners[i],
+                        format!(
+                            "change_validator_weight({validator_owner:?}, {} -> {weight})",
+                            got.weight
+                        ),
+                        consensus_registry.change_validator_weight(
+                            validator_owners[i],
                             weight.try_into().context("weight overflow")?,
                         ),
                     )
                     .await?;
                 }
-                if !node.attester_latest.active {
-                    txs.send("activate", consensus_registry.activate(node_owners[i]))
-                        .await?;
-                }
-            } else {
-                txs.send("remove", consensus_registry.remove(node_owners[i]))
+
+                // If the leader status has changed, we need to change it.
+                if leader != got.leader {
+                    txs.send(
+                        format!("change_validator_leader({validator_owner:?}, {leader})"),
+                        consensus_registry.change_validator_leader(validator_owner, leader),
+                    )
                     .await?;
+                }
+
+                // If the validator is not active, we need to activate it.
+                if !validator.latest.active {
+                    txs.send(
+                        format!("activate({validator_owner:?})"),
+                        consensus_registry.change_validator_active(validator_owner, true),
+                    )
+                    .await?;
+                }
+
+                // We don't change keys because in this case we are using them as an identifier and
+                // the validator owner is just random. So to change the key we need to remove the
+                // validator and add it back with the new key.
+            } else {
+                // If the validator is not in the final state, we need to remove it.
+                txs.send(
+                    format!("remove({validator_owner:?})"),
+                    consensus_registry.remove(validator_owner),
+                )
+                .await?;
             }
         }
-        for (key, weight) in to_insert {
-            let vk = validator::SecretKey::generate();
+
+        for (key, (pop, weight, leader)) in to_insert {
+            let owner = Address::random();
             txs.send(
-                "add",
+                format!("add({key:?}, {weight})"),
                 consensus_registry.add(
-                    Address::random(),
-                    /*validator_weight=*/ 1,
-                    encode_validator_key(&vk.public()),
-                    encode_validator_pop(&vk.sign_pop()),
+                    owner,
+                    leader,
                     weight.try_into().context("overflow")?,
-                    encode_attester_key(&key),
+                    encode_validator_key(&key),
+                    encode_validator_pop(&pop),
                 ),
             )
             .await?;
         }
+
+        // Update the leader selection.
         txs.send(
-            "commit_attester_committee",
-            consensus_registry.commit_attester_committee(),
+            "change_leader_selection".to_owned(),
+            consensus_registry.update_leader_selection(
+                leader_selection_want.frequency,
+                leader_selection_want.weighted,
+            ),
+        )
+        .await?;
+
+        // Commit the validator schedule.
+        txs.send(
+            "commit_validator_committee".to_owned(),
+            consensus_registry.commit_validator_committee(),
         )
         .await?;
         txs.wait(&provider).await.context("wait()")?;
+
+        Ok(())
+    }
+
+    async fn set_schedule_activation_delay(&self, delay: u64) -> anyhow::Result<()> {
+        if global_config().verbose {
+            logger::debug(format!(
+                "Setting committee activation delay to {delay} blocks"
+            ));
+        }
+
+        let provider = self.provider().context("provider()")?;
+
+        let governor = self.governor().context("governor()")?;
+        if global_config().verbose {
+            logger::debug(format!("Using governor: {:?}", governor.address));
+        }
+
+        let signer = self.signer(
+            governor
+                .private_key
+                .clone()
+                .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?,
+        )?;
+        let consensus_registry = self
+            .consensus_registry(signer.clone())
+            .context("consensus_registry()")?;
+
+        let owner = consensus_registry.owner().call().await.context("owner()")?;
+        if owner != governor.address {
+            anyhow::bail!(
+                "governor ({:#x}) is different than the consensus registry owner ({:#x})",
+                governor.address,
+                owner
+            );
+        }
+
+        // Send the transaction to set committee activation delay
+        let mut txs = TxSet::default();
+        txs.send(
+            format!("set_committee_activation_delay({delay})"),
+            consensus_registry.set_committee_activation_delay(delay.into()),
+        )
+        .await?;
+
+        txs.wait(&provider).await.context("wait()")?;
+
         Ok(())
     }
 }
 
-impl Command {
-    pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
-        let setup = Setup::new(shell).context("Setup::new()")?;
-        match self {
-            Self::SetAttesterCommittee(opts) => {
-                let want = setup
-                    .read_attester_committee(&opts)
-                    .context("read_attester_committee()")?;
-                setup.set_attester_committee(&want).await?;
-                let got = setup.get_attester_committee().await?;
-                anyhow::ensure!(
-                    got == want,
-                    messages::msg_setting_attester_committee_failed(&got, &want)
-                );
-                print_attesters(&got);
+/// Collection of sent transactions.
+#[derive(Default)]
+struct TxSet(Vec<(H256, String)>);
+
+impl TxSet {
+    /// Sends a transactions and stores the transaction hash.
+    async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
+        &mut self,
+        name: String,
+        call: FunctionCall<B, M, D>,
+    ) -> anyhow::Result<()> {
+        let hash = call.send().await.with_context(|| name.clone())?.tx_hash();
+        if global_config().verbose {
+            logger::debug(format!("Sent transaction {name}: {hash:?}"));
+        }
+        self.0.push((hash, name));
+        Ok(())
+    }
+
+    /// Waits for all stored transactions to complete.
+    pub async fn wait<P: JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
+        for (h, name) in self.0 {
+            async {
+                let status = PendingTransaction::new(h, provider)
+                    .await
+                    .context("await")?
+                    .context(messages::MSG_RECEIPT_MISSING)?
+                    .status
+                    .context(messages::MSG_STATUS_MISSING)?;
+                anyhow::ensure!(status == 1.into(), messages::MSG_TRANSACTION_FAILED);
+                Ok(())
             }
-            Self::GetAttesterCommittee => {
-                let got = setup.get_attester_committee().await?;
-                print_attesters(&got);
-            }
-            Self::WaitForRegistry(args) => {
-                let verbose = global_config().verbose;
-                setup.wait_for_registry_contract(&args, verbose).await?;
-            }
+            .await
+            .context(name)?;
         }
         Ok(())
     }
+}
+
+fn encode_validator_key(k: &validator::PublicKey) -> abi::Bls12381PublicKey {
+    let b: [u8; 96] = ByteFmt::encode(k).try_into().unwrap();
+    abi::Bls12381PublicKey {
+        a: b[0..32].try_into().unwrap(),
+        b: b[32..64].try_into().unwrap(),
+        c: b[64..96].try_into().unwrap(),
+    }
+}
+
+fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Signature {
+    let b: [u8; 48] = ByteFmt::encode(pop).try_into().unwrap();
+    abi::Bls12381Signature {
+        a: b[0..32].try_into().unwrap(),
+        b: b[32..48].try_into().unwrap(),
+    }
+}
+
+fn decode_validator_key(k: &abi::Bls12381PublicKey) -> anyhow::Result<validator::PublicKey> {
+    let mut x = vec![];
+    x.extend(k.a);
+    x.extend(k.b);
+    x.extend(k.c);
+    ByteFmt::decode(&x)
+}
+
+fn decode_committee_validator(
+    v: &abi::CommitteeValidator,
+) -> anyhow::Result<validator::ValidatorInfo> {
+    Ok(validator::ValidatorInfo {
+        key: decode_validator_key(&v.pub_key).context("key")?,
+        weight: v.weight.into(),
+        leader: v.leader,
+    })
+}
+
+fn decode_leader_selection(
+    l: &abi::LeaderSelectionAttr,
+) -> anyhow::Result<validator::LeaderSelection> {
+    Ok(validator::LeaderSelection {
+        frequency: l.frequency,
+        mode: if l.weighted {
+            validator::LeaderSelectionMode::Weighted
+        } else {
+            validator::LeaderSelectionMode::RoundRobin
+        },
+    })
+}
+
+fn print_schedule(schedule: &validator::Schedule, is_pending: bool) {
+    let status = if is_pending { "Pending" } else { "Current" };
+    let mut validators_info = format!("{} Validator Schedule:\nValidators:", status);
+
+    for (i, validator) in schedule.iter().enumerate() {
+        validators_info.push_str(&format!(
+            "\n  Validator {}:\n    Key: {:?}\n    Weight: {}\n    Leader: {}",
+            i + 1,
+            validator.key,
+            validator.weight,
+            validator.leader
+        ));
+    }
+
+    let leader_selection = schedule.leader_selection();
+    let mode_str = match leader_selection.mode {
+        validator::LeaderSelectionMode::Weighted => "Weighted",
+        validator::LeaderSelectionMode::RoundRobin => "RoundRobin",
+        _ => unreachable!(),
+    };
+
+    let leader_info = format!(
+        "Leader Selection:\n  Frequency: {}\n  Mode: {}",
+        leader_selection.frequency, mode_str
+    );
+
+    logger::success(format!("{}\n\n{}", validators_info, leader_info));
 }

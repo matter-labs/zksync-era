@@ -1,15 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
-use common::files::{
+use serde::{de::DeserializeOwned, Serialize};
+use xshell::Shell;
+use zkstack_cli_common::files::{
     read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
 };
-use serde::{de::DeserializeOwned, Serialize};
-use url::Url;
-use xshell::Shell;
 
 // Configs that we use only inside ZK Stack CLI, we don't have protobuf implementation for them.
-pub trait ZkStackConfig {}
+pub trait FileConfigTrait {}
 
 pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
@@ -19,7 +18,7 @@ pub trait FileConfigWithDefaultName {
     }
 }
 
-impl<T: Serialize + ZkStackConfig> SaveConfig for T {
+impl<T: Serialize + FileConfigTrait> SaveConfig for T {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         save_with_comment(shell, path, self, "")
     }
@@ -49,7 +48,7 @@ pub trait ReadConfig: Sized {
 
 impl<T> ReadConfig for T
 where
-    T: DeserializeOwned + Clone + ZkStackConfig,
+    T: DeserializeOwned + Clone + FileConfigTrait,
 {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
@@ -156,8 +155,4 @@ fn save_with_comment(
         _ => bail!("Unsupported file extension for config file."),
     }
     Ok(())
-}
-
-pub trait ConfigWithL2RpcUrl {
-    fn get_l2_rpc_url(&self) -> anyhow::Result<Url>;
 }

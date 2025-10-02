@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-use zksync_types::contract_verification_api::CompilationArtifacts;
+use serde_json::Value;
+use zksync_types::contract_verification::api::{CompilationArtifacts, ImmutableReference};
 
 pub(crate) use self::{
     solc::{Solc, SolcInput},
@@ -64,6 +65,41 @@ fn process_contract_name(original_name: &str, extension: &str) -> (String, Strin
     }
 }
 
+/// Parses `/evm/deployedBytecode/immutableReferences`
+/// If the path doesn't exist or isn't an object, returns `None`.
+fn parse_immutable_refs(
+    refs_val: Option<&Value>,
+) -> Option<HashMap<String, Vec<ImmutableReference>>> {
+    let obj = refs_val?.as_object()?;
+
+    let mut map = HashMap::new();
+    for (placeholder_key, spans_val) in obj {
+        if let Some(spans_arr) = spans_val.as_array() {
+            let mut spans_vec = Vec::new();
+            for item in spans_arr {
+                let start = item
+                    .get("start")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or_default() as usize;
+                let length = item
+                    .get("length")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or_default() as usize;
+                spans_vec.push(ImmutableReference { start, length });
+            }
+            if !spans_vec.is_empty() {
+                map.insert(placeholder_key.clone(), spans_vec);
+            }
+        }
+    }
+
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
+}
+
 /// Parsing logic shared between `solc` and `zksolc`.
 fn parse_standard_json_output(
     output: &serde_json::Value,
@@ -73,10 +109,13 @@ fn parse_standard_json_output(
 ) -> Result<CompilationArtifacts, ContractVerifierError> {
     if let Some(errors) = output.get("errors") {
         let errors = errors.as_array().unwrap().clone();
-        if errors
-            .iter()
-            .any(|err| err["severity"].as_str() == Some("error"))
-        {
+        if errors.iter().any(|err| {
+            err["severity"].as_str() == Some("error")
+                && !err["message"]
+                    .as_str()
+                    .map(is_suppressable_error)
+                    .unwrap_or(false)
+        }) {
             let error_messages = errors
                 .into_iter()
                 .filter_map(|err| {
@@ -122,6 +161,11 @@ fn parse_standard_json_output(
         None
     };
 
+    // Need to extract immutable references if any are present
+    let immutable_refs =
+        parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
+            .unwrap_or_default();
+
     let mut abi = contract["abi"].clone();
     if abi.is_null() {
         // ABI is undefined for Yul contracts when compiled with standalone `solc`. For uniformity with `zksolc`,
@@ -139,5 +183,14 @@ fn parse_standard_json_output(
         bytecode,
         deployed_bytecode,
         abi,
+        immutable_refs,
     })
+}
+
+fn is_suppressable_error(message: &str) -> bool {
+    // `zksolc` can produce warnings with `Error` severity that can be suppressed.
+    // We want to filter out such messages.
+    // All of them mention `suppressedErrors` in the message, which is a custom
+    // `zksolc` configuration, so we use it as a marker.
+    message.contains("suppressedErrors")
 }

@@ -1,6 +1,6 @@
 [package]
 name = "zkstack"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -11,14 +11,15 @@ description.workspace = true
 keywords.workspace = true
 
 [dependencies]
+alloy.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 clap-markdown.workspace = true
 cliclack.workspace = true
-common.workspace = true
-config.workspace = true
+zkstack_cli_common.workspace = true
+zkstack_cli_config.workspace = true
 dirs.workspace = true
 ethers.workspace = true
 futures.workspace = true
@@ -30,25 +31,23 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 slugify-rs.workspace = true
 strum.workspace = true
-sqruff-lib = "0.19.0"
+sqruff-lib.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 toml.workspace = true
-types.workspace = true
+zkstack_cli_types.workspace = true
 url.workspace = true
 xshell.workspace = true
 zksync_basic_types.workspace = true
-zksync_config.workspace = true
+zksync_types.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
-zksync_protobuf.workspace = true
-zksync_protobuf_config.workspace = true
+zksync_web3_decl.workspace = true
+zksync_system_constants.workspace = true
 prost.workspace = true
-reqwest = "0.12.8"
-
-[dev-dependencies]
-rand.workspace = true
-zksync_consensus_utils.workspace = true
+reqwest.workspace = true
+sha2.workspace = true
+walkdir.workspace = true
 
 [build-dependencies]
 anyhow.workspace = true
@@ -56,4 +55,3 @@ clap_complete.workspace = true
 dirs.workspace = true
 ethers.workspace = true
 xshell.workspace = true
-zksync_protobuf_build.workspace = true

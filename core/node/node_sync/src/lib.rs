@@ -1,22 +1,24 @@
-pub mod batch_status_updater;
+pub mod batch_transaction_fetcher;
 mod client;
+pub mod data_availability_fetcher;
 pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
 mod metrics;
+pub mod miniblock_precommit_fetcher;
+pub mod node;
 pub mod sync_action;
-mod sync_state;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
+pub mod transaction_finality_updater;
 pub mod tree_data_fetcher;
 pub mod validate_chain_ids_task;
 
 pub use self::{
-    client::{MainNodeClient, MainNodeHealthCheck},
+    client::MainNodeClient,
     external_io::ExternalIO,
     sync_action::{ActionQueue, ActionQueueSender},
-    sync_state::SyncState,
 };
 
 /// Validation gas limit used by the external node.

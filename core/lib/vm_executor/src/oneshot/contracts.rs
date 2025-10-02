@@ -15,6 +15,7 @@ pub trait ContractsKind: fmt::Debug + Sealed {}
 pub struct EstimateGas(());
 
 impl Sealed for EstimateGas {}
+
 impl ContractsKind for EstimateGas {}
 
 /// Marker for [`BaseSystemContracts`] used for calls and transaction execution.
@@ -22,6 +23,7 @@ impl ContractsKind for EstimateGas {}
 pub struct CallOrExecute(());
 
 impl Sealed for CallOrExecute {}
+
 impl ContractsKind for CallOrExecute {}
 
 /// Provider of [`BaseSystemContracts`] for oneshot execution.
@@ -69,16 +71,18 @@ pub struct MultiVmBaseSystemContracts<C> {
     vm_protocol_defense: BaseSystemContracts,
     /// Contracts to be used after the gateway upgrade
     gateway: BaseSystemContracts,
+    /// Contracts to be used after the evm emulator upgrade
+    vm_evm_emulator: BaseSystemContracts,
+    /// Contracts to be used after the precompiles upgrade
+    vm_precompiles: BaseSystemContracts,
+    /// Contracts to be used after the interop upgrade
+    interop: BaseSystemContracts,
     // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
 
 impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
-    fn get_by_protocol_version(
-        &self,
-        version: ProtocolVersionId,
-        use_evm_emulator: bool,
-    ) -> BaseSystemContracts {
+    fn get_by_protocol_version(&self, version: ProtocolVersionId) -> BaseSystemContracts {
         let base = match version {
             ProtocolVersionId::Version0
             | ProtocolVersionId::Version1
@@ -104,19 +108,15 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => &self.post_1_4_2,
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
-            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => {
-                &self.vm_protocol_defense
-            }
-            ProtocolVersionId::Version27 => &self.gateway,
+            ProtocolVersionId::Version25 => &self.vm_protocol_defense,
+            ProtocolVersionId::Version26 => &self.gateway,
+            ProtocolVersionId::Version27 => &self.vm_evm_emulator,
+            ProtocolVersionId::Version28 => &self.vm_precompiles,
+            ProtocolVersionId::Version29 => &self.interop,
+            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version30 => &self.interop,
         };
-        let base = base.clone();
-
-        if version.is_post_1_5_0() && use_evm_emulator {
-            // EVM emulator is not versioned now; the latest version is always checked out
-            base.with_latest_evm_emulator()
-        } else {
-            base
-        }
+        base.clone()
     }
 }
 
@@ -137,6 +137,9 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
                 BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
             vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
             gateway: BaseSystemContracts::estimate_gas_gateway(),
+            vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
+            vm_precompiles: BaseSystemContracts::estimate_gas_precompiles(),
+            interop: BaseSystemContracts::estimate_gas_interop(),
             _contracts_kind: PhantomData,
         }
     }
@@ -159,6 +162,9 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             ),
             vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
             gateway: BaseSystemContracts::playground_gateway(),
+            vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
+            vm_precompiles: BaseSystemContracts::playground_precompiles(),
+            interop: BaseSystemContracts::playground_interop(),
             _contracts_kind: PhantomData,
         }
     }
@@ -170,7 +176,6 @@ impl<C: ContractsKind> BaseSystemContractsProvider<C> for MultiVmBaseSystemContr
         &self,
         block_info: &ResolvedBlockInfo,
     ) -> anyhow::Result<BaseSystemContracts> {
-        Ok(self
-            .get_by_protocol_version(block_info.protocol_version(), block_info.use_evm_emulator()))
+        Ok(self.get_by_protocol_version(block_info.protocol_version()))
     }
 }

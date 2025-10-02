@@ -7,7 +7,16 @@
 ## Why ❔
 
 <!-- Why are these changes done? What goal do they contribute to? What are the principles behind them? -->
+<!-- The `Why` has to be clear to non-Matter Labs entities running their own ZK Chain -->
 <!-- Example: PR templates ensure PR reviewers, observers, and future iterators are in context about the evolution of repos. -->
+
+## Is this a breaking change?
+- [ ] Yes
+- [ ] No
+
+## Operational changes
+<!-- Any config changes? Any new flags? Any changes to any scripts? -->
+<!-- Please add anything that non-Matter Labs entities running their own ZK Chain may need to know -->
 
 ## Checklist
 

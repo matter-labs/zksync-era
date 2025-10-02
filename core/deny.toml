@@ -1,0 +1,78 @@
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+[advisories]
+ignore = [
+    "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
+    "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in api server, we should consider moving to mach2 fork
+    "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
+    # all below caused by StructOpt which we still use and we should move to clap v4 instead
+    "RUSTSEC-2021-0145",
+    "RUSTSEC-2021-0139",
+    "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it
+    "RUSTSEC-2024-0436", # `paste` is an unmaintained dependency of various crates (like alloy-primitives, sqlx-core)
+]
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "ISC",
+    "Unlicense",
+    "MPL-2.0",
+    "CC0-1.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "OpenSSL",
+    "Apache-2.0 WITH LLVM-exception",
+    "0BSD",
+    "BSL-1.0",
+    "Unicode-3.0",
+    "BUSL-1.1",
+    "CDLA-Permissive-2.0"
+]
+confidence-threshold = 0.8
+
+[[licenses.clarify]]
+crate = "ring"
+# SPDX considers OpenSSL to encompass both the OpenSSL and SSLeay licenses
+# https://spdx.org/licenses/OpenSSL.html
+# ISC - Both BoringSSL and ring use this for their new files
+# MIT - "Files in third_party/ have their own licenses, as described therein. The MIT
+# license, for third_party/fiat, which, unlike other third_party directories, is
+# compiled into non-test libraries, is included below."
+# OpenSSL - Obviously
+expression = "ISC AND MIT AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[licenses.private]
+ignore = false
+registries = []
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "allow"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []

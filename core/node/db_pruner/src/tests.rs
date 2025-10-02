@@ -12,7 +12,8 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, L2BlockNumber, ProtocolVersion, H256,
+    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTxFinalityStatus,
+    L2BlockNumber, ProtocolVersion, SLChainId, H256, U256,
 };
 
 use super::*;
@@ -384,15 +385,21 @@ async fn save_l1_batch_metadata(storage: &mut Connection<'_, Core>, number: u32)
 }
 
 async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u32) {
+    let tx_hash = H256::from_low_u64_be(number.into());
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
+        .insert_pending_received_eth_tx(
             L1BatchNumber(number),
-            AggregatedActionType::Execute,
-            H256::from_low_u64_be(number.into()),
-            chrono::Utc::now(),
-            None,
+            L1BatchAggregatedActionType::Execute,
+            tx_hash,
+            Some(SLChainId(1)),
         )
+        .await
+        .unwrap();
+
+    storage
+        .eth_sender_dal()
+        .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
         .await
         .unwrap();
 }
@@ -555,8 +562,8 @@ async fn pruning_iteration_timely_shuts_down() {
     assert!(!pruning_handle.is_finished());
 
     stop_sender.send_replace(true);
-    let outcome = pruning_handle.await.unwrap().unwrap();
-    assert_matches!(outcome, PruningIterationOutcome::Interrupted);
+    let err = pruning_handle.await.unwrap().unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 }
 
 #[tokio::test]

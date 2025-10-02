@@ -1,6 +1,8 @@
-use common::{check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE};
 use xshell::{cmd, Shell};
-use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
+use zkstack_cli_common::{
+    check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE,
+};
+use zkstack_cli_config::{ObjectStoreConfig, ObjectStoreMode};
 
 use super::args::init::ProofStorageGCSCreateBucket;
 use crate::{
@@ -35,7 +37,6 @@ pub(crate) fn create_gcs_bucket(
             gcs_credential_file_path: config.credentials_file,
         },
         max_retries: PROVER_STORE_MAX_RETRIES,
-        local_mirror_path: None,
     })
 }
 

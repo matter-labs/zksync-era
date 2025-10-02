@@ -8,7 +8,7 @@ use crate::{
         EXPLORER_CONFIG_FILE, EXPLORER_JS_CONFIG_FILE, LOCAL_APPS_PATH, LOCAL_CONFIGS_PATH,
         LOCAL_GENERATED_PATH,
     },
-    traits::{ReadConfig, SaveConfig, ZkStackConfig},
+    traits::{FileConfigTrait, ReadConfig, SaveConfig},
 };
 
 /// Explorer JSON configuration file. This file contains configuration for the explorer app.
@@ -45,6 +45,7 @@ pub struct ExplorerChainConfig {
     pub l1_explorer_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verification_api_url: Option<String>, // L2 verification API URL
+    pub prividium: bool,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
@@ -144,4 +145,4 @@ impl Default for ExplorerConfig {
     }
 }
 
-impl ZkStackConfig for ExplorerConfig {}
+impl FileConfigTrait for ExplorerConfig {}

@@ -1,15 +1,15 @@
 use std::time::Duration;
 
 use vise::{
-    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
+    Metrics, Unit,
 };
-use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmEvent, VmExecutionResultAndLogs},
-    utils::StorageWritesDeduplicator,
+use zksync_instrument::filter::{report_filter, ReportFilter};
+use zksync_types::{
+    api::state_override::{BytecodeOverride, OverrideState, StateOverride},
+    bytecode::BytecodeMarker,
+    H256,
 };
-use zksync_types::{bytecode::BytecodeHash, H256};
-
-use crate::utils::ReportFilter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -79,11 +79,60 @@ impl Drop for SubmitTxLatencyObserver<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum OverrideKind {
+    Code,
+    Nonce,
+    Balance,
+    StorageSlot,
+}
+
+impl OverrideKind {
+    fn for_method(self, method: &'static str) -> StateOverrideLabels {
+        StateOverrideLabels { method, kind: self }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct StateOverrideLabels {
+    method: &'static str,
+    kind: OverrideKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum BytecodeMarkerLabel {
+    EraVm,
+    DetectedEraVm,
+    Evm,
+    DetectedEvm,
+}
+
+impl BytecodeMarkerLabel {
+    fn detected(kind: BytecodeMarker) -> Self {
+        match kind {
+            BytecodeMarker::EraVm => Self::DetectedEraVm,
+            BytecodeMarker::Evm => Self::DetectedEvm,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct BytecodeOverrideLabels {
+    method: &'static str,
+    kind: BytecodeMarkerLabel,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_web3")]
 pub(crate) struct SandboxMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub(super) sandbox: Family<SandboxStage, Histogram<Duration>>,
+    /// Latency of interrupted VM executions. VM execution is interrupted if the future containing it is dropped
+    /// (e.g., on a client-side or server-side request timeout).
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub(crate) sandbox_interrupted_execution_latency: Histogram<Duration>,
     #[metrics(buckets = Buckets::linear(0.0..=2_000.0, 200.0))]
     pub(super) sandbox_execution_permits: Histogram<usize>,
     #[metrics(buckets = Buckets::LATENCIES)]
@@ -100,6 +149,10 @@ pub(crate) struct SandboxMetrics {
     /// is (as expected) greater than the final gas estimate.
     #[metrics(buckets = Buckets::linear(-0.05..=0.15, 0.01))]
     pub estimate_gas_optimistic_gas_limit_relative_diff: Histogram<f64>,
+    /// Statistics on state overrides.
+    state_overrides: Family<StateOverrideLabels, Counter>,
+    /// Statistics on bytecode kinds supplied in overrides.
+    bytecode_overrides: Family<BytecodeOverrideLabels, Counter>,
 }
 
 impl SandboxMetrics {
@@ -112,6 +165,42 @@ impl SandboxMetrics {
             inner: Some(self.submit_tx[&stage].start()),
             tx_hash,
             stage,
+        }
+    }
+
+    pub fn observe_override_metrics(&self, method: &'static str, state_overrides: &StateOverride) {
+        for (_, account_override) in state_overrides.iter() {
+            if let Some(code_override) = &account_override.code {
+                self.state_overrides[&OverrideKind::Code.for_method(method)].inc();
+
+                let bytecode_kind = match code_override {
+                    BytecodeOverride::Evm(_) => BytecodeMarkerLabel::Evm,
+                    BytecodeOverride::EraVm(_) => BytecodeMarkerLabel::EraVm,
+                    BytecodeOverride::Unspecified(bytes) => {
+                        // Bytecode kind detection is very cheap, so it's permissible to do it here
+                        let kind = BytecodeMarker::detect(&bytes.0);
+                        BytecodeMarkerLabel::detected(kind)
+                    }
+                };
+                let labels = BytecodeOverrideLabels {
+                    method,
+                    kind: bytecode_kind,
+                };
+                self.bytecode_overrides[&labels].inc();
+            }
+            if account_override.nonce.is_some() {
+                self.state_overrides[&OverrideKind::Nonce.for_method(method)].inc();
+            }
+            if account_override.balance.is_some() {
+                self.state_overrides[&OverrideKind::Balance.for_method(method)].inc();
+            }
+            if let Some(state) = &account_override.state {
+                let slot_count = match state {
+                    OverrideState::State(slots) | OverrideState::StateDiff(slots) => slots.len(),
+                };
+                self.state_overrides[&OverrideKind::StorageSlot.for_method(method)]
+                    .inc_by(slot_count as u64);
+            }
         }
     }
 }
@@ -130,50 +219,3 @@ pub(super) struct ExecutionMetrics {
 
 #[vise::register]
 pub(super) static EXECUTION_METRICS: vise::Global<ExecutionMetrics> = vise::Global::new();
-
-pub(super) fn collect_tx_execution_metrics(
-    contracts_deployed: u16,
-    result: &VmExecutionResultAndLogs,
-) -> TransactionExecutionMetrics {
-    let writes_metrics = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
-    let event_topics = result
-        .logs
-        .events
-        .iter()
-        .map(|event| event.indexed_topics.len() as u16)
-        .sum();
-    let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&result.logs.events)
-        .iter()
-        .map(|event| event.len())
-        .sum();
-    let published_bytecode_bytes = VmEvent::extract_published_bytecodes(&result.logs.events)
-        .iter()
-        .map(|&bytecode_hash| {
-            BytecodeHash::try_from(bytecode_hash)
-                .expect("published unparseable bytecode hash")
-                .len_in_bytes()
-        })
-        .sum();
-
-    TransactionExecutionMetrics {
-        initial_storage_writes: writes_metrics.initial_storage_writes,
-        repeated_storage_writes: writes_metrics.repeated_storage_writes,
-        gas_used: result.statistics.gas_used as usize,
-        gas_remaining: result.statistics.gas_remaining,
-        event_topics,
-        published_bytecode_bytes,
-        l2_l1_long_messages,
-        l2_l1_logs: result.logs.total_l2_to_l1_logs_count(),
-        user_l2_l1_logs: result.logs.user_l2_to_l1_logs.len(),
-        contracts_used: result.statistics.contracts_used,
-        contracts_deployed,
-        vm_events: result.logs.events.len(),
-        storage_logs: result.logs.storage_logs.len(),
-        total_log_queries: result.statistics.total_log_queries,
-        cycles_used: result.statistics.cycles_used,
-        computational_gas_used: result.statistics.computational_gas_used,
-        total_updated_values_size: writes_metrics.total_updated_values_size,
-        pubdata_published: result.statistics.pubdata_published,
-        circuit_statistic: result.statistics.circuit_statistic,
-    }
-}

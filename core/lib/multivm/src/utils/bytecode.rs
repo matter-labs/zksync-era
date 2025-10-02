@@ -23,7 +23,7 @@ pub(crate) fn be_words_to_bytes(words: &[U256]) -> Vec<u8> {
         .collect()
 }
 
-pub(crate) fn bytes_to_be_words(bytes: &[u8]) -> Vec<U256> {
+pub fn bytes_to_be_words(bytes: &[u8]) -> Vec<U256> {
     assert_eq!(
         bytes.len() % 32,
         0,
@@ -88,7 +88,7 @@ fn compress_to_bytes(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecodeErr
     statistic_sorted_by_value.sort_by_key(|x| x.1);
 
     // The dictionary size is limited by 2^16 - 1,
-    if statistic_sorted_by_value.len() > u16::MAX.into() {
+    if statistic_sorted_by_value.len() > (u16::MAX as usize) {
         return Err(FailedToCompressBytecodeError::DictionaryOverflow);
     }
 

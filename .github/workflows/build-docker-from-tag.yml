@@ -28,7 +28,7 @@ jobs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Generate output with git tag
         id: set
         run: |
@@ -49,7 +49,7 @@ jobs:
   build-push-core-images:
     name: Build and push image
     needs: [setup]
-    uses: ./.github/workflows/new-build-core-template.yml
+    uses: ./.github/workflows/build-core-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
@@ -59,22 +59,10 @@ jobs:
       en_alpha_release: true
       action: "push"
 
-  build-push-tee-prover-images:
-    name: Build and push images
-    needs: [setup]
-    uses: ./.github/workflows/build-tee-prover-template.yml
-    if: contains(github.ref_name, 'core')
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-
   build-push-contract-verifier:
     name: Build and push image
     needs: [setup]
-    uses: ./.github/workflows/new-build-contract-verifier-template.yml
+    uses: ./.github/workflows/build-contract-verifier-template.yml
     if: contains(github.ref_name, 'contract_verifier')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
@@ -86,7 +74,7 @@ jobs:
   build-push-prover-images:
     name: Build and push image
     needs: [setup]
-    uses: ./.github/workflows/new-build-prover-template.yml
+    uses: ./.github/workflows/build-prover-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -96,24 +84,20 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-push-witness-generator-image-avx512:
-    name: Build and push image
-    needs: [setup]
-    uses: ./.github/workflows/new-build-witness-generator-template.yml
-    if: contains(github.ref_name, 'prover')
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
-      action: "push"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  build-gar-prover-fri-gpu-and-circuit-prover-gpu-gar:
+  build-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
     needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-prover-fri-gpu-gar-and-circuit-prover-gpu-gar.yml
+    uses: ./.github/workflows/build-circuit-prover-gpu-gar.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+
+  build-gar-proof-fri-gpu-compressor-gar:
+    name: Build GAR prover FRI GPU
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-proof-fri-gpu-compressor-gar.yml
     if: contains(github.ref_name, 'prover')
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}

@@ -11,8 +11,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_health_check = { workspace = true, optional = true, features = ["node_framework"] }
+zksync_node_framework = { workspace = true, optional = true }
+
 anyhow.workspace = true
-chrono.workspace = true
+async-trait.workspace = true
+chrono = { workspace = true, default-features = false, features = ["now"] }
+ctrlc = { workspace = true, optional = true }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = [
@@ -28,13 +33,19 @@ sentry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 opentelemetry = { workspace = true, features = ["trace"] }
-opentelemetry_sdk = { workspace = true, features = [ "rt-tokio" ] }
+opentelemetry_sdk.workspace = true
 opentelemetry-otlp = { workspace = true, features = [
     "http-proto",
-    "reqwest-client",
+    "reqwest-blocking-client", # Required for `opentelemetry_sdk` to function correctly
+    "logs",
+    "internal-logs",
 ] }
-opentelemetry-semantic-conventions.workspace = true
+opentelemetry-semantic-conventions = { workspace = true, features = ["semconv_experimental"] }
 opentelemetry-appender-tracing.workspace = true
 vise.workspace = true
 vise-exporter.workspace = true
 url.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework", "dep:zksync_health_check", "dep:ctrlc"]

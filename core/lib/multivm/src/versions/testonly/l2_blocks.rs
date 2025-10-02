@@ -4,6 +4,7 @@
 //!
 
 use assert_matches::assert_matches;
+use ethabi::{ParamType, Token};
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
@@ -13,18 +14,48 @@ use zksync_types::{
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
     U256,
 };
+use zksync_vm_interface::VmRevertReason;
 
-use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
+use super::{
+    default_l1_batch, default_system_env, get_empty_storage, tester::VmTesterBuilder, TestedVm,
+};
 use crate::{
     interface::{
         storage::StorageView, ExecutionResult, Halt, InspectExecutionMode, L2BlockEnv,
         TxExecutionMode, VmInterfaceExt,
     },
     vm_latest::{
-        constants::{TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
+        constants::{
+            get_interop_blocks_begin_offset, get_tx_operator_l2_block_info_offset,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+        },
         utils::l2_blocks::get_l2_block_hash_key,
+        MultiVmSubversion,
     },
 };
+
+/// Encodes a Solidity function call with parameters into a Vec<u8>.
+fn encode_function_call(
+    name: &str,
+    types: &[ParamType],
+    params: &[Token],
+) -> Result<String, ethabi::Error> {
+    let short_sig = ethabi::short_signature(name, types);
+
+    // Check if the provided number of parameters matches the function's expected inputs
+    if types.len() != params.len() {
+        return Err(ethabi::Error::InvalidData);
+    }
+
+    // Encode the function call with the provided parameters
+    let encoded_data = ethabi::encode(params);
+
+    Ok(VmRevertReason::Unknown {
+        function_selector: short_sig.to_vec(),
+        data: [short_sig.to_vec(), encoded_data].concat(),
+    }
+    .to_string())
+}
 
 fn get_l1_noop() -> Transaction {
     Transaction {
@@ -51,7 +82,6 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     // of the current batch.
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -62,6 +92,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
         timestamp: 0,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     });
     let l1_tx = get_l1_noop();
 
@@ -71,7 +102,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     assert_matches!(
         res.result,
         ExecutionResult::Halt { reason: Halt::FailedToSetL2Block(msg) }
-            if msg.contains("timestamp")
+            if msg.contains("0x5e9ad9b0")
     );
 }
 
@@ -85,10 +116,10 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
         timestamp: l1_batch.timestamp,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
         .with_rich_accounts(1)
@@ -106,7 +137,7 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
         res.result,
         ExecutionResult::Halt {
             reason: Halt::FailedToSetL2Block(
-                "L2 block number is never expected to be zero".to_string()
+                encode_function_call("L2BlockNumberZero", &[], &[]).unwrap()
             )
         }
     );
@@ -120,7 +151,6 @@ fn test_same_l2_block<VM: TestedVm>(
     let mut l1_batch = default_l1_batch(L1BatchNumber(1));
     l1_batch.timestamp = 1;
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
         .with_rich_accounts(1)
@@ -162,7 +192,15 @@ pub(crate) fn test_l2_block_same_l2_block<VM: TestedVm>() {
     // Case 1: Incorrect timestamp
     test_same_l2_block::<VM>(
         Some(Halt::FailedToSetL2Block(
-            "The timestamp of the same L2 block must be same".to_string(),
+            encode_function_call(
+                "IncorrectSameL2BlockTimestamp",
+                &[ParamType::Uint(128), ParamType::Uint(128)],
+                &[
+                    Token::Uint(U256::zero()),
+                    Token::Uint(U256::from(1_700_000_001)),
+                ],
+            )
+            .unwrap(),
         )),
         Some(0),
         None,
@@ -171,7 +209,20 @@ pub(crate) fn test_l2_block_same_l2_block<VM: TestedVm>() {
     // Case 2: Incorrect previous block hash
     test_same_l2_block::<VM>(
         Some(Halt::FailedToSetL2Block(
-            "The previous hash of the same L2 block must be same".to_string(),
+            encode_function_call(
+                "IncorrectSameL2BlockPrevBlockHash",
+                &[ParamType::FixedBytes(32), ParamType::FixedBytes(32)],
+                &[
+                    Token::FixedBytes(H256::zero().0.to_vec()),
+                    Token::FixedBytes(
+                        hex::decode(
+                            "e8e77626586f73b955364c7b4bbf0bb7f7685ebd40e852b164633a4acbd3244c",
+                        )
+                        .unwrap(),
+                    ),
+                ],
+            )
+            .unwrap(),
         )),
         None,
         Some(H256::zero()),
@@ -193,7 +244,6 @@ fn test_new_l2_block<VM: TestedVm>(
     l1_batch.first_l2_block = first_l2_block;
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -239,36 +289,64 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
         timestamp: 1,
         prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
 
     // Case 1: Block number increasing by more than 1
     test_new_l2_block::<VM>(
-        correct_first_block,
+        correct_first_block.clone(),
         Some(3),
         None,
         None,
         Some(Halt::FailedToSetL2Block(
-            "Invalid new L2 block number".to_string(),
+            encode_function_call(
+                "InvalidNewL2BlockNumber",
+                &[ParamType::Uint(256)],
+                &[Token::Uint(U256::from(3u32))],
+            )
+            .unwrap(),
         )),
     );
 
     // Case 2: Timestamp not increasing
-    test_new_l2_block::<VM>(
-        correct_first_block,
-        None,
-        Some(1),
-        None,
-        Some(Halt::FailedToSetL2Block("The timestamp of the new L2 block must be greater than the timestamp of the previous L2 block".to_string())),
-    );
+    if default_system_env().version.is_pre_interop_fast_blocks() {
+        test_new_l2_block::<VM>(
+            correct_first_block.clone(),
+            None,
+            Some(0),
+            None,
+            Some(Halt::FailedToSetL2Block(
+                encode_function_call(
+                    "NonMonotonicL2BlockTimestamp",
+                    &[ParamType::Uint(128), ParamType::Uint(128)],
+                    &[Token::Uint(U256::from(1)), Token::Uint(U256::from(1))],
+                )
+                .unwrap(),
+            )),
+        );
+    }
 
     // Case 3: Incorrect previous block hash
     test_new_l2_block::<VM>(
-        correct_first_block,
+        correct_first_block.clone(),
         None,
         None,
         Some(H256::zero()),
         Some(Halt::FailedToSetL2Block(
-            "The current L2 block hash is incorrect".to_string(),
+            encode_function_call(
+                "IncorrectL2BlockHash",
+                &[ParamType::FixedBytes(32), ParamType::FixedBytes(32)],
+                &[
+                    Token::FixedBytes(H256::zero().0.to_vec()),
+                    Token::FixedBytes(
+                        hex::decode(
+                            "de4c551714ad02a0a4f51252f966ef90c13376ea4c8a463eedfb242b97551c43",
+                        )
+                        .unwrap(),
+                    ),
+                ],
+            )
+            .unwrap(),
         )),
     );
 
@@ -292,7 +370,6 @@ fn test_first_in_batch<VM: TestedVm>(
     l1_batch.timestamp = new_batch_timestamp;
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -344,6 +421,7 @@ fn test_first_in_batch<VM: TestedVm>(
         timestamp: last_l2_block.timestamp + 1,
         prev_block_hash: vm.vm.last_l2_block_hash(),
         max_virtual_blocks_to_create: last_l2_block.max_virtual_blocks_to_create,
+        interop_roots: vec![],
     };
 
     vm.vm.push_l2_block_unchecked(new_l2_block);
@@ -374,6 +452,7 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             timestamp: 2,
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         None,
     );
@@ -393,14 +472,25 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
             timestamp: 9,
             prev_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
-        Some(Halt::FailedToSetL2Block("The timestamp of the L2 block must be greater than or equal to the timestamp of the current batch".to_string())),
+        Some(Halt::FailedToSetL2Block(
+            encode_function_call(
+                "L2BlockAndBatchTimestampMismatch",
+                &[ParamType::Uint(128), ParamType::Uint(128)],
+                &[Token::Uint(U256::from(9)), Token::Uint(U256::from(12))],
+            )
+            .unwrap(),
+        )),
     );
 }
 
 fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info: L2BlockEnv) {
     let fictive_miniblock_position =
-        TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+        get_tx_operator_l2_block_info_offset(MultiVmSubversion::latest())
+            + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+    let interop_blocks_begin_offset = get_interop_blocks_begin_offset(MultiVmSubversion::latest());
+    let number_of_interop_roots_plus_one = block_info.interop_roots.len() + 1;
     vm.write_to_bootloader_heap(&[
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),
@@ -411,6 +501,10 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
         (
             fictive_miniblock_position + 3,
             block_info.max_virtual_blocks_to_create.into(),
+        ),
+        (
+            interop_blocks_begin_offset,
+            number_of_interop_roots_plus_one.into(),
         ),
     ])
 }

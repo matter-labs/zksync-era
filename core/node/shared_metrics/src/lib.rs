@@ -6,9 +6,12 @@ use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
 };
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
-use zksync_types::aggregated_operations::AggregatedActionType;
+use zksync_types::aggregated_operations::{
+    L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+};
 
 pub mod metadata;
+pub mod tree;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -51,7 +54,7 @@ impl fmt::Display for InitStage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlockL1Stage {
+pub enum L1Stage {
     Saved,
     Mined,
 }
@@ -72,8 +75,8 @@ pub enum BlockStage {
     Tree,
     MetadataCalculated,
     L1 {
-        l1_stage: BlockL1Stage,
-        tx_type: AggregatedActionType,
+        l1_stage: L1Stage,
+        tx_type: L1BatchAggregatedActionType,
     },
 }
 
@@ -85,8 +88,8 @@ impl fmt::Display for BlockStage {
             Self::MetadataCalculated => formatter.write_str("metadata_calculated"),
             Self::L1 { l1_stage, tx_type } => {
                 let l1_stage = match l1_stage {
-                    BlockL1Stage::Saved => "save", // not "saved" for backward compatibility
-                    BlockL1Stage::Mined => "mined",
+                    L1Stage::Saved => "save", // not "saved" for backward compatibility
+                    L1Stage::Mined => "mined",
                 };
                 write!(formatter, "l1_{l1_stage}_{tx_type}")
             }
@@ -100,6 +103,7 @@ pub enum TxStage {
     Mempool(L2TxSubmissionResult),
     Proxied,
     StateKeeper,
+    L2Block(L2BlockStage),
     Block(BlockStage),
 }
 
@@ -114,6 +118,7 @@ impl fmt::Display for TxStage {
             Self::Proxied => formatter.write_str("proxied"),
             Self::StateKeeper => formatter.write_str("state_keeper"),
             Self::Block(stage) => fmt::Display::fmt(stage, formatter),
+            Self::L2Block(stage) => fmt::Display::fmt(stage, formatter),
         }
     }
 }
@@ -131,9 +136,34 @@ impl TxStage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "stage", rename_all = "snake_case")]
+#[metrics(label = "stage")]
 pub enum L2BlockStage {
     Sealed,
+    L1 {
+        l1_stage: L1Stage,
+        tx_type: L2BlockAggregatedActionType,
+    },
+}
+
+impl fmt::Display for L2BlockStage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Sealed => formatter.write_str("sealed"),
+            Self::L1 { l1_stage, tx_type } => {
+                let l1_stage = match l1_stage {
+                    L1Stage::Saved => "save", // not "saved" for backward compatibility
+                    L1Stage::Mined => "mined",
+                };
+                write!(formatter, "l1_{l1_stage}_{tx_type}")
+            }
+        }
+    }
+}
+
+impl From<L2BlockStage> for TxStage {
+    fn from(stage: L2BlockStage) -> Self {
+        Self::L2Block(stage)
+    }
 }
 
 #[derive(Debug, Metrics)]
@@ -183,7 +213,7 @@ pub struct ExternalNodeMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub update_batch_statuses: Histogram<Duration>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub batch_status_updater_loop_iteration: Histogram<Duration>,
+    pub batch_transaction_fetcher_loop_iteration: Histogram<Duration>,
     /// Is the external node currently synced?
     pub synced: Gauge<u64>,
     /// Current sync lag of the external node.

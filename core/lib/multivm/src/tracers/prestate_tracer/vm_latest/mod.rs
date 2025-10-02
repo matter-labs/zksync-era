@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::tracing::{BeforeExecutionData, VmLocalStateData};
+use zk_evm_1_5_2::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_types::{StorageKey, U256};
 
 use super::{
@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     interface::storage::{StoragePtr, WriteStorage},
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

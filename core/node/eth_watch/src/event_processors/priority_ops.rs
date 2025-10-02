@@ -88,7 +88,11 @@ impl EventProcessor for PriorityOpsEventProcessor {
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistL1Txs].start();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
-        let processed_priority_transactions = self.sl_client.get_total_priority_txs().await?;
+        let processed_priority_transactions = self
+            .sl_client
+            .get_total_priority_txs()
+            .await
+            .map_err(EventProcessorError::contract_call)?;
         let ops_to_insert: Vec<&L1Tx> = new_ops
             .iter()
             .take_while(|op| processed_priority_transactions > op.serial_id().0)
@@ -99,7 +103,8 @@ impl EventProcessor for PriorityOpsEventProcessor {
                 .transactions_dal()
                 .insert_transaction_l1(new_op, new_op.eth_block())
                 .await
-                .map_err(DalError::generalize)?;
+                .map_err(DalError::generalize)
+                .map_err(EventProcessorError::internal)?;
         }
         stage_latency.observe();
         if let Some(last_op) = ops_to_insert.last() {
@@ -109,8 +114,8 @@ impl EventProcessor for PriorityOpsEventProcessor {
         Ok(skipped_ops + ops_to_insert.len())
     }
 
-    fn topic1(&self) -> H256 {
-        self.new_priority_request_signature
+    fn topic1(&self) -> Option<H256> {
+        Some(self.new_priority_request_signature)
     }
 
     fn event_source(&self) -> EventsSource {

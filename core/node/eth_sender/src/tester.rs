@@ -1,29 +1,37 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, MockSettlementLayer, L1},
+    BaseFees, BoundEthInterface,
+};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
+    aggregated_operations::L1BatchAggregatedActionType,
+    block::L1BatchHeader,
+    commitment::L1BatchCommitmentMode,
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
+    pubdata_da::PubdataSendingMode,
+    settlement::SettlementLayer,
+    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
 };
 
 use crate::{
-    abstract_l1_interface::{L1BlockNumbers, OperatorType},
-    aggregated_operations::AggregatedOperation,
+    abstract_l1_interface::OperatorType,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,
 };
 
 pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
+pub(super) const STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xb0);
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -61,13 +69,24 @@ impl TestL1Batch {
         tester.execute_l1_batch(self.number, confirm).await
     }
 
+    pub async fn fast_finalize_commit_tx(&self, tester: &mut EthSenderTester) {
+        tester
+            .execute_tx(
+                self.number,
+                L1BatchAggregatedActionType::Commit,
+                true,
+                EthTxFinalityStatus::FastFinalized,
+            )
+            .await;
+    }
+
     pub async fn execute_commit_tx(&self, tester: &mut EthSenderTester) {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 true,
-                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
             )
             .await;
     }
@@ -76,9 +95,9 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
                 true,
-                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
             )
             .await;
     }
@@ -87,16 +106,16 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 false,
-                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
             )
             .await;
     }
 
     pub async fn assert_commit_tx_just_sent(&self, tester: &mut EthSenderTester) {
         tester
-            .assert_tx_was_sent_in_last_iteration(self.number, AggregatedActionType::Commit)
+            .assert_tx_was_sent_in_last_iteration(self.number, L1BatchAggregatedActionType::Commit)
             .await;
     }
 
@@ -123,7 +142,7 @@ pub(crate) struct EthSenderTester {
     next_l1_batch_number_to_prove: L1BatchNumber,
     next_l1_batch_number_to_execute: L1BatchNumber,
     tx_sent_in_last_iteration_count: usize,
-    pub is_l2: bool,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl EthSenderTester {
@@ -136,6 +155,7 @@ impl EthSenderTester {
         non_ordering_confirmations: bool,
         aggregator_operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -147,7 +167,9 @@ impl EthSenderTester {
             };
         let aggregator_config = SenderConfig {
             pubdata_sending_mode,
-            ..eth_sender_config.clone().sender.unwrap()
+            ..eth_sender_config
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .clone()
         };
 
         let history: Vec<_> = history
@@ -172,13 +194,14 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
-        gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
         let gateway = Box::new(gateway);
 
+        let chain_id = SLChainId(505);
         let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
@@ -192,11 +215,11 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
-        l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
         let l2_gateway = Box::new(l2_gateway);
 
         let gateway_blobs = MockSettlementLayer::builder()
@@ -212,37 +235,48 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
+            .with_sender(Address::from_str("0xb10b000000000000000000000000000000000000").unwrap())
             .build();
-        gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        gateway_blobs
+            .advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
         let gateway_blobs = Box::new(gateway_blobs);
 
+        let client: Box<DynClient<L1>> = Box::new(gateway.clone().into_client());
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                GasAdjusterClient::from_l1(Box::new(gateway.clone().into_client())),
+                GasAdjusterClient::from(client),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster.unwrap()
+                    ..eth_sender_config.gas_adjuster
                 },
                 pubdata_sending_mode,
                 commitment_mode,
+                connection_pool.clone(),
             )
             .await
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config.sender.clone().unwrap();
+        let eth_sender = eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer();
 
-        let custom_commit_sender_addr =
-            if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
-                Some(gateway_blobs.sender_account())
-            } else {
-                None
-            };
+        let use_blob_operator =
+            aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup;
+
+        let aggregator = Aggregator::new(
+            aggregator_config.clone(),
+            MockObjectStore::arc(),
+            use_blob_operator,
+            commitment_mode,
+            connection_pool.clone(),
+            SettlementLayer::L1(chain_id),
+        )
+        .await
+        .unwrap();
 
         let aggregator = EthTxAggregator::new(
             connection_pool.clone(),
@@ -252,21 +286,16 @@ impl EthSenderTester {
                 ..eth_sender.clone()
             },
             // Aggregator - unused
-            Aggregator::new(
-                aggregator_config.clone(),
-                MockObjectStore::arc(),
-                custom_commit_sender_addr,
-                commitment_mode,
-                SettlementMode::SettlesToL1,
-            ),
+            aggregator,
             gateway.clone(),
+            use_blob_operator.then(|| gateway_blobs.clone() as Box<dyn BoundEthInterface>),
             // ZKsync contract address
             Address::random(),
-            contracts_config.l1_multicall3_addr,
+            STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
+            contracts_config.l1.multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
-            custom_commit_sender_addr,
-            SettlementMode::SettlesToL1,
+            Some(SettlementLayer::L1(chain_id)),
         )
         .await;
 
@@ -301,20 +330,22 @@ impl EthSenderTester {
             next_l1_batch_number_to_execute: L1BatchNumber(1),
             next_l1_batch_number_to_prove: L1BatchNumber(1),
             tx_sent_in_last_iteration_count: 0,
-            is_l2: false,
+            settlement_layer,
         }
     }
 
     pub fn switch_to_using_gateway(&mut self) {
         self.manager = EthTxManager::new(
             self.conn.clone(),
-            EthConfig::for_tests().sender.unwrap(),
+            EthConfig::for_tests()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .clone(),
             self.gas_adjuster.clone(),
             None,
             None,
             Some(self.l2_gateway.clone()),
         );
-        self.is_l2 = true;
+        self.settlement_layer = SettlementLayer::Gateway(10.into());
         tracing::info!("Switched eth-sender tester to use Gateway!");
     }
 
@@ -323,19 +354,11 @@ impl EthSenderTester {
     }
 
     pub async fn get_block_numbers(&self) -> L1BlockNumbers {
-        let latest = self
-            .manager
+        self.manager
             .l1_interface()
             .get_l1_block_numbers(OperatorType::NonBlob)
             .await
             .unwrap()
-            .latest;
-        let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
-        L1BlockNumbers {
-            finalized,
-            latest,
-            safe: finalized,
-        }
     }
     async fn insert_l1_batch(&self, number: L1BatchNumber) -> L1BatchHeader {
         let header = create_l1_batch(number.0);
@@ -369,9 +392,9 @@ impl EthSenderTester {
     pub async fn execute_tx(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: L1BatchAggregatedActionType,
         success: bool,
-        confirmations: u64,
+        finality_status: EthTxFinalityStatus,
     ) {
         let tx = self
             .conn
@@ -379,20 +402,21 @@ impl EthSenderTester {
             .await
             .unwrap()
             .eth_sender_dal()
-            .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
-        if !self.is_l2 {
+
+        if !self.settlement_layer.is_gateway() {
             let (gateway, other) = if tx.blob_base_fee_per_gas.is_some() {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
                 (self.gateway.as_ref(), self.gateway_blobs.as_ref())
             };
-            gateway.execute_tx(tx.tx_hash, success, confirmations);
-            other.advance_block_number(confirmations);
+            gateway.execute_tx(tx.tx_hash, success, finality_status);
+            other.advance_block_number(1, finality_status);
         } else {
             self.l2_gateway
-                .execute_tx(tx.tx_hash, success, confirmations);
+                .execute_tx(tx.tx_hash, success, finality_status);
         }
     }
 
@@ -406,16 +430,19 @@ impl EthSenderTester {
 
     pub async fn save_execute_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_execute);
-        let operation = AggregatedOperation::Execute(ExecuteBatches {
-            l1_batches: vec![
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
-                    .await,
-            ]
-            .into_iter()
-            .map(l1_batch_with_metadata)
-            .collect(),
-            priority_ops_proofs: Vec::new(),
-        });
+        let l1_batch_headers = vec![
+            self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
+                .await,
+        ];
+        let operation =
+            AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
+                priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
+                l1_batches: l1_batch_headers
+                    .into_iter()
+                    .map(l1_batch_with_metadata)
+                    .collect(),
+                dependency_roots: vec![vec![], vec![]],
+            }));
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
     }
@@ -430,18 +457,20 @@ impl EthSenderTester {
 
     pub async fn save_prove_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_prove);
-        let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
-            prev_l1_batch: l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
-                    .await,
-            ),
-            l1_batches: vec![l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove)
-                    .await,
-            )],
-            proofs: vec![],
-            should_verify: false,
-        });
+        let operation = AggregatedOperation::L1Batch(
+            L1BatchAggregatedOperation::PublishProofOnchain(ProveBatches {
+                prev_l1_batch: l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
+                        .await,
+                ),
+                l1_batches: vec![l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove)
+                        .await,
+                )],
+                proofs: vec![],
+                should_verify: false,
+            }),
+        );
         self.next_l1_batch_number_to_prove += 1;
         self.save_operation(operation).await
     }
@@ -452,9 +481,12 @@ impl EthSenderTester {
     }
 
     pub async fn run_eth_sender_tx_manager_iteration_after_n_blocks(&mut self, n: u64) {
-        self.gateway.advance_block_number(n);
-        self.gateway_blobs.advance_block_number(n);
-        self.l2_gateway.advance_block_number(n);
+        self.gateway
+            .advance_block_number(n, EthTxFinalityStatus::Pending);
+        self.gateway_blobs
+            .advance_block_number(n, EthTxFinalityStatus::Pending);
+        self.l2_gateway
+            .advance_block_number(n, EthTxFinalityStatus::Pending);
         let tx_sent_before = self.gateway.sent_tx_count()
             + self.gateway_blobs.sent_tx_count()
             + self.l2_gateway.sent_tx_count();
@@ -490,7 +522,13 @@ impl EthSenderTester {
         } else {
             PubdataSendingMode::Calldata
         };
-        let operation = AggregatedOperation::Commit(
+        let commitment_mode = if self.pubdata_sending_mode == PubdataSendingMode::Custom {
+            L1BatchCommitmentMode::Validium
+        } else {
+            L1BatchCommitmentMode::Rollup
+        };
+
+        let operation = AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Commit(
             l1_batch_with_metadata(
                 self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
                     .await,
@@ -500,7 +538,8 @@ impl EthSenderTester {
                     .await,
             )],
             pubdata_mode,
-        );
+            commitment_mode,
+        ));
         self.next_l1_batch_number_to_commit += 1;
         self.save_operation(operation).await
     }
@@ -515,7 +554,9 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
-                self.is_l2,
+                Address::random(),
+                ProtocolVersionId::latest(),
+                self.settlement_layer.is_gateway(),
             )
             .await
             .unwrap()
@@ -540,17 +581,20 @@ impl EthSenderTester {
     }
 
     pub async fn confirm_tx(&mut self, hash: H256, is_blob: bool) {
-        if !self.is_l2 {
+        if !self.settlement_layer.is_gateway() {
             let (gateway, other) = if is_blob {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
                 (self.gateway.as_ref(), self.gateway_blobs.as_ref())
             };
-            gateway.execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
-            other.advance_block_number(EthSenderTester::WAIT_CONFIRMATIONS);
+            gateway.execute_tx(hash, true, EthTxFinalityStatus::Finalized);
+            other.advance_block_number(
+                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
+            );
         } else {
             self.l2_gateway
-                .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
+                .execute_tx(hash, true, EthTxFinalityStatus::Finalized);
         }
         self.run_eth_sender_tx_manager_iteration().await;
     }
@@ -565,7 +609,7 @@ impl EthSenderTester {
     pub async fn assert_tx_was_sent_in_last_iteration(
         &self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: L1BatchAggregatedActionType,
     ) {
         let last_entry = self
             .conn
@@ -573,7 +617,7 @@ impl EthSenderTester {
             .await
             .unwrap()
             .eth_sender_dal()
-            .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
         let max_id = self
@@ -595,10 +639,47 @@ impl EthSenderTester {
         );
     }
 
+    pub async fn assert_non_finalized_txs_count_equals(&mut self, value: usize) {
+        let inflight_count = if !self.settlement_layer.is_gateway() {
+            self.storage()
+                .await
+                .eth_sender_dal()
+                .get_non_final_txs(self.manager.operator_address(OperatorType::NonBlob), false)
+                .await
+                .unwrap()
+                .len()
+                + self
+                    .storage()
+                    .await
+                    .eth_sender_dal()
+                    .get_non_final_txs(self.manager.operator_address(OperatorType::Blob), false)
+                    .await
+                    .unwrap()
+                    .len()
+        } else {
+            self.storage()
+                .await
+                .eth_sender_dal()
+                .get_non_final_txs(self.manager.operator_address(OperatorType::Gateway), true)
+                .await
+                .unwrap()
+                .len()
+        };
+
+        assert_eq!(
+            inflight_count, value,
+            "Unexpected number of in-flight transactions"
+        );
+    }
+
+    pub async fn revert_blocks(&mut self, count: u64) {
+        self.gateway.revert_block_by_number(count);
+        self.gateway_blobs.revert_block_by_number(count);
+        self.l2_gateway.revert_block_by_number(count);
+    }
+
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
-        let inflight_count = if !self.is_l2 {
-            //sanity check
-            assert!(self.manager.operator_address(OperatorType::Blob).is_some());
+        let inflight_count = if !self.settlement_layer.is_gateway() {
             self.storage()
                 .await
                 .eth_sender_dal()
@@ -618,7 +699,7 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(None, true)
+                .get_inflight_txs(self.manager.operator_address(OperatorType::Gateway), true)
                 .await
                 .unwrap()
                 .len()

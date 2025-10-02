@@ -1,23 +1,17 @@
-use anyhow::Context as _;
-use common::{config::global_config, logger};
-use config::EcosystemConfig;
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, logger};
+use zkstack_cli_config::ZkStackConfig;
 
-use crate::{commands::args::WaitArgs, messages::MSG_CHAIN_NOT_FOUND_ERR};
+use crate::commands::args::WaitArgs;
 
 pub(crate) async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain = ZkStackConfig::current_chain(shell)?;
     let verbose = global_config().verbose;
 
     let prometheus_port = chain
-        .get_general_config()?
-        .contract_verifier
-        .as_ref()
-        .context("contract verifier config not specified")?
-        .prometheus_port;
+        .get_general_config()
+        .await?
+        .contract_verifier_prometheus_port()?;
     logger::info("Waiting for contract verifier to become alive");
     args.poll_prometheus(prometheus_port, verbose).await?;
     logger::info(format!(

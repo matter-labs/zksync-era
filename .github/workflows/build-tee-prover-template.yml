@@ -2,12 +2,6 @@ name: Build TEE Prover images
 on:
   workflow_call:
     secrets:
-      DOCKERHUB_USER:
-        description: "DOCKERHUB_USER"
-        required: true
-      DOCKERHUB_TOKEN:
-        description: "DOCKERHUB_TOKEN"
-        required: true
       ATTIC_TOKEN:
         description: "ATTIC_TOKEN"
         required: false
@@ -27,13 +21,22 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     runs-on: [matterlabs-ci-runner-high-performance]
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.config.nixcontainer }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { nixcontainer: 'container-tee-prover-azure' }
+          - { nixcontainer: 'container-tee-prover-tdx' }
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
           ref: ${{ github.event.inputs.target_branch }}
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: ${{ github.event_name != 'workflow_dispatch' }}
 
       - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
@@ -41,38 +44,44 @@ jobs:
           extra_nix_config: |
             access-tokens = github.com=${{ github.token }}
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= tee-pot:SS6HcrpG87S1M6HZGPsfo7d1xJccCGev7/tXc5+I4jg=
-            substituters = https://cache.nixos.org/ https://attic.teepot.org/tee-pot
+            substituters = https://cache.nixos.org/ https://static.188.92.12.49.clients.your-server.de/tee-pot
             sandbox = true
 
       - name: Setup Attic cache
-        uses: ryanccn/attic-action@618a980988d704a7709daeea88526146acd1d45f # v0.2.1
+        uses: ryanccn/attic-action@f6b7e98e9ba10c6db4841e4996cd3fe4bdb3f3ed # v0.3.2
         with:
-          endpoint: https://attic.teepot.org/
+          endpoint: https://static.188.92.12.49.clients.your-server.de/
           cache: tee-pot
           token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Build Docker images
         id: build
         run: |
-          nix build -L .#container-tee-prover-azure
+          nix build -L .#${{ matrix.config.nixcontainer }}
           export IMAGE_TAG=$(docker load -i result | grep -Po 'Loaded image.*: \K.*')
           echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
           echo "IMAGE_NAME=${IMAGE_TAG%:*}" >> "$GITHUB_OUTPUT"
 
       - name: Login to Docker registries
         if: ${{ inputs.action == 'push' }}
-        run: |
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          gcloud auth configure-docker us-docker.pkg.dev -q
+        run: gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Login to GitHub Container Registry
+        if: ${{ inputs.action == 'push' }}
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Docker images
         if: ${{ inputs.action == 'push' }}
         run: |
           export IMAGE_TAG="${{ steps.build.outputs.IMAGE_TAG }}"
           export IMAGE_NAME="${{ steps.build.outputs.IMAGE_NAME }}"
-          for repo in matterlabsrobot us-docker.pkg.dev/matterlabs-infra/matterlabs-docker; do
-            for tag in "${IMAGE_TAG}" "${IMAGE_NAME}:latest" "${IMAGE_NAME}:${IMAGE_TAG_SUFFIX}"; do
-              docker tag "${IMAGE_TAG}" "${repo}/${tag}"
-              docker push "${repo}/${tag}"
+          for repo in "ghcr.io/${{ github.repository_owner }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker"; do
+            for name_tag in "${IMAGE_TAG}" "${IMAGE_NAME}:latest" "${IMAGE_NAME}:${IMAGE_TAG_SUFFIX}"; do
+              docker tag "${IMAGE_TAG}" "${repo}/${name_tag}"
+              docker push "${repo}/${name_tag}"
             done
           done

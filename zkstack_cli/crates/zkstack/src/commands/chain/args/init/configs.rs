@@ -1,14 +1,14 @@
 use clap::Parser;
-use common::Prompt;
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
-use types::L1Network;
 use url::Url;
+use zkstack_cli_common::Prompt;
+use zkstack_cli_config::ChainConfig;
+use zkstack_cli_types::L1Network;
 
 use crate::{
     commands::chain::args::{
         genesis::{GenesisArgs, GenesisArgsFinal},
-        init::InitArgsFinal,
+        init::{da_configs::ValidiumType, InitArgsFinal},
     },
     defaults::LOCAL_RPC_URL,
     messages::{
@@ -28,11 +28,12 @@ pub struct InitConfigsArgs {
     pub no_port_reallocation: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct InitConfigsArgsFinal {
-    pub genesis_args: GenesisArgsFinal,
+    pub genesis_args: Option<GenesisArgsFinal>,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
+    pub validium_config: Option<ValidiumType>,
 }
 
 impl InitConfigsArgs {
@@ -52,9 +53,10 @@ impl InitConfigsArgs {
         });
 
         InitConfigsArgsFinal {
-            genesis_args: self.genesis_args.fill_values_with_prompt(config),
+            genesis_args: Some(self.genesis_args.fill_values_with_prompt(config)),
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
+            validium_config: Some(ValidiumType::read()),
         }
     }
 }
@@ -65,6 +67,7 @@ impl InitConfigsArgsFinal {
             genesis_args: init_args.genesis_args.clone(),
             l1_rpc_url: init_args.l1_rpc_url.clone(),
             no_port_reallocation: init_args.no_port_reallocation,
+            validium_config: init_args.validium_config.clone(),
         }
     }
 }

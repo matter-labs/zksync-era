@@ -28,6 +28,7 @@ use super::{
 };
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
+///
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
 /// into the state keeper.
 ///
@@ -113,62 +114,56 @@ impl ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .get_base_system_contract_hashes_by_version_id(protocol_version)
             .await?;
         if base_system_contract_hashes.is_some() {
             return Ok(());
         }
         tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
 
-        let protocol_version = self
+        let protocol_version_info = self
             .main_node_client
             .fetch_protocol_version(protocol_version)
             .await
             .context("failed to fetch protocol version from the main node")?
             .context("protocol version is missing on the main node")?;
-        let minor = protocol_version
-            .minor_version()
-            .context("Missing minor protocol version")?;
-        let bootloader_code_hash = protocol_version
-            .bootloader_code_hash()
-            .context("Missing bootloader code hash")?;
-        let default_account_code_hash = protocol_version
-            .default_account_code_hash()
-            .context("Missing default account code hash")?;
-        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
-        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
                 ProtocolSemanticVersion {
-                    minor: minor
+                    minor: protocol_version_info
+                        .minor_version
                         .try_into()
                         .context("cannot convert protocol version")?,
                     patch: VersionPatch(0),
                 },
-                protocol_version.timestamp,
+                protocol_version_info.timestamp,
                 Default::default(), // verification keys are unused for EN
                 BaseSystemContractsHashes {
-                    bootloader: bootloader_code_hash,
-                    default_aa: default_account_code_hash,
-                    evm_emulator: evm_emulator_code_hash,
+                    bootloader: protocol_version_info.bootloader_code_hash,
+                    default_aa: protocol_version_info.default_account_code_hash,
+                    evm_emulator: protocol_version_info.evm_emulator_code_hash,
                 },
-                l2_system_upgrade_tx_hash,
+                protocol_version_info.l2_system_upgrade_tx_hash,
             )
             .await?;
         Ok(())
     }
 }
 
+#[async_trait]
 impl IoSealCriteria for ExternalIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        _manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
         if !matches!(self.actions.peek_action(), Some(SyncAction::SealBatch)) {
-            return false;
+            return Ok(false);
         }
         self.actions.pop_action();
-        true
+        Ok(true)
     }
 
     fn should_seal_l2_block(&mut self, _manager: &UpdatesManager) -> bool {
@@ -250,7 +245,7 @@ impl StateKeeperIO for ExternalIO {
             pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
-        let (system_env, l1_batch_env, pubdata_params) = self
+        let restored_l1_batch_env = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
@@ -268,12 +263,16 @@ impl StateKeeperIO for ExternalIO {
         storage
             .blocks_dal()
             .ensure_unsealed_l1_batch_exists(
-                l1_batch_env
+                restored_l1_batch_env
+                    .l1_batch_env
                     .clone()
-                    .into_unsealed_header(Some(system_env.version)),
+                    .into_unsealed_header(
+                        Some(restored_l1_batch_env.system_env.version),
+                        restored_l1_batch_env.pubdata_limit,
+                    ),
             )
             .await?;
-        let data = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
+        let data = load_pending_batch(&mut storage, restored_l1_batch_env)
             .await
             .with_context(|| {
                 format!(
@@ -318,13 +317,14 @@ impl StateKeeperIO for ExternalIO {
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
-                        timestamp: params.first_l2_block.timestamp,
+                        timestamp: params.first_l2_block.timestamp(),
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
+                        pubdata_limit: params.pubdata_limit,
                     })
                     .await?;
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!("unexpected action in the action queue: {other:?}");
@@ -348,7 +348,7 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!(
@@ -357,6 +357,8 @@ impl StateKeeperIO for ExternalIO {
             }
         }
     }
+
+    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {}
 
     async fn wait_for_next_tx(
         &mut self,
@@ -392,6 +394,18 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        self.actions.validate_ready_for_next_block();
+        Ok(())
+    }
+
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
+        // Do nothing
+    }
+
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         anyhow::bail!(
@@ -410,7 +424,7 @@ impl StateKeeperIO for ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .get_base_system_contract_hashes_by_version_id(protocol_version)
             .await?
             .with_context(|| {
                 format!("Cannot load base system contracts' hashes for {protocol_version:?}. They should already be present")
@@ -502,13 +516,13 @@ mod tests {
             .unwrap();
         let (actions_sender, action_queue) = ActionQueue::new();
         let mut client = MockMainNodeClient::default();
-        let next_protocol_version = api::ProtocolVersion {
-            minor_version: Some(ProtocolVersionId::next() as u16),
+        let next_protocol_version = api::ProtocolVersionInfo {
+            minor_version: ProtocolVersionId::next() as u16,
             timestamp: 1,
-            bootloader_code_hash: Some(H256::repeat_byte(1)),
-            default_account_code_hash: Some(H256::repeat_byte(1)),
+            bootloader_code_hash: H256::repeat_byte(1),
+            default_account_code_hash: H256::repeat_byte(1),
             evm_emulator_code_hash: Some(H256::repeat_byte(1)),
-            ..api::ProtocolVersion::default()
+            l2_system_upgrade_tx_hash: None,
         };
         client.insert_protocol_version(next_protocol_version.clone());
         let mut external_io = ExternalIO::new(
@@ -525,11 +539,9 @@ mod tests {
             validation_computational_gas_limit: u32::MAX,
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_l2_block: L2BlockParams {
-                timestamp: 1,
-                virtual_blocks: 1,
-            },
+            first_l2_block: L2BlockParams::new(1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {
@@ -555,7 +567,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             fetched_protocol_version.version.minor as u16,
-            next_protocol_version.minor_version.unwrap()
+            next_protocol_version.minor_version
         );
 
         // Verify that the unsealed batch has protocol version

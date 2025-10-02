@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            (\n                SELECT\n                    verification_info AS \"verification_info!\",\n                    bytecode_keccak256 AS \"bytecode_keccak256!\",\n                    bytecode_without_metadata_keccak256 AS \"bytecode_without_metadata_keccak256!\"\n                FROM\n                    contract_verification_info_v2\n                WHERE\n                    bytecode_keccak256 = $1\n                LIMIT 1\n            )\n            UNION ALL\n            (\n                SELECT\n                    verification_info AS \"verification_info!\",\n                    bytecode_keccak256 AS \"bytecode_keccak256!\",\n                    bytecode_without_metadata_keccak256 AS \"bytecode_without_metadata_keccak256!\"\n                FROM\n                    contract_verification_info_v2\n                WHERE\n                    bytecode_without_metadata_keccak256 = $2\n                LIMIT 1\n            )\n            LIMIT 1;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verification_info!",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "bytecode_keccak256!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "bytecode_without_metadata_keccak256!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c06fba45445389a9cac0002b7559d9e26123903ae6e6255ec01eede6a7172557"
+}

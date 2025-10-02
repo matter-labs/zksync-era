@@ -17,33 +17,39 @@ vise.workspace = true
 zksync_vm_interface.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
-zksync_consensus_storage.workspace = true
+zksync_consensus_engine.workspace = true
 zksync_consensus_crypto.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_db_connection.workspace = true
 zksync_l1_contract_interface.workspace = true
 
+# DI-specific dependencies
+zksync_node_framework = { workspace = true, optional = true }
+zksync_config.workspace = true
+zksync_health_check = { workspace = true, optional = true }
+
 itertools.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
 prost.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 sqlx = { workspace = true, features = [
-    "runtime-tokio",
-    "tls-native-tls",
-    "macros",
-    "postgres",
-    "bigdecimal",
-    "rust_decimal",
-    "chrono",
-    "json",
-    "migrate",
-    "ipnetwork",
+  "runtime-tokio",
+  "tls-native-tls",
+  "macros",
+  "postgres",
+  "bigdecimal",
+  "rust_decimal",
+  "chrono",
+  "json",
+  "migrate",
+  "ipnetwork",
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
@@ -52,7 +58,8 @@ bincode.workspace = true
 hex.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tracing.workspace = true
-chrono = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, default-features = false, features = ["now"] }
+rayon.workspace = true
 
 [dev-dependencies]
 zksync_test_contracts.workspace = true
@@ -60,3 +67,7 @@ zksync_concurrency.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework", "zksync_health_check/node_framework"]

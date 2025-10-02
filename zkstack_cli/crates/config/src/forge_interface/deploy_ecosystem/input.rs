@@ -6,13 +6,41 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::L2ChainId;
+use zkstack_cli_types::L1Network;
+use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
-    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
+    ContractsConfigForDeployERC20, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
+
+/// Part of the genesis config influencing `DeployGatewayCTMInput`.
+#[derive(Debug)]
+pub struct GenesisInput {
+    pub bootloader_hash: H256,
+    pub default_aa_hash: H256,
+    pub evm_emulator_hash: Option<H256>,
+    pub genesis_root_hash: H256,
+    pub rollup_last_leaf_index: u64,
+    pub genesis_commitment: H256,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+impl GenesisInput {
+    // FIXME: is this enough? (cf. aliases in the "real" config definition)
+    pub fn new(raw: &GenesisConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            bootloader_hash: raw.0.get("bootloader_hash")?,
+            default_aa_hash: raw.0.get("default_aa_hash")?,
+            evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?,
+            genesis_root_hash: raw.0.get("genesis_root")?,
+            rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
+            genesis_commitment: raw.0.get("genesis_batch_commitment")?,
+            protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
+        })
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct InitialDeploymentConfig {
@@ -61,7 +89,7 @@ impl FileConfigWithDefaultName for InitialDeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
 
-impl ZkStackConfig for InitialDeploymentConfig {}
+impl FileConfigTrait for InitialDeploymentConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
@@ -72,7 +100,7 @@ impl FileConfigWithDefaultName for Erc20DeploymentConfig {
     const FILE_NAME: &'static str = ERC20_DEPLOYMENT_FILE;
 }
 
-impl ZkStackConfig for Erc20DeploymentConfig {}
+impl FileConfigTrait for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {
@@ -111,24 +139,32 @@ pub struct DeployL1Config {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
+    pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
+    pub is_zk_sync_os: bool,
 }
 
-impl ZkStackConfig for DeployL1Config {}
+impl FileConfigTrait for DeployL1Config {}
 
 impl DeployL1Config {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        genesis_config: &GenesisConfig,
+        genesis_input: &GenesisInput,
         wallets_config: &WalletsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
         testnet_verifier: bool,
+        l1_network: L1Network,
+        support_l2_legacy_shared_bridge_test: bool,
+        zksync_os: bool,
     ) -> Self {
         Self {
+            is_zk_sync_os: zksync_os,
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,
+            support_l2_legacy_shared_bridge_test,
             contracts: ContractsDeployL1Config {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
@@ -144,24 +180,25 @@ impl DeployL1Config {
                     .diamond_init_max_pubdata_per_batch,
                 diamond_init_minimal_l2_gas_price: initial_deployment_config
                     .diamond_init_minimal_l2_gas_price,
-                bootloader_hash: genesis_config.bootloader_hash.unwrap(),
-                default_aa_hash: genesis_config.default_aa_hash.unwrap(),
-                evm_emulator_hash: genesis_config.evm_emulator_hash,
+                bootloader_hash: genesis_input.bootloader_hash,
+                default_aa_hash: genesis_input.default_aa_hash,
+                evm_emulator_hash: genesis_input.evm_emulator_hash,
                 diamond_init_priority_tx_max_pubdata: initial_deployment_config
                     .diamond_init_priority_tx_max_pubdata,
                 diamond_init_pubdata_pricing_mode: initial_deployment_config
                     .diamond_init_pubdata_pricing_mode,
                 // These values are not optional in genesis config with file based configuration
-                genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
-                genesis_rollup_leaf_index: genesis_config.rollup_last_leaf_index.unwrap(),
-                genesis_root: genesis_config.genesis_root_hash.unwrap(),
-                latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
+                genesis_batch_commitment: genesis_input.genesis_commitment,
+                genesis_rollup_leaf_index: genesis_input.rollup_last_leaf_index,
+                genesis_root: genesis_input.genesis_root_hash,
+                latest_protocol_version: genesis_input.protocol_version.pack(),
                 recursion_circuits_set_vks_hash: H256::zero(),
                 recursion_leaf_level_vk_hash: H256::zero(),
                 recursion_node_level_vk_hash: H256::zero(),
                 priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
+                avail_l1_da_validator_addr: l1_network.avail_l1_da_validator_addr(),
             },
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -196,6 +233,8 @@ pub struct ContractsDeployL1Config {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avail_l1_da_validator_addr: Option<Address>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -212,12 +251,12 @@ pub struct DeployErc20Config {
     pub additional_addresses_for_minting: Vec<Address>,
 }
 
-impl ZkStackConfig for DeployErc20Config {}
+impl FileConfigTrait for DeployErc20Config {}
 
 impl DeployErc20Config {
     pub fn new(
         erc20_deployment_config: &Erc20DeploymentConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &ContractsConfigForDeployERC20,
         additional_addresses_for_minting: Vec<Address>,
     ) -> Self {
         let mut tokens = HashMap::new();

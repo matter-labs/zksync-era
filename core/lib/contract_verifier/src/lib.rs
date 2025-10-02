@@ -14,10 +14,13 @@ use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
-    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
-    contract_verification_api::{
-        self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
-        VerificationRequest,
+    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
+    contract_verification::{
+        api::{
+            self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
+            VerificationProblem, VerificationRequest,
+        },
+        contract_identifier::{ContractIdentifier, DetectedMetadata, Match},
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
@@ -31,6 +34,7 @@ use crate::{
 
 mod compilers;
 pub mod error;
+pub mod etherscan;
 mod metrics;
 mod resolver;
 #[cfg(test)]
@@ -114,6 +118,7 @@ pub struct ContractVerifier {
     contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
     compiler_resolver: Arc<dyn CompilerResolver>,
+    etherscan_verifier_enabled: bool,
 }
 
 impl ContractVerifier {
@@ -121,6 +126,7 @@ impl ContractVerifier {
     pub async fn new(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
+        etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
         let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
@@ -135,13 +141,20 @@ impl ContractVerifier {
             tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
         }
 
-        Self::with_resolver(compilation_timeout, connection_pool, Arc::new(resolver)).await
+        Self::with_resolver(
+            compilation_timeout,
+            connection_pool,
+            Arc::new(resolver),
+            etherscan_verifier_enabled,
+        )
+        .await
     }
 
     async fn with_resolver(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         compiler_resolver: Arc<dyn CompilerResolver>,
+        etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         Self::sync_compiler_versions(compiler_resolver.as_ref(), &connection_pool).await?;
         Ok(Self {
@@ -149,6 +162,7 @@ impl ContractVerifier {
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver,
+            etherscan_verifier_enabled,
         })
     }
 
@@ -224,7 +238,7 @@ impl ContractVerifier {
     async fn verify(
         &self,
         mut request: VerificationRequest,
-    ) -> Result<VerificationInfo, ContractVerifierError> {
+    ) -> Result<(VerificationInfo, ContractIdentifier), ContractVerifierError> {
         // Bytecode should be present because it is checked when accepting request.
         let mut storage = self
             .connection_pool
@@ -244,7 +258,38 @@ impl ContractVerifier {
 
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
-        let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
+        let deployed_bytecode = match bytecode_marker {
+            BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
+            BytecodeMarker::Evm => trim_padded_evm_bytecode(
+                BytecodeHash::try_from(deployed_contract.bytecode_hash)
+                    .context("Invalid bytecode hash")?,
+                &deployed_contract.bytecode,
+            )
+            .context("invalid stored EVM bytecode")?,
+        };
+        let mut deployed_code = deployed_bytecode.to_vec();
+        let deployed_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
+
+        let artifacts = self
+            .get_compilation_artifacts(&mut request, &deployed_identifier)
+            .await?;
+
+        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
+
+        // If contract contains immutable references (e.g. places to be filled during constructor execution),
+        // rewrite them with zeroes, as we can't know the values just yet.
+        // We're checking the constructor arguments as well, so assuming tha constructor arguments
+        // are the same, the immutable values should also be the same.
+        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
+
+        let compiled_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code);
+
+        // regenerate the deployed identifier after patching the immutable bytecode
+        let deployed_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
+
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
                 .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
@@ -252,34 +297,49 @@ impl ContractVerifier {
                 request.id,
                 &deployed_contract,
                 &artifacts.bytecode,
+                &compiled_identifier,
+                &deployed_identifier,
             )?,
         };
 
-        let deployed_bytecode = match bytecode_marker {
-            BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => trim_padded_evm_bytecode(&deployed_contract.bytecode)
-                .context("invalid stored EVM bytecode")?,
-        };
+        let mut verification_problems = Vec::new();
 
-        if artifacts.deployed_bytecode() != deployed_bytecode {
-            tracing::info!(
-                request_id = request.id,
-                deployed = hex::encode(deployed_bytecode),
-                compiled = hex::encode(artifacts.deployed_bytecode()),
-                "Deployed (runtime) bytecode mismatch",
-            );
-            return Err(ContractVerifierError::BytecodeMismatch);
+        match compiled_identifier.matches(&deployed_identifier) {
+            Match::Full => {}
+            Match::Partial => {
+                tracing::info!(
+                    request_id = request.id,
+                    deployed = hex::encode(deployed_bytecode),
+                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    "Partial bytecode match",
+                );
+                verification_problems.push(VerificationProblem::IncorrectMetadata);
+            }
+            Match::None => {
+                tracing::info!(
+                    request_id = request.id,
+                    deployed = hex::encode(deployed_bytecode),
+                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    "Deployed (runtime) bytecode mismatch",
+                );
+                return Err(ContractVerifierError::BytecodeMismatch);
+            }
         }
 
         match constructor_args {
             ConstructorArgs::Check(args) => {
                 let provided_constructor_args = &request.req.constructor_arguments.0;
                 if *provided_constructor_args != args {
-                    tracing::trace!(
+                    tracing::info!(
                         "Constructor args mismatch, deployed: 0x{}, provided in request: 0x{}",
                         hex::encode(&args),
                         hex::encode(provided_constructor_args)
                     );
+                    // We could, in theory, accept this contract and mark it as partially verified,
+                    // but in during verification it is always possible to reconstruct the
+                    // constructor arguments, so there is no reason for that.
+                    // Mismatching constructor arguments are only needed for "similar bytecodes"
+                    // (e.g. displayed contract as verified without a direct verification request).
                     return Err(ContractVerifierError::IncorrectConstructorArguments);
                 }
             }
@@ -290,11 +350,109 @@ impl ContractVerifier {
 
         let verified_at = Utc::now();
         tracing::trace!(%verified_at, "verified request");
-        Ok(VerificationInfo {
+        let info = VerificationInfo {
             request,
             artifacts,
             verified_at,
-        })
+            verification_problems,
+        };
+        Ok((info, compiled_identifier))
+    }
+
+    /// Returns compilation artifacts for the given request.
+    /// Tries to use the compiler versions from the metadata if they are different from the ones in the request.
+    /// If the metadata is not present, or the versions are the same, uses the ones from the request.
+    async fn get_compilation_artifacts(
+        &self,
+        request: &mut VerificationRequest,
+        deployed_identifier: &ContractIdentifier,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        // If compiler versions from the metadata don't match with the request,
+        // we'll first try to use info from metadata.
+        let alternative_request = match &deployed_identifier.detected_metadata {
+            Some(DetectedMetadata::Cbor { metadata, .. })
+                if !request.req.compiler_versions_match(metadata) =>
+            {
+                let update_request = request.req.clone().with_updated_compiler_versions(metadata);
+                Some(update_request)
+            }
+            _ => None,
+        };
+
+        if let Some(alternative_request) = alternative_request {
+            // Compile with the metadata versions
+            let artifacts = self
+                .compile(
+                    alternative_request.clone(),
+                    deployed_identifier.bytecode_marker,
+                )
+                .await;
+
+            if let Ok(artifacts) = artifacts {
+                let compiled_identifier = ContractIdentifier::from_bytecode(
+                    deployed_identifier.bytecode_marker,
+                    artifacts.deployed_bytecode(),
+                );
+                // Check if the compiled bytecode matches the deployed bytecode
+                if matches!(
+                    compiled_identifier.matches(deployed_identifier),
+                    Match::Full | Match::Partial
+                ) {
+                    tracing::info!(
+                        request_id = request.id,
+                        request_compiler = request.req.compiler_versions.compiler_version(),
+                        metadata_compiler =
+                            alternative_request.compiler_versions.compiler_version(),
+                        request_zk_compiler = request.req.compiler_versions.zk_compiler_version(),
+                        metadata_zk_compiler =
+                            alternative_request.compiler_versions.zk_compiler_version(),
+                        "Updating request compiler versions in the DB."
+                    );
+
+                    // Since we know the version that should be used for the contract, we override one provided in
+                    // the request, so that if this request is interpreted by anyone else, they can get correct
+                    // compilation results
+                    self.update_request_compiler_versions(
+                        request.id,
+                        alternative_request.compiler_versions.compiler_version(),
+                        alternative_request.compiler_versions.zk_compiler_version(),
+                    )
+                    .await?;
+
+                    // Update the request for downstream use
+                    request.req = alternative_request;
+
+                    return Ok(artifacts);
+                }
+            }
+        }
+        // We either have no alternative request or it didn't succeed
+        self.compile(request.req.clone(), deployed_identifier.bytecode_marker)
+            .await
+    }
+
+    // Updates request compiler versions in the DB.
+    async fn update_request_compiler_versions(
+        &self,
+        request_id: usize,
+        compiler_version: &str,
+        zk_compiler_version: Option<&str>,
+    ) -> Result<(), ContractVerifierError> {
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
+
+        storage
+            .contract_verification_dal()
+            .update_verification_request_compiler_versions(
+                request_id,
+                compiler_version,
+                zk_compiler_version,
+            )
+            .await?;
+
+        Ok(())
     }
 
     async fn compile_zksolc(
@@ -454,7 +612,7 @@ impl ContractVerifier {
                 if selector == create_acc.short_signature()
                     || selector == create2_acc.short_signature() =>
             {
-                let tokens = create
+                let tokens = create_acc
                     .decode_input(token_data)
                     .context("failed to decode `createAccount` / `create2Account` input")?;
                 // Constructor arguments are in the third parameter.
@@ -515,7 +673,37 @@ impl ContractVerifier {
         request_id: usize,
         contract: &DeployedContractData,
         creation_bytecode: &[u8],
+        compiled_identifier: &ContractIdentifier,
+        deployed_identifier: &ContractIdentifier,
     ) -> Result<ConstructorArgs, ContractVerifierError> {
+        fn extract_arguments<'a>(
+            calldata: &'a [u8],
+            creation_bytecode: &'a [u8],
+            compiled_identifier: &ContractIdentifier,
+            deployed_identifier: &ContractIdentifier,
+        ) -> Result<&'a [u8], &'static str> {
+            if creation_bytecode.len() < compiled_identifier.metadata_length() {
+                // This shouldn't normally happen, since we calculated contract identifier based on this code.
+                return Err("Creation bytecode doesn't fit metadata");
+            }
+            let creation_bytecode_without_metadata = &creation_bytecode
+                [..creation_bytecode.len() - compiled_identifier.metadata_length()];
+
+            // Ensure equivalence of the creation bytecode (which can be different from the deployed bytecode).
+            // Note that metadata hash may still be different; this is checked by other part of the code.
+            let constructor_args_with_metadata = calldata
+                .strip_prefix(creation_bytecode_without_metadata)
+                .ok_or("Creation bytecode is different")?;
+
+            // Skip metadata to get to the constructor arguments.
+            // Note that deployed contract may have different metadata, so we use another
+            // identifier here.
+            if constructor_args_with_metadata.len() < deployed_identifier.metadata_length() {
+                return Err("Calldata doesn't fit metadata");
+            }
+            Ok(&constructor_args_with_metadata[deployed_identifier.metadata_length()..])
+        }
+
         let Some(calldata) = &contract.calldata else {
             return Ok(ConstructorArgs::Ignore);
         };
@@ -524,35 +712,63 @@ impl ContractVerifier {
             return Ok(ConstructorArgs::Ignore);
         }
 
-        let args = calldata.strip_prefix(creation_bytecode).ok_or_else(|| {
-            tracing::info!(
-                request_id,
-                calldata = hex::encode(calldata),
-                compiled = hex::encode(creation_bytecode),
-                "Creation bytecode mismatch"
-            );
-            ContractVerifierError::CreationBytecodeMismatch
-        })?;
-        Ok(ConstructorArgs::Check(args.to_vec()))
+        match extract_arguments(
+            calldata,
+            creation_bytecode,
+            compiled_identifier,
+            deployed_identifier,
+        ) {
+            Ok(args) => Ok(ConstructorArgs::Check(args.to_vec())),
+            Err(err) => {
+                tracing::info!(
+                    request_id,
+                    calldata = hex::encode(calldata),
+                    compiled = hex::encode(creation_bytecode),
+                    "Creation bytecode mismatch: {err}"
+                );
+                Err(ContractVerifierError::CreationBytecodeMismatch)
+            }
+        }
     }
 
     #[tracing::instrument(level = "debug", skip_all, err, fields(id = request_id))]
     async fn process_result(
         &self,
         request_id: usize,
-        verification_result: Result<VerificationInfo, ContractVerifierError>,
+        verification_result: Result<(VerificationInfo, ContractIdentifier), ContractVerifierError>,
     ) -> anyhow::Result<()> {
         let mut storage = self
             .connection_pool
             .connection_tagged("contract_verifier")
             .await?;
         match verification_result {
-            Ok(info) => {
-                storage
+            Ok((info, identifier)) => {
+                let mut transaction = storage.start_transaction().await?;
+                if self.etherscan_verifier_enabled
+                    && etherscan::is_supported_verification_request(&info.request)
+                {
+                    tracing::debug!(
+                        "Created etherscan verification request with id = {request_id}"
+                    );
+                    transaction
+                        .etherscan_verification_dal()
+                        .add_verification_request(request_id)
+                        .await?;
+                }
+
+                transaction
                     .contract_verification_dal()
-                    .save_verification_info(info)
+                    .save_verification_info(
+                        info,
+                        identifier.bytecode_keccak256,
+                        identifier.bytecode_without_metadata_keccak256,
+                    )
                     .await?;
+
+                transaction.commit().await?;
                 tracing::info!("Successfully processed request with id = {request_id}");
+
+                API_CONTRACT_VERIFIER_METRICS.successful_verifications[&Self::SERVICE_NAME].inc();
             }
             Err(error) => {
                 let error_message = match &error {
@@ -574,6 +790,8 @@ impl ContractVerifier {
                     .save_verification_error(request_id, &error_message, &compilation_errors, None)
                     .await?;
                 tracing::info!("Request with id = {request_id} was failed");
+
+                API_CONTRACT_VERIFIER_METRICS.failed_verifications[&Self::SERVICE_NAME].inc();
             }
         }
         Ok(())

@@ -14,9 +14,7 @@ categories.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 futures.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
-vise.workspace = true
-strum.workspace = true

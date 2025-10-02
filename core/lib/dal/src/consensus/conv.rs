@@ -1,11 +1,11 @@
 //! Protobuf conversion functions.
 use anyhow::{anyhow, Context as _};
 use zksync_concurrency::net;
-use zksync_consensus_roles::{attester, node};
+use zksync_consensus_roles::node;
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
-    commitment::{L1BatchCommitmentMode, PubdataParams},
+    commitment::{PubdataParams, PubdataType},
     ethabi,
     fee::Fee,
     h256_to_u256,
@@ -15,10 +15,33 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     u256_to_h256, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    L2ChainId, L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
 };
 
 use super::*;
+
+impl ProtoFmt for BlockCertificate {
+    type Proto = proto::BlockCertificate;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        use proto::block_certificate::T;
+        Ok(match r.t.as_ref().context("missing t")? {
+            T::V1(v1) => Self::V1(ProtoFmt::read(v1).context("v1")?),
+            T::V2(v2) => Self::V2(ProtoFmt::read(v2).context("v2")?),
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        use proto::block_certificate::T;
+
+        let t = match self {
+            Self::V1(qc) => T::V1(qc.build()),
+            Self::V2(qc) => T::V2(qc.build()),
+        };
+
+        Self::Proto { t: Some(t) }
+    }
+}
 
 impl ProtoFmt for BlockMetadata {
     type Proto = proto::BlockMetadata;
@@ -84,25 +107,6 @@ impl ProtoFmt for GlobalConfig {
         }
     }
 }
-impl ProtoFmt for AttestationStatus {
-    type Proto = proto::AttestationStatus;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            genesis: read_required(&r.genesis).context("genesis")?,
-            next_batch_to_attest: attester::BatchNumber(
-                *required(&r.next_batch_to_attest).context("next_batch_to_attest")?,
-            ),
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            genesis: Some(self.genesis.build()),
-            next_batch_to_attest: Some(self.next_batch_to_attest.0),
-        }
-    }
-}
 
 impl ProtoRepr for proto::PubdataParams {
     type Type = PubdataParams;
@@ -112,8 +116,8 @@ impl ProtoRepr for proto::PubdataParams {
             l2_da_validator_address: required(&self.l2_da_validator_address)
                 .and_then(|a| parse_h160(a))
                 .context("l2_da_validator_address")?,
-            pubdata_type: required(&self.pubdata_type)
-                .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+            pubdata_type: required(&self.pubdata_info)
+                .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
                 .context("pubdata_type")?
                 .parse(),
         })
@@ -122,9 +126,37 @@ impl ProtoRepr for proto::PubdataParams {
     fn build(this: &Self::Type) -> Self {
         Self {
             l2_da_validator_address: Some(this.l2_da_validator_address.as_bytes().into()),
-            pubdata_type: Some(
-                proto::L1BatchCommitDataGeneratorMode::new(&this.pubdata_type) as i32,
-            ),
+            pubdata_info: Some(this.pubdata_type as i32),
+        }
+    }
+}
+
+impl ProtoRepr for proto::InteropRoot {
+    type Type = InteropRoot;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            chain_id: L2ChainId::new(u64::from(*required(&self.chain_id).context("chain_id")?))
+                .unwrap(),
+            block_number: *required(&self.block_number).context("block_number")?,
+            sides: self
+                .sides
+                .iter()
+                .map(|s| parse_h256(s).context("sides"))
+                .collect::<anyhow::Result<_>>()?,
+        })
+    }
+
+    fn build(r: &Self::Type) -> Self {
+        Self {
+            chain_id: Some(r.chain_id.as_u64() as u32),
+            block_number: Some(r.block_number),
+            sides: r
+                .sides
+                .iter()
+                .cloned()
+                .map(|h| h.as_bytes().to_vec())
+                .collect(),
         }
     }
 }
@@ -162,6 +194,11 @@ impl ProtoFmt for Payload {
             }
         }
 
+        let interop_roots: Vec<InteropRoot> = r
+            .interop_roots
+            .iter()
+            .map(|r| r.read().context("interop_roots"))
+            .collect::<Result<_, _>>()?;
         let this = Self {
             protocol_version,
             hash: required(&r.hash)
@@ -183,6 +220,8 @@ impl ProtoFmt for Payload {
             pubdata_params: read_optional_repr(&r.pubdata_params)
                 .context("pubdata_params")?
                 .unwrap_or_default(),
+            pubdata_limit: r.pubdata_limit,
+            interop_roots,
         };
         if this.protocol_version.is_pre_gateway() {
             anyhow::ensure!(
@@ -196,6 +235,17 @@ impl ProtoFmt for Payload {
                 "default pubdata_params should be encoded as None"
             );
         }
+        if this.protocol_version < ProtocolVersionId::Version29 {
+            anyhow::ensure!(
+                this.pubdata_limit.is_none(),
+                "pubdata_limit should be None for protocol_version < 29"
+            );
+        } else {
+            anyhow::ensure!(
+                this.pubdata_limit.is_some(),
+                "pubdata_limit should be Some for protocol_version >= 29"
+            );
+        }
         Ok(this)
     }
 
@@ -204,6 +254,17 @@ impl ProtoFmt for Payload {
             assert_eq!(
                 self.pubdata_params, PubdataParams::default(),
                 "BUG DETECTED: pubdata_params should have the default value in pre-gateway protocol_version"
+            );
+        }
+        if self.protocol_version < ProtocolVersionId::Version29 {
+            assert!(
+                self.pubdata_limit.is_none(),
+                "pubdata_limit should be None for protocol_version < 29"
+            );
+        } else {
+            assert!(
+                self.pubdata_limit.is_some(),
+                "pubdata_limit should be Some for protocol_version >= 29"
             );
         }
         let mut x = Self::Proto {
@@ -225,6 +286,8 @@ impl ProtoFmt for Payload {
             } else {
                 Some(ProtoRepr::build(&self.pubdata_params))
             },
+            pubdata_limit: self.pubdata_limit,
+            interop_roots: self.interop_roots.iter().map(ProtoRepr::build).collect(),
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
@@ -551,39 +614,15 @@ impl ProtoRepr for proto::Transaction {
     }
 }
 
-impl ProtoRepr for proto::AttesterCommittee {
-    type Type = attester::Committee;
-
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        let members: Vec<_> = self
-            .members
-            .iter()
-            .enumerate()
-            .map(|(i, m)| attester::WeightedAttester::read(m).context(i))
-            .collect::<Result<_, _>>()
-            .context("members")?;
-        Self::Type::new(members)
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            members: this.iter().map(|x| x.build()).collect(),
-        }
-    }
-}
-
-impl proto::L1BatchCommitDataGeneratorMode {
-    pub(crate) fn new(n: &L1BatchCommitmentMode) -> Self {
-        match n {
-            L1BatchCommitmentMode::Rollup => Self::Rollup,
-            L1BatchCommitmentMode::Validium => Self::Validium,
-        }
-    }
-
-    pub(crate) fn parse(&self) -> L1BatchCommitmentMode {
+impl proto::PubdataType {
+    pub(crate) fn parse(&self) -> PubdataType {
         match self {
-            Self::Rollup => L1BatchCommitmentMode::Rollup,
-            Self::Validium => L1BatchCommitmentMode::Validium,
+            Self::Rollup => PubdataType::Rollup,
+            Self::NoDa => PubdataType::NoDA,
+            Self::Avail => PubdataType::Avail,
+            Self::Celestia => PubdataType::Celestia,
+            Self::Eigen => PubdataType::Eigen,
+            Self::ObjectStore => PubdataType::ObjectStore,
         }
     }
 }

@@ -10,7 +10,7 @@ There are two types of objects that are not fully cleaned:
 
 ## Pruning workflow
 
-_(See [node docs](../../../docs/guides/external-node/08_pruning.md) for a high-level pruning overview)_
+_(See [node docs](../../../docs/src/guides/external-node/08_pruning.md) for a high-level pruning overview)_
 
 There are two phases of pruning an L1 batch, soft pruning and hard pruning. Every batch that would have its records
 removed if first _soft-pruned_. Soft-pruned batches cannot safely be used. One minute (this is configurable) after soft

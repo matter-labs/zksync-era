@@ -1,0 +1,7 @@
+core_object_store:
+  s3_with_credential_file:
+    bucket_base_url: some-bucket
+    s3_credential_file_path: credentials.example
+    region: us
+    endpoint: https://storage.googleapis.com
+  max_retries: 2

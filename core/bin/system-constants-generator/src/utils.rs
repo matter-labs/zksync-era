@@ -2,8 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
-    read_yul_bytecode, BaseSystemContracts, ContractLanguage, SystemContractCode,
+    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
+    ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::{
     interface::{
@@ -12,7 +12,7 @@ use zksync_multivm::{
         InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory,
         VmInterface, VmInterfaceExt,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
@@ -171,16 +171,7 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
 }
 
 fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    if let Some(contract) = read_bytecode_from_path(format!(
-        "contracts/system-contracts/zkout/{test}.yul/contracts-preprocessed/bootloader/{test}.yul.json",
-    )){
-        contract
-    } else  {
-        read_yul_bytecode(
-            "contracts/system-contracts/bootloader/tests/artifacts",
-            test
-        )
-    }
+    read_sys_contract_bytecode("", test, ContractLanguage::Yul)
 }
 
 fn default_l1_batch() -> L1BatchEnv {
@@ -199,6 +190,7 @@ fn default_l1_batch() -> L1BatchEnv {
             timestamp: 100,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
+            interop_roots: vec![],
         },
     }
 }
@@ -349,7 +341,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     }
 
     let result = vm.execute(InspectExecutionMode::Bootloader);
-    let metrics = result.get_execution_metrics(None);
+    let metrics = result.get_execution_metrics();
 
     VmSpentResourcesResult {
         // It is assumed that the entire `gas_used` was spent on computation and so it safe to convert to u32

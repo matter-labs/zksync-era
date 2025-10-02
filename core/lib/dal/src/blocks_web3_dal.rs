@@ -292,10 +292,10 @@ impl BlocksWeb3Dal<'_, '_> {
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
                                 SELECT number FROM l1_batches
-                                JOIN eth_txs ON
-                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                JOIN eth_txs_history ON
+                                    l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
                                 WHERE
-                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                    finality_status = 'finalized'
                                 ORDER BY number DESC LIMIT 1
                             )
                         ),
@@ -303,6 +303,58 @@ impl BlocksWeb3Dal<'_, '_> {
                     ) AS number
                     ";
                 ),
+                api::BlockId::Number(api::BlockNumber::Precommitted) => (
+                    // This query is used to get the latest precommitted miniblock number.
+                    // If feature is not enabled, return the latest committed miniblock number.
+                    // GREATEST in postgress ignore nulls.
+                    "
+                    SELECT GREATEST(
+                        (
+                            SELECT MAX(number)
+                            FROM miniblocks
+                            JOIN eth_txs_history ON
+                                miniblocks.eth_precommit_tx_id = eth_txs_history.eth_tx_id
+                            WHERE
+                                eth_txs_history.finality_status = 'finalized'
+                            AND miniblocks.eth_precommit_tx_id is not null
+                        ),
+                        (
+                            SELECT MAX(number)
+                            FROM miniblocks
+                            WHERE l1_batch_number =
+                            (
+                                SELECT number
+                                FROM l1_batches
+                                   JOIN eth_txs_history ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
+                                WHERE eth_txs_history.finality_status = 'finalized'
+                                ORDER BY number DESC
+                                LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number";
+                ),
+                api::BlockId::Number(api::BlockNumber::FastFinalized) => (
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs_history ON
+                                    l1_batches.eth_execute_tx_id = eth_txs_history.eth_tx_id
+                                WHERE
+                                    eth_txs_history.finality_status = 'fast_finalized'
+                                    OR
+                                    eth_txs_history.finality_status = 'finalized'
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
+
                 api::BlockId::Number(api::BlockNumber::Finalized) => (
                     "
                     SELECT COALESCE(
@@ -310,10 +362,10 @@ impl BlocksWeb3Dal<'_, '_> {
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
                                 SELECT number FROM l1_batches
-                                JOIN eth_txs ON
-                                    l1_batches.eth_execute_tx_id = eth_txs.id
+                                JOIN eth_txs_history ON
+                                    l1_batches.eth_execute_tx_id = eth_txs_history.eth_tx_id
                                 WHERE
-                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                    eth_txs_history.finality_status = 'finalized'
                                 ORDER BY number DESC LIMIT 1
                             )
                         ),
@@ -567,7 +619,8 @@ impl BlocksWeb3Dal<'_, '_> {
             SELECT
                 transactions.hash AS tx_hash,
                 transactions.index_in_block AS tx_index_in_block,
-                call_trace
+                call_trace,
+                transactions.error AS tx_error
             FROM
                 call_traces
             INNER JOIN transactions ON tx_hash = transactions.hash
@@ -583,7 +636,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|call_trace| {
+        .map(|mut call_trace| {
             let tx_hash = H256::from_slice(&call_trace.tx_hash);
             let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
             let meta = CallTraceMeta {
@@ -591,6 +644,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 tx_hash,
                 block_number: block_number.0,
                 block_hash,
+                internal_error: call_trace.tx_error.take(),
             };
             (call_trace.into_call(protocol_version), meta)
         })
@@ -679,13 +733,20 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
                 commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
                 prove_tx.confirmed_at AS "proven_at?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
                 prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
                 miniblocks.fair_pubdata_price,
@@ -712,6 +773,11 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    miniblocks.eth_precommit_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
             LEFT JOIN eth_txs AS commit_tx_data
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx_data.id
@@ -727,12 +793,100 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx_data.id
                     AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON (
+                    miniblocks.eth_precommit_tx_id = precommit_tx_data.id
+                    AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
             WHERE
                 miniblocks.number = $1
             "#,
             i64::from(block_number.0)
         )
         .instrument("get_block_details")
+        .with_arg("block_number", &block_number)
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(storage_block_details.map(Into::into))
+    }
+
+    /// Returns miniblock details including unverified transactions.
+    /// This is used in testing
+    pub async fn get_block_details_incl_unverified_transactions(
+        &mut self,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<api::BlockDetails>> {
+        let storage_block_details = sqlx::query_as!(
+            StorageBlockDetails,
+            r#"
+            SELECT
+                miniblocks.number,
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                        WHERE
+                            is_sealed
+                    )
+                ) AS "l1_batch_number!",
+                miniblocks.timestamp,
+                miniblocks.l1_tx_count,
+                miniblocks.l2_tx_count,
+                miniblocks.hash AS "root_hash?",
+                commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.confirmed_at AS "committed_at?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
+                prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.confirmed_at AS "proven_at?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
+                execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
+                execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
+                miniblocks.protocol_version,
+                miniblocks.fee_account_address
+            FROM
+                miniblocks
+            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON miniblocks.eth_precommit_tx_id = precommit_tx.eth_tx_id
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON l1_batches.eth_commit_tx_id = commit_tx_data.id
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON l1_batches.eth_prove_tx_id = prove_tx_data.id
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON l1_batches.eth_execute_tx_id = execute_tx_data.id
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON miniblocks.eth_precommit_tx_id = precommit_tx_data.id
+            WHERE
+                miniblocks.number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .instrument("get_block_details_incl_unverified_transactions")
         .with_arg("block_number", &block_number)
         .report_latency()
         .fetch_optional(self.storage)
@@ -769,20 +923,28 @@ impl BlocksWeb3Dal<'_, '_> {
                 l1_batches.l2_tx_count,
                 l1_batches.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
                 commit_tx.confirmed_at AS "committed_at?",
                 commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
                 prove_tx.confirmed_at AS "proven_at?",
                 prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
                 mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                l1_batches.evm_emulator_code_hash
+                l1_batches.evm_emulator_code_hash,
+                l1_batches.commitment
             FROM
                 l1_batches
             INNER JOIN mb ON TRUE
@@ -801,6 +963,12 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
+            
             LEFT JOIN eth_txs AS commit_tx_data
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx_data.id
@@ -816,6 +984,11 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx_data.id
                     AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON (
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx_data.id
+                    AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
             WHERE
                 l1_batches.number = $1
             "#,
@@ -829,13 +1002,115 @@ impl BlocksWeb3Dal<'_, '_> {
 
         Ok(l1_batch_details.map(Into::into))
     }
+
+    /// Returns L1 batch details returns batch transactions even if they are pending
+    /// This is to be used in testing only as pending transactions are unverified
+    pub async fn get_l1_batch_details_incl_unverified_transactions(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<api::L1BatchDetails>> {
+        let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
+            StorageL1BatchDetails,
+            r#"
+            WITH
+            mb AS (
+                SELECT
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                LIMIT
+                    1
+            )
+            
+            SELECT
+                l1_batches.number,
+                l1_batches.timestamp,
+                l1_batches.l1_tx_count,
+                l1_batches.l2_tx_count,
+                l1_batches.hash AS "root_hash?",
+                commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
+                commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
+                prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
+                prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
+                execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
+                execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
+                mb.l1_gas_price,
+                mb.l2_fair_gas_price,
+                mb.fair_pubdata_price,
+                l1_batches.bootloader_code_hash,
+                l1_batches.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
+                l1_batches.commitment
+            FROM
+                l1_batches
+            INNER JOIN mb ON TRUE
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON
+                    l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx.eth_tx_id
+            
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+            
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+            
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+            
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx_data.id
+            
+            WHERE
+                l1_batches.number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l1_batch_details_with_pending_transactions")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(l1_batch_details.map(Into::into))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::AggregatedActionType,
+        aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
         block::{L2BlockHasher, L2BlockHeader},
+        eth_sender::EthTxFinalityStatus,
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
@@ -1042,7 +1317,7 @@ mod tests {
             .save_eth_tx(
                 0,
                 vec![],
-                AggregatedActionType::Commit,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
                 Address::default(),
                 None,
                 None,
@@ -1053,18 +1328,28 @@ mod tests {
             .unwrap();
         let tx_hash = H256::random();
         conn.eth_sender_dal()
-            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, tx_hash, &[], 0)
+            .insert_tx_history(
+                mocked_commit_eth_tx.id,
+                0,
+                0,
+                None,
+                None,
+                tx_hash,
+                &[],
+                0,
+                None,
+            )
             .await
             .unwrap();
         conn.eth_sender_dal()
-            .confirm_tx(tx_hash, U256::zero())
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
             .await
             .unwrap();
         conn.blocks_dal()
-            .set_eth_tx_id(
+            .set_eth_tx_id_for_l1_batches(
                 l1_batch_header.number..=l1_batch_header.number,
                 mocked_commit_eth_tx.id,
-                AggregatedActionType::Commit,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
             )
             .await
             .unwrap();

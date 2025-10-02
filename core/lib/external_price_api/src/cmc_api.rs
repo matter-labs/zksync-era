@@ -1,19 +1,19 @@
 use std::{collections::HashMap, str::FromStr};
 
 use async_trait::async_trait;
-use chrono::Utc;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 use url::Url;
 use zksync_config::configs::ExternalPriceApiClientConfig;
-use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-use crate::{address_to_string, utils::get_fraction, PriceAPIClient};
+use crate::{address_to_string, utils::eth_price_to_base_token_ratio, APIToken, PriceApiClient};
 
 const AUTH_HEADER: &str = "x-cmc_pro_api_key";
 const DEFAULT_API_URL: &str = "https://pro-api.coinmarketcap.com";
 const ALLOW_TOKENS_ONLY_ON_PLATFORM_ID: i32 = 1; // 1 = Ethereum
 const REQUEST_QUOTE_IN_CURRENCY_ID: &str = "1027"; // 1027 = ETH
+const ZKSYNC_ID: i32 = 24091;
 
 #[derive(Debug)]
 pub struct CmcPriceApiClient {
@@ -36,7 +36,7 @@ impl CmcPriceApiClient {
         } else {
             reqwest::Client::builder()
         }
-        .timeout(config.client_timeout())
+        .timeout(config.client_timeout)
         .build()
         .expect("Failed to build reqwest client");
 
@@ -165,33 +165,37 @@ struct CryptocurrencyPlatform {
 }
 
 #[async_trait]
-impl PriceAPIClient for CmcPriceApiClient {
-    async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
-        let (term_ether, term_base_token) = get_fraction(base_token_in_eth)?;
-
-        return Ok(BaseTokenAPIRatio {
-            numerator: term_base_token,
-            denominator: term_ether,
-            ratio_timestamp: Utc::now(),
-        });
+impl PriceApiClient for CmcPriceApiClient {
+    async fn fetch_ratio(&self, token: APIToken) -> anyhow::Result<BaseTokenApiRatio> {
+        match token {
+            APIToken::Eth => Ok(BaseTokenApiRatio::default()),
+            APIToken::ERC20(token_address) => {
+                let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
+                eth_price_to_base_token_ratio(base_token_in_eth)
+            }
+            APIToken::ZK => {
+                eth_price_to_base_token_ratio(self.get_token_price_by_id(ZKSYNC_ID).await?)
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use httpmock::prelude::*;
     use serde_json::json;
 
     use super::*;
     use crate::tests::*;
 
-    fn make_client(server: &MockServer, api_key: Option<String>) -> Box<dyn PriceAPIClient> {
+    fn make_client(server: &MockServer, api_key: Option<String>) -> Box<dyn PriceApiClient> {
         Box::new(CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             source: "coinmarketcap".to_string(),
             base_url: Some(server.base_url()),
             api_key,
-            client_timeout_ms: 5000,
+            client_timeout: Duration::from_secs(5),
             forced: None,
         }))
     }
@@ -302,7 +306,10 @@ mod tests {
 
         let token_address: Address = TEST_TOKEN_ADDRESS.parse().unwrap();
 
-        let api_price = client.fetch_ratio(token_address).await.unwrap();
+        let api_price = client
+            .fetch_ratio(APIToken::ERC20(token_address))
+            .await
+            .unwrap();
 
         const REPORTED_PRICE: f64 = 1_f64 / 0.0028306661720164175_f64;
         const EPSILON: f64 = 0.000001_f64 * REPORTED_PRICE;
@@ -318,7 +325,10 @@ mod tests {
 
         let token_address: Address = TEST_TOKEN_ADDRESS.parse().unwrap();
 
-        client.fetch_ratio(token_address).await.unwrap();
+        client
+            .fetch_ratio(APIToken::ERC20(token_address))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -332,7 +342,10 @@ mod tests {
 
         let token_address: Address = Address::random();
 
-        client.fetch_ratio(token_address).await.unwrap();
+        client
+            .fetch_ratio(APIToken::ERC20(token_address))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -341,7 +354,7 @@ mod tests {
         let client = CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             api_key: Some(std::env::var("CMC_API_KEY").unwrap()),
             base_url: None,
-            client_timeout_ms: 5000,
+            client_timeout: Duration::from_secs(5),
             source: "coinmarketcap".to_string(),
             forced: None,
         });

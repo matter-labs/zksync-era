@@ -13,7 +13,7 @@ use zksync_types::{
         RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo,
     },
     url::SensitiveUrl,
-    L1BatchNumber,
+    L1BatchId, L1BatchNumber, L2ChainId,
 };
 
 use super::utils::{get_prover_job_status, BatchData, StageInfo, Status};
@@ -140,7 +140,10 @@ async fn get_prover_jobs_info_for_batch<'a>(
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<ProverJobFriInfo> {
     conn.fri_prover_jobs_dal()
-        .get_prover_jobs_stats_for_batch(batch_number, aggregation_round)
+        .get_prover_jobs_stats_for_batch(
+            L1BatchId::new(L2ChainId::zero(), batch_number),
+            aggregation_round,
+        )
         .await
 }
 
@@ -148,8 +151,8 @@ async fn get_proof_basic_witness_generator_into_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<BasicWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
-        .get_basic_witness_generator_job_for_batch(batch_number)
+    conn.fri_basic_witness_generator_dal()
+        .get_basic_witness_generator_job_for_batch(L1BatchId::new(L2ChainId::zero(), batch_number))
         .await
 }
 
@@ -157,8 +160,8 @@ async fn get_proof_leaf_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<LeafWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
-        .get_leaf_witness_generator_jobs_for_batch(batch_number)
+    conn.fri_leaf_witness_generator_dal()
+        .get_leaf_witness_generator_jobs_for_batch(L1BatchId::new(L2ChainId::zero(), batch_number))
         .await
 }
 
@@ -166,8 +169,8 @@ async fn get_proof_node_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<NodeWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
-        .get_node_witness_generator_jobs_for_batch(batch_number)
+    conn.fri_node_witness_generator_dal()
+        .get_node_witness_generator_jobs_for_batch(L1BatchId::new(L2ChainId::zero(), batch_number))
         .await
 }
 
@@ -175,8 +178,11 @@ async fn get_proof_recursion_tip_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
-        .get_recursion_tip_witness_generator_jobs_for_batch(batch_number)
+    conn.fri_recursion_tip_witness_generator_dal()
+        .get_recursion_tip_witness_generator_jobs_for_batch(L1BatchId::new(
+            L2ChainId::zero(),
+            batch_number,
+        ))
         .await
 }
 
@@ -184,8 +190,11 @@ async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<SchedulerWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
-        .get_scheduler_witness_generator_jobs_for_batch(batch_number)
+    conn.fri_scheduler_witness_generator_dal()
+        .get_scheduler_witness_generator_jobs_for_batch(L1BatchId::new(
+            L2ChainId::zero(),
+            batch_number,
+        ))
         .await
 }
 
@@ -194,7 +203,7 @@ async fn get_proof_compression_job_info_for_batch<'a>(
     conn: &mut Connection<'a, Prover>,
 ) -> Option<ProofCompressionJobInfo> {
     conn.fri_proof_compressor_dal()
-        .get_proof_compression_job_for_batch(batch_number)
+        .get_proof_compression_job_for_batch(L1BatchId::new(L2ChainId::zero(), batch_number))
         .await
 }
 

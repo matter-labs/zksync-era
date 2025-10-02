@@ -1,35 +1,55 @@
-# EigenDA client
+# EigenDA Client
 
----
+EigenDA is as a high-throughput data availability layer for rollups. It is an EigenLayer AVS (Actively Validated
+Service), so it leverages Ethereum's economic security instead of bootstrapping a new network with its own validators.
+For more information you can check the [docs](https://docs.eigenda.xyz/).
 
-This is an implementation of the EigenDA client capable of sending the blobs to DA layer. It uses authenticated
-requests, though the auth headers are kind of mocked in the current API implementation.
+## Client configuration
 
-The generated files are received by compiling the `.proto` files from EigenDA repo using the following function:
+To set up an eigenda client, you need to modify `etc/env/file_based/overrides/validium.yaml`:
 
-```rust
-pub fn compile_protos() {
-    let fds = protox::compile(
-        [
-            "proto/common.proto",
-            "proto/disperser.proto",
-        ],
-        ["."],
-    )
-    .expect("protox failed to build");
+First you need to set the `use_dummy_inclusion_data` field to `true`. This is a pending solution until the necessary
+contract changes are done (M1 milestone).
 
-    tonic_build::configure()
-        .build_client(true)
-        .build_server(false)
-        .skip_protoc_run()
-        .out_dir("generated")
-        .compile_fds(fds)
-        .unwrap();
-}
+```yaml
+da_dispatcher:
+  use_dummy_inclusion_data: true
 ```
 
-proto files are not included here to not create confusion in case they are not updated in time, so the EigenDA
-[repo](https://github.com/Layr-Labs/eigenda/tree/master/api/proto) has to be a source of truth for the proto files.
+Then set up the client by modifying the field `da_client`, add the following fields:
 
-The generated folder here is considered a temporary solution until the EigenDA has a library with either a protogen, or
-preferably a full Rust client implementation.
+- `disperser_rpc` (string): URL of the EigenDA Disperser RPC server.
+- `eigenda_eth_rpc` (optional string): URL of the Ethereum RPC server. If the value is not set, the client will use the
+  same rpc as the rest of the zk server.
+- `cert_verifier_router_addr` Address of the eigenDA cert verifier router contract
+- `operator_state_retriever_addr` Address of the Eigen operator state retriever contract
+- `registry_coordinator_addr` Address of the Eigen registry coordinator contract
+- `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
+
+You also need to modify `etc/env/file_based/secrets.yaml` to include the private key of the account that will be used.
+You need to add the following field:
+
+```yaml
+da_client:
+  client: Eigen
+  private_key: <PRIVATE_KEY>
+```
+
+> Note: the private key should be in hex format, without the `0x` prefix.
+
+So, for example, a client setup that uses the holesky EigenDA V2 client would look like this:
+
+`etc/env/file_based/overrides/validium.yaml`:
+
+```yaml
+da_dispatcher:
+  use_dummy_inclusion_data: true
+da_client:
+  client: Eigen
+  disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
+  eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
+  cert_verifier_router_addr: 0xdd735affe77a5ed5b21ed47219f95ed841f8ffbd
+  operator_state_retriever_addr: 0xB4baAfee917fb4449f5ec64804217bccE9f46C67
+  registry_coordinator_addr: 0x53012C69A189cfA2D9d29eb6F19B32e0A2EA3490
+  blob_version: 0
+```

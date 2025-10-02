@@ -1,3 +1,4 @@
+use zksync_dal::DalError;
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::web3::contract;
 
@@ -9,12 +10,16 @@ pub enum EthSenderError {
     ContractCall(#[from] ContractCallError),
     #[error("Token parsing error: {0}")]
     Parse(#[from] contract::Error),
+    #[error("Max base fee exceeded")]
+    ExceedMaxBaseFee,
+    #[error("Dal error: {0}")]
+    Dal(#[from] DalError),
 }
 
 impl EthSenderError {
     pub fn is_retriable(&self) -> bool {
         match self {
-            EthSenderError::EthereumGateway(err) => err.is_retriable(),
+            EthSenderError::EthereumGateway(err) => err.is_retryable(),
             _ => false,
         }
     }

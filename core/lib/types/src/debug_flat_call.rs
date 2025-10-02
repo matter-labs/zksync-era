@@ -49,4 +49,11 @@ pub struct CallTraceMeta {
     pub tx_hash: H256,
     pub block_number: u32,
     pub block_hash: H256,
+    /// Error message associated with the transaction in the sequencer database.
+    /// Can be used to identify a failed transaction if error information is not
+    /// recorded otherwise (e.g. out-of-gas errors in early protocol versions).
+    ///
+    /// Should be seen as a fallback value (e.g. if the trace doesn't contain the error
+    /// or revert reason).
+    pub internal_error: Option<String>,
 }

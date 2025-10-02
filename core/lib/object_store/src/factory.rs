@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use anyhow::Context as _;
 use tokio::sync::OnceCell;
@@ -10,6 +10,7 @@ use crate::{
     mirror::MirroringObjectStore,
     raw::{ObjectStore, ObjectStoreError},
     retries::StoreWithRetries,
+    s3::{S3Store, S3StoreAuthMode},
 };
 
 /// Factory of [`ObjectStore`]s that caches the store instance once it's created. Used mainly for legacy reasons.
@@ -70,7 +71,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
@@ -85,7 +86,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
                 let store = StoreWithRetries::try_new(config.max_retries, || {
@@ -95,7 +96,43 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
+            }
+
+            ObjectStoreMode::S3WithCredentialFile {
+                bucket_base_url,
+                s3_credential_file_path,
+                endpoint,
+                region,
+            } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    S3Store::new(
+                        S3StoreAuthMode::AuthenticatedWithCredentialFile(
+                            s3_credential_file_path.clone(),
+                        ),
+                        bucket_base_url.clone(),
+                        endpoint.clone(),
+                        region.clone(),
+                    )
+                })
+                .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
+            }
+            ObjectStoreMode::S3AnonymousReadOnly {
+                bucket_base_url,
+                endpoint,
+                region,
+            } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    S3Store::new(
+                        S3StoreAuthMode::Anonymous,
+                        bucket_base_url.clone(),
+                        endpoint.clone(),
+                        region.clone(),
+                    )
+                })
+                .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
 
             ObjectStoreMode::FileBacked {
@@ -107,7 +144,10 @@ impl ObjectStoreFactory {
                 .await?;
 
                 if let Some(mirror_path) = &config.local_mirror_path {
-                    tracing::warn!("Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{mirror_path}`");
+                    tracing::warn!(
+                        "Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{}`",
+                        mirror_path.display()
+                    );
                 }
                 Ok(Arc::new(store))
             }
@@ -116,10 +156,10 @@ impl ObjectStoreFactory {
 
     async fn wrap_mirroring(
         store: impl ObjectStore,
-        mirror_path: Option<&String>,
+        mirror_path: Option<&Path>,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
         Ok(if let Some(mirror_path) = mirror_path {
-            Arc::new(MirroringObjectStore::new(store, mirror_path.clone()).await?)
+            Arc::new(MirroringObjectStore::new(store, mirror_path.to_owned()).await?)
         } else {
             Arc::new(store)
         })

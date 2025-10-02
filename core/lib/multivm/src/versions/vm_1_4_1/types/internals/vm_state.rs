@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
@@ -78,7 +78,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     };
 
     assert_next_block(&last_l2_block, &l1_batch_env.first_l2_block);
-    let first_l2_block = l1_batch_env.first_l2_block;
+    let first_l2_block = l1_batch_env.first_l2_block.clone();
     let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();

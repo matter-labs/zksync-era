@@ -204,7 +204,7 @@ transmitted to L1 for final verification.
   https://github.com/matter-labs/era-zkEVM-assembly/blob/v1.3.2/src/assembly/instruction/log.rs#L32
 [executor_sol]:
   https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L21
-[mainet_executor]: https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D
+[mainnet_executor]: https://etherscan.io/address/0x389a081BCf20e5803288183b929F08458F1d863D
 [sepolia_tx]: https://sepolia.etherscan.io/tx/0x18c2a113d18c53237a4056403047ff9fafbf772cb83ccd44bb5b607f8108a64c
 [mailbox_log_inclusion]:
   https://github.com/matter-labs/era-contracts/blob/b04dcaf2256a9b2626eeaefbf1b281f0119d30ab/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L70

@@ -206,7 +206,6 @@ impl TeeProofGenerationDal<'_, '_> {
             r#"
             UPDATE tee_proof_generation_details
             SET
-                tee_type = $1,
                 status = $2,
                 pubkey = $3,
                 signature = $4,
@@ -214,6 +213,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $6
+                AND tee_type = $1
             "#,
             tee_type.to_string(),
             TeeProofGenerationJobStatus::Generated.to_string(),

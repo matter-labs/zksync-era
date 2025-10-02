@@ -1,29 +1,44 @@
+name: Release-please
+
+# Give permissions to the release-please to open, update PRs
+# and commit to PRs the repository to update Cargo.lock
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+  attestations: write
+
+# Run the workflow on push to the main branch or manually
 on:
   push:
     branches:
       - main
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-
-name: release-please
 jobs:
-  release-please:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Run release-please
-        id: release
-        uses: google-github-actions/release-please-action@e4dc86ba9405554aeba3c6bb2d169500e7d3b4ee # v4.1.1
-        with:
-            token: ${{ secrets.RELEASE_TOKEN }}
-            config-file: .github/release-please/config.json
-            manifest-file: .github/release-please/manifest.json
 
-      - name: Send Release Info
-        if: ${{ steps.release.outputs.releases_created == 'true' }}
-        uses: matter-labs/format-release-please-for-slack-action@69e6fe9e4ec531b7b5fb0d826f73c190db83cf42 # v2.1.0
-        with:
-          release-please-output: ${{ toJSON(steps.release.outputs) }}
-          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
+  # Prepare the release PR with changelog updates and create github releases
+  release-please:
+    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@3f8620bc332855fd588321f4486ecdbcddee9ec3 # v1
+    secrets:
+      slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for notifications
+      gh_token: ${{ secrets.RELEASE_TOKEN }}                # GitHub token for release-please
+      cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }}  # Crates.io token for publishing
+    with:
+      config: '.github/release-please/config.json'          # Path to the configuration file
+      manifest: '.github/release-please/manifest.json'      # Path to the manifest file
+      update-cargo-lock: true                               # Update Cargo.lock file in the release PR
+      publish-to-crates-io: true                            # Enable publishing to crates.io
+      upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
+      version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
+      workspace-dirs: 'core prover zkstack_cli'             # List of additional workspace directories to update Cargo.lock
+      dependencies: 'clang libclang-dev'                    # Additional Linux dependencies to install
+
+  # Trigger workflow to publish zkstack binaries
+  release-zkstack-cli-bins:
+    if: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--release_created == 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/release-zkstack-bins.yml
+    with:
+      tag: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--tag_name }}
+    secrets: inherit

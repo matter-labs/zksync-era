@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
@@ -820,14 +820,18 @@ impl<H: HistoryMode> HistoryRecorder<TransientStorageWrapper, H> {
         self.apply_historic_record(StorageHistoryRecord { key, value }, timestamp)
     }
 
-    pub(crate) fn drain_inner(&mut self) -> Vec<(StorageKey, U256)> {
-        self.inner.inner.drain().collect()
+    pub(crate) fn clone_vec(&mut self) -> Vec<(StorageKey, U256)> {
+        self.inner
+            .inner
+            .iter()
+            .map(|(key, value)| (*key, *value))
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zk_evm_1_5_0::{aux_structures::Timestamp, vm_state::PrimitiveValue};
+    use zk_evm_1_5_2::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
 
     use crate::vm_latest::{

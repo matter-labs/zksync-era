@@ -231,6 +231,7 @@ impl L1Fetcher {
             .unwrap()
             .batch_hash
     }
+
     pub async fn get_stored_block_info(
         &self,
         l1_batch_number: L1BatchNumber,

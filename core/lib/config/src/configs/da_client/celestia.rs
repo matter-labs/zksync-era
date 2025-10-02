@@ -1,15 +1,19 @@
-use serde::Deserialize;
+use std::time::Duration;
+
+use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::PrivateKey;
 
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct CelestiaConfig {
     pub api_node_url: String,
     pub namespace: String,
     pub chain_id: String,
-    pub timeout_ms: u64,
+    #[config(default_t = Duration::from_secs(30))]
+    pub timeout: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct CelestiaSecrets {
+    #[config(with = FromSecretString)]
     pub private_key: PrivateKey,
 }

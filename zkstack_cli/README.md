@@ -93,8 +93,55 @@ params, use:
 zkstack ecosystem init --dev
 ```
 
+For working with zksync os contracts, use:
+
+```bash
+zkstack ecosystem init  --dev --no-genesis --zksync-os
+```
+
 If the process gets stuck, resume it with `--resume`. This flag keeps track of already sent transactions and sends new
 ones with provided params.
+
+To create only the ecosystem:
+
+```bash
+zkstack ecosystem init-core-contracts --l1-rpc-url <L1_RPC_ENDPOINT>
+```
+
+If the ecosystem has already been initialized, you can create a new ctm and rigester it in the existing bridgehub.
+
+This command create a new ctm and all related contracts:
+
+```bash
+zkstack ecosystem init-new-ctm --l1-rpc-url <L1_RPC_ENDPOINT> --bridgehub <BRIDGEHUB_CONTRACT_ADDRESS>
+```
+
+This should be called afterwards to register the created ctm in the bridgehub:
+
+```bash
+zkstack ecosystem register-ctm --l1-rpc-url <L1_RPC_ENDPOINT>
+```
+
+#### Gateway
+
+If the want to convert the newly created gateway chain to become the settlement layer for local testing:
+
+```bash
+zkstack chain gateway convert-to-gateway --chain <GATEWAY_CHAIN_NAME>
+```
+
+If we want to deploy a CTM on gateway for an existing settlement layer, please provide the bridgehub address and id of
+the chain, whose ctm you want to deploy:
+
+```bash
+zkstack chain gateway convert-to-gateway --chain <GATEWAY_CHAIN_NAME> --ignore-prerequisites --bridgehub-addr <BRIDGEHUB_CONTRACT_ADDRESS> --ctm-chain-id <CHAIN_ID_FOR_CTM>
+```
+
+To migrate the chain on top of gateway afterwards:
+
+```bash
+zkstack chain gateway migrate-to-gateway --chain <NAME_OF_CHAIN_TO_MIGRATE> --gateway-chain-name <GATEWAY_CHAIN_NAME>
+```
 
 #### Verifying Contracts
 
@@ -208,6 +255,101 @@ For `witness-vector-generator`, specify the number of WVG jobs with `--threads <
 
 For `witness-generator`, specify the round with `--round <round>`. Rounds:
 `all-rounds, basic-circuits, leaf-aggregation, node-aggregation, recursion-tip, scheduler`.
+
+### Migrating to and from Gateway
+
+zkstack_cli provides several commands for migrating to and from ZK Gateway. To get the full list of commands, please
+use:
+
+```bash
+zkstack chain gateway --help
+```
+
+To get params of each of the provided commands, please use `--help`.
+
+> Note that at the time of this writing, ZK Gateway is not available yet on public networks
+
+#### Migrating to Gateway
+
+Firstly, we need to generate the calldata to notify the server:
+
+```bash
+zkstack chain gateway notify-about-to-gateway-update-calldata
+```
+
+It will provide you with the calldata to call the chain admin with to notify the server about imminent migration on top
+of Gateway. This is a step needed to ensure smooth migration.
+
+> Note that even though the notification step is not strictly necessary, it is required for the server to migrate
+> properly and the zkstack_cli tool may not be ready to handle migrations without a priority notification.
+
+Secondly, you will have to generate the calldata to start the actual migration:
+
+```bash
+zkstack chain gateway migrate-to-gateway-calldata
+```
+
+Note that by default this command will check the status of the migration to Gateway and will only output the calldata
+after the notification has passed and the server is ready to migrate. To prepare the calldata even before the server is
+ready (helpful for multisigs), please provide `--no-cross-check` option.
+
+For `--gateway-config-path` please use the corresponding files for ZK Gateway inside the `./etc/env/ecosystems/gateway`
+folder.
+
+When the calldata for the migration to the ZK Gateway is executed, it will generate the following L1->GW transactions:
+
+- One from the L1 asset router (to migrate the chain).
+- The other ones from the chain admin.
+
+To track their status, please use the standard tool to track L2 txs status described
+[here](#tracking-l1-l2-transactions-status).
+
+#### Migrate from Gateway
+
+Firstly, we need to generate the calldata to notify the server:
+
+```bash
+zkstack chain gateway notify-about-from-gateway-update-calldata
+```
+
+It will provide you with the calldata to call the chain admin with to notify the server about imminent migration on top
+of Gateway. This is a step needed to ensure smooth migration.
+
+> Note that even though the notification step is not strictly necessary, it is required for the server to migrate
+> properly and the zkstack_cli tool may not be ready to handle migrations without a priority notification.
+
+After that, you will need to prepare the calldata to finalize the migration:
+
+```bash
+zkstack chain gateway migrate-from-gateway-calldata
+```
+
+For `--ecosystem-contracts-config-path` please use the corresponding file inside the `./etc/env/ecosystems` folder.
+
+Note that by default this command will check the status of the migration from Gateway and will only output the calldata
+after the notification has passed and the server is ready to migrate. To prepare the calldata even before the server is
+ready (helpful for multisigs), please provide `--no-cross-check` option.
+
+When the calldata for the migration from the ZK Gateway is executed, it will generate the L1->GW transactions from the
+L1 chain admin to the chain's diamond proxy on ZK Gateway. To track its status, please use the standard tool to track L2
+txs status described [here](#tracking-l1-l2-transactions-status).
+
+After the migration transaction is processed and the corresponding GW batch is finalized on L1, anyone can finalize the
+migration:
+
+```bash
+zkstack chain gateway finalize-chain-migration-from-gateway
+```
+
+Note that after migration to L1, the DA validators will be reset. To generate the calldata to reset the DA validators,
+do the following:
+
+```bash
+zkstack chain set-da-validator-pair-calldata
+```
+
+> So when preparing a migration from GW for a multisig-controlled ChainAdmin, the calldata for the following steps
+> should be signed as different transactions: the notification, the migration and the setting of the DA validators.
 
 ### Contract Verifier
 
@@ -412,3 +554,12 @@ Supported extensions include:
 - `js`: JavaScript files.
 - `ts`: TypeScript files.
 - `contracts`: files in `contracts` directory.
+
+### Tracking L1->L2 transactions status
+
+Use the following command to track L1->L2 (or L1->GW) transactions that came out of a certain address / l1 transaction
+hash, etc:
+
+```
+zkstack dev track-priority-ops
+```

@@ -4,7 +4,6 @@ use crate::{
 };
 
 #[test]
-#[ignore] // Requires post-gateway system contracts
 fn rollup_da_output_hash_match() {
     test_rollup_da_output_hash_match::<Vm<_, HistoryEnabled>>();
 }

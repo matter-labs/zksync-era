@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*)\n            FROM proof_compression_jobs_fri\n            WHERE\n                attempts >= $1\n                AND status <> 'successful'\n                AND status <> 'sent_to_server'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c47ccee242dd807dc948649258851a1a8431188ee3e90e5b6f24ada7c5152669"
+}

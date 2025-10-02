@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -14,6 +15,14 @@ impl DataAvailabilityClient for NoDAClient {
         Ok(DispatchResponse::default())
     }
 
+    async fn ensure_finality(
+        &self,
+        _: String,
+        _: DateTime<Utc>,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        Ok(Some(FinalityResponse::default()))
+    }
+
     async fn get_inclusion_data(&self, _: &str) -> Result<Option<InclusionData>, DAError> {
         Ok(Some(InclusionData::default()))
     }
@@ -24,5 +33,13 @@ impl DataAvailabilityClient for NoDAClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         None
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::NoDA
+    }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0)
     }
 }

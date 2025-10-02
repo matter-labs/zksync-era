@@ -19,4 +19,4 @@ export CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=${execution_params[5]}
 export CONTRACT_EXECUTION_PARAMS_DEPLOYS=${execution_params[6]}
 
 # Run the test
-cargo run --bin loadnext
+cd core && cargo run --bin loadnext

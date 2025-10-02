@@ -1,7 +1,7 @@
-//! Backend "glue" which ties the actual Web3 API implementation to the `jsonrpsee` JSON RPC backend.
-//! Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
-//! namespace structures defined in `zksync_core`.
-
+/// Backend "glue" which ties the actual Web3 API implementation to the `jsonrpsee` JSON RPC backend.
+///
+/// Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
+/// namespace structures defined in `zksync_core`.
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
@@ -10,7 +10,8 @@ use zksync_web3_decl::{
 pub(crate) use self::{
     metadata::{MethodMetadata, MethodTracer},
     middleware::{
-        CorrelationMiddleware, LimitMiddleware, MetadataLayer, ShutdownMiddleware, TrafficTracker,
+        CorrelationMiddleware, LimitMiddleware, MetadataLayer, ServerTimeoutMiddleware,
+        ShutdownMiddleware, TrafficTracker,
     },
 };
 use crate::tx_sender::SubmitTxError;
@@ -44,6 +45,7 @@ impl MethodTracer {
             | Web3Error::SerializationError(_)
             | Web3Error::ProxyError(_) => 3,
             Web3Error::TreeApiUnavailable => 6,
+            Web3Error::ServerShuttingDown => ErrorCode::ServerIsBusy.code(),
         };
         let message = match err {
             // Do not expose internal error details to the client.
@@ -55,14 +57,15 @@ impl MethodTracer {
 
         ErrorObjectOwned::owned(code, message, data)
     }
-}
 
-impl From<SubmitTxError> for Web3Error {
-    fn from(err: SubmitTxError) -> Self {
+    pub(crate) fn map_submit_err(&self, err: SubmitTxError) -> Web3Error {
+        self.observe_submit_error(&err);
+
         match err {
-            SubmitTxError::Internal(err) => Self::InternalError(err),
-            SubmitTxError::ProxyError(err) => Self::ProxyError(err),
-            _ => Self::SubmitTransactionError(err.to_string(), err.data()),
+            SubmitTxError::Internal(err) => Web3Error::InternalError(err),
+            SubmitTxError::ProxyError(err) => Web3Error::ProxyError(err),
+            SubmitTxError::ServerShuttingDown => Web3Error::ServerShuttingDown,
+            _ => Web3Error::SubmitTransactionError(err.to_string(), err.data()),
         }
     }
 }

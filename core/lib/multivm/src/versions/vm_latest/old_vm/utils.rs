@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{
@@ -10,7 +10,7 @@ use zksync_types::{Address, U256};
 
 use crate::{
     interface::storage::WriteStorage,
-    vm_latest::{old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode},
+    vm_latest::{old_vm::memory::SimpleMemory, types::ZkSyncVmState, HistoryMode},
 };
 
 #[derive(Debug, Clone)]

@@ -1,7 +1,9 @@
 use anyhow::Context;
-use common::{check_prerequisites, cmd::Cmd, git, logger, spinner::Spinner, GPU_PREREQUISITES};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{
+    check_prerequisites, cmd::Cmd, git, logger, spinner::Spinner, GPU_PREREQUISITES,
+};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ZkStackConfig};
 
 use super::args::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::{
@@ -15,7 +17,7 @@ use crate::{
 pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Result<()> {
     check_prerequisites(shell, &GPU_PREREQUISITES, false);
 
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let args = args.fill_values_with_prompt();
 
@@ -45,7 +47,7 @@ fn clone_bellman_cuda(shell: &Shell) -> anyhow::Result<String> {
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     let path = git::clone(
         shell,
-        shell.current_dir(),
+        &shell.current_dir(),
         "https://github.com/matter-labs/era-bellman-cuda",
         BELLMAN_CUDA_DIR,
     )?;

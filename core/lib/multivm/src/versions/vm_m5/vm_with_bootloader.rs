@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_3_1::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
     aux_structures::{MemoryPage, Timestamp},
@@ -15,7 +15,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
-    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -154,6 +154,8 @@ pub const MAX_POSTOP_SLOTS: usize = PAYMASTER_CONTEXT_SLOTS + 7;
 // Slots used to store the current L2 transaction's hash and the hash recommended
 // to be used for signing the transaction's content.
 const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 // Slots used to store the calldata for the KnownCodesStorage to mark new factory
 // dependencies as known ones. Besides the slots for the new factory dependencies themselves
@@ -376,7 +378,7 @@ pub fn init_vm_inner<S: Storage>(
         execution_mode,
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
-        snapshots: Vec::new(),
+        snapshots: VecDeque::new(),
     }
 }
 
@@ -594,10 +596,10 @@ pub(crate) fn bytecode_to_factory_dep(bytecode: Vec<u8>) -> (U256, Vec<U256>) {
 /// # Current layout
 ///
 /// - 0 byte (MSB): server-side tx execution mode
-///     In the server, we may want to execute different parts of the transaction in the different context
-///     For example, when checking validity, we don't want to actually execute transaction and have side effects.
+///   In the server, we may want to execute different parts of the transaction in the different context
+///   For example, when checking validity, we don't want to actually execute transaction and have side effects.
 ///
-///     Possible values:
+///   Possible values:
 ///     - 0x00: validate & execute (normal mode)
 ///     - 0x01: validate but DO NOT execute
 ///     - 0x02: execute but DO NOT validate

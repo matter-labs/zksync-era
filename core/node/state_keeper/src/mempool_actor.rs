@@ -11,23 +11,25 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{get_nonce_key, Address, Nonce, ProtocolVersionId};
 
-use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
+use super::{mempool_guard::MempoolGuard, metrics::KEEPER_METRICS};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
 pub async fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
-    vm_version: VmVersion,
+    protocol_version: ProtocolVersionId,
 ) -> anyhow::Result<L2TxFilter> {
     let fee_input = batch_fee_input_provider.get_batch_fee_input().await?;
-    let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
     Ok(L2TxFilter {
         fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
+        protocol_version,
     })
 }
 
@@ -39,10 +41,10 @@ pub struct MempoolFetcher {
     sync_interval: Duration,
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
+    l1_to_l2_txs_paused: bool,
     #[cfg(test)]
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
-
 impl MempoolFetcher {
     pub fn new(
         mempool: MempoolGuard,
@@ -54,9 +56,10 @@ impl MempoolFetcher {
             mempool,
             pool,
             batch_fee_input_provider,
-            sync_interval: config.sync_interval(),
+            sync_interval: config.sync_interval,
             sync_batch_size: config.sync_batch_size,
-            stuck_tx_timeout: config.remove_stuck_txs.then(|| config.stuck_tx_timeout()),
+            stuck_tx_timeout: config.remove_stuck_txs.then_some(config.stuck_tx_timeout),
+            l1_to_l2_txs_paused: config.l1_to_l2_txs_paused,
             #[cfg(test)]
             transaction_hashes_sender: mpsc::unbounded_channel().0,
         }
@@ -77,19 +80,28 @@ impl MempoolFetcher {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, mempool is shutting down");
+                tracing::info!("Stop request received, mempool is shutting down");
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
+            let mut connection = self.pool.connection_tagged("state_keeper").await?;
+            let mut storage_transaction = connection.start_transaction().await?;
             let mempool_info = self.mempool.get_mempool_info();
-            let protocol_version = storage
+
+            KEEPER_METRICS
+                .mempool_stashed_accounts
+                .set(mempool_info.stashed_accounts.len());
+            KEEPER_METRICS
+                .mempool_purged_accounts
+                .set(mempool_info.purged_accounts.len());
+
+            let protocol_version = storage_transaction
                 .blocks_dal()
                 .pending_protocol_version()
                 .await
                 .context("failed getting pending protocol version")?;
 
-            let (fee_per_gas, gas_per_pubdata) = if let Some(unsealed_batch) = storage
+            let (fee_per_gas, gas_per_pubdata) = if let Some(unsealed_batch) = storage_transaction
                 .blocks_dal()
                 .get_unsealed_l1_batch()
                 .await
@@ -101,43 +113,55 @@ impl MempoolFetcher {
                 );
                 (fee_per_gas, gas_per_pubdata as u32)
             } else {
-                let filter = l2_tx_filter(
-                    self.batch_fee_input_provider.as_ref(),
-                    protocol_version.into(),
-                )
-                .await
-                .context("failed creating L2 transaction filter")?;
+                let filter = l2_tx_filter(self.batch_fee_input_provider.as_ref(), protocol_version)
+                    .await
+                    .context("failed creating L2 transaction filter")?;
 
                 (filter.fee_per_gas, filter.gas_per_pubdata)
             };
 
-            let transactions_with_constraints = storage
+            let transactions_with_constraints = storage_transaction
                 .transactions_dal()
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
                     &mempool_info.purged_accounts,
                     gas_per_pubdata,
                     fee_per_gas,
+                    !self.l1_to_l2_txs_paused,
                     self.sync_batch_size,
                 )
                 .await
                 .context("failed syncing mempool")?;
-
-            let transactions: Vec<_> = transactions_with_constraints
-                .iter()
-                .map(|(t, _c)| t)
-                .collect();
-
-            let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
-            drop(storage);
+            storage_transaction.commit().await?;
 
             #[cfg(test)]
-            {
-                let transaction_hashes = transactions.iter().map(|x| x.hash()).collect();
-                self.transaction_hashes_sender.send(transaction_hashes).ok();
+            let transaction_hashes: Vec<_> = transactions_with_constraints
+                .iter()
+                .map(|(t, _c)| t.hash())
+                .collect();
+            let all_transactions_loaded =
+                transactions_with_constraints.len() < self.sync_batch_size;
+
+            // We should be careful about what nonces we provide for mempool.
+            // There are 2 actions that must be done sequentially so that the nonces in mempool are always correct:
+            // a) "load nonces from postgres and insert to mempool", it's done in the loop below
+            // b) "update nonces in mempool after processed block", it's done in state keeper right after block is fully sealed.
+            // This is why `self.mempool.enter_critical()` is called.
+            // We also insert txs in small chunks, so that it doesn't block state keeper code for too long.
+            const CHUNK_SIZE: usize = 100;
+            for chunk in transactions_with_constraints.chunks(CHUNK_SIZE) {
+                let chunk = chunk.to_vec();
+                let addresses: Vec<_> =
+                    chunk.iter().map(|(tx, _)| tx.initiator_account()).collect();
+
+                let _guard = self.mempool.enter_critical();
+                let nonces = get_nonces(&mut connection, &addresses).await?;
+                self.mempool.insert(chunk, nonces);
             }
-            let all_transactions_loaded = transactions.len() < self.sync_batch_size;
-            self.mempool.insert(transactions_with_constraints, nonces);
+            drop(connection);
+
+            #[cfg(test)]
+            self.transaction_hashes_sender.send(transaction_hashes).ok();
             latency.observe();
 
             if all_transactions_loaded {
@@ -148,17 +172,16 @@ impl MempoolFetcher {
     }
 }
 
-/// Loads nonces for all distinct `transactions` initiators from the storage.
-async fn get_transaction_nonces(
+/// Loads nonces for all addresses from the storage.
+async fn get_nonces(
     storage: &mut Connection<'_, Core>,
-    transactions: &[&Transaction],
+    addresses: &[Address],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = addresses
         .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
+        .map(|address| {
+            let nonce_key = get_nonce_key(address).hashed_key();
+            (nonce_key, (nonce_key, *address))
         })
         .unzip();
 
@@ -192,12 +215,15 @@ mod tests {
     use super::*;
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
-        sync_interval_ms: 10,
+        sync_interval: Duration::from_millis(10),
         sync_batch_size: 100,
         capacity: 100,
-        stuck_tx_timeout: 0,
+        stuck_tx_timeout: Duration::ZERO,
         remove_stuck_txs: false,
-        delay_interval: 10,
+        delay_interval: Duration::from_millis(10),
+        l1_to_l2_txs_paused: false,
+        high_priority_l2_tx_initiator: None,
+        high_priority_l2_tx_protocol_version: Some(29),
     };
 
     #[tokio::test]
@@ -222,9 +248,9 @@ mod tests {
         let other_transaction_initiator = other_transaction.initiator_account();
         assert_ne!(other_transaction_initiator, transaction_initiator);
 
-        let nonces = get_transaction_nonces(
+        let nonces = get_nonces(
             &mut storage,
-            &[&transaction.into(), &other_transaction.into()],
+            &[transaction_initiator, other_transaction_initiator],
         )
         .await
         .unwrap();
@@ -246,7 +272,14 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -309,7 +342,14 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -339,7 +379,7 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
+        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval * 5).await;
         assert_eq!(mempool.stats().l2_transaction_count, 0);
 
         stop_sender.send_replace(true);
@@ -355,7 +395,14 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();

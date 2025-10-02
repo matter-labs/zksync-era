@@ -19,13 +19,14 @@ tiny-keccak.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-chrono.workspace = true
+chrono = { workspace = true, default-features = false }
 strum = { workspace = true, features = ["derive"] }
 num_enum.workspace = true
 anyhow.workspace = true
 url = { workspace = true, features = ["serde"] }
 serde_with.workspace = true
 secrecy.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true

@@ -16,7 +16,7 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --bin verified_sources_fetcher
+RUN cargo build --manifest-path ./core/Cargo.toml --release --bin verified_sources_fetcher
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
@@ -26,6 +26,6 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
 RUN apt-get update && apt-get install -y google-cloud-cli && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/src/zksync/target/release/verified_sources_fetcher /usr/bin/
+COPY --from=builder /usr/src/zksync/core/target/release/verified_sources_fetcher /usr/bin/
 
 ENTRYPOINT ["verified_sources_fetcher"]

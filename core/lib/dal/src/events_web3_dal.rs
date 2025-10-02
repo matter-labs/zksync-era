@@ -4,12 +4,21 @@ use sqlx::{
     Postgres, Row,
 };
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     api::{GetLogsFilter, Log},
-    Address, L2BlockNumber, H256,
+    h256_to_address, Address, L2BlockNumber, H256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{models::storage_event::StorageWeb3Log, Core};
+
+#[derive(Debug, PartialEq)]
+pub struct ContractDeploymentLog {
+    pub transaction_index_in_block: u64,
+    pub deployer: Address,
+    pub deployed_address: Address,
+}
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
@@ -241,6 +250,40 @@ impl EventsWeb3Dal<'_, '_> {
         .await?;
         let logs = db_logs.into_iter().map(Into::into).collect();
         Ok(logs)
+    }
+
+    /// Gets all contract deployment logs for the specified block. The returned logs are ordered by their execution order.
+    pub async fn get_contract_deployment_logs(
+        &mut self,
+        block: L2BlockNumber,
+    ) -> DalResult<Vec<ContractDeploymentLog>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                tx_index_in_block AS "transaction_index!",
+                topic2 AS "deployer!",
+                topic4 AS "deployed_address!"
+            FROM events
+            WHERE miniblock_number = $1 AND address = $2 AND topic1 = $3
+            ORDER BY event_index_in_block
+            "#,
+            i64::from(block.0),
+            CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
+            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes()
+        )
+        .instrument("get_contract_deployment_logs")
+        .with_arg("block", &block)
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| ContractDeploymentLog {
+                transaction_index_in_block: row.transaction_index as u64,
+                deployer: h256_to_address(&H256::from_slice(&row.deployer)),
+                deployed_address: h256_to_address(&H256::from_slice(&row.deployed_address)),
+            })
+            .collect())
     }
 }
 

@@ -1,15 +1,13 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, docker, ethereum, logger};
-use config::{
-    portal::*,
-    traits::{ConfigWithL2RpcUrl, SaveConfig},
-    AppsEcosystemConfig, ChainConfig, EcosystemConfig,
-};
 use ethers::types::Address;
-use types::{BaseToken, TokenInfo};
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, docker, ethereum, logger};
+use zkstack_cli_config::{
+    portal::*, traits::SaveConfig, AppsEcosystemConfig, ChainConfig, EcosystemConfig, ZkStackConfig,
+};
+use zkstack_cli_types::{BaseToken, TokenInfo};
 
 use crate::{
     consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONFIG_PATH, PORTAL_DOCKER_IMAGE},
@@ -24,14 +22,10 @@ async fn build_portal_chain_config(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
-    let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
-    // Get L1 RPC URL from secrects config
-    let secrets_config = chain_config.get_secrets_config()?;
-    let l1_rpc_url = secrets_config
-        .l1
-        .as_ref()
-        .map(|l1| l1.l1_rpc_url.expose_str())
-        .context("l1")?;
+    let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
+    // Get L1 RPC URL from secrets config
+    let secrets_config = chain_config.get_secrets_config().await?;
+    let l1_rpc_url = secrets_config.l1_rpc_url()?;
     // Build L1 network config
     let l1_network = Some(L1NetworkConfig {
         id: chain_config.l1_network.chain_id(),
@@ -40,10 +34,10 @@ async fn build_portal_chain_config(
         native_currency: TokenInfo::eth(),
         rpc_urls: RpcUrls {
             default: RpcUrlConfig {
-                http: vec![l1_rpc_url.to_string()],
+                http: vec![l1_rpc_url.clone()],
             },
             public: RpcUrlConfig {
-                http: vec![l1_rpc_url.to_string()],
+                http: vec![l1_rpc_url.clone()],
             },
         },
     });
@@ -53,8 +47,7 @@ async fn build_portal_chain_config(
     } else {
         (
             format!("{:?}", chain_config.base_token.address),
-            ethereum::get_token_info(chain_config.base_token.address, l1_rpc_url.to_string())
-                .await?,
+            ethereum::get_token_info(chain_config.base_token.address, l1_rpc_url).await?,
         )
     };
     let tokens = vec![TokenConfig {
@@ -70,7 +63,7 @@ async fn build_portal_chain_config(
             id: chain_config.chain_id.as_u64(),
             key: chain_config.name.clone(),
             name: chain_config.name.clone(),
-            rpc_url: l2_rpc_url.to_string(),
+            rpc_url: l2_rpc_url,
             l1_network,
             public_l1_network_id: None,
             block_explorer_url: None,
@@ -118,7 +111,7 @@ async fn validate_portal_config(
 }
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config: EcosystemConfig = ZkStackConfig::ecosystem(shell)?;
     // Get ecosystem level apps.yaml config
     let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;
     // Display all chains, unless --chain is passed

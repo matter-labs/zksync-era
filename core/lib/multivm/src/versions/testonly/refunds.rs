@@ -10,7 +10,6 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     // refunded gas and without them
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -47,7 +46,6 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     // But the overall result should be the same
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -101,7 +99,6 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     // We still can't use the refund tracer, because it will override the refund.
     // But we can check that the logs and events have changed.
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -140,7 +137,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         current_state_without_predefined_refunds.user_l2_to_l1_logs
     );
 
-    assert_ne!(
+    assert_eq!(
         current_state_with_changed_predefined_refunds.system_logs,
         current_state_without_predefined_refunds.system_logs
     );
@@ -171,7 +168,6 @@ pub(crate) fn test_negative_pubdata_for_transaction<VM: TestedVm>() {
     let cleanup_function = expensive_contract.function("cleanUp");
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(

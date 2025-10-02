@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::Prompt;
 use url::Url;
+use zkstack_cli_common::Prompt;
 
 use crate::commands::dev::{
     defaults::LOCAL_RPC_URL,
@@ -12,7 +12,7 @@ use crate::commands::dev::{
     },
 };
 
-const DEFAULT_TRANSACTION_CONFIRMATIONS: usize = 2;
+const DEFAULT_TRANSACTION_CONFIRMATIONS: usize = 5;
 
 #[derive(Debug, Parser)]
 pub struct SendTransactionsArgs {

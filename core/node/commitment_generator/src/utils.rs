@@ -4,17 +4,9 @@ use std::fmt;
 
 use anyhow::Context;
 use itertools::Itertools;
-use zk_evm_1_3_3::{
-    aux_structures::Timestamp as Timestamp_1_3_3,
-    zk_evm_abstractions::queries::LogQuery as LogQuery_1_3_3,
-};
-use zk_evm_1_4_1::{
-    aux_structures::Timestamp as Timestamp_1_4_1,
-    zk_evm_abstractions::queries::LogQuery as LogQuery_1_4_1,
-};
-use zk_evm_1_5_0::{
-    aux_structures::Timestamp as Timestamp_1_5_0,
-    zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_0,
+use zk_evm_1_5_2::{
+    aux_structures::Timestamp as Timestamp_1_5_2,
+    zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_2,
 };
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
@@ -22,7 +14,6 @@ use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes
 use zksync_system_constants::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::{
     address_to_u256, h256_to_u256, u256_to_h256,
-    vm::VmVersion,
     web3::keccak256,
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, EVENT_WRITER_ADDRESS, H256,
@@ -54,37 +45,16 @@ impl CommitmentComputer for RealCommitmentComputer {
     fn events_queue_commitment(
         &self,
         events_queue: &[LogQuery],
-        protocol_version: ProtocolVersionId,
+        _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
-        match VmVersion::from(protocol_version) {
-            VmVersion::VmBoojumIntegration => Ok(H256(
-                circuit_sequencer_api_1_4_0::commitments::events_queue_commitment_fixed(
-                    &events_queue
-                        .iter()
-                        .map(|x| to_log_query_1_3_3(*x))
-                        .collect(),
-                ),
-            )),
-            VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 => Ok(H256(
-                circuit_sequencer_api_1_4_1::commitments::events_queue_commitment_fixed(
-                    &events_queue
-                        .iter()
-                        .map(|x| to_log_query_1_4_1(*x))
-                        .collect(),
-                ),
-            )),
-            VmVersion::Vm1_5_0SmallBootloaderMemory
-            | VmVersion::Vm1_5_0IncreasedBootloaderMemory
-            | VmVersion::VmGateway => Ok(H256(
-                circuit_sequencer_api_1_5_0::commitments::events_queue_commitment_fixed(
-                    &events_queue
-                        .iter()
-                        .map(|x| to_log_query_1_5_0(*x))
-                        .collect(),
-                ),
-            )),
-            _ => anyhow::bail!("Unsupported protocol version: {protocol_version:?}"),
-        }
+        // FIXME: is this OK to process using 0.151.x?
+        let commitment = circuit_encodings::commitments::events_queue_commitment_fixed(
+            &events_queue
+                .iter()
+                .map(|x| to_log_query_1_5_2(*x))
+                .collect(),
+        );
+        Ok(H256(commitment))
     }
 
     fn bootloader_initial_content_commitment(
@@ -100,27 +70,10 @@ impl CommitmentComputer for RealCommitmentComputer {
 
         let full_bootloader_memory =
             expand_memory_contents(initial_bootloader_contents, expanded_memory_size);
-
-        match VmVersion::from(protocol_version) {
-            VmVersion::VmBoojumIntegration => Ok(H256(
-                circuit_sequencer_api_1_4_0::commitments::initial_heap_content_commitment_fixed(
-                    &full_bootloader_memory,
-                ),
-            )),
-            VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 => Ok(H256(
-                circuit_sequencer_api_1_4_1::commitments::initial_heap_content_commitment_fixed(
-                    &full_bootloader_memory,
-                ),
-            )),
-            VmVersion::Vm1_5_0SmallBootloaderMemory
-            | VmVersion::Vm1_5_0IncreasedBootloaderMemory
-            | VmVersion::VmGateway => Ok(H256(
-                circuit_sequencer_api_1_5_0::commitments::initial_heap_content_commitment_fixed(
-                    &full_bootloader_memory,
-                ),
-            )),
-            _ => unreachable!(),
-        }
+        let commitment = circuit_encodings::commitments::initial_heap_content_commitment_fixed(
+            &full_bootloader_memory,
+        );
+        Ok(H256(commitment))
     }
 }
 
@@ -133,41 +86,10 @@ fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize) ->
 
     result
 }
-fn to_log_query_1_3_3(log_query: LogQuery) -> LogQuery_1_3_3 {
-    LogQuery_1_3_3 {
-        timestamp: Timestamp_1_3_3(log_query.timestamp.0),
-        tx_number_in_block: log_query.tx_number_in_block,
-        aux_byte: log_query.aux_byte,
-        shard_id: log_query.shard_id,
-        address: log_query.address,
-        key: log_query.key,
-        read_value: log_query.read_value,
-        written_value: log_query.written_value,
-        rw_flag: log_query.rw_flag,
-        rollback: log_query.rollback,
-        is_service: log_query.is_service,
-    }
-}
 
-fn to_log_query_1_4_1(log_query: LogQuery) -> LogQuery_1_4_1 {
-    LogQuery_1_4_1 {
-        timestamp: Timestamp_1_4_1(log_query.timestamp.0),
-        tx_number_in_block: log_query.tx_number_in_block,
-        aux_byte: log_query.aux_byte,
-        shard_id: log_query.shard_id,
-        address: log_query.address,
-        key: log_query.key,
-        read_value: log_query.read_value,
-        written_value: log_query.written_value,
-        rw_flag: log_query.rw_flag,
-        rollback: log_query.rollback,
-        is_service: log_query.is_service,
-    }
-}
-
-fn to_log_query_1_5_0(log_query: LogQuery) -> LogQuery_1_5_0 {
-    LogQuery_1_5_0 {
-        timestamp: Timestamp_1_5_0(log_query.timestamp.0),
+fn to_log_query_1_5_2(log_query: LogQuery) -> LogQuery_1_5_2 {
+    LogQuery_1_5_2 {
+        timestamp: Timestamp_1_5_2(log_query.timestamp.0),
         tx_number_in_block: log_query.tx_number_in_block,
         aux_byte: log_query.aux_byte,
         shard_id: log_query.shard_id,

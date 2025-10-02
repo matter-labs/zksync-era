@@ -13,7 +13,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::watch;
+use tokio::{sync::watch, task::JoinError};
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
@@ -29,15 +29,15 @@ use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    OrStopped, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
+    seal_criteria::{ConditionalSealer, IoSealCriteria, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
-    OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
+    OutputHandler, StateKeeperBuilder, StateKeeperOutputHandler,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -126,6 +126,18 @@ impl TestScenario {
         self
     }
 
+    /// Expect the state keeper to rollback the block.
+    pub(crate) fn block_rollback(
+        mut self,
+        description: &'static str,
+        number: L2BlockNumber,
+        txs: Vec<Transaction>,
+    ) -> Self {
+        self.actions
+            .push_back(ScenarioItem::RollbackBlock(description, number, txs));
+        self
+    }
+
     /// Expect the state keeper to reject the transaction.
     /// `err` argument is an optional substring of the expected error message. If `None` is provided, any rejection
     /// would work. If `Some` is provided, rejection reason would be checked against the provided substring.
@@ -195,39 +207,89 @@ impl TestScenario {
         self
     }
 
-    /// Launches the test.
-    /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: SequencerSealer) {
+    pub(crate) fn update_l2_block_timestamp(
+        mut self,
+        description: &'static str,
+        new_timestamp_ms: u64,
+    ) -> Self {
+        self.actions.push_back(ScenarioItem::UpdateBlockTimestamp(
+            description,
+            new_timestamp_ms,
+        ));
+        self
+    }
+
+    async fn run(
+        self,
+        sealer: Arc<dyn ConditionalSealer>,
+    ) -> Result<anyhow::Result<()>, JoinError> {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor = TestBatchExecutorBuilder::new(&self);
+        let block_numbers_to_rollback: VecDeque<_> = self
+            .actions
+            .iter()
+            .filter_map(|item| {
+                if let ScenarioItem::RollbackBlock(_, number, _) = item {
+                    Some(*number)
+                } else {
+                    None
+                }
+            })
+            .collect();
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
-        let state_keeper = ZkSyncStateKeeper::new(
+        let mut builder = StateKeeperBuilder::new(
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(sealer),
+            sealer,
             Arc::new(MockReadStorageFactory),
+            None,
         );
-        let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
+        if !block_numbers_to_rollback.is_empty() {
+            builder = builder.with_leader_rotation(true);
+        }
+        let state_keeper = builder.build(&stop_receiver).await.unwrap();
+        let sk_thread = tokio::spawn(async move {
+            if block_numbers_to_rollback.is_empty() {
+                state_keeper.run(stop_receiver).await
+            } else {
+                state_keeper
+                    .run_with_rollback_enabled(stop_receiver, block_numbers_to_rollback)
+                    .await
+            }
+        });
 
-        // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
+        // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
         let hard_timeout = Duration::from_secs(60);
         let poll_interval = Duration::from_millis(50);
         let start = Instant::now();
         while start.elapsed() <= hard_timeout {
             if sk_thread.is_finished() {
-                sk_thread
-                    .await
-                    .unwrap_or_else(|_| panic!("State keeper thread panicked"))
-                    .unwrap();
-                return;
+                return sk_thread.await;
             }
             tokio::time::sleep(poll_interval).await;
         }
         panic!("State keeper test did not exit until the hard timeout, probably it got stuck");
+    }
+
+    /// Launches the test and checks sequencer completes successfully.
+    /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
+    pub(crate) async fn run_success(self, sealer: Arc<dyn ConditionalSealer>) {
+        self.run(sealer)
+            .await
+            .unwrap_or_else(|_| panic!("State keeper thread panicked"))
+            .unwrap();
+    }
+
+    /// Launches the test and checks for sequencer panic with message.
+    /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
+    pub(crate) async fn run_panic(self, sealer: Arc<dyn ConditionalSealer>, message: &str) {
+        let join_error = self.run(sealer).await.expect_err("Not paniced");
+        let panic_message = join_error.into_panic().downcast::<String>().unwrap();
+        assert!(panic_message.contains(message), "Different panic message");
     }
 }
 
@@ -263,7 +325,7 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
             },
             ..VmExecutionResultAndLogs::mock_success()
         }),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -274,7 +336,7 @@ pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
             reason,
         })),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -287,6 +349,7 @@ enum ScenarioItem {
     IncrementProtocolVersion(&'static str),
     Tx(&'static str, Transaction, BatchTransactionExecutionResult),
     Rollback(&'static str, Transaction),
+    RollbackBlock(&'static str, L2BlockNumber, Vec<Transaction>),
     Reject(&'static str, Transaction, UnexecutableReason),
     L2BlockSeal(
         &'static str,
@@ -296,6 +359,8 @@ enum ScenarioItem {
         &'static str,
         Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
     ),
+    /// Update block timestamp with a new timestamp.
+    UpdateBlockTimestamp(&'static str, u64),
 }
 
 impl fmt::Debug for ScenarioItem {
@@ -320,6 +385,11 @@ impl fmt::Debug for ScenarioItem {
                 .field(descr)
                 .field(tx)
                 .finish(),
+            Self::RollbackBlock(descr, number, _) => formatter
+                .debug_tuple("RollbackBlock")
+                .field(descr)
+                .field(number)
+                .finish(),
             Self::Reject(descr, tx, err) => formatter
                 .debug_tuple("Reject")
                 .field(descr)
@@ -330,6 +400,11 @@ impl fmt::Debug for ScenarioItem {
                 formatter.debug_tuple("L2BlockSeal").field(descr).finish()
             }
             Self::BatchSeal(descr, _) => formatter.debug_tuple("BatchSeal").field(descr).finish(),
+            Self::UpdateBlockTimestamp(descr, timestamp) => formatter
+                .debug_tuple("UpdateBlockTimestamp")
+                .field(descr)
+                .field(timestamp)
+                .finish(),
         }
     }
 }
@@ -344,14 +419,17 @@ pub struct TestBatchExecutorBuilder {
     /// When initializing each batch, we will `pop_front` known txs for the corresponding executor.
     txs: ExpectedTransactions,
     /// Set of transactions that would be rolled back at least once.
-    rollback_set: HashSet<H256>,
+    tx_rollback_set: HashSet<H256>,
+    /// Set of blocks that would be rolled back.
+    block_rollback_set: HashSet<L2BlockNumber>,
 }
 
 impl TestBatchExecutorBuilder {
     pub(crate) fn new(scenario: &TestScenario) -> Self {
         let mut txs = VecDeque::new();
         let mut batch_txs = HashMap::<_, VecDeque<BatchTransactionExecutionResult>>::new();
-        let mut rollback_set = HashSet::new();
+        let mut tx_rollback_set = HashSet::new();
+        let mut block_rollback_set = HashSet::new();
 
         // Insert data about the pending batch, if it exists.
         // All the txs from the pending batch must succeed.
@@ -369,20 +447,27 @@ impl TestBatchExecutorBuilder {
         for item in &scenario.actions {
             match item {
                 ScenarioItem::Tx(_, tx, result) => {
-                    batch_txs
-                        .entry(tx.hash())
-                        .and_modify(|txs| txs.push_back(result.clone()))
-                        .or_insert_with(|| {
-                            let mut txs = VecDeque::with_capacity(1);
-                            txs.push_back(result.clone());
-                            txs
-                        });
+                    result.compression_result.as_ref().unwrap();
+                    let result = BatchTransactionExecutionResult {
+                        tx_result: result.tx_result.clone(),
+                        compression_result: Ok(()),
+                        call_traces: result.call_traces.clone(),
+                    };
+
+                    if let Some(txs) = batch_txs.get_mut(&tx.hash()) {
+                        txs.push_back(result);
+                    } else {
+                        batch_txs.insert(tx.hash(), VecDeque::from([result]));
+                    }
                 }
                 ScenarioItem::Rollback(_, tx) => {
-                    rollback_set.insert(tx.hash());
+                    tx_rollback_set.insert(tx.hash());
+                }
+                ScenarioItem::RollbackBlock(_, number, _) => {
+                    block_rollback_set.insert(*number);
                 }
                 ScenarioItem::Reject(_, tx, _) => {
-                    rollback_set.insert(tx.hash());
+                    tx_rollback_set.insert(tx.hash());
                 }
                 ScenarioItem::BatchSeal(_, _) => txs.push_back(mem::take(&mut batch_txs)),
                 _ => {}
@@ -397,7 +482,11 @@ impl TestBatchExecutorBuilder {
         // for the initialization of the "next-to-last" batch.
         txs.push_back(HashMap::default());
 
-        Self { txs, rollback_set }
+        Self {
+            txs,
+            tx_rollback_set,
+            block_rollback_set,
+        }
     }
 
     /// Adds successful transactions to be executed in a single L1 batch.
@@ -418,8 +507,11 @@ impl BatchExecutorFactory<OwnedStorage> for TestBatchExecutorBuilder {
         _system_env: SystemEnv,
         _pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
-        let executor =
-            TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
+        let executor = TestBatchExecutor::new(
+            self.txs.pop_front().unwrap(),
+            self.tx_rollback_set.clone(),
+            self.block_rollback_set.clone(),
+        );
         Box::new(executor)
     }
 }
@@ -430,20 +522,27 @@ pub(super) struct TestBatchExecutor {
     /// The same transaction can be executed several times, so we use a sequence of responses and consume them by one.
     txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
     /// Set of transactions that are expected to be rolled back.
-    rollback_set: HashSet<H256>,
+    tx_rollback_set: HashSet<H256>,
+    /// Set of blocks that are expected to be rolled back.
+    block_rollback_set: HashSet<L2BlockNumber>,
     /// Last executed tx hash.
     last_tx: H256,
+    /// Last started block number.
+    last_block: L2BlockNumber,
 }
 
 impl TestBatchExecutor {
     pub(super) fn new(
         txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
-        rollback_set: HashSet<H256>,
+        tx_rollback_set: HashSet<H256>,
+        block_rollback_set: HashSet<L2BlockNumber>,
     ) -> Self {
         Self {
             txs,
-            rollback_set,
+            tx_rollback_set,
+            block_rollback_set,
             last_tx: H256::default(), // We don't expect rollbacks until the first tx is executed.
+            last_block: L2BlockNumber(0),
         }
     }
 }
@@ -473,7 +572,7 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         // This is an additional safety check: IO would check that every rollback is included in the
         // test scenario, but here we want to additionally check that each such request goes to the
         // the batch executor as well.
-        if !self.rollback_set.contains(&self.last_tx) {
+        if !self.tx_rollback_set.contains(&self.last_tx) {
             // Request to rollback an unexpected tx.
             panic!(
                 "Received a request to rollback an unexpected tx. Last executed tx: {:?}",
@@ -485,7 +584,8 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         Ok(())
     }
 
-    async fn start_next_l2_block(&mut self, _env: L2BlockEnv) -> anyhow::Result<()> {
+    async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
+        self.last_block = env.number.into();
         Ok(())
     }
 
@@ -494,6 +594,22 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
+    }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        if !self.block_rollback_set.contains(&self.last_block) {
+            // Request to rollback an unexpected block.
+            panic!(
+                "Received a request to rollback an unexpected block. Last started block: {}",
+                self.last_block,
+            )
+        }
+        self.last_block -= 1;
+        Ok(())
+    }
+
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -519,7 +635,10 @@ impl TestPersistence {
 
 #[async_trait]
 impl StateKeeperOutputHandler for TestPersistence {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_l2_block");
         let ScenarioItem::L2BlockSeal(_, check_fn) = action else {
             anyhow::bail!("Unexpected action: {:?}", action);
@@ -649,9 +768,13 @@ impl TestIO {
     }
 }
 
+#[async_trait]
 impl IoSealCriteria for TestIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        (self.l1_batch_seal_fn)(manager)
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
+        Ok((self.l1_batch_seal_fn)(manager))
     }
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
@@ -671,6 +794,7 @@ impl StateKeeperIO for TestIO {
             prev_l2_block_hash: H256::zero(),
             prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
             l1_batch: self.batch_number,
+            prev_l1_batch_timestamp: self.timestamp.saturating_sub(1),
         };
         let pending_batch = self.pending_batch.take();
         if pending_batch.is_some() {
@@ -692,11 +816,9 @@ impl StateKeeperIO for TestIO {
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
-            first_l2_block: L2BlockParams {
-                timestamp: self.timestamp,
-                virtual_blocks: 1,
-            },
+            first_l2_block: L2BlockParams::new(self.timestamp * 1000),
             pubdata_params: Default::default(),
+            pubdata_limit: Some(100_000),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
@@ -710,14 +832,21 @@ impl StateKeeperIO for TestIO {
         _max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
-        let params = L2BlockParams {
-            timestamp: self.timestamp,
-            // 1 is just a constant used for tests.
-            virtual_blocks: 1,
-        };
+        let params = L2BlockParams::new(self.timestamp * 1000);
         self.l2_block_number += 1;
         self.timestamp += 1;
         Ok(Some(params))
+    }
+
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
+        let action = self.pop_next_item("update_next_l2_block_timestamp");
+
+        if let ScenarioItem::UpdateBlockTimestamp(_, timestamp) = action {
+            *block_timestamp = timestamp;
+        } else {
+            // Return the action to the scenario.
+            self.actions.lock().unwrap().push_front(action);
+        }
     }
 
     async fn wait_for_next_tx(
@@ -768,6 +897,25 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+        let action = self.pop_next_item("rollback_l2_block");
+        let ScenarioItem::RollbackBlock(_, _, expected_txs) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
+        assert_eq!(txs, expected_txs);
+
+        self.l2_block_number -= 1;
+        self.timestamp -= 1;
+
+        Ok(())
+    }
+
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
+    }
+
     async fn load_base_system_contracts(
         &self,
         _protocol_version: ProtocolVersionId,
@@ -795,7 +943,9 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// Storage factory that produces empty VM storage for any batch. Should only be used with a mock batch executor
+/// Storage factory that produces empty VM storage for any batch.
+///
+/// Should only be used with a mock batch executor
 /// that doesn't read from the storage. Prefer using `ConnectionPool` as a factory if it's available.
 #[derive(Debug)]
 pub struct MockReadStorageFactory;
@@ -806,8 +956,8 @@ impl ReadStorageFactory<OwnedStorage> for MockReadStorageFactory {
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
+    ) -> Result<OwnedStorage, OrStopped> {
         let storage = InMemoryStorage::default();
-        Ok(Some(OwnedStorage::boxed(storage)))
+        Ok(OwnedStorage::boxed(storage))
     }
 }

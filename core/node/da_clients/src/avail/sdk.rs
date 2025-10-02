@@ -3,30 +3,28 @@
 
 use std::{fmt::Debug, sync::Arc, time};
 
-use backon::{ConstantBuilder, Retryable};
+use anyhow::{bail, Context};
+use bip39::Mnemonic;
 use bytes::Bytes;
 use jsonrpsee::{
-    core::client::{Client, ClientT, Subscription, SubscriptionClientT},
+    core::client::{Client, ClientT},
     rpc_params,
 };
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
-use subxt_signer::{
-    bip39::Mnemonic,
-    sr25519::{Keypair, Signature},
-};
+use subxt_signer::sr25519::{Keypair, Signature};
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
 
-/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
+    max_blocks_to_look_back: usize,
 }
 
 /// Utility type needed for encoding the call data
@@ -42,13 +40,21 @@ struct SubmitData {
 struct BoundedVec<_0>(pub Vec<_0>);
 
 impl RawAvailClient {
-    pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
+    pub(crate) const MAX_BLOB_SIZE: usize = 1024 * 1024; // 1mb
 
-    pub(crate) async fn new(app_id: u32, seed: &str) -> anyhow::Result<Self> {
+    pub(crate) async fn new(
+        app_id: u32,
+        seed: &str,
+        max_blocks_to_look_back: usize,
+    ) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        Ok(Self { app_id, keypair })
+        Ok(Self {
+            app_id,
+            keypair,
+            max_blocks_to_look_back,
+        })
     }
 
     /// Returns a hex-encoded extrinsic
@@ -272,68 +278,135 @@ impl RawAvailClient {
         encoded
     }
 
-    /// Submits an extrinsic. Subscribes to a stream and waits for a tx to be included in a block
-    /// to return the block hash
+    /// Submits an extrinsic. Doesn't wait for it to be included, simply returns its hash
     pub(crate) async fn submit_extrinsic(
         &self,
         client: &Client,
         extrinsic: &str,
     ) -> anyhow::Result<String> {
-        let mut sub: Subscription<serde_json::Value> = client
-            .subscribe(
-                "author_submitAndWatchExtrinsic",
-                rpc_params![extrinsic],
-                "author_unwatchExtrinsic",
-            )
+        let ext_hash: serde_json::Value = client
+            .request("author_submitExtrinsic", rpc_params![extrinsic])
             .await?;
 
-        let block_hash = loop {
-            let status = sub.next().await.transpose()?;
+        let ext_hash = ext_hash
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid extrinsic hash"))?
+            .strip_prefix("0x")
+            .ok_or_else(|| anyhow::anyhow!("Extrinsic hash doesn't have 0x prefix"))?;
 
-            if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("finalized") {
-                    break block_hash
-                        .as_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
-                        .strip_prefix("0x")
-                        .ok_or_else(|| anyhow::anyhow!("Block hash doesn't have 0x prefix"))?
-                        .to_string();
-                }
-            }
-        };
-        sub.unsubscribe().await?;
-
-        Ok(block_hash)
+        Ok(ext_hash.to_string())
     }
 
-    /// Iterates over all transaction in the block and finds an ID of the one provided as an argument
-    pub(crate) async fn get_tx_id(
+    /// Monitors latest Avail blocks to find the extrinsic with a certain hash
+    pub(crate) async fn search_for_ext_in_latest_block(
         &self,
         client: &Client,
-        block_hash: &str,
-        hex_ext: &str,
-    ) -> anyhow::Result<usize> {
-        let resp: serde_json::Value = client
-            .request("chain_getBlock", rpc_params![block_hash])
+        extrinsic_hash: &str,
+    ) -> anyhow::Result<Option<(String, usize)>> {
+        let mut block_hash: serde_json::Value = client
+            .request("chain_getFinalizedHead", rpc_params![])
             .await?;
 
-        let block = resp
-            .get("block")
-            .ok_or_else(|| anyhow::anyhow!("Invalid block"))?;
-        let extrinsics = block
-            .get("extrinsics")
-            .ok_or_else(|| anyhow::anyhow!("No field named extrinsics in block"))?
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("Extrinsics field is not an array"))?;
+        for _ in 0..self.max_blocks_to_look_back {
+            let Some(block_hash_str) = block_hash.as_str() else {
+                return Err(anyhow::anyhow!(
+                    "Invalid block hash from RPC: {:?}",
+                    block_hash
+                ));
+            };
 
-        let hex_ext = format!("0x{}", hex_ext);
+            let block_result: serde_json::Value = client
+                .request("chain_getBlock", rpc_params![block_hash_str])
+                .await?;
 
-        let tx_id = extrinsics
-            .iter()
-            .position(|extrinsic| extrinsic.as_str() == Some(hex_ext.as_str()))
-            .ok_or_else(|| anyhow::anyhow!("Extrinsic not found in block"))?;
+            let block = block_result
+                .get("block")
+                .ok_or_else(|| anyhow::anyhow!("Invalid block"))?;
 
-        Ok(tx_id)
+            let extrinsics = block
+                .get("extrinsics")
+                .ok_or_else(|| anyhow::anyhow!("No field named extrinsics in block"))?
+                .as_array()
+                .ok_or_else(|| anyhow::anyhow!("Extrinsics field is not an array"))?;
+
+            if let Some(index) = Self::find_ext_in_array(extrinsics, extrinsic_hash).await {
+                return Ok(Some((
+                    block_hash_str
+                        .strip_prefix("0x")
+                        .unwrap_or(block_hash_str)
+                        .to_string(),
+                    index,
+                )));
+            }
+
+            // If the extrinsic is not found, we need to look for it in the previous block
+            let block_number_hex = block
+                .get("header")
+                .ok_or_else(|| anyhow::anyhow!("No field named header in block"))?
+                .as_object()
+                .ok_or_else(|| anyhow::anyhow!("Header field is not an object"))?
+                .get("number")
+                .ok_or_else(|| anyhow::anyhow!("No field named number in block header"))?;
+
+            let block_number = u64::from_str_radix(
+                block_number_hex
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("Block number is not a hex string"))?
+                    .strip_prefix("0x")
+                    .ok_or_else(|| anyhow::anyhow!("Block number doesn't have 0x prefix"))?,
+                16,
+            )? - 1;
+
+            block_hash = client
+                .request("chain_getBlockHash", rpc_params![block_number])
+                .await
+                .context("Error calling chain_getBlockHash RPC")?;
+        }
+
+        tracing::debug!(
+            "Extrinsic with hash {} not found in the last {} blocks",
+            extrinsic_hash,
+            self.max_blocks_to_look_back
+        );
+
+        Ok(None)
+    }
+
+    /// Finds the extrinsic with a certain hash in the array of extrinsics
+    async fn find_ext_in_array(
+        extrinsics: &[serde_json::Value],
+        extrinsic_hash: &str,
+    ) -> Option<usize> {
+        for (index, ext) in extrinsics.iter().enumerate() {
+            let ext_id = ext.as_str()?.strip_prefix("0x")?;
+            let decoded = hex::decode(ext_id)
+                .context("Failed to decode extrinsic")
+                .unwrap();
+            let ext_hash = hex::encode(blake2::<32>(decoded));
+
+            if ext_hash == extrinsic_hash {
+                return Some(index);
+            }
+        }
+
+        None
+    }
+
+    /// Returns the balance of the address controlled by the `keypair`
+    pub async fn balance(&self, client: &Client) -> anyhow::Result<u64> {
+        let address = to_addr(self.keypair.clone());
+        let resp: serde_json::Value = client
+            .request("state_getStorage", rpc_params![address])
+            .await
+            .context("Error calling state_getStorage RPC")?;
+
+        let balance = resp
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid balance"))?
+            .parse()
+            .context("Unable to parse the account balance")?;
+
+        Ok(balance)
     }
 }
 
@@ -390,18 +463,17 @@ pub struct GasRelayAPISubmissionResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GasRelayAPIStatusResponse {
-    submission: GasRelayAPISubmission,
+    data: GasRelayAPISubmission,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GasRelayAPISubmission {
     block_hash: Option<H256>,
-    extrinsic_index: Option<u64>,
+    tx_index: Option<u64>,
 }
 
 impl GasRelayClient {
-    const DEFAULT_INCLUSION_DELAY: time::Duration = time::Duration::from_secs(60);
-    const RETRY_DELAY: time::Duration = time::Duration::from_secs(5);
+    const RETRY_DELAY: time::Duration = time::Duration::from_secs(3);
     pub(crate) async fn new(
         api_url: &str,
         api_key: &str,
@@ -416,52 +488,99 @@ impl GasRelayClient {
         })
     }
 
-    pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<(H256, u64)> {
-        let submit_url = format!("{}/user/submit_raw_data?token=ethereum", &self.api_url);
+    pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<String> {
+        let submit_url = format!("{}/v1/submit_raw_data", &self.api_url);
         // send the data to the gas relay
         let submit_response = self
             .api_client
             .post(&submit_url)
             .body(Bytes::from(data))
-            .header("Content-Type", "text/plain")
-            .header("Authorization", &self.api_key)
+            .header("Content-Type", "application/octet-stream")
+            .header("x-api-key", &self.api_key)
             .send()
-            .await?;
+            .await
+            .context("Failed to submit data to the gas relay")?;
 
-        let submit_response = submit_response
-            .json::<GasRelayAPISubmissionResponse>()
-            .await?;
+        let response_bytes = submit_response
+            .bytes()
+            .await
+            .context("Failed to read response body")?;
 
-        let status_url = format!(
-            "{}/user/get_submission_info?submission_id={}",
-            self.api_url, submit_response.submission_id
-        );
-
-        tokio::time::sleep(Self::DEFAULT_INCLUSION_DELAY).await;
-        let status_response = (|| async {
-            self.api_client
-                .get(&status_url)
-                .header("Authorization", &self.api_key)
-                .send()
-                .await
-        })
-        .retry(
-            &ConstantBuilder::default()
-                .with_delay(Self::RETRY_DELAY)
-                .with_max_times(self.max_retries),
-        )
-        .await?;
-
-        let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
-        let (block_hash, extrinsic_index) = (
-            status_response.submission.block_hash.ok_or_else(|| {
-                anyhow::anyhow!("Block hash not found in the response from the gas relay")
-            })?,
-            status_response.submission.extrinsic_index.ok_or_else(|| {
-                anyhow::anyhow!("Extrinsic index not found in the response from the gas relay")
-            })?,
-        );
-
-        Ok((block_hash, extrinsic_index))
+        let submit_response =
+            match serde_json::from_slice::<GasRelayAPISubmissionResponse>(&response_bytes) {
+                Ok(response) => response,
+                Err(_) => {
+                    bail!(
+                        "Unexpected response from gas relay: {:?}",
+                        String::from_utf8_lossy(&response_bytes).as_ref()
+                    )
+                }
+            };
+        Ok(submit_response.submission_id)
     }
+
+    pub(crate) async fn check_finality(
+        &self,
+        submission_id: String,
+    ) -> anyhow::Result<Option<(H256, u64)>> {
+        let status_url = format!(
+            "{}/v1/get_submission_info?submission_id={}",
+            self.api_url, submission_id
+        );
+
+        for _ in 0..self.max_retries {
+            let status_response = self
+                .api_client
+                .get(&status_url)
+                .header("x-api-key", &self.api_key)
+                .send()
+                .await?;
+
+            tracing::debug!(
+                "Received status response, status code: {}, content length: {:?}",
+                status_response.status(),
+                status_response.content_length()
+            );
+            let status_response_bytes = status_response
+                .bytes()
+                .await
+                .context("Failed to read response body")?;
+
+            if is_empty_json(&status_response_bytes) {
+                tracing::warn!("Empty response from gas relay");
+
+                tokio::time::sleep(Self::RETRY_DELAY).await;
+                continue;
+            }
+
+            let status_response =
+                match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
+                    Ok(response) => {
+                        tracing::debug!("Status response: {:?}", response);
+
+                        response
+                    }
+                    Err(_) => {
+                        bail!(
+                            "Unexpected status response from gas relay: {:?}",
+                            String::from_utf8_lossy(&status_response_bytes).as_ref()
+                        )
+                    }
+                };
+
+            match (
+                status_response.data.block_hash,
+                status_response.data.tx_index,
+            ) {
+                (Some(block_hash), Some(ext_idx)) => return Ok(Some((block_hash, ext_idx))),
+                _ => tokio::time::sleep(Self::RETRY_DELAY).await,
+            }
+        }
+
+        Ok(None)
+    }
+}
+
+fn is_empty_json(bytes: &[u8]) -> bool {
+    bytes.is_empty() || bytes == b"{}"
 }

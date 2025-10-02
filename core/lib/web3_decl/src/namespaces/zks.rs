@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -14,10 +12,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-use crate::{
-    client::{ForWeb3Network, L2},
-    types::{Bytes, Token},
-};
+use crate::client::{ForWeb3Network, L2};
 
 #[cfg_attr(
     feature = "server",
@@ -46,7 +41,10 @@ pub trait ZksNamespace {
     async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "getMainContract")]
-    async fn get_main_contract(&self) -> RpcResult<Address>;
+    async fn get_main_l1_contract(&self) -> RpcResult<Address>;
+
+    #[method(name = "getL2Multicall3")]
+    async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "getTestnetPaymaster")]
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>>;
@@ -63,27 +61,12 @@ pub trait ZksNamespace {
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
-    #[method(name = "getConfirmedTokens")]
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
-
-    #[method(name = "getAllAccountBalances")]
-    async fn get_all_account_balances(&self, address: Address)
-        -> RpcResult<HashMap<Address, U256>>;
-
-    #[method(name = "getL2ToL1MsgProof")]
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        block: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>>;
-
     #[method(name = "getL2ToL1LogProof")]
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
     #[method(name = "L1BatchNumber")]
@@ -120,6 +103,8 @@ pub trait ZksNamespace {
     #[method(name = "getFeeParams")]
     async fn get_fee_params(&self) -> RpcResult<FeeParams>;
 
+    // TODO: remove in favour of `en_getProtocolVersionInfo` once all ENs have been upgraded.
+    #[deprecated]
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(
         &self,
@@ -137,9 +122,6 @@ pub trait ZksNamespace {
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
 
-    #[method(name = "sendRawTransactionWithDetailedOutput")]
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: Bytes,
-    ) -> RpcResult<TransactionDetailedResult>;
+    #[method(name = "gasPerPubdata")]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }

@@ -33,16 +33,17 @@ jobs:
     outputs:
       zk_environment: ${{ steps.changed-files-yaml.outputs.zk_env_any_changed }}
       zk_environment_cuda_11_8: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_11_8_any_changed }}
-      zk_environment_cuda_12_0: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
+      zk_environment_cuda_12: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Get changed files
         id: changed-files-yaml
-        uses: tj-actions/changed-files@fea790cb660e33aef4bdf07304e28fedd77dfa13 # v39
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46.0.5
         with:
           files_yaml: |
             zk_env:
@@ -52,7 +53,7 @@ jobs:
               - docker/zk-environment/22.04_amd64_cuda_11_8.Dockerfile
               - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_12:
-              - docker/zk-environment/22.04_amd64_cuda_12_0.Dockerfile
+              - docker/zk-environment/22.04_amd64_cuda_12.Dockerfile
               - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
@@ -62,7 +63,7 @@ jobs:
     outputs:
       short_sha: ${{ steps.set_short_sha.outputs.short_sha }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
       - name: Set short SHA
@@ -88,40 +89,46 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@aa33708b10e362ff993539393ff100fa93ed6a27 # v3.5.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
       - name: Log in to Docker Hub
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Login to GitHub Container Registry
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to US GAR
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
       - name: Build and optionally push zk-environment lightweight
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: docker/zk-environment/Dockerfile
           target: rust-lightweight
           tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-${{ matrix.arch }}
             matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-${{ matrix.arch }}
             ghcr.io/${{ github.repository_owner }}/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-${{ matrix.arch }}
           build-args: ARCH=${{ matrix.arch }}
           push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
       - name: Build and optionally push zk-environment lightweight Rust nightly
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: docker/zk-environment/Dockerfile
           target: rust-lightweight-nightly
           tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}
             matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}
             ghcr.io/${{ github.repository_owner }}/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}
           build-args: ARCH=${{ matrix.arch }}
@@ -138,54 +145,55 @@ jobs:
     runs-on: [matterlabs-default-infra-runners]
     steps:
       - name: Login to DockerHub
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push multi-arch zk-environment lightweight manifests for Dockerhub
+      - name: Log in to US GAR
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
+
+      - name: Create and push multi-arch manifests to all registries
         shell: bash
         run: |
           images=("lightweight" "lightweight-nightly")
           archs=("amd64" "arm64")
 
           for img in "${images[@]}"; do
-            multiarch_tag="matterlabs/zk-environment:latest2.0-${img}"
-            individual_images=()
+            # Pull images from each registry and create manifests
+            individual_images_dockerhub=()
+            individual_images_ghcr=()
+            individual_images_gar=()
 
             for arch in "${archs[@]}"; do
               TAG="${{ needs.get_short_sha.outputs.short_sha }}-${img}-${arch}"
+
+              # Pull from DockerHub
               docker pull matterlabs/zk-environment:${TAG} --platform linux/${arch}
-              individual_images+=("matterlabs/zk-environment:${TAG}")
-            done
+              individual_images_dockerhub+=("matterlabs/zk-environment:${TAG}")
 
-            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
-          done
-
-      - name: Create and push multi-arch zk-environment lightweight manifests for GitHub Container Registry
-        shell: bash
-        run: |
-          images=("lightweight" "lightweight-nightly")
-          archs=("amd64" "arm64")
-
-          for img in "${images[@]}"; do
-            multiarch_tag="ghcr.io/${{ github.repository_owner }}/zk-environment:latest2.0-${img}"
-            individual_images=()
-
-            for arch in "${archs[@]}"; do
-              TAG="${{ needs.get_short_sha.outputs.short_sha }}-${img}-${arch}"
+              # Pull from GHCR
               docker pull ghcr.io/${{ github.repository_owner }}/zk-environment:${TAG} --platform linux/${arch}
-              individual_images+=("ghcr.io/${{ github.repository_owner }}/zk-environment:${TAG}")
+              individual_images_ghcr+=("ghcr.io/${{ github.repository_owner }}/zk-environment:${TAG}")
+
+              # Pull from GAR
+              docker pull us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment:${TAG} --platform linux/${arch}
+              individual_images_gar+=("us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment:${TAG}")
             done
 
-            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
+            # Create manifests for all registries
+            docker buildx imagetools create --tag "matterlabs/zk-environment:latest2.0-${img}" "${individual_images_dockerhub[@]}"
+            docker buildx imagetools create --tag "ghcr.io/${{ github.repository_owner }}/zk-environment:latest2.0-${img}" "${individual_images_ghcr[@]}"
+            docker buildx imagetools create --tag "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment:latest2.0-${img}" "${individual_images_gar[@]}"
           done
 
   zk_environment_cuda:
@@ -197,7 +205,7 @@ jobs:
     runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
-        cuda_version: ['11_8', '12_0']
+        cuda_version: ['11_8', '12']
     steps:
       - name: Evaluate condition
         id: condition
@@ -208,25 +216,25 @@ jobs:
 
       - name: Checkout code
         if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
 
       - name: Log in to US GAR
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
 
       - name: Log in to Docker Hub
         if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
         if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -234,15 +242,15 @@ jobs:
 
       - name: Set up QEMU
         if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
       - name: Set up Docker Buildx
         if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
-        uses: docker/setup-buildx-action@aa33708b10e362ff993539393ff100fa93ed6a27 # v3.5.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Build and optionally push
         if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: docker/zk-environment/22.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
           push: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}

@@ -17,24 +17,18 @@ The rest of the codebase simply covers the internals of creating a runner, which
 Runners related to synthesizing Witness Vector (the CPU heavy part of circuit proving). They are tied to
 `prover_jobs_fri` table and operate over `ProverJobsFri` object storage bucket.
 
-Witness Vector Generators have big gaps in resource usages. Node proofs are the heavy jobs (~9GB RAM), whilst all others
-are rather light (~2GB RAM).
+Witness Vector Generators have big gaps in resource utilization and execution times. This difference can be seen at
+basic level. Few basic proofs are heavier (>2.5GB RAM & > 16s), whilst the rest are rather light. (>2.5GB RAM or >16s),
+whilst all others are rather light.
 
-There are 2 ways to deal with this:
-
-1. run RAM left over / 9 which will result in RAM under utilization but simplify implementation
-2. run multiple light WVG jobs, with a small amount of heavy WVG jobs.
-
-This implementation favors number 2. As such, `MetadataLoader` abstraction was introduced to force loading lighter and
-heavier jobs. Heavier picker will try to prioritize nodes. If none are available, it falls back to light jobs in order
-to maximize usage.
+In current implementation we run multiple light WVG jobs and a small amount of heavy WVG jobs in order to keep good
+balance between maintaining optimal RAM usage and providing maximum throughput. `MetadataLoader` abstraction was
+introduced to control loading lighter and heavier jobs at runtime. Heavier picker will try to prioritize heavy circuits.
+If none are available, it falls back to light jobs in order to maximize usage.
 
 ### Job Picker
 
-Interacts with the database to get a job (as described above), loads the data from object store and then hydrates the
-circuit. In current implementation, Ram Permutation circuits are sent separately in order to save RAM in basic witness
-generation & reduce the amount of storage used by object store. A further optimization will be introduced later on,
-which will remove the necessity of witness hydration on circuits.
+Interacts with the database to get a job (as described above) and loads the data from object store.
 
 ### Executor
 
@@ -82,7 +76,7 @@ sequenceDiagram
     end
     wvg_p-->>db: Get job metadata
     wvg_p-->>os: Get circuit
-    wvg_p-->>wvg_p: Hydrate circuit & get finalization hints
+    wvg_p-->>wvg_p: Get finalization hints
     wvg_p-->>wvg_e: Provide metadata & circuit
     wvg_e-->>wvg_e: Synthesize witness vector
     wvg_e-->>wvg_s: Provide metadata & witness vector & circuit

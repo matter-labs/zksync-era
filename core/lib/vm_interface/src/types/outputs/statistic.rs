@@ -29,6 +29,14 @@ pub struct CircuitStatistic {
     pub secp256k1_verify: f32,
     #[serde(default)]
     pub transient_storage_checker: f32,
+    #[serde(default)]
+    pub modexp: f32,
+    #[serde(default)]
+    pub ecadd: f32,
+    #[serde(default)]
+    pub ecmul: f32,
+    #[serde(default)]
+    pub ecpairing: f32,
 }
 
 impl CircuitStatistic {
@@ -47,6 +55,10 @@ impl CircuitStatistic {
             + self.sha256.ceil() as usize
             + self.secp256k1_verify.ceil() as usize
             + self.transient_storage_checker.ceil() as usize
+            + self.modexp as usize
+            + self.ecadd as usize
+            + self.ecmul as usize
+            + self.ecpairing as usize
     }
 
     /// Adds numbers.
@@ -64,6 +76,10 @@ impl CircuitStatistic {
             + self.sha256
             + self.secp256k1_verify
             + self.transient_storage_checker
+            + self.modexp
+            + self.ecadd
+            + self.ecmul
+            + self.ecpairing
     }
 }
 
@@ -86,6 +102,10 @@ impl ops::Add for CircuitStatistic {
             secp256k1_verify: self.secp256k1_verify + other.secp256k1_verify,
             transient_storage_checker: self.transient_storage_checker
                 + other.transient_storage_checker,
+            modexp: self.modexp + other.modexp,
+            ecadd: self.ecadd + other.ecadd,
+            ecmul: self.ecmul + other.ecmul,
+            ecpairing: self.ecpairing + other.ecpairing,
         }
     }
 }
@@ -147,14 +167,6 @@ pub struct DeduplicatedWritesMetrics {
 }
 
 impl DeduplicatedWritesMetrics {
-    pub fn from_tx_metrics(tx_metrics: &TransactionExecutionMetrics) -> Self {
-        Self {
-            initial_storage_writes: tx_metrics.initial_storage_writes,
-            repeated_storage_writes: tx_metrics.repeated_storage_writes,
-            total_updated_values_size: tx_metrics.total_updated_values_size,
-        }
-    }
-
     pub fn size(&self, protocol_version: ProtocolVersionId) -> usize {
         if protocol_version.is_pre_boojum() {
             self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
@@ -167,56 +179,28 @@ impl DeduplicatedWritesMetrics {
     }
 }
 
+/// [`VmExecutionMetrics`] + some other metrics specific for executing a single transaction (e.g.,
+/// gas remaining after execution and gas refunded by the bootloader).
 #[derive(Debug, Clone, Copy)]
 pub struct TransactionExecutionMetrics {
-    pub initial_storage_writes: usize,
-    pub repeated_storage_writes: usize,
-    pub gas_used: usize,
+    pub writes: DeduplicatedWritesMetrics,
+    pub vm: VmExecutionMetrics,
     pub gas_remaining: u32,
-    pub event_topics: u16,
-    pub published_bytecode_bytes: usize,
-    pub l2_l1_long_messages: usize,
-    pub l2_l1_logs: usize,
-    pub user_l2_l1_logs: usize,
-    pub contracts_used: usize,
-    pub contracts_deployed: u16,
-    pub vm_events: usize,
-    pub storage_logs: usize,
-    /// Sum of storage logs, vm events, l2->l1 logs, and the number of precompile calls.
-    pub total_log_queries: usize,
-    pub cycles_used: u32,
-    pub computational_gas_used: u32,
-    pub total_updated_values_size: usize,
-    pub pubdata_published: u32,
-    pub circuit_statistic: CircuitStatistic,
+    pub gas_refunded: u64,
 }
 
 impl Default for TransactionExecutionMetrics {
     fn default() -> Self {
         Self {
-            initial_storage_writes: 0,
-            repeated_storage_writes: 0,
-            gas_used: 0,
+            writes: DeduplicatedWritesMetrics::default(),
+            vm: VmExecutionMetrics::default(),
             gas_remaining: u32::MAX,
-            event_topics: 0,
-            published_bytecode_bytes: 0,
-            l2_l1_long_messages: 0,
-            l2_l1_logs: 0,
-            user_l2_l1_logs: 0,
-            contracts_used: 0,
-            contracts_deployed: 0,
-            vm_events: 0,
-            storage_logs: 0,
-            total_log_queries: 0,
-            cycles_used: 0,
-            computational_gas_used: 0,
-            total_updated_values_size: 0,
-            pubdata_published: 0,
-            circuit_statistic: Default::default(),
+            gas_refunded: 0,
         }
     }
 }
 
+/// Metrics for a (part of) VM execution.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 pub struct VmExecutionMetrics {
     pub gas_used: usize,
@@ -225,9 +209,9 @@ pub struct VmExecutionMetrics {
     pub l2_to_l1_logs: usize,
     pub user_l2_to_l1_logs: usize,
     pub contracts_used: usize,
-    pub contracts_deployed: u16,
     pub vm_events: usize,
     pub storage_logs: usize,
+    /// Sum of storage logs, vm events, l2->l1 logs, and the number of precompile calls.
     pub total_log_queries: usize,
     pub cycles_used: u32,
     pub computational_gas_used: u32,
@@ -236,25 +220,6 @@ pub struct VmExecutionMetrics {
 }
 
 impl VmExecutionMetrics {
-    pub fn from_tx_metrics(tx_metrics: &TransactionExecutionMetrics) -> Self {
-        Self {
-            published_bytecode_bytes: tx_metrics.published_bytecode_bytes,
-            l2_l1_long_messages: tx_metrics.l2_l1_long_messages,
-            l2_to_l1_logs: tx_metrics.l2_l1_logs,
-            user_l2_to_l1_logs: tx_metrics.user_l2_l1_logs,
-            contracts_deployed: tx_metrics.contracts_deployed,
-            contracts_used: tx_metrics.contracts_used,
-            gas_used: tx_metrics.gas_used,
-            storage_logs: tx_metrics.storage_logs,
-            vm_events: tx_metrics.vm_events,
-            total_log_queries: tx_metrics.total_log_queries,
-            cycles_used: tx_metrics.cycles_used,
-            computational_gas_used: tx_metrics.computational_gas_used,
-            pubdata_published: tx_metrics.pubdata_published,
-            circuit_statistic: tx_metrics.circuit_statistic,
-        }
-    }
-
     pub fn size(&self) -> usize {
         self.l2_to_l1_logs * L2ToL1Log::SERIALIZED_SIZE
             + self.l2_l1_long_messages
@@ -274,7 +239,6 @@ impl ops::Add for VmExecutionMetrics {
         Self {
             published_bytecode_bytes: self.published_bytecode_bytes
                 + other.published_bytecode_bytes,
-            contracts_deployed: self.contracts_deployed + other.contracts_deployed,
             contracts_used: self.contracts_used + other.contracts_used,
             l2_l1_long_messages: self.l2_l1_long_messages + other.l2_l1_long_messages,
             l2_to_l1_logs: self.l2_to_l1_logs + other.l2_to_l1_logs,

@@ -9,21 +9,26 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-
 [dependencies]
 zksync_basic_types.workspace = true
 zksync_utils.workspace = true
 zksync_prover_fri_types.workspace = true
+zksync_witness_generator_service.workspace = true
+zksync_circuit_prover_service.workspace = true
 zkevm_test_harness.workspace = true
+zksync_types.workspace = true
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
 shivini = { workspace = true, optional = true }
+fflonk-gpu = { workspace = true, optional = true }
+proof-compression-gpu = { workspace = true, optional = true }
+fflonk.workspace = true
+boojum-cuda = { workspace = true, optional = true }
 
 anyhow.workspace = true
 tracing.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
 bincode.workspace = true
-once_cell.workspace = true
 md5.workspace = true
 sha3.workspace = true
 hex.workspace = true
@@ -32,4 +37,6 @@ futures = { workspace = true, features = ["compat"] }
 
 [features]
 default = []
-gpu = ["shivini"]
+# feature to not compile era-bellman-cuda, but to be able to use GPU features
+gpu-light = ["dep:shivini", "dep:boojum-cuda"]
+gpu = ["dep:shivini", "dep:fflonk-gpu", "dep:boojum-cuda", "dep:proof-compression-gpu"]

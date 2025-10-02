@@ -1,7 +1,7 @@
 use clap::Parser;
-use common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
+use zkstack_cli_common::{Prompt, PromptSelect};
 
 use crate::messages::{
     MSG_BELLMAN_CUDA_DIR_PROMPT, MSG_BELLMAN_CUDA_ORIGIN_SELECT, MSG_BELLMAN_CUDA_SELECTION_CLONE,

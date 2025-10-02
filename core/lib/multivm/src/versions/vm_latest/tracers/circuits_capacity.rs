@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api::geometry_config::{GeometryConfig, ProtocolGeometry};
 
 use crate::{interface::CircuitStatistic, utils::CircuitCycleStatistic};
 
@@ -52,7 +52,7 @@ pub(crate) const PRECOMPILE_LOG_DEMUXER_CYCLES: u32 = 1;
 pub(crate) const LOG_DECOMMIT_RAM_CYCLES: u32 = 1;
 pub(crate) const LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES: u32 = 1;
 
-const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
+const GEOMETRY_CONFIG: GeometryConfig = ProtocolGeometry::latest().config();
 
 pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> CircuitStatistic {
     CircuitStatistic {
@@ -80,5 +80,10 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
             / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
         transient_storage_checker: cycles.transient_storage_checker_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
+        modexp: cycles.modexp_cycles as f32 / GEOMETRY_CONFIG.cycles_per_modexp_circuit as f32,
+        ecadd: cycles.ecadd_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecadd_circuit as f32,
+        ecmul: cycles.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
+        ecpairing: cycles.ecpairing_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
     }
 }

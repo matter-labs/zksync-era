@@ -82,9 +82,11 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--tight-ports[Use tight ports allocation (no offset between chains)]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -106,6 +108,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -130,13 +133,20 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
+'--support-l2-legacy-shared-bridge-test=[]' \
+'--make-permanent-rollup=[]' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--ecosystem-only[Initialize ecosystem only and skip chain initialization (chain can be initialized later with \`chain init\` subcommand)]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
 '--no-port-reallocation[Do not reallocate ports]' \
+'--skip-contract-compilation-override[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -243,8 +253,10 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--tight-ports[Use tight ports allocation (no offset between chains)]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -265,6 +277,7 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -284,8 +297,13 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
+'--make-permanent-rollup=[]' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
@@ -309,6 +327,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
@@ -355,6 +374,7 @@ esac
 _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
 '--dev[Use default database urls and names]' \
@@ -379,6 +399,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
 '--dev[Use default database urls and names]' \
@@ -443,6 +464,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -460,6 +482,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -477,23 +500,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -511,6 +518,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -528,6 +536,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -545,6 +554,25 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(deploy-l2da-validator)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -562,6 +590,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -579,6 +608,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -596,12 +626,390 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
+;;
+(set-transaction-filterer-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':transaction_filterer -- Gateway transaction filterer:_default' \
+':bridgehub_address -- Bridgehub address:_default' \
+':chain_id -- The address of the ZK chain diamond proxy:_default' \
+':l1_rpc_url:_default' \
+&& ret=0
+;;
+(set-da-validator-pair-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':sl_da_validator -- The address of the DA validator be to used on the settlement layer. It is a contract that is deployed on the corresponding settlement layer (either L1 or GW):_default' \
+':l2_da_validator -- Gateway transaction filterer:_default' \
+':bridgehub_address -- Bridgehub address:_default' \
+':chain_id -- The address of the ZK chain diamond proxy:_default' \
+':l1_rpc_url:_default' \
+'::explicit_settlement_layer_chain_id -- In order to override the current settlement layer:_default' \
+'::max_l1_gas_price -- Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway):_default' \
+'::refund_recipient -- The refund recipient for L1->GW transaction (in case the chain is settling on top of ZK Gateway):_default' \
+'::gw_rpc_url -- The ZK Gateway RPC URL (only used in case the chain is settling on top of ZK Gateway):_default' \
+&& ret=0
+;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(set-pubdata-pricing-mode)
+_arguments "${_arguments_options[@]}" : \
+'-r+[Whether set pubdata to rollup or validium (if false)]:ROLLUP:(true false)' \
+'--rollup=[Whether set pubdata to rollup or validium (if false)]:ROLLUP:(true false)' \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(set-da-validator-pair)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'--gateway[Use the Gateway to set the DA validator pair]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':l1_da_validator -- The address of the DA validator be to used on the settlement layer. It is a contract that is deployed on the corresponding settlement layer (either L1 or GW):_default' \
+'::max_l1_gas_price -- Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway):_default' \
+&& ret=0
+;;
+(gateway)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_zkstack__chain__gateway_commands" \
+"*::: :->gateway" \
+&& ret=0
+
+    case $state in
+    (gateway)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-chain-gateway-command-$line[1]:"
+        case $line[1] in
+            (grant-gateway-transaction-filterer-whitelist-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--bridgehub-addr=[]:BRIDGEHUB_ADDR:_default' \
+'--gateway-chain-id=[]:GATEWAY_CHAIN_ID:_default' \
+'--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'*--grantees=[]:GRANTEES:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notify-about-to-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--l2-rpc-url=[]:L2_RPC_URL:_default' \
+'--gw-rpc-url=[]:GW_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--no-cross-check[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':l1_bridgehub_addr:_default' \
+':l2_chain_id:_default' \
+':l1_rpc_url:_default' \
+&& ret=0
+;;
+(notify-about-from-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--l2-rpc-url=[]:L2_RPC_URL:_default' \
+'--gw-rpc-url=[]:GW_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--no-cross-check[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':l1_bridgehub_addr:_default' \
+':l2_chain_id:_default' \
+':l1_rpc_url:_default' \
+&& ret=0
+;;
+(migrate-to-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--l1-bridgehub-addr=[]:L1_BRIDGEHUB_ADDR:_default' \
+'--max-l1-gas-price=[]:MAX_L1_GAS_PRICE:_default' \
+'--l2-chain-id=[]:L2_CHAIN_ID:_default' \
+'--gateway-chain-id=[]:GATEWAY_CHAIN_ID:_default' \
+'--gateway-config-path=[]:GATEWAY_CONFIG_PATH:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
+'--new-sl-da-validator=[]:NEW_SL_DA_VALIDATOR:_default' \
+'--validator=[]:VALIDATOR:_default' \
+'--min-validator-balance=[]:MIN_VALIDATOR_BALANCE:_default' \
+'--refund-recipient=[]:REFUND_RECIPIENT:_default' \
+'--l2-rpc-url=[RPC URL of the chain being migrated (L2)]:L2_RPC_URL:_default' \
+'--no-cross-check=[Whether to force providing the full migration calldata even if the chain isn'\''t strictly ready for final calls]:NO_CROSS_CHECK:(true false)' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(migrate-from-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+'--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--l1-bridgehub-addr=[]:L1_BRIDGEHUB_ADDR:_default' \
+'--max-l1-gas-price=[]:MAX_L1_GAS_PRICE:_default' \
+'--l2-chain-id=[]:L2_CHAIN_ID:_default' \
+'--gateway-chain-id=[]:GATEWAY_CHAIN_ID:_default' \
+'--ecosystem-contracts-config-path=[]:ECOSYSTEM_CONTRACTS_CONFIG_PATH:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
+'--refund-recipient=[]:REFUND_RECIPIENT:_default' \
+'--l2-rpc-url=[RPC URL of the chain being migrated (L2)]:L2_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--no-cross-check[Whether to force providing the full migration calldata even if the chain isn'\''t strictly ready for final calls]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(finalize-chain-migration-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--l1-bridgehub-addr=[]:L1_BRIDGEHUB_ADDR:_default' \
+'--l2-chain-id=[]:L2_CHAIN_ID:_default' \
+'--gateway-chain-id=[]:GATEWAY_CHAIN_ID:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
+'--private-key=[]:PRIVATE_KEY:_default' \
+'--l2-rpc-url=[RPC URL of the chain being migrated (L2)]:L2_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--no-cross-check[Whether to force providing the full migration calldata even if the chain isn'\''t strictly ready for final calls]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--gateway-chain-name=[]:GATEWAY_CHAIN_NAME:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--gateway-chain-name=[]:GATEWAY_CHAIN_NAME:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(notify-about-to-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(notify-about-from-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+'--verify=[Verify deployed contracts]' \
+'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
+'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
+'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
+'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--resume[]' \
+'--zksync[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__chain__gateway__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-chain-gateway-help-command-$line[1]:"
+        case $line[1] in
+            (grant-gateway-transaction-filterer-whitelist-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-to-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-from-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(finalize-chain-migration-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-to-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-from-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -679,10 +1087,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -692,6 +1096,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(deploy-l2da-validator)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -706,6 +1114,86 @@ _arguments "${_arguments_options[@]}" : \
 (update-token-multiplier-setter)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(set-transaction-filterer-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-da-validator-pair-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-pubdata-pricing-mode)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-da-validator-pair)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__chain__help__gateway_commands" \
+"*::: :->gateway" \
+&& ret=0
+
+    case $state in
+    (gateway)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-chain-help-gateway-command-$line[1]:"
+        case $line[1] in
+            (grant-gateway-transaction-filterer-whitelist-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-to-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-from-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(finalize-chain-migration-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-to-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-from-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -937,16 +1425,22 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '-t+[Run just the tests matching a pattern. Same as the -t flag on jest.]:TEST_PATTERN:_default' \
 '--test-pattern=[Run just the tests matching a pattern. Same as the -t flag on jest.]:TEST_PATTERN:_default' \
+'-t+[Timeout for tests in milliseconds]:TIMEOUT:_default' \
+'--timeout=[Timeout for tests in milliseconds]:TIMEOUT:_default' \
+'-s+[Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain]:SECOND_CHAIN:_default' \
+'--second-chain=[Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain]:SECOND_CHAIN:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-e[Run tests for external node]' \
 '--external-node[Run tests for external node]' \
 '-n[Do not install or build dependencies]' \
 '--no-deps[Do not install or build dependencies]' \
+'--evm[Expect EVM contracts to be enabled for the chain; fail EVM tests if they are not]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'*::suite -- Test suite(s) to run, e.g. '\''contracts'\'' or '\''erc20'\'':_default' \
 && ret=0
 ;;
 (fees)
@@ -966,8 +1460,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--enable-consensus[Enable consensus]' \
-'-e[Run tests for external node]' \
-'--external-node[Run tests for external node]' \
 '-n[Do not install or build dependencies]' \
 '--no-deps[Do not install or build dependencies]' \
 '--no-kill[The test will not kill all the nodes during execution]' \
@@ -1066,6 +1558,22 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(gateway-migration)
+_arguments "${_arguments_options[@]}" : \
+'-g+[]:GATEWAY_CHAIN:_default' \
+'--gateway-chain=[]:GATEWAY_CHAIN:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-n[Do not install or build dependencies]' \
+'--no-deps[Do not install or build dependencies]' \
+'--from-gateway[]' \
+'--to-gateway[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__dev__test__help_commands" \
@@ -1119,6 +1627,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (loadtest)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-migration)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1298,83 +1810,8 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
-":: :_zkstack__dev__fmt_commands" \
-"*::: :->fmt" \
+'::mode:(rustfmt prettier prettier-contracts)' \
 && ret=0
-
-    case $state in
-    (fmt)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-dev-fmt-command-$line[1]:"
-        case $line[1] in
-            (rustfmt)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
-(contract)
-_arguments "${_arguments_options[@]}" : \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
-(prettier)
-_arguments "${_arguments_options[@]}" : \
-'*-t+[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
-'*--targets=[]:TARGETS:(md sol js ts rs contracts autocompletion rust-toolchain)' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help]' \
-'--help[Print help]' \
-&& ret=0
-;;
-(help)
-_arguments "${_arguments_options[@]}" : \
-":: :_zkstack__dev__fmt__help_commands" \
-"*::: :->help" \
-&& ret=0
-
-    case $state in
-    (help)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-dev-fmt-help-command-$line[1]:"
-        case $line[1] in
-            (rustfmt)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(contract)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(prettier)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(help)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-        esac
-    ;;
-esac
-;;
-        esac
-    ;;
-esac
 ;;
 (prover)
 _arguments "${_arguments_options[@]}" : \
@@ -1421,6 +1858,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--version=[]:VERSION:_default' \
 '--snark-wrapper=[]:SNARK_WRAPPER:_default' \
+'--fflonk-snark-wrapper=[]:FFLONK_SNARK_WRAPPER:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--default[]' \
 '-v[Verbose mode]' \
@@ -1469,6 +1907,7 @@ esac
 (contracts)
 _arguments "${_arguments_options[@]}" : \
 '--l1-contracts=[Build L1 contracts]' \
+'--l1-da-contracts=[Build L1 DA contracts]' \
 '--l2-contracts=[Build L2 contracts]' \
 '--system-contracts=[Build system contracts]' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -1565,6 +2004,49 @@ esac
 ;;
 (generate-genesis)
 _arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(init-test-wallet)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(rich-account)
+_arguments "${_arguments_options[@]}" : \
+'--l1-account-private-key=[L1 private key to send funds from (default\: Reth rich account)]:L1_ACCOUNT_PRIVATE_KEY:_default' \
+'--amount=[Amount (default 1 ETH)]:AMOUNT:_default' \
+'--l1-rpc-url=[L1 RPC URL (default\: localhost reth)]:L1_RPC_URL:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::l2_account -- L2 Account to send funds to (default same as L1 rich account):_default' \
+&& ret=0
+;;
+(track-priority-ops)
+_arguments "${_arguments_options[@]}" : \
+'--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--l2-rpc-url=[]:L2_RPC_URL:_default' \
+'--l1-op-sender=[]:L1_OP_SENDER:_default' \
+'--from-block=[]:FROM_BLOCK:_default' \
+'--limit=[]:LIMIT:_default' \
+'--watch=[]:WATCH:(true false)' \
+'--update-frequency-ms=[]:UPDATE_FREQUENCY_MS:_default' \
+'--l2-tx-hash=[]:L2_TX_HASH:_default' \
+'--l1-tx-hash=[]:L1_TX_HASH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -1685,6 +2167,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(gateway-migration)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -1743,31 +2229,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (fmt)
 _arguments "${_arguments_options[@]}" : \
-":: :_zkstack__dev__help__fmt_commands" \
-"*::: :->fmt" \
 && ret=0
-
-    case $state in
-    (fmt)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-dev-help-fmt-command-$line[1]:"
-        case $line[1] in
-            (rustfmt)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(contract)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(prettier)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-        esac
-    ;;
-esac
 ;;
 (prover)
 _arguments "${_arguments_options[@]}" : \
@@ -1833,6 +2295,18 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(init-test-wallet)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(rich-account)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(track-priority-ops)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1871,17 +2345,11 @@ _arguments "${_arguments_options[@]}" : \
 '--bucket-name=[]:BUCKET_NAME:_default' \
 '--location=[]:LOCATION:_default' \
 '--project-id=[]:PROJECT_ID:_default' \
-'--shall-save-to-public-bucket=[]:SHALL_SAVE_TO_PUBLIC_BUCKET:(true false)' \
-'--public-store-dir=[]:PUBLIC_STORE_DIR:_default' \
-'--public-bucket-base-url=[]:PUBLIC_BUCKET_BASE_URL:_default' \
-'--public-credentials-file=[]:PUBLIC_CREDENTIALS_FILE:_default' \
-'--public-bucket-name=[]:PUBLIC_BUCKET_NAME:_default' \
-'--public-location=[]:PUBLIC_LOCATION:_default' \
-'--public-project-id=[]:PUBLIC_PROJECT_ID:_default' \
+'--deploy-proving-networks=[]' \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--path=[]:PATH:_default' \
+'--path=[]:PATH:_files' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1892,7 +2360,6 @@ _arguments "${_arguments_options[@]}" : \
 '--use-default=[Use default database urls and names]:USE_DEFAULT:(true false)' \
 '-d+[]:DONT_DROP:(true false)' \
 '--dont-drop=[]:DONT_DROP:(true false)' \
-'--cloud-type=[]:CLOUD_TYPE:(gcp local)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--dev[]' \
 '(--bellman-cuda-dir)--clone[]' \
@@ -1917,16 +2384,17 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (run)
 _arguments "${_arguments_options[@]}" : \
-'--component=[]:COMPONENT:(gateway witness-generator witness-vector-generator prover circuit-prover compressor prover-job-monitor)' \
+'--component=[]:COMPONENT:(gateway witness-generator circuit-prover compressor prover-job-monitor)' \
 '--round=[]:ROUND:(all-rounds basic-circuits leaf-aggregation node-aggregation recursion-tip scheduler)' \
-'--threads=[]:THREADS:_default' \
-'--max-allocation=[Memory allocation limit in bytes (for prover component)]:MAX_ALLOCATION:_default' \
-'-l+[]:LIGHT_WVG_COUNT:_default' \
-'--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
-'-h+[]:HEAVY_WVG_COUNT:_default' \
-'--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
+'(-t --threads)-l+[]:LIGHT_WVG_COUNT:_default' \
+'(-t --threads)--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
+'(-t --threads)-h+[]:HEAVY_WVG_COUNT:_default' \
+'(-t --threads)--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
+'(-l --light-wvg-count -h --heavy-wvg-count)-t+[]:THREADS:_default' \
+'(-l --light-wvg-count -h --heavy-wvg-count)--threads=[]:THREADS:_default' \
 '-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
+'--mode=[]:MODE:(fflonk plonk)' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -1951,7 +2419,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--path=[]:PATH:_default' \
+'--path=[]:PATH:_files' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2007,8 +2475,7 @@ esac
 (server)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
-'*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--l1-recovery[Run server in L1 recovery mode]' \
@@ -2018,16 +2485,17 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'::additional_args -- Additional arguments that can be passed through the CLI:_default' \
 ":: :_zkstack__server_commands" \
 "*::: :->server" \
 && ret=0
 
     case $state in
     (server)
-        words=($line[1] "${words[@]}")
+        words=($line[2] "${words[@]}")
         (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-server-command-$line[1]:"
-        case $line[1] in
+        curcontext="${curcontext%:*:*}:zkstack-server-command-$line[2]:"
+        case $line[2] in
             (build)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2041,8 +2509,7 @@ _arguments "${_arguments_options[@]}" : \
 (run)
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
-'*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--l1-recovery[Run server in L1 recovery mode]' \
@@ -2052,6 +2519,7 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'*::additional_args -- Additional arguments that can be passed through the CLI:_default' \
 && ret=0
 ;;
 (wait)
@@ -2126,9 +2594,11 @@ _arguments "${_arguments_options[@]}" : \
 '--db-url=[]:DB_URL:_default' \
 '--db-name=[]:DB_NAME:_default' \
 '--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-u[Use default database urls and names]' \
 '--use-default[Use default database urls and names]' \
+'--tight-ports[Use tight ports allocation (no offset between chains)]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -2160,8 +2630,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '--enable-consensus=[Enable consensus]' \
-'*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--reinit[]' \
 '-v[Verbose mode]' \
@@ -2169,6 +2637,7 @@ _arguments "${_arguments_options[@]}" : \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'*::additional_args -- Additional arguments that can be passed through the CLI:_default' \
 && ret=0
 ;;
 (wait)
@@ -2357,6 +2826,92 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(private-rpc)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_zkstack__private-rpc_commands" \
+"*::: :->private-rpc" \
+&& ret=0
+
+    case $state in
+    (private-rpc)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-private-rpc-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'--dev[]' \
+'--docker-network-host[Initializes private proxy with network host mode. This is useful for environments that don'\''t support host.docker.internal]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(reset-db)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__private-rpc__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-private-rpc-help-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(reset-db)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (explorer)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2377,6 +2932,7 @@ _arguments "${_arguments_options[@]}" : \
         case $line[1] in
             (init)
 _arguments "${_arguments_options[@]}" : \
+'--prividium=[Enable Prividium mode for this Block Explorer]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2459,11 +3015,10 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-consensus-command-$line[1]:"
         case $line[1] in
-            (set-attester-committee)
+            (set-validator-schedule)
 _arguments "${_arguments_options[@]}" : \
-'--from-file=[Sets the attester committee in the consensus registry contract to the committee in the yaml file. File format is definied in \`commands/consensus/proto/mod.proto\`]:FROM_FILE:_files' \
+'--from-file=[The file to read the validator schedule from]:FROM_FILE:_files' \
 '--chain=[Chain to use]:CHAIN:_default' \
-'--from-genesis[Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -2471,7 +3026,28 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
-(get-attester-committee)
+(set-schedule-activation-delay)
+_arguments "${_arguments_options[@]}" : \
+'--delay=[The activation delay in blocks]:DELAY:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get-validator-schedule)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(get-pending-validator-schedule)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
@@ -2506,11 +3082,19 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-consensus-help-command-$line[1]:"
         case $line[1] in
-            (set-attester-committee)
+            (set-validator-schedule)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(get-attester-committee)
+(set-schedule-activation-delay)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-validator-schedule)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-pending-validator-schedule)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2680,10 +3264,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2693,6 +3273,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (deploy-timestamp-asserter)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(deploy-l2da-validator)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2707,6 +3291,86 @@ _arguments "${_arguments_options[@]}" : \
 (update-token-multiplier-setter)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(set-transaction-filterer-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-da-validator-pair-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(enable-evm-emulator)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-pubdata-pricing-mode)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-da-validator-pair)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__help__chain__gateway_commands" \
+"*::: :->gateway" \
+&& ret=0
+
+    case $state in
+    (gateway)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-help-chain-gateway-command-$line[1]:"
+        case $line[1] in
+            (grant-gateway-transaction-filterer-whitelist-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-to-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-from-gateway-update-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway-calldata)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(finalize-chain-migration-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(convert-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-to-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(migrate-from-gateway)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-to-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify-about-from-gateway-update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -2824,6 +3488,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(gateway-migration)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -2882,31 +3550,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (fmt)
 _arguments "${_arguments_options[@]}" : \
-":: :_zkstack__help__dev__fmt_commands" \
-"*::: :->fmt" \
 && ret=0
-
-    case $state in
-    (fmt)
-        words=($line[1] "${words[@]}")
-        (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:zkstack-help-dev-fmt-command-$line[1]:"
-        case $line[1] in
-            (rustfmt)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(contract)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(prettier)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-        esac
-    ;;
-esac
 ;;
 (prover)
 _arguments "${_arguments_options[@]}" : \
@@ -2969,6 +3613,18 @@ _arguments "${_arguments_options[@]}" : \
 esac
 ;;
 (generate-genesis)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(init-test-wallet)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(rich-account)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(track-priority-ops)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3116,6 +3772,34 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(private-rpc)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__help__private-rpc_commands" \
+"*::: :->private-rpc" \
+&& ret=0
+
+    case $state in
+    (private-rpc)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-help-private-rpc-command-$line[1]:"
+        case $line[1] in
+            (init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(reset-db)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (explorer)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__help__explorer_commands" \
@@ -3156,11 +3840,19 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:zkstack-help-consensus-command-$line[1]:"
         case $line[1] in
-            (set-attester-committee)
+            (set-validator-schedule)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(get-attester-committee)
+(set-schedule-activation-delay)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-validator-schedule)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-pending-validator-schedule)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3206,6 +3898,7 @@ _zkstack_commands() {
 'containers:Run containers for local development' \
 'contract-verifier:Run contract verifier' \
 'portal:Run dapp-portal' \
+'private-rpc:Run private RPC' \
 'explorer:Run block-explorer' \
 'consensus:Consensus utilities' \
 'update:Update ZKsync' \
@@ -3229,13 +3922,19 @@ _zkstack__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
+'deploy-l2da-validator:Deploy L2 DA Validator' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'set-transaction-filterer-calldata:Provides calldata to set transaction filterer for a chain' \
+'set-da-validator-pair-calldata:Provides calldata to set DA validator pair for a chain' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
+'set-pubdata-pricing-mode:Update pubdata pricing mode (used for Rollup -> Validium migration)' \
+'set-da-validator-pair:Update da validator pair (used for Rollup -> Validium migration)' \
+'gateway:' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain commands' commands "$@"
@@ -3265,6 +3964,11 @@ _zkstack__chain__deploy-l2-contracts_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-l2-contracts commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__deploy-l2da-validator_commands] )) ||
+_zkstack__chain__deploy-l2da-validator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain deploy-l2da-validator commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__deploy-multicall3_commands] )) ||
 _zkstack__chain__deploy-multicall3_commands() {
     local commands; commands=()
@@ -3284,6 +3988,162 @@ _zkstack__chain__deploy-timestamp-asserter_commands() {
 _zkstack__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__enable-evm-emulator_commands] )) ||
+_zkstack__chain__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain enable-evm-emulator commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway_commands] )) ||
+_zkstack__chain__gateway_commands() {
+    local commands; commands=(
+'grant-gateway-transaction-filterer-whitelist-calldata:' \
+'notify-about-to-gateway-update-calldata:' \
+'notify-about-from-gateway-update-calldata:' \
+'migrate-to-gateway-calldata:' \
+'migrate-from-gateway-calldata:' \
+'finalize-chain-migration-from-gateway:' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'notify-about-to-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+'notify-about-from-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack chain gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__convert-to-gateway_commands] )) ||
+_zkstack__chain__gateway__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway convert-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__finalize-chain-migration-from-gateway_commands] )) ||
+_zkstack__chain__gateway__finalize-chain-migration-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway finalize-chain-migration-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__grant-gateway-transaction-filterer-whitelist-calldata_commands] )) ||
+_zkstack__chain__gateway__grant-gateway-transaction-filterer-whitelist-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway grant-gateway-transaction-filterer-whitelist-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help_commands] )) ||
+_zkstack__chain__gateway__help_commands() {
+    local commands; commands=(
+'grant-gateway-transaction-filterer-whitelist-calldata:' \
+'notify-about-to-gateway-update-calldata:' \
+'notify-about-from-gateway-update-calldata:' \
+'migrate-to-gateway-calldata:' \
+'migrate-from-gateway-calldata:' \
+'finalize-chain-migration-from-gateway:' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'notify-about-to-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+'notify-about-from-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack chain gateway help commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__convert-to-gateway_commands] )) ||
+_zkstack__chain__gateway__help__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help convert-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__finalize-chain-migration-from-gateway_commands] )) ||
+_zkstack__chain__gateway__help__finalize-chain-migration-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help finalize-chain-migration-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__grant-gateway-transaction-filterer-whitelist-calldata_commands] )) ||
+_zkstack__chain__gateway__help__grant-gateway-transaction-filterer-whitelist-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help grant-gateway-transaction-filterer-whitelist-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__help_commands] )) ||
+_zkstack__chain__gateway__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help help commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__migrate-from-gateway_commands] )) ||
+_zkstack__chain__gateway__help__migrate-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__migrate-from-gateway-calldata_commands] )) ||
+_zkstack__chain__gateway__help__migrate-from-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help migrate-from-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__migrate-to-gateway_commands] )) ||
+_zkstack__chain__gateway__help__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help migrate-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__migrate-to-gateway-calldata_commands] )) ||
+_zkstack__chain__gateway__help__migrate-to-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help migrate-to-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__notify-about-from-gateway-update_commands] )) ||
+_zkstack__chain__gateway__help__notify-about-from-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help notify-about-from-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__notify-about-from-gateway-update-calldata_commands] )) ||
+_zkstack__chain__gateway__help__notify-about-from-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help notify-about-from-gateway-update-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__notify-about-to-gateway-update_commands] )) ||
+_zkstack__chain__gateway__help__notify-about-to-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help notify-about-to-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__help__notify-about-to-gateway-update-calldata_commands] )) ||
+_zkstack__chain__gateway__help__notify-about-to-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway help notify-about-to-gateway-update-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__migrate-from-gateway_commands] )) ||
+_zkstack__chain__gateway__migrate-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__migrate-from-gateway-calldata_commands] )) ||
+_zkstack__chain__gateway__migrate-from-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway migrate-from-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__migrate-to-gateway_commands] )) ||
+_zkstack__chain__gateway__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway migrate-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__migrate-to-gateway-calldata_commands] )) ||
+_zkstack__chain__gateway__migrate-to-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway migrate-to-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__notify-about-from-gateway-update_commands] )) ||
+_zkstack__chain__gateway__notify-about-from-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway notify-about-from-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__notify-about-from-gateway-update-calldata_commands] )) ||
+_zkstack__chain__gateway__notify-about-from-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway notify-about-from-gateway-update-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__notify-about-to-gateway-update_commands] )) ||
+_zkstack__chain__gateway__notify-about-to-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway notify-about-to-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__gateway__notify-about-to-gateway-update-calldata_commands] )) ||
+_zkstack__chain__gateway__notify-about-to-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain gateway notify-about-to-gateway-update-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__genesis_commands] )) ||
 _zkstack__chain__genesis_commands() {
@@ -3338,13 +4198,19 @@ _zkstack__chain__help_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
+'deploy-l2da-validator:Deploy L2 DA Validator' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'set-transaction-filterer-calldata:Provides calldata to set transaction filterer for a chain' \
+'set-da-validator-pair-calldata:Provides calldata to set DA validator pair for a chain' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
+'set-pubdata-pricing-mode:Update pubdata pricing mode (used for Rollup -> Validium migration)' \
+'set-da-validator-pair:Update da validator pair (used for Rollup -> Validium migration)' \
+'gateway:' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack chain help commands' commands "$@"
@@ -3374,6 +4240,11 @@ _zkstack__chain__help__deploy-l2-contracts_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-l2-contracts commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__help__deploy-l2da-validator_commands] )) ||
+_zkstack__chain__help__deploy-l2da-validator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help deploy-l2da-validator commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__help__deploy-multicall3_commands] )) ||
 _zkstack__chain__help__deploy-multicall3_commands() {
     local commands; commands=()
@@ -3393,6 +4264,83 @@ _zkstack__chain__help__deploy-timestamp-asserter_commands() {
 _zkstack__chain__help__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__enable-evm-emulator_commands] )) ||
+_zkstack__chain__help__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help enable-evm-emulator commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway_commands] )) ||
+_zkstack__chain__help__gateway_commands() {
+    local commands; commands=(
+'grant-gateway-transaction-filterer-whitelist-calldata:' \
+'notify-about-to-gateway-update-calldata:' \
+'notify-about-from-gateway-update-calldata:' \
+'migrate-to-gateway-calldata:' \
+'migrate-from-gateway-calldata:' \
+'finalize-chain-migration-from-gateway:' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'notify-about-to-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+'notify-about-from-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+    )
+    _describe -t commands 'zkstack chain help gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__convert-to-gateway_commands] )) ||
+_zkstack__chain__help__gateway__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway convert-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__finalize-chain-migration-from-gateway_commands] )) ||
+_zkstack__chain__help__gateway__finalize-chain-migration-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway finalize-chain-migration-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__grant-gateway-transaction-filterer-whitelist-calldata_commands] )) ||
+_zkstack__chain__help__gateway__grant-gateway-transaction-filterer-whitelist-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway grant-gateway-transaction-filterer-whitelist-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__migrate-from-gateway_commands] )) ||
+_zkstack__chain__help__gateway__migrate-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__migrate-from-gateway-calldata_commands] )) ||
+_zkstack__chain__help__gateway__migrate-from-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway migrate-from-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__migrate-to-gateway_commands] )) ||
+_zkstack__chain__help__gateway__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway migrate-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__migrate-to-gateway-calldata_commands] )) ||
+_zkstack__chain__help__gateway__migrate-to-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway migrate-to-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__notify-about-from-gateway-update_commands] )) ||
+_zkstack__chain__help__gateway__notify-about-from-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway notify-about-from-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__notify-about-from-gateway-update-calldata_commands] )) ||
+_zkstack__chain__help__gateway__notify-about-from-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway notify-about-from-gateway-update-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__notify-about-to-gateway-update_commands] )) ||
+_zkstack__chain__help__gateway__notify-about-to-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway notify-about-to-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__gateway__notify-about-to-gateway-update-calldata_commands] )) ||
+_zkstack__chain__help__gateway__notify-about-to-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help gateway notify-about-to-gateway-update-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__genesis_commands] )) ||
 _zkstack__chain__help__genesis_commands() {
@@ -3429,15 +4377,30 @@ _zkstack__chain__help__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__initialize-bridges_commands] )) ||
-_zkstack__chain__help__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help initialize-bridges commands' commands "$@"
-}
 (( $+functions[_zkstack__chain__help__register-chain_commands] )) ||
 _zkstack__chain__help__register-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help register-chain commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__set-da-validator-pair_commands] )) ||
+_zkstack__chain__help__set-da-validator-pair_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help set-da-validator-pair commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__set-da-validator-pair-calldata_commands] )) ||
+_zkstack__chain__help__set-da-validator-pair-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help set-da-validator-pair-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__set-pubdata-pricing-mode_commands] )) ||
+_zkstack__chain__help__set-pubdata-pricing-mode_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help set-pubdata-pricing-mode commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__set-transaction-filterer-calldata_commands] )) ||
+_zkstack__chain__help__set-transaction-filterer-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help set-transaction-filterer-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__update-token-multiplier-setter_commands] )) ||
 _zkstack__chain__help__update-token-multiplier-setter_commands() {
@@ -3475,15 +4438,30 @@ _zkstack__chain__init__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain init help help commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__initialize-bridges_commands] )) ||
-_zkstack__chain__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain initialize-bridges commands' commands "$@"
-}
 (( $+functions[_zkstack__chain__register-chain_commands] )) ||
 _zkstack__chain__register-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain register-chain commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__set-da-validator-pair_commands] )) ||
+_zkstack__chain__set-da-validator-pair_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain set-da-validator-pair commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__set-da-validator-pair-calldata_commands] )) ||
+_zkstack__chain__set-da-validator-pair-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain set-da-validator-pair-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__set-pubdata-pricing-mode_commands] )) ||
+_zkstack__chain__set-pubdata-pricing-mode_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain set-pubdata-pricing-mode commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__set-transaction-filterer-calldata_commands] )) ||
+_zkstack__chain__set-transaction-filterer-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain set-transaction-filterer-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__update-token-multiplier-setter_commands] )) ||
 _zkstack__chain__update-token-multiplier-setter_commands() {
@@ -3493,52 +4471,76 @@ _zkstack__chain__update-token-multiplier-setter_commands() {
 (( $+functions[_zkstack__consensus_commands] )) ||
 _zkstack__consensus_commands() {
     local commands; commands=(
-'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
-'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'set-validator-schedule:Sets the validator schedule in the consensus registry contract to the schedule in the yaml file. File format is defined in \`SetValidatorScheduleFile\` in this crate' \
+'set-schedule-activation-delay:Sets the committee activation delay in the consensus registry contract' \
+'get-validator-schedule:Fetches the current validator schedule from the consensus registry contract' \
+'get-pending-validator-schedule:Fetches the pending validator schedule from the consensus registry contract, if any' \
 'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack consensus commands' commands "$@"
 }
-(( $+functions[_zkstack__consensus__get-attester-committee_commands] )) ||
-_zkstack__consensus__get-attester-committee_commands() {
+(( $+functions[_zkstack__consensus__get-pending-validator-schedule_commands] )) ||
+_zkstack__consensus__get-pending-validator-schedule_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack consensus get-attester-committee commands' commands "$@"
+    _describe -t commands 'zkstack consensus get-pending-validator-schedule commands' commands "$@"
+}
+(( $+functions[_zkstack__consensus__get-validator-schedule_commands] )) ||
+_zkstack__consensus__get-validator-schedule_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack consensus get-validator-schedule commands' commands "$@"
 }
 (( $+functions[_zkstack__consensus__help_commands] )) ||
 _zkstack__consensus__help_commands() {
     local commands; commands=(
-'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
-'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'set-validator-schedule:Sets the validator schedule in the consensus registry contract to the schedule in the yaml file. File format is defined in \`SetValidatorScheduleFile\` in this crate' \
+'set-schedule-activation-delay:Sets the committee activation delay in the consensus registry contract' \
+'get-validator-schedule:Fetches the current validator schedule from the consensus registry contract' \
+'get-pending-validator-schedule:Fetches the pending validator schedule from the consensus registry contract, if any' \
 'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack consensus help commands' commands "$@"
 }
-(( $+functions[_zkstack__consensus__help__get-attester-committee_commands] )) ||
-_zkstack__consensus__help__get-attester-committee_commands() {
+(( $+functions[_zkstack__consensus__help__get-pending-validator-schedule_commands] )) ||
+_zkstack__consensus__help__get-pending-validator-schedule_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack consensus help get-attester-committee commands' commands "$@"
+    _describe -t commands 'zkstack consensus help get-pending-validator-schedule commands' commands "$@"
+}
+(( $+functions[_zkstack__consensus__help__get-validator-schedule_commands] )) ||
+_zkstack__consensus__help__get-validator-schedule_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack consensus help get-validator-schedule commands' commands "$@"
 }
 (( $+functions[_zkstack__consensus__help__help_commands] )) ||
 _zkstack__consensus__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack consensus help help commands' commands "$@"
 }
-(( $+functions[_zkstack__consensus__help__set-attester-committee_commands] )) ||
-_zkstack__consensus__help__set-attester-committee_commands() {
+(( $+functions[_zkstack__consensus__help__set-schedule-activation-delay_commands] )) ||
+_zkstack__consensus__help__set-schedule-activation-delay_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack consensus help set-attester-committee commands' commands "$@"
+    _describe -t commands 'zkstack consensus help set-schedule-activation-delay commands' commands "$@"
+}
+(( $+functions[_zkstack__consensus__help__set-validator-schedule_commands] )) ||
+_zkstack__consensus__help__set-validator-schedule_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack consensus help set-validator-schedule commands' commands "$@"
 }
 (( $+functions[_zkstack__consensus__help__wait-for-registry_commands] )) ||
 _zkstack__consensus__help__wait-for-registry_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack consensus help wait-for-registry commands' commands "$@"
 }
-(( $+functions[_zkstack__consensus__set-attester-committee_commands] )) ||
-_zkstack__consensus__set-attester-committee_commands() {
+(( $+functions[_zkstack__consensus__set-schedule-activation-delay_commands] )) ||
+_zkstack__consensus__set-schedule-activation-delay_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack consensus set-attester-committee commands' commands "$@"
+    _describe -t commands 'zkstack consensus set-schedule-activation-delay commands' commands "$@"
+}
+(( $+functions[_zkstack__consensus__set-validator-schedule_commands] )) ||
+_zkstack__consensus__set-validator-schedule_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack consensus set-validator-schedule commands' commands "$@"
 }
 (( $+functions[_zkstack__consensus__wait-for-registry_commands] )) ||
 _zkstack__consensus__wait-for-registry_commands() {
@@ -3632,6 +4634,9 @@ _zkstack__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'init-test-wallet:Initialize test wallet' \
+'rich-account:Make L2 account rich' \
+'track-priority-ops:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev commands' commands "$@"
@@ -3806,58 +4811,8 @@ _zkstack__dev__database__setup_commands() {
 }
 (( $+functions[_zkstack__dev__fmt_commands] )) ||
 _zkstack__dev__fmt_commands() {
-    local commands; commands=(
-'rustfmt:' \
-'contract:' \
-'prettier:' \
-'help:Print this message or the help of the given subcommand(s)' \
-    )
+    local commands; commands=()
     _describe -t commands 'zkstack dev fmt commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__contract_commands] )) ||
-_zkstack__dev__fmt__contract_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt contract commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__help_commands] )) ||
-_zkstack__dev__fmt__help_commands() {
-    local commands; commands=(
-'rustfmt:' \
-'contract:' \
-'prettier:' \
-'help:Print this message or the help of the given subcommand(s)' \
-    )
-    _describe -t commands 'zkstack dev fmt help commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__help__contract_commands] )) ||
-_zkstack__dev__fmt__help__contract_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt help contract commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__help__help_commands] )) ||
-_zkstack__dev__fmt__help__help_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt help help commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__help__prettier_commands] )) ||
-_zkstack__dev__fmt__help__prettier_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt help prettier commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__help__rustfmt_commands] )) ||
-_zkstack__dev__fmt__help__rustfmt_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt help rustfmt commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__prettier_commands] )) ||
-_zkstack__dev__fmt__prettier_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt prettier commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__fmt__rustfmt_commands] )) ||
-_zkstack__dev__fmt__rustfmt_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev fmt rustfmt commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__generate-genesis_commands] )) ||
 _zkstack__dev__generate-genesis_commands() {
@@ -3879,6 +4834,9 @@ _zkstack__dev__help_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'init-test-wallet:Initialize test wallet' \
+'rich-account:Make L2 account rich' \
+'track-priority-ops:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev help commands' commands "$@"
@@ -3967,27 +4925,8 @@ _zkstack__dev__help__database__setup_commands() {
 }
 (( $+functions[_zkstack__dev__help__fmt_commands] )) ||
 _zkstack__dev__help__fmt_commands() {
-    local commands; commands=(
-'rustfmt:' \
-'contract:' \
-'prettier:' \
-    )
+    local commands; commands=()
     _describe -t commands 'zkstack dev help fmt commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__help__fmt__contract_commands] )) ||
-_zkstack__dev__help__fmt__contract_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev help fmt contract commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__help__fmt__prettier_commands] )) ||
-_zkstack__dev__help__fmt__prettier_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev help fmt prettier commands' commands "$@"
-}
-(( $+functions[_zkstack__dev__help__fmt__rustfmt_commands] )) ||
-_zkstack__dev__help__fmt__rustfmt_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack dev help fmt rustfmt commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__generate-genesis_commands] )) ||
 _zkstack__dev__help__generate-genesis_commands() {
@@ -3998,6 +4937,11 @@ _zkstack__dev__help__generate-genesis_commands() {
 _zkstack__dev__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help help commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__init-test-wallet_commands] )) ||
+_zkstack__dev__help__init-test-wallet_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help init-test-wallet commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__lint_commands] )) ||
 _zkstack__dev__help__lint_commands() {
@@ -4027,6 +4971,11 @@ _zkstack__dev__help__prover__insert-batch_commands() {
 _zkstack__dev__help__prover__insert-version_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help prover insert-version commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__rich-account_commands] )) ||
+_zkstack__dev__help__rich-account_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help rich-account commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__send-transactions_commands] )) ||
 _zkstack__dev__help__send-transactions_commands() {
@@ -4071,6 +5020,7 @@ _zkstack__dev__help__test_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
     )
     _describe -t commands 'zkstack dev help test commands' commands "$@"
 }
@@ -4083,6 +5033,11 @@ _zkstack__dev__help__test__build_commands() {
 _zkstack__dev__help__test__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help test fees commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__test__gateway-migration_commands] )) ||
+_zkstack__dev__help__test__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help test gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__test__integration_commands] )) ||
 _zkstack__dev__help__test__integration_commands() {
@@ -4128,6 +5083,16 @@ _zkstack__dev__help__test__upgrade_commands() {
 _zkstack__dev__help__test__wallet_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help test wallet commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__track-priority-ops_commands] )) ||
+_zkstack__dev__help__track-priority-ops_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help track-priority-ops commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__init-test-wallet_commands] )) ||
+_zkstack__dev__init-test-wallet_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev init-test-wallet commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__lint_commands] )) ||
 _zkstack__dev__lint_commands() {
@@ -4188,6 +5153,11 @@ _zkstack__dev__prover__insert-batch_commands() {
 _zkstack__dev__prover__insert-version_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev prover insert-version commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__rich-account_commands] )) ||
+_zkstack__dev__rich-account_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev rich-account commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__send-transactions_commands] )) ||
 _zkstack__dev__send-transactions_commands() {
@@ -4270,6 +5240,7 @@ _zkstack__dev__test_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev test commands' commands "$@"
@@ -4283,6 +5254,11 @@ _zkstack__dev__test__build_commands() {
 _zkstack__dev__test__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev test fees commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__test__gateway-migration_commands] )) ||
+_zkstack__dev__test__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev test gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__test__help_commands] )) ||
 _zkstack__dev__test__help_commands() {
@@ -4298,6 +5274,7 @@ _zkstack__dev__test__help_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev test help commands' commands "$@"
@@ -4311,6 +5288,11 @@ _zkstack__dev__test__help__build_commands() {
 _zkstack__dev__test__help__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev test help fees commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__test__help__gateway-migration_commands] )) ||
+_zkstack__dev__test__help__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev test help gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__test__help__help_commands] )) ||
 _zkstack__dev__test__help__help_commands() {
@@ -4406,6 +5388,11 @@ _zkstack__dev__test__upgrade_commands() {
 _zkstack__dev__test__wallet_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev test wallet commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__track-priority-ops_commands] )) ||
+_zkstack__dev__track-priority-ops_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev track-priority-ops commands' commands "$@"
 }
 (( $+functions[_zkstack__ecosystem_commands] )) ||
 _zkstack__ecosystem_commands() {
@@ -4633,6 +5620,7 @@ _zkstack__help_commands() {
 'containers:Run containers for local development' \
 'contract-verifier:Run contract verifier' \
 'portal:Run dapp-portal' \
+'private-rpc:Run private RPC' \
 'explorer:Run block-explorer' \
 'consensus:Consensus utilities' \
 'update:Update ZKsync' \
@@ -4656,13 +5644,19 @@ _zkstack__help__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
+'deploy-l2da-validator:Deploy L2 DA Validator' \
 'deploy-upgrader:Deploy Default Upgrader' \
 'deploy-paymaster:Deploy paymaster smart contract' \
 'update-token-multiplier-setter:Update Token Multiplier Setter address on L1' \
+'set-transaction-filterer-calldata:Provides calldata to set transaction filterer for a chain' \
+'set-da-validator-pair-calldata:Provides calldata to set DA validator pair for a chain' \
+'enable-evm-emulator:Enable EVM emulation on chain (Not supported yet)' \
+'set-pubdata-pricing-mode:Update pubdata pricing mode (used for Rollup -> Validium migration)' \
+'set-da-validator-pair:Update da validator pair (used for Rollup -> Validium migration)' \
+'gateway:' \
     )
     _describe -t commands 'zkstack help chain commands' commands "$@"
 }
@@ -4691,6 +5685,11 @@ _zkstack__help__chain__deploy-l2-contracts_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-l2-contracts commands' commands "$@"
 }
+(( $+functions[_zkstack__help__chain__deploy-l2da-validator_commands] )) ||
+_zkstack__help__chain__deploy-l2da-validator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain deploy-l2da-validator commands' commands "$@"
+}
 (( $+functions[_zkstack__help__chain__deploy-multicall3_commands] )) ||
 _zkstack__help__chain__deploy-multicall3_commands() {
     local commands; commands=()
@@ -4710,6 +5709,83 @@ _zkstack__help__chain__deploy-timestamp-asserter_commands() {
 _zkstack__help__chain__deploy-upgrader_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain deploy-upgrader commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__enable-evm-emulator_commands] )) ||
+_zkstack__help__chain__enable-evm-emulator_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain enable-evm-emulator commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway_commands] )) ||
+_zkstack__help__chain__gateway_commands() {
+    local commands; commands=(
+'grant-gateway-transaction-filterer-whitelist-calldata:' \
+'notify-about-to-gateway-update-calldata:' \
+'notify-about-from-gateway-update-calldata:' \
+'migrate-to-gateway-calldata:' \
+'migrate-from-gateway-calldata:' \
+'finalize-chain-migration-from-gateway:' \
+'convert-to-gateway:Prepare chain to be an eligible gateway' \
+'migrate-to-gateway:Migrate chain to gateway' \
+'migrate-from-gateway:Migrate chain from gateway' \
+'notify-about-to-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+'notify-about-from-gateway-update:ForgeScriptArgs is a set of arguments that can be passed to the forge script command' \
+    )
+    _describe -t commands 'zkstack help chain gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__convert-to-gateway_commands] )) ||
+_zkstack__help__chain__gateway__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway convert-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__finalize-chain-migration-from-gateway_commands] )) ||
+_zkstack__help__chain__gateway__finalize-chain-migration-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway finalize-chain-migration-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__grant-gateway-transaction-filterer-whitelist-calldata_commands] )) ||
+_zkstack__help__chain__gateway__grant-gateway-transaction-filterer-whitelist-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway grant-gateway-transaction-filterer-whitelist-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__migrate-from-gateway_commands] )) ||
+_zkstack__help__chain__gateway__migrate-from-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway migrate-from-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__migrate-from-gateway-calldata_commands] )) ||
+_zkstack__help__chain__gateway__migrate-from-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway migrate-from-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__migrate-to-gateway_commands] )) ||
+_zkstack__help__chain__gateway__migrate-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway migrate-to-gateway commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__migrate-to-gateway-calldata_commands] )) ||
+_zkstack__help__chain__gateway__migrate-to-gateway-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway migrate-to-gateway-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__notify-about-from-gateway-update_commands] )) ||
+_zkstack__help__chain__gateway__notify-about-from-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway notify-about-from-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__notify-about-from-gateway-update-calldata_commands] )) ||
+_zkstack__help__chain__gateway__notify-about-from-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway notify-about-from-gateway-update-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__notify-about-to-gateway-update_commands] )) ||
+_zkstack__help__chain__gateway__notify-about-to-gateway-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway notify-about-to-gateway-update commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__gateway__notify-about-to-gateway-update-calldata_commands] )) ||
+_zkstack__help__chain__gateway__notify-about-to-gateway-update-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain gateway notify-about-to-gateway-update-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__genesis_commands] )) ||
 _zkstack__help__chain__genesis_commands() {
@@ -4741,15 +5817,30 @@ _zkstack__help__chain__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__help__chain__initialize-bridges_commands] )) ||
-_zkstack__help__chain__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain initialize-bridges commands' commands "$@"
-}
 (( $+functions[_zkstack__help__chain__register-chain_commands] )) ||
 _zkstack__help__chain__register-chain_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain register-chain commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__set-da-validator-pair_commands] )) ||
+_zkstack__help__chain__set-da-validator-pair_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain set-da-validator-pair commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__set-da-validator-pair-calldata_commands] )) ||
+_zkstack__help__chain__set-da-validator-pair-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain set-da-validator-pair-calldata commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__set-pubdata-pricing-mode_commands] )) ||
+_zkstack__help__chain__set-pubdata-pricing-mode_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain set-pubdata-pricing-mode commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__set-transaction-filterer-calldata_commands] )) ||
+_zkstack__help__chain__set-transaction-filterer-calldata_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain set-transaction-filterer-calldata commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__update-token-multiplier-setter_commands] )) ||
 _zkstack__help__chain__update-token-multiplier-setter_commands() {
@@ -4759,21 +5850,33 @@ _zkstack__help__chain__update-token-multiplier-setter_commands() {
 (( $+functions[_zkstack__help__consensus_commands] )) ||
 _zkstack__help__consensus_commands() {
     local commands; commands=(
-'set-attester-committee:Sets the attester committee in the consensus registry contract to \`consensus.genesis_spec.attesters\` in general.yaml' \
-'get-attester-committee:Fetches the attester committee from the consensus registry contract' \
+'set-validator-schedule:Sets the validator schedule in the consensus registry contract to the schedule in the yaml file. File format is defined in \`SetValidatorScheduleFile\` in this crate' \
+'set-schedule-activation-delay:Sets the committee activation delay in the consensus registry contract' \
+'get-validator-schedule:Fetches the current validator schedule from the consensus registry contract' \
+'get-pending-validator-schedule:Fetches the pending validator schedule from the consensus registry contract, if any' \
 'wait-for-registry:Wait until the consensus registry contract is deployed to L2' \
     )
     _describe -t commands 'zkstack help consensus commands' commands "$@"
 }
-(( $+functions[_zkstack__help__consensus__get-attester-committee_commands] )) ||
-_zkstack__help__consensus__get-attester-committee_commands() {
+(( $+functions[_zkstack__help__consensus__get-pending-validator-schedule_commands] )) ||
+_zkstack__help__consensus__get-pending-validator-schedule_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack help consensus get-attester-committee commands' commands "$@"
+    _describe -t commands 'zkstack help consensus get-pending-validator-schedule commands' commands "$@"
 }
-(( $+functions[_zkstack__help__consensus__set-attester-committee_commands] )) ||
-_zkstack__help__consensus__set-attester-committee_commands() {
+(( $+functions[_zkstack__help__consensus__get-validator-schedule_commands] )) ||
+_zkstack__help__consensus__get-validator-schedule_commands() {
     local commands; commands=()
-    _describe -t commands 'zkstack help consensus set-attester-committee commands' commands "$@"
+    _describe -t commands 'zkstack help consensus get-validator-schedule commands' commands "$@"
+}
+(( $+functions[_zkstack__help__consensus__set-schedule-activation-delay_commands] )) ||
+_zkstack__help__consensus__set-schedule-activation-delay_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help consensus set-schedule-activation-delay commands' commands "$@"
+}
+(( $+functions[_zkstack__help__consensus__set-validator-schedule_commands] )) ||
+_zkstack__help__consensus__set-validator-schedule_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help consensus set-validator-schedule commands' commands "$@"
 }
 (( $+functions[_zkstack__help__consensus__wait-for-registry_commands] )) ||
 _zkstack__help__consensus__wait-for-registry_commands() {
@@ -4830,6 +5933,9 @@ _zkstack__help__dev_commands() {
 'send-transactions:Send transactions from file' \
 'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
+'init-test-wallet:Initialize test wallet' \
+'rich-account:Make L2 account rich' \
+'track-priority-ops:Generate new genesis file based on current contracts' \
     )
     _describe -t commands 'zkstack help dev commands' commands "$@"
 }
@@ -4917,32 +6023,18 @@ _zkstack__help__dev__database__setup_commands() {
 }
 (( $+functions[_zkstack__help__dev__fmt_commands] )) ||
 _zkstack__help__dev__fmt_commands() {
-    local commands; commands=(
-'rustfmt:' \
-'contract:' \
-'prettier:' \
-    )
+    local commands; commands=()
     _describe -t commands 'zkstack help dev fmt commands' commands "$@"
-}
-(( $+functions[_zkstack__help__dev__fmt__contract_commands] )) ||
-_zkstack__help__dev__fmt__contract_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help dev fmt contract commands' commands "$@"
-}
-(( $+functions[_zkstack__help__dev__fmt__prettier_commands] )) ||
-_zkstack__help__dev__fmt__prettier_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help dev fmt prettier commands' commands "$@"
-}
-(( $+functions[_zkstack__help__dev__fmt__rustfmt_commands] )) ||
-_zkstack__help__dev__fmt__rustfmt_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help dev fmt rustfmt commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__generate-genesis_commands] )) ||
 _zkstack__help__dev__generate-genesis_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev generate-genesis commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__init-test-wallet_commands] )) ||
+_zkstack__help__dev__init-test-wallet_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev init-test-wallet commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__lint_commands] )) ||
 _zkstack__help__dev__lint_commands() {
@@ -4972,6 +6064,11 @@ _zkstack__help__dev__prover__insert-batch_commands() {
 _zkstack__help__dev__prover__insert-version_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev prover insert-version commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__rich-account_commands] )) ||
+_zkstack__help__dev__rich-account_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev rich-account commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__send-transactions_commands] )) ||
 _zkstack__help__dev__send-transactions_commands() {
@@ -5016,6 +6113,7 @@ _zkstack__help__dev__test_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
     )
     _describe -t commands 'zkstack help dev test commands' commands "$@"
 }
@@ -5028,6 +6126,11 @@ _zkstack__help__dev__test__build_commands() {
 _zkstack__help__dev__test__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev test fees commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__test__gateway-migration_commands] )) ||
+_zkstack__help__dev__test__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev test gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__test__integration_commands] )) ||
 _zkstack__help__dev__test__integration_commands() {
@@ -5073,6 +6176,11 @@ _zkstack__help__dev__test__upgrade_commands() {
 _zkstack__help__dev__test__wallet_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev test wallet commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__track-priority-ops_commands] )) ||
+_zkstack__help__dev__track-priority-ops_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev track-priority-ops commands' commands "$@"
 }
 (( $+functions[_zkstack__help__ecosystem_commands] )) ||
 _zkstack__help__ecosystem_commands() {
@@ -5185,6 +6293,30 @@ _zkstack__help__portal_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help portal commands' commands "$@"
 }
+(( $+functions[_zkstack__help__private-rpc_commands] )) ||
+_zkstack__help__private-rpc_commands() {
+    local commands; commands=(
+'init:Initializes private proxy database, builds docker image, runs all migrations and creates docker-compose file' \
+'run:Run private proxy' \
+'reset-db:Resets the private proxy database' \
+    )
+    _describe -t commands 'zkstack help private-rpc commands' commands "$@"
+}
+(( $+functions[_zkstack__help__private-rpc__init_commands] )) ||
+_zkstack__help__private-rpc__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help private-rpc init commands' commands "$@"
+}
+(( $+functions[_zkstack__help__private-rpc__reset-db_commands] )) ||
+_zkstack__help__private-rpc__reset-db_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help private-rpc reset-db commands' commands "$@"
+}
+(( $+functions[_zkstack__help__private-rpc__run_commands] )) ||
+_zkstack__help__private-rpc__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help private-rpc run commands' commands "$@"
+}
 (( $+functions[_zkstack__help__prover_commands] )) ||
 _zkstack__help__prover_commands() {
     local commands; commands=(
@@ -5259,6 +6391,61 @@ _zkstack__markdown_commands() {
 _zkstack__portal_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack portal commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc_commands] )) ||
+_zkstack__private-rpc_commands() {
+    local commands; commands=(
+'init:Initializes private proxy database, builds docker image, runs all migrations and creates docker-compose file' \
+'run:Run private proxy' \
+'reset-db:Resets the private proxy database' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack private-rpc commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__help_commands] )) ||
+_zkstack__private-rpc__help_commands() {
+    local commands; commands=(
+'init:Initializes private proxy database, builds docker image, runs all migrations and creates docker-compose file' \
+'run:Run private proxy' \
+'reset-db:Resets the private proxy database' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack private-rpc help commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__help__help_commands] )) ||
+_zkstack__private-rpc__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc help help commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__help__init_commands] )) ||
+_zkstack__private-rpc__help__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc help init commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__help__reset-db_commands] )) ||
+_zkstack__private-rpc__help__reset-db_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc help reset-db commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__help__run_commands] )) ||
+_zkstack__private-rpc__help__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc help run commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__init_commands] )) ||
+_zkstack__private-rpc__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc init commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__reset-db_commands] )) ||
+_zkstack__private-rpc__reset-db_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc reset-db commands' commands "$@"
+}
+(( $+functions[_zkstack__private-rpc__run_commands] )) ||
+_zkstack__private-rpc__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack private-rpc run commands' commands "$@"
 }
 (( $+functions[_zkstack__prover_commands] )) ||
 _zkstack__prover_commands() {

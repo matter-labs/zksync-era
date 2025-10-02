@@ -1,17 +1,15 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Context;
-use common::yaml::merge_yaml;
-use url::Url;
+use serde::Serialize;
 use xshell::Shell;
-use zksync_config::configs::object_store::ObjectStoreMode;
-pub use zksync_config::configs::GeneralConfig;
-use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
+use zkstack_cli_common::yaml::merge_yaml;
+use zksync_basic_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
-    consts::GENERAL_FILE,
-    traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig,
+    consensus::{ConsensusConfigPatch, ConsensusGenesisSpecs},
+    da::AvailConfig,
+    raw::{PatchedConfig, RawConfig},
+    ChainConfig, ObjectStoreConfig, ObjectStoreMode,
 };
 
 pub struct RocksDbs {
@@ -22,7 +20,6 @@ pub struct RocksDbs {
 }
 
 pub struct FileArtifacts {
-    pub public_object_store: PathBuf,
     pub prover_object_store: PathBuf,
     pub snapshot: PathBuf,
     pub core_object_store: PathBuf,
@@ -32,7 +29,6 @@ impl FileArtifacts {
     /// Currently all artifacts are stored in one path, but we keep an opportunity to update this paths
     pub fn new(path: PathBuf) -> Self {
         Self {
-            public_object_store: path.clone(),
             prover_object_store: path.clone(),
             snapshot: path.clone(),
             core_object_store: path.clone(),
@@ -40,114 +36,292 @@ impl FileArtifacts {
     }
 }
 
-pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
-    config
-        .db_config
-        .as_mut()
-        .context("DB config is not presented")?
-        .state_keeper_db_path = rocks_dbs.state_keeper.to_str().unwrap().to_string();
-    config
-        .db_config
-        .as_mut()
-        .context("DB config is not presented")?
-        .merkle_tree
-        .path = rocks_dbs.merkle_tree.to_str().unwrap().to_string();
-    config
-        .protective_reads_writer_config
-        .as_mut()
-        .context("Protective reads config is not presented")?
-        .db_path = rocks_dbs.protective_reads.to_str().unwrap().to_string();
-    config
-        .basic_witness_input_producer_config
-        .as_mut()
-        .context("Basic witness input producer config is not presented")?
-        .db_path = rocks_dbs
-        .basic_witness_input_producer
-        .to_str()
-        .unwrap()
-        .to_string();
+#[derive(Debug)]
+pub struct EthSenderLimits {
+    pub max_aggregated_tx_gas: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub enum CloudConnectionMode {
+    GCP,
+    #[serde(rename = "LOCAL")] // match name in file-based configs
+    Local,
+}
+
+#[derive(Debug)]
+pub struct GeneralConfig(RawConfig);
+
+impl GeneralConfig {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
+        RawConfig::read(shell, path).await.map(Self)
+    }
+
+    pub fn patched(self) -> GeneralConfigPatch {
+        GeneralConfigPatch(self.0.patched())
+    }
+
+    /// Obtains HTTP RPC URL for the main node based on its general config. The URL will have 127.0.0.1 host.
+    pub fn l2_http_url(&self) -> anyhow::Result<String> {
+        self.0.get("api.web3_json_rpc.http_url")
+    }
+
+    /// Obtains WS RPC URL for the main node based on its general config. The URL will have 127.0.0.1 host.
+    pub fn l2_ws_url(&self) -> anyhow::Result<String> {
+        self.0.get("api.web3_json_rpc.ws_url")
+    }
+
+    pub fn healthcheck_url(&self) -> anyhow::Result<String> {
+        let port = self.0.get::<u16>("api.healthcheck.port")?;
+        Ok(format!("http://127.0.0.1:{port}/health"))
+    }
+
+    pub fn contract_verifier_url(&self) -> anyhow::Result<String> {
+        let port = self.0.get::<u16>("contract_verifier.port")?;
+        Ok(format!("http://127.0.0.1:{port}"))
+    }
+
+    pub fn contract_verifier_prometheus_port(&self) -> anyhow::Result<u16> {
+        self.0.get("contract_verifier.prometheus_port")
+    }
+
+    pub fn proof_data_handler_url(&self) -> anyhow::Result<Option<String>> {
+        let port = self.0.get_opt::<u16>("data_handler.http_port")?;
+        Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
+    }
+
+    pub fn tee_proof_data_handler_url(&self) -> anyhow::Result<Option<String>> {
+        let port = self.0.get_opt::<u16>("tee_proof_data_handler.http_port")?;
+        Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
+    }
+
+    pub fn prover_gateway_url(&self) -> anyhow::Result<Option<String>> {
+        let port = self.0.get_opt::<u16>("prover_gateway.port")?;
+        Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
+    }
+
+    pub fn da_client_type(&self) -> Option<String> {
+        self.0.get_opt("da_client.client").unwrap_or(None)
+    }
+
+    pub fn test_core_database_url(&self) -> anyhow::Result<String> {
+        self.0.get::<String>("postgres.test.server_url")
+    }
+
+    pub fn test_prover_database_url(&self) -> anyhow::Result<String> {
+        self.0.get::<String>("postgres.test.prover_url")
+    }
+
+    pub fn consensus_public_addr(&self) -> anyhow::Result<String> {
+        self.0.get("consensus.public_addr")
+    }
+
+    pub fn raw_consensus_genesis_spec(&self) -> Option<&serde_yaml::Value> {
+        self.0.get_raw("consensus.genesis_spec")
+    }
+}
+
+#[derive(Debug)]
+#[must_use = "Must be `save()`d for changes to take effect"]
+pub struct GeneralConfigPatch(PatchedConfig);
+
+impl GeneralConfigPatch {
+    pub fn set_rocks_db_config(&mut self, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
+        self.0
+            .insert_path("db.state_keeper_db_path", &rocks_dbs.state_keeper)?;
+        self.0
+            .insert_path("db.merkle_tree.path", &rocks_dbs.merkle_tree)?;
+        self.0.insert_path(
+            "protective_reads_writer.db_path",
+            &rocks_dbs.protective_reads,
+        )?;
+        self.0.insert_path(
+            "basic_witness_input_producer.db_path",
+            &rocks_dbs.basic_witness_input_producer,
+        )?;
+        Ok(())
+    }
+
+    pub fn set_file_artifacts(&mut self, file_artifacts: FileArtifacts) -> anyhow::Result<()> {
+        set_file_backed_path_if_selected(
+            &mut self.0,
+            "prover.prover_object_store",
+            &file_artifacts.prover_object_store,
+        )?;
+        set_file_backed_path_if_selected(
+            &mut self.0,
+            "snapshot_creator.object_store",
+            &file_artifacts.snapshot,
+        )?;
+        set_file_backed_path_if_selected(
+            &mut self.0,
+            "snapshot_recovery.object_store",
+            &file_artifacts.snapshot,
+        )?;
+        set_file_backed_path_if_selected(
+            &mut self.0,
+            "core_object_store",
+            &file_artifacts.core_object_store,
+        )?;
+        Ok(())
+    }
+
+    pub fn extract_consensus(
+        &mut self,
+        shell: &Shell,
+        path: &Path,
+    ) -> anyhow::Result<ConsensusConfigPatch> {
+        let raw_consensus: serde_yaml::Mapping = self.0.base().get("consensus")?;
+        self.0.remove("consensus");
+        let mut new_config = PatchedConfig::empty(shell, path);
+        new_config.extend(raw_consensus);
+        Ok(ConsensusConfigPatch(new_config))
+    }
+
+    pub fn set_consensus_specs(&mut self, specs: ConsensusGenesisSpecs) -> anyhow::Result<()> {
+        self.0
+            .insert("consensus.genesis_spec.chain_id", specs.chain_id.as_u64())?;
+        self.0
+            .insert("consensus.genesis_spec.protocol_version", 1u64)?;
+        self.0
+            .insert_yaml("consensus.genesis_spec.validators", specs.validators)?;
+        self.0
+            .insert("consensus.genesis_spec.leader", specs.leader)?;
+        Ok(())
+    }
+
+    pub fn set_prover_gateway_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("prover_gateway.api_url", url)
+    }
+
+    pub fn set_tee_prover_gateway_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("tee_prover_gateway.api_url", url)
+    }
+
+    pub fn set_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("data_handler.gateway_api_url", url)
+    }
+
+    pub fn set_tee_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("tee_proof_data_handler.gateway_api_url", url)
+    }
+
+    pub fn proof_compressor_setup_download_url(&self) -> anyhow::Result<String> {
+        self.0
+            .base()
+            .get("proof_compressor.universal_setup_download_url")
+    }
+
+    pub fn proof_compressor_setup_path(&self) -> anyhow::Result<PathBuf> {
+        self.0.base().get("proof_compressor.universal_setup_path")
+    }
+
+    pub fn set_proof_compressor_setup_path(&mut self, path: &Path) -> anyhow::Result<()> {
+        self.0
+            .insert_path("proof_compressor.universal_setup_path", path)
+    }
+
+    pub fn set_prover_setup_path(&mut self, path: &Path) -> anyhow::Result<()> {
+        self.0.insert_path("prover.setup_data_path", path)
+    }
+
+    pub fn set_pubdata_sending_mode(&mut self, mode: PubdataSendingMode) -> anyhow::Result<()> {
+        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
+        // we supply a raw string value.
+        let raw_mode = match mode {
+            PubdataSendingMode::Blobs => "BLOBS",
+            PubdataSendingMode::Calldata => "CALLDATA",
+            PubdataSendingMode::RelayedL2Calldata => "RELAYED_L2_CALLDATA",
+            PubdataSendingMode::Custom => "CUSTOM",
+        };
+
+        self.0.insert("eth.sender.pubdata_sending_mode", raw_mode)
+    }
+
+    pub fn set_eth_sender_confirmations(&mut self, confirmations: usize) -> anyhow::Result<()> {
+        self.0
+            .insert("eth.sender.wait_confirmations", confirmations)
+    }
+
+    pub fn set_eth_sender_limits(&mut self, limits: EthSenderLimits) -> anyhow::Result<()> {
+        self.0.insert(
+            "eth.sender.max_aggregated_tx_gas",
+            limits.max_aggregated_tx_gas,
+        )
+    }
+
+    pub fn remove_da_client(&mut self) {
+        self.0.remove("da_client");
+    }
+
+    pub fn set_avail_client(&mut self, client: &AvailConfig) -> anyhow::Result<()> {
+        self.0.insert_yaml("da_client", client)?;
+        self.0.insert("da_client.client", "Avail")?;
+        Ok(())
+    }
+
+    fn set_object_store(&mut self, prefix: &str, config: &ObjectStoreConfig) -> anyhow::Result<()> {
+        self.0
+            .insert(&format!("{prefix}.max_retries"), config.max_retries)?;
+        match &config.mode {
+            ObjectStoreMode::FileBacked {
+                file_backed_base_path,
+            } => {
+                self.0
+                    .insert_yaml(&format!("{prefix}.mode"), "FileBacked")?;
+                self.0.insert_yaml(
+                    &format!("{prefix}.file_backed_base_path"),
+                    file_backed_base_path,
+                )?;
+            }
+            ObjectStoreMode::GCSWithCredentialFile {
+                bucket_base_url,
+                gcs_credential_file_path,
+            } => {
+                self.0
+                    .insert(&format!("{prefix}.mode"), "GCSWithCredentialFile")?;
+                self.0.insert(
+                    &format!("{prefix}.bucket_base_url"),
+                    bucket_base_url.clone(),
+                )?;
+                self.0.insert(
+                    &format!("{prefix}.gcs_credential_file_path"),
+                    gcs_credential_file_path.clone(),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn set_prover_object_store(&mut self, config: &ObjectStoreConfig) -> anyhow::Result<()> {
+        self.set_object_store("prover.prover_object_store", config)
+    }
+
+    pub async fn save(self) -> anyhow::Result<()> {
+        self.0.save().await
+    }
+}
+
+fn set_file_backed_path_if_selected(
+    config: &mut PatchedConfig,
+    prefix: &str,
+    path: &Path,
+) -> anyhow::Result<()> {
+    let mode_path = format!("{prefix}.mode");
+    let mode = config.base().get_opt::<String>(&mode_path)?;
+    let is_file_backed = mode.as_ref().is_none_or(|mode| mode == "FileBacked");
+
+    if is_file_backed {
+        config.insert(&mode_path, "FileBacked")?;
+        config.insert_path(&format!("{prefix}.file_backed_base_path"), path)?;
+    }
     Ok(())
 }
 
-pub fn set_file_artifacts(config: &mut GeneralConfig, file_artifacts: FileArtifacts) {
-    macro_rules! set_artifact_path {
-        ($config:expr, $name:ident, $value:expr) => {
-            $config
-                .as_mut()
-                .map(|a| set_artifact_path!(a.$name, $value))
-        };
-
-        ($config:expr, $value:expr) => {
-            $config.as_mut().map(|a| {
-                if let ObjectStoreMode::FileBacked {
-                    ref mut file_backed_base_path,
-                } = &mut a.mode
-                {
-                    *file_backed_base_path = $value.to_str().unwrap().to_string()
-                }
-            })
-        };
-    }
-
-    set_artifact_path!(
-        config.prover_config,
-        prover_object_store,
-        file_artifacts.prover_object_store
-    );
-    set_artifact_path!(
-        config.prover_config,
-        public_object_store,
-        file_artifacts.public_object_store
-    );
-    set_artifact_path!(
-        config.snapshot_creator,
-        object_store,
-        file_artifacts.snapshot
-    );
-    set_artifact_path!(
-        config.snapshot_recovery,
-        object_store,
-        file_artifacts.snapshot
-    );
-
-    set_artifact_path!(config.core_object_store, file_artifacts.core_object_store);
-}
-
-pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
+pub fn override_config(shell: &Shell, path: &Path, chain: &ChainConfig) -> anyhow::Result<()> {
     let chain_config_path = chain.path_to_general_config();
     let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
     let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path.clone())?)?;
     merge_yaml(&mut chain_config, override_config, true)?;
     shell.write_file(chain_config_path, serde_yaml::to_string(&chain_config)?)?;
     Ok(())
-}
-
-impl FileConfigWithDefaultName for GeneralConfig {
-    const FILE_NAME: &'static str = GENERAL_FILE;
-}
-
-impl SaveConfig for GeneralConfig {
-    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let bytes =
-            encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(self)?;
-        Ok(shell.write_file(path, bytes)?)
-    }
-}
-
-impl ReadConfig for GeneralConfig {
-    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let path = shell.current_dir().join(path);
-        read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path, false)
-    }
-}
-
-impl ConfigWithL2RpcUrl for GeneralConfig {
-    fn get_l2_rpc_url(&self) -> anyhow::Result<Url> {
-        self.api_config
-            .as_ref()
-            .map(|api_config| &api_config.web3_json_rpc.http_url)
-            .context("API config is missing")?
-            .parse()
-            .context("Failed to parse L2 RPC URL")
-    }
 }

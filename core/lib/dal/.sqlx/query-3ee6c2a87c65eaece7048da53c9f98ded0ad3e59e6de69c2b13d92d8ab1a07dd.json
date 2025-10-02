@@ -18,7 +18,11 @@
               "Enum": [
                 "ProtocolUpgrades",
                 "PriorityTransactions",
-                "ChainBatchRoot"
+                "ChainBatchRoot",
+                "ServerNotification",
+                "ProofRequestAcknowledged",
+                "ProofRequestProven",
+                "InteropRoot"
               ]
             }
           }

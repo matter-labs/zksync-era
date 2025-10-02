@@ -1,23 +1,37 @@
-use vise::{Counter, Gauge, LabeledFamily, Metrics};
+use vise::{Counter, EncodeLabelSet, Family, Gauge, LabeledFamily, Metrics};
 
-use crate::config::Gpu;
+use crate::{
+    cluster_types::{ClusterName, DeploymentName, NamespaceName},
+    key::Gpu,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct JobLabels {
+    pub job: DeploymentName,
+    pub target_cluster: ClusterName,
+    pub target_namespace: NamespaceName,
+    #[metrics(skip = Gpu::is_unknown)]
+    pub gpu: Gpu,
+}
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "autoscaler")]
 pub(crate) struct AutoscalerMetrics {
     #[metrics(labels = ["target_namespace", "protocol_version"])]
-    pub prover_protocol_version: LabeledFamily<(String, String), Gauge<usize>, 2>,
+    pub prover_protocol_version: LabeledFamily<(NamespaceName, String), Gauge<usize>, 2>,
     #[metrics(labels = ["target_cluster", "target_namespace", "gpu"])]
-    pub provers: LabeledFamily<(String, String, Gpu), Gauge<u64>, 3>,
-    #[metrics(labels = ["job", "target_cluster", "target_namespace"])]
-    pub jobs: LabeledFamily<(String, String, String), Gauge<u64>, 3>,
-    pub clusters_not_ready: Counter,
+    pub provers: LabeledFamily<(ClusterName, NamespaceName, Gpu), Gauge<usize>, 3>,
+    pub jobs: Family<JobLabels, Gauge<usize>>,
+    #[metrics(labels = ["agent_url"])]
+    pub agent_not_ready: LabeledFamily<String, Counter, 1>,
     #[metrics(labels = ["target", "status"])]
     pub calls: LabeledFamily<(String, u16), Counter, 2>,
     #[metrics(labels = ["target_cluster"])]
-    pub scale_errors: LabeledFamily<String, Gauge<u64>>,
+    pub scale_errors: LabeledFamily<ClusterName, Gauge<u64>>,
     #[metrics(labels = ["target_namespace", "job"])]
-    pub queue: LabeledFamily<(String, String), Gauge<u64>, 2>,
+    pub queue: LabeledFamily<(NamespaceName, DeploymentName), Gauge<usize>, 2>,
+    #[metrics(labels = ["pod_name"])]
+    pub stale_pods: LabeledFamily<String, Counter, 1>,
 }
 
 #[vise::register]

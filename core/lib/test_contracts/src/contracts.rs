@@ -14,11 +14,24 @@ mod raw {
     include!(concat!(env!("OUT_DIR"), "/raw_contracts.rs"));
 }
 
-/// Raw contracts produced by the build script.
+mod raw_evm {
+    #![allow(unused, non_upper_case_globals)]
+    include!(concat!(env!("OUT_DIR"), "/raw_evm_contracts.rs"));
+}
+
+/// Raw EraVM contract produced by the build script.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawContract {
     pub abi: &'static str,
     pub bytecode: &'static [u8],
+}
+
+/// Raw EVM contract produced by the build script.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RawEvmContract {
+    pub abi: &'static str,
+    pub init_bytecode: &'static [u8],
+    pub deployed_bytecode: &'static [u8],
 }
 
 /// Test contract consisting of deployable EraVM bytecode and Web3 ABI.
@@ -43,6 +56,23 @@ impl TestContract {
         }
     }
 
+    pub fn bridge_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::bridge_test::LegacySharedBridgeTest);
+            contract.dependencies = vec![
+                TestContract::new(raw::contract_libs::L2SharedBridgeLegacy),
+                TestContract::new(raw::contract_libs::BridgedStandardERC20),
+                TestContract::new(raw::contract_libs::ProxyAdmin),
+                TestContract::new(raw::contract_libs::TransparentUpgradeableProxy),
+                TestContract::new(raw::contract_libs::UpgradeableBeacon),
+                TestContract::new(raw::bridge_test::L2StandardERC20V25),
+                TestContract::new(raw::bridge_test::L2SharedBridgeV25),
+            ];
+            contract
+        });
+        &CONTRACT
+    }
+
     /// Returns a contract used to test complex system contract upgrades.
     pub fn complex_upgrade() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
@@ -61,6 +91,16 @@ impl TestContract {
     pub fn counter() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
             Lazy::new(|| TestContract::new(raw::counter::Counter));
+        &CONTRACT
+    }
+
+    /// Returns a counter factory contract.
+    pub fn counter_factory() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::counter::CounterFactory);
+            contract.dependencies = vec![TestContract::new(raw::counter::Counter)];
+            contract
+        });
         &CONTRACT
     }
 
@@ -95,6 +135,17 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn permissive_account() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::custom_account::PermissiveAccount);
+            contract.dependencies = vec![TestContract::new(
+                raw::custom_account::PermissiveAccountDeployedContract,
+            )];
+            contract
+        });
+        &CONTRACT
+    }
+
     /// Returns a custom account with multiple owners.
     pub fn many_owners() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
@@ -112,6 +163,18 @@ impl TestContract {
     pub fn nonce_holder() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
             Lazy::new(|| TestContract::new(raw::custom_account::NonceHolderTest));
+        &CONTRACT
+    }
+
+    pub fn validation_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::custom_account::ValidationRuleBreaker));
+        &CONTRACT
+    }
+
+    pub fn validation_test_mock_token() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::custom_account::MockToken));
         &CONTRACT
     }
 
@@ -213,7 +276,13 @@ impl TestContract {
         &CONTRACT
     }
 
-    /// Returns all factory deps for this contract deployment (including its own bytecode).
+    pub fn eravm_tester() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::EraVmTester));
+        &CONTRACT
+    }
+
+    /// Returns all factory deps for this contract deployment (excluding its own bytecode).
     pub fn factory_deps(&self) -> Vec<Vec<u8>> {
         let mut deps = vec![];
         self.insert_factory_deps(&mut deps);
@@ -237,6 +306,46 @@ impl TestContract {
         let mut execute = Execute::for_deploy(salt, self.bytecode.to_vec(), args);
         execute.factory_deps.extend(self.factory_deps());
         execute
+    }
+
+    /// Shortcut for accessing a function that panics if a function doesn't exist.
+    pub fn function(&self, name: &str) -> &ethabi::Function {
+        self.abi
+            .function(name)
+            .unwrap_or_else(|err| panic!("cannot access function `{name}`: {err}"))
+    }
+}
+
+#[derive(Debug)]
+pub struct TestEvmContract {
+    /// Web3 ABI of this contract.
+    pub abi: ethabi::Contract,
+    /// Initialization / constructor bytecode of this contract.
+    pub init_bytecode: &'static [u8],
+    /// Deployed bytecode of this contract.
+    pub deployed_bytecode: &'static [u8],
+}
+
+impl TestEvmContract {
+    fn new(raw: RawEvmContract) -> Self {
+        let abi = serde_json::from_str(raw.abi).expect("failed parsing contract ABI");
+        Self {
+            abi,
+            init_bytecode: raw.init_bytecode,
+            deployed_bytecode: raw.deployed_bytecode,
+        }
+    }
+
+    pub fn counter() -> &'static Self {
+        static CONTRACT: Lazy<TestEvmContract> =
+            Lazy::new(|| TestEvmContract::new(raw_evm::evm::Counter));
+        &CONTRACT
+    }
+
+    pub fn evm_tester() -> &'static Self {
+        static CONTRACT: Lazy<TestEvmContract> =
+            Lazy::new(|| TestEvmContract::new(raw_evm::evm::EvmEmulationTest));
+        &CONTRACT
     }
 
     /// Shortcut for accessing a function that panics if a function doesn't exist.

@@ -3,35 +3,21 @@ use std::{collections::HashMap, fmt, mem, rc::Rc};
 use zk_evm_1_5_0::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
 };
-use zksync_contracts::SystemContractCode;
 use zksync_types::{
-    bytecode::BytecodeHash,
-    h256_to_u256,
-    l1::is_l1_tx_type,
-    l2_to_l1_log::UserL2ToL1Log,
-    u256_to_h256,
-    utils::key_for_eth_balance,
-    writes::{
-        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
-        BYTES_PER_ENUMERATION_INDEX,
-    },
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, U256,
+    bytecode::BytecodeHash, h256_to_u256, l1::is_l1_tx_type, l2_to_l1_log::UserL2ToL1Log,
+    u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey, StorageLog, StorageLogKind,
+    StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160, H256,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
-    ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
+    ExecutionEnd, FatPointer, Settings, VirtualMachine,
 };
 
 use super::{
-    bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
-    circuits_tracer::CircuitsTracer,
-    evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
-    hook::Hook,
-    initial_bootloader_memory::bootloader_initial_memory,
-    transaction_data::TransactionData,
+    tracers::{ValidationTracer, WithBuiltinTracers},
+    world::World,
 };
 use crate::{
     glue::GlueInto,
@@ -45,20 +31,22 @@ use crate::{
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
-    vm_fast::{
-        bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
-        events::merge_events,
-        refund::compute_refund,
-        version::FastVmVersion,
-    },
-    vm_latest::constants::{
-        get_result_success_first_slot, get_vm_hook_params_start_position, get_vm_hook_position,
-        OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+    vm_fast::{events::merge_events, version::FastVmVersion, FastValidationTracer},
+    vm_latest::{
+        bootloader::{
+            utils::{apply_l2_block, apply_pubdata_to_memory},
+            BootloaderState, BootloaderStateSnapshot,
+        },
+        constants::{
+            get_operator_refunds_offset, get_result_success_first_slot,
+            get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
+            VM_HOOK_PARAMS_COUNT,
+        },
+        utils::refund::compute_refund,
+        TransactionData, VmHook,
     },
     VmVersion,
 };
-
-type FullTracer<Tr> = ((Tr, CircuitsTracer), EvmDeployTracer);
 
 #[derive(Debug)]
 struct VmRunResult {
@@ -85,25 +73,29 @@ impl VmRunResult {
     }
 }
 
+type InnerVm<S, Tr, Val> =
+    VirtualMachine<WithBuiltinTracers<Tr, Val>, World<S, WithBuiltinTracers<Tr, Val>>>;
+
 /// Fast VM wrapper.
 ///
-/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
-/// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
-/// you don't need to specify it explicitly.
-pub struct Vm<S, Tr = ()> {
-    pub(super) world: World<S, FullTracer<Tr>>,
-    pub(super) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
-    gas_for_account_validation: u32,
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, the tracer must implement [`Default`]
+/// (the latter is necessary to complete batches). Validation is encapsulated in a separate type param. It should be set to `()`
+/// for "standard" validation (not stopping after validation; no validation-specific checks), or [`FullValidationTracer`](super::FullValidationTracer)
+/// for full validation (stopping after validation; validation-specific checks).
+pub struct Vm<S, Tr = (), Val = FastValidationTracer> {
+    pub(super) world: World<S, WithBuiltinTracers<Tr, Val>>,
+    pub(super) inner: InnerVm<S, Tr, Val>,
     pub(super) bootloader_state: BootloaderState,
     pub(super) batch_env: L1BatchEnv,
     pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
     vm_version: FastVmVersion,
+    skip_signature_verification: bool,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let vm_version: FastVmVersion = VmVersion::from(system_env.version)
             .try_into()
@@ -135,7 +127,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             &system_env.base_system_smart_contracts.bootloader,
             true,
         );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
+        let bootloader_memory = BootloaderState::initial_memory(&batch_env);
 
         let mut inner = VirtualMachine::new(
             BOOTLOADER_ADDRESS,
@@ -161,17 +153,17 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         let mut this = Self {
             world: World::new(storage, program_cache),
             inner,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
-                batch_env.first_l2_block,
+                batch_env.first_l2_block.clone(),
                 system_env.version,
             ),
             system_env,
             batch_env,
             snapshot: None,
             vm_version,
+            skip_signature_verification: false,
             #[cfg(test)]
             enforced_state_diffs: None,
         };
@@ -179,216 +171,8 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         this
     }
 
-    fn run(
-        &mut self,
-        execution_mode: VmExecutionMode,
-        tracer: &mut FullTracer<Tr>,
-        track_refunds: bool,
-        pubdata_builder: Option<&dyn PubdataBuilder>,
-    ) -> VmRunResult {
-        let mut refunds = Refunds {
-            gas_refunded: 0,
-            operator_suggested_refund: 0,
-        };
-        let mut last_tx_result = None;
-        let mut pubdata_before = self.inner.pubdata() as u32;
-        let mut pubdata_published = 0;
-
-        let (execution_result, execution_ended) = loop {
-            let hook = match self.inner.run(&mut self.world, tracer) {
-                ExecutionEnd::SuspendedOnHook(hook) => hook,
-                ExecutionEnd::ProgramFinished(output) => {
-                    break (ExecutionResult::Success { output }, true);
-                }
-                ExecutionEnd::Reverted(output) => {
-                    let result = match TxRevertReason::parse_error(&output) {
-                        TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
-                        TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
-                    };
-                    break (result, true);
-                }
-                ExecutionEnd::Panicked => {
-                    let reason = if self.gas_remaining() == 0 {
-                        Halt::BootloaderOutOfGas
-                    } else {
-                        Halt::VMPanic
-                    };
-                    break (ExecutionResult::Halt { reason }, true);
-                }
-                ExecutionEnd::StoppedByTracer => {
-                    break (
-                        ExecutionResult::Halt {
-                            reason: Halt::TracerCustom(
-                                "Unexpectedly stopped by tracer".to_string(),
-                            ),
-                        },
-                        false,
-                    );
-                }
-            };
-
-            match Hook::from_u32(hook) {
-                Hook::AccountValidationEntered | Hook::AccountValidationExited => {
-                    // TODO (PLA-908): implement account validation
-                }
-                Hook::TxHasEnded => {
-                    if let VmExecutionMode::OneTx = execution_mode {
-                        // The bootloader may invoke `TxHasEnded` hook without posting a tx result previously. One case when this can happen
-                        // is estimating gas for L1 transactions, if a transaction runs out of gas during execution.
-                        let tx_result = last_tx_result.take().unwrap_or_else(|| {
-                            let tx_has_failed = self.get_tx_result().is_zero();
-                            if tx_has_failed {
-                                let output = VmRevertReason::General {
-                                    msg: "Transaction reverted with empty reason. Possibly out of gas"
-                                        .to_string(),
-                                    data: vec![],
-                                };
-                                ExecutionResult::Revert { output }
-                            } else {
-                                ExecutionResult::Success { output: vec![] }
-                            }
-                        });
-                        break (tx_result, false);
-                    }
-                }
-                Hook::AskOperatorForRefund => {
-                    if track_refunds {
-                        let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
-                            self.get_hook_params();
-                        let current_tx_index = self.bootloader_state.current_tx();
-                        let tx_description_offset = self
-                            .bootloader_state
-                            .get_tx_description_offset(current_tx_index);
-                        let tx_gas_limit = self
-                            .read_word_from_bootloader_heap(
-                                tx_description_offset + TX_GAS_LIMIT_OFFSET,
-                            )
-                            .as_u64();
-
-                        let pubdata_after = self.inner.pubdata() as u32;
-                        pubdata_published = pubdata_after.saturating_sub(pubdata_before);
-
-                        refunds.operator_suggested_refund = compute_refund(
-                            &self.batch_env,
-                            bootloader_refund.as_u64(),
-                            gas_spent_on_pubdata.as_u64(),
-                            tx_gas_limit,
-                            gas_per_pubdata_byte.low_u32(),
-                            pubdata_published,
-                            self.bootloader_state
-                                .last_l2_block()
-                                .txs
-                                .last()
-                                .unwrap()
-                                .hash,
-                        );
-
-                        pubdata_before = pubdata_after;
-                        let refund_value = refunds.operator_suggested_refund;
-                        self.write_to_bootloader_heap([(
-                            OPERATOR_REFUNDS_OFFSET + current_tx_index,
-                            refund_value.into(),
-                        )]);
-                        self.bootloader_state
-                            .set_refund_for_current_tx(refund_value);
-                    }
-                }
-                Hook::NotifyAboutRefund => {
-                    if track_refunds {
-                        refunds.gas_refunded = self.get_hook_params()[0].low_u64()
-                    }
-                }
-                Hook::PostResult => {
-                    let result = self.get_hook_params()[0];
-                    let value = self.get_hook_params()[1];
-                    let fp = FatPointer::from(value);
-                    let return_data = self.read_bytes_from_heap(fp);
-
-                    last_tx_result = Some(if result.is_zero() {
-                        ExecutionResult::Revert {
-                            output: VmRevertReason::from(return_data.as_slice()),
-                        }
-                    } else {
-                        ExecutionResult::Success {
-                            output: return_data,
-                        }
-                    });
-                }
-                Hook::FinalBatchInfo => {
-                    // set fictive l2 block
-                    let txs_index = self.bootloader_state.free_tx_index();
-                    let l2_block = self.bootloader_state.insert_fictive_l2_block();
-                    let mut memory = vec![];
-                    apply_l2_block(&mut memory, l2_block, txs_index);
-                    self.write_to_bootloader_heap(memory);
-                }
-                Hook::PubdataRequested => {
-                    if !matches!(execution_mode, VmExecutionMode::Batch) {
-                        unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
-                    }
-
-                    let events = merge_events(self.inner.events(), self.batch_env.number);
-
-                    let published_bytecodes = events
-                        .iter()
-                        .filter(|event| {
-                            // Filter events from the l1 messenger contract that match the expected signature.
-                            event.address == L1_MESSENGER_ADDRESS
-                                && !event.indexed_topics.is_empty()
-                                && event.indexed_topics[0]
-                                    == VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
-                        })
-                        .map(|event| {
-                            let hash = U256::from_big_endian(&event.value[..32]);
-                            self.world
-                                .bytecode_cache
-                                .get(&hash)
-                                .expect("published unknown bytecode")
-                                .clone()
-                        })
-                        .collect();
-
-                    let pubdata_input = PubdataInput {
-                        user_logs: extract_l2tol1logs_from_l1_messenger(&events),
-                        l2_to_l1_messages: VmEvent::extract_long_l2_to_l1_messages(&events),
-                        published_bytecodes,
-                        state_diffs: self.compute_state_diffs(),
-                    };
-
-                    // Apply the pubdata to the current memory
-                    let mut memory_to_apply = vec![];
-
-                    apply_pubdata_to_memory(
-                        &mut memory_to_apply,
-                        pubdata_builder.expect("`pubdata_builder` is required to finish batch"),
-                        &pubdata_input,
-                        self.system_env.version,
-                    );
-                    self.write_to_bootloader_heap(memory_to_apply);
-
-                    // Save the pubdata for the future initial bootloader memory building
-                    self.bootloader_state.set_pubdata_input(pubdata_input);
-                }
-
-                Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
-                Hook::DebugLog => {
-                    let (log, log_arg) = self.get_debug_log();
-                    let last_tx = self.bootloader_state.last_l2_block().txs.last();
-                    let tx_hash = last_tx.map(|tx| tx.hash);
-                    tracing::trace!(tx = ?tx_hash, "{log}: {log_arg}");
-                }
-                Hook::DebugReturnData | Hook::NearCallCatch => {
-                    // These hooks are for debug purposes only
-                }
-            }
-        };
-
-        VmRunResult {
-            execution_result,
-            execution_ended,
-            refunds,
-            pubdata_published,
-        }
+    pub fn skip_signature_verification(&mut self) {
+        self.skip_signature_verification = true;
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
@@ -470,11 +254,16 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
     pub(crate) fn push_transaction_inner(
         &mut self,
-        tx: zksync_types::Transaction,
+        tx: Transaction,
         refund: u64,
         with_compression: bool,
     ) {
-        let tx: TransactionData = tx.into();
+        let use_evm_emulator = self
+            .system_env
+            .base_system_smart_contracts
+            .evm_emulator
+            .is_some();
+        let tx = TransactionData::new(tx, use_evm_emulator);
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
@@ -494,8 +283,8 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         };
 
         let trusted_ergs_limit = tx.trusted_ergs_limit();
-
-        let memory = self.bootloader_state.push_tx(
+        let tx_origin = tx.from;
+        let (memory, ecrecover_call) = self.bootloader_state.push_tx(
             tx,
             overhead,
             refund,
@@ -503,8 +292,19 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             trusted_ergs_limit,
             self.system_env.chain_id,
         );
-
         self.write_to_bootloader_heap(memory);
+
+        // The expected `ecrecover` call params *must* be reset on each transaction.
+        // We only set call params for transactions using the default AA. Other AAs may expect another
+        // address returned from `ecrecover`, or may not invoke `ecrecover` at all during validation
+        // (both of which would make caching a security hazard).
+        let needs_default_aa_check = self.skip_signature_verification && ecrecover_call.is_some();
+        self.world.precompiles.expected_ecrecover_call =
+            if needs_default_aa_check && self.world.has_default_aa(&tx_origin) {
+                ecrecover_call
+            } else {
+                None
+            };
     }
 
     #[cfg(test)]
@@ -579,10 +379,290 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
     }
+}
+
+#[derive(Debug)]
+struct AccountValidationGasSplit {
+    gas_given: u32,
+    gas_hidden: u32,
+}
+
+impl<S, Tr, Val> Vm<S, Tr, Val>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
+{
+    fn run(
+        &mut self,
+        execution_mode: VmExecutionMode,
+        tracer: &mut WithBuiltinTracers<Tr, Val>,
+        track_refunds: bool,
+        pubdata_builder: Option<&dyn PubdataBuilder>,
+    ) -> VmRunResult {
+        let mut gas_left_for_account_validation =
+            self.system_env.default_validation_computational_gas_limit;
+        let mut account_validation_gas_split = None;
+
+        let mut refunds = Refunds {
+            gas_refunded: 0,
+            operator_suggested_refund: 0,
+        };
+        let mut last_tx_result = None;
+        let mut pubdata_before = self.inner.pubdata() as u32;
+        let mut pubdata_published = 0;
+
+        let (execution_result, execution_ended) = loop {
+            let hook = match self.inner.run(&mut self.world, tracer) {
+                ExecutionEnd::SuspendedOnHook(hook) => hook,
+                ExecutionEnd::ProgramFinished(output) => {
+                    break (ExecutionResult::Success { output }, true);
+                }
+                ExecutionEnd::Reverted(output) => {
+                    let result = match TxRevertReason::parse_error(&output) {
+                        TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
+                        TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
+                    };
+                    break (result, true);
+                }
+                ExecutionEnd::Panicked => {
+                    let reason = if self.gas_remaining() == 0 {
+                        Halt::BootloaderOutOfGas
+                    } else {
+                        Halt::VMPanic
+                    };
+                    break (ExecutionResult::Halt { reason }, true);
+                }
+                ExecutionEnd::StoppedByTracer => {
+                    break (
+                        ExecutionResult::Halt {
+                            reason: Halt::TracerCustom(
+                                "Unexpectedly stopped by tracer".to_string(),
+                            ),
+                        },
+                        false,
+                    );
+                }
+            };
+
+            let hook = VmHook::new(hook);
+            match hook {
+                VmHook::AccountValidationEntered => {
+                    assert!(
+                        account_validation_gas_split.is_none(),
+                        "Account validation can't be nested"
+                    );
+                    let gas = self.gas_remaining();
+                    let gas_given = gas.min(gas_left_for_account_validation);
+                    let gas_hidden = gas - gas_given;
+                    tracer
+                        .validation
+                        .account_validation_entered(gas_given, gas_hidden);
+
+                    account_validation_gas_split = Some(AccountValidationGasSplit {
+                        gas_given,
+                        gas_hidden,
+                    });
+                    // As long as gasleft is allowed during account validation,
+                    // the VM must not be used in the sequencer because a malicious
+                    // account cause proving failure by checking if gasleft > 100k
+                    self.inner.current_frame().set_gas(gas_given);
+                }
+
+                VmHook::ValidationExited => {
+                    if let Some(AccountValidationGasSplit {
+                        gas_given,
+                        gas_hidden,
+                    }) = account_validation_gas_split.take()
+                    {
+                        let gas_left = self.inner.current_frame().gas();
+                        gas_left_for_account_validation -= gas_given - gas_left;
+                        self.inner.current_frame().set_gas(gas_left + gas_hidden);
+                    }
+
+                    if let Some(reason) = tracer.validation.validation_exited() {
+                        break (ExecutionResult::Halt { reason }, true);
+                    }
+                }
+
+                VmHook::ValidationStepEnded => {
+                    if Val::STOP_AFTER_VALIDATION {
+                        break (ExecutionResult::Success { output: vec![] }, true);
+                    }
+                }
+
+                VmHook::TxHasEnded => {
+                    if let VmExecutionMode::OneTx = execution_mode {
+                        // The bootloader may invoke `TxHasEnded` hook without posting a tx result previously. One case when this can happen
+                        // is estimating gas for L1 transactions, if a transaction runs out of gas during execution.
+                        let tx_result = last_tx_result.take().unwrap_or_else(|| {
+                            let tx_has_failed = self.get_tx_result().is_zero();
+                            if tx_has_failed {
+                                let output = VmRevertReason::General {
+                                    msg: "Transaction reverted with empty reason. Possibly out of gas"
+                                        .to_string(),
+                                    data: vec![],
+                                };
+                                ExecutionResult::Revert { output }
+                            } else {
+                                ExecutionResult::Success { output: vec![] }
+                            }
+                        });
+                        break (tx_result, false);
+                    }
+                }
+                VmHook::AskOperatorForRefund => {
+                    if track_refunds {
+                        let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
+                            self.get_hook_params();
+                        let current_tx_index = self.bootloader_state.current_tx();
+                        let tx_description_offset = self
+                            .bootloader_state
+                            .get_tx_description_offset(current_tx_index);
+                        let tx_gas_limit = self
+                            .read_word_from_bootloader_heap(
+                                tx_description_offset + TX_GAS_LIMIT_OFFSET,
+                            )
+                            .as_u64();
+
+                        let pubdata_after = self.inner.pubdata() as u32;
+                        pubdata_published = pubdata_after.saturating_sub(pubdata_before);
+
+                        refunds.operator_suggested_refund = compute_refund(
+                            &self.batch_env,
+                            bootloader_refund.as_u64(),
+                            gas_spent_on_pubdata.as_u64(),
+                            tx_gas_limit,
+                            gas_per_pubdata_byte.low_u32(),
+                            pubdata_published,
+                            self.bootloader_state
+                                .last_l2_block()
+                                .txs
+                                .last()
+                                .unwrap()
+                                .hash,
+                        );
+
+                        pubdata_before = pubdata_after;
+                        let refund_value = refunds.operator_suggested_refund;
+                        self.write_to_bootloader_heap([(
+                            get_operator_refunds_offset(self.vm_version.into()) + current_tx_index,
+                            refund_value.into(),
+                        )]);
+                        self.bootloader_state
+                            .set_refund_for_current_tx(refund_value);
+                    }
+                }
+                VmHook::NotifyAboutRefund => {
+                    if track_refunds {
+                        refunds.gas_refunded = self.get_hook_params()[0].low_u64()
+                    }
+                }
+                VmHook::PostResult => {
+                    let result = self.get_hook_params()[0];
+                    let value = self.get_hook_params()[1];
+                    let fp = FatPointer::from(value);
+                    let return_data = self.read_bytes_from_heap(fp);
+
+                    last_tx_result = Some(if result.is_zero() {
+                        ExecutionResult::Revert {
+                            output: VmRevertReason::from(return_data.as_slice()),
+                        }
+                    } else {
+                        ExecutionResult::Success {
+                            output: return_data,
+                        }
+                    });
+                }
+                VmHook::FinalBatchInfo => {
+                    // set fictive l2 block
+                    let new_block_config = self.bootloader_state.get_new_block_config();
+                    let txs_index = self.bootloader_state.free_tx_index();
+                    let l2_block = self.bootloader_state.insert_fictive_l2_block();
+                    let mut memory = vec![];
+                    apply_l2_block(
+                        &mut memory,
+                        l2_block,
+                        txs_index,
+                        self.vm_version.into(),
+                        Some(new_block_config),
+                    );
+                    self.write_to_bootloader_heap(memory);
+                }
+                VmHook::PubdataRequested => {
+                    if !matches!(execution_mode, VmExecutionMode::Batch) {
+                        unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
+                    }
+
+                    let events = merge_events(self.inner.events(), self.batch_env.number);
+
+                    let published_bytecodes = events
+                        .iter()
+                        .filter(|event| {
+                            // Filter events from the l1 messenger contract that match the expected signature.
+                            event.address == L1_MESSENGER_ADDRESS
+                                && !event.indexed_topics.is_empty()
+                                && event.indexed_topics[0]
+                                    == VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
+                        })
+                        .map(|event| {
+                            let hash = U256::from_big_endian(&event.value[..32]);
+                            self.world
+                                .bytecode_cache
+                                .get(&hash)
+                                .expect("published unknown bytecode")
+                                .clone()
+                        })
+                        .collect();
+
+                    let pubdata_input = PubdataInput {
+                        user_logs: extract_l2tol1logs_from_l1_messenger(&events),
+                        l2_to_l1_messages: VmEvent::extract_long_l2_to_l1_messages(&events),
+                        published_bytecodes,
+                        state_diffs: self.compute_state_diffs(),
+                    };
+
+                    // Save the pubdata for the future initial bootloader memory building
+                    self.bootloader_state
+                        .set_pubdata_input(pubdata_input.clone());
+
+                    // Apply the pubdata to the current memory
+                    let mut memory_to_apply = vec![];
+
+                    apply_pubdata_to_memory(
+                        &mut memory_to_apply,
+                        pubdata_builder.expect("`pubdata_builder` is required to finish batch"),
+                        &pubdata_input,
+                        self.system_env.version,
+                        self.vm_version.into(),
+                    );
+                    self.write_to_bootloader_heap(memory_to_apply);
+                }
+
+                VmHook::PaymasterValidationEntered => { /* unused */ }
+                VmHook::DebugLog => {
+                    let (log, log_arg) = self.get_debug_log();
+                    let last_tx = self.bootloader_state.last_l2_block().txs.last();
+                    let tx_hash = last_tx.map(|tx| tx.hash);
+                    tracing::trace!(tx = ?tx_hash, "{log}: {log_arg}");
+                }
+                VmHook::DebugReturnData | VmHook::NearCallCatch => {
+                    // These hooks are for debug purposes only
+                }
+            }
+        };
+
+        VmRunResult {
+            execution_result,
+            execution_ended,
+            refunds,
+            pubdata_published,
+        }
+    }
 
     pub(crate) fn inspect_inner(
         &mut self,
-        tracer: &mut Tr,
+        tracer: &mut (Tr, Val),
         execution_mode: VmExecutionMode,
         pubdata_builder: Option<&dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
@@ -595,19 +675,18 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
 
         let start = self.inner.world_diff().snapshot();
         let gas_before = self.gas_remaining();
+        let (external, validation) = mem::take(tracer);
+        let mut full_tracer =
+            WithBuiltinTracers::new(external, validation, self.world.dynamic_bytecodes.clone());
 
-        let mut full_tracer = (
-            (mem::take(tracer), CircuitsTracer::default()),
-            EvmDeployTracer::new(self.world.dynamic_bytecodes.clone()),
-        );
         let result = self.run(
             execution_mode,
             &mut full_tracer,
             track_refunds,
             pubdata_builder,
         );
-        let ((external_tracer, circuits_tracer), _) = full_tracer;
-        *tracer = external_tracer; // place the tracer back
+        let circuit_statistic = full_tracer.circuit_statistic();
+        *tracer = (full_tracer.external, full_tracer.validation);
 
         let ignore_world_diff =
             matches!(execution_mode, VmExecutionMode::OneTx) && result.should_ignore_vm_logs();
@@ -680,7 +759,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 gas_remaining,
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
-                circuit_statistic: circuits_tracer.circuit_statistic(),
+                circuit_statistic,
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,
@@ -691,10 +770,11 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     }
 }
 
-impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+impl<S, Tr, Val> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr, Val>
 where
     S: ReadStorage,
-    Tr: Tracer + Default + 'static,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -706,8 +786,13 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
-    type TracerDispatcher = Tr;
+impl<S, Tr, Val> VmInterface for Vm<S, Tr, Val>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
+{
+    type TracerDispatcher = (Tr, Val);
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_inner(tx, 0, true);
@@ -730,7 +815,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        tx: zksync_types::Transaction,
+        tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
@@ -753,7 +838,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let result = self.inspect_inner(
-            &mut Tr::default(),
+            &mut Default::default(),
             VmExecutionMode::Batch,
             Some(pubdata_builder.as_ref()),
         );
@@ -782,10 +867,14 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
 #[derive(Debug)]
 struct VmSnapshot {
     bootloader_snapshot: BootloaderStateSnapshot,
-    gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
+impl<S, Tr, Val> VmInterfaceHistoryEnabled for Vm<S, Tr, Val>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default,
+    Val: ValidationTracer,
+{
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -795,198 +884,45 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled f
         self.inner.make_snapshot();
         self.snapshot = Some(VmSnapshot {
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
-            gas_for_account_validation: self.gas_for_account_validation,
         });
     }
 
     fn rollback_to_the_latest_snapshot(&mut self) {
         let VmSnapshot {
             bootloader_snapshot,
-            gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
         self.inner.rollback();
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
-        self.gas_for_account_validation = gas_for_account_validation;
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot();
         self.snapshot = None;
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        unimplemented!();
+    }
 }
 
-impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
+impl<S: ReadStorage, Tr: Tracer> VmTrackingContracts for Vm<S, Tr>
+where
+    Self: VmInterface,
+{
     fn used_contract_hashes(&self) -> Vec<H256> {
         self.decommitted_hashes().map(u256_to_h256).collect()
     }
 }
 
-impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
+impl<S: fmt::Debug, Tr: fmt::Debug, Val: fmt::Debug> fmt::Debug for Vm<S, Tr, Val> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
-            .field(
-                "gas_for_account_validation",
-                &self.gas_for_account_validation,
-            )
             .field("bootloader_state", &self.bootloader_state)
-            .field("storage", &self.world.storage)
-            .field("program_cache", &self.world.program_cache)
+            .field("world", &self.world)
             .field("batch_env", &self.batch_env)
             .field("system_env", &self.system_env)
             .field("snapshot", &self.snapshot.as_ref().map(|_| ()))
             .finish()
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct World<S, T> {
-    pub(crate) storage: S,
-    dynamic_bytecodes: DynamicBytecodes,
-    program_cache: HashMap<U256, Program<T, Self>>,
-    pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
-}
-
-impl<S: ReadStorage, T: Tracer> World<S, T> {
-    fn new(storage: S, program_cache: HashMap<U256, Program<T, Self>>) -> Self {
-        Self {
-            storage,
-            dynamic_bytecodes: DynamicBytecodes::default(),
-            program_cache,
-            bytecode_cache: HashMap::default(),
-        }
-    }
-
-    fn convert_system_contract_code(
-        code: &SystemContractCode,
-        is_bootloader: bool,
-    ) -> (U256, Program<T, Self>) {
-        (
-            h256_to_u256(code.hash),
-            Program::new(&code.code, is_bootloader),
-        )
-    }
-
-    fn decommit_dynamic_bytecodes(
-        &self,
-        candidate_hashes: impl Iterator<Item = H256>,
-    ) -> HashMap<H256, Vec<u8>> {
-        let bytecodes = candidate_hashes.filter_map(|hash| {
-            let bytecode = self
-                .dynamic_bytecodes
-                .map(h256_to_u256(hash), <[u8]>::to_vec)?;
-            Some((hash, bytecode))
-        });
-        bytecodes.collect()
-    }
-}
-
-impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
-    fn read_storage(&mut self, contract: H160, key: U256) -> StorageSlot {
-        let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
-        let value = U256::from_big_endian(self.storage.read_value(key).as_bytes());
-        // `is_write_initial` value can be true even if the slot has previously been written to / has non-zero value!
-        // This can happen during oneshot execution (i.e., executing a single transaction) since it emulates
-        // execution starting in the middle of a batch in the general case. Hence, a slot that was first written to in the batch
-        // must still be considered an initial write by the refund logic.
-        let is_write_initial = self.storage.is_write_initial(key);
-        StorageSlot {
-            value,
-            is_write_initial,
-        }
-    }
-
-    fn read_storage_value(&mut self, contract: H160, key: U256) -> U256 {
-        let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
-        U256::from_big_endian(self.storage.read_value(key).as_bytes())
-    }
-
-    fn cost_of_writing_storage(&mut self, slot: StorageSlot, new_value: U256) -> u32 {
-        if slot.value == new_value {
-            return 0;
-        }
-
-        // Since we need to publish the state diffs onchain, for each of the updated storage slot
-        // we basically need to publish the following pair: `(<storage_key, compressed_new_value>)`.
-        // For key we use the following optimization:
-        //   - The first time we publish it, we use 32 bytes.
-        //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
-        //   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
-        //     bytes of the entire key.
-        // For value compression, we use a metadata byte which holds the length of the value and the operation from the
-        // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
-        // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
-        let compressed_value_size = compress_with_best_strategy(slot.value, new_value).len() as u32;
-
-        if slot.is_write_initial {
-            (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
-        } else {
-            (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
-        }
-    }
-
-    fn is_free_storage_slot(&self, contract: &H160, key: &U256) -> bool {
-        contract == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
-            || contract == &L2_BASE_TOKEN_ADDRESS
-                && u256_to_h256(*key) == key_for_eth_balance(&BOOTLOADER_ADDRESS)
-    }
-}
-
-/// It may look like that an append-only cache for EVM bytecodes / `Program`s can lead to the following scenario:
-///
-/// 1. A transaction deploys an EVM bytecode with hash `H`, then reverts.
-/// 2. A following transaction in the same VM run queries a bytecode with hash `H` and gets it.
-///
-/// This would be incorrect behavior because bytecode deployments must be reverted along with transactions.
-///
-/// In reality, this cannot happen because both `decommit()` and `decommit_code()` calls perform storage-based checks
-/// before a decommit:
-///
-/// - `decommit_code()` is called from the `CodeOracle` system contract, which checks that the decommitted bytecode is known.
-/// - `decommit()` is called during far calls, which obtains address -> bytecode hash mapping beforehand.
-///
-/// Thus, if storage is reverted correctly, additional EVM bytecodes occupy the cache, but are unreachable.
-impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
-    fn decommit(&mut self, hash: U256) -> Program<T, Self> {
-        self.program_cache
-            .entry(hash)
-            .or_insert_with(|| {
-                let cached = self
-                    .bytecode_cache
-                    .get(&hash)
-                    .map(|code| Program::new(code, false))
-                    .or_else(|| {
-                        self.dynamic_bytecodes
-                            .map(hash, |code| Program::new(code, false))
-                    });
-
-                if let Some(cached) = cached {
-                    cached
-                } else {
-                    let code = self
-                        .storage
-                        .load_factory_dep(u256_to_h256(hash))
-                        .unwrap_or_else(|| {
-                            panic!("VM tried to decommit nonexistent bytecode: {hash:?}");
-                        });
-                    let program = Program::new(&code, false);
-                    self.bytecode_cache.insert(hash, code);
-                    program
-                }
-            })
-            .clone()
-    }
-
-    fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
-        self.decommit(hash)
-            .code_page()
-            .as_ref()
-            .iter()
-            .flat_map(|u| {
-                let mut buffer = [0u8; 32];
-                u.to_big_endian(&mut buffer);
-                buffer
-            })
-            .collect()
     }
 }

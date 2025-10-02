@@ -1,13 +1,13 @@
 use std::{collections::HashMap, fmt, net::SocketAddr, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
-use config::{
-    explorer_compose::ExplorerBackendPorts, EcosystemConfig, DEFAULT_EXPLORER_API_PORT,
-    DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
-};
 use serde_yaml::Value;
 use url::Url;
 use xshell::Shell;
+use zkstack_cli_config::{
+    explorer_compose::ExplorerBackendPorts, ZkStackConfig, DEFAULT_EXPLORER_API_PORT,
+    DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
+};
 
 use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE_END, PORT_RANGE_START};
 
@@ -91,11 +91,16 @@ impl EcosystemPorts {
         shell: &Shell,
         file_path: &Path,
         chain_number: u32,
+        tight_ports: bool,
     ) -> Result<()> {
         let file_contents = shell.read_file(file_path)?;
         let mut value: Value = serde_yaml::from_str(&file_contents)?;
-        let offset = (chain_number - 1) * 100;
-        self.traverse_allocate_ports_in_yaml(&mut value, offset)?;
+        let offset = if tight_ports {
+            0
+        } else {
+            (chain_number - 1) * 100
+        };
+        self.traverse_allocate_ports_in_yaml(&mut value, offset, file_path)?;
         let new_contents = serde_yaml::to_string(&value)?;
         if new_contents != file_contents {
             shell.write_file(file_path, new_contents)?;
@@ -107,6 +112,7 @@ impl EcosystemPorts {
         &mut self,
         value: &mut Value,
         offset: u32,
+        file_path: &Path,
     ) -> anyhow::Result<()> {
         match value {
             Value::Mapping(map) => {
@@ -116,7 +122,11 @@ impl EcosystemPorts {
                         if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
                             let new_port = self.allocate_port(
                                 (port + offset as u16)..PORT_RANGE_END,
-                                PortInfo::default(),
+                                PortInfo {
+                                    port,
+                                    file_path: file_path.display().to_string(),
+                                    description: key.as_str().unwrap_or_default().to_string(),
+                                },
                             )?;
                             *val = Value::Number(serde_yaml::Number::from(new_port));
                             updated_ports.insert(port, new_port);
@@ -146,12 +156,12 @@ impl EcosystemPorts {
                 }
                 // Continue traversing
                 for (_, val) in map {
-                    self.traverse_allocate_ports_in_yaml(val, offset)?;
+                    self.traverse_allocate_ports_in_yaml(val, offset, file_path)?;
                 }
             }
             Value::Sequence(seq) => {
                 for val in seq {
-                    self.traverse_allocate_ports_in_yaml(val, offset)?;
+                    self.traverse_allocate_ports_in_yaml(val, offset, file_path)?;
                 }
             }
             _ => {}
@@ -205,8 +215,11 @@ pub struct EcosystemPortsScanner;
 impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
     /// Specifically, it looks for keys ending with "port" or "ports" and collects their values.
-    pub fn scan(shell: &Shell) -> Result<EcosystemPorts> {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    /// We could skip searching ports in the current chain if we initialize this chain.
+    /// It allows to reuse default ports even if the general file exist with previously allocated ports.
+    /// It makes allocation more predictable
+    pub fn scan(shell: &Shell, current_chain: Option<&str>) -> Result<EcosystemPorts> {
+        let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
         // Create a list of directories to scan:
         // - Ecosystem configs directory
@@ -215,6 +228,12 @@ impl EcosystemPortsScanner {
         // - Ecosystem directory (docker-compose files)
         let mut dirs = vec![ecosystem_config.config.clone()];
         for chain in ecosystem_config.list_of_chains() {
+            // skip current chain for avoiding wrong reallocation
+            if let Some(name) = current_chain {
+                if name.eq(&chain) {
+                    continue;
+                }
+            }
             if let Ok(chain_config) = ecosystem_config.load_chain(Some(chain)) {
                 dirs.push(chain_config.configs.clone());
                 if let Some(external_node_config_path) = &chain_config.external_node_config_path {
@@ -406,7 +425,7 @@ impl ConfigWithChainPorts for ExplorerBackendPorts {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use crate::utils::ports::{EcosystemPorts, EcosystemPortsScanner, PortInfo};
 
@@ -428,7 +447,7 @@ mod tests {
             prometheus:
                 listener_port: 3412
             reth:
-                image: "ghcr.io/paradigmxyz/reth:v1.0.6"
+                image: "ghcr.io/paradigmxyz/reth:v1.3.7"
                 ports:
                     - 127.0.0.1:8546:8545
             postgres:
@@ -571,7 +590,7 @@ mod tests {
         let chain_number = 0;
         let offset = chain_number * 100;
         ecosystem_ports
-            .traverse_allocate_ports_in_yaml(&mut value, offset)
+            .traverse_allocate_ports_in_yaml(&mut value, offset, Path::new("."))
             .unwrap();
 
         let api = value["api"].as_mapping().unwrap();
@@ -616,7 +635,7 @@ mod tests {
         let chain_number = 1;
         let offset = chain_number * 100;
         ecosystem_ports
-            .traverse_allocate_ports_in_yaml(&mut value, offset)
+            .traverse_allocate_ports_in_yaml(&mut value, offset, Path::new("."))
             .unwrap();
 
         let api = value["api"].as_mapping().unwrap();

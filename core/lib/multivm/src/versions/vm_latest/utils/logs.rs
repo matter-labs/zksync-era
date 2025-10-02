@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::aux_structures::{LogQuery, Timestamp};
+use zk_evm_1_5_2::aux_structures::{LogQuery, Timestamp};
 use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogKind};
 
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
     interface::{storage::WriteStorage, L1BatchEnv, VmEvent},
     vm_latest::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 

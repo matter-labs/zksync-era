@@ -1,28 +1,40 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use std::time::{Duration, Instant};
+use std::{
+    fmt,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant, SystemTime},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, sync::Mutex};
 use zksync_dal::{Connection, Core};
-use zksync_multivm::interface::{
-    executor::{OneshotExecutor, TransactionValidator},
-    storage::{ReadStorage, StorageWithOverrides},
-    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
-    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
+use zksync_multivm::{
+    interface::{
+        executor::{OneshotExecutor, TransactionValidator},
+        storage::{ReadStorage, StorageWithOverrides},
+        tracer::TimestampAsserterParams,
+        utils::{DivergenceHandler, VmDump},
+        Call, DeduplicatedWritesMetrics, ExecutionResult, OneshotEnv, OneshotTracingParams,
+        TransactionExecutionMetrics, TxExecutionArgs, VmEvent,
+    },
+    utils::StorageWritesDeduplicator,
 };
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
+    StorageLog, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
-use super::{
-    vm_metrics::{self, SandboxStage},
-    BlockArgs, VmPermit, SANDBOX_METRICS,
-};
+use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
+#[cfg(test)]
+use crate::execution_sandbox::testonly;
 use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
@@ -46,15 +58,6 @@ pub(crate) enum SandboxAction {
 }
 
 impl SandboxAction {
-    fn factory_deps_count(&self) -> usize {
-        match self {
-            Self::Execution { tx, .. } | Self::Call { call: tx, .. } => {
-                tx.execute.factory_deps.len()
-            }
-            Self::GasEstimation { tx, .. } => tx.execute.factory_deps.len(),
-        }
-    }
-
     fn into_parts(self) -> (TxExecutionArgs, OneshotTracingParams) {
         match self {
             Self::Execution { tx, .. } => (
@@ -76,9 +79,13 @@ impl SandboxAction {
 
 /// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
-pub(crate) struct SandboxExecutionOutput {
+pub struct SandboxExecutionOutput {
     /// Output of the VM.
-    pub vm: VmExecutionResultAndLogs,
+    pub result: ExecutionResult,
+    /// Write logs produced by the VM.
+    pub write_logs: Vec<StorageLog>,
+    /// Events produced by the VM.
+    pub events: Vec<VmEvent>,
     /// Traced calls if requested.
     pub call_traces: Vec<Call>,
     /// Execution metrics.
@@ -87,19 +94,87 @@ pub(crate) struct SandboxExecutionOutput {
     pub are_published_bytecodes_ok: bool,
 }
 
-#[derive(Debug)]
-enum SandboxExecutorEngine {
-    Real(MainOneshotExecutor),
-    Mock(MockOneshotExecutor),
+impl SandboxExecutionOutput {
+    pub fn mock_success() -> Self {
+        Self {
+            result: ExecutionResult::Success { output: Vec::new() },
+            write_logs: Vec::new(),
+            events: Vec::new(),
+            call_traces: Vec::new(),
+            metrics: TransactionExecutionMetrics {
+                writes: DeduplicatedWritesMetrics::default(),
+                vm: Default::default(),
+                gas_remaining: 0,
+                gas_refunded: 0,
+            },
+            are_published_bytecodes_ok: true,
+        }
+    }
+}
+
+pub(super) type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
+
+/// Higher-level wrapper around a oneshot VM executor used in the API server.
+#[async_trait]
+pub(crate) trait SandboxExecutorEngine<S: ReadStorage = SandboxStorage>:
+    Send + Sync + fmt::Debug + TransactionValidator<S>
+{
+    async fn execute_in_sandbox(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<SandboxExecutionOutput>;
+}
+
+#[async_trait]
+impl<S, T> SandboxExecutorEngine<S> for T
+where
+    S: ReadStorage + Send + 'static,
+    T: OneshotExecutor<S> + TransactionValidator<S> + Send + Sync + fmt::Debug,
+{
+    async fn execute_in_sandbox(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<SandboxExecutionOutput> {
+        let result = self
+            .inspect_transaction_with_bytecode_compression(storage, env, args, tracing_params)
+            .await?;
+        let tx_result = result.tx_result;
+        let metrics = TransactionExecutionMetrics {
+            writes: StorageWritesDeduplicator::apply_on_empty_state(&tx_result.logs.storage_logs),
+            vm: tx_result.get_execution_metrics(),
+            gas_remaining: tx_result.statistics.gas_remaining,
+            gas_refunded: tx_result.refunds.gas_refunded,
+        };
+
+        let storage_logs = tx_result.logs.storage_logs;
+        Ok(SandboxExecutionOutput {
+            result: tx_result.result,
+            write_logs: storage_logs
+                .into_iter()
+                .filter_map(|log| log.log.is_write().then_some(log.log))
+                .collect(),
+            events: tx_result.logs.events,
+            call_traces: result.call_traces,
+            metrics,
+            are_published_bytecodes_ok: result.compression_result.is_ok(),
+        })
+    }
 }
 
 /// Executor of transactions / calls used in the API server.
 #[derive(Debug)]
 pub(crate) struct SandboxExecutor {
-    engine: SandboxExecutorEngine,
+    pub(super) engine: Box<dyn SandboxExecutorEngine>,
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
+    vm_divergence_counter: Arc<AtomicUsize>,
 }
 
 impl SandboxExecutor {
@@ -111,16 +186,101 @@ impl SandboxExecutor {
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor.set_fast_vm_mode(options.fast_vm_mode);
-        #[cfg(test)]
-        executor.panic_on_divergence();
+
+        let vm_divergence_counter = Arc::<AtomicUsize>::default();
+        if cfg!(test) {
+            // Panic on divergence in order to fail the running test.
+            executor.set_divergence_handler(DivergenceHandler::new(|err, _| {
+                panic!("{err}");
+            }));
+        } else {
+            let rt_handle = Handle::current();
+            let store = options.vm_dump_store.clone();
+            let vm_divergence_counter_for_handler = vm_divergence_counter.clone();
+            let last_dump_timestamp = Mutex::new(None);
+
+            executor.set_divergence_handler(DivergenceHandler::new(move |_, vm_dump| {
+                vm_divergence_counter_for_handler.fetch_add(1, Ordering::Relaxed);
+                if let Some(store) = &store {
+                    if let Err(err) = rt_handle.block_on(Self::dump_vm_state(
+                        &last_dump_timestamp,
+                        store.as_ref(),
+                        vm_dump,
+                    )) {
+                        tracing::error!("Saving VM dump failed: {err:#}");
+                    }
+                }
+            }));
+        }
+
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+        executor.set_interrupted_execution_latency_histogram(
+            options.interrupted_execution_latency_histogram,
+        );
+
+        #[cfg(test)]
+        let engine: Box<dyn SandboxExecutorEngine> =
+            if let Some(storage_delay) = options.storage_delay {
+                Box::new(testonly::SlowExecutor::new(executor, storage_delay))
+            } else {
+                Box::new(executor)
+            };
+        #[cfg(not(test))]
+        let engine = Box::new(executor);
+
         Self {
-            engine: SandboxExecutorEngine::Real(executor),
+            engine,
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,
+            vm_divergence_counter,
         }
+    }
+
+    pub(crate) fn vm_mode(&self) -> FastVmMode {
+        self.options.fast_vm_mode
+    }
+
+    pub(crate) fn vm_divergence_counter(&self) -> Arc<AtomicUsize> {
+        self.vm_divergence_counter.clone()
+    }
+
+    async fn dump_vm_state(
+        last_dump_timestamp: &Mutex<Option<Instant>>,
+        store: &dyn ObjectStore,
+        vm_dump: VmDump,
+    ) -> anyhow::Result<()> {
+        /// Minimum interval between VM dumps.
+        const DUMP_INTERVAL: Duration = Duration::from_secs(600); // 10 minutes
+
+        let mut last_dump_timestamp = last_dump_timestamp.lock().await;
+        let now = Instant::now();
+        let should_dump = last_dump_timestamp.is_none_or(|ts| {
+            now.checked_duration_since(ts)
+                .is_some_and(|elapsed| elapsed >= DUMP_INTERVAL)
+        });
+        if !should_dump {
+            return Ok(());
+        }
+        *last_dump_timestamp = Some(now);
+        drop(last_dump_timestamp); // We don't need to hold a lock any longer, in particular across the `await` point below
+
+        let ts = SystemTime::UNIX_EPOCH
+            .elapsed()
+            .context("invalid wall clock time")?
+            .as_millis();
+        let dump_filename = format!("shadow_vm_dump_api_{ts}.json");
+        let vm_dump = serde_json::to_vec(&vm_dump).context("failed serializing VM dump")?;
+        store
+            .put_raw(Bucket::VmDumps, &dump_filename, vm_dump)
+            .await
+            .context("failed saving VM dump to object store")?;
+        tracing::info!(
+            dump_filename,
+            "Saved VM dump for diverging VM execution in object store"
+        );
+        Ok(())
     }
 
     pub(crate) async fn mock(executor: MockOneshotExecutor) -> Self {
@@ -132,51 +292,41 @@ impl SandboxExecutor {
         options: SandboxExecutorOptions,
     ) -> Self {
         Self {
-            engine: SandboxExecutorEngine::Mock(executor),
+            engine: Box::new(executor),
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
+            vm_divergence_counter: Arc::default(),
         }
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
-    #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(level = "debug", skip_all)]
     pub async fn execute_in_sandbox(
         &self,
-        vm_permit: VmPermit,
+        _vm_permit: VmPermit,
         connection: Connection<'static, Core>,
         action: SandboxAction,
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
     ) -> anyhow::Result<SandboxExecutionOutput> {
-        let total_factory_deps = action.factory_deps_count() as u16;
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
 
-        let state_override = state_override.unwrap_or_default();
-        let storage = apply_state_override(storage, &state_override);
-        let (execution_args, tracing_params) = action.into_parts();
-        let result = self
-            .inspect_transaction_with_bytecode_compression(
-                storage,
-                env,
-                execution_args,
-                tracing_params,
-            )
-            .await?;
-        drop(vm_permit);
+        let storage = if let Some(state_override) = state_override {
+            tokio::task::spawn_blocking(|| apply_state_override(storage, state_override))
+                .await
+                .context("applying state override panicked")?
+        } else {
+            // Do not spawn a new thread in the most frequent case.
+            StorageWithOverrides::new(storage)
+        };
 
-        let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
-        Ok(SandboxExecutionOutput {
-            vm: *result.tx_result,
-            call_traces: result.call_traces,
-            metrics,
-            are_published_bytecodes_ok: result.compression_result.is_ok(),
-        })
+        let (execution_args, tracing_params) = action.into_parts();
+        self.engine
+            .execute_in_sandbox(storage, env, execution_args, tracing_params)
+            .await
     }
 
     pub(super) async fn prepare_env_and_storage(
@@ -248,69 +398,5 @@ impl SandboxExecutor {
         }
         initialization_stage.observe();
         Ok((env, storage))
-    }
-}
-
-#[async_trait]
-impl<S> OneshotExecutor<StorageWithOverrides<S>> for SandboxExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    async fn inspect_transaction_with_bytecode_compression(
-        &self,
-        storage: StorageWithOverrides<S>,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracing_params: OneshotTracingParams,
-    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
-        match &self.engine {
-            SandboxExecutorEngine::Real(executor) => {
-                executor
-                    .inspect_transaction_with_bytecode_compression(
-                        storage,
-                        env,
-                        args,
-                        tracing_params,
-                    )
-                    .await
-            }
-            SandboxExecutorEngine::Mock(executor) => {
-                executor
-                    .inspect_transaction_with_bytecode_compression(
-                        storage,
-                        env,
-                        args,
-                        tracing_params,
-                    )
-                    .await
-            }
-        }
-    }
-}
-
-#[async_trait]
-impl<S> TransactionValidator<StorageWithOverrides<S>> for SandboxExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    async fn validate_transaction(
-        &self,
-        storage: StorageWithOverrides<S>,
-        env: OneshotEnv,
-        tx: L2Tx,
-        validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
-        match &self.engine {
-            SandboxExecutorEngine::Real(executor) => {
-                executor
-                    .validate_transaction(storage, env, tx, validation_params)
-                    .await
-            }
-            SandboxExecutorEngine::Mock(executor) => {
-                executor
-                    .validate_transaction(storage, env, tx, validation_params)
-                    .await
-            }
-        }
     }
 }

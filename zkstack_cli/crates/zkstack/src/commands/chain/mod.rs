@@ -1,27 +1,40 @@
-use ::common::forge::ForgeScriptArgs;
+use ::zkstack_cli_common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use set_da_validator_pair::SetDAValidatorPairArgs;
+use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
+use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
-    genesis::GenesisCommand, init::ChainInitCommand,
+    args::{create::ChainCreateArgs, set_pubdata_pricing_mode::SetPubdataPricingModeArgs},
+    deploy_l2_contracts::Deploy2ContractsOption,
+    genesis::GenesisCommand,
+    init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;
+pub(crate) mod admin_call_builder;
 pub(crate) mod args;
 mod build_transactions;
-mod common;
-mod create;
+pub(crate) mod common;
+pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
+mod enable_evm_emulator;
+mod gateway;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
+mod set_da_validator_pair;
+mod set_da_validator_pair_calldata;
+mod set_pubdata_pricing_mode;
 mod set_token_multiplier_setter;
+pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
+pub mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -47,9 +60,6 @@ pub enum ChainCommands {
     /// DiamondProxy contract.
     #[command(alias = "accept-ownership")]
     AcceptChainOwnership(ForgeScriptArgs),
-    /// Initialize bridges on L2
-    #[command(alias = "bridge")]
-    InitializeBridges(ForgeScriptArgs),
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
@@ -59,6 +69,9 @@ pub enum ChainCommands {
     /// Deploy L2 TimestampAsserter
     #[command(alias = "timestamp-asserter")]
     DeployTimestampAsserter(ForgeScriptArgs),
+    /// Deploy L2 DA Validator
+    #[command(alias = "da-validator")]
+    DeployL2DAValidator(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -67,11 +80,23 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Provides calldata to set transaction filterer for a chain
+    SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
+    /// Provides calldata to set DA validator pair for a chain
+    SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
+    /// Enable EVM emulation on chain (Not supported yet)
+    EnableEvmEmulator(ForgeScriptArgs),
+    /// Update pubdata pricing mode (used for Rollup -> Validium migration)
+    SetPubdataPricingMode(SetPubdataPricingModeArgs),
+    /// Update da validator pair (used for Rollup -> Validium migration)
+    SetDAValidatorPair(SetDAValidatorPairArgs),
+    #[command(subcommand, alias = "gw")]
+    Gateway(gateway::GatewayComamnds),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
     match args {
-        ChainCommands::Create(args) => create::run(args, shell),
+        ChainCommands::Create(args) => create::run(args, shell).await,
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
@@ -89,15 +114,27 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployTimestampAsserter(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
         }
+        ChainCommands::DeployL2DAValidator(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::L2DAValidator).await
+        }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
-        }
-        ChainCommands::InitializeBridges(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::SetTransactionFiltererCalldata(args) => {
+            set_transaction_filterer::run(shell, args).await
+        }
+        ChainCommands::SetDAValidatorPairCalldata(args) => {
+            set_da_validator_pair_calldata::run(shell, args).await
+        }
+        ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
+        ChainCommands::SetPubdataPricingMode(args) => {
+            set_pubdata_pricing_mode::run(args, shell).await
+        }
+        ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
+        ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }

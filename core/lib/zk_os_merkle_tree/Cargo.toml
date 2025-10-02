@@ -1,0 +1,34 @@
+[package]
+name = "zk_os_merkle_tree"
+description = "Persistent ZK OS Merkle tree"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_basic_types.workspace = true
+zksync_crypto_primitives.workspace = true
+zksync_storage.workspace = true
+
+anyhow.workspace = true
+leb128.workspace = true
+once_cell.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+vise.workspace = true
+
+[dev-dependencies]
+clap = { workspace = true, features = ["derive"] }
+insta = { workspace = true, features = ["yaml"] }
+proptest.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_with = { workspace = true, features = ["hex"] }
+tempfile.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }

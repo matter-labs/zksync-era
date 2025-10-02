@@ -15,7 +15,7 @@ use zksync_snapshots_applier::{
     RecoveryCompletionStatus, SnapshotsApplierConfig, SnapshotsApplierMainNodeClient,
     SnapshotsApplierTask,
 };
-use zksync_types::{Address, L1BatchNumber, H256};
+use zksync_types::{Address, L1BatchNumber, OrStopped, H256};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::{InitializeStorage, SnapshotRecoveryConfig};
@@ -36,7 +36,7 @@ impl NodeRecovery {
     async fn recover_data_from_snapshot(
         &self,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<CommitBlock>> {
+    ) -> anyhow::Result<Option<CommitBlock>, OrStopped> {
         tracing::info!("Initializing Node storage");
         if self.recovery_config.recover_from_l1 {
             tracing::info!("Recovering from L1");
@@ -130,13 +130,11 @@ impl NodeRecovery {
             snapshots_applier_task.drop_storage_key_preimages();
         }
         self.app_health
-            .insert_component(snapshots_applier_task.health_check())?;
+            .insert_component(snapshots_applier_task.health_check())
+            .expect("component name is valid");
 
         let recovery_started_at = Instant::now();
-        let stats = snapshots_applier_task
-            .run(stop_receiver.clone())
-            .await
-            .context("snapshot recovery failed")?;
+        let stats = snapshots_applier_task.run(stop_receiver.clone()).await?;
 
         if stats.done_work {
             let latency = recovery_started_at.elapsed();
@@ -151,8 +149,11 @@ impl NodeRecovery {
 
 #[async_trait::async_trait]
 impl InitializeStorage for NodeRecovery {
-    async fn initialize_storage(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut storage = self.pool.connection().await.unwrap();
+    async fn initialize_storage(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
+        let mut storage = self.pool.connection().await?;
         if self.is_initialized().await? {
             return Ok(());
         }

@@ -1,19 +1,18 @@
 use reqwest::{Client, Response, StatusCode};
-use secp256k1::{ecdsa::Signature, PublicKey};
+use secp256k1::PublicKey;
 use serde::Serialize;
 use url::Url;
-use zksync_basic_types::H256;
-use zksync_prover_interface::{
+use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
+use zksync_tee_prover_interface::{
     api::{RegisterTeeAttestationRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest},
     inputs::TeeVerifierInput,
     outputs::L1BatchTeeProofForL1,
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::{error::TeeProverError, metrics::METRICS};
 
 /// Implementation of the API client for the proof data handler, run by
-/// [`zksync_proof_data_handler::run_server`].
+/// [`zksync_tee_proof_data_handler::run_server`].
 #[derive(Debug)]
 pub(crate) struct TeeApiClient {
     api_base_url: Url,
@@ -87,13 +86,17 @@ impl TeeApiClient {
     pub async fn submit_proof(
         &self,
         batch_number: L1BatchNumber,
-        signature: Signature,
+        signature: [u8; 65],
         pubkey: &PublicKey,
         root_hash: H256,
         tee_type: TeeType,
     ) -> Result<(), TeeProverError> {
+        if tee_type == TeeType::None {
+            tracing::info!("Not submitting proof from none TEE.");
+            return Ok(());
+        }
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
-            signature: signature.serialize_compact().into(),
+            signature: signature.into(),
             pubkey: pubkey.serialize().into(),
             proof: root_hash.as_bytes().into(),
             tee_type,

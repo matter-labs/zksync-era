@@ -2,7 +2,7 @@ use anyhow::Context;
 use clap::Args as ClapArgs;
 use dialoguer::{theme::ColorfulTheme, Input};
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::cli::ProverCLIConfig;
 
@@ -49,10 +49,6 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 }
 
 async fn delete_prover_db(mut conn: Connection<'_, Prover>) -> anyhow::Result<()> {
-    conn.fri_gpu_prover_queue_dal()
-        .delete()
-        .await
-        .context("failed to delete gpu prover queue")?;
     conn.fri_prover_jobs_dal()
         .delete()
         .await
@@ -76,16 +72,17 @@ async fn delete_batch_data(
     mut conn: Connection<'_, Prover>,
     block_number: L1BatchNumber,
 ) -> anyhow::Result<()> {
+    let batch_id = L1BatchId::new(L2ChainId::zero(), block_number);
     conn.fri_proof_compressor_dal()
-        .delete_batch_data(block_number)
+        .delete_batch_data(batch_id)
         .await
         .context("failed to delete proof compressor data")?;
     conn.fri_prover_jobs_dal()
-        .delete_batch_data(block_number)
+        .delete_batch_data(batch_id)
         .await
         .context("failed to delete prover jobs data")?;
     conn.fri_witness_generator_dal()
-        .delete_batch_data(block_number)
+        .delete_batch_data(batch_id)
         .await
         .context("failed to delete witness generator data")?;
     Ok(())

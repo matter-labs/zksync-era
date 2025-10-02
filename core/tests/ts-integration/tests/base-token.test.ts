@@ -7,14 +7,16 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { IL2NativeTokenVault__factory } from 'zksync-ethers/build/typechain';
+import { RetryableWallet } from '../src/retry-provider';
 
 const SECONDS = 2000;
 jest.setTimeout(100 * SECONDS);
 
 describe('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let baseTokenDetails: Token;
     let isETHBasedChain: boolean;
@@ -51,23 +53,27 @@ describe('base ERC20 contract checks', () => {
         const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const initialL2Balance = await alice.getBalance();
 
-        const depositTx = await alice.deposit({
-            token: baseTokenDetails.l1Address,
-            amount: amount,
-            approveERC20: true,
-            approveBaseERC20: true,
-            approveBaseOverrides: {
-                gasPrice
+        const depositHash = await alice.retryableDepositCheck(
+            {
+                token: baseTokenDetails.l1Address,
+                amount: amount,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveBaseOverrides: {
+                    gasPrice
+                },
+                approveOverrides: {
+                    gasPrice
+                },
+                overrides: {
+                    gasPrice
+                }
             },
-            approveOverrides: {
-                gasPrice
-            },
-            overrides: {
-                gasPrice
+            async (deposit) => {
+                await deposit.wait();
+                return deposit.hash;
             }
-        });
-        const depositHash = depositTx.hash;
-        await depositTx.wait();
+        );
 
         const receipt = await alice._providerL1().getTransactionReceipt(depositHash);
         if (!receipt) {
@@ -78,7 +84,7 @@ describe('base ERC20 contract checks', () => {
         // TODO: should all the following tests use strict equality?
 
         const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).toBeGreaterThan(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
+        expect(initialEthBalance).toBeGreaterThanOrEqual(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         expect(initialL1Balance).toBeGreaterThanOrEqual(finalL1Balance + amount);
@@ -167,7 +173,8 @@ describe('base ERC20 contract checks', () => {
         const withdrawalPromise = alice.withdraw({ token: baseTokenDetails.l2Address, amount });
         await expect(withdrawalPromise).toBeAccepted([]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2Receipt = await withdrawalTx.wait();
+        await waitForL2ToL1LogProof(alice, l2Receipt!.blockNumber, withdrawalTx.hash);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);
@@ -178,6 +185,39 @@ describe('base ERC20 contract checks', () => {
 
         expect(finalL1Balance).toEqual(initialL1Balance + amount);
         expect(finalL2Balance + amount + fee).toEqual(initialL2Balance);
+    });
+
+    test('Wrapped base token metadata', async () => {
+        // This test is intended only to be run against newly created chains.
+        if (!testMaster.isLocalHost()) {
+            return;
+        }
+
+        let name;
+        let symbol;
+
+        if (isETHBasedChain) {
+            name = 'Ether';
+            symbol = 'ETH';
+        } else {
+            const contract = new ethers.Contract(baseTokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
+            name = await contract.name();
+            symbol = await contract.symbol();
+        }
+
+        const expectedWrappedBaseTokenName = `Wrapped ${name}`;
+        const expectedWrappedBaseTokenSymbol = `W${symbol}`;
+
+        const l2NativeTokenVault = IL2NativeTokenVault__factory.connect(
+            zksync.utils.L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            alice
+        );
+        const wethToken = await l2NativeTokenVault.WETH_TOKEN();
+
+        const wrappedBaseToken = new ethers.Contract(wethToken, zksync.utils.IERC20, alice);
+
+        expect(expectedWrappedBaseTokenName).toEqual(await wrappedBaseToken.name());
+        expect(expectedWrappedBaseTokenSymbol).toEqual(await wrappedBaseToken.symbol());
     });
 
     afterAll(async () => {

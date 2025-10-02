@@ -1,64 +1,119 @@
-use std::{path::Path, str::FromStr};
+use std::path::Path;
 
-use anyhow::Context;
-use common::db::DatabaseConfig;
+use url::Url;
 use xshell::Shell;
-use zksync_basic_types::url::SensitiveUrl;
-pub use zksync_config::configs::Secrets as SecretsConfig;
-use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
+use zkstack_cli_common::db::DatabaseConfig;
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles::{node, validator};
 
 use crate::{
-    consts::SECRETS_FILE,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    da::AvailSecrets,
+    raw::{PatchedConfig, RawConfig},
 };
 
-pub fn set_server_database(
-    secrets: &mut SecretsConfig,
-    server_db_config: &DatabaseConfig,
-) -> anyhow::Result<()> {
-    let database = secrets
-        .database
-        .as_mut()
-        .context("Server database must be presented")?;
-    database.server_url = Some(SensitiveUrl::from(server_db_config.full_url()));
-    Ok(())
+#[derive(Debug)]
+pub struct RawConsensusKeys {
+    pub validator_public: String,
+    pub node_public: String,
+    pub validator_secret: String,
+    pub node_secret: String,
 }
 
-pub fn set_prover_database(
-    secrets: &mut SecretsConfig,
-    prover_db_config: &DatabaseConfig,
-) -> anyhow::Result<()> {
-    let database = secrets
-        .database
-        .as_mut()
-        .context("Prover database must be presented")?;
-    database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
-    Ok(())
-}
+impl RawConsensusKeys {
+    pub fn generate() -> Self {
+        let validator = validator::SecretKey::generate();
+        let node = node::SecretKey::generate();
 
-pub fn set_l1_rpc_url(secrets: &mut SecretsConfig, l1_rpc_url: String) -> anyhow::Result<()> {
-    secrets
-        .l1
-        .as_mut()
-        .context("L1 Secrets must be presented")?
-        .l1_rpc_url = SensitiveUrl::from_str(&l1_rpc_url)?;
-    Ok(())
-}
-
-impl FileConfigWithDefaultName for SecretsConfig {
-    const FILE_NAME: &'static str = SECRETS_FILE;
-}
-
-impl SaveConfig for SecretsConfig {
-    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(self)?;
-        Ok(shell.write_file(path, bytes)?)
+        Self {
+            validator_public: validator.public().encode(),
+            node_public: node.public().encode(),
+            validator_secret: validator.encode(),
+            node_secret: node.encode(),
+        }
     }
 }
 
-impl ReadConfig for SecretsConfig {
-    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let path = shell.current_dir().join(path);
-        read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path, false)
+#[derive(Debug)]
+pub struct SecretsConfig(RawConfig);
+
+impl SecretsConfig {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
+        RawConfig::read(shell, path).await.map(Self)
+    }
+
+    pub fn core_database_url(&self) -> anyhow::Result<Option<Url>> {
+        self.0.get_opt("database.server_url")
+    }
+
+    pub fn prover_database_url(&self) -> anyhow::Result<Option<Url>> {
+        self.0.get_opt("database.prover_url")
+    }
+
+    pub fn l1_rpc_url(&self) -> anyhow::Result<String> {
+        self.0.get("l1.l1_rpc_url")
+    }
+
+    pub fn gateway_rpc_url(&self) -> anyhow::Result<String> {
+        self.0.get("l1.gateway_rpc_url")
+    }
+
+    pub fn raw_consensus_node_key(&self) -> anyhow::Result<String> {
+        self.0.get("consensus.node_key")
+    }
+
+    pub fn patched(self) -> SecretsConfigPatch {
+        SecretsConfigPatch(self.0.patched())
+    }
+}
+
+#[derive(Debug)]
+#[must_use = "Must be `save()`d for changes to take effect"]
+pub struct SecretsConfigPatch(PatchedConfig);
+
+impl SecretsConfigPatch {
+    pub fn empty(shell: &Shell, path: &Path) -> Self {
+        Self(PatchedConfig::empty(shell, path))
+    }
+
+    pub fn set_server_database(&mut self, server_db_config: &DatabaseConfig) -> anyhow::Result<()> {
+        self.0.insert(
+            "database.server_url",
+            server_db_config.full_url().to_string(),
+        )
+    }
+
+    pub fn set_prover_database(&mut self, prover_db_config: &DatabaseConfig) -> anyhow::Result<()> {
+        self.0.insert(
+            "database.prover_url",
+            prover_db_config.full_url().to_string(),
+        )
+    }
+
+    pub fn set_l1_rpc_url(&mut self, l1_rpc_url: String) -> anyhow::Result<()> {
+        self.0.insert("l1.l1_rpc_url", l1_rpc_url)
+    }
+
+    pub fn set_gateway_rpc_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("l1.gateway_rpc_url", url)
+    }
+
+    pub fn set_avail_secrets(&mut self, secrets: &AvailSecrets) -> anyhow::Result<()> {
+        self.0.insert_yaml("da_client", secrets)?;
+        self.0.insert("da_client.client", "Avail")
+    }
+
+    pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {
+        self.0
+            .insert("consensus.validator_key", consensus_keys.validator_secret)?;
+        self.0
+            .insert("consensus.node_key", consensus_keys.node_secret)
+    }
+
+    pub fn set_consensus_node_key(&mut self, raw_key: &str) -> anyhow::Result<()> {
+        self.0.insert("consensus.node_key", raw_key)
+    }
+
+    pub async fn save(self) -> anyhow::Result<()> {
+        self.0.save().await
     }
 }

@@ -15,6 +15,8 @@ impl Prefix for ZeroxPrefix {
     }
 }
 
+/// `BytesToHexSerde` is a helper struct that allows to serialize and deserialize `Vec<u8>` fields as hex-encoded strings with a prefix.
+///
 /// Used to annotate `Vec<u8>` fields that you want to serialize like hex-encoded string with prefix
 /// Use this struct in annotation like that `[serde(with = "BytesToHexSerde::<T>"]`
 /// where T is concrete prefix type (e.g. `SyncBlockPrefix`)

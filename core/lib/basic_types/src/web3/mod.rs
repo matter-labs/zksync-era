@@ -53,6 +53,7 @@ impl From<U64> for U64Number {
 // `Signature`, `keccak256`: from `web3::signing`
 
 /// A struct that represents the components of a secp256k1 signature.
+#[derive(Debug)]
 pub struct Signature {
     /// V component in Electrum format with chain-id replay protection.
     pub v: u64,
@@ -240,10 +241,17 @@ where
             Sequence(Vec<T>),
         }
 
-        Ok(match Repr::<T>::deserialize(deserializer)? {
-            Repr::Single(element) => Self(vec![element]),
-            Repr::Sequence(elements) => Self(elements),
-        })
+        match Repr::<T>::deserialize(deserializer) {
+            Ok(Repr::Single(element)) => Ok(Self(vec![element])),
+            Ok(Repr::Sequence(elements)) => Ok(Self(elements)),
+            Err(e) => Err(serde::de::Error::custom(format!(
+                "Invalid parameter format. Expected either a single value or an array of values. \
+                 Common issues: hex strings with extra spaces, malformed JSON objects, or invalid data types. \
+                 Make sure hex strings are properly formatted (e.g., '0x123abc' not '0x123 abc'). \
+                 Original error: {}",
+                e
+            ))),
+        }
     }
 }
 
@@ -387,6 +395,15 @@ impl Log {
             }
         }
         false
+    }
+}
+
+impl From<Log> for ethabi::RawLog {
+    fn from(log: Log) -> Self {
+        ethabi::RawLog {
+            topics: log.topics,
+            data: log.data.0,
+        }
     }
 }
 

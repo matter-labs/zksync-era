@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*)\n            FROM witness_inputs_fri\n            WHERE\n                attempts >= $1\n                AND status <> 'successful'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "40a5390d10abc9ae9a78f734ecb35a1612d1f82c13c53720880e73dc11161470"
+}

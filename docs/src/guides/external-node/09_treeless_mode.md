@@ -1,10 +1,10 @@
 # Treeless Operation Mode
 
-Normally, a ZKsync node needs to run the Merkle tree component (aka _metadata calculator_) in order to compute L1 batch
-state root hashes. A state root hash from the previous batch can be accessed by L2 contracts, so processing transactions
-in an L1 batch cannot start until the state root hash of the previous L1 batch is computed. Merkle tree requires
-non-trivial storage space and RAM (roughly 3 TB and 32 GB respectively for an archival mainnet node as of July 2024).
-While storage and RAM requirements can be significantly lowered with [snapshot recovery](07_snapshots_recovery.md) and
+Normally, a Node needs to run the Merkle tree component (aka _metadata calculator_) in order to compute L1 batch state
+root hashes. A state root hash from the previous batch can be accessed by L2 contracts, so processing transactions in an
+L1 batch cannot start until the state root hash of the previous L1 batch is computed. Merkle tree requires non-trivial
+storage space and RAM (roughly 3 TB and 32 GB respectively for an archival mainnet node as of July 2024). While storage
+and RAM requirements can be significantly lowered with [snapshot recovery](07_snapshots_recovery.md) and
 [pruning](08_pruning.md), **treeless operation mode** allows to run a node without a local Merkle tree instance at all.
 
 ## How it works
@@ -53,11 +53,11 @@ The tree fetcher currently does not have configurable parameters.
 The tree fetcher can be freely switched on or off during the node lifetime; i.e., it's not required to commit to running
 or not running it when initializing a node.
 
-> [!TIP]
->
-> Switching on the tree fetcher during [snapshot recovery](07_snapshots_recovery.md) can significantly speed it up
-> (order of 2–3 hours for the mainnet) because the node no longer needs to recover the Merkle tree before starting
-> catching up.
+```admonish tip
+Switching on the tree fetcher during [snapshot recovery](07_snapshots_recovery.md) can significantly speed it up
+(order of 2–3 hours for the mainnet) because the node no longer needs to recover the Merkle tree before starting
+catching up.
+```
 
 ## Monitoring tree fetcher
 

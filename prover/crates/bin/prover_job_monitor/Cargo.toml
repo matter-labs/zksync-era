@@ -10,13 +10,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_core_leftovers.workspace = true
 zksync_vlog.workspace = true
 zksync_prover_dal.workspace = true
-zksync_utils.workspace = true
+zksync_task_management.workspace = true
 zksync_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_db_connection.workspace = true
+zksync_prover_task.workspace = true
 
 vise.workspace = true
 

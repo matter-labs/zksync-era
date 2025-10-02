@@ -17,13 +17,13 @@ jobs:
       prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
       all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 2
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
-        uses: tj-actions/changed-files@fea790cb660e33aef4bdf07304e28fedd77dfa13 # v39
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
           files_yaml: |
             # TODO: make it more granular, as already implemented in CI workflow
@@ -39,12 +39,12 @@ jobs:
               - '!prover/**'
   setup:
     name: Setup
-    runs-on: [matterlabs-deployer-stage]
+    runs-on: [ubuntu-latest]
     outputs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Generate image tag suffix
         id: generate-tag-suffix
@@ -61,7 +61,7 @@ jobs:
   build-push-core-images:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-core-template.yml
+    uses: ./.github/workflows/build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -70,22 +70,10 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-push-tee-prover-images:
-    name: Build and push images
-    needs: [setup, changed_files]
-    uses: ./.github/workflows/build-tee-prover-template.yml
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
-
   build-push-contract-verifier:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-contract-verifier-template.yml
+    uses: ./.github/workflows/build-contract-verifier-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -97,7 +85,7 @@ jobs:
   build-push-prover-images:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-prover-template.yml
+    uses: ./.github/workflows/build-prover-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -107,24 +95,20 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-push-witness-generator-image-avx512:
-    name: Build and push prover images with avx512 instructions
-    needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-witness-generator-template.yml
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl "
-      action: "push"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  build-gar-prover-fri-gpu-and-circuit-prover-gpu-gar:
+  build-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
     needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-prover-fri-gpu-gar-and-circuit-prover-gpu-gar.yml
+    uses: ./.github/workflows/build-circuit-prover-gpu-gar.yml
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+
+  build-gar-proof-fri-gpu-compressor-gar:
+    name: Build GAR proof FRI GPU compressor
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-proof-fri-gpu-compressor-gar.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}

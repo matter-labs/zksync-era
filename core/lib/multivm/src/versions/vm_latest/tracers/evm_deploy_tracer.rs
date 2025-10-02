@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem};
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{AfterExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
@@ -17,9 +17,9 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     utils::bytecode::bytes_to_be_words,
-    vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
+    vm_latest::{bootloader::BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
@@ -27,14 +27,16 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct EvmDeployTracer<S> {
     tracked_signature: [u8; 4],
-    pending_bytecodes: Vec<Vec<u8>>,
+    pending_bytecodes: Vec<(usize, Vec<u8>)>,
     _phantom: PhantomData<S>,
 }
 
 impl<S> EvmDeployTracer<S> {
     pub(crate) fn new() -> Self {
-        let tracked_signature =
-            ethabi::short_signature("publishEVMBytecode", &[ethabi::ParamType::Bytes]);
+        let tracked_signature = ethabi::short_signature(
+            "publishEVMBytecode",
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+        );
 
         Self {
             tracked_signature,
@@ -77,10 +79,23 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {
             return;
         }
 
-        match ethabi::decode(&[ethabi::ParamType::Bytes], data) {
+        match ethabi::decode(
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+            data,
+        ) {
             Ok(decoded) => {
-                let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
-                self.pending_bytecodes.push(published_bytecode);
+                let mut decoded_iter = decoded.into_iter();
+                let raw_bytecode_len = decoded_iter.next().unwrap().into_uint().unwrap().try_into();
+                match raw_bytecode_len {
+                    Ok(raw_bytecode_len) => {
+                        let published_bytecode = decoded_iter.next().unwrap().into_bytes().unwrap();
+                        self.pending_bytecodes
+                            .push((raw_bytecode_len, published_bytecode));
+                    }
+                    Err(err) => {
+                        tracing::error!("Invalid bytecode len in `publishEVMBytecode` call: {err}")
+                    }
+                }
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
         }
@@ -94,8 +109,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         let timestamp = Timestamp(state.local_state.timestamp);
-        for published_bytecode in mem::take(&mut self.pending_bytecodes) {
-            let hash = BytecodeHash::for_evm_bytecode(&published_bytecode).value_u256();
+        for (raw_bytecode_len, published_bytecode) in mem::take(&mut self.pending_bytecodes) {
+            let hash =
+                BytecodeHash::for_evm_bytecode(raw_bytecode_len, &published_bytecode).value_u256();
             let as_words = bytes_to_be_words(&published_bytecode);
             state
                 .decommittment_processor

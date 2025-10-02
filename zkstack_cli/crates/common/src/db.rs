@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::Path};
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ impl DatabaseConfig {
         let name = url
             .path_segments()
             .ok_or(anyhow!("Failed to parse database name from URL"))?
-            .last()
+            .next_back()
             .ok_or(anyhow!("Failed to parse database name from URL"))?;
         let url_without_db_name = {
             let mut url = url.clone();
@@ -76,14 +76,14 @@ pub async fn drop_db_if_exists(db: &DatabaseConfig) -> anyhow::Result<()> {
 
 pub async fn migrate_db(
     shell: &Shell,
-    migrations_folder: PathBuf,
+    migrations_folder: &Path,
     db_url: &Url,
 ) -> anyhow::Result<()> {
     // Most of this file is copy-pasted from SQLx CLI:
     // https://github.com/launchbadge/sqlx/blob/main/sqlx-cli/src/migrate.rs
     // Warrants a refactoring if this tool makes it to production.
 
-    if !shell.path_exists(&migrations_folder) {
+    if !shell.path_exists(migrations_folder) {
         anyhow::bail!("Migrations folder {migrations_folder:?} doesn't exist");
     }
     let migrator = Migrator::new(migrations_folder).await?;

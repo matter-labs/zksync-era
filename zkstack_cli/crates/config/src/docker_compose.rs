@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkStackConfig;
+use crate::traits::FileConfigTrait;
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct DockerComposeConfig {
@@ -30,11 +30,13 @@ pub struct DockerComposeService {
     pub restart: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_hosts: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network_mode: Option<String>,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
 
-impl ZkStackConfig for DockerComposeConfig {}
+impl FileConfigTrait for DockerComposeConfig {}
 
 impl DockerComposeConfig {
     pub fn add_service(&mut self, name: &str, service: DockerComposeService) {

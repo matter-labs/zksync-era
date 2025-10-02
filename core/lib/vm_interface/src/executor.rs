@@ -9,7 +9,8 @@ use crate::{
     storage::{ReadStorage, StorageView},
     tracer::{ValidationError, ValidationParams, ValidationTraces},
     BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
-    OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
+    OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv,
+    TransactionExecutionMetrics, TxExecutionArgs,
 };
 
 /// Factory of [`BatchExecutor`]s.
@@ -44,6 +45,12 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 
     /// Finished the current L1 batch.
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;
+
+    /// Rolls back the last executed l2 block.
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()>;
+
+    /// Commits the first uncommitted l2 block making so it cannot be rolled back anymore.
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()>;
 }
 
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
@@ -61,7 +68,7 @@ pub trait OneshotExecutor<S: ReadStorage> {
 
 /// VM executor capable of validating transactions.
 #[async_trait]
-pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
+pub trait TransactionValidator<S: ReadStorage> {
     /// Validates the provided transaction.
     async fn validate_transaction(
         &self,
@@ -70,4 +77,29 @@ pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
         tx: L2Tx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<ValidationTraces, ValidationError>>;
+}
+
+/// Generic transaction filter.
+// TODO: can be used for initiator allowlist
+#[async_trait]
+pub trait TransactionFilter: fmt::Debug + Send + Sync {
+    /// Performs checks on the provided transaction. Returns an error (a human-readable message) if the transaction execution
+    /// does not satisfy this filter.
+    async fn filter_transaction(
+        &self,
+        transaction: &Transaction,
+        metrics: &TransactionExecutionMetrics,
+    ) -> Result<(), String>;
+}
+
+/// Filter that always succeeds.
+#[async_trait]
+impl TransactionFilter for () {
+    async fn filter_transaction(
+        &self,
+        _transaction: &Transaction,
+        _metrics: &TransactionExecutionMetrics,
+    ) -> Result<(), String> {
+        Ok(())
+    }
 }

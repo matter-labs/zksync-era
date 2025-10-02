@@ -26,8 +26,9 @@ impl StorageSnapshot {
     /// # Arguments
     ///
     /// - `storage` should contain all storage slots accessed during VM execution, i.e. protective reads + initial / repeated writes
-    ///   for batch execution, keyed by the hashed storage key. `None` map values correspond to accessed slots without an assigned enum index.
-    ///   By definition, all these slots are guaranteed to have zero value.
+    ///   for batch execution, keyed by the hashed storage key. `None` map values correspond to accessed slots without an assigned enum index
+    ///   and 0 values. There may be slots w/o an index and non-zero value if the snapshot captures execution from a middle of batch;
+    ///   in this case, you should supply `Some(_, 0)`.
     pub fn new(
         storage: HashMap<H256, Option<(H256, u64)>>,
         factory_deps: HashMap<H256, Vec<u8>>,
@@ -75,7 +76,7 @@ impl ReadStorage for StorageSnapshot {
         let entry = self.storage.get(&key.hashed_key()).unwrap_or_else(|| {
             panic!("attempted to check initialness for unknown storage slot: {key:?}")
         });
-        entry.is_none()
+        entry.is_none_or(|(_, idx)| idx == 0)
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -86,7 +87,7 @@ impl ReadStorage for StorageSnapshot {
         let entry = self.storage.get(&key.hashed_key()).unwrap_or_else(|| {
             panic!("attempted to get enum index for unknown storage slot: {key:?}")
         });
-        entry.map(|(_, idx)| idx)
+        entry.and_then(|(_, idx)| (idx > 0).then_some(idx))
     }
 }
 

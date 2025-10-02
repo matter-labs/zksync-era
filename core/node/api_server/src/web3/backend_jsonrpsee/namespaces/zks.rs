@@ -1,21 +1,16 @@
-use std::collections::HashMap;
-
-use zksync_multivm::interface::VmEvent;
 use zksync_types::{
     api::{
-        state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
-        L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion, TransactionDetailedResult,
-        TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::ZksNamespaceServer,
-    types::Token,
 };
 
 use crate::web3::ZksNamespace;
@@ -46,8 +41,8 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_bridgehub_contract_impl())
     }
 
-    async fn get_main_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_contract_impl())
+    async fn get_main_l1_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_main_l1_contract_impl())
     }
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
@@ -55,7 +50,9 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
-        Ok(self.get_bridge_contracts_impl().await)
+        self.get_bridge_contracts_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>> {
@@ -66,39 +63,13 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.l1_chain_id_impl())
     }
 
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        self.get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_all_account_balances(
-        &self,
-        address: Address,
-    ) -> RpcResult<HashMap<Address, U256>> {
-        self.get_all_account_balances_impl(address)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        block: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_msg_proof_impl(block, sender, msg, l2_log_position)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, interop_mode)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -163,7 +134,7 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
-        Ok(self.get_fee_params_impl())
+        Ok(self.get_fee_params_impl().await)
     }
 
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput> {
@@ -172,6 +143,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    #[allow(deprecated)]
     async fn get_protocol_version(
         &self,
         version_id: Option<u16>,
@@ -197,52 +169,14 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: web3::Bytes,
-    ) -> RpcResult<TransactionDetailedResult> {
-        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
-            .await
-            .map(|result| TransactionDetailedResult {
-                transaction_hash: result.0,
-                storage_logs: result
-                    .1
-                    .logs
-                    .storage_logs
-                    .iter()
-                    .filter(|x| x.log.is_write())
-                    .map(ApiStorageLog::from)
-                    .collect(),
-                events: result
-                    .1
-                    .logs
-                    .events
-                    .iter()
-                    .map(|event| {
-                        let mut log = map_event(event);
-                        log.transaction_hash = Some(result.0);
-                        log
-                    })
-                    .collect(),
-            })
+    async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
+        self.get_l2_multicall3_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
-}
 
-fn map_event(vm_event: &VmEvent) -> Log {
-    Log {
-        address: vm_event.address,
-        topics: vm_event.indexed_topics.clone(),
-        data: web3::Bytes::from(vm_event.value.clone()),
-        block_hash: None,
-        block_number: None,
-        l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
-        transaction_hash: None,
-        transaction_index: Some(web3::Index::from(vm_event.location.1)),
-        log_index: None,
-        transaction_log_index: None,
-        log_type: None,
-        removed: Some(false),
-        block_timestamp: None,
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.gas_per_pubdata_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 }

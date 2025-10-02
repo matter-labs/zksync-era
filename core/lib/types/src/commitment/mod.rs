@@ -9,7 +9,8 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
-pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams};
+use thiserror::Error;
+pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -37,6 +38,21 @@ use crate::{
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Error)]
+pub enum CommitmentValidationError {
+    #[error("State diff hash mismatch: expected {expected}, got {actual}")]
+    StateDiffHashMismatch { expected: H256, actual: H256 },
+    #[error("Blob linear hashes mismatch: expected {expected:?}, got {actual:?}")]
+    BlobLinearHashesMismatch {
+        expected: Vec<H256>,
+        actual: Vec<H256>,
+    },
+    #[error("L2 L1 logs tree root mismatch: expected {expected}, got {actual}")]
+    L2L1LogsTreeRootMismatch { expected: H256, actual: H256 },
+    #[error("Serialized size for BlockPassThroughData is bigger than expected: expected {expected}, got {actual}")]
+    SerializedSizeMismatch { expected: usize, actual: usize },
+}
 
 /// Type that can be serialized for commitment.
 pub trait SerializeCommitment {
@@ -112,6 +128,7 @@ pub struct L1BatchMetadata {
     pub aux_data_hash: H256,
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
+
     /// The commitment to the final events queue state after the batch is committed.
     /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
     pub events_queue_commitment: Option<H256>,
@@ -334,7 +351,10 @@ pub enum L1BatchAuxiliaryOutput {
 }
 
 impl L1BatchAuxiliaryOutput {
-    fn new(input: CommitmentInput) -> Self {
+    fn new(
+        input: CommitmentInput,
+        disable_sanity_checks: bool,
+    ) -> Result<Self, CommitmentValidationError> {
         match input {
             CommitmentInput::PreBoojum {
                 common: common_input,
@@ -364,14 +384,14 @@ impl L1BatchAuxiliaryOutput {
                 let repeated_writes_compressed = pre_boojum_serialize_commitments(&repeated_writes);
                 let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
 
-                Self::PreBoojum {
+                Ok(Self::PreBoojum {
                     common: common_output,
                     l2_l1_logs_linear_hash,
                     initial_writes_compressed,
                     initial_writes_hash,
                     repeated_writes_compressed,
                     repeated_writes_hash,
-                }
+                })
             }
             CommitmentInput::PostBoojum {
                 common: common_input,
@@ -409,7 +429,7 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
-                if !system_logs.is_empty() {
+                if !system_logs.is_empty() && !disable_sanity_checks {
                     if common_input.protocol_version.is_pre_gateway() {
                         let state_diff_hash_from_logs = system_logs
                             .iter()
@@ -418,10 +438,12 @@ impl L1BatchAuxiliaryOutput {
                                     .then_some(log.0.value)
                             })
                             .expect("Failed to find state diff hash in system logs");
-                        assert_eq!(
-                            state_diffs_hash, state_diff_hash_from_logs,
-                            "State diff hash mismatch"
-                        );
+                        if state_diffs_hash != state_diff_hash_from_logs {
+                            return Err(CommitmentValidationError::StateDiffHashMismatch {
+                                expected: state_diff_hash_from_logs,
+                                actual: state_diffs_hash,
+                            });
+                        }
 
                         let blob_linear_hashes_from_logs =
                             parse_system_logs_for_blob_hashes_pre_gateway(
@@ -430,10 +452,12 @@ impl L1BatchAuxiliaryOutput {
                             );
                         let blob_linear_hashes: Vec<_> =
                             blob_hashes.iter().map(|b| b.linear_hash).collect();
-                        assert_eq!(
-                            blob_linear_hashes, blob_linear_hashes_from_logs,
-                            "Blob linear hashes mismatch"
-                        );
+                        if blob_linear_hashes != blob_linear_hashes_from_logs {
+                            return Err(CommitmentValidationError::BlobLinearHashesMismatch {
+                                expected: blob_linear_hashes_from_logs,
+                                actual: blob_linear_hashes,
+                            });
+                        }
                     }
 
                     let l2_to_l1_logs_tree_root_from_logs = system_logs
@@ -443,13 +467,15 @@ impl L1BatchAuxiliaryOutput {
                                 .then_some(log.0.value)
                         })
                         .expect("Failed to find L2 to L1 logs tree root in system logs");
-                    assert_eq!(
-                        l2_l1_logs_merkle_root, l2_to_l1_logs_tree_root_from_logs,
-                        "L2 L1 logs tree root mismatch"
-                    );
+                    if l2_l1_logs_merkle_root != l2_to_l1_logs_tree_root_from_logs {
+                        return Err(CommitmentValidationError::L2L1LogsTreeRootMismatch {
+                            expected: l2_to_l1_logs_tree_root_from_logs,
+                            actual: l2_l1_logs_merkle_root,
+                        });
+                    }
                 }
 
-                Self::PostBoojum {
+                Ok(Self::PostBoojum {
                     common: common_output,
                     system_logs_linear_hash,
                     state_diffs_compressed,
@@ -458,7 +484,7 @@ impl L1BatchAuxiliaryOutput {
                     blob_hashes,
                     local_root,
                     aggregation_root,
-                }
+                })
             }
         }
     }
@@ -560,10 +586,7 @@ impl L1BatchMetaParameters {
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
 
-        if self
-            .protocol_version
-            .map_or(false, |ver| ver.is_post_1_5_0())
-        {
+        if self.protocol_version.is_some_and(|ver| ver.is_post_1_5_0()) {
             let evm_emulator_code_hash = self
                 .evm_emulator_code_hash
                 .unwrap_or(self.default_aa_code_hash);
@@ -591,7 +614,7 @@ struct L1BatchPassThroughData {
 }
 
 impl L1BatchPassThroughData {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, CommitmentValidationError> {
         // We assume that currently we have only two shared state: Rollup and ZkPorter where porter is always zero
         const SERIALIZED_SIZE: usize = 8 + 32 + 8 + 32;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
@@ -599,16 +622,17 @@ impl L1BatchPassThroughData {
             result.extend_from_slice(&state.last_leaf_index.to_be_bytes());
             result.extend_from_slice(state.root_hash.as_bytes());
         }
-        assert_eq!(
-            result.len(),
-            SERIALIZED_SIZE,
-            "Serialized size for BlockPassThroughData is bigger than expected"
-        );
-        result
+        if result.len() != SERIALIZED_SIZE {
+            return Err(CommitmentValidationError::SerializedSizeMismatch {
+                expected: SERIALIZED_SIZE,
+                actual: result.len(),
+            });
+        }
+        Ok(result)
     }
 
-    pub fn hash(&self) -> H256 {
-        H256::from_slice(&keccak256(&self.to_bytes()))
+    pub fn hash(&self) -> Result<H256, CommitmentValidationError> {
+        Ok(H256::from_slice(&keccak256(&self.to_bytes()?)))
     }
 }
 
@@ -629,7 +653,12 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
-    pub fn new(input: CommitmentInput) -> Self {
+    pub fn new(
+        input: CommitmentInput,
+        // Sanity checks are disabled for external node, because it's a sign of incorrect
+        // state inside external node, the commitment correctness will be double checked on l1
+        disable_sanity_checks: bool,
+    ) -> Result<Self, CommitmentValidationError> {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: input.common().bootloader_code_hash,
@@ -638,7 +667,7 @@ impl L1BatchCommitment {
             protocol_version: Some(input.common().protocol_version),
         };
 
-        Self {
+        Ok(Self {
             pass_through_data: L1BatchPassThroughData {
                 shared_states: vec![
                     RootState {
@@ -652,9 +681,9 @@ impl L1BatchCommitment {
                     },
                 ],
             },
-            auxiliary_output: L1BatchAuxiliaryOutput::new(input),
+            auxiliary_output: L1BatchAuxiliaryOutput::new(input, disable_sanity_checks)?,
             meta_parameters,
-        }
+        })
     }
 
     pub fn meta_parameters(&self) -> L1BatchMetaParameters {
@@ -674,9 +703,9 @@ impl L1BatchCommitment {
         }
     }
 
-    pub fn hash(&self) -> L1BatchCommitmentHash {
+    pub fn hash(&self) -> Result<L1BatchCommitmentHash, CommitmentValidationError> {
         let mut result = vec![];
-        let pass_through_data_hash = self.pass_through_data.hash();
+        let pass_through_data_hash = self.pass_through_data.hash()?;
         result.extend_from_slice(pass_through_data_hash.as_bytes());
         let metadata_hash = self.meta_parameters.hash();
         result.extend_from_slice(metadata_hash.as_bytes());
@@ -684,15 +713,15 @@ impl L1BatchCommitment {
         result.extend_from_slice(auxiliary_output_hash.as_bytes());
         let hash = keccak256(&result);
         let commitment = H256::from_slice(&hash);
-        L1BatchCommitmentHash {
+        Ok(L1BatchCommitmentHash {
             pass_through_data: pass_through_data_hash,
             aux_output: auxiliary_output_hash,
             meta_parameters: metadata_hash,
             commitment,
-        }
+        })
     }
 
-    pub fn artifacts(&self) -> L1BatchCommitmentArtifacts {
+    pub fn artifacts(&self) -> Result<L1BatchCommitmentArtifacts, CommitmentValidationError> {
         let (compressed_initial_writes, compressed_repeated_writes, compressed_state_diffs) =
             match &self.auxiliary_output {
                 L1BatchAuxiliaryOutput::PostBoojum {
@@ -710,8 +739,8 @@ impl L1BatchCommitment {
                 ),
             };
 
-        L1BatchCommitmentArtifacts {
-            commitment_hash: self.hash(),
+        Ok(L1BatchCommitmentArtifacts {
+            commitment_hash: self.hash()?,
             l2_l1_merkle_root: self.l2_l1_logs_merkle_root(),
             compressed_state_diffs,
             zkporter_is_available: self.meta_parameters.zkporter_is_available,
@@ -721,7 +750,7 @@ impl L1BatchCommitment {
             local_root: self.auxiliary_output.local_root(),
             aggregation_root: self.auxiliary_output.aggregation_root(),
             state_diff_hash: self.auxiliary_output.state_diff_hash(),
-        }
+        })
     }
 }
 

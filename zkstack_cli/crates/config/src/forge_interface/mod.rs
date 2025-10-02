@@ -1,7 +1,11 @@
 pub mod accept_ownership;
 pub mod deploy_ecosystem;
+pub mod deploy_gateway_tx_filterer;
 pub mod deploy_l2_contracts;
+pub mod gateway_preparation;
+pub mod gateway_vote_preparation;
 pub mod paymaster;
 pub mod register_chain;
 pub mod script_params;
 pub mod setup_legacy_bridge;
+pub mod upgrade_ecosystem;

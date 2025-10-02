@@ -16,34 +16,36 @@ zksync_system_constants.workspace = true
 zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
-zksync_protobuf.workspace = true
+zksync_protobuf = { workspace = true, optional = true }
 zksync_crypto_primitives.workspace = true
 
+async-trait.workspace = true
 anyhow.workspace = true
-chrono = { workspace = true, features = ["serde"] }
-derive_more = { workspace = true, features = ["debug"] }
-num = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, default-features = false, features = ["now", "serde"] }
+derive_more = { workspace = true, features = ["debug", "display"] }
 once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with = { workspace = true, features = ["hex"] }
-bigdecimal.workspace = true
-strum = { workspace = true, features = ["derive"] }
+ciborium = { workspace = true, optional = true }
 thiserror.workspace = true
 num_enum.workspace = true
 hex.workspace = true
-prost.workspace = true
-itertools.workspace = true
+prost = { workspace = true, optional = true }
 tracing.workspace = true
 
 # Crypto stuff
 blake2.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt", "macros"] }
 assert_matches.workspace = true
 bincode.workspace = true
+serde_urlencoded.workspace = true
 
 [build-dependencies]
-zksync_protobuf_build.workspace = true
+zksync_protobuf_build = { workspace = true, optional = true }
+
+[features]
+protobuf = ["dep:prost", "dep:zksync_protobuf", "dep:zksync_protobuf_build"]
+contract-verification = ["dep:ciborium"]

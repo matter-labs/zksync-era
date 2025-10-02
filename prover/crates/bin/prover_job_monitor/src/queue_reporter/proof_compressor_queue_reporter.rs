@@ -1,20 +1,24 @@
 use std::collections::HashMap;
 
-use async_trait::async_trait;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use anyhow::Context;
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_task::Task;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
-use crate::{
-    metrics::{JobStatus, PROVER_FRI_METRICS},
-    task_wiring::Task,
-};
+use crate::metrics::{JobStatus, PROVER_FRI_METRICS};
 
 /// `ProofCompressorQueueReporter` is a task that reports compression jobs status.
 /// Note: these values will be used for auto-scaling proof compressor.
 #[derive(Debug)]
-pub struct ProofCompressorQueueReporter {}
+pub struct ProofCompressorQueueReporter {
+    pool: ConnectionPool<Prover>,
+}
 
 impl ProofCompressorQueueReporter {
+    pub fn new(pool: ConnectionPool<Prover>) -> Self {
+        Self { pool }
+    }
+
     async fn get_job_statistics(
         connection: &mut Connection<'_, Prover>,
     ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
@@ -22,10 +26,15 @@ impl ProofCompressorQueueReporter {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Task for ProofCompressorQueueReporter {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
-        let stats = Self::get_job_statistics(connection).await;
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
+        let stats = Self::get_job_statistics(&mut connection).await;
 
         for (protocol_version, stats) in &stats {
             if stats.queued > 0 {
@@ -57,10 +66,10 @@ impl Task for ProofCompressorQueueReporter {
             .get_oldest_not_compressed_batch()
             .await;
 
-        if let Some(l1_batch_number) = oldest_not_compressed_batch {
+        if let Some(batch_id) = oldest_not_compressed_batch {
             PROVER_FRI_METRICS
                 .proof_compressor_oldest_uncompressed_batch
-                .set(l1_batch_number.0 as u64);
+                .set(batch_id.batch_number().0 as u64);
         }
 
         Ok(())

@@ -5,7 +5,7 @@ use std::time::Duration;
 use futures::FutureExt;
 use tokio::sync::watch;
 use zksync_eth_client::EthInterface;
-use zksync_types::{L2ChainId, SLChainId};
+use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     error::ClientRpcContext,
@@ -15,9 +15,9 @@ use zksync_web3_decl::{
 /// Task that validates chain IDs using main node and Ethereum clients.
 #[derive(Debug)]
 pub struct ValidateChainIdsTask {
-    sl_chain_id: SLChainId,
+    l1_chain_id: L1ChainId,
     l2_chain_id: L2ChainId,
-    eth_client: Box<DynClient<L1>>,
+    l1_client: Box<DynClient<L1>>,
     main_node_client: Box<DynClient<L2>>,
 }
 
@@ -25,39 +25,34 @@ impl ValidateChainIdsTask {
     const BACKOFF_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        sl_chain_id: SLChainId,
+        l1_chain_id: L1ChainId,
         l2_chain_id: L2ChainId,
-        eth_client: Box<DynClient<L1>>,
+        l1_client: Box<DynClient<L1>>,
         main_node_client: Box<DynClient<L2>>,
     ) -> Self {
         Self {
-            sl_chain_id,
+            l1_chain_id,
             l2_chain_id,
-            eth_client: eth_client.for_component("chain_ids_validation"),
+            l1_client: l1_client.for_component("chain_ids_validation"),
             main_node_client: main_node_client.for_component("chain_ids_validation"),
         }
     }
 
-    async fn check_eth_client(
-        eth_client: Box<DynClient<L1>>,
-        expected: SLChainId,
-    ) -> anyhow::Result<()> {
+    async fn check_client(client: Box<DynClient<L1>>, expected: SLChainId) -> anyhow::Result<()> {
         loop {
-            match eth_client.fetch_chain_id().await {
+            match client.fetch_chain_id().await {
                 Ok(chain_id) => {
                     anyhow::ensure!(
                         expected == chain_id,
-                        "Configured L1 chain ID doesn't match the one from Ethereum node. \
-                        Make sure your configuration is correct and you are corrected to the right Ethereum node. \
-                        Eth node chain ID: {chain_id}. Local config value: {expected}"
+                        "Configured chain ID doesn't match the one from node. \
+                        Make sure your configuration is correct and you are corrected to the right node. \
+                        node chain ID: {chain_id}. Local config value: {expected}"
                     );
-                    tracing::info!(
-                        "Checked that L1 chain ID {chain_id} is returned by Ethereum client"
-                    );
+                    tracing::info!("Checked that chain ID {chain_id} is returned by client");
                     return Ok(());
                 }
                 Err(err) => {
-                    tracing::warn!("Error getting L1 chain ID from Ethereum client: {err}");
+                    tracing::warn!("Error getting chain ID from client: {err}");
                     tokio::time::sleep(Self::BACKOFF_INTERVAL).await;
                 }
             }
@@ -66,7 +61,7 @@ impl ValidateChainIdsTask {
 
     async fn check_l1_chain_using_main_node(
         main_node_client: Box<DynClient<L2>>,
-        expected: SLChainId,
+        expected: L1ChainId,
     ) -> anyhow::Result<()> {
         loop {
             match main_node_client
@@ -75,9 +70,9 @@ impl ValidateChainIdsTask {
                 .await
             {
                 Ok(chain_id) => {
-                    let chain_id = SLChainId(chain_id.as_u64());
+                    let chain_id = chain_id.as_u64();
                     anyhow::ensure!(
-                        expected == chain_id,
+                        expected.0 == chain_id,
                         "Configured L1 chain ID doesn't match the one from main node. \
                         Make sure your configuration is correct and you are corrected to the right main node. \
                         Main node L1 chain ID: {chain_id}. Local config value: {expected}"
@@ -87,7 +82,7 @@ impl ValidateChainIdsTask {
                     );
                     return Ok(());
                 }
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     tracing::warn!(
                         "Retriable error getting L1 chain ID from main node client, will retry in {:?}: {err}",
                         Self::BACKOFF_INTERVAL
@@ -123,7 +118,7 @@ impl ValidateChainIdsTask {
                     );
                     return Ok(());
                 }
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     tracing::warn!(
                         "Transient error getting L2 chain ID from main node client, will retry in {:?}: {err}",
                         Self::BACKOFF_INTERVAL
@@ -138,15 +133,16 @@ impl ValidateChainIdsTask {
         }
     }
 
-    /// Runs the task once, exiting either when all the checks are performed or when the stop signal is received.
+    /// Runs the task once, exiting either when all the checks are performed or when the stop request is received.
     pub async fn run_once(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let eth_client_check = Self::check_eth_client(self.eth_client, self.sl_chain_id);
+        let l1_client_check = Self::check_client(self.l1_client, self.l1_chain_id.0.into());
         let main_node_l1_check =
-            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.sl_chain_id);
+            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id);
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id);
+
         let joined_futures =
-            futures::future::try_join3(eth_client_check, main_node_l1_check, main_node_l2_check)
+            futures::future::try_join3(l1_client_check, main_node_l1_check, main_node_l2_check)
                 .fuse();
         tokio::select! {
             res = joined_futures => res.map(drop),
@@ -154,18 +150,18 @@ impl ValidateChainIdsTask {
         }
     }
 
-    /// Runs the task until the stop signal is received.
+    /// Runs the task until the stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // Since check futures are fused, they are safe to poll after getting resolved; they will never resolve again,
-        // so we'll just wait for another check or a stop signal.
-        let eth_client_check = Self::check_eth_client(self.eth_client, self.sl_chain_id).fuse();
+        // so we'll just wait for another check or a stop request.
+        let l1_client_check = Self::check_client(self.l1_client, self.l1_chain_id.0.into()).fuse();
         let main_node_l1_check =
-            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.sl_chain_id)
+            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id)
                 .fuse();
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id).fuse();
         tokio::select! {
-            Err(err) = eth_client_check =>  Err(err),
+            Err(err) = l1_client_check =>  Err(err),
             Err(err) = main_node_l1_check =>  Err(err),
             Err(err) = main_node_l2_check =>  Err(err),
             _ = stop_receiver.changed() =>  Ok(()),
@@ -191,7 +187,7 @@ mod tests {
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
-            SLChainId(3), // << mismatch with the Ethereum client
+            L1ChainId(3), // << mismatch with the Ethereum client
             L2ChainId::default(),
             Box::new(eth_client.clone()),
             Box::new(main_node_client.clone()),
@@ -203,12 +199,12 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(
-            err.contains("L1 chain ID") && err.contains("Ethereum node"),
+            err.contains("chain ID") && err.contains("node") && !err.contains("main node"),
             "{err}"
         );
 
         let validation_task = ValidateChainIdsTask::new(
-            SLChainId(9), // << mismatch with the main node client
+            L1ChainId(9), // << mismatch with the main node client
             L2ChainId::from(270),
             Box::new(eth_client.clone()),
             Box::new(main_node_client),
@@ -229,7 +225,7 @@ mod tests {
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
-            SLChainId(9),
+            L1ChainId(9),
             L2ChainId::from(271), // << mismatch with the main node client
             Box::new(eth_client),
             Box::new(main_node_client),
@@ -256,7 +252,7 @@ mod tests {
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
-            SLChainId(9),
+            L1ChainId(9),
             L2ChainId::default(),
             Box::new(eth_client),
             Box::new(main_node_client),

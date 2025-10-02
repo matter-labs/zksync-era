@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
@@ -12,13 +12,13 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     utils::CircuitCycleStatistic,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 
@@ -192,7 +192,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
 
                 // Each cycle of `CodeDecommitter` processes 2 words.
                 // If the number of words in bytecode is odd, then number of cycles must be rounded up.
-                let decommitter_cycles_used = (bytecode_len + 1) / 2;
+                let decommitter_cycles_used = bytecode_len.div_ceil(2);
                 self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
             }
         }
@@ -257,6 +257,18 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
                 }
                 PrecompileAddress::Secp256r1Verify => {
                     self.statistics.secp256k1_verify_cycles += *cycles as u32;
+                }
+                PrecompileAddress::Modexp => {
+                    self.statistics.modexp_cycles += *cycles as u32;
+                }
+                PrecompileAddress::ECAdd => {
+                    self.statistics.ecadd_cycles += *cycles as u32;
+                }
+                PrecompileAddress::ECMul => {
+                    self.statistics.ecmul_cycles += *cycles as u32;
+                }
+                PrecompileAddress::ECPairing => {
+                    self.statistics.ecpairing_cycles += *cycles as u32;
                 }
             };
         }

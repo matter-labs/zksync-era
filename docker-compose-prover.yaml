@@ -1,0 +1,58 @@
+## To download setup keys:
+# zkstack prover setup-keys --region europe --mode download
+
+services:
+  prover-job-monitor:
+    image: matterlabs/prover-job-monitor:${PROVER_TAG}
+    network_mode: host
+    volumes:
+      - /zksync-era/./prover/data/keys:/prover/data/keys
+      - /zksync-era/./prover/artifacts:/artifacts
+      - /zksync-era/./chains/era/configs/:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml
+    expose:
+      - 3317 # metrics
+      - 3074 # queue
+
+  prover-fri-gateway:
+    image: matterlabs/prover-fri-gateway:${PROVER_TAG}
+    network_mode: host
+    volumes:
+      - /zksync-era/./prover/data/keys:/prover/data/keys
+      - /zksync-era/./prover/artifacts:/artifacts
+      - /zksync-era/./chains/era/configs/:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml
+    expose:
+      - 3310 # metrics
+      - 3324 # prover-cluster
+
+  witness-generator:
+    image: matterlabs/witness-generator:${PROVER_TAG}
+    network_mode: host
+    volumes:
+      - /zksync-era/./prover/data/keys:/prover/data/keys
+      - /zksync-era/./prover/artifacts:/artifacts
+      - /zksync-era/./chains/era/configs/:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --all_rounds
+
+  circuit-prover-gpu:
+    image: matterlabs/circuit-prover-gpu:${PROVER_TAG}
+    network_mode: host
+    gpus: all
+    volumes:
+      - /zksync-era/./prover/data/keys:/prover/data/keys
+      - /zksync-era/./prover/artifacts:/artifacts
+      - /zksync-era/./chains/era/configs/:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml --threads=32 --max-allocation=25769803776
+    expose:
+      - 3315 # metrics
+
+  compressor:
+    image: matterlabs/proof-fri-gpu-compressor:${PROVER_TAG}
+    network_mode: host
+    gpus: all
+    volumes:
+      - /zksync-era/./prover/data/keys:/prover/data/keys
+      - /zksync-era/./prover/artifacts:/artifacts
+      - /zksync-era/./chains/era/configs/:/configs
+    command: --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml

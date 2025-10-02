@@ -12,7 +12,9 @@ One thing to note is that the way that the data is represented changes in a pre-
 level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single bytes
 array.
 
-> Note: When the 4844 was integrated this bytes array was moved from being part of the calldata to blob data.
+```admonish note
+When the 4844 was integrated this bytes array was moved from being part of the calldata to blob data.
+```
 
 While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
 need to filter all of the transactions to the L1 ZKsync contract for only the `commitBlocks/commitBatches` transactions
@@ -22,8 +24,8 @@ blocks that have been executed, we then will pull the transaction input and the 
 to reconstruct the current state of L2.
 
 One thing to note is that in both systems some of the contract bytecode is compressed into an array of indices where
-each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done [here](./compression.md). Once
-the bytecode has been expanded, the hash can be taken and checked against the storage writes within the
+each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done [here](./11_compression.md).
+Once the bytecode has been expanded, the hash can be taken and checked against the storage writes within the
 `AccountCodeStorage` contract which connects an address on L2 with the 32 byte code hash:
 
 ```solidity
@@ -80,7 +82,7 @@ The 4 main fields to look at here are:
 3. `factoryDeps`: An array of uncompressed bytecodes
 4. `l2ArbitraryLengthMessages` : L2 → L1 Messages
    1. We don’t need them all, we are just concerned with messages sent from the `Compressor/BytecodeCompressor` contract
-   2. These messages will follow the compression algorithm outline [here](./compression.md)
+   2. These messages will follow the compression algorithm outline [here](./11_compression.md)
 
 For the ids on the repeated writes, they are generated as we process the first time keys. For example: if we see
 `[<key1, val1>, <key2, val2>]` (starting from an empty state) then we can assume that the next time a write happens to
@@ -126,7 +128,7 @@ struct CommitBatchInfo {
 The main difference between the two `CommitBatchInfo` and `CommitBlockInfo` structs is that we have taken a few of the
 fields and merged them into a single bytes array called `pubdataCommitments`. In the `calldata` mode, the pubdata is
 being passed using that field. In the `blobs` mode, that field is used to store the KZG commitments and proofs. More on
-EIP-4844 blobs [here](./pubdata-with-blobs.md). In the Validium mode, the field will either be empty or store the
+EIP-4844 blobs [here](./10_pubdata_with_blobs.md). In the Validium mode, the field will either be empty or store the
 inclusion proof for the DA blob.
 
 The 2 main fields needed for state reconstruction are the bytecodes and the state diffs. The bytecodes follow the same

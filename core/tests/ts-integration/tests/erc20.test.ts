@@ -8,12 +8,13 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { RetryableWallet } from '../src/retry-provider';
 
-describe('ERC20 contract checks', () => {
+describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let baseTokenAddress: string;
@@ -56,8 +57,8 @@ describe('ERC20 contract checks', () => {
             { wallet: alice, change: amount }
         ]);
         const feeCheck = await shouldOnlyTakeFee(alice, true);
-        await expect(
-            alice.deposit({
+        await alice.retryableDepositCheck(
+            {
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
@@ -68,8 +69,9 @@ describe('ERC20 contract checks', () => {
                 overrides: {
                     gasPrice
                 }
-            })
-        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+            },
+            (deposit) => expect(deposit).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck])
+        );
     });
 
     test('Can perform a transfer', async () => {
@@ -96,6 +98,7 @@ describe('ERC20 contract checks', () => {
 
     test('Incorrect transfer should revert', async () => {
         const value = ethers.parseEther('1000000.0');
+        const gasPrice = await scaledGasPrice(alice);
 
         // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
@@ -109,12 +112,16 @@ describe('ERC20 contract checks', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert due to lack of balance.
-        await expect(aliceErc20.transfer(bob.address, value, { gasLimit })).toBeReverted([noBalanceChange, feeTaken]);
+        await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeReverted([
+            noBalanceChange,
+            feeTaken
+        ]);
     });
 
     test('Transfer to zero address should revert', async () => {
         const zeroAddress = ethers.ZeroAddress;
         const value = 200n;
+        const gasPrice = await scaledGasPrice(alice);
 
         // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
@@ -127,7 +134,10 @@ describe('ERC20 contract checks', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert because transfers to zero address are not allowed.
-        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit })).toBeReverted([noBalanceChange, feeTaken]);
+        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeReverted([
+            noBalanceChange,
+            feeTaken
+        ]);
     });
 
     test('Approve and transferFrom should work', async () => {
@@ -166,7 +176,8 @@ describe('ERC20 contract checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         // Note: For L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
@@ -176,6 +187,7 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
+
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
@@ -206,7 +218,7 @@ describe('ERC20 contract checks', () => {
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);

@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use common::logger;
-use config::EcosystemConfig;
 use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::{args::DatabaseCommonArgs, drop::drop_database, setup::setup_database};
 use crate::commands::dev::{
@@ -20,14 +20,14 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
         return Ok(());
     }
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::from_file(shell)?;
 
     logger::info(msg_database_info(MSG_DATABASE_RESET_GERUND));
 
-    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls).await?;
     for dal in dals {
         logger::info(msg_database_loading(MSG_DATABASE_RESET_GERUND, &dal.path));
-        reset_database(shell, ecosystem_config.link_to_code.clone(), dal).await?;
+        reset_database(shell, config.link_to_code(), dal).await?;
     }
 
     logger::outro(msg_database_success(MSG_DATABASE_RESET_PAST));

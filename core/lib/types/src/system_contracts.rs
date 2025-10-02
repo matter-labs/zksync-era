@@ -4,8 +4,12 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS,
-    PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS,
+    EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS,
+    L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
 };
 
 use crate::{
@@ -25,7 +29,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
     (
         "",
         "AccountCodeStorage",
@@ -94,6 +98,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
     ),
     (
         "precompiles/",
+        "Modexp",
+        MODEXP_PRECOMPILE_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
+        "precompiles/",
         "EcAdd",
         EC_ADD_PRECOMPILE_ADDRESS,
         ContractLanguage::Yul,
@@ -113,13 +123,19 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
     (
         "precompiles/",
         "P256Verify",
-        P256VERIFY_PRECOMPILE_ADDRESS,
+        SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
         ContractLanguage::Yul,
     ),
     (
         "precompiles/",
         "CodeOracle",
         CODE_ORACLE_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
+        "precompiles/",
+        "Identity",
+        IDENTITY_ADDRESS,
         ContractLanguage::Yul,
     ),
     (
@@ -153,6 +169,18 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
         EVM_GAS_MANAGER_ADDRESS,
         ContractLanguage::Yul,
     ),
+    (
+        "",
+        "EvmPredeploysManager",
+        EVM_PREDEPLOYS_MANAGER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "EvmHashesStorage",
+        EVM_HASHES_STORAGE_ADDRESS,
+        ContractLanguage::Sol,
+    ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.
     ("", "EmptyContract", Address::zero(), ContractLanguage::Sol),
@@ -174,42 +202,87 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
         CREATE2_FACTORY_ADDRESS,
         ContractLanguage::Sol,
     ),
+    (
+        "",
+        "L2GenesisUpgrade",
+        L2_GENESIS_UPGRADE_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "Bridgehub",
+        L2_BRIDGEHUB_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "MessageRoot",
+        L2_MESSAGE_ROOT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2AssetRouter",
+        L2_ASSET_ROUTER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2NativeTokenVault",
+        L2_NATIVE_TOKEN_VAULT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "SloadContract",
+        SLOAD_CONTRACT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2WrappedBaseToken",
+        L2_WRAPPED_BASE_TOKEN_IMPL,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "L2InteropRootStorage",
+        L2_INTEROP_ROOT_STORAGE_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2MessageVerification",
+        L2_MESSAGE_VERIFICATION_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "ChainAssetHandler",
+        L2_CHAIN_ASSET_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
 ];
 
 /// Gets default set of system contracts, based on Cargo workspace location.
-pub fn get_system_smart_contracts(use_evm_emulator: bool) -> Vec<DeployedContract> {
+pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
     SYSTEM_CONTRACT_LIST
         .iter()
-        .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
-                None
-            } else {
-                Some(DeployedContract {
-                    account_id: AccountTreeId::new(*address),
-                    bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
-                })
-            }
+        .map(|(path, name, address, contract_lang)| DeployedContract {
+            account_id: AccountTreeId::new(*address),
+            bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
         })
         .collect()
 }
 
 /// Loads system contracts from a given directory.
-pub fn get_system_smart_contracts_from_dir(
-    path: PathBuf,
-    use_evm_emulator: bool,
-) -> Vec<DeployedContract> {
+pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContract> {
     let repo = SystemContractsRepo { root: path };
     SYSTEM_CONTRACT_LIST
         .iter()
-        .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
-                None
-            } else {
-                Some(DeployedContract {
-                    account_id: AccountTreeId::new(*address),
-                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
-                })
-            }
+        .map(|(path, name, address, contract_lang)| DeployedContract {
+            account_id: AccountTreeId::new(*address),
+            bytecode: repo.read_sys_contract_bytecode(path, name, None, contract_lang.clone()),
         })
         .collect::<Vec<_>>()
 }

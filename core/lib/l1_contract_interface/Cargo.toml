@@ -18,6 +18,8 @@ zksync_prover_interface.workspace = true
 crypto_codegen.workspace = true
 # Used to calculate the kzg commitment and proofs
 kzg.workspace = true
+fflonk.workspace = true
+circuit_definitions.workspace = true
 
 anyhow.workspace = true
 sha2.workspace = true

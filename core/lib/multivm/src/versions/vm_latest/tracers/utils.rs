@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
@@ -22,33 +22,15 @@ use crate::vm_latest::{
         utils::{aux_heap_page_from_base, heap_page_from_base},
     },
     vm::MultiVmSubversion,
+    VmHook,
 };
-
-#[derive(Clone, Debug, Copy)]
-pub(crate) enum VmHook {
-    AccountValidationEntered,
-    PaymasterValidationEntered,
-    NoValidationEntered,
-    ValidationStepEndeded,
-    TxHasEnded,
-    DebugLog,
-    DebugReturnData,
-    NoHook,
-    NearCallCatch,
-    AskOperatorForRefund,
-    NotifyAboutRefund,
-    ExecutionResult,
-    FinalBatchInfo,
-    // Hook used to signal that the final pubdata for a batch is requested.
-    PubdataRequested,
-}
 
 impl VmHook {
     pub(crate) fn from_opcode_memory(
         state: &VmLocalStateData<'_>,
         data: &BeforeExecutionData,
         subversion: MultiVmSubversion,
-    ) -> Self {
+    ) -> Option<Self> {
         let opcode_variant = data.opcode.variant;
         let heap_page =
             heap_page_from_base(state.vm_local_state.callstack.current.base_memory_page).0;
@@ -64,33 +46,18 @@ impl VmHook {
             || heap_page != BOOTLOADER_HEAP_PAGE
             || fat_ptr.offset != get_vm_hook_position(subversion) * 32
         {
-            return Self::NoHook;
+            return None;
         }
 
-        match value.as_u32() {
-            0 => Self::AccountValidationEntered,
-            1 => Self::PaymasterValidationEntered,
-            2 => Self::NoValidationEntered,
-            3 => Self::ValidationStepEndeded,
-            4 => Self::TxHasEnded,
-            5 => Self::DebugLog,
-            6 => Self::DebugReturnData,
-            7 => Self::NearCallCatch,
-            8 => Self::AskOperatorForRefund,
-            9 => Self::NotifyAboutRefund,
-            10 => Self::ExecutionResult,
-            11 => Self::FinalBatchInfo,
-            12 => Self::PubdataRequested,
-            _ => panic!("Unknown hook: {}", value.as_u32()),
-        }
+        Some(Self::new(value.as_u32()))
     }
 }
 
-pub(crate) fn get_debug_log<H: HistoryMode>(
+pub(crate) fn print_debug_log<H: HistoryMode>(
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
     subversion: MultiVmSubversion,
-) -> String {
+) {
     let vm_hook_params: Vec<_> = get_vm_hook_params(memory, subversion)
         .into_iter()
         .map(u256_to_h256)
@@ -113,7 +80,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
         data.to_string()
     };
     let tx_id = state.vm_local_state.tx_number_in_block;
-    format!("Bootloader transaction {tx_id}: {msg}: {data_str}")
+    tracing::trace!("Bootloader transaction {tx_id}: {msg}: {data_str}");
 }
 
 /// Reads the memory slice represented by the fat pointer.
@@ -142,33 +109,17 @@ pub(crate) fn read_pointer<H: HistoryMode>(
 
 /// Outputs the returndata for the latest call.
 /// This is usually used to output the revert reason.
-pub(crate) fn get_debug_returndata<H: HistoryMode>(
+pub(crate) fn print_debug_returndata<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     latest_returndata_ptr: Option<FatPointer>,
-) -> String {
+) {
     let returndata = if let Some(ptr) = latest_returndata_ptr {
         read_pointer(memory, ptr)
     } else {
         vec![]
     };
 
-    format!("0x{}", hex::encode(returndata))
-}
-
-/// Accepts a vm hook and, if it requires to output some debug log, outputs it.
-pub(crate) fn print_debug_if_needed<H: HistoryMode>(
-    hook: &VmHook,
-    state: &VmLocalStateData<'_>,
-    memory: &SimpleMemory<H>,
-    latest_returndata_ptr: Option<FatPointer>,
-    subversion: MultiVmSubversion,
-) {
-    let log = match hook {
-        VmHook::DebugLog => get_debug_log(state, memory, subversion),
-        VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
-        _ => return,
-    };
-    tracing::trace!("{log}");
+    tracing::trace!("0x{}", hex::encode(returndata));
 }
 
 pub(crate) fn computational_gas_price(

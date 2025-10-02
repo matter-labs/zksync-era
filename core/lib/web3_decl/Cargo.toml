@@ -21,7 +21,6 @@ jsonrpsee = { workspace = true, features = [
 ] }
 pin-project-lite.workspace = true
 zksync_types.workspace = true
-zksync_config.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 serde_json.workspace = true
@@ -29,6 +28,10 @@ tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 vise.workspace = true
 rustls.workspace = true
+
+# DI-specific dependencies
+zksync_health_check = { workspace = true, optional = true }
+zksync_node_framework = { workspace = true, optional = true }
 
 [dev-dependencies]
 assert_matches.workspace = true
@@ -40,3 +43,4 @@ tokio = { workspace = true, features = ["rt", "test-util"] }
 default = []
 # Enables server stubs
 server = ["jsonrpsee/server"]
+node_framework = ["dep:zksync_node_framework", "zksync_health_check/node_framework"]

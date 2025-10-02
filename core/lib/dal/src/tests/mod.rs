@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::DateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
@@ -26,7 +27,7 @@ use crate::{
     protocol_versions_dal::ProtocolVersionsDal,
     transactions_dal::{L2TxSubmissionResult, TransactionsDal},
     transactions_web3_dal::TransactionsWeb3Dal,
-    Core,
+    Connection, Core,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -54,6 +55,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: PubdataParams::default(),
+        rolling_txs_hash: Some(H256::zero()),
     }
 }
 
@@ -162,8 +164,6 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
         execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
         call_traces: vec![],
         revert_reason: None,
     }
@@ -269,6 +269,25 @@ async fn workflow_with_submit_tx_diff_hashes() {
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
 
+async fn force_transaction_timestamp(
+    storage: &mut Connection<'_, Core>,
+    tx_hash: H256,
+    timestamp_ms: u64,
+) {
+    let timestamp_ms = timestamp_ms.try_into().unwrap();
+    let result = sqlx::query("UPDATE transactions SET received_at = $2 WHERE hash = $1::bytea")
+        .bind(tx_hash.as_bytes())
+        .bind(
+            DateTime::from_timestamp_millis(timestamp_ms)
+                .unwrap()
+                .naive_utc(),
+        )
+        .execute(storage.conn())
+        .await
+        .unwrap();
+    assert_eq!(result.rows_affected(), 1, "no transaction");
+}
+
 #[tokio::test]
 async fn remove_stuck_txs() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
@@ -283,8 +302,7 @@ async fn remove_stuck_txs() {
     let mut transactions_dal = TransactionsDal { storage };
 
     // Stuck tx
-    let mut tx = mock_l2_transaction();
-    tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
+    let tx = mock_l2_transaction();
     transactions_dal
         .insert_transaction_l2(
             &tx,
@@ -293,6 +311,9 @@ async fn remove_stuck_txs() {
         )
         .await
         .unwrap();
+    let old_timestamp_ms = unix_timestamp_ms() - 1_000_000;
+    force_transaction_timestamp(transactions_dal.storage, tx.hash(), old_timestamp_ms).await;
+
     // Tx in mempool
     let tx = mock_l2_transaction();
     transactions_dal
@@ -305,17 +326,15 @@ async fn remove_stuck_txs() {
         .unwrap();
 
     // Stuck L1 tx. We should never ever remove L1 tx
-    let mut tx = mock_l1_execute();
-    tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
+    let tx = mock_l1_execute();
     transactions_dal
         .insert_transaction_l1(&tx, L1BlockNumber(1))
         .await
         .unwrap();
+    force_transaction_timestamp(transactions_dal.storage, tx.hash(), old_timestamp_ms).await;
 
     // Old executed tx
-    let mut executed_tx = mock_l2_transaction();
-    executed_tx.received_timestamp_ms =
-        unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
+    let executed_tx = mock_l2_transaction();
     transactions_dal
         .insert_transaction_l2(
             &executed_tx,
@@ -324,11 +343,17 @@ async fn remove_stuck_txs() {
         )
         .await
         .unwrap();
+    force_transaction_timestamp(
+        transactions_dal.storage,
+        executed_tx.hash(),
+        old_timestamp_ms,
+    )
+    .await;
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();
     let txs = transactions_dal
-        .sync_mempool(&[], &[], 0, 0, 1000)
+        .sync_mempool(&[], &[], 0, 0, true, 1000)
         .await
         .unwrap();
     assert_eq!(txs.len(), 4);
@@ -354,7 +379,7 @@ async fn remove_stuck_txs() {
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();
     let txs = transactions_dal
-        .sync_mempool(&[], &[], 0, 0, 1000)
+        .sync_mempool(&[], &[], 0, 0, true, 1000)
         .await
         .unwrap();
     assert_eq!(txs.len(), 3);
@@ -367,7 +392,7 @@ async fn remove_stuck_txs() {
     assert_eq!(removed_txs, 1);
     transactions_dal.reset_mempool().await.unwrap();
     let txs = transactions_dal
-        .sync_mempool(&[], &[], 0, 0, 1000)
+        .sync_mempool(&[], &[], 0, 0, true, 1000)
         .await
         .unwrap();
     assert_eq!(txs.len(), 2);

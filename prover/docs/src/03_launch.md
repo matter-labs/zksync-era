@@ -58,25 +58,21 @@ zkstack prover run --component=witness-generator --round=all-rounds
 `--all_rounds` means that witness generator will produce witnesses of all kinds. You can run a witness generator for
 each round separately, but it's mostly useful in production environments.
 
-### Witness vector generator
+### Circuit Prover
 
 ```bash
-zkstack prover run --component=witness-vector-generator --threads 10
+zkstack prover run --component=circuit-prover --threads 32
 ```
 
-WVG prepares inputs for prover, and it's a single-threaded time-consuming operation. You may run several jobs by
-changing the `threads` parameter. The exact amount of WVGs needed to "feed" one prover depends on CPU/GPU specs, but a
-ballpark estimate (useful for local development) is 10 WVGs per prover.
+Circuit prover takes outputs from witness generators and produces proofs out of it. As part of the process, there's
+vector generation and GPU proving. Vector Generation is single-threaded time-consuming operation. You may run multiple
+jobs by changing `--threads` parameter, it should correspond to the number of CPU cores. Alternatively you can use
+advanced mode by setting `--light_wvg_count` and `--heavy_wvg_count` parameters instead of `--threads`. The exact amount
+depends strictly on your CPU/GPU specs, but a ballpark estimate (useful for local development) is 15 light & 1 heavy.
 
-> NOTE: The WVG thread typically uses approximately 10GB of RAM.
-
-### Prover
-
-```bash
-zkstack prover run --component=prover
+```admonish note
+The light threads typically uses approximately 2GB of RAM, with heavy ~10GB of RAM.
 ```
-
-Prover can prove any kinds of circuits, so you only need a single instance.
 
 ### Prover job monitor
 
@@ -103,8 +99,10 @@ zkstack dev prover info
 
 ### Proof compressor
 
-⚠️ Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
+```admonish warning
+Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
 GPU. So unless you have a GPU with 48GB of VRAM, you won't be able to run both at the same time.
+```
 
 You should wait until the proof is generated, and once you see in the server logs that it tries to find available
 compressor, you can shut the prover down, and run the proof compressor:

@@ -1,32 +1,40 @@
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
+    sync::Arc,
 };
 
-use zk_evm_1_5_0::{
+use once_cell::sync::OnceCell;
+use zk_evm_1_5_2::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
 use zksync_types::{
-    bytecode::BytecodeHash, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
-    U256,
+    bytecode::BytecodeHash, l2::L2Tx, vm::VmVersion, writes::StateDiffRecord, StorageKey,
+    StorageValue, Transaction, H256, U256,
 };
+use zksync_vm_interface::{Call, InspectExecutionMode, VmInterface};
 
-use super::{HistoryEnabled, Vm};
+use super::{HistoryEnabled, ToTracerPointer, Vm};
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
+        tracer::ViolatedValidationRule,
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
+    tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::bytecode::bytes_to_be_words,
-    versions::testonly::{filter_out_base_system_contracts, TestedVm},
+    versions::testonly::{
+        filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
+        TestedVmWithCallTracer, TestedVmWithStorageLimit,
+    },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
         tracers::PubdataTracer,
-        types::internals::TransactionData,
+        types::TransactionData,
         utils::logs::StorageLogQuery,
         AppDataFrameManagerWithHistory, HistoryMode, SimpleMemory, TracerDispatcher,
     },
@@ -36,19 +44,21 @@ mod bootloader;
 mod default_aa;
 // TODO - fix this test
 // `mod invalid_bytecode;`
+mod account_validation_rules;
 mod block_tip;
 mod bytecode_publishing;
 mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod constants;
-mod evm_emulator;
+mod evm;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
 mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
+mod mock_evm;
 mod nonce_holder;
 mod precompiles;
 mod prestate_tracer;
@@ -195,6 +205,32 @@ impl TestedVm for TestedLatestVm {
     }
 }
 
+impl TestedVmForValidation for TestedLatestVm {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>) {
+        let validation_params = validation_params(&tx, &self.system_env);
+        self.push_transaction(tx.into());
+
+        let tracer = ValidationTracer::<HistoryEnabled>::new(
+            validation_params,
+            VmVersion::latest(),
+            timestamp,
+        );
+        let mut failures = tracer.get_result();
+
+        let result = self.inspect_inner(
+            &mut tracer.into_tracer_pointer().into(),
+            VmExecutionMode::OneTx,
+            None,
+        );
+        let violated_rule = Arc::make_mut(&mut failures).take();
+        (result, violated_rule)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);
 
@@ -266,7 +302,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: ReadStorage, H: crate::glue::history_mode::HistoryMode> Vm<StorageView<S>, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_0> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_2> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),
@@ -308,5 +344,22 @@ impl<S: ReadStorage, H: crate::glue::history_mode::HistoryMode> Vm<StorageView<S
             storage_oracle_state,
             local_state,
         }
+    }
+}
+
+impl TestedVmWithCallTracer for TestedLatestVm {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        let result = Arc::new(OnceCell::new());
+        let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
+        let res = self.inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
+        let traces = result.get().unwrap().clone();
+        (res, traces)
+    }
+}
+
+impl TestedVmWithStorageLimit for TestedLatestVm {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
+        let tracer = StorageInvocations::new(limit).into_tracer_pointer();
+        self.inspect(&mut tracer.into(), InspectExecutionMode::OneTx)
     }
 }

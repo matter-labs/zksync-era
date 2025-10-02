@@ -1,6 +1,6 @@
-# ZKsync node Observability
+# Node Observability
 
-The ZKsync node provides several options for setting up observability. Configuring logs and sentry is described in the
+The Node provides several options for setting up observability. Configuring logs and sentry is described in the
 [configuration](02_configuration.md) section, so this section focuses on the exposed metrics.
 
 This section is written with the assumption that you're familiar with
@@ -16,8 +16,8 @@ By default, latency histograms are distributed in the following buckets (in seco
 
 ## Metrics
 
-ZKsync node exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow.
-This section's purpose is to highlight metrics that may be worth observing in the external setup.
+Node exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow. This
+section's purpose is to highlight metrics that may be worth observing in the external setup.
 
 If you are not planning to scrape Prometheus metrics, please unset `EN_PROMETHEUS_PORT` environment variable to prevent
 memory leaking.
@@ -25,7 +25,7 @@ memory leaking.
 | Metric name                                    | Type      | Labels                                | Description                                                        |
 | ---------------------------------------------- | --------- | ------------------------------------- | ------------------------------------------------------------------ |
 | `external_node_synced`                         | Gauge     | -                                     | 1 if synced, 0 otherwise. Matches `eth_call` behavior              |
-| `external_node_sync_lag`                       | Gauge     | -                                     | How many blocks behind the main node the ZKsync node is            |
+| `external_node_sync_lag`                       | Gauge     | -                                     | How many blocks behind the main node the Node is                   |
 | `external_node_fetcher_requests`               | Histogram | `stage`, `actor`                      | Duration of requests performed by the different fetcher components |
 | `external_node_fetcher_cache_requests`         | Histogram | -                                     | Duration of requests performed by the fetcher cache layer          |
 | `external_node_fetcher_miniblock`              | Gauge     | `status`                              | The number of the last L2 block update fetched from the main node  |

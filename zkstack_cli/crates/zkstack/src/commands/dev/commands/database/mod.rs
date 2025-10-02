@@ -37,12 +37,12 @@ pub enum DatabaseCommands {
 
 pub async fn run(shell: &Shell, args: DatabaseCommands) -> anyhow::Result<()> {
     match args {
-        DatabaseCommands::CheckSqlxData(args) => check_sqlx_data::run(shell, args),
+        DatabaseCommands::CheckSqlxData(args) => check_sqlx_data::run(shell, args).await,
         DatabaseCommands::Drop(args) => drop::run(shell, args).await,
-        DatabaseCommands::Migrate(args) => migrate::run(shell, args),
-        DatabaseCommands::NewMigration(args) => new_migration::run(shell, args),
-        DatabaseCommands::Prepare(args) => prepare::run(shell, args),
+        DatabaseCommands::Migrate(args) => migrate::run(shell, args).await,
+        DatabaseCommands::NewMigration(args) => new_migration::run(shell, args).await,
+        DatabaseCommands::Prepare(args) => prepare::run(shell, args).await,
         DatabaseCommands::Reset(args) => reset::run(shell, args).await,
-        DatabaseCommands::Setup(args) => setup::run(shell, args),
+        DatabaseCommands::Setup(args) => setup::run(shell, args).await,
     }
 }

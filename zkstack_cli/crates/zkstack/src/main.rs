@@ -4,25 +4,28 @@ use commands::{
     contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
     error::log_error,
     init_prompt_theme, logger,
     version::version_message,
 };
-use config::EcosystemConfig;
-use xshell::Shell;
+use zkstack_cli_config::ZkStackConfig;
 
 use crate::commands::{
     args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
-    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
+    explorer::ExplorerCommands, external_node::ExternalNodeCommands,
+    private_rpc::PrivateRpcCommands, prover::ProverCommands,
 };
 
-pub mod accept_ownership;
+pub mod abi;
+pub mod admin_functions;
 mod commands;
 mod consts;
 mod defaults;
+pub mod enable_evm_emulator;
 pub mod external_node;
 mod messages;
 mod utils;
@@ -69,6 +72,9 @@ pub enum ZkStackSubcommands {
     ContractVerifier(ContractVerifierCommands),
     /// Run dapp-portal
     Portal,
+    /// Run private RPC
+    #[command(subcommand)]
+    PrivateRPC(PrivateRpcCommands),
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
@@ -151,13 +157,16 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<ZkStack>();
         }
+        ZkStackSubcommands::PrivateRPC(args) => {
+            commands::private_rpc::run(&shell, args).await?;
+        }
     }
     Ok(())
 }
 
 fn init_global_config_inner(shell: &Shell, zkstack_args: &ZkStackGlobalArgs) -> anyhow::Result<()> {
     if let Some(name) = &zkstack_args.chain {
-        if let Ok(config) = EcosystemConfig::from_file(shell) {
+        if let Ok(config) = ZkStackConfig::ecosystem(shell) {
             let chains = config.list_of_chains();
             if !chains.contains(name) {
                 anyhow::bail!(

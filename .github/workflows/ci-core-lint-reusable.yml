@@ -3,39 +3,72 @@ on:
   workflow_call:
 
 jobs:
+
+  # Linter for new crates
+  # checks that all required fields are present in Cargo.toml files of newly added crates
+  check-new-crates:
+    name: Check new crates
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
+        with:
+          files: '**/Cargo.toml'
+
+      - name: Lint Cargo.toml files of new crates
+        if: ${{ steps.changed-files.outputs.added_files != '' }}
+        env:
+          ADDED_FILES: ${{ steps.changed-files.outputs.added_files }}
+          REQUIRED_FIELDS: 'name version edition description license'
+        run: |
+          MISSING_ANY=false
+          for FILE in ${ADDED_FILES}; do
+            echo "✅ New crate added: ${FILE}"
+            PACKAGE_NAME="$(yq -oy .package.name ${FILE})"
+            echo "Checking required fields fields for a new package ${PACKAGE_NAME}..."
+            MISSING_FIELDS=""
+            for FIELD in ${REQUIRED_FIELDS}; do
+              if ! yq -oy -e .package.${FIELD} ${FILE} > /dev/null 2>&1; then
+                echo "Error: missing field '${FIELD}' in ${FILE} for crates.io publishing!"
+                MISSING_FIELDS="${MISSING_FIELDS} ${FIELD}"
+                MISSING_ANY=true
+              fi
+            done
+            if [ "${MISSING_FIELDS}" != "" ]; then
+              echo "----------------------------------------"
+              echo "❌ Error: missing fields '$(echo "${MISSING_FIELDS}" | xargs)' in ${FILE} for crates.io publishing!"
+              echo "❌ Please, add all required fields to the Cargo.toml file of the new crate."
+              echo "----------------------------------------"
+            fi
+          done
+          if [[ "${MISSING_ANY}" == true ]]; then
+            exit 1
+          fi
+
   code_lint:
     runs-on: matterlabs-ci-runner-highmem-long
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
 
       - name: Setup environment
         run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
           echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
           echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
           echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-      
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Build
         run: |
           ci_run yarn install
-          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Database setup
         run: |
@@ -49,8 +82,8 @@ jobs:
           ci_run zkstack dev lint -t js --check
           ci_run zkstack dev lint -t ts --check
           ci_run zkstack dev lint -t rs --check
-          ci_run zkstack dev lint -t autocompletion --check
           ci_run zkstack dev lint -t rust-toolchain
+          ci_run zkstack dev lint -t autocompletion
 
       - name: Check Database
         run: |

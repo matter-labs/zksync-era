@@ -1,36 +1,32 @@
-pub use apps::*;
-pub use chain::*;
-pub use consts::*;
-pub use contracts::*;
-pub use ecosystem::*;
-pub use file_config::*;
-pub use general::*;
-pub use genesis::*;
-pub use manipulations::*;
-pub use secrets::*;
-pub use wallet_creation::*;
-pub use wallets::*;
-pub use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
+pub use crate::{
+    apps::*, chain::*, consensus::*, consts::*, contracts::*, ecosystem::*, en::*, file_config::*,
+    gateway::*, general::*, genesis::*, manipulations::*, object_store::*, secrets::*,
+    wallet_creation::*, wallets::*, zkstack_config::*,
+};
 
 mod apps;
 mod chain;
+mod consensus;
 mod consts;
 mod contracts;
+pub mod da;
+pub mod docker_compose;
 mod ecosystem;
+mod en;
+pub mod explorer;
+pub mod explorer_compose;
 mod file_config;
+pub mod forge_interface;
+mod gateway;
 mod general;
 mod genesis;
 mod manipulations;
+mod object_store;
+pub mod portal;
+pub mod private_proxy_compose;
+mod raw;
 mod secrets;
+pub mod traits;
 mod wallet_creation;
 mod wallets;
-
-pub mod consensus_config;
-pub mod consensus_secrets;
-pub mod docker_compose;
-pub mod explorer;
-pub mod explorer_compose;
-pub mod external_node;
-pub mod forge_interface;
-pub mod portal;
-pub mod traits;
+mod zkstack_config;

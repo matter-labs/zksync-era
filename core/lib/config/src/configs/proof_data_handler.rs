@@ -1,73 +1,110 @@
 use std::time::Duration;
 
-use serde::Deserialize;
-use zksync_basic_types::L1BatchNumber;
+use serde::{Deserialize, Serialize};
+use smart_config::{de::WellKnown, metadata::TimeUnit, DescribeConfig, DeserializeConfig, Serde};
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct TeeConfig {
-    /// If true, the TEE support is enabled.
-    pub tee_support: bool,
-    /// All batches before this one are considered to be processed.
-    pub first_tee_processed_batch: L1BatchNumber,
-    /// Timeout in seconds for retrying the preparation of input for TEE proof generation if it
-    /// previously failed (e.g., due to a transient network issue) or if it was picked by a TEE
-    /// prover but the TEE proof was not submitted within that time.
-    pub tee_proof_generation_timeout_in_secs: u16,
-    /// Timeout in hours after which a batch will be permanently ignored if repeated retries failed.
-    pub tee_batch_permanently_ignored_timeout_in_hours: u16,
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct ProofDataHandlerConfig {
+    pub http_port: u16,
+    #[config(default_t = 1 * TimeUnit::Minutes)]
+    pub proof_generation_timeout: Duration,
+    pub gateway_api_url: Option<String>,
+    #[config(default_t = Duration::from_secs(10))]
+    pub proof_fetch_interval: Duration,
+    #[config(default_t = Duration::from_secs(10))]
+    pub proof_gen_data_submit_interval: Duration,
+    #[config(default_t = true)]
+    pub fetch_zero_chain_id_proofs: bool,
+    #[config(default_t = ProvingMode::ProverCluster)]
+    pub proving_mode: ProvingMode,
 }
 
-impl Default for TeeConfig {
-    fn default() -> Self {
-        TeeConfig {
-            tee_support: Self::default_tee_support(),
-            first_tee_processed_batch: Self::default_first_tee_processed_batch(),
-            tee_proof_generation_timeout_in_secs:
-                Self::default_tee_proof_generation_timeout_in_secs(),
-            tee_batch_permanently_ignored_timeout_in_hours:
-                Self::default_tee_batch_permanently_ignored_timeout_in_hours(),
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ProvingMode {
+    ProvingNetwork,
+    ProverCluster,
+}
+
+impl ProvingMode {
+    pub fn into_string(&self) -> String {
+        match self {
+            ProvingMode::ProvingNetwork => "proving_network".to_string(),
+            ProvingMode::ProverCluster => "prover_cluster".to_string(),
         }
     }
 }
 
-impl TeeConfig {
-    pub fn default_tee_support() -> bool {
-        false
-    }
-
-    pub fn default_first_tee_processed_batch() -> L1BatchNumber {
-        L1BatchNumber(0)
-    }
-
-    pub fn default_tee_proof_generation_timeout_in_secs() -> u16 {
-        60
-    }
-
-    pub fn default_tee_batch_permanently_ignored_timeout_in_hours() -> u16 {
-        10 * 24
-    }
-
-    pub fn tee_proof_generation_timeout(&self) -> Duration {
-        Duration::from_secs(self.tee_proof_generation_timeout_in_secs.into())
-    }
-
-    pub fn tee_batch_permanently_ignored_timeout(&self) -> Duration {
-        Duration::from_secs(3600 * u64::from(self.tee_batch_permanently_ignored_timeout_in_hours))
-    }
+impl WellKnown for ProvingMode {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ProofDataHandlerConfig {
-    pub http_port: u16,
-    pub proof_generation_timeout_in_secs: u16,
-    #[serde(skip)]
-    // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
-    // doesn't work with `envy`: https://github.com/softprops/envy/issues/26
-    pub tee_config: TeeConfig,
-}
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
-impl ProofDataHandlerConfig {
-    pub fn proof_generation_timeout(&self) -> Duration {
-        Duration::from_secs(self.proof_generation_timeout_in_secs as u64)
+    use super::*;
+
+    fn expected_config() -> ProofDataHandlerConfig {
+        ProofDataHandlerConfig {
+            http_port: 3320,
+            proof_generation_timeout: Duration::from_secs(18000),
+            gateway_api_url: Some("http://gateway/".to_owned()),
+            proof_fetch_interval: Duration::from_secs(15),
+            proof_gen_data_submit_interval: Duration::from_secs(20),
+            fetch_zero_chain_id_proofs: false,
+            proving_mode: ProvingMode::ProverCluster,
+        }
+    }
+
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
+            PROOF_DATA_HANDLER_HTTP_PORT="3320"
+            PROOF_DATA_HANDLER_GATEWAY_API_URL="http://gateway/"
+            PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS=15
+            PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS=20
+            PROOF_DATA_HANDLER_FETCH_ZERO_CHAIN_ID_PROOFS=false
+            PROOF_DATA_HANDLER_PROVING_MODE=ProverCluster
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("PROOF_DATA_HANDLER_");
+
+        let config: ProofDataHandlerConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          http_port: 3320
+          proof_generation_timeout_in_secs: 18000
+          gateway_api_url: "http://gateway/"
+          proof_fetch_interval_in_secs: 15
+          proof_gen_data_submit_interval_in_secs: 20
+          fetch_zero_chain_id_proofs: false
+          proving_mode: ProverCluster
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          http_port: 3320
+          proof_generation_timeout: 5 hours
+          gateway_api_url: "http://gateway/"
+          proof_fetch_interval: 15s
+          proof_gen_data_submit_interval: 20 secs
+          fetch_zero_chain_id_proofs: false
+          proving_mode: ProverCluster
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
     }
 }

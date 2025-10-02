@@ -9,4 +9,3 @@ queue_capacity = 10
 witness_vector_receiver_port = 3316
 zone_read_url = "http://metadata.google.internal/computeMetadata/v1/instance/zone"
 availability_check_interval_in_secs = 10
-shall_save_to_public_bucket = true

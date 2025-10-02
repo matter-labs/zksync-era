@@ -2,7 +2,7 @@ use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    SealCriteriaConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -11,10 +11,10 @@ pub struct TxEncodingSizeCriterion;
 impl SealCriterion for TxEncodingSizeCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
@@ -39,6 +39,20 @@ impl SealCriterion for TxEncodingSizeCriterion {
         }
     }
 
+    fn capacity_filled(
+        &self,
+        _config: &SealCriteriaConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        _interop_roots_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        let used_size = block_data.cumulative_size as f64;
+        let full_size = get_bootloader_encoding_space(protocol_version.into()) as f64;
+        Some(used_size / full_size)
+    }
+
     fn prom_criterion_name(&self) -> &'static str {
         "tx_encoding_size"
     }
@@ -54,10 +68,10 @@ mod tests {
             get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
+        let config = SealCriteriaConfig {
             reject_tx_at_geometry_percentage: 0.95,
             close_block_at_geometry_percentage: 0.95,
-            ..Default::default()
+            ..SealCriteriaConfig::for_tests()
         };
 
         let criterion = TxEncodingSizeCriterion;

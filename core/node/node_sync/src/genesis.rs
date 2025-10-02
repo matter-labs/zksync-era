@@ -49,11 +49,10 @@ async fn create_genesis_params(
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
     // them and try to fetch the contract bytecode for each of them.
-    let system_contract_addresses: Vec<_> =
-        get_system_smart_contracts(config.evm_emulator_hash.is_some())
-            .into_iter()
-            .map(|contract| *contract.account_id.address())
-            .collect();
+    let system_contract_addresses: Vec<_> = get_system_smart_contracts()
+        .into_iter()
+        .map(|contract| *contract.account_id.address())
+        .collect();
 
     // These have to be *initial* base contract hashes of main node
     // (those that were used during genesis), not necessarily the current ones.
@@ -74,7 +73,7 @@ async fn create_genesis_params(
             .fetch_genesis_contract_bytecode(system_contract_address)
             .await?
         else {
-            // It's OK for some of contracts to be absent.
+            // It's OK for some contracts to be absent.
             // If this is a bug, the genesis root hash won't match.
             tracing::debug!("System contract with address {system_contract_address:?} is absent at genesis state");
             continue;

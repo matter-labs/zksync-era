@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use chrono::Utc;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zksync_config::configs::ExternalPriceApiClientConfig;
-use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-use crate::{address_to_string, utils::get_fraction, PriceAPIClient};
+use crate::{address_to_string, utils::eth_price_to_base_token_ratio, APIToken, PriceApiClient};
 
 #[derive(Debug)]
 pub struct CoinGeckoPriceAPIClient {
@@ -19,6 +18,7 @@ pub struct CoinGeckoPriceAPIClient {
 const DEFAULT_COINGECKO_API_URL: &str = "https://pro-api.coingecko.com";
 const COINGECKO_AUTH_HEADER: &str = "x-cg-pro-api-key";
 const ETH_ID: &str = "eth";
+const ZKSYNC_ID: &str = "zksync";
 
 impl CoinGeckoPriceAPIClient {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
@@ -32,7 +32,7 @@ impl CoinGeckoPriceAPIClient {
 
             reqwest::Client::builder()
                 .default_headers(headers)
-                .timeout(config.client_timeout())
+                .timeout(config.client_timeout)
                 .build()
                 .expect("Failed to build reqwest client")
         } else {
@@ -82,21 +82,45 @@ impl CoinGeckoPriceAPIClient {
             )),
         }
     }
+
+    /// return zk token price in ETH. Returned value is X such that 1 ZK = X ETH
+    async fn get_zk_price_in_eth(&self) -> anyhow::Result<f64> {
+        let price_url = self
+            .base_url
+            .join(&format!(
+                "/api/v3/simple/price?ids={}&vs_currencies={}",
+                ZKSYNC_ID, ETH_ID
+            ))
+            .expect("failed to join URL path");
+
+        let response = self.client.get(price_url).send().await?;
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Http error while fetching token price. Status: {}, token: {}, msg: {}",
+                response.status(),
+                ZKSYNC_ID,
+                response.text().await.unwrap_or(String::new())
+            ));
+        }
+
+        let cg_response = response.json::<CoinGeckoPriceResponse>().await?;
+        match cg_response.get_price(&ZKSYNC_ID.to_string(), &ETH_ID.to_string()) {
+            Some(&price) => Ok(price),
+            None => Err(anyhow::anyhow!("Price not found for token: {}", ZKSYNC_ID)),
+        }
+    }
 }
 
 #[async_trait]
-impl PriceAPIClient for CoinGeckoPriceAPIClient {
-    async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
-        let (num_in_eth, denom_in_eth) = get_fraction(base_token_in_eth)?;
-        // take reciprocal of price as returned price is ETH/BaseToken and BaseToken/ETH is needed
-        let (num_in_base, denom_in_base) = (denom_in_eth, num_in_eth);
-
-        return Ok(BaseTokenAPIRatio {
-            numerator: num_in_base,
-            denominator: denom_in_base,
-            ratio_timestamp: Utc::now(),
-        });
+impl PriceApiClient for CoinGeckoPriceAPIClient {
+    async fn fetch_ratio(&self, token: APIToken) -> anyhow::Result<BaseTokenApiRatio> {
+        match token {
+            APIToken::Eth => Ok(BaseTokenApiRatio::default()),
+            APIToken::ERC20(token_address) => {
+                eth_price_to_base_token_ratio(self.get_token_price_by_address(token_address).await?)
+            }
+            APIToken::ZK => eth_price_to_base_token_ratio(self.get_zk_price_in_eth().await?),
+        }
     }
 }
 
@@ -117,7 +141,6 @@ impl CoinGeckoPriceResponse {
 #[cfg(test)]
 mod test {
     use httpmock::MockServer;
-    use zksync_config::configs::external_price_api_client::DEFAULT_TIMEOUT_MS;
 
     use super::*;
     use crate::tests::*;
@@ -169,8 +192,7 @@ mod test {
             base_url: Some(base_url),
             api_key,
             source: "coingecko".to_string(),
-            client_timeout_ms: DEFAULT_TIMEOUT_MS,
-            forced: None,
+            ..ExternalPriceApiClientConfig::default()
         }
     }
 

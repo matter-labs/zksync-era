@@ -1,9 +1,13 @@
-pub mod types;
-
 use std::fmt;
 
 use async_trait::async_trait;
-use types::{DAError, DispatchResponse, InclusionData};
+use chrono::{DateTime, Utc};
+
+use crate::types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData};
+
+#[cfg(feature = "node_framework")]
+pub mod node;
+pub mod types;
 
 /// Trait that defines the interface for the data availability layer clients.
 #[async_trait]
@@ -15,6 +19,13 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError>;
 
+    /// Ensures the finality of a blob.
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+        dispatched_at: DateTime<Utc>,
+    ) -> Result<Option<FinalityResponse>, DAError>;
+
     /// Fetches the inclusion data for a given blob_id.
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError>;
 
@@ -23,6 +34,12 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
 
     /// Returns the maximum size of the blob (in bytes) that can be dispatched. None means no limit.
     fn blob_size_limit(&self) -> Option<usize>;
+
+    /// Returns the name of the client implementation.
+    fn client_type(&self) -> ClientType;
+
+    /// Returns the balance of the operator account.
+    async fn balance(&self) -> Result<u64, DAError>;
 }
 
 impl Clone for Box<dyn DataAvailabilityClient> {

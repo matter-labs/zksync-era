@@ -48,7 +48,7 @@ The command will create the ecosystem and all the necessary components for the p
 values for all the prompts you will see Now, you need to initialize the prover subsystem by running:
 
 ```shell
-zkstack prover init --shall-save-to-public-bucket=false --setup-database=true --use-default=true --dont-drop=false
+zkstack prover init --setup-database=true --use-default=true --dont-drop=false
 ```
 
 For prompts you can leave default values as well.

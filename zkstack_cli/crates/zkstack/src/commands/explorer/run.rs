@@ -1,12 +1,15 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, docker, logger};
-use config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{config::global_config, docker, logger};
+use zkstack_cli_config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, ZkStackConfig};
 
 use crate::{
-    consts::{EXPLORER_APP_DOCKER_CONFIG_PATH, EXPLORER_APP_DOCKER_IMAGE},
+    consts::{
+        EXPLORER_APP_DOCKER_CONFIG_PATH, EXPLORER_APP_DOCKER_IMAGE, EXPLORER_APP_DOCKER_IMAGE_TAG,
+        EXPLORER_APP_PRIVIDIUM_DOCKER_IMAGE_TAG,
+    },
     messages::{
         msg_explorer_running_with_config, msg_explorer_starting_on,
         MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR, MSG_EXPLORER_FAILED_TO_FIND_ANY_CHAIN_ERR,
@@ -15,7 +18,7 @@ use crate::{
 };
 
 pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let ecosystem_path = shell.current_dir();
     // Get ecosystem level apps.yaml config
     let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;
@@ -55,6 +58,12 @@ pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
         &config_js_path,
         &name,
         apps_config.explorer.http_port,
+        // NOTE: Prividium mode only supports one chain at the moment
+        explorer_config
+            .environment_config
+            .networks
+            .iter()
+            .any(|chain| chain.prividium),
     )?;
     Ok(())
 }
@@ -64,6 +73,7 @@ fn run_explorer(
     config_file_path: &Path,
     name: &str,
     port: u16,
+    prividium: bool,
 ) -> anyhow::Result<()> {
     let port_mapping = format!("{}:{}", port, port);
     let volume_mapping = format!(
@@ -86,7 +96,14 @@ fn run_explorer(
         "--rm".to_string(),
     ];
 
-    docker::run(shell, EXPLORER_APP_DOCKER_IMAGE, docker_args)
+    let docker_image_tag = if prividium {
+        EXPLORER_APP_PRIVIDIUM_DOCKER_IMAGE_TAG
+    } else {
+        EXPLORER_APP_DOCKER_IMAGE_TAG
+    };
+    let docker_image = docker::get_image_with_tag(EXPLORER_APP_DOCKER_IMAGE, docker_image_tag);
+
+    docker::run(shell, &docker_image, docker_args)
         .with_context(|| MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR)?;
     Ok(())
 }

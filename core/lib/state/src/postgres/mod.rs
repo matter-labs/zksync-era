@@ -1,24 +1,18 @@
 use std::{
     mem,
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
-use tokio::{
-    runtime::Handle,
-    sync::{
-        mpsc::{self, UnboundedReceiver},
-        watch,
-    },
-};
+use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
-use crate::cache::{lru_cache::LruCache, CacheValue};
+use crate::cache::lru_cache::LruCache;
 
 mod metrics;
 #[cfg(test)]
@@ -33,26 +27,8 @@ struct TimestampedFactoryDep {
 /// Type alias for smart contract source code cache.
 type FactoryDepsCache = LruCache<H256, TimestampedFactoryDep>;
 
-impl CacheValue<H256> for TimestampedFactoryDep {
-    fn cache_weight(&self) -> u32 {
-        (self.bytecode.len() + mem::size_of::<L2BlockNumber>())
-            .try_into()
-            .expect("Cached bytes are too large")
-    }
-}
-
 /// Type alias for initial writes caches.
 type InitialWritesCache = LruCache<H256, L1BatchNumber>;
-
-impl CacheValue<H256> for L1BatchNumber {
-    #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
-    fn cache_weight(&self) -> u32 {
-        const WEIGHT: usize = mem::size_of::<L1BatchNumber>() + mem::size_of::<H256>();
-        // ^ Since values are small, we want to account for key sizes as well
-
-        WEIGHT as u32
-    }
-}
 
 /// [`StorageValue`] together with an L2 block "timestamp" starting from which it is known to be valid.
 ///
@@ -66,15 +42,6 @@ impl CacheValue<H256> for L1BatchNumber {
 struct TimestampedStorageValue {
     value: StorageValue,
     loaded_at: L2BlockNumber,
-}
-
-impl CacheValue<H256> for TimestampedStorageValue {
-    #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
-    fn cache_weight(&self) -> u32 {
-        const WEIGHT: usize = mem::size_of::<TimestampedStorageValue>() + mem::size_of::<H256>();
-        // ^ Since values are small, we want to account for key sizes as well
-        WEIGHT as u32
-    }
 }
 
 #[derive(Debug)]
@@ -108,7 +75,7 @@ impl ValuesCache {
     fn new(capacity: u64) -> Self {
         let inner = ValuesCacheInner {
             valid_for: L2BlockNumber(0),
-            values: LruCache::new("values_cache", capacity),
+            values: LruCache::uniform("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
     }
@@ -196,11 +163,20 @@ impl ValuesCache {
         &self,
         from_l2_block: L2BlockNumber,
         to_l2_block: L2BlockNumber,
+        receive_latency: Duration,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        tracing::debug!(
-            "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
-        );
+        if from_l2_block == L2BlockNumber(0) {
+            tracing::debug!(
+                ?receive_latency,
+                "Initializing storage values cache at L2 block {to_l2_block}"
+            );
+        } else {
+            tracing::debug!(
+                ?receive_latency,
+                "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
+            );
+        }
 
         let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
         let l2_blocks = (from_l2_block + 1)..=to_l2_block;
@@ -252,7 +228,7 @@ impl ValuesCache {
 #[derive(Debug, Clone)]
 struct ValuesCacheAndUpdater {
     cache: ValuesCache,
-    command_sender: mpsc::UnboundedSender<L2BlockNumber>,
+    command_sender: Arc<watch::Sender<(L2BlockNumber, Instant)>>,
 }
 
 /// Caches used during VM execution.
@@ -280,6 +256,7 @@ pub struct PostgresStorageCaches {
 
 impl PostgresStorageCaches {
     /// Creates caches with the specified capacities measured in bytes.
+    #[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)] // not triggered in practice
     pub fn new(factory_deps_capacity: u64, initial_writes_capacity: u64) -> Self {
         tracing::debug!(
             "Initialized VM execution cache with {factory_deps_capacity}B capacity for factory deps, \
@@ -287,12 +264,20 @@ impl PostgresStorageCaches {
         );
 
         Self {
-            factory_deps: FactoryDepsCache::new("factory_deps_cache", factory_deps_capacity),
-            initial_writes: InitialWritesCache::new(
+            factory_deps: FactoryDepsCache::weighted(
+                "factory_deps_cache",
+                factory_deps_capacity,
+                |_, value| {
+                    (value.bytecode.len() + mem::size_of::<L2BlockNumber>())
+                        .try_into()
+                        .expect("Cached bytes are too large")
+                },
+            ),
+            initial_writes: InitialWritesCache::uniform(
                 "initial_writes_cache",
                 initial_writes_capacity / 2,
             ),
-            negative_initial_writes: InitialWritesCache::new(
+            negative_initial_writes: InitialWritesCache::uniform(
                 "negative_initial_writes_cache",
                 initial_writes_capacity / 2,
             ),
@@ -320,11 +305,11 @@ impl PostgresStorageCaches {
         );
         tracing::debug!("Initializing VM storage values cache with {capacity}B capacity");
 
-        let (command_sender, command_receiver) = mpsc::unbounded_channel();
+        let (command_sender, command_receiver) = watch::channel((L2BlockNumber(0), Instant::now()));
         let values_cache = ValuesCache::new(capacity);
         self.values = Some(ValuesCacheAndUpdater {
             cache: values_cache.clone(),
-            command_sender,
+            command_sender: Arc::new(command_sender),
         });
 
         // We want to run updates in a separate task in order to not block VM execution on update
@@ -349,13 +334,31 @@ impl PostgresStorageCaches {
         let Some(values) = &self.values else {
             return;
         };
-        if values.cache.valid_for() < to_l2_block {
-            // Filter out no-op updates right away in order to not store lots of them in RAM.
-            // Since the task updating the values cache (`PostgresStorageCachesTask`) is cancel-aware,
-            // it can stop before some of `schedule_values_update()` calls; in this case, it's OK
-            // to ignore the updates.
-            values.command_sender.send(to_l2_block).ok();
-        }
+
+        values.command_sender.send_if_modified(|command| {
+            if command.0 < to_l2_block {
+                let now = Instant::now();
+                let command_interval = now
+                    .checked_duration_since(command.1)
+                    .unwrap_or(Duration::ZERO);
+                CACHE_METRICS
+                    .values_command_interval
+                    .observe(command_interval);
+                tracing::debug!(
+                    ?command_interval,
+                    "Queued update command from L2 block {} to {to_l2_block}",
+                    command.0
+                );
+                *command = (to_l2_block, now);
+                true
+            } else {
+                // Filter out no-op updates right away in order to not wake up the update task unnecessarily.
+                // Since the task updating the values cache (`PostgresStorageCachesTask`) is cancel-aware,
+                // it can stop before some of `schedule_values_update()` calls; in this case, it's OK
+                // to ignore the updates.
+                false
+            }
+        });
     }
 }
 
@@ -365,7 +368,7 @@ pub struct PostgresStorageCachesTask {
     connection_pool: ConnectionPool<Core>,
     values_cache: ValuesCache,
     max_l2_blocks_lag: u32,
-    command_receiver: UnboundedReceiver<L2BlockNumber>,
+    command_receiver: watch::Receiver<(L2BlockNumber, Instant)>,
 }
 
 impl PostgresStorageCachesTask {
@@ -385,15 +388,22 @@ impl PostgresStorageCachesTask {
 
         let mut current_l2_block = self.values_cache.valid_for();
         loop {
-            let to_l2_block = tokio::select! {
+            let (to_l2_block, queued_at) = tokio::select! {
                 _ = stop_receiver.changed() => break,
-                Some(to_l2_block) = self.command_receiver.recv() => to_l2_block,
+                Ok(()) = self.command_receiver.changed() => {
+                    *self.command_receiver.borrow_and_update()
+                },
                 else => {
-                    // The command sender has been dropped, which means that we must receive the stop signal soon.
+                    // The command sender has been dropped, which means that we must receive the stop request soon.
                     stop_receiver.changed().await?;
                     break;
                 }
             };
+
+            let receive_latency = queued_at.elapsed();
+            CACHE_METRICS
+                .values_receive_latency
+                .observe(receive_latency);
             if to_l2_block <= current_l2_block {
                 continue;
             }
@@ -406,7 +416,12 @@ impl PostgresStorageCachesTask {
                     .connection_tagged("values_cache_updater")
                     .await?;
                 self.values_cache
-                    .update(current_l2_block, to_l2_block, &mut connection)
+                    .update(
+                        current_l2_block,
+                        to_l2_block,
+                        receive_latency,
+                        &mut connection,
+                    )
                     .await?;
             }
             current_l2_block = to_l2_block;
@@ -460,7 +475,7 @@ impl<'a> PostgresStorage<'a> {
         mut connection: Connection<'a, Core>,
         block_number: L2BlockNumber,
         consider_new_l1_batch: bool,
-    ) -> anyhow::Result<PostgresStorage<'a>> {
+    ) -> anyhow::Result<Self> {
         let resolved = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_l2_block(block_number)
@@ -502,6 +517,11 @@ impl<'a> PostgresStorage<'a> {
 
     fn values_cache(&self) -> Option<&ValuesCache> {
         Some(&self.caches.as_ref()?.values.as_ref()?.cache)
+    }
+
+    /// Returns the wrapped connection.
+    pub fn into_inner(self) -> Connection<'a, Core> {
+        self.connection
     }
 }
 
@@ -589,7 +609,7 @@ impl ReadStorage for PostgresStorage<'_> {
         });
         latency.observe();
 
-        let contains_key = l1_batch_number.map_or(false, |initial_write_l1_batch_number| {
+        let contains_key = l1_batch_number.is_some_and(|initial_write_l1_batch_number| {
             self.write_counts(initial_write_l1_batch_number)
         });
         !contains_key
@@ -619,7 +639,7 @@ impl ReadStorage for PostgresStorage<'_> {
                 if let Some(value) = value.clone() {
                     caches.factory_deps.insert(hash, value);
                 }
-            };
+            }
 
             value
         });

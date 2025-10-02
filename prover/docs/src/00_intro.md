@@ -1,5 +1,8 @@
 # Prover subsystem introduction
 
+> From protocol version v27 onwards Old Prover Stack (Witness Vector Generator & Prover Fri) have been removed in favor
+> of the new Prover Stack (Circuit Prover)
+
 The prover subsystem consists of several binaries that perform different steps of the batch proof generation process, as
 follows:
 
@@ -7,16 +10,14 @@ follows:
   proofs back to core.
 - [Witness generator][wg]: component that takes batch information (tx execution/state diffs/computation results) and
   constructs witness for proof generation.
-- [Witness vector generator][wvg]: component that uses witness generator output and computes witness vector (_roughly_:
-  data to be fed into GPU) for circuit provers.
-- [Circuit prover][p]: component that generates a circuit proof (GPU accelerated).
+- [Circuit prover][cp]: component that generates a circuit proof (GPU accelerated).
 - [Proof compressor][pc]: component that "wraps" the generated proof so that it can be sent to L1 (GPU accelerated).
 
 While not technically a part of the prover workspace, the following components are essential for it:
 
 - [Proof data handler][pdh]: API on the core side which Prover gateway interacts with.
-- [House keeper][hk]: Metrics exporter and job rescheduler. In it's absence, jobs would not be rescheduled and metrics
-  used for autoscaling would not exist, rendering internal autoscaling infrastructure useless.
+- [Prover Job Monitor][pjm]: Metrics exporter and job rescheduler. In it's absence, jobs would not be rescheduled and
+  metrics used for autoscaling would not exist, rendering internal autoscaling infrastructure useless.
 
 Finally, the prover workspace has several CLI tools:
 
@@ -32,11 +33,10 @@ We'll cover how the components work further in documentation.
 
 [pg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri_gateway
 [wg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/witness_generator
-[wvg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/witness_vector_generator
-[p]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri
+[cp]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/circuit_prover
 [pc]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/proof_fri_compressor
 [pdh]: https://github.com/matter-labs/zksync-era/tree/main/core/node/proof_data_handler
-[hk]: https://github.com/matter-labs/zksync-era/tree/main/core/node/house_keeper
+[pjm]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover-job-monitor
 [vkg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/vk_setup_data_generator_server_fri
 [pcli]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_cli
 [mc]: https://github.com/matter-labs/zksync-era/tree/main/core/node/metadata_calculator

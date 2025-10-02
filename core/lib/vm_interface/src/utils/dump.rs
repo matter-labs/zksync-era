@@ -1,4 +1,7 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 use serde::{Deserialize, Serialize};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256};
@@ -22,7 +25,7 @@ fn create_storage_snapshot<S: ReadStorage>(
         .into_iter()
         .map(|(key, value)| {
             let enum_index = storage.get_enumeration_index(&key);
-            let value_and_index = enum_index.map(|idx| (value, idx));
+            let value_and_index = compress_value_and_index(value, enum_index);
             (key.hashed_key(), value_and_index)
         })
         .collect();
@@ -35,8 +38,9 @@ fn create_storage_snapshot<S: ReadStorage>(
             continue;
         }
 
+        let value = storage.read_value(&key);
         let enum_index = storage.get_enumeration_index(&key);
-        let value_and_index = enum_index.map(|idx| (storage.read_value(&key), idx));
+        let value_and_index = compress_value_and_index(value, enum_index);
         storage_slots.insert(hashed_key, value_and_index);
     }
 
@@ -46,6 +50,17 @@ fn create_storage_snapshot<S: ReadStorage>(
         .collect();
 
     StorageSnapshot::new(storage_slots, factory_deps)
+}
+
+/// Compresses a value + enum index into an `Option<_>` so that it's more efficiently serializable.
+fn compress_value_and_index(value: H256, enum_index: Option<u64>) -> Option<(H256, u64)> {
+    match (value, enum_index) {
+        (value, Some(idx)) => Some((value, idx)),
+        (value, None) if value.is_zero() => None,
+        // There may be non-zero values w/o an assigned enum index if the VM execution
+        // starts in the middle of an L1 batch. We mark such values with an enum index 0, which is not a legal value.
+        (value, None) => Some((value, 0)),
+    }
 }
 
 /// VM dump allowing to re-run the VM on the same inputs. Can be (de)serialized.
@@ -88,6 +103,7 @@ impl VmDump {
                     timestamp: l2_block.timestamp,
                     prev_block_hash: l2_block.prev_block_hash,
                     max_virtual_blocks_to_create: l2_block.virtual_blocks,
+                    interop_roots: vec![],
                 });
             }
 
@@ -118,7 +134,7 @@ pub(super) struct DumpingVm<S, Vm> {
     l1_batch_env: L1BatchEnv,
     system_env: SystemEnv,
     l2_blocks: Vec<L2BlockExecutionData>,
-    l2_blocks_snapshot: Option<L2BlocksSnapshot>,
+    l2_blocks_snapshot: VecDeque<L2BlocksSnapshot>,
 }
 
 impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
@@ -175,6 +191,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
             prev_block_hash: l2_block_env.prev_block_hash,
             virtual_blocks: l2_block_env.max_virtual_blocks_to_create,
             txs: vec![],
+            interop_roots: vec![],
         });
         self.inner.start_new_l2_block(l2_block_env);
     }
@@ -201,10 +218,11 @@ where
     Vm: VmInterfaceHistoryEnabled + VmTrackingContracts,
 {
     fn make_snapshot(&mut self) {
-        self.l2_blocks_snapshot = Some(L2BlocksSnapshot {
+        let snapshot = L2BlocksSnapshot {
             block_count: self.l2_blocks.len(),
             tx_count_in_last_block: self.last_block_mut().txs.len(),
-        });
+        };
+        self.l2_blocks_snapshot.push_back(snapshot);
         self.inner.make_snapshot();
     }
 
@@ -212,7 +230,7 @@ where
         self.inner.rollback_to_the_latest_snapshot();
         let snapshot = self
             .l2_blocks_snapshot
-            .take()
+            .pop_back()
             .expect("rollback w/o snapshot");
         self.l2_blocks.truncate(snapshot.block_count);
         assert_eq!(
@@ -227,7 +245,12 @@ where
 
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot_no_rollback();
-        self.l2_blocks_snapshot = None;
+        self.l2_blocks_snapshot.pop_back();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        self.inner.pop_front_snapshot_no_rollback();
+        self.l2_blocks_snapshot.pop_front();
     }
 }
 
@@ -248,12 +271,13 @@ where
             prev_block_hash: l1_batch_env.first_l2_block.prev_block_hash,
             virtual_blocks: l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
             txs: vec![],
+            interop_roots: vec![],
         };
         Self {
             l1_batch_env,
             system_env,
             l2_blocks: vec![first_block],
-            l2_blocks_snapshot: None,
+            l2_blocks_snapshot: VecDeque::new(),
             storage,
             inner,
         }

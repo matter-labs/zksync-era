@@ -3,7 +3,6 @@
 use std::{
     collections::{BTreeMap, HashSet},
     future::Future,
-    path::Path,
     sync::Arc,
     time::Duration,
 };
@@ -12,13 +11,14 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
@@ -27,28 +27,19 @@ use zksync_merkle_tree::{
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
+use zksync_shared_metrics::tree::{LoadChangesStage, TreeUpdateStage, METRICS};
+use zksync_shared_resources::tree::MerkleTreeInfo;
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{
-    block::{L1BatchHeader, L1BatchTreeData},
+    block::{CommonBlockStatistics, L1BatchTreeData},
     writes::TreeWrite,
     AccountTreeId, L1BatchNumber, StorageKey, H256,
 };
 
 use super::{
-    metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
-    pruning::PruningHandles,
-    MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
+    pruning::PruningHandles, MerkleTreeReaderConfig, MetadataCalculatorConfig,
+    MetadataCalculatorRecoveryConfig,
 };
-
-/// General information about the Merkle tree.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MerkleTreeInfo {
-    pub mode: MerkleTreeMode,
-    pub root_hash: H256,
-    pub next_l1_batch_number: L1BatchNumber,
-    pub min_l1_batch_number: Option<L1BatchNumber>,
-    pub leaf_count: u64,
-}
 
 /// Health details for a Merkle tree.
 #[derive(Debug, Serialize)]
@@ -139,7 +130,6 @@ pub(super) async fn create_db(config: MetadataCalculatorConfig) -> anyhow::Resul
 }
 
 fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
-    let path = Path::new(config.db_path.as_str());
     let &MetadataCalculatorConfig {
         max_open_files,
         block_cache_capacity,
@@ -155,11 +145,11 @@ fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWr
          {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?}), \
          {memtable_capacity}B memtable capacity, \
          {stalled_writes_timeout:?} stalled writes timeout",
-        path = path.display()
+        path = config.db_path.display()
     );
 
     let mut db = RocksDB::with_options(
-        path,
+        &config.db_path,
         RocksDBOptions {
             block_cache_capacity: Some(block_cache_capacity),
             include_indices_and_filters_in_block_cache,
@@ -191,7 +181,7 @@ pub(super) async fn create_readonly_db(
         } = config;
 
         tracing::info!(
-            "Initializing Merkle tree database at `{db_path}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
+            "Initializing Merkle tree database at `{db_path:?}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
              {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?})"
         );
         let mut db = RocksDB::with_options(
@@ -300,10 +290,13 @@ impl AsyncTree {
             batch.mode,
             self.mode
         );
-        let batch_number = batch.header.number;
+        let batch_number = batch.stats.number;
 
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
+        let span = tracing::Span::current();
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
+            let _entered_span = span.entered();
+            let _guard = AllocationGuard::for_operation("tree#process_batch");
             let metadata = tree.process_l1_batch(&batch.storage_logs)?;
             anyhow::Ok((tree, metadata))
         })
@@ -319,8 +312,11 @@ impl AsyncTree {
     /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
     pub async fn save(&mut self) -> anyhow::Result<()> {
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
+        let span = tracing::Span::current();
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
+                let _entered_span = span.entered();
+                let _guard = AllocationGuard::for_operation("tree#save");
                 tree.save()?;
                 anyhow::Ok(tree)
             })
@@ -679,7 +675,7 @@ impl Delayer {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct L1BatchWithLogs {
-    pub header: L1BatchHeader,
+    pub stats: CommonBlockStatistics,
     pub storage_logs: Vec<TreeInstruction>,
     mode: MerkleTreeMode,
 }
@@ -704,6 +700,7 @@ impl L1BatchWithLogs {
         else {
             return Ok(None);
         };
+        let stats = header.into();
         header_latency.observe();
 
         let protective_reads = match mode {
@@ -766,7 +763,7 @@ impl L1BatchWithLogs {
         load_changes_latency.observe();
 
         Ok(Some(Self {
-            header,
+            stats,
             storage_logs,
             mode,
         }))
@@ -934,7 +931,7 @@ mod tests {
             }
 
             Some(Self {
-                header,
+                stats: header.into(),
                 storage_logs: storage_logs.into_values().collect(),
                 mode: MerkleTreeMode::Full,
             })
@@ -1070,10 +1067,10 @@ mod tests {
             .unwrap();
 
         // Sanity check: L1 batch headers must be identical
-        assert_eq!(l1_batch_with_logs.header, slow_l1_batch_with_logs.header);
+        assert_eq!(l1_batch_with_logs.stats, slow_l1_batch_with_logs.stats);
         assert_eq!(
-            lightweight_l1_batch_with_logs.header,
-            slow_l1_batch_with_logs.header
+            lightweight_l1_batch_with_logs.stats,
+            slow_l1_batch_with_logs.stats
         );
 
         tree.save().await.unwrap(); // Necessary for `reset()` below to work properly

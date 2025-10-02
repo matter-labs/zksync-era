@@ -1,35 +1,15 @@
-import { exec as _exec, spawn as _spawn, type ProcessEnvOptions } from 'child_process';
+import { exec as _exec, spawn as _spawn } from 'child_process';
 import { promisify } from 'util';
-import fs from 'fs';
-import readline from 'readline';
-import chalk from 'chalk';
+export * from './node-spawner';
+import * as zksync from 'zksync-ethers';
+import * as ethers from 'ethers';
 
 export type { ChildProcess } from 'child_process';
 
-const IGNORED_DIRS = [
-    'target',
-    'node_modules',
-    'volumes',
-    'build',
-    'dist',
-    '.git',
-    'generated',
-    'grafonnet-lib',
-    'prettier-config',
-    'lint-config',
-    'cache',
-    'artifacts',
-    'typechain',
-    'binaryen',
-    'system-contracts',
-    'artifacts-zk',
-    'cache-zk',
-    // Ignore directories with OZ and forge submodules.
-    'contracts/l1-contracts/lib',
-    'contracts/lib',
-    'era-observability'
-];
-const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
+/** Logs information with additional data (e.g., a timestamp). */
+export function log(message: string, ...args: any[]) {
+    console.log(`[${new Date().toISOString()}] ${message}`, ...args);
+}
 
 // async executor of shell commands
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
@@ -45,6 +25,7 @@ export function exec(command: string) {
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
+    log(`+ ${command}`);
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);
@@ -54,136 +35,97 @@ export function spawn(command: string) {
     });
 }
 
-// executes a command in background and returns a child process handle
-// by default pipes data to parent's stdio but this can be overridden
-export function background({
-    command,
-    stdio = 'inherit',
-    cwd
-}: {
-    command: string;
-    stdio: any;
-    cwd?: ProcessEnvOptions['cwd'];
-}) {
-    command = command.replace(/\n/g, ' ');
-    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd });
-}
-
-export async function confirmAction() {
-    if (process.env.ZKSYNC_ACTION == 'dont_ask') return;
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
-    const input = await new Promise((resolve) => {
-        rl.question(
-            'Dangerous action! (set ZKSYNC_ACTION=dont_ask to always allow)\n' +
-                `Type environment name (${process.env.ZKSYNC_ENV}) to confirm: `,
-            (input) => {
-                rl.close();
-                resolve(input);
-            }
-        );
-    });
-    if (input !== process.env.ZKSYNC_ENV) {
-        throw new Error('[aborted] action was not confirmed');
-    }
-}
-
 export async function sleep(seconds: number) {
     return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
-// the sync version of sleep is needed
-// for process.on('exit') hook, which MUST be synchronous.
-// no idea why it has to be so ugly, though
-export function sleepSync(seconds: number) {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000);
-}
+/**
+ * Waits until a new L1 batch is created on ZKsync node.
+ * This function attempts to trigger this action by sending an additional transaction,
+ * however it may not be enough in some env (e.g. if some testnet is configured to utilize the block capacity).
+ *
+ * @param wallet Wallet to send transaction from. Should have enough balance to cover the fee.
+ */
+export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.TransactionReceipt> {
+    const MAX_ATTEMPTS = 3;
 
-export async function allowFail<T>(promise: Promise<T>) {
-    try {
-        return await promise;
-    } catch {
-        return null;
+    let txResponse: ethers.TransactionResponse | null = null;
+    let txReceipt: ethers.TransactionReceipt | null = null;
+    let nonce = Number(await wallet.getNonce());
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        // Send a dummy transaction and wait for it to execute. We override `maxFeePerGas` as the default ethers behavior
+        // is to fetch `maxFeePerGas` from the latest sealed block and double it which is not enough for scenarios with
+        // extreme gas price fluctuations.
+        let gasPrice = await wallet.provider.getGasPrice();
+        if (!txResponse || !txResponse.maxFeePerGas || txResponse.maxFeePerGas < gasPrice) {
+            txResponse = await wallet
+                .transfer({
+                    to: wallet.address,
+                    amount: 0,
+                    overrides: { maxFeePerGas: gasPrice, nonce: nonce, maxPriorityFeePerGas: 0, type: 2 }
+                })
+                .catch((e) => {
+                    // Unlike `waitForTransaction` below, these errors are not wrapped as `EthersError` for some reason
+                    if (<Error>e.message.match(/Not enough gas/)) {
+                        console.log(
+                            `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                        );
+                        return null;
+                    } else if (<Error>e.message.match(/max fee per gas less than block base fee/)) {
+                        console.log(
+                            `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                        );
+                        return null;
+                    } else if (<Error>e.message.match(/nonce too low/)) {
+                        if (!txResponse) {
+                            // Our transaction was never accepted to the mempool with this nonce so it must have been used by another transaction.
+                            return wallet.getNonce().then((newNonce) => {
+                                console.log(
+                                    `Transaction's nonce is too low, updating from ${nonce} to ${newNonce} (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                                );
+                                nonce = newNonce;
+                                return null;
+                            });
+                        } else {
+                            console.log(
+                                `Transaction's nonce is too low, likely previous attempt succeeded, waiting longer (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                            );
+                            return txResponse;
+                        }
+                    } else {
+                        return Promise.reject(e);
+                    }
+                });
+            if (!txResponse) {
+                continue;
+            }
+        } else {
+            console.log('Gas price has not gone up, waiting longer');
+        }
+        txReceipt = await wallet.provider.waitForTransaction(txResponse.hash, 1, 60 * 1000).catch((e) => {
+            if (ethers.isError(e, 'TIMEOUT')) {
+                console.log(`Transaction timed out, potentially gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`);
+                return null;
+            } else if (ethers.isError(e, 'UNKNOWN_ERROR') && e.message.match(/Not enough gas/)) {
+                console.log(
+                    `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                );
+                return null;
+            } else {
+                return Promise.reject(e);
+            }
+        });
+        if (txReceipt) {
+            // Transaction got executed, so we can safely assume it will be sealed in the next batch
+            break;
+        }
     }
-}
-
-export function allowFailSync<T>(func: () => T) {
-    try {
-        return func();
-    } catch {
-        return null;
+    if (!txReceipt) {
+        throw new Error('Failed to force an L1 batch to seal');
     }
-}
-
-export function replaceInFile(filename: string, before: string | RegExp, after: string) {
-    before = new RegExp(before, 'g');
-    modifyFile(filename, (source) => source.replace(before, after));
-}
-
-// performs an operation on the content of `filename`
-export function modifyFile(filename: string, modifier: (s: string) => string) {
-    const source = fs.readFileSync(filename).toString();
-    fs.writeFileSync(filename, modifier(source));
-}
-
-// If you wonder why this is written so obscurely through find and not through .prettierignore and globs,
-// it's because prettier *first* expands globs and *then* applies ignore rules, which leads to an error
-// because it can't expand into volumes folder with not enough access rights, even if it is ignored.
-//
-// And if we let the shell handle glob expansion instead of prettier, `shopt -s globstar` will be
-// disabled (because yarn spawns its own shell that does not load .bashrc) and thus glob patterns
-// with double-stars will not work
-export async function getUnignoredFiles(extension: string) {
-    const root = extension == 'sol' ? 'contracts' : '.';
-    const ignored_dirs = IGNORED_DIRS.map((dir) => `-o -path '*/${dir}' -prune`).join(' ');
-    const ignored_files = IGNORED_FILES.map((file) => `-a ! -name '${file}'`).join(' ');
-    const { stdout: files } = await exec(
-        `find ${root} -type f -name '*.${extension}' ${ignored_files} -print ${ignored_dirs}`
-    );
-
-    return files;
-}
-
-export function web3Url() {
-    return process.env.ETH_CLIENT_WEB3_URL!;
-}
-
-export async function readZkSyncAbi() {
-    const zksync = process.env.ZKSYNC_HOME;
-    const path = `${zksync}/contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json`;
-
-    const fileContent = (await fs.promises.readFile(path)).toString();
-
-    const abi = JSON.parse(fileContent).abi;
-
-    return abi;
-}
-
-const entry = chalk.bold.yellow;
-const announce = chalk.yellow;
-const success = chalk.green;
-const timestamp = chalk.grey;
-
-// Wrapper that writes an announcement and completion notes for each executed task.
-export const announced = async (fn: string, promise: Promise<void> | void) => {
-    const announceLine = `${entry('>')} ${announce(fn)}`;
-    const separator = '-'.repeat(fn.length + 2); // 2 is the length of "> ".
-    console.log(`\n` + separator); // So it's easier to see each individual step in the console.
-    console.log(announceLine);
-
-    const start = new Date().getTime();
-    // The actual execution part
-    await promise;
-
-    const time = new Date().getTime() - start;
-    const successLine = `${success('✔')} ${fn} done`;
-    const timestampLine = timestamp(`(${time}ms)`);
-    console.log(`${successLine} ${timestampLine}`);
-};
-
-export function unpackStringSemVer(semver: string): [number, number, number] {
-    const [major, minor, patch] = semver.split('.');
-    return [parseInt(major), parseInt(minor), parseInt(patch)];
+    // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
+    while (!(await wallet.provider.getTransactionReceipt(txReceipt.hash))?.l1BatchNumber) {
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+    }
+    return (await wallet.provider.getTransactionReceipt(txReceipt.hash))!;
 }

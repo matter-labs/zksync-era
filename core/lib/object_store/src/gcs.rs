@@ -1,6 +1,6 @@
 //! GCS-based [`ObjectStore`] implementation.
 
-use std::{error::Error as StdError, fmt, io};
+use std::{error::Error as StdError, fmt, io, path::PathBuf};
 
 use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error as AuthError};
@@ -17,13 +17,22 @@ use google_cloud_storage::{
     },
 };
 use http::StatusCode;
+use tokio::sync::{AcquireError, Semaphore};
 
 use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
+
+/// Default maximum number of concurrent requests to GCS.
+/// Consider this a throttle to prevent overwhelming GCS or network card.
+/// The number has been picked after testing GCS in multiple conditions.
+/// Do NOT change it without proper, thorough testing.
+const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 500;
 
 /// [`ObjectStore`] implementation based on GCS.
 pub struct GoogleCloudStore {
     bucket_prefix: String,
     client: Client,
+    // used to limit the number of concurrent requests to GCS.
+    semaphore: Semaphore,
 }
 
 impl fmt::Debug for GoogleCloudStore {
@@ -41,7 +50,7 @@ impl fmt::Debug for GoogleCloudStore {
 #[non_exhaustive]
 pub enum GoogleCloudStoreAuthMode {
     /// Authentication via a credentials file at the specified path.
-    AuthenticatedWithCredentialFile(String),
+    AuthenticatedWithCredentialFile(PathBuf),
     /// Ambient authentication (works if the binary runs on Google Cloud).
     Authenticated,
     /// Anonymous access (only works for public GCS buckets for read operations).
@@ -59,10 +68,20 @@ impl GoogleCloudStore {
         bucket_prefix: String,
     ) -> Result<Self, ObjectStoreError> {
         let client_config = Self::get_client_config(auth_mode.clone()).await?;
+        let semaphore = Semaphore::new(DEFAULT_MAX_CONCURRENT_REQUESTS);
         Ok(Self {
             client: Client::new(client_config),
             bucket_prefix,
+            semaphore,
         })
+    }
+
+    /// Modifies the number of concurrent requests to GCS.
+    /// NOTE: Big numbers can saturate the network and/or cause the GCS to be unavailable.
+    #[must_use]
+    pub fn with_request_limit(mut self, request_limit: usize) -> Self {
+        self.semaphore = Semaphore::new(request_limit);
+        self
     }
 
     async fn get_client_config(
@@ -70,6 +89,8 @@ impl GoogleCloudStore {
     ) -> Result<ClientConfig, AuthError> {
         match auth_mode {
             GoogleCloudStoreAuthMode::AuthenticatedWithCredentialFile(path) => {
+                // The `google_cloud_auth` API requests a string here (an owned one at that!), but converts it to a `Path` internally. Welp.
+                let path = path.into_os_string().into_string().expect("non-UTF8 path");
                 let cred_file = CredentialsFile::new_from_file(path).await?;
                 ClientConfig::default().with_credentials(cred_file).await
             }
@@ -123,12 +144,23 @@ fn has_transient_io_source(err: &(dyn StdError + 'static)) -> bool {
     get_source::<io::Error>(err).is_some()
 }
 
+/// This is necessary due to the fact that Acquiring a semaphore can fail if the semaphore is closed.
+/// Whilst current code does not expect such scenario, nor "should it be possible", it is better to have a graceful catch case instead of unwrapping.
+impl From<AcquireError> for ObjectStoreError {
+    fn from(err: AcquireError) -> Self {
+        ObjectStoreError::Other {
+            source: err.into(),
+            is_retriable: false,
+        }
+    }
+}
+
 impl From<HttpError> for ObjectStoreError {
     fn from(err: HttpError) -> Self {
         let is_not_found = match &err {
             HttpError::HttpClient(err) => err
                 .status()
-                .map_or(false, |status| matches!(status, StatusCode::NOT_FOUND)),
+                .is_some_and(|status| matches!(status, StatusCode::NOT_FOUND)),
             HttpError::Response(response) => response.code == StatusCode::NOT_FOUND.as_u16(),
             _ => false,
         };
@@ -159,6 +191,7 @@ impl From<HttpError> for ObjectStoreError {
 #[async_trait]
 impl ObjectStore for GoogleCloudStore {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
+        let _permit = self.semaphore.acquire().await?;
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Fetching data from GCS for key {filename} from bucket {}",
@@ -182,6 +215,7 @@ impl ObjectStore for GoogleCloudStore {
         key: &str,
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
+        let _permit = self.semaphore.acquire().await?;
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Storing data to GCS for key {filename} from bucket {}",
@@ -200,6 +234,7 @@ impl ObjectStore for GoogleCloudStore {
     }
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
+        let _permit = self.semaphore.acquire().await?;
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Removing data from GCS for key {filename} from bucket {}",

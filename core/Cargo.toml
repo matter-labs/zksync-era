@@ -1,0 +1,362 @@
+[workspace]
+members = [
+  # Binaries
+  "bin/block_reverter",
+  "bin/contract-verifier",
+  "bin/custom_genesis_export",
+  "bin/external_node",
+  "bin/merkle_tree_consistency_checker",
+  "bin/snapshots_creator",
+  "bin/selector_generator",
+  "bin/system-constants-generator",
+  "bin/verified_sources_fetcher",
+  "bin/zksync_server",
+  "bin/genesis_generator",
+  "bin/zksync_tee_prover",
+  # Node services
+  "node/jemalloc",
+  "node/proof_data_handler",
+  "node/block_reverter",
+  "node/commitment_generator",
+  "node/house_keeper",
+  "node/genesis",
+  "node/shared_metrics",
+  "node/db_pruner",
+  "node/fee_model",
+  "node/da_dispatcher",
+  "node/eth_sender",
+  "node/vm_runner",
+  "node/test_utils",
+  "node/state_keeper",
+  "node/reorg_detector",
+  "node/consistency_checker",
+  "node/metadata_calculator",
+  "node/node_sync",
+  "node/node_storage_init",
+  "node/consensus",
+  "node/contract_verification_server",
+  "node/api_server",
+  "node/base_token_adjuster",
+  "node/external_proof_integration_api",
+  "node/logs_bloom_backfill",
+  "node/da_clients",
+  "node/gateway_migrator",
+  "node/zk_os_tree_manager",
+  "node/eth_proof_manager",
+  "node/l1_recovery",
+  # Libraries
+  "lib/db_connection",
+  "lib/basic_types",
+  "lib/config",
+  "lib/constants",
+  "lib/contract_verifier",
+  "lib/contracts",
+  "lib/circuit_breaker",
+  "lib/dal",
+  "lib/da_client",
+  "lib/eth_client",
+  "lib/eth_signer",
+  "lib/l1_contract_interface",
+  "lib/mempool",
+  "lib/merkle_tree",
+  "lib/mini_merkle_tree",
+  "lib/node_framework",
+  "lib/node_framework_derive",
+  "lib/shared_resources",
+  "lib/object_store",
+  "lib/prover_interface",
+  "lib/queued_job_processor",
+  "lib/state",
+  "lib/storage",
+  "lib/tee_prover_interface",
+  "lib/tee_verifier",
+  "lib/types",
+  "lib/utils",
+  "lib/vlog",
+  "lib/multivm",
+  "lib/instrument",
+  "lib/vm_interface",
+  "lib/vm_executor",
+  "lib/web3_decl",
+  "lib/snapshots_applier",
+  "lib/crypto_primitives",
+  "lib/external_price_api",
+  "lib/task_management",
+  "lib/zk_os_merkle_tree",
+  "lib/settlement_layer_data",
+  "lib/test_contracts",
+  # Test infrastructure
+  "tests/loadnext",
+  "tests/vm-benchmark",
+]
+resolver = "2"
+
+exclude = []
+
+# for `perf` profiling
+[profile.perf]
+inherits = "release"
+debug = true
+
+[workspace.package]
+version = "29.4.1-non-semver-compat"
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[workspace.dependencies]
+# "External" dependencies
+anyhow = "1"
+assert_matches = "1.5"
+async-trait = "0.1"
+async-recursion = "1"
+aws-config = { version = "1.1.7", default-features = false, features = [
+  "behavior-version-latest",
+] }
+aws-runtime = "1.5.5"
+aws-sdk-s3 = "1.76.0"
+axum = "0.8.4"
+backon = "0.4.4"
+bigdecimal = "0.4.5"
+bincode = "1"
+bip39 = "2.1.0"
+blake2 = "0.10"
+bytes = "1"
+chrono = { version = "0.4", default-features = false }
+clap = "4.2.2"
+codegen = "0.2.0"
+const-decoder = "0.4.0"
+criterion = "0.4.0"
+ctrlc = "3.1"
+dashmap = "5.5.3"
+derive_more = "2.0.1"
+envy = "0.4"
+ethabi = "18.0.0"
+flate2 = "1.0.28"
+fraction = "0.15.3"
+futures = "0.3"
+futures-util = "0.3"
+glob = "0.3"
+google-cloud-auth = "0.16.0"
+google-cloud-storage = "0.20.0"
+governor = "0.4.2"
+hex = "0.4"
+http = "1.1"
+http-body-util = "0.1.2"
+httpmock = "0.7.0"
+hyper = "1.3"
+hyper-util = "0.1.11"
+insta = "1.29.0"
+itertools = "0.13.0"
+jsonrpsee = { version = "0.24", default-features = false }
+leb128 = "0.2.5"
+lru = { version = "0.12.1", default-features = false }
+mini-moka = "0.10.0"
+num_cpus = "1.13"
+num_enum = "0.7.2"
+octocrab = "0.41"
+once_cell = "1"
+opentelemetry = "0.30.0"
+opentelemetry_sdk = "0.30.0"
+opentelemetry-otlp = { version = "0.30.0", default-features = false }
+opentelemetry-semantic-conventions = "0.30.0"
+opentelemetry-appender-tracing = "0.30.0"
+pin-project-lite = "0.2.13"
+pretty_assertions = "1"
+proptest = "1.6.0"
+prost = "0.12.6"
+rand = "0.8"
+rayon = "1.3.1"
+regex = "1"
+reqwest = "0.12"
+rlp = "0.5"
+rocksdb = "0.21"
+rustc_version = "0.4.0"
+rustls = "0.23"
+secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
+secrecy = "0.10.3"
+semver = "1"
+sentry = "0.31"
+serde = "1"
+serde_json = "1"
+serde_with = "1"
+serde_yaml = "0.9"
+serde_urlencoded = "0.7"
+ciborium = "0.2"
+sha2 = "0.10.8"
+sha3 = "0.10.8"
+sqlx = "0.8.1"
+static_assertions = "1.1"
+structopt = "0.3.20"
+strum = "0.26"
+tempfile = "3.0.2"
+test-casing = "0.1.2"
+test-log = "0.2.15"
+thiserror = "2.0.12"
+thread_local = "1.1"
+tikv-jemallocator = "0.5"
+tikv-jemalloc-ctl = "0.5"
+tiny-keccak = "2"
+tokio = "1"
+tower = "0.4.13"
+tower-http = "0.5.2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tracing-opentelemetry = "0.31.0"
+time = "0.3.36" # Has to be same as used by `tracing-subscriber`
+url = "2"
+web3 = "0.19.0"
+yab = "0.1.0"
+indexmap = { version = "2.0.2", features = ["serde"] }
+
+# Proc-macro
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"
+trybuild = "1.0"
+
+# "Internal" dependencies
+vise = "0.3.2"
+vise-exporter = "0.3.2"
+smart-config = "=0.2.0-pre"
+smart-config-commands = "=0.2.0-pre"
+foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
+
+# DA clients' dependencies
+# Avail
+base58 = "0.2.0"
+scale-encode = "0.5.0"
+blake2b_simd = "1.0.2"
+subxt-metadata = "0.39.0"
+parity-scale-codec = { version = "3.6.9", default-features = false }
+subxt-signer = { version = "0.39.0", default-features = false }
+
+# Celestia
+celestia-types = "0.6.1"
+bech32 = "0.11.0"
+ripemd = "0.1.3"
+tonic = { version = "0.11.0", default-features = false }
+pbjson-types = "0.6.0"
+
+# EigenDA
+rust-eigenda-v2-client = "=0.1.4"
+rust-eigenda-v2-common = "=0.1.3"
+rust-eigenda-signers = "0.1.6"
+
+# Here and below:
+# We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
+# However, for the historical version of protocol crates, we have lax requirements. Otherwise,
+# Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
+
+circuit_encodings = "=0.153.1"
+circuit_sequencer_api = "=0.153.1"
+circuit_definitions = "=0.153.1"
+crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.3" }
+
+kzg = { package = "zksync_kzg", version = "=0.153.1" }
+
+zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
+zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
+zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
+zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
+zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.1" }
+
+fflonk = "=0.32.3"
+bellman = { package = "zksync_bellman", version = "=0.32.3" }
+
+# New VM
+zksync_vm2 = "=0.4.0"
+
+# Consensus dependencies.
+zksync_concurrency = "=0.13"
+zksync_consensus_bft = "=0.13"
+zksync_consensus_crypto = "=0.13"
+zksync_consensus_engine = "=0.13"
+zksync_consensus_executor = "=0.13"
+zksync_consensus_network = "=0.13"
+zksync_consensus_roles = "=0.13"
+zksync_consensus_utils = "=0.13"
+zksync_protobuf = "=0.13"
+zksync_protobuf_build = "=0.13"
+zkevm_circuits = "=0.153.1"
+
+# "Local" dependencies
+zksync_multivm = { version = "29.4.1-non-semver-compat", path = "lib/multivm" }
+zksync_vlog = { version = "29.4.1-non-semver-compat", path = "lib/vlog" }
+zksync_vm_interface = { version = "29.4.1-non-semver-compat", path = "lib/vm_interface" }
+zksync_vm_executor = { version = "29.4.1-non-semver-compat", path = "lib/vm_executor" }
+zksync_basic_types = { version = "29.4.1-non-semver-compat", path = "lib/basic_types" }
+zksync_circuit_breaker = { version = "29.4.1-non-semver-compat", path = "lib/circuit_breaker" }
+zksync_config = { version = "29.4.1-non-semver-compat", path = "lib/config" }
+zksync_contract_verifier_lib = { version = "29.4.1-non-semver-compat", path = "lib/contract_verifier" }
+zksync_contracts = { version = "29.4.1-non-semver-compat", path = "lib/contracts" }
+zksync_dal = { version = "29.4.1-non-semver-compat", path = "lib/dal" }
+zksync_db_connection = { version = "29.4.1-non-semver-compat", path = "lib/db_connection" }
+zksync_eth_client = { version = "29.4.1-non-semver-compat", path = "lib/eth_client" }
+zksync_da_client = { version = "29.4.1-non-semver-compat", path = "lib/da_client" }
+zksync_eth_signer = { version = "29.4.1-non-semver-compat", path = "lib/eth_signer" }
+zksync_health_check = { version = "29.4.1-non-semver-compat", path = "lib/health_check" }
+zksync_instrument = { version = "29.4.1-non-semver-compat", path = "lib/instrument" }
+zksync_l1_contract_interface = { version = "29.4.1-non-semver-compat", path = "lib/l1_contract_interface" }
+zksync_mempool = { version = "29.4.1-non-semver-compat", path = "lib/mempool" }
+zksync_merkle_tree = { version = "29.4.1-non-semver-compat", path = "lib/merkle_tree" }
+zksync_mini_merkle_tree = { version = "29.4.1-non-semver-compat", path = "lib/mini_merkle_tree" }
+zksync_object_store = { version = "29.4.1-non-semver-compat", path = "lib/object_store" }
+zksync_prover_interface = { version = "29.4.1-non-semver-compat", path = "lib/prover_interface" }
+zksync_queued_job_processor = { version = "29.4.1-non-semver-compat", path = "lib/queued_job_processor" }
+zksync_snapshots_applier = { version = "29.4.1-non-semver-compat", path = "lib/snapshots_applier" }
+zksync_state = { version = "29.4.1-non-semver-compat", path = "lib/state" }
+zksync_storage = { version = "29.4.1-non-semver-compat", path = "lib/storage" }
+zksync_system_constants = { version = "29.4.1-non-semver-compat", path = "lib/constants" }
+zksync_tee_prover_interface = { version = "29.4.1-non-semver-compat", path = "lib/tee_prover_interface" }
+zksync_tee_verifier = { version = "29.4.1-non-semver-compat", path = "lib/tee_verifier" }
+zksync_test_contracts = { version = "29.4.1-non-semver-compat", path = "lib/test_contracts" }
+zksync_types = { version = "29.4.1-non-semver-compat", path = "lib/types" }
+zksync_utils = { version = "29.4.1-non-semver-compat", path = "lib/utils" }
+zksync_web3_decl = { version = "29.4.1-non-semver-compat", path = "lib/web3_decl" }
+zksync_crypto_primitives = { version = "29.4.1-non-semver-compat", path = "lib/crypto_primitives" }
+zksync_external_price_api = { version = "29.4.1-non-semver-compat", path = "lib/external_price_api" }
+zksync_task_management = { version = "29.4.1-non-semver-compat", path = "lib/task_management" }
+zk_os_merkle_tree = { version = "29.4.1-non-semver-compat", path = "lib/zk_os_merkle_tree" }
+zksync_settlement_layer_data = { version = "29.4.1-non-semver-compat", path = "lib/settlement_layer_data" }
+
+# Framework and components
+zksync_node_framework = { version = "29.4.1-non-semver-compat", path = "lib/node_framework" }
+zksync_node_framework_derive = { version = "29.4.1-non-semver-compat", path = "lib/node_framework_derive" }
+zksync_shared_resources = { version = "29.4.1-non-semver-compat", path = "lib/shared_resources" }
+zksync_node_jemalloc = { version = "29.4.1-non-semver-compat", path = "node/jemalloc" }
+zksync_eth_proof_manager = { version = "29.4.1-non-semver-compat", path = "node/eth_proof_manager" }
+zksync_eth_watch = { version = "29.4.1-non-semver-compat", path = "node/eth_watch" }
+zksync_shared_metrics = { version = "29.4.1-non-semver-compat", path = "node/shared_metrics" }
+zksync_proof_data_handler = { version = "29.4.1-non-semver-compat", path = "node/proof_data_handler" }
+zksync_tee_proof_data_handler = { version = "29.4.1-non-semver-compat", path = "node/tee_proof_data_handler" }
+zksync_block_reverter = { version = "29.4.1-non-semver-compat", path = "node/block_reverter" }
+zksync_commitment_generator = { version = "29.4.1-non-semver-compat", path = "node/commitment_generator" }
+zksync_house_keeper = { version = "29.4.1-non-semver-compat", path = "node/house_keeper" }
+zksync_node_genesis = { version = "29.4.1-non-semver-compat", path = "node/genesis" }
+zksync_da_dispatcher = { version = "29.4.1-non-semver-compat", path = "node/da_dispatcher" }
+zksync_da_clients = { version = "29.4.1-non-semver-compat", path = "node/da_clients" }
+zksync_eth_sender = { version = "29.4.1-non-semver-compat", path = "node/eth_sender" }
+zksync_node_db_pruner = { version = "29.4.1-non-semver-compat", path = "node/db_pruner" }
+zksync_node_fee_model = { version = "29.4.1-non-semver-compat", path = "node/fee_model" }
+zksync_vm_runner = { version = "29.4.1-non-semver-compat", path = "node/vm_runner" }
+zksync_external_proof_integration_api = { version = "29.4.1-non-semver-compat", path = "node/external_proof_integration_api" }
+zksync_node_test_utils = { version = "29.4.1-non-semver-compat", path = "node/test_utils" }
+zksync_state_keeper = { version = "29.4.1-non-semver-compat", path = "node/state_keeper" }
+zksync_reorg_detector = { version = "29.4.1-non-semver-compat", path = "node/reorg_detector" }
+zksync_consistency_checker = { version = "29.4.1-non-semver-compat", path = "node/consistency_checker" }
+zksync_metadata_calculator = { version = "29.4.1-non-semver-compat", path = "node/metadata_calculator" }
+zksync_node_sync = { version = "29.4.1-non-semver-compat", path = "node/node_sync" }
+zksync_node_storage_init = { version = "29.4.1-non-semver-compat", path = "node/node_storage_init" }
+zksync_node_consensus = { version = "29.4.1-non-semver-compat", path = "node/consensus" }
+zksync_contract_verification_server = { version = "29.4.1-non-semver-compat", path = "node/contract_verification_server" }
+zksync_node_api_server = { version = "29.4.1-non-semver-compat", path = "node/api_server" }
+zksync_base_token_adjuster = { version = "29.4.1-non-semver-compat", path = "node/base_token_adjuster" }
+zksync_logs_bloom_backfill = { version = "29.4.1-non-semver-compat", path = "node/logs_bloom_backfill" }
+zksync_gateway_migrator = { version = "29.4.1-non-semver-compat", path = "node/gateway_migrator" }
+zksync_l1_recovery = { version = "29.4.1-non-semver-compat", path = "node/l1_recovery" }

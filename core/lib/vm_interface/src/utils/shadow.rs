@@ -7,15 +7,19 @@ use std::{
     sync::Arc,
 };
 
-use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
+use zksync_types::{
+    Address, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, U256,
+};
 
 use super::dump::{DumpingVm, VmDump};
 use crate::{
     pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
-    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, InspectExecutionMode,
-    L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmFactory,
-    VmInterface, VmInterfaceHistoryEnabled, VmTrackingContracts,
+    tracer::{ValidationError, ValidationTraces, ViolatedValidationRule},
+    BytecodeCompressionResult, Call, CallType, CurrentExecutionState, ExecutionResult,
+    FinishedL1Batch, Halt, InspectExecutionMode, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+    VmTrackingContracts,
 };
 
 /// Handler for VM divergences.
@@ -47,7 +51,8 @@ impl DivergenceHandler {
         Self(Arc::new(f))
     }
 
-    fn handle(&self, err: DivergenceErrors, dump: VmDump) {
+    /// Handles a VM divergence.
+    pub fn handle(&self, err: DivergenceErrors, dump: VmDump) {
         self.0(err, dump);
     }
 }
@@ -148,7 +153,36 @@ impl CheckDivergence for CurrentExecutionState {
 impl CheckDivergence for VmExecutionResultAndLogs {
     fn check_divergence(&self, other: &Self) -> DivergenceErrors {
         let mut errors = DivergenceErrors::new();
+
+        // Special case: the execution is stopped by a tracer. Because of significant differences between how tracers
+        // work in legacy and fast VMs, we only require the general stop reason to be the same, and ignore anything else.
+        if matches!(
+            (&self.result, &other.result),
+            (
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(_)
+                },
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(_)
+                }
+            )
+        ) {
+            return errors;
+        }
+
         errors.check_match("result", &self.result, &other.result);
+
+        if matches!(
+            &self.result,
+            ExecutionResult::Halt {
+                reason: Halt::ValidationOutOfGas,
+            }
+        ) {
+            // Because of differences in how validation is implemented in the legacy and fast VMs, we don't require
+            // the exact match in any other fields; even gas stats are slightly different.
+            return errors;
+        }
+
         errors.check_match("logs.events", &self.logs.events, &other.logs.events);
         errors.check_match(
             "logs.system_l2_to_l1_logs",
@@ -224,6 +258,89 @@ impl CheckDivergence for FinishedL1Batch {
     }
 }
 
+impl CheckDivergence for Result<ValidationTraces, ValidationError> {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = DivergenceErrors::new();
+
+        if matches!(
+            (self, other),
+            (
+                Err(ValidationError::ViolatedRule(
+                    ViolatedValidationRule::TookTooManyComputationalGas(_)
+                )),
+                Err(ValidationError::ViolatedRule(
+                    ViolatedValidationRule::TookTooManyComputationalGas(_)
+                )),
+            )
+        ) {
+            // Because of differences in how validation is implemented in the legacy and fast VMs, we don't require
+            // the exact match in the computational gas limit reported; it only influences error messages.
+            return errors;
+        }
+
+        errors.check_match("validation result", self, other);
+        errors
+    }
+}
+
+/// `PartialEq` for `Call` doesn't compare gas-related fields. Here, we do compare them.
+#[derive(Debug, PartialEq)]
+struct StrictCall<'a> {
+    r#type: CallType,
+    from: Address,
+    to: Address,
+    // `gas` / `parent_gas` differ between fast VM and legacy VM during validation
+    gas_used: u64,
+    value: U256,
+    input: &'a [u8],
+    output: &'a [u8],
+    error: Option<&'a str>,
+    revert_reason: Option<&'a str>,
+}
+
+impl<'a> StrictCall<'a> {
+    fn flatten(calls: &'a [Call]) -> Vec<Self> {
+        let mut flattened = Vec::new();
+        Self::flatten_inner(&mut flattened, calls);
+        flattened
+    }
+
+    fn flatten_inner(flattened: &mut Vec<Self>, calls: &'a [Call]) {
+        // Depth-first, parents-before-children traversal.
+        for call in calls {
+            flattened.push(Self {
+                r#type: call.r#type,
+                from: call.from,
+                to: call.to,
+                gas_used: call.gas_used,
+                value: call.value,
+                input: &call.input,
+                output: &call.output,
+                error: call.error.as_deref(),
+                revert_reason: call.revert_reason.as_deref(),
+            });
+            Self::flatten_inner(flattened, &call.calls);
+        }
+    }
+}
+
+impl CheckDivergence for [Call] {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let this = StrictCall::flatten(self);
+        let other = StrictCall::flatten(other);
+        let mut errors = DivergenceErrors::new();
+
+        errors.check_match("call_traces", &this, &other);
+        errors
+    }
+}
+
+impl<T: CheckDivergence + ?Sized> CheckDivergence for &T {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        (**self).check_divergence(*other)
+    }
+}
+
 /// Shadowed VM that executes 2 VMs for each operation and compares their outputs.
 ///
 /// If a divergence is detected, the VM state is dumped using [a pluggable handler](Self::set_dump_handler()),
@@ -238,7 +355,6 @@ impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
     Main: VmTrackingContracts,
-    Shadow: VmInterface,
 {
     /// Sets the divergence handler to be used by this VM.
     pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
@@ -247,6 +363,23 @@ where
         }
     }
 
+    /// Dumps the current VM state.
+    pub fn dump_state(&self) -> VmDump {
+        self.main.dump_state()
+    }
+
+    /// Accesses the shadow VM if it's available (the instance is dropped after finding a divergence).
+    pub fn shadow_mut(&mut self) -> Option<&mut Shadow> {
+        Some(&mut self.shadow.get_mut().as_mut()?.vm)
+    }
+}
+
+impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
+where
+    S: ReadStorage,
+    Main: VmTrackingContracts,
+    Shadow: VmInterface,
+{
     /// Mutable ref is not necessary, but it automatically drops potential borrows.
     fn report(&mut self, err: DivergenceErrors) {
         self.report_shared(err);
@@ -258,11 +391,6 @@ where
             .take()
             .unwrap()
             .report(err, self.main.dump_state());
-    }
-
-    /// Dumps the current VM state.
-    pub fn dump_state(&self) -> VmDump {
-        self.main.dump_state()
     }
 
     /// Gets the specified value from both the main and shadow VM, checking whether it matches on both.
@@ -330,7 +458,6 @@ impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
     Main: VmFactory<StorageView<S>> + VmTrackingContracts,
-    Shadow: VmInterface,
 {
     /// Creates a VM with a custom shadow storage.
     pub fn with_custom_shadow<ShadowS>(
@@ -425,7 +552,7 @@ where
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        self.main.start_new_l2_block(l2_block_env);
+        self.main.start_new_l2_block(l2_block_env.clone());
         if let Some(shadow) = self.shadow.get_mut() {
             shadow.vm.start_new_l2_block(l2_block_env);
         }
@@ -512,7 +639,8 @@ impl DivergenceErrors {
         }
     }
 
-    fn extend(&mut self, from: Self) {
+    /// Extends this instance from another set of errors.
+    pub fn extend(&mut self, from: Self) {
         self.divergences.extend(from.divergences);
     }
 
@@ -608,5 +736,12 @@ where
             shadow.vm.pop_snapshot_no_rollback();
         }
         self.main.pop_snapshot_no_rollback();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.pop_front_snapshot_no_rollback();
+        }
+        self.main.pop_front_snapshot_no_rollback();
     }
 }

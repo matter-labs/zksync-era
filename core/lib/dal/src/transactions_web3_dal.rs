@@ -9,10 +9,9 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
-    L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, web3, Address, BloomInput, L2BlockNumber,
+    L2ChainId, Transaction, H256, U256,
 };
-use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_transaction::{
@@ -28,41 +27,34 @@ enum TransactionSelector<'a> {
     Position(L2BlockNumber, u32),
 }
 
+/// Transaction receipt together with additional data used by the API server logic.
+#[derive(Debug)]
+pub struct ExtendedTransactionReceipt {
+    pub inner: TransactionReceipt,
+    pub nonce: U256,
+    pub calldata: web3::Bytes,
+}
+
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
-    /// Returns receipts by transactions hashes.
-    /// Hashes are expected to be unique.
+    /// Returns receipts by transactions hashes. Hashes are expected to be unique.
+    ///
+    /// # Important!
+    ///
+    /// The returned receipts do not have `contract_address` set; this field needs to be filled separately.
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
-    ) -> DalResult<Vec<TransactionReceipt>> {
+    ) -> DalResult<Vec<ExtendedTransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
 
-        // Clarification for first part of the query(`WITH` clause):
-        // Looking for `ContractDeployed` event in the events table
-        // to find the address of deployed contract
         let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
-            WITH
-            events AS (
-                SELECT DISTINCT
-                ON (events.tx_hash) *
-                FROM
-                    events
-                WHERE
-                    events.address = $1
-                    AND events.topic1 = $2
-                    AND events.tx_hash = ANY($3)
-                ORDER BY
-                    events.tx_hash,
-                    events.event_index_in_tx DESC
-            )
-            
             SELECT
                 transactions.hash AS tx_hash,
                 transactions.index_in_block,
@@ -73,25 +65,23 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.initiator_address,
                 transactions.data -> 'to' AS "transfer_to?",
                 transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                transactions.data -> 'calldata' AS "calldata",
                 transactions.tx_format AS "tx_format?",
                 transactions.refunded_gas,
                 transactions.gas_limit,
+                transactions.nonce,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                events.topic4 AS "contract_address?",
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
             JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-            LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
-                transactions.hash = ANY($3)
+                transactions.hash = ANY($1)
                 AND transactions.data != '{}'::jsonb
             "#,
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
-            CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")
@@ -102,7 +92,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         let block_timestamps: Vec<Option<i64>> =
             st_receipts.iter().map(|x| x.block_timestamp).collect();
 
-        let mut receipts: Vec<TransactionReceipt> =
+        let mut receipts: Vec<ExtendedTransactionReceipt> =
             st_receipts.into_iter().map(Into::into).collect();
 
         let mut logs = self
@@ -118,6 +108,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             .await?;
 
         for (receipt, block_timestamp) in receipts.iter_mut().zip(block_timestamps.into_iter()) {
+            let receipt = &mut receipt.inner;
             let logs_for_tx = logs.remove(&receipt.transaction_hash);
 
             if let Some(logs) = logs_for_tx {
@@ -300,11 +291,18 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.refunded_gas,
                 commit_tx.tx_hash AS "eth_commit_tx_hash?",
                 prove_tx.tx_hash AS "eth_prove_tx_hash?",
-                execute_tx.tx_hash AS "eth_execute_tx_hash?"
+                precommit_tx.tx_hash AS "eth_precommit_tx_hash?",
+                execute_tx.tx_hash AS "eth_execute_tx_hash?",
+                execute_tx.finality_status AS "eth_execute_tx_finality_status?"
             FROM
                 transactions
             LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    miniblocks.eth_precommit_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
             LEFT JOIN eth_txs_history AS commit_tx
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
@@ -486,6 +484,57 @@ impl TransactionsWeb3Dal<'_, '_> {
             .remove(&block)
             .unwrap_or_default())
     }
+
+    /// Returns EIP-2718 binary-encoded representation of a transaction. As L1 priority transactions
+    /// or upgrade transaction do not have a valid EIP-2718 representation, returns an empty byte
+    /// array for them to signify that transaction exists but cannot be encoded.
+    pub async fn get_raw_transaction_bytes(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                coalesce(input, '\x'::bytea) AS "input!"
+            FROM
+                transactions
+            WHERE
+                transactions.hash = $1
+            "#,
+            hash.as_bytes()
+        )
+        .map(|x| x.input)
+        .instrument("get_raw_transaction_bytes")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await
+    }
+
+    /// Returns EIP-2718 binary-encoded representation of all transactions from the given L2 block.
+    /// As L1 priority transactions or upgrade transaction do not have a valid EIP-2718
+    /// representation, returns an empty byte array for them to signify that transaction exists but
+    /// cannot be encoded.
+    pub async fn get_l2_block_raw_transactions_bytes(
+        &mut self,
+        block: L2BlockNumber,
+    ) -> DalResult<Vec<Vec<u8>>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                coalesce(input, '\x'::bytea) AS "input!"
+            FROM
+                transactions
+            INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            WHERE
+                miniblocks.number = $1
+            ORDER BY
+                index_in_block
+            "#,
+            i64::from(block.0),
+        )
+        .map(|x| x.input)
+        .instrument("get_l2_block_raw_transactions_bytes")
+        .with_arg("block", &block)
+        .fetch_all(self.storage)
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -632,6 +681,7 @@ mod tests {
             .expect("no transaction");
         let mut fetched_tx = L2Tx::try_from(fetched_tx).unwrap();
         assert_eq!(fetched_tx.execute.contract_address, None);
+        fetched_tx.received_timestamp_ms = tx.received_timestamp_ms;
         fetched_tx.raw_bytes = tx.raw_bytes.clone();
         assert_eq!(fetched_tx, tx);
 
@@ -666,11 +716,11 @@ mod tests {
             .await
             .unwrap();
 
-        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+        receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
         assert_eq!(receipts.len(), 2);
-        assert_eq!(receipts[0].transaction_hash, tx1_hash);
-        assert_eq!(receipts[1].transaction_hash, tx2_hash);
+        assert_eq!(receipts[0].inner.transaction_hash, tx1_hash);
+        assert_eq!(receipts[1].inner.transaction_hash, tx2_hash);
     }
 
     #[tokio::test]
@@ -693,9 +743,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(receipts.len(), 1);
-        let receipt = receipts.into_iter().next().unwrap();
+        let receipt = receipts.into_iter().next().unwrap().inner;
         assert_eq!(receipt.transaction_hash, tx_hash);
-        assert_eq!(receipt.to, Some(Address::zero()));
+        assert_eq!(receipt.to, None);
     }
 
     #[tokio::test]

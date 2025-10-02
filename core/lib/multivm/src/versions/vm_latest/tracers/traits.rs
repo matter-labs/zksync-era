@@ -3,11 +3,11 @@ use crate::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 

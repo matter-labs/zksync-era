@@ -3,12 +3,16 @@
 use std::{cell::RefCell, mem, sync::Arc, time::Instant};
 
 use thread_local::ThreadLocal;
-use zksync_types::api;
+use zksync_types::{api, api::state_override::StateOverride};
 use zksync_web3_decl::{error::Web3Error, jsonrpsee::MethodResponse};
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
-use crate::web3::metrics::{ObservedRpcParams, API_METRICS};
+use crate::{
+    execution_sandbox::SANDBOX_METRICS,
+    tx_sender::SubmitTxError,
+    web3::metrics::{ObservedRpcParams, API_METRICS},
+};
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
@@ -85,6 +89,14 @@ impl MethodTracer {
         }
     }
 
+    /// Observes state override metrics.
+    pub fn observe_state_override(&self, state_override: Option<&StateOverride>) {
+        let cell = self.inner.get_or_default();
+        if let (Some(metadata), Some(state_override)) = (&*cell.borrow(), state_override) {
+            SANDBOX_METRICS.observe_override_metrics(metadata.name, state_override);
+        }
+    }
+
     pub(super) fn new_call<'a>(
         self: &Arc<Self>,
         name: &'static str,
@@ -103,6 +115,13 @@ impl MethodTracer {
         if let Some(metadata) = &mut *cell.borrow_mut() {
             API_METRICS.observe_web3_error(metadata.name, err);
             metadata.has_app_error = true;
+        }
+    }
+
+    pub(super) fn observe_submit_error(&self, err: &SubmitTxError) {
+        let cell = self.inner.get_or_default();
+        if let Some(metadata) = &*cell.borrow() {
+            API_METRICS.observe_submit_error(metadata.name, err);
         }
     }
 }
@@ -139,7 +158,7 @@ impl MethodCall<'_> {
     pub(super) fn set_as_current(&mut self) -> CurrentMethodGuard<'_> {
         let meta = &mut self.meta;
         let cell = self.tracer.inner.get_or_default();
-        let prev = mem::replace(&mut *cell.borrow_mut(), Some(meta.clone()));
+        let prev = (*cell.borrow_mut()).replace(meta.clone());
         CurrentMethodGuard {
             prev,
             current: meta,

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*)\n            FROM node_aggregation_witness_jobs_fri\n            WHERE\n                attempts >= $1\n                AND status <> 'successful'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6548321609ba60472ddebd1447e5ff79c2cb7d0a2a9556b49cbcb04b03331c0b"
+}

@@ -30,172 +30,154 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "75;80;89"
+        default: "75;80;89;90"
         required: false
+        # Details: https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
+        # L4: 89
+        # T4: 75
+        # A100: 80
+        # H100: 90
     outputs:
       protocol_version:
         description: "Protocol version of the binary"
-        value: ${{ jobs.build-images.outputs.protocol_version }}
+        value: ${{ jobs.get-protocol-version.outputs.protocol_version }}
 
 jobs:
-  build-images:
-    name: Build and Push Docker Images
-    env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
-      ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
-      CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
+  get-protocol-version:
+    name: Get protocol version
     runs-on: [matterlabs-ci-runner-high-performance]
-    strategy:
-      matrix:
-        component:
-          - witness-generator
-          - prover-gpu-fri
-          - witness-vector-generator
-          - circuit-prover-gpu
-          - prover-fri-gateway
-          - prover-job-monitor
-          - proof-fri-gpu-compressor
-          - prover-autoscaler
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
-      - name: start-services
-        run: |
-          echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
-          ci_run sccache --start-server
-
-      - name: init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-
-      - name: download CRS for GPU compressor
-        if: matrix.component == 'proof-fri-gpu-compressor'
-        run: |
-          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
-
-      - name: login to Docker registries
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-        run: |
-          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
-
-      # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
-      # In our case it happens only when PR is created from fork
-      - name: Wait for runner IP to be not rate-limited against GH API
-        if: inputs.is_pr_from_fork == true
-        run: |
-          api_endpoint="https://api.github.com/users/zksync-era-bot"
-          wait_time=60
-          max_retries=60
-          retry_count=0
-
-          while [[ $retry_count -lt $max_retries ]]; do
-            response=$(run_retried curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
-            http_code=$(echo "$response" | tail -n1)
-
-            if [[ "$http_code" == "200" ]]; then
-              echo "Request successful. Not rate-limited."
-              cat temp.json
-              rm temp.json
-              exit 0
-            elif [[ "$http_code" == "403" ]]; then
-              rate_limit_exceeded=$(jq -r '.message' temp.json | grep -i "API rate limit exceeded")
-              if [[ -n "$rate_limit_exceeded" ]]; then
-                retry_count=$((retry_count+1))
-                echo "API rate limit exceeded. Retry $retry_count of $max_retries. Retrying in $wait_time seconds..."
-                sleep $wait_time
-              else
-                echo "Request failed with HTTP status $http_code."
-                cat temp.json
-                rm temp.json
-                exit 1
-              fi
-            else
-              echo "Request failed with HTTP status $http_code."
-              cat temp.json
-              rm temp.json
-              exit 1
-            fi
-          done
-
-          echo "Reached the maximum number of retries ($max_retries). Exiting."
-          rm temp.json
-          exit 1
+      - name: setup rust
+        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
+        with:
+          toolchain: nightly-2024-09-01
 
       - name: protocol-version
         id: protocolversion
         # TODO: use -C flag, when it will become stable.
         shell: bash
         run: |
-          ci_run bash -c "cd prover && cargo build --release --bin prover_version"
-          PPV=$(ci_run prover/target/release/prover_version)
+          cd prover
+          cargo build --release --bin prover_version
+          PPV=$(target/release/prover_version)
           echo Protocol version is ${PPV}
           echo "protocol_version=${PPV}" >> $GITHUB_OUTPUT
-          echo "PROTOCOL_VERSION=${PPV}" >> $GITHUB_ENV
 
-      - name: update-images
-        env:
-          DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.component }}
-        run: |
-          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH,PROTOCOL_VERSION" \
-          ci_run zk docker $DOCKER_ACTION $COMPONENT
-
-      - name: Show sccache stats
-        if: always()
-        run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
-
-  copy-images:
-    name: Copy images between docker registries
-    needs: build-images
+  build-images:
+    name: Build and Push Docker Images
+    needs: get-protocol-version
     env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-      PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
-    # TODO: After migraton switch to CI
-    runs-on: matterlabs-default-infra-runners
-    if: ${{ inputs.action == 'push' }}
+      PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
+    runs-on: [matterlabs-ci-runner-high-performance]
+    permissions:
+      packages: write
+      contents: read
     strategy:
       matrix:
-        component:
-          - witness-vector-generator
+        components:
+          - witness-generator
+          - prover-fri-gateway
+          - prover-job-monitor
+          - proof-fri-gpu-compressor
+          - prover-autoscaler
+          - circuit-prover-gpu
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: "recursive"
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: Login to us-central1 GAR
-        run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
-      - name: Login and push to Asia GAR
+      - name: Set env vars
+        shell: bash
         run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
-          docker buildx imagetools create \
-            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
+          # Support for custom tag suffix
+          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
+            echo IMAGE_TAG_SHA_TS="${{ inputs.image_tag_suffix }}" >> $GITHUB_ENV
+          else
+            echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
+          fi
 
-      - name: Login and push to Europe GAR
+      - name: download CRS for GPU compressor
+        if: matrix.components == 'proof-fri-gpu-compressor'
         run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
-          docker buildx imagetools create \
-            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
+          run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+      # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
+      # In our case it happens only when PR is created from fork
+      - name: Wait for runner IP to be not rate-limited against GH API
+        if: ( inputs.is_pr_from_fork == true && matrix.components == 'proof-fri-gpu-compressor' )
+        run: ./.github/scripts/rate_limit_check.sh
+
+      - name: Hack to set env vars inside docker container
+        shell: bash
+        run: |
+          sed -i '/^FROM matterlabs\/zksync-build-base:latest as builder/a ENV SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage\nENV SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com\nENV SCCACHE_GCS_RW_MODE=READ_WRITE\nENV RUSTC_WRAPPER=sccache' ./docker/${{ matrix.components }}/Dockerfile
+          #TODO: remove AS version =)
+          sed -i '/^FROM matterlabs\/zksync-build-base:latest AS builder/a ENV SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage\nENV SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com\nENV SCCACHE_GCS_RW_MODE=READ_WRITE\nENV RUSTC_WRAPPER=sccache' ./docker/${{ matrix.components }}/Dockerfile
+          cat ./docker/${{ matrix.components }}/Dockerfile
+
+      - name: login to Docker registries
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        shell: bash
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: .
+          load: true
+          build-args: |
+            CUDA_ARCH=${{ inputs.CUDA_ARCH }}
+            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+            SCCACHE_GCS_RW_MODE=READ_WRITE
+            RUSTC_WRAPPER=sccache
+            PROTOCOL_VERSION=${{ env.PROTOCOL_VERSION }}
+            ERA_BELLMAN_CUDA_RELEASE=${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
+          file: docker/${{ matrix.components }}/Dockerfile
+          tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+            matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
+            matterlabs/${{ matrix.components }}:latest
+
+      - name: Push docker image
+        if: ${{ inputs.action == 'push' }}
+        run: |
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:latest
+          docker push matterlabs/${{ matrix.components }}:latest

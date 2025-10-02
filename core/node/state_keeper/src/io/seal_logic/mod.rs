@@ -8,13 +8,11 @@ use std::{
 
 use anyhow::Context as _;
 use itertools::Itertools;
+use kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
-    utils::{
-        get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, ModifiedSlot,
-        StorageWritesDeduplicator,
-    },
+    utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, StorageWritesDeduplicator},
 };
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
@@ -51,7 +49,7 @@ impl UpdatesManager {
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
         let finished_batch = self
-            .l1_batch
+            .committed_updates()
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
@@ -86,7 +84,8 @@ impl UpdatesManager {
                 .len(),
         );
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
+        let l1_tx_count = self.committed_updates().l1_tx_count;
+        let l2_tx_count = self.committed_updates().executed_transaction_hashes.len() - l1_tx_count;
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -99,23 +98,23 @@ impl UpdatesManager {
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
              {event_count} events, {dedup_reads_count} deduped reads, \
              {dedup_writes_count} deduped writes",
-            ts = display_timestamp(self.batch_timestamp()),
+            ts = display_timestamp(self.l1_batch_timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             l2_to_l1_log_count = finished_batch
                 .final_execution_state
                 .user_l2_to_l1_logs
                 .len(),
             event_count = finished_batch.final_execution_state.events.len(),
-            current_l1_batch_number = self.l1_batch.number
+            current_l1_batch_number = self.l1_batch_number()
         );
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
             VmEvent::extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
         let l1_batch = L1BatchHeader {
-            number: self.l1_batch.number,
-            timestamp: self.batch_timestamp(),
-            priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
+            number: self.l1_batch_number(),
+            timestamp: self.l1_batch_timestamp(),
+            priority_ops_onchain_data: self.committed_updates().priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             l2_to_l1_logs: finished_batch
@@ -132,7 +131,9 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
-            fee_address: self.fee_account_address,
+            fee_address: self.fee_account_address(),
+            batch_fee_input: self.batch_fee_input(),
+            pubdata_limit: self.pubdata_limit(),
         };
 
         let final_bootloader_memory = finished_batch
@@ -148,6 +149,7 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.storage_refunds,
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
+                ZK_SYNC_BYTES_PER_BLOB as u64,
             )
             .await?;
         progress.observe(None);
@@ -155,7 +157,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
         transaction
             .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch_number())
             .await?;
         progress.observe(None);
 
@@ -163,8 +165,8 @@ impl UpdatesManager {
         transaction
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(
-                self.l1_batch.number,
-                &self.l1_batch.executed_transactions,
+                self.l1_batch_number(),
+                &self.committed_updates().executed_transaction_hashes,
             )
             .await?;
         progress.observe(None);
@@ -180,7 +182,7 @@ impl UpdatesManager {
                 .collect();
             transaction
                 .storage_logs_dedup_dal()
-                .insert_protective_reads(self.l1_batch.number, &protective_reads)
+                .insert_protective_reads(self.l1_batch_number(), &protective_reads)
                 .await?;
             progress.observe(protective_reads.len());
         }
@@ -231,7 +233,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
         transaction
             .storage_logs_dedup_dal()
-            .insert_initial_writes(self.l1_batch.number, &initial_writes)
+            .insert_initial_writes(self.l1_batch_number(), &initial_writes)
             .await?;
         progress.observe(initial_writes.len());
 
@@ -239,7 +241,7 @@ impl UpdatesManager {
         transaction.commit().await?;
         progress.observe(None);
 
-        let writes_metrics = self.storage_writes_deduplicator.metrics();
+        let writes_metrics = self.storage_writes_deduplicator().metrics();
         // Sanity check metrics.
         anyhow::ensure!(
             all_writes_len
@@ -264,9 +266,9 @@ impl UpdatesManager {
             .observe(writes_metrics.repeated_storage_writes);
         L1_BATCH_METRICS
             .transactions_in_l1_batch
-            .observe(self.l1_batch.executed_transactions.len());
+            .observe(self.committed_updates().executed_transaction_hashes.len());
 
-        let batch_timestamp = self.batch_timestamp();
+        let batch_timestamp = self.l1_batch_timestamp();
         let l1_batch_latency =
             unix_timestamp_ms().saturating_sub(batch_timestamp * 1_000) as f64 / 1_000.0;
         APP_METRICS.block_latency[&BlockStage::Sealed]
@@ -274,7 +276,16 @@ impl UpdatesManager {
 
         let elapsed = started_at.elapsed();
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
-        tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
+        tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch_number());
+    }
+
+    pub fn clear_interop_roots(&mut self) {
+        tracing::debug!(
+            "Clearing interop roots for l2 block {:?}: {:?}",
+            self.last_pending_l2_block().number,
+            self.last_pending_l2_block().interop_roots
+        );
+        self.last_pending_l2_block_mut().interop_roots.clear();
     }
 }
 
@@ -349,7 +360,7 @@ impl L2BlockSealCommand {
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
             l2_block_number = self.l2_block.number,
             l1_batch_number = self.l1_batch_number,
-            ts = display_timestamp(self.l2_block.timestamp),
+            ts = display_timestamp(self.l2_block.timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             event_count = self.l2_block.events.len()
         );
@@ -357,48 +368,53 @@ impl L2BlockSealCommand {
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
-        let iter = self.l2_block.events.iter().flat_map(|event| {
-            event
-                .indexed_topics
-                .iter()
-                .map(|topic| BloomInput::Raw(topic.as_bytes()))
-                .chain([BloomInput::Raw(event.address.as_bytes())])
-        });
-        let logs_bloom = build_bloom(iter);
-        progress.observe(Some(self.l2_block.events.len()));
+        // Header is only sealed if the block is fictive. Otherwise, header will be saved separately.
+        if self.insert_header {
+            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
+            let iter = self.l2_block.events.iter().flat_map(|event| {
+                event
+                    .indexed_topics
+                    .iter()
+                    .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                    .chain([BloomInput::Raw(event.address.as_bytes())])
+            });
+            let logs_bloom = build_bloom(iter);
+            progress.observe(Some(self.l2_block.events.len()));
 
-        // Seal block header at the last step.
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
-        let definite_vm_version = self
-            .protocol_version
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
-            .into();
+            // Seal block header at the last step.
+            let progress =
+                L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
+            let definite_vm_version = self
+                .protocol_version
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
+                .into();
 
-        let l2_block_header = L2BlockHeader {
-            number: self.l2_block.number,
-            timestamp: self.l2_block.timestamp,
-            hash: self.l2_block.get_l2_block_hash(),
-            l1_tx_count: l1_tx_count as u16,
-            l2_tx_count: l2_tx_count as u16,
-            fee_account_address: self.fee_account_address,
-            base_fee_per_gas: self.base_fee_per_gas,
-            batch_fee_input: self.fee_input,
-            base_system_contracts_hashes: self.base_system_contracts_hashes,
-            protocol_version: self.protocol_version,
-            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
-            virtual_blocks: self.l2_block.virtual_blocks,
-            gas_limit: get_max_batch_gas_limit(definite_vm_version),
-            logs_bloom,
-            pubdata_params: self.pubdata_params,
-        };
+            let l2_block_header = L2BlockHeader {
+                number: self.l2_block.number,
+                timestamp: self.l2_block.timestamp(),
+                hash: self.l2_block.get_l2_block_hash(),
+                l1_tx_count: l1_tx_count as u16,
+                l2_tx_count: l2_tx_count as u16,
+                fee_account_address: self.fee_account_address,
+                base_fee_per_gas: self.base_fee_per_gas,
+                batch_fee_input: self.fee_input,
+                base_system_contracts_hashes: self.base_system_contracts_hashes,
+                protocol_version: self.protocol_version,
+                gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
+                virtual_blocks: self.l2_block.virtual_blocks,
+                gas_limit: get_max_batch_gas_limit(definite_vm_version),
+                logs_bloom,
+                pubdata_params: self.pubdata_params,
+                rolling_txs_hash: Some(self.rolling_txs_hash),
+            };
 
-        let mut connection = strategy.connection().await?;
-        connection
-            .blocks_dal()
-            .insert_l2_block(&l2_block_header)
-            .await?;
-        progress.observe(None);
+            let mut connection = strategy.connection().await?;
+            connection
+                .blocks_dal()
+                .insert_l2_block(&l2_block_header)
+                .await?;
+            progress.observe(None);
+        }
 
         // Report metrics.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ReportTxMetrics, is_fictive);
@@ -415,6 +431,10 @@ impl L2BlockSealCommand {
             anyhow::ensure!(
                 self.l2_block.executed_transactions.is_empty(),
                 "fictive L2 block must not have transactions"
+            );
+            anyhow::ensure!(
+                self.l2_block.interop_roots.is_empty(),
+                "fictive L2 block must not have interop roots"
             );
         } else {
             anyhow::ensure!(
@@ -442,19 +462,12 @@ impl L2BlockSealCommand {
     }
 
     fn extract_deduplicated_write_logs(&self) -> Vec<StorageLog> {
-        let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
-        storage_writes_deduplicator.apply(
+        StorageWritesDeduplicator::deduplicate_logs(
             self.l2_block
                 .storage_logs
                 .iter()
                 .filter(|log| log.log.is_write()),
-        );
-        let deduplicated_logs = storage_writes_deduplicator.into_modified_key_values();
-
-        deduplicated_logs
-            .into_iter()
-            .map(|(key, ModifiedSlot { value, .. })| StorageLog::new_write_log(key, value))
-            .collect()
+        )
     }
 
     fn transaction(&self, index: usize) -> &Transaction {
@@ -472,20 +485,18 @@ impl L2BlockSealCommand {
         is_fictive: bool,
         tx_location: impl Fn(&T) -> u32,
     ) -> Vec<(IncludedTxLocation, Vec<&'a T>)> {
-        let grouped_entries = entries.iter().group_by(|&entry| tx_location(entry));
+        let grouped_entries = entries.iter().chunk_by(|&entry| tx_location(entry));
         let grouped_entries = grouped_entries.into_iter().map(|(tx_index, entries)| {
-            let (tx_hash, tx_initiator_address) = if is_fictive {
+            let tx_hash = if is_fictive {
                 assert_eq!(tx_index as usize, self.first_tx_index);
-                (H256::zero(), Address::zero())
+                H256::zero()
             } else {
-                let tx = self.transaction(tx_index as usize);
-                (tx.hash(), tx.initiator_account())
+                self.transaction(tx_index as usize).hash()
             };
 
             let location = IncludedTxLocation {
                 tx_hash,
                 tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
-                tx_initiator_address,
             };
             (location, entries.collect())
         });
@@ -504,7 +515,7 @@ impl L2BlockSealCommand {
     fn report_transaction_metrics(&self) {
         const SLOW_INCLUSION_DELAY: Duration = Duration::from_secs(600);
 
-        if self.pre_insert_txs {
+        if self.pre_insert_data {
             // This I/O logic is running on the EN. The reported metrics / logs would be meaningless:
             //
             // - If `received_timestamp_ms` are copied from the main node, they can be far in the past (especially during the initial EN sync).
@@ -541,7 +552,7 @@ impl L2BlockSealCommand {
         L2_BLOCK_METRICS.sealed_time.observe(started_at.elapsed());
 
         let l2_block_latency =
-            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp * 1_000) as f64 / 1_000.0;
+            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp_ms()) as f64 / 1_000.0;
         let stage = &L2BlockStage::Sealed;
         APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(l2_block_latency));
         APP_METRICS.miniblock_number[stage].set(l2_block_number.0.into());

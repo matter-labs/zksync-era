@@ -1,0 +1,50 @@
+name: Publish crates
+
+on:
+  push:
+    branches:
+      - release-please--branches--main--components--core
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to release. Possible values are: core, prover or zkstack_cli.'
+        required: true
+        default: 'zkstack_cli'
+      run-build:
+        type: boolean
+        description: 'Build the workspace before release.'
+        required: false
+        default: true
+      run-tests:
+        type: boolean
+        description: 'Run tests before release.'
+        required: false
+        default: false
+      org-owner:
+        type: string
+        description: 'Organization to add as owner of the crates.'
+        required: false
+        default: 'github:matter-labs:crates-io'
+
+
+jobs:
+
+  publish-crates:
+    name: Publish to crates.io
+    runs-on: matterlabs-ci-runner-highdisk
+    env:
+      ZKSYNC_USE_CUDA_STUBS: true
+    steps:
+      - name: Publish crates
+        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@3f8620bc332855fd588321f4486ecdbcddee9ec3 # v1
+        with:
+          slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }} # Slack webhook for notifications
+          cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }} # Crates.io token for publishing
+          workspace_path: ${{ inputs.component || 'core' }}
+          org_owner: ${{ inputs.org-owner }}
+          run_build: ${{ inputs.run-build }}
+          run_tests: ${{ inputs.run-tests }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          dependencies: 'clang libclang-dev'
+          dry_run: ${{ github.event_name == 'push' }}
+          notify_slack: ${{ github.event_name != 'push' }}

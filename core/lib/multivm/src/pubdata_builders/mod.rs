@@ -1,24 +1,36 @@
 use std::rc::Rc;
 
-pub use rollup::RollupPubdataBuilder;
-pub use validium::ValidiumPubdataBuilder;
-use zksync_types::commitment::{L1BatchCommitmentMode, PubdataParams};
+pub use full_builder::FullPubdataBuilder;
+pub use hashed_builder::HashedPubdataBuilder;
+use zksync_types::{
+    commitment::{PubdataParams, PubdataType},
+    ProtocolVersionId,
+};
 
 use crate::interface::pubdata::PubdataBuilder;
 
-mod rollup;
+mod full_builder;
+mod hashed_builder;
 #[cfg(test)]
 mod tests;
 mod utils;
-mod validium;
 
-pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder> {
+pub fn pubdata_params_to_builder(
+    params: PubdataParams,
+    protocol_version: ProtocolVersionId,
+) -> Rc<dyn PubdataBuilder> {
+    if protocol_version.is_pre_gateway() {
+        return Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address));
+    }
+
     match params.pubdata_type {
-        L1BatchCommitmentMode::Rollup => {
-            Rc::new(RollupPubdataBuilder::new(params.l2_da_validator_address))
-        }
-        L1BatchCommitmentMode::Validium => {
-            Rc::new(ValidiumPubdataBuilder::new(params.l2_da_validator_address))
+        PubdataType::NoDA => Rc::new(HashedPubdataBuilder::new(params.l2_da_validator_address)),
+        PubdataType::Rollup
+        | PubdataType::Avail
+        | PubdataType::Celestia
+        | PubdataType::Eigen
+        | PubdataType::ObjectStore => {
+            Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address))
         }
     }
 }

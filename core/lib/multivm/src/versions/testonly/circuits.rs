@@ -11,7 +11,6 @@ use crate::{
 /// from hardcoded expected value.
 pub(crate) fn test_circuits<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -34,8 +33,19 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.
     const EXPECTED: [f32; 13] = [
-        1.34935, 0.15026, 1.66666, 0.00315, 1.0594, 0.00058, 0.00348, 0.00076, 0.11945, 0.14285,
-        0.0, 0.0, 0.0,
+        1.258627,
+        0.15830745,
+        1.6666666,
+        0.003154238,
+        1.2084359,
+        0.00058723404,
+        0.0034893616,
+        0.00076709175,
+        0.11945392,
+        0.14285715,
+        0.0,
+        0.0,
+        0.0,
     ];
     let actual = [
         (s.main_vm, "main_vm"),

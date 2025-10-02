@@ -1,3 +1,5 @@
+<!--- WIP --->
+
 # L1 Smart contracts
 
 This document presumes familiarity with Rollups. For a better understanding, consider reading the overview
@@ -7,7 +9,7 @@ Rollups inherit security and decentralization guarantees from Ethereum, on which
 their own state, providing validity proofs for state transition, implementing a communication mechanism, etc. In
 practice, all this is achieved by Smart Contracts built on top of Ethereum. This document details the architecture of
 the L2 contracts on Ethereum Layer 1. We also have contracts that support the ZK Chain ecosystem, we cover those in the
-[Shared Bridge](./zk_chains/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
+[Bridgehub](./contracts/chain_management/overview.md) section. The Bridgehub relies on these individual contracts.
 
 ## Diamond
 
@@ -106,12 +108,11 @@ burn the funds on L2, allowing the user to reclaim them through the `finalizeEth
 `MailboxFacet`.
 
 More about L1->L2 operations can be found
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1→L2%20ops%20on%20zkSync.md).
+[here](./contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 L2 -> L1 communication, in contrast to L1 -> L2 communication, is based only on transferring the information, and not on
 the transaction execution on L1. The full description of the mechanism for sending information from L2 to L1 can be
-found
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md).
+found [here](./contracts/settlement_contracts/data_availability/pubdata.md).
 
 ### ExecutorFacet
 
@@ -184,7 +185,7 @@ fee-on-transfer tokens or other custom logic for handling user balances.
 
 The owner of the L1ERC20Bridge is the Governance contract.
 
-### L1SharedBridge
+### L1AssetRouter
 
 The main bridge implementation handles transfers Ether, ERC20 tokens and of WETH tokens between the two domains. It is
 designed to streamline and enhance the user experience for bridging WETH tokens by minimizing the number of transactions
@@ -253,6 +254,9 @@ execution of batches. Then, the validator can prove the already committed batche
 and again the same calldata (related to the `proveBatches` function) will be propagated to the ZKsync contract. After
 the `delay` is elapsed, the validator is allowed to call `executeBatches` to propagate the same calldata to ZKsync
 contract.
+
+The execution delay is dynamically read from the contract's `executionDelay()` function by the node, eliminating the
+need for manual configuration management.
 
 The owner of the ValidatorTimelock contract is the same as the owner of the Governance contract - Matter Labs multisig.
 

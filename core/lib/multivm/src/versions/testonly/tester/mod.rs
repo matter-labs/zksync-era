@@ -3,10 +3,14 @@ use std::{collections::HashSet, fmt, rc::Rc};
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
+    get_deployer_key,
+    l2::L2Tx,
+    system_contracts::get_system_smart_contracts,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     writes::StateDiffRecord,
-    Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
+    Address, L1BatchNumber, L2ChainId, StorageKey, Transaction, H256, U256,
 };
+use zksync_vm_interface::Call;
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
 use super::get_empty_storage;
@@ -14,6 +18,7 @@ use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
         storage::{InMemoryStorage, StoragePtr, StorageView},
+        tracer::{ValidationParams, ViolatedValidationRule},
         CurrentExecutionState, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv,
         TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
@@ -68,20 +73,26 @@ impl<VM: TestedVm> VmTester<VM> {
 #[derive(Debug)]
 pub(crate) struct VmTesterBuilder {
     storage: Option<InMemoryStorage>,
+    storage_slots: Vec<(StorageKey, H256)>,
     l1_batch_env: Option<L1BatchEnv>,
     system_env: SystemEnv,
     rich_accounts: Vec<Account>,
     custom_contracts: Vec<ContractToDeploy>,
+    custom_evm_contracts: Vec<ContractToDeploy>,
+    enable_evm_emulator: bool,
 }
 
 impl VmTesterBuilder {
     pub(crate) fn new() -> Self {
         Self {
             storage: None,
+            storage_slots: vec![],
             l1_batch_env: None,
             system_env: default_system_env(),
             rich_accounts: vec![],
             custom_contracts: vec![],
+            custom_evm_contracts: vec![],
+            enable_evm_emulator: false,
         }
     }
 
@@ -97,6 +108,14 @@ impl VmTesterBuilder {
 
     pub(crate) fn with_storage(mut self, storage: InMemoryStorage) -> Self {
         self.storage = Some(storage);
+        self
+    }
+
+    pub(crate) fn with_storage_slots(
+        mut self,
+        slots: impl IntoIterator<Item = (StorageKey, H256)>,
+    ) -> Self {
+        self.storage_slots = slots.into_iter().collect();
         self
     }
 
@@ -118,11 +137,6 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn with_empty_in_memory_storage(mut self) -> Self {
-        self.storage = Some(get_empty_storage());
-        self
-    }
-
     /// Creates the specified number of pre-funded accounts.
     pub(crate) fn with_rich_accounts(mut self, number: u32) -> Self {
         for i in 0..number {
@@ -140,29 +154,66 @@ impl VmTesterBuilder {
         self
     }
 
+    pub(crate) fn with_evm_contracts(mut self, contracts: Vec<ContractToDeploy>) -> Self {
+        self.custom_evm_contracts = contracts;
+        self
+    }
+
+    pub(crate) fn with_evm_emulator(mut self) -> Self {
+        self.enable_evm_emulator = true;
+        self
+    }
+
     pub(crate) fn build<VM>(self) -> VmTester<VM>
     where
         VM: VmFactory<StorageView<InMemoryStorage>>,
     {
+        let enable_evm_emulator = self.enable_evm_emulator || !self.custom_evm_contracts.is_empty();
+        let system_env = self.system_env;
+        if enable_evm_emulator {
+            assert!(system_env
+                .base_system_smart_contracts
+                .evm_emulator
+                .is_some());
+        }
+
         let l1_batch_env = self
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
 
-        let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
-        ContractToDeploy::insert_all(&self.custom_contracts, &mut raw_storage);
+        let mut raw_storage = self.storage.unwrap_or_else(|| {
+            InMemoryStorage::with_custom_system_contracts_and_chain_id(
+                L2ChainId::default(),
+                get_system_smart_contracts(),
+            )
+        });
+        for (key, value) in self.storage_slots {
+            raw_storage.set_value(key, value);
+        }
+        if enable_evm_emulator {
+            // Set `ALLOWED_BYTECODE_TYPES_MODE_SLOT` in `ContractDeployer`.
+            raw_storage.set_value(
+                get_deployer_key(H256::from_low_u64_be(1)),
+                H256::from_low_u64_be(1),
+            );
+        }
+
+        for contract in self.custom_contracts {
+            contract.insert(&mut raw_storage);
+        }
+        for contract in self.custom_evm_contracts {
+            contract.insert_evm(&mut raw_storage);
+        }
+
         let storage = StorageView::new(raw_storage).to_rc_ptr();
         for account in &self.rich_accounts {
             make_address_rich(storage.borrow_mut().inner_mut(), account.address);
         }
 
-        let vm = VM::new(
-            l1_batch_env.clone(),
-            self.system_env.clone(),
-            storage.clone(),
-        );
+        let vm = VM::new(l1_batch_env.clone(), system_env.clone(), storage.clone());
         VmTester {
             vm,
-            system_env: self.system_env,
+            system_env,
             l1_batch_env,
             storage,
             test_contract: None,
@@ -230,4 +281,35 @@ pub(crate) trait TestedVm:
 
     /// Returns pubdata input.
     fn pubdata_input(&self) -> PubdataInput;
+}
+
+pub(crate) trait TestedVmForValidation: TestedVm {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>);
+}
+
+pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationParams {
+    let user_address = tx.common_data.initiator_address;
+    let paymaster_address = tx.common_data.paymaster_params.paymaster;
+    ValidationParams {
+        user_address,
+        paymaster_address,
+        trusted_slots: Default::default(),
+        trusted_addresses: Default::default(),
+        // field `trustedAddress` of ValidationRuleBreaker
+        trusted_address_slots: [(Address::repeat_byte(0x10), 1.into())].into(),
+        computational_gas_limit: system.default_validation_computational_gas_limit,
+        timestamp_asserter_params: None,
+    }
+}
+
+pub(crate) trait TestedVmWithCallTracer: TestedVm {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
+}
+
+pub(crate) trait TestedVmWithStorageLimit: TestedVm {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs;
 }

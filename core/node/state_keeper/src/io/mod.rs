@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
-    Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2ChainId,
+    ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -40,14 +40,15 @@ pub struct PendingBatchData {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     pub(crate) pubdata_params: PubdataParams,
+    pub(crate) pubdata_limit: Option<u64>,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
-#[derive(Debug, Copy, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct L2BlockParams {
-    /// The timestamp of the L2 block.
-    pub timestamp: u64,
+    /// The timestamp of the L2 block in ms.
+    timestamp_ms: u64,
     /// The maximal number of virtual blocks that can be created within this L2 block.
     /// During the migration from displaying users `batch.number` to L2 block number in Q3 2023
     /// in order to make the process smoother for users, we temporarily display the virtual blocks for users.
@@ -56,7 +57,57 @@ pub struct L2BlockParams {
     /// Note that it is the *maximal* number of virtual blocks that can be created within this L2 block since
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
-    pub virtual_blocks: u32,
+    virtual_blocks: u32,
+    interop_roots: Vec<InteropRoot>,
+}
+
+impl L2BlockParams {
+    pub fn new(timestamp_ms: u64) -> Self {
+        Self {
+            timestamp_ms,
+            virtual_blocks: 1,
+            interop_roots: vec![],
+        }
+    }
+
+    pub fn new_raw(
+        timestamp_ms: u64,
+        virtual_blocks: u32,
+        interop_roots: Vec<InteropRoot>,
+    ) -> Self {
+        Self {
+            timestamp_ms,
+            virtual_blocks,
+            interop_roots,
+        }
+    }
+
+    /// The timestamp of the L2 block in seconds.
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp_ms / 1000
+    }
+
+    /// The timestamp of the L2 block in milliseconds.
+    pub fn timestamp_ms(&self) -> u64 {
+        self.timestamp_ms
+    }
+
+    /// Mutable reference for the timestamp of the L2 block in milliseconds.
+    pub fn timestamp_ms_mut(&mut self) -> &mut u64 {
+        &mut self.timestamp_ms
+    }
+
+    pub fn virtual_blocks(&self) -> u32 {
+        self.virtual_blocks
+    }
+
+    pub fn interop_roots(&self) -> &[InteropRoot] {
+        &self.interop_roots
+    }
+
+    pub fn set_interop_roots(&mut self, interop_roots: Vec<InteropRoot>) {
+        self.interop_roots = interop_roots;
+    }
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
@@ -74,20 +125,31 @@ pub struct L1BatchParams {
     pub first_l2_block: L2BlockParams,
     /// Params related to how the pubdata should be processed by the bootloader in the batch.
     pub pubdata_params: PubdataParams,
+    /// Pubdata limit for the batch. It's set only if protocol version >= v29.
+    pub pubdata_limit: Option<u64>,
+}
+
+#[derive(Debug)]
+pub(crate) struct BatchInitParams {
+    pub system_env: SystemEnv,
+    pub l1_batch_env: L1BatchEnv,
+    pub pubdata_params: PubdataParams,
+    pub pubdata_limit: Option<u64>,
+    pub timestamp_ms: u64,
 }
 
 impl L1BatchParams {
-    pub(crate) fn into_env(
+    pub(crate) fn into_init_params(
         self,
         chain_id: L2ChainId,
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
+    ) -> BatchInitParams {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
-            self.first_l2_block.timestamp,
+            self.first_l2_block.timestamp(),
             previous_batch_hash,
             self.fee_input,
             cursor.next_l2_block,
@@ -97,9 +159,16 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
+            self.first_l2_block.interop_roots.clone(),
         );
 
-        (system_env, l1_batch_env, self.pubdata_params)
+        BatchInitParams {
+            system_env,
+            l1_batch_env,
+            pubdata_params: self.pubdata_params,
+            pubdata_limit: self.pubdata_limit,
+            timestamp_ms: self.first_l2_block.timestamp_ms(),
+        }
     }
 }
 
@@ -135,6 +204,9 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>>;
 
+    /// Update the next block params timestamp
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64);
+
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
     async fn wait_for_next_tx(
@@ -142,8 +214,16 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         max_wait: Duration,
         l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>>;
+
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
+
+    /// Marks block transactions as "not executed", so they can be retrieved from the IO again.
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()>;
+
+    /// Updates mempool state (nonces for L2 txs and next priority op id) after block is processed.
+    async fn advance_mempool(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
+
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;
 
@@ -163,6 +243,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         &self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
+
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;

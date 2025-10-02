@@ -58,7 +58,7 @@ pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
 /// via `EthereumProvider::web3` method.
 #[derive(Debug)]
 pub struct EthereumProvider<S: EthereumSigner> {
-    eth_client: SigningClient<S>,
+    eth_client: SigningClient<S, L1>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
     l1_erc20_bridge_abi: ethabi::Contract,
@@ -89,7 +89,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         })?;
         let sl_chain_id = SLChainId(l1_chain_id);
 
-        let contract_address = provider.get_main_contract().await?;
+        let contract_address = provider.get_main_l1_contract().await?;
         let default_bridges = provider
             .get_bridge_contracts()
             .await
@@ -427,7 +427,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .sign_prepared_tx(
                 tx_data,
                 Options::with(|f| {
-                    f.gas = Some(U256::from(300000));
+                    f.gas = Some(U256::from(600000));
                     f.value = Some(value);
                     f.gas_price = Some(gas_price)
                 }),
@@ -475,7 +475,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     .as_u64()
                     .ok_or(ClientError::Other)?
             } else {
-                600000u64
+                800000u64
             }
         };
 

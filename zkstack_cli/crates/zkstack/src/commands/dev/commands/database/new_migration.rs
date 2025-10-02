@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::new_migration::{DatabaseNewMigrationArgs, SelectedDatabase};
 use crate::commands::dev::{
@@ -10,16 +10,16 @@ use crate::commands::dev::{
     messages::{msg_database_new_migration_loading, MSG_DATABASE_NEW_MIGRATION_SUCCESS},
 };
 
-pub fn run(shell: &Shell, args: DatabaseNewMigrationArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: DatabaseNewMigrationArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
     let dal = match args.selected_database {
-        SelectedDatabase::Core => get_core_dal(shell, None)?,
-        SelectedDatabase::Prover => get_prover_dal(shell, None)?,
+        SelectedDatabase::Core => get_core_dal(shell, None).await?,
+        SelectedDatabase::Prover => get_prover_dal(shell, None).await?,
     };
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let config = ZkStackConfig::from_file(shell)?;
 
-    generate_migration(shell, ecosystem_config.link_to_code, dal, args.name)?;
+    generate_migration(shell, config.link_to_code(), dal, args.name)?;
 
     logger::outro(MSG_DATABASE_NEW_MIGRATION_SUCCESS);
 

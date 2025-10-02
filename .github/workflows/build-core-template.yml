@@ -13,11 +13,6 @@ on:
         description: "Optional suffix to override tag name generation"
         type: string
         required: false
-      action:
-        description: "Action with docker image"
-        type: string
-        default: "push"
-        required: false
       compilers:
         description: 'JSON of required compilers and their versions'
         type: string
@@ -28,38 +23,32 @@ on:
         type: boolean
         required: false
         default: false
-jobs:
-  build-images:
-    name: Build and Push Docker Images
-    env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
-    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
-    strategy:
-      matrix:
-        components:
-          - server-v2
-          - external-node
-          - snapshots-creator
-        platforms:
-          - linux/amd64
-        include:
-          - components: external-node
-            platforms: linux/arm64
+      action:
+        type: string
+        required: false
+        default: "do nothing"
 
+jobs:
+  prepare-contracts:
+    name: Prepare contracts
+    runs-on: matterlabs-ci-runner-high-performance
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
 
-      - name: setup-env
+      - name: Prepare ENV
+        shell: bash
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
       - name: Download contracts
+        shell: bash
         run: |
           commit_sha=$(git submodule status contracts | awk '{print $1}' | tr -d '-')
           page=1
@@ -71,15 +60,11 @@ jobs:
             if [ $(jq length <<<"$tags") -eq 0 ]; then
               echo "No tag found on all pages."
               echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
-              # TODO Remove it when we migrate to foundry inside contracts repository
-              mkdir -p contracts/l1-contracts/artifacts/
               exit 0
             fi
             filtered_tag=$(jq -r --arg commit_sha "$commit_sha" 'map(select(.commit.sha == $commit_sha)) | .[].name' <<<"$tags")
             if [[ ! -z "$filtered_tag" ]]; then
               echo "BUILD_CONTRACTS=false" >> "$GITHUB_ENV"
-              # TODO Remove it when we migrate to foundry inside contracts repository
-              mkdir -p contracts/l1-contracts/out
               break
             fi
             ((page++))
@@ -93,8 +78,41 @@ jobs:
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
 
-      - name: pre-download compilers
+      - name: Install Apt dependencies
         if: env.BUILD_CONTRACTS == 'true'
+        shell: bash
+        run: |
+          sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Install Node
+        if: env.BUILD_CONTRACTS == 'true'
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Yarn
+        if: env.BUILD_CONTRACTS == 'true'
+        run: npm install -g yarn
+
+      - name: Setup rust
+        if: env.BUILD_CONTRACTS == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
+        with:
+          toolchain: nightly-2024-09-01
+
+      - name: Install foundry-zksync
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          mkdir ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      - name: Pre-download compilers
+        if: env.BUILD_CONTRACTS == 'true'
+        shell: bash
         run: |
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
@@ -111,60 +129,209 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: start-services
-        run: |
-          echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
-          ci_run pre_download_compilers.sh
-          ci_run sccache --start-server
-
-      - name: init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run ./bin/zk || true
-          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
-
       - name: Install zkstack
         if: env.BUILD_CONTRACTS == 'true'
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup --local || true
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
+        shell: bash
         run: |
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zkstack dev contracts --system-contracts --l1-contracts --l2-contracts 
+          cp etc/tokens/{test,localhost}.json
+          zkstack dev contracts
 
-      - name: Login to Docker registries
+      - name: Upload contracts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: contacts
+          path: |
+            ./contracts
+
+  prepare-proof-manager-contracts:
+    name: Prepare proof manager contracts
+    runs-on: matterlabs-ci-runner-high-performance
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: "recursive"
+
+      - name: Prepare ENV
+        shell: bash
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
+
+      - name: Clone & checkout proof manager contracts
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          # for now these contracts will be pinned to specific commit
+          git checkout cc7a521
+          git submodule update --init --recursive
+      
+      - name: Install foundry-zksync
+        run: |
+          mkdir ./foundry-zksync
+          # downloading newer version of foundry-zksync since the latest nightly is not working
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.24/foundry_zksync_v0.0.24_linux_amd64.tar.gz
+          tar zxf foundry_zksync_v0.0.24_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      - name: Build proof manager contracts(with zksync)
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          forge --version
+          forge build --zksync
+
+      - name: Upload contracts(with zksync)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proof-manager-contracts-zkout
+          path: |
+            ./proof-manager-contracts/zkout
+
+      - name: Build proof manager contracts
+        working-directory: ./proof-manager-contracts
+        shell: bash
+        run: |
+          forge --version
+          forge build
+
+      - name: Upload contracts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proof-manager-contracts-out
+          path: |
+            ./proof-manager-contracts/out
+          
+  build-images:
+    name: Build and Push Docker Images
+    needs: [prepare-contracts, prepare-proof-manager-contracts]
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      matrix:
+        components:
+          - server-v2
+          - external-node
+          - snapshots-creator
+        platforms:
+          - linux/amd64
+        include:
+          - components: external-node
+            platforms: linux/arm64
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: "recursive"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Setup env
+        shell: bash
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
+
+      - name: Download setup key
+        shell: bash
+        run: |
+          if [ -f "/setup_2^26.key" ]; then
+            cp '/setup_2^26.key' './setup_2^26.key'
+          else
+            run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          fi
+
+      - name: Set env vars
+        shell: bash
+        run: |
+          echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
+          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
+            echo IMAGE_TAG_SHA_TS="${{ env.IMAGE_TAG_SUFFIX }}" >> $GITHUB_ENV
+          else
+            echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
+          fi
+
+      - name: Download contracts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: contacts
+          path: |
+            ./contracts
+
+      - name: Download proof manager contracts output(zkout)
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: proof-manager-contracts-zkout
+          path: |
+            ./proof-manager-contracts/zkout
+
+      - name: Download proof manager contracts output(out)
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: proof-manager-contracts-out
+          path: |
+            ./proof-manager-contracts/out
+
+      - name: login to Docker registries
+        if: ${{ inputs.action == 'push' }}
+        shell: bash
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        if: ${{ inputs.action == 'push' }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build docker image
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: .
+          load: true
+          platforms: ${{ matrix.platforms }}
+          file: docker/${{ matrix.components }}/Dockerfile
+          build-args: |
+            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+            SCCACHE_GCS_RW_MODE=READ_WRITE
+            RUSTC_WRAPPER=sccache
+          tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+
+      - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
-          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
-
-      - name: update-images
-        env:
-          DOCKER_ACTION: ${{ inputs.action }}
-          COMPONENT: ${{ matrix.components }}
-          PLATFORM: ${{ matrix.platforms }}
-        run: |
-          ci_run run_retried rustup default nightly-2024-05-07
-          platform=$(echo $PLATFORM | tr '/' '-')
-          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
-      - name: Show sccache stats
-        if: always()
-        run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
   create_manifest:
     name: Create release manifest
-    # TODO: After migraton switch to CI
-    runs-on: matterlabs-default-infra-runners
+    runs-on: matterlabs-ci-runner
     needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:
@@ -180,7 +347,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: login to Docker registries
         run: |

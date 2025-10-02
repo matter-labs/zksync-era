@@ -16,7 +16,7 @@ pub struct ContainersArgsFinal {
 impl ContainersArgs {
     pub fn fill_values_with_prompt(self) -> ContainersArgsFinal {
         let observability = self.observability.unwrap_or_else(|| {
-            common::PromptConfirm::new(MSG_OBSERVABILITY_RUN_PROMPT)
+            zkstack_cli_common::PromptConfirm::new(MSG_OBSERVABILITY_RUN_PROMPT)
                 .default(true)
                 .ask()
         });

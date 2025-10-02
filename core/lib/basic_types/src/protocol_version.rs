@@ -21,6 +21,7 @@ pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
+///
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
 /// the `major` version being `0`. Also, the protocol version on the contracts may contain
 /// potential minor versions, that may have different contract behavior (e.g. Verifier), but it should not
@@ -70,15 +71,18 @@ pub enum ProtocolVersionId {
     Version25,
     Version26,
     Version27,
+    Version28,
+    Version29,
+    Version30,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version25
+        Self::Version29
     }
 
     pub const fn next() -> Self {
-        Self::Version26
+        Self::Version30
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -122,8 +126,13 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
+            ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }
     }
 
@@ -142,7 +151,23 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_gateway(&self) -> bool {
-        self <= &Self::Version26
+        self < &Self::gateway_upgrade()
+    }
+
+    pub fn is_post_gateway(&self) -> bool {
+        self >= &Self::gateway_upgrade()
+    }
+
+    pub fn is_pre_fflonk(&self) -> bool {
+        self < &Self::Version27
+    }
+
+    pub fn is_post_fflonk(&self) -> bool {
+        self >= &Self::Version27
+    }
+
+    pub fn is_pre_interop_fast_blocks(&self) -> bool {
+        self < &Self::Version29
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -179,6 +204,10 @@ impl ProtocolVersionId {
 
     pub fn is_post_1_5_0(&self) -> bool {
         self >= &ProtocolVersionId::Version23
+    }
+
+    pub const fn gateway_upgrade() -> Self {
+        ProtocolVersionId::Version26
     }
 }
 
@@ -228,7 +257,7 @@ impl Detokenize for VerifierParams {
             other => {
                 return Err(Error::InvalidOutputType(format!(
                     "expected a tuple, got {other:?}"
-                )))
+                )));
             }
         };
 
@@ -252,6 +281,7 @@ pub struct L1VerifierConfig {
         rename(serialize = "recursion_scheduler_level_vk_hash")
     )]
     pub snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
 }
 
 impl From<ProtocolVersionId> for VmVersion {
@@ -283,8 +313,12 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
+            ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }
     }
 }
@@ -422,9 +456,10 @@ mod tests {
         }
         let ser = L1VerifierConfig {
             snark_wrapper_vk_hash: H256::repeat_byte(0x11),
+            fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(0x11)),
         };
         let ser_str = serde_json::to_string(&ser).unwrap();
-        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
+        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","fflonk_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
         assert_eq!(ser_str, expected_str);
     }
 }

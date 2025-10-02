@@ -66,11 +66,15 @@ async fn merkle_tree_api() {
         .get_proofs(L1BatchNumber(10), vec![])
         .await
         .unwrap_err();
-    let TreeApiError::NoVersion(err) = err else {
+    let TreeApiError::NoVersion {
+        missing_version,
+        version_count,
+    } = err
+    else {
         panic!("Unexpected error: {err:?}");
     };
-    assert_eq!(err.version_count, 6);
-    assert_eq!(err.missing_version, 10);
+    assert_eq!(version_count, 6);
+    assert_eq!(missing_version, 10);
 
     let raw_nodes_response = api_client
         .inner
@@ -131,11 +135,15 @@ fn assert_raw_nodes_response(response: &serde_json::Value) {
         assert_matches!(key, b'0'..=b'9' | b'a'..=b'f');
     }
 
-    let node = response["0:0"].as_object().expect("not an object");
-    assert!(
-        node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
-        "{node:#?}"
-    );
+    if let Some(value) = response.get("0:0") {
+        let node = value.as_object().expect("not an object");
+        assert!(
+            node.len() == 2
+                && (node.contains_key("internal") || node.contains_key("leaf"))
+                && node.contains_key("raw"),
+            "{node:#?}"
+        );
+    }
 }
 
 fn assert_raw_stale_keys_response(response: &serde_json::Value) {
@@ -205,9 +213,13 @@ async fn local_merkle_tree_client() {
         .get_proofs(L1BatchNumber(10), vec![])
         .await
         .unwrap_err();
-    let TreeApiError::NoVersion(err) = err else {
+    let TreeApiError::NoVersion {
+        missing_version,
+        version_count,
+    } = err
+    else {
         panic!("Unexpected error: {err:?}");
     };
-    assert_eq!(err.version_count, 6);
-    assert_eq!(err.missing_version, 10);
+    assert_eq!(version_count, 6);
+    assert_eq!(missing_version, 10);
 }

@@ -3,7 +3,7 @@ use std::{ops, time::Instant};
 use anyhow::Context;
 use zksync_dal::CoreDal;
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{ExecutionResult, TransactionExecutionMetrics},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
@@ -19,7 +19,7 @@ use super::{result::ApiCallResult, SubmitTxError, TxSender};
 use crate::execution_sandbox::{BlockArgs, SandboxAction, VmPermit, SANDBOX_METRICS};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum BinarySearchKind {
+pub enum BinarySearchKind {
     /// Full binary search.
     Full,
     /// Binary search with an optimized initial pivot.
@@ -214,10 +214,10 @@ impl TxSender {
         lower_bound: &mut u64,
         upper_bound: &mut u64,
         pivot: u64,
-        result: &VmExecutionResultAndLogs,
+        result: &ExecutionResult,
     ) {
         // For now, we don't discern between "out of gas" and other failure reasons since it's difficult in the general case.
-        if result.result.is_failed() {
+        if result.is_failed() {
             *lower_bound = pivot + 1;
         } else {
             *upper_bound = pivot;
@@ -391,19 +391,19 @@ impl<'a> GasEstimator<'a> {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit,
             // and getting how much pubdata it used.
 
-            let (result, _) = self.unadjusted_step(self.max_gas_limit).await?;
+            let (result, metrics) = self.unadjusted_step(self.max_gas_limit).await?;
             // If the transaction has failed with such a large gas limit, we return an API error here right away,
             // since the inferred gas bounds would be unreliable in this case.
             result.check_api_call_result()?;
 
             // It is assumed that there is no overflow here
             let gas_charged_for_pubdata =
-                u64::from(result.statistics.pubdata_published) * self.gas_per_pubdata_byte;
+                u64::from(metrics.vm.pubdata_published) * self.gas_per_pubdata_byte;
 
-            let total_gas_charged = self.max_gas_limit.checked_sub(result.refunds.gas_refunded);
+            let total_gas_charged = self.max_gas_limit.checked_sub(metrics.gas_refunded);
             Ok(InitialGasEstimate {
                 total_gas_charged,
-                computational_gas_used: Some(result.statistics.computational_gas_used.into()),
+                computational_gas_used: Some(metrics.vm.computational_gas_used.into()),
                 operator_overhead,
                 gas_charged_for_pubdata,
             })
@@ -422,10 +422,11 @@ impl<'a> GasEstimator<'a> {
         .into()
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     async fn step(
         &self,
         tx_gas_limit: u64,
-    ) -> Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics), SubmitTxError> {
+    ) -> Result<(ExecutionResult, TransactionExecutionMetrics), SubmitTxError> {
         let gas_limit_with_overhead = tx_gas_limit + self.tx_overhead(tx_gas_limit);
         // We need to ensure that we never use a gas limit that is higher than the maximum allowed
         let forced_gas_limit =
@@ -436,7 +437,7 @@ impl<'a> GasEstimator<'a> {
     pub(super) async fn unadjusted_step(
         &self,
         forced_gas_limit: u64,
-    ) -> Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics), SubmitTxError> {
+    ) -> Result<(ExecutionResult, TransactionExecutionMetrics), SubmitTxError> {
         let mut tx = self.transaction.clone();
         match &mut tx.common_data {
             ExecuteTransactionCommon::L1(l1_common_data) => {
@@ -476,7 +477,7 @@ impl<'a> GasEstimator<'a> {
                 self.state_override.clone(),
             )
             .await?;
-        Ok((execution_output.vm, execution_output.metrics))
+        Ok((execution_output.result, execution_output.metrics))
     }
 
     async fn finalize(
@@ -487,7 +488,8 @@ impl<'a> GasEstimator<'a> {
         let (result, tx_metrics) = self.step(suggested_gas_limit).await?;
         result.into_api_call_result()?;
         self.sender
-            .ensure_tx_executable(&self.transaction, &tx_metrics, false)?;
+            .ensure_tx_executable(&self.transaction, tx_metrics, false)
+            .await?;
 
         // Now, we need to calculate the final overhead for the transaction.
         let overhead = derive_overhead(
@@ -517,7 +519,8 @@ impl<'a> GasEstimator<'a> {
             }
         };
 
-        let gas_for_pubdata = u64::from(tx_metrics.pubdata_published) * self.gas_per_pubdata_byte;
+        let gas_for_pubdata =
+            u64::from(tx_metrics.vm.pubdata_published) * self.gas_per_pubdata_byte;
         let estimated_gas_for_pubdata =
             (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
 
@@ -530,11 +533,18 @@ impl<'a> GasEstimator<'a> {
             gas_per_pubdata_byte = self.gas_per_pubdata_byte
         );
 
+        // Given that we scale overall fee, we should also scale the limit for gas per pubdata price that user agrees to.
+        // However, we should not exceed the limit that was provided by the user in the initial request.
+        let gas_per_pubdata_limit = std::cmp::min(
+            ((self.gas_per_pubdata_byte as f64 * estimated_fee_scale_factor) as u64).into(),
+            self.transaction.gas_per_pubdata_byte_limit(),
+        );
+
         Ok(Fee {
             max_fee_per_gas: self.base_fee.into(),
             max_priority_fee_per_gas: 0u32.into(),
             gas_limit: full_gas_limit.into(),
-            gas_per_pubdata_limit: self.gas_per_pubdata_byte.into(),
+            gas_per_pubdata_limit,
         })
     }
 }

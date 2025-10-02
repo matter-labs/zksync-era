@@ -1,11 +1,15 @@
-use std::{fmt, path::Path, time::Duration};
+use std::{
+    fmt,
+    path::{Display, Path},
+    time::Duration,
+};
 
 use ethers::{
     types::{Address, H160, U256},
     utils::format_ether,
 };
 use url::Url;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::utils::forge::WalletOwner;
 
@@ -70,8 +74,24 @@ pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
+pub(super) const MSG_RPC_URL_PROMPT: &str = "What is the RPC URL of the network?";
+pub(super) const MSG_RPC_URL_PROMPT_PROVING_NETWORK: &str =
+    "What is the RPC URL for the proving network(defaults to local L2)?";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
+pub(super) const MSG_FERMAH_ADDRESS_PROMPT: &str =
+    "What is Fermah's Proving Network address (allows acknowledging/submitting proofs for Fermah)?";
+pub(super) const MSG_LAGRANGE_ADDRESS_PROMPT: &str =
+    "What is Lagrange's Proving Network address (allows acknowledging/submitting proofs for Lagrange)?";
+pub(super) const MSG_USDC_ADDRESS_PROMPT: &str = "What is the address of the USDC contract?";
+pub(super) const MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT: &str = "What is the address of the ProofManager owner(what address is allowed to submit Proof Requests?)?";
+pub(super) const MSG_PROXY_OWNER_ADDRESS_PROMPT: &str =
+    "What is the address of the Proxy owner(who will be able to upgrade the contract)?";
+pub(super) const MSG_TOP_UP_SERVER_WALLETS_PROMPT: &str =
+    "Do you want to top up server wallets(on L2, by 1 ETH)?";
+pub(super) const MSG_TOP_UP_NETWORK_WALLETS_PROMPT: &str =
+    "Do you want to top up proving network wallets(on L2, by 1 ETH)?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
+pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZKsync ecosystem config. \
 For using this config, you need to have governance wallet";
@@ -80,11 +100,14 @@ pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path"
 pub(super) const MSG_GENESIS_DATABASE_ERR: &str = "Unable to perform genesis on the database";
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
+pub(super) const MSG_INITIALIZING_CTM: &str = "Initializing CTM";
+pub(super) const MSG_REGISTERING_CTM: &str = "Registering CTM";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
 pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
     "Chain ownership was transferred successfully";
+pub(super) const MSG_EVM_EMULATOR_ENABLED: &str = "EVM emulator enabled successfully";
 pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
@@ -94,12 +117,25 @@ pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
+pub(super) const MSG_DEPLOYING_PROVING_NETWORKS_SPINNER: &str =
+    "Deploying proving networks contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
+pub(super) const MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER: &str = "Updating da validator pair...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
     "Token multiplier setter updated to";
+pub(super) const MSG_DA_VALIDATOR_PAIR_UPDATED_TO: &str = "DA validator pair updated to";
+pub(super) const MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW: &str =
+    "Got the settlement layer address from gateway";
+pub(super) const MSG_USE_GATEWAY_HELP: &str = "Use the Gateway to set the DA validator pair";
+pub(super) const MSG_GATEWAY_URL_MUST_BE_PRESET: &str =
+    "Gateway RPC URL must be provided when using the `--gateway` flag";
+pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
+    "Updating pubdata pricing mode...";
+pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
@@ -194,12 +230,11 @@ pub(super) const MSG_EVM_EMULATOR_HASH_MISSING_ERR: &str =
      does not contain EVM emulator hash";
 
 /// Chain genesis related messages
-pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
-pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database secret must be presented";
 pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
+pub(super) const MSG_SERVER_COMMAND_HELP: &str = "Command to run the server binary";
 pub(super) const MSG_USE_DEFAULT_DATABASES_HELP: &str = "Use default database urls and names";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
@@ -211,6 +246,8 @@ pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop 
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
 pub(super) const MSG_GENESIS_DATABASES_INITIALIZED: &str = "Databases initialized successfully";
+pub(super) const MSG_BRIDGEHUB: &str = "Bridgehub address of existing ecosystem";
+pub(super) const MSG_CTM: &str = "Chain type manager address that has to be registered";
 
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
@@ -273,6 +310,9 @@ pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksD
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
 
+/// EVM emulator related messages
+pub(super) const MSG_ENABLING_EVM_EMULATOR: &str = "Enabling EVM emulator...";
+
 /// Containers related messages
 pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
 pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =
@@ -291,8 +331,8 @@ pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
 pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
 pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
 
-pub(super) fn msg_waiting_for_server_success(health_check_port: u16) -> String {
-    format!("Server is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_server_success(health_check_url: &str) -> String {
+    format!("Server is alive with health check server on {health_check_url}")
 }
 
 /// Portal related messages
@@ -308,7 +348,42 @@ pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
 
+/// Private proxy related messages
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run private proxy container";
+
+pub(super) fn msg_private_rpc_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database url for chain {chain_name}")
+}
+
+pub(super) fn msg_private_rpc_initializing_database_for(chain: &str) -> String {
+    format!("Initializing private proxy database for {chain} chain")
+}
+
+pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
+    "Building private-proxy docker image, it may take a while...".to_string()
+}
+pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
+    format!("Generated private proxy docker-compose file and stored it at {path}")
+}
+pub(super) fn msg_private_rpc_permissions_file_generated(path: Display) -> String {
+    format!("Created example permissions config and stored it at {path}")
+}
+
+pub(super) fn msg_private_rpc_chain_not_initialized(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for private-proxy: run `zkstack private-proxy init --chain {chain}` first")
+}
+
+pub(super) fn msg_private_proxy_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database name for chain {chain_name}")
+}
+
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop private proxy database";
+
 /// Explorer related messages
+pub(super) const MSG_EXPLORER_PRIVIDIUM_HELP: &str =
+    "Enable Prividium mode for this Block Explorer";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
 pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
@@ -336,6 +411,15 @@ pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer: run `zkstack explorer init --chain {chain}` first")
 }
 
+pub(super) const MSG_EXPLORER_PRIVIDIUM_MODE_PROMPT: &str =
+    "Do you want to enable Prividium mode for this Block Explorer?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_MAX_AGE_PROMPT: &str =
+    "What session max age configuration do you want to use for Prividium mode?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_SAME_SITE_PROMPT: &str =
+    "What session same site configuration do you want to use for Prividium mode?";
+
 /// Forge utils related messages
 pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
     format!(
@@ -355,7 +439,7 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     let actual = format_ether(actual);
     let expected = format_ether(expected);
     format!(
-        "Address {address:?} doesn't have enough money to deploy contracts only {actual} ETH but expected: {expected} ETH do you want to try again?"
+        "It is recommended to have {expected} ETH on the address {address:?} to deploy contracts. Current balance is {actual} ETH. How do you want to proceed?",
     )
 }
 
@@ -365,17 +449,14 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
-pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
-pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
-pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
 pub(super) const MSG_BUILDING_EN: &str = "Building external node";
 pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
 
-pub(super) fn msg_waiting_for_en_success(health_check_port: u16) -> String {
-    format!("External node is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_en_success(health_check_url: &str) -> String {
+    format!("External node is alive with health check server on {health_check_url}")
 }
 
 /// Prover related messages
@@ -386,17 +467,12 @@ pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR_ERR: &str = "Failed to run prover job monitor";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
-pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
-pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
 pub(super) const MSG_RUNNING_CIRCUIT_PROVER: &str = "Running circuit prover";
 pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
-pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
-    "Failed to run witness vector generator";
 pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
-pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
 pub(super) const MSG_RUNNING_CIRCUIT_PROVER_ERR: &str = "Failed to run circuit prover";
 pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
     "Select where you would like to store the proofs";
@@ -408,8 +484,6 @@ pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR: &str =
     "Bucket base URL should start with gs://";
 pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
     "Provide the path to the GCS credentials file:";
-pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not found";
-pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
 pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a new GCS bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Select the project ID:";
@@ -417,8 +491,6 @@ pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT: &str =
     "Provide a project ID:";
 pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
-pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
-    "Proof compressor config not found";
 pub(super) const MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER: &str =
     "Downloading compressor setup key...";
 pub(super) const MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT: &str =
@@ -428,9 +500,7 @@ pub(super) const MSG_INITIALIZE_BELLMAN_CUDA_PROMPT: &str =
 pub(super) const MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
-pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
 pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
-pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
 pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
 pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
 pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
@@ -445,9 +515,9 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
     "Select the origin of bellman-cuda repository";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
-pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
-pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
 pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
+pub(super) const MSG_WVG_MODE_PROMPT: &str =
+    "Do you want simple WVG picking jobs mode or advanced one?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
@@ -491,7 +561,7 @@ pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> Strin
     format!("Downloading {} {} binary", name, version)
 }
 
-/// Update related messages
+// Update related messages
 
 pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
 pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZKsync";
@@ -520,10 +590,6 @@ pub(super) fn msg_wait_starting_polling(
 
 pub(super) fn msg_wait_timeout(component: &impl fmt::Display) -> String {
     format!("timed out polling {component}")
-}
-
-pub(super) fn msg_wait_connect_err(component: &impl fmt::Display, url: &str) -> String {
-    format!("failed to connect to {component} at `{url}`")
 }
 
 pub(super) fn msg_wait_non_successful_response(component: &impl fmt::Display) -> String {
@@ -564,22 +630,19 @@ pub(super) fn msg_updating_chain(chain: &str) -> String {
 pub(super) const MSG_RECEIPT_MISSING: &str = "receipt missing";
 pub(super) const MSG_STATUS_MISSING: &str = "status missing";
 pub(super) const MSG_TRANSACTION_FAILED: &str = "transaction failed";
-pub(super) const MSG_API_CONFIG_MISSING: &str = "api config missing";
 pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
     "multicall3 contract not configured";
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
 pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
-pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
-    "consensus.genesis_spec.attesters missing in general.yaml";
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_attester_committee_failed(
-    got: &attester::Committee,
-    want: &attester::Committee,
+pub(super) fn msg_setting_validator_schedule_failed(
+    got: &validator::Schedule,
+    want: &validator::Schedule,
 ) -> String {
-    format!("setting attester committee failed: got {got:?}, want {want:?}")
+    format!("setting validator schedule failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
@@ -589,3 +652,17 @@ pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &U
 pub(super) fn msg_consensus_registry_wait_success(addr: Address, code_len: usize) -> String {
     format!("Consensus registry is deployed at {addr:?}: {code_len} bytes")
 }
+
+/// DA clients related messages
+pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
+pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
+pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
+pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
+pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
+pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";
+pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
+pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";
+pub(super) const MSG_ZKSYNC_OS: &str = "Deploy CTM for zksync os flag";
+pub(super) const MSG_NO_GENESIS: &str = "Do not run genesis";

@@ -1,10 +1,11 @@
 use anyhow::{bail, Context};
-use common::{logger, spinner::Spinner};
-use config::{
-    create_local_configs_dir, create_wallets, get_default_era_chain_id,
-    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
-};
 use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{
+    create_local_configs_dir, create_wallets, get_default_era_chain_id,
+    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
+    ZkStackConfigTrait,
+};
 
 use crate::{
     commands::{
@@ -27,19 +28,19 @@ use crate::{
     utils::link_to_code::resolve_link_to_code,
 };
 
-pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    match EcosystemConfig::from_file(shell) {
+pub async fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+    match ZkStackConfig::ecosystem(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
         }
-        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
+        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell).await?,
     };
 
     Ok(())
 }
 
-fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args
         .fill_values_with_prompt(shell)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
@@ -53,7 +54,12 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let configs_path = create_local_configs_dir(shell, ".")?;
 
-    let link_to_code = resolve_link_to_code(shell, shell.current_dir(), args.link_to_code.clone())?;
+    let link_to_code = resolve_link_to_code(
+        shell,
+        &shell.current_dir(),
+        args.link_to_code.clone(),
+        args.update_submodules,
+    )?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();
@@ -64,25 +70,25 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     create_erc20_deployment_config(shell, &configs_path)?;
     create_apps_config(shell, &configs_path)?;
 
-    let ecosystem_config = EcosystemConfig {
-        name: ecosystem_name.clone(),
-        l1_network: args.l1_network,
-        link_to_code: link_to_code.clone(),
-        bellman_cuda_dir: None,
-        chains: chains_path.clone(),
-        config: configs_path,
-        era_chain_id: get_default_era_chain_id(),
-        default_chain: default_chain_name.clone(),
-        prover_version: chain_config.prover_version,
-        wallet_creation: args.wallet_creation,
-        shell: shell.clone().into(),
-    };
+    let ecosystem_config = EcosystemConfig::new(
+        ecosystem_name.clone(),
+        args.l1_network,
+        link_to_code,
+        None,
+        chains_path.clone(),
+        configs_path,
+        default_chain_name.clone(),
+        get_default_era_chain_id(),
+        chain_config.prover_version,
+        args.wallet_creation,
+        shell.clone().into(),
+    );
 
     // Use 0 id for ecosystem  wallets
     create_wallets(
         shell,
         &ecosystem_config.config,
-        &ecosystem_config.link_to_code,
+        &ecosystem_config.link_to_code(),
         0,
         args.wallet_creation,
         args.wallet_path,
@@ -91,12 +97,12 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    create_chain_inner(chain_config, &ecosystem_config, shell).await?;
     spinner.finish();
 
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
-        initialize_docker(shell, &ecosystem_config)?;
+        initialize_docker(shell, &ecosystem_config.link_to_code())?;
         start_containers(shell, false)?;
         spinner.finish();
     }

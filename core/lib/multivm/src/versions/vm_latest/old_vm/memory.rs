@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     abstractions::{Memory, MemoryType},
     aux_structures::{MemoryPage, MemoryQuery, Timestamp},
     vm_state::PrimitiveValue,
@@ -283,31 +283,26 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
-        // Safe to unwrap here, since `finish_global_frame` is never called with empty stack
-        let current_observable_pages = self.observable_pages.inner().current_frame();
         let returndata_page = returndata_fat_pointer.memory_page;
 
-        // This is code oracle and some preimage has been decommitted into its memory.
-        // We must keep this memory page forever for future decommits.
-        let is_returndata_page_static =
-            last_callstack_this == CODE_ORACLE_ADDRESS && returndata_fat_pointer.length > 0;
-
-        for &page in current_observable_pages {
-            // If the page's number is greater than or equal to the `base_page`,
-            // it means that it was created by the internal calls of this contract.
-            // We need to add this check as the calldata pointer is also part of the
-            // observable pages.
-            if page >= base_page.0 && page != returndata_page {
-                self.memory.clear_page(page as usize, timestamp);
+        // When the code oracle decommits a bytecode for the first time,
+        // it needs to keep that heap alive forever.
+        // We keep all pages of that contract just to be safe.
+        if last_callstack_this != CODE_ORACLE_ADDRESS {
+            for &page in self.observable_pages.inner().current_frame() {
+                // If the page's number is greater than or equal to the `base_page`,
+                // it means that it was created by the internal calls of this contract.
+                // Returned data must not be cleared, however.
+                if page >= base_page.0 && page != returndata_page {
+                    self.memory.clear_page(page as usize, timestamp);
+                }
             }
         }
 
         self.observable_pages.clear_frame(timestamp);
         self.observable_pages.merge_frame(timestamp);
 
-        // If returndata page is static, we do not add it to the list of observable pages,
-        // effectively preventing it from being cleared in the future.
-        if !is_returndata_page_static {
+        if last_callstack_this != CODE_ORACLE_ADDRESS {
             self.observable_pages
                 .push_to_frame(returndata_page, timestamp);
         }

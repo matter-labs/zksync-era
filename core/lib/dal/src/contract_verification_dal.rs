@@ -5,13 +5,20 @@ use std::{
     time::Duration,
 };
 
+use rayon::prelude::*;
 use sqlx::postgres::types::PgInterval;
-use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
+use zksync_db_connection::{
+    error::SqlxContext,
+    instrument::{CopyStatement, InstrumentExt},
+};
 use zksync_types::{
     address_to_h256,
-    contract_verification_api::{
-        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
-        VerificationRequestStatus,
+    contract_verification::{
+        api::{
+            VerificationIncomingRequest, VerificationInfo, VerificationRequest,
+            VerificationRequestStatus,
+        },
+        contract_identifier::ContractIdentifier,
     },
     web3, Address, CONTRACT_DEPLOYER_ADDRESS, H256,
 };
@@ -74,6 +81,30 @@ impl ContractVerificationDal<'_, '_> {
         .map(|row| row.count as usize)
     }
 
+    /// Returns ID of verification request for the specified contract address
+    /// that wasn't processed yet.
+    pub async fn get_active_verification_request(
+        &mut self,
+        address: Address,
+    ) -> DalResult<Option<usize>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                contract_verification_requests
+            WHERE
+                contract_address = $1 AND (status = 'queued' OR status = 'in_progress')
+            LIMIT 1
+            "#,
+            address.as_bytes(),
+        )
+        .instrument("verification_request_exists")
+        .fetch_optional(self.storage)
+        .await
+        .map(|row| row.map(|row| row.id as usize))
+    }
+
     pub async fn add_contract_verification_request(
         &mut self,
         query: &VerificationIncomingRequest,
@@ -92,12 +123,13 @@ impl ContractVerificationDal<'_, '_> {
                 constructor_arguments,
                 is_system,
                 force_evmla,
+                evm_specific,
                 status,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'queued', NOW(), NOW())
             RETURNING
             id
             "#,
@@ -112,6 +144,7 @@ impl ContractVerificationDal<'_, '_> {
             query.constructor_arguments.0.as_slice(),
             query.is_system,
             query.force_evmla,
+            serde_json::to_value(&query.evm_specific).unwrap(),
         )
         .instrument("add_contract_verification_request")
         .with_arg("address", &query.contract_address)
@@ -172,7 +205,8 @@ impl ContractVerificationDal<'_, '_> {
             optimizer_mode,
             constructor_arguments,
             is_system,
-            force_evmla
+            force_evmla,
+            evm_specific
             "#,
             &processing_timeout
         )
@@ -188,6 +222,8 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn save_verification_info(
         &mut self,
         verification_info: VerificationInfo,
+        bytecode_keccak256: H256,
+        bytecode_without_metadata_keccak256: H256,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         let id = verification_info.request.id;
@@ -216,15 +252,24 @@ impl ContractVerificationDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-            contracts_verification_info (address, verification_info)
+            contract_verification_info_v2 (
+                initial_contract_addr,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256,
+                verification_info
+            )
             VALUES
-            ($1, $2)
-            ON CONFLICT (address) DO
+            ($1, $2, $3, $4)
+            ON CONFLICT (initial_contract_addr) DO
             UPDATE
             SET
-            verification_info = $2
+            bytecode_keccak256 = $2,
+            bytecode_without_metadata_keccak256 = $3,
+            verification_info = $4
             "#,
             address.as_bytes(),
+            bytecode_keccak256.as_bytes(),
+            bytecode_without_metadata_keccak256.as_bytes(),
             &verification_info_json
         )
         .instrument("save_verification_info#insert")
@@ -263,6 +308,33 @@ impl ContractVerificationDal<'_, '_> {
         .instrument("save_verification_error")
         .with_arg("id", &id)
         .with_arg("error", &error)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn update_verification_request_compiler_versions(
+        &mut self,
+        id: usize,
+        compiler_version: &str,
+        zk_compiler_version: Option<&str>,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE contract_verification_requests
+            SET
+                compiler_version = $2,
+                zk_compiler_version = $3,
+                updated_at = NOW()
+            WHERE
+                id = $1
+            "#,
+            id as i64,
+            compiler_version,
+            zk_compiler_version,
+        )
+        .instrument("update_verification_request_compiler_versions")
+        .with_arg("id", &id)
         .execute(self.storage)
         .await?;
         Ok(())
@@ -338,6 +410,7 @@ impl ContractVerificationDal<'_, '_> {
                         address = $1
                         AND topic1 = $2
                         AND topic4 = $3
+                    ORDER BY miniblock_number DESC, event_index_in_block DESC
                     LIMIT
                         1
                 ) deploy_event
@@ -374,27 +447,6 @@ impl ContractVerificationDal<'_, '_> {
         .with_arg("address", &address)
         .fetch_optional(self.storage)
         .await
-    }
-
-    /// Returns true if the contract has a stored contracts_verification_info.
-    pub async fn is_contract_verified(&mut self, address: Address) -> DalResult<bool> {
-        let count = sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*) AS "count!"
-            FROM
-                contracts_verification_info
-            WHERE
-                address = $1
-            "#,
-            address.as_bytes()
-        )
-        .instrument("is_contract_verified")
-        .with_arg("address", &address)
-        .fetch_one(self.storage)
-        .await?
-        .count;
-        Ok(count > 0)
     }
 
     async fn get_compiler_versions(&mut self, compiler: Compiler) -> DalResult<Vec<String>> {
@@ -516,7 +568,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimizer_mode,
                 constructor_arguments,
                 is_system,
-                force_evmla
+                force_evmla,
+                evm_specific
             FROM
                 contract_verification_requests
             WHERE
@@ -535,6 +588,29 @@ impl ContractVerificationDal<'_, '_> {
     }
 
     pub async fn get_contract_verification_info(
+        &mut self,
+        address: Address,
+    ) -> anyhow::Result<Option<VerificationInfo>> {
+        // Do everything in a read-only transaction for a consistent view.
+        let mut transaction = self
+            .storage
+            .transaction_builder()?
+            .set_readonly()
+            .build()
+            .await?;
+
+        let mut dal = ContractVerificationDal {
+            storage: &mut transaction,
+        };
+        let info = if dal.is_verification_info_migration_performed().await? {
+            dal.get_contract_verification_info_v2(address).await?
+        } else {
+            dal.get_contract_verification_info_v1(address).await?
+        };
+        Ok(info)
+    }
+
+    async fn get_contract_verification_info_v1(
         &mut self,
         address: Address,
     ) -> DalResult<Option<VerificationInfo>> {
@@ -560,6 +636,255 @@ impl ContractVerificationDal<'_, '_> {
         .await?
         .flatten())
     }
+
+    async fn get_contract_verification_info_v2(
+        &mut self,
+        address: Address,
+    ) -> anyhow::Result<Option<VerificationInfo>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                verification_info
+            FROM
+                contract_verification_info_v2
+            WHERE
+                initial_contract_addr = $1
+            "#,
+            address.as_bytes(),
+        )
+        .try_map(|row| {
+            serde_json::from_value(row.verification_info).decode_column("verification_info")
+        })
+        .instrument("get_contract_verification_info_v2")
+        .with_arg("address", &address)
+        .fetch_optional(self.storage)
+        .await?
+        .flatten())
+    }
+
+    /// Returns verification info for the contract.
+    /// Tries to find the full bytecode match first. If it's not found, tries to find the partial match for the
+    /// bytecode without metadata.
+    pub async fn get_partial_match_verification_info(
+        &mut self,
+        bytecode_keccak256: H256,
+        bytecode_without_metadata_keccak256: H256,
+    ) -> DalResult<Option<(VerificationInfo, H256, H256)>> {
+        // Use double select so the full match by bytecode_keccak256 is checked first.
+        // Second query is for the partial match by bytecode_without_metadata_keccak256.
+        // Aliases for the columns are needed to properly work with the UNION. Otherwise, the types will be of type
+        // Option<T> instead of T. It's a known sqlx issue reported here: https://github.com/launchbadge/sqlx/issues/1266
+        sqlx::query!(
+            r#"
+            (
+                SELECT
+                    verification_info AS "verification_info!",
+                    bytecode_keccak256 AS "bytecode_keccak256!",
+                    bytecode_without_metadata_keccak256 AS "bytecode_without_metadata_keccak256!"
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_keccak256 = $1
+                LIMIT 1
+            )
+            UNION ALL
+            (
+                SELECT
+                    verification_info AS "verification_info!",
+                    bytecode_keccak256 AS "bytecode_keccak256!",
+                    bytecode_without_metadata_keccak256 AS "bytecode_without_metadata_keccak256!"
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_without_metadata_keccak256 = $2
+                LIMIT 1
+            )
+            LIMIT 1;
+            "#,
+            bytecode_keccak256.as_bytes(),
+            bytecode_without_metadata_keccak256.as_bytes()
+        )
+        .try_map(|row| {
+            let info = serde_json::from_value::<VerificationInfo>(row.verification_info)
+                .decode_column("verification_info")?;
+            let bytecode_keccak256 = H256::from_slice(&row.bytecode_keccak256);
+            let bytecode_without_metadata_keccak256 =
+                H256::from_slice(&row.bytecode_without_metadata_keccak256);
+            Ok((
+                info,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256,
+            ))
+        })
+        .instrument("get_partial_match_verification_info")
+        .with_arg("bytecode_keccak256", &bytecode_keccak256)
+        .with_arg(
+            "bytecode_without_metadata_keccak256",
+            &bytecode_without_metadata_keccak256,
+        )
+        .fetch_optional(self.storage)
+        .await
+    }
+
+    /// Checks if migration from `contracts_verification_info` to `contract_verification_info_v2` is performed
+    /// by checking if the latter has more or equal number of rows.
+    pub async fn is_verification_info_migration_performed(&mut self) -> DalResult<bool> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                (SELECT COUNT(*) FROM contracts_verification_info) AS count_v1,
+                (SELECT COUNT(*) FROM contract_verification_info_v2) AS count_v2
+            "#,
+        )
+        .instrument("is_verification_info_migration_performed")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.count_v2 >= row.count_v1)
+    }
+
+    pub async fn perform_verification_info_migration(
+        &mut self,
+        batch_size: usize,
+    ) -> anyhow::Result<()> {
+        // We use a long-running transaction, since the migration is one-time and during it
+        // no writes are expected to the tables, so locked rows are not a problem.
+        let mut transaction = self.storage.start_transaction().await?;
+
+        // Offset is a number of already migrated contracts.
+        let mut offset = 0usize;
+        let mut cursor = vec![];
+        loop {
+            let cursor_str = format!("0x{}", hex::encode(&cursor));
+
+            // Fetch JSON as text to avoid roundtrip through `serde_json::Value`, as it's super slow.
+            let (addresses, verification_infos): (Vec<Vec<u8>>, Vec<String>) = sqlx::query!(
+                r#"
+                SELECT
+                    address,
+                    verification_info::text AS verification_info
+                FROM
+                    contracts_verification_info
+                WHERE address > $1
+                ORDER BY
+                    address
+                LIMIT $2
+                "#,
+                &cursor,
+                batch_size as i64,
+            )
+            .instrument("perform_verification_info_migration#select")
+            .with_arg("cursor", &cursor_str)
+            .with_arg("batch_size", &batch_size)
+            .fetch_all(&mut transaction)
+            .await?
+            .into_iter()
+            .filter_map(|row| row.verification_info.map(|info| (row.address, info)))
+            .collect();
+
+            if addresses.is_empty() {
+                tracing::info!("No more contracts to process");
+                break;
+            }
+
+            tracing::info!(
+                "Processing {} contracts (processed: {offset}); cursor {cursor_str}",
+                addresses.len()
+            );
+
+            let ids: Vec<ContractIdentifier> = (0..addresses.len())
+                .into_par_iter()
+                .map(|idx| {
+                    let address = &addresses[idx];
+                    let info_json = &verification_infos[idx];
+                    let verification_info = serde_json::from_str::<VerificationInfo>(info_json)
+                        .unwrap_or_else(|err| {
+                            panic!(
+                                "Malformed data in DB, address {}, data: {info_json}, error: {err}",
+                                hex::encode(address)
+                            );
+                        });
+                    ContractIdentifier::from_bytecode(
+                        verification_info.bytecode_marker(),
+                        verification_info.artifacts.deployed_bytecode(),
+                    )
+                })
+                .collect();
+
+            let now = chrono::Utc::now().naive_utc().to_string();
+            let mut buffer = String::new();
+            for idx in 0..addresses.len() {
+                let address = hex::encode(&addresses[idx]);
+                let bytecode_keccak256 = hex::encode(ids[idx].bytecode_keccak256);
+                let bytecode_without_metadata_keccak256 =
+                    hex::encode(ids[idx].bytecode_without_metadata_keccak256);
+                let verification_info = verification_infos[idx].replace('"', r#""""#);
+
+                // Note: when using CSV format, you shouldn't escape backslashes, as they are not treated as escape characters.
+                // If you will use `\\` here, it will be treated as a string instead of bytea.
+                let row = format!(
+                    r#"\x{initial_contract_addr},\x{bytecode_keccak256},\x{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
+                    initial_contract_addr = address,
+                    bytecode_keccak256 = bytecode_keccak256,
+                    bytecode_without_metadata_keccak256 = bytecode_without_metadata_keccak256,
+                    verification_info = verification_info,
+                    created_at = now,
+                    updated_at = now
+                );
+                buffer.push_str(&row);
+                buffer.push('\n');
+            }
+
+            let contracts_len = addresses.len();
+            let copy = CopyStatement::new(
+                "COPY contract_verification_info_v2(
+                initial_contract_addr,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256,
+                verification_info,
+                created_at,
+                updated_at
+            ) FROM STDIN (FORMAT CSV, NULL 'null', DELIMITER ',')",
+            )
+            .instrument("perform_verification_info_migration#copy")
+            .with_arg("cursor", &cursor_str)
+            .with_arg("contracts.len", &contracts_len)
+            .start(&mut transaction)
+            .await?;
+
+            copy.send(buffer.as_bytes()).await?;
+
+            offset += batch_size;
+            cursor = addresses.last().unwrap().clone();
+        }
+
+        // Sanity check.
+        tracing::info!("All the rows are migrated, verifying the migration");
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS count_equal,
+                (SELECT COUNT(*) FROM contracts_verification_info) AS count_v1
+            FROM
+                contract_verification_info_v2 v2
+            JOIN contracts_verification_info v1 ON initial_contract_addr = address
+            WHERE v1.verification_info::text = v2.verification_info::text
+            "#,
+        )
+        .instrument("is_verification_info_migration_performed")
+        .fetch_one(&mut transaction)
+        .await?;
+        let (count_equal, count_v1) = (row.count_equal.unwrap(), row.count_v1.unwrap());
+        if count_equal != count_v1 {
+            anyhow::bail!(
+                "Migration failed: v1 table has {count_v1} rows, but only {count_equal} matched after migration",
+            );
+        }
+
+        tracing::info!("Migration is successful, committing the transaction");
+        transaction.commit().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -568,7 +893,7 @@ mod tests {
 
     use zksync_types::{
         bytecode::BytecodeHash,
-        contract_verification_api::{CompilerVersions, SourceCodeData},
+        contract_verification::api::{CompilerVersions, SourceCodeData},
         tx::IncludedTxLocation,
         Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
     };
@@ -618,7 +943,6 @@ mod tests {
         let location = IncludedTxLocation {
             tx_hash: tx.hash(),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: tx.initiator_account(),
         };
         let deploy_event = VmEvent {
             location: (L1BatchNumber(0), 0),
@@ -662,6 +986,7 @@ mod tests {
             constructor_arguments: web3::Bytes(b"test".to_vec()),
             is_system: false,
             force_evmla: true,
+            evm_specific: Default::default(),
         };
 
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -702,6 +1027,61 @@ mod tests {
             .await
             .unwrap();
         assert!(maybe_req.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_verification_request_compiler_versions() {
+        let request = VerificationIncomingRequest {
+            contract_address: Address::repeat_byte(11),
+            source_code_data: SourceCodeData::SolSingleFile("contract Test {}".to_owned()),
+            contract_name: "Test".to_string(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_zksolc_version: Some("v1.5.10".to_owned()),
+                compiler_solc_version: "0.8.20".to_owned(),
+            },
+            optimization_used: true,
+            optimizer_mode: Some("z".to_owned()),
+            constructor_arguments: web3::Bytes(b"test".to_vec()),
+            is_system: false,
+            force_evmla: true,
+            evm_specific: Default::default(),
+        };
+
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let id = conn
+            .contract_verification_dal()
+            .add_contract_verification_request(&request)
+            .await
+            .unwrap();
+
+        let updated_compiler_version = "0.8.27";
+        let updated_zksolc_version = Some("1.5.7");
+
+        conn.contract_verification_dal()
+            .update_verification_request_compiler_versions(
+                id,
+                updated_compiler_version,
+                updated_zksolc_version,
+            )
+            .await
+            .expect("request compiler versions not updated");
+
+        let req = conn
+            .contract_verification_dal()
+            .get_next_queued_verification_request(Duration::from_secs(600))
+            .await
+            .unwrap()
+            .expect("request not queued");
+        assert_eq!(req.id, id);
+        assert_eq!(
+            req.req.compiler_versions.compiler_version(),
+            updated_compiler_version
+        );
+        assert_eq!(
+            req.req.compiler_versions.zk_compiler_version(),
+            updated_zksolc_version
+        );
     }
 
     #[tokio::test]

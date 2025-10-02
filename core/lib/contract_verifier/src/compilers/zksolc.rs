@@ -6,7 +6,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::{
+use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
@@ -65,6 +65,7 @@ pub(crate) struct Optimizer {
     /// Whether the optimizer is enabled.
     pub enabled: bool,
     /// The optimization mode string.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<char>,
 }
 
@@ -144,16 +145,29 @@ impl ZkSolc {
     fn parse_single_file_yul_output(
         output: &str,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let re = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
-        let cap = re
-            .captures(output)
-            .context("Yul output doesn't match regex")?;
+        let cap = if output.contains("Binary:\n") {
+            // Format of the new output
+            // ======= /tmp/input.yul:Empty =======
+            // Binary:
+            // 00000001002 <..>
+            let re = Regex::new(r"Binary:\n([\da-f]+)").unwrap();
+            re.captures(output)
+                .with_context(|| format!("Yul output doesn't match regex. Output: {output}"))?
+        } else {
+            // Old compiler versions
+            let re_old = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
+            re_old
+                .captures(output)
+                .with_context(|| format!("Yul output doesn't match regex. Output: {output}"))?
+        };
         let bytecode_str = cap.get(1).context("no matches in Yul output")?.as_str();
         let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
+
         Ok(CompilationArtifacts {
             bytecode,
             deployed_bytecode: None,
             abi: serde_json::Value::Array(Vec::new()),
+            immutable_refs: Default::default(),
         })
     }
 
@@ -255,6 +269,9 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                     .context("cannot create temporary Yul file")?;
                 file.write_all(source_code.as_bytes())
                     .context("failed writing Yul file")?;
+
+                // TODO: `zksolc` support standard JSON for `yul` since 1.5.0, so we don't have
+                // to parse `--bin` output.
                 let child = command
                     .arg(file.path().to_str().unwrap())
                     .arg("--optimization")

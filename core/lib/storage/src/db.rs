@@ -20,10 +20,11 @@ use rocksdb::{
     DBPinnableSlice, Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
 use thread_local::ThreadLocal;
+use vise::MetricsFamily;
 
 use crate::metrics::{
-    BlockCacheKind, RocksdbBlockCacheLabels, RocksdbLabels, RocksdbProfilingLabels,
-    RocksdbSizeMetrics, METRICS, PROF_METRICS,
+    BlockCacheKind, DbLabel, RocksdbLabels, RocksdbProfilingLabels, RocksdbSizeMetrics, METRICS,
+    PROF_METRICS,
 };
 
 /// Number of active RocksDB instances used to determine if it's safe to exit current process.
@@ -77,6 +78,10 @@ impl<CF: NamedColumnFamily> WriteBatch<'_, CF> {
         let cf = self.db.column_family(cf);
         self.inner.delete_range_cf(cf, keys.start, keys.end);
     }
+
+    pub fn size_in_bytes(&self) -> usize {
+        self.inner.size_in_bytes()
+    }
 }
 
 struct RocksDBCaches {
@@ -99,6 +104,17 @@ impl RocksDBCaches {
     }
 }
 
+/// Size statistics for a column family. All sizes are measured in bytes.
+#[derive(Debug)]
+pub struct SizeStats {
+    pub live_data_size: u64,
+    pub total_sst_size: u64,
+    pub total_mem_table_size: u64,
+    pub block_cache_size: u64,
+    pub index_and_filters_size: u64,
+    pub files_at_level: Vec<u64>,
+}
+
 #[derive(Debug)]
 pub(crate) struct RocksDBInner {
     db: DB,
@@ -111,68 +127,56 @@ pub(crate) struct RocksDBInner {
 }
 
 impl RocksDBInner {
-    pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
-        const MAX_LEVEL: usize = 6;
-
+    pub(crate) fn collect_metrics(
+        &self,
+        metrics: &MetricsFamily<RocksdbLabels, RocksdbSizeMetrics>,
+    ) {
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();
             // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
             let labels = RocksdbLabels::new(self.db_name, cf_name);
+            let metrics = &metrics[&labels];
 
             let writes_stopped = self.int_property(cf, properties::IS_WRITE_STOPPED);
             let writes_stopped = writes_stopped == Some(1);
-            metrics.writes_stopped[&labels].set(writes_stopped.into());
+            metrics.writes_stopped.set(writes_stopped.into());
 
             let num_immutable_memtables =
                 self.int_property(cf, properties::NUM_IMMUTABLE_MEM_TABLE);
             if let Some(num_immutable_memtables) = num_immutable_memtables {
-                metrics.immutable_mem_tables[&labels].set(num_immutable_memtables);
+                metrics.immutable_mem_tables.set(num_immutable_memtables);
             }
             let num_level0_files = self.int_property(cf, &properties::num_files_at_level(0));
             if let Some(num_level0_files) = num_level0_files {
-                metrics.level0_files[&labels].set(num_level0_files);
+                metrics.level0_files.set(num_level0_files);
             }
             let num_flushes = self.int_property(cf, properties::NUM_RUNNING_FLUSHES);
             if let Some(num_flushes) = num_flushes {
-                metrics.running_flushes[&labels].set(num_flushes);
+                metrics.running_flushes.set(num_flushes);
             }
             let num_compactions = self.int_property(cf, properties::NUM_RUNNING_COMPACTIONS);
             if let Some(num_compactions) = num_compactions {
-                metrics.running_compactions[&labels].set(num_compactions);
+                metrics.running_compactions.set(num_compactions);
             }
             let pending_compactions =
                 self.int_property(cf, properties::ESTIMATE_PENDING_COMPACTION_BYTES);
             if let Some(pending_compactions) = pending_compactions {
-                metrics.pending_compactions[&labels].set(pending_compactions);
+                metrics.pending_compactions.set(pending_compactions);
             }
 
-            let live_data_size = self.int_property(cf, properties::ESTIMATE_LIVE_DATA_SIZE);
-            if let Some(size) = live_data_size {
-                metrics.live_data_size[&labels].set(size);
-            }
-            let total_sst_file_size = self.int_property(cf, properties::TOTAL_SST_FILES_SIZE);
-            if let Some(size) = total_sst_file_size {
-                metrics.total_sst_size[&labels].set(size);
-            }
-            let total_mem_table_size = self.int_property(cf, properties::SIZE_ALL_MEM_TABLES);
-            if let Some(size) = total_mem_table_size {
-                metrics.total_mem_table_size[&labels].set(size);
-            }
-            let block_cache_size = self.int_property(cf, properties::BLOCK_CACHE_USAGE);
-            if let Some(size) = block_cache_size {
-                metrics.block_cache_size[&labels].set(size);
-            }
-            let index_and_filters_size =
-                self.int_property(cf, properties::ESTIMATE_TABLE_READERS_MEM);
-            if let Some(size) = index_and_filters_size {
-                metrics.index_and_filters_size[&labels].set(size);
-            }
+            let size_stats = self.size_stats(cf);
+            metrics.live_data_size.set(size_stats.live_data_size);
+            metrics.total_sst_size.set(size_stats.total_sst_size);
+            metrics
+                .total_mem_table_size
+                .set(size_stats.total_mem_table_size);
+            metrics.block_cache_size.set(size_stats.block_cache_size);
+            metrics
+                .index_and_filters_size
+                .set(size_stats.index_and_filters_size);
 
-            for level in 0..=MAX_LEVEL {
-                let files_at_level = self.int_property(cf, &properties::num_files_at_level(level));
-                if let Some(files_at_level) = files_at_level {
-                    metrics.files_at_level[&labels.for_level(level)].set(files_at_level);
-                }
+            for (level, files_at_level) in size_stats.files_at_level.into_iter().enumerate() {
+                metrics.files_at_level[&level].set(files_at_level);
             }
         }
     }
@@ -189,6 +193,39 @@ impl RocksDBInner {
             tracing::warn!("Property `{name_str}` is not defined");
         }
         property
+    }
+
+    fn size_stats(&self, cf: &ColumnFamily) -> SizeStats {
+        const MAX_LEVEL: usize = 6;
+
+        let live_data_size = self
+            .int_property(cf, properties::ESTIMATE_LIVE_DATA_SIZE)
+            .unwrap_or(0);
+        let total_sst_size = self
+            .int_property(cf, properties::TOTAL_SST_FILES_SIZE)
+            .unwrap_or(0);
+        let total_mem_table_size = self
+            .int_property(cf, properties::SIZE_ALL_MEM_TABLES)
+            .unwrap_or(0);
+        let block_cache_size = self
+            .int_property(cf, properties::BLOCK_CACHE_USAGE)
+            .unwrap_or(0);
+        let index_and_filters_size = self
+            .int_property(cf, properties::ESTIMATE_TABLE_READERS_MEM)
+            .unwrap_or(0);
+        let files_at_level = (0..=MAX_LEVEL).map(|level| {
+            self.int_property(cf, &properties::num_files_at_level(level))
+                .unwrap_or(0)
+        });
+
+        SizeStats {
+            live_data_size,
+            total_sst_size,
+            total_mem_table_size,
+            block_cache_size,
+            index_and_filters_size,
+            files_at_level: files_at_level.collect(),
+        }
     }
 
     /// Waits until writes are not stopped for any of the CFs. Writes can stop immediately on DB initialization
@@ -487,10 +524,10 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self.inner.db.multi_get(keys)
     }
 
-    pub fn multi_get_cf(
+    pub fn multi_get_cf<K: AsRef<[u8]>>(
         &self,
         cf: CF,
-        keys: impl Iterator<Item = Vec<u8>>,
+        keys: impl Iterator<Item = K>,
     ) -> Vec<Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>> {
         let cf = self.column_family(cf);
         self.inner.db.batched_multi_get_cf(cf, keys, false)
@@ -506,7 +543,8 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
     pub fn write<'a>(&'a self, batch: WriteBatch<'a, CF>) -> Result<(), rocksdb::Error> {
         let retries = &self.stalled_writes_retries;
         let mut raw_batch = batch.inner;
-        METRICS.report_batch_size(CF::DB_NAME, raw_batch.size_in_bytes());
+        let metrics = &METRICS[&DbLabel::from(CF::DB_NAME)];
+        metrics.write_batch_size.observe(raw_batch.size_in_bytes());
 
         if raw_batch.size_in_bytes() > retries.max_batch_size {
             // The write batch is too large to duplicate in RAM.
@@ -521,14 +559,14 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             match self.write_inner(raw_batch) {
                 Ok(()) => {
                     if stalled_write_reported {
-                        METRICS.observe_stalled_write_duration(CF::DB_NAME, started_at.elapsed());
+                        metrics.stalled_write_duration.observe(started_at.elapsed());
                     }
                     return Ok(());
                 }
                 Err(err) => {
                     let is_stalled_write = StalledWritesRetries::is_write_stall_error(&err);
                     if is_stalled_write && !stalled_write_reported {
-                        METRICS.observe_stalled_write(CF::DB_NAME);
+                        metrics.write_stalled.inc();
                         stalled_write_reported = true;
                     } else {
                         return Err(err);
@@ -566,6 +604,12 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .unwrap_or_else(|| panic!("Column family `{}` doesn't exist", cf.name()))
     }
 
+    /// Returns size stats for the specified column family.
+    pub fn size_stats(&self, cf: CF) -> SizeStats {
+        let cf = self.column_family(cf);
+        self.inner.size_stats(cf)
+    }
+
     pub fn get_cf(&self, cf: CF, key: &[u8]) -> Result<Option<Vec<u8>>, rocksdb::Error> {
         let cf = self.column_family(cf);
         self.inner.db.get_cf(cf, key)
@@ -597,15 +641,36 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
     pub fn from_iterator_cf(
         &self,
         cf: CF,
-        key_from: &[u8],
+        keys: ops::RangeFrom<&[u8]>,
     ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + '_ {
         let cf = self.column_family(cf);
         self.inner
             .db
-            .iterator_cf(cf, IteratorMode::From(key_from, Direction::Forward))
+            .iterator_cf(cf, IteratorMode::From(keys.start, Direction::Forward))
             .map(Result::unwrap)
             .fuse()
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
+    }
+
+    /// Iterates over key-value pairs in the specified column family `cf` in the reverse lexical
+    /// key order starting from the given `key_from`.
+    pub fn to_iterator_cf(
+        &self,
+        cf: CF,
+        keys: ops::RangeToInclusive<&[u8]>,
+    ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + '_ {
+        let cf = self.column_family(cf);
+        self.inner
+            .db
+            .iterator_cf(cf, IteratorMode::From(keys.end, Direction::Reverse))
+            .map(Result::unwrap)
+            .fuse()
+        // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
+    }
+
+    pub fn raw_iterator(&self, cf: CF, options: ReadOptions) -> rocksdb::DBRawIterator<'_> {
+        let cf = self.column_family(cf);
+        self.inner.db.raw_iterator_cf_opt(cf, options)
     }
 
     /// Creates a new profiled operation.
@@ -743,15 +808,24 @@ impl Drop for ProfiledOperation {
             db: self.db,
             operation: self.name,
         };
-        PROF_METRICS.user_key_comparisons[&labels]
+        let metrics = &PROF_METRICS[&labels];
+        metrics
+            .user_key_comparisons
             .observe(self.user_key_comparisons.load(Ordering::Relaxed));
-        PROF_METRICS.gets_from_memtable[&labels]
+        metrics
+            .gets_from_memtable
             .observe(self.gets_from_memtable.load(Ordering::Relaxed));
-        PROF_METRICS.bloom_sst_hits[&labels].observe(self.bloom_sst_hits.load(Ordering::Relaxed));
-        PROF_METRICS.bloom_sst_misses[&labels]
+        metrics
+            .bloom_sst_hits
+            .observe(self.bloom_sst_hits.load(Ordering::Relaxed));
+        metrics
+            .bloom_sst_misses
             .observe(self.bloom_sst_misses.load(Ordering::Relaxed));
-        PROF_METRICS.block_read_size[&labels].observe(self.block_read_size.load(Ordering::Relaxed));
-        PROF_METRICS.multiget_read_size[&labels]
+        metrics
+            .block_read_size
+            .observe(self.block_read_size.load(Ordering::Relaxed));
+        metrics
+            .multiget_read_size
             .observe(self.multiget_read_size.load(Ordering::Relaxed));
 
         for kind in [
@@ -762,13 +836,8 @@ impl Drop for ProfiledOperation {
             let (hits, reads) = self.block_cache_hits_and_reads(kind);
             if hits > 0 || reads > 0 {
                 // Do not report trivial hit / miss stats.
-                let labels = RocksdbBlockCacheLabels {
-                    db: self.db,
-                    operation: self.name,
-                    kind,
-                };
-                PROF_METRICS.block_cache_hits[&labels].observe(hits);
-                PROF_METRICS.block_reads[&labels].observe(reads);
+                metrics.block_cache_hits[&kind].observe(hits);
+                metrics.block_reads[&kind].observe(reads);
             }
         }
     }

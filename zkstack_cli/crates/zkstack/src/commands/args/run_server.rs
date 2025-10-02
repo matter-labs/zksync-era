@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     commands::args::WaitArgs,
     messages::{
-        MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMPONENTS_HELP, MSG_SERVER_GENESIS_HELP,
-        MSG_SERVER_L1_RECOVERY_HELP, MSG_SERVER_URING_HELP,
+        MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMMAND_HELP, MSG_SERVER_COMPONENTS_HELP,
+        MSG_SERVER_GENESIS_HELP, MSG_SERVER_L1_RECOVERY_HELP, MSG_SERVER_URING_HELP,
     },
 };
 
@@ -42,14 +42,10 @@ pub struct RunServerArgs {
     pub genesis: bool,
     #[clap(long, help = MSG_SERVER_L1_RECOVERY_HELP)]
     pub l1_recovery: bool,
-    #[arg(
-        long, short,
-        trailing_var_arg = true,
-        allow_hyphen_values = true,
-        hide = false,
-        help = MSG_SERVER_ADDITIONAL_ARGS_HELP
-    )]
-    additional_args: Vec<String>,
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
     pub uring: bool,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
+    #[arg(last = true, help = MSG_SERVER_ADDITIONAL_ARGS_HELP)]
+    pub additional_args: Vec<String>,
 }

@@ -11,7 +11,6 @@ pub(crate) fn test_is_write_initial_behaviour<VM: TestedVm>() {
     // The main idea is to check that `is_write_initial` storage uses the correct cache for initial_writes and doesn't
     // messed up it with the repeated writes during the one batch execution.
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();

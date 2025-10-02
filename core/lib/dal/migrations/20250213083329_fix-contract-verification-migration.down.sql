@@ -1,0 +1,3 @@
+-- Down migration is not needed.
+-- If up migration for some reason doesn't work correctly, it's better to fix it by migrating data from `contracts_verification_info`
+-- as it already has all the required data.

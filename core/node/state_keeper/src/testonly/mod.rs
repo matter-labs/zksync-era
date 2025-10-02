@@ -1,10 +1,12 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, Core, CoreDal as _};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
     executor::{BatchExecutor, BatchExecutorFactory},
     storage::{InMemoryStorage, StorageView},
@@ -28,7 +30,7 @@ pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
 pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock_success()),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -72,6 +74,38 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        panic!("unexpected l2 block rollback");
+    }
+
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(L2BlockNumber(0), logs)
+        .await
+        .unwrap();
+
+    let all_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+    let repeated_writes = storage
+        .storage_logs_dedup_dal()
+        .filter_written_slots(&all_hashed_keys)
+        .await
+        .unwrap();
+    let initial_writes: Vec<_> = HashSet::from_iter(all_hashed_keys)
+        .difference(&repeated_writes)
+        .copied()
+        .collect();
+    storage
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(L1BatchNumber(0), &initial_writes)
+        .await
+        .unwrap();
 }
 
 /// Adds funds for specified account list.
@@ -80,34 +114,18 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
     let mut storage = pool.connection().await.unwrap();
 
     let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+    let storage_logs: Vec<_> = addresses
+        .iter()
+        .map(|address| {
+            let key = storage_key_for_standard_token_balance(
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+                address,
+            );
+            StorageLog::new_write_log(key, u256_to_h256(eth_amount))
+        })
+        .collect();
 
-    for address in addresses {
-        let key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
-            address,
-        );
-        let value = u256_to_h256(eth_amount);
-        let storage_log = StorageLog::new_write_log(key, value);
-
-        storage
-            .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &[storage_log])
-            .await
-            .unwrap();
-        if storage
-            .storage_logs_dedup_dal()
-            .filter_written_slots(&[storage_log.key.hashed_key()])
-            .await
-            .unwrap()
-            .is_empty()
-        {
-            storage
-                .storage_logs_dedup_dal()
-                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key.hashed_key()])
-                .await
-                .unwrap();
-        }
-    }
+    apply_genesis_logs(&mut storage, &storage_logs).await;
 }
 
 pub(crate) const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;

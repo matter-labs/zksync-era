@@ -1,16 +1,16 @@
 use std::fmt;
 
-use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
-use zksync_basic_types::H256;
+use secp256k1::{PublicKey, Secp256k1};
+use zksync_basic_types::{L1BatchNumber, H256};
+use zksync_crypto_primitives::{sign, K256PrivateKey, Signature};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
-use zksync_prover_interface::inputs::TeeVerifierInput;
+use zksync_tee_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
-use zksync_types::L1BatchNumber;
 
 use crate::{
     api_client::TeeApiClient, config::TeeProverConfig, error::TeeProverError, metrics::METRICS,
@@ -44,7 +44,7 @@ impl WiringLayer for TeeProverLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let api_url = self.config.api_url.clone();
+        let api_url = self.config.prover_api.api_url.clone();
         let tee_prover = TeeProver {
             config: self.config,
             api_client: TeeApiClient::new(api_url),
@@ -67,6 +67,14 @@ impl fmt::Debug for TeeProver {
 }
 
 impl TeeProver {
+    /// Signs the message in Ethereum-compatible format for on-chain verification.
+    pub fn sign_message(&self, message: &H256) -> Result<Signature, TeeProverError> {
+        let private_key: K256PrivateKey = self.config.sig_conf.signing_key.into();
+        let signature =
+            sign(&private_key, message).map_err(|e| TeeProverError::Verification(e.into()))?;
+        Ok(signature)
+    }
+
     fn verify(
         &self,
         tvi: TeeVerifierInput,
@@ -75,11 +83,8 @@ impl TeeProver {
             TeeVerifierInput::V1(tvi) => {
                 let observer = METRICS.proof_generation_time.start();
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
-                let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
-                let msg_to_sign = Message::from_slice(root_hash_bytes)
-                    .map_err(|e| TeeProverError::Verification(e.into()))?;
-                let signature = self.config.signing_key.sign_ecdsa(msg_to_sign);
+                let signature = self.sign_message(&verification_result.value_hash)?;
                 let duration = observer.observe();
                 tracing::info!(
                     proof_generation_time = duration.as_secs_f64(),
@@ -96,16 +101,16 @@ impl TeeProver {
     }
 
     async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, TeeProverError> {
-        match self.api_client.get_job(self.config.tee_type).await {
+        match self.api_client.get_job(self.config.sig_conf.tee_type).await {
             Ok(Some(job)) => {
                 let (signature, batch_number, root_hash) = self.verify(job)?;
                 self.api_client
                     .submit_proof(
                         batch_number,
-                        signature,
+                        signature.into_electrum(),
                         public_key,
                         root_hash,
-                        self.config.tee_type,
+                        self.config.sig_conf.tee_type,
                     )
                     .await?;
                 Ok(Some(batch_number))
@@ -128,27 +133,32 @@ impl Task for TeeProver {
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Starting the task {}", self.id());
 
-        let config = &self.config;
-        let attestation_quote_bytes = std::fs::read(&config.attestation_quote_file_path)?;
-        let public_key = config.signing_key.public_key(&Secp256k1::new());
+        let config = &self.config.prover_api;
+        let attestation_quote_bytes =
+            std::fs::read(&self.config.sig_conf.attestation_quote_file_path)?;
+        let public_key = self
+            .config
+            .sig_conf
+            .signing_key
+            .public_key(&Secp256k1::new());
         self.api_client
             .register_attestation(attestation_quote_bytes, &public_key)
             .await?;
 
         let mut retries = 1;
-        let mut backoff = config.initial_retry_backoff();
+        let mut backoff = config.initial_retry_backoff;
         let mut observer = METRICS.job_waiting_time.start();
 
         loop {
             if *stop_receiver.0.borrow() {
-                tracing::info!("Stop signal received, shutting down TEE Prover component");
+                tracing::info!("Stop request received, shutting down TEE Prover component");
                 return Ok(());
             }
             let result = self.step(&public_key).await;
             let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
-                    backoff = config.initial_retry_backoff();
+                    backoff = config.initial_retry_backoff;
                     if let Some(batch_number) = batch_number {
                         observer.observe();
                         observer = METRICS.job_waiting_time.start();
@@ -169,7 +179,7 @@ impl Task for TeeProver {
                     retries += 1;
                     backoff = std::cmp::min(
                         backoff.mul_f32(config.retry_backoff_multiplier),
-                        config.max_backoff(),
+                        config.max_backoff,
                     );
                     true
                 }
@@ -180,5 +190,62 @@ impl Task for TeeProver {
                     .ok();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, time::Duration};
+
+    use secp256k1::SecretKey;
+    use url::Url;
+    use zksync_basic_types::{self, tee_types::TeeType};
+    use zksync_crypto_primitives::{public_to_address, recover};
+
+    use super::*;
+    use crate::config::{TeeProverApiConfig, TeeProverSigConfig};
+
+    #[test]
+    fn test_recover() {
+        let signing_key = SecretKey::from_slice(
+            &hex::decode("c87509a1c067bbde78beb793e6fa76530b6382a4c0241e5e4a9ec0a0f44dc0d3")
+                .unwrap(),
+        )
+        .unwrap();
+        let tee_prover_config = TeeProverConfig {
+            sig_conf: TeeProverSigConfig {
+                signing_key,
+                attestation_quote_file_path: PathBuf::from("/tmp/mock"),
+                tee_type: TeeType::Sgx,
+            },
+            prover_api: TeeProverApiConfig {
+                api_url: Url::parse("http://mock").unwrap(),
+                max_retries: 5,
+                initial_retry_backoff: Duration::from_secs(1),
+                retry_backoff_multiplier: 2.0,
+                max_backoff: Duration::from_secs(128),
+            },
+        };
+        let tee_prover = TeeProver {
+            config: tee_prover_config,
+            api_client: TeeApiClient::new(Url::parse("http://mock").unwrap()),
+        };
+        let private_key: K256PrivateKey = signing_key.into();
+        let expected_address = "0x627306090abaB3A6e1400e9345bC60c78a8BEf57"
+            .parse()
+            .unwrap();
+        assert_eq!(private_key.address(), expected_address);
+
+        // Generate a random root hash, create a message from the hash, and sign the message using
+        // the secret key
+        let random_root_hash = H256::random();
+        let signature = tee_prover.sign_message(&random_root_hash).unwrap();
+
+        // Recover the signer's Ethereum address from the signature and the message, and verify it
+        // matches the expected address
+        let recovered_pubkey = recover(&signature, &random_root_hash).unwrap();
+        let proof_address = public_to_address(&recovered_pubkey);
+
+        assert_eq!(proof_address, expected_address);
     }
 }

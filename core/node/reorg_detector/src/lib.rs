@@ -1,4 +1,4 @@
-use std::{fmt, future::Future, time::Duration};
+use std::{cmp::max, convert::Infallible, fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -6,13 +6,14 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
-use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, OrStopped, H256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -29,6 +30,9 @@ pub enum MissingData {
     /// The main node lacks a root hash for a requested L1 batch; the batch itself is present on the node.
     #[error("no root hash for L1 batch")]
     RootHash,
+    /// The main node lacks a root hash for a requested L1 batch; the batch itself is present on the node.
+    #[error("no commitment for L1 batch")]
+    Commitment,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -72,7 +76,7 @@ pub enum Error {
 impl HashMatchError {
     pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_retriable(),
+            Self::Rpc(err) => err.is_retryable(),
             Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }
@@ -103,6 +107,12 @@ impl From<EnrichedClientError> for Error {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct L1BatchHashedData {
+    pub root_hash: Option<H256>,
+    pub commitment: Option<H256>,
+}
+
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
@@ -111,10 +121,10 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
     async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
-    async fn l1_batch_root_hash(
+    async fn l1_batch_data(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>>;
+    ) -> EnrichedClientResult<Result<L1BatchHashedData, MissingData>>;
 }
 
 #[async_trait]
@@ -150,10 +160,10 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .map(|block| block.hash))
     }
 
-    async fn l1_batch_root_hash(
+    async fn l1_batch_data(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Result<H256, MissingData>> {
+    ) -> EnrichedClientResult<Result<L1BatchHashedData, MissingData>> {
         let Some(batch) = self
             .get_l1_batch_details(number)
             .rpc_context("l1_batch_root_hash")
@@ -162,7 +172,12 @@ impl MainNodeClient for Box<DynClient<L2>> {
         else {
             return Ok(Err(MissingData::Batch));
         };
-        Ok(batch.base.root_hash.ok_or(MissingData::RootHash))
+        let root_hash = batch.base.root_hash;
+        let commitment = batch.commitment;
+        Ok(Ok(L1BatchHashedData {
+            root_hash,
+            commitment,
+        }))
     }
 }
 
@@ -226,6 +241,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 }
 
 /// This is a component that is responsible for detecting the batch re-orgs.
+///
 /// Batch re-org is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
 /// (e.g. inability to generate a proof), and then potentially
@@ -266,53 +282,84 @@ impl ReorgDetector {
         &self.health_check
     }
 
-    async fn check_consistency(&mut self) -> Result<(), Error> {
+    async fn find_last_diverged_batch(&mut self) -> Result<Option<L1BatchNumber>, HashMatchError> {
         let mut storage = self.pool.connection().await?;
-        let Some(local_l1_batch) = storage
+        // Create a readonly transaction to get a consistent view of the storage.
+        let mut storage_tx = storage
+            .transaction_builder()?
+            .set_readonly()
+            .build()
+            .await?;
+        let Some(local_l1_batch) = storage_tx
             .blocks_dal()
-            .get_last_l1_batch_number_with_tree_data()
+            .get_last_l1_batch_number_with_commitment()
             .await?
         else {
-            return Ok(());
+            return Ok(None);
         };
-        let Some(local_l2_block) = storage.blocks_dal().get_sealed_l2_block_number().await? else {
-            return Ok(());
+        let Some(local_l2_block) = storage_tx.blocks_dal().get_sealed_l2_block_number().await?
+        else {
+            return Ok(None);
         };
+        drop(storage_tx);
         drop(storage);
 
         let remote_l1_batch = self.client.sealed_l1_batch_number().await?;
         let remote_l2_block = self.client.sealed_l2_block_number().await?;
-
         let checked_l1_batch = local_l1_batch.min(remote_l1_batch);
         let checked_l2_block = local_l2_block.min(remote_l2_block);
-
-        let root_hashes_match = self.root_hashes_match(checked_l1_batch).await?;
+        let l1batch_hashed_data = self.client.l1_batch_data(checked_l1_batch).await??;
+        let root_hashes_match = self
+            .root_hashes_match(checked_l1_batch, l1batch_hashed_data)
+            .await?;
         let l2_block_hashes_match = self.l2_block_hashes_match(checked_l2_block).await?;
+        let commitments_match = self
+            .commitment_match(checked_l1_batch, l1batch_hashed_data)
+            .await?;
 
-        // The only event that triggers re-org detection and node rollback is if the
-        // hash mismatch at the same block height is detected, be it L2 blocks or batches.
+        // The events that triggers re-org detection and node rollback are if the
+        // hash mismatch at the same block height is detected, be it L2 blocks or batches or commitment mismatch for l1 batch.
         //
         // In other cases either there is only a height mismatch which means that one of
         // the nodes needs to do catching up; however, it is not certain that there is actually
         // a re-org taking place.
-        if root_hashes_match && l2_block_hashes_match {
-            self.event_handler
-                .update_correct_block(checked_l2_block, checked_l1_batch);
+        Ok(
+            if root_hashes_match && l2_block_hashes_match && commitments_match {
+                self.event_handler
+                    .update_correct_block(checked_l2_block, checked_l1_batch);
+                None
+            } else {
+                let diverged_l1_batch =
+                    checked_l1_batch + max(root_hashes_match, commitments_match) as u32;
+                self.event_handler.report_divergence(diverged_l1_batch);
+                Some(diverged_l1_batch)
+            },
+        )
+    }
+
+    async fn check_consistency(&mut self) -> Result<(), Error> {
+        let Some(diverged_l1_batch) = self.find_last_diverged_batch().await? else {
             return Ok(());
-        }
-        let diverged_l1_batch = checked_l1_batch + (root_hashes_match as u32);
-        self.event_handler.report_divergence(diverged_l1_batch);
+        };
 
         // Check that the first L1 batch matches, to make sure that
         // we are actually tracking the same chain as the main node.
         let mut storage = self.pool.connection().await?;
         let first_l1_batch = storage
             .blocks_dal()
-            .get_earliest_l1_batch_number_with_metadata()
+            .get_earliest_l1_batch_number_with_commitment()
             .await?
             .context("all L1 batches disappeared")?;
         drop(storage);
-        match self.root_hashes_match(first_l1_batch).await {
+        let l1batch_hashed_data = self
+            .client
+            .l1_batch_data(first_l1_batch)
+            .await?
+            .map_err(|_| Error::EarliestL1BatchTruncated(first_l1_batch))?;
+        match self
+            .root_hashes_match(first_l1_batch, l1batch_hashed_data)
+            .await
+        {
             Ok(true) => {}
             Ok(false) => return Err(Error::EarliestL1BatchMismatch(first_l1_batch)),
             Err(HashMatchError::MissingData(_)) => {
@@ -356,7 +403,11 @@ impl ReorgDetector {
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
-    async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
+    async fn root_hashes_match(
+        &self,
+        l1_batch: L1BatchNumber,
+        l1batch_hashed_data: L1BatchHashedData,
+    ) -> Result<bool, HashMatchError> {
         let mut storage = self.pool.connection().await?;
         let local_hash = storage
             .blocks_dal()
@@ -365,7 +416,10 @@ impl ReorgDetector {
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let remote_hash = self.client.l1_batch_root_hash(l1_batch).await??;
+        let Some(remote_hash) = l1batch_hashed_data.root_hash else {
+            tracing::info!("Remote L1 batch #{l1_batch} is missing root hash");
+            return Err(MissingData::RootHash.into());
+        };
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
@@ -373,6 +427,37 @@ impl ReorgDetector {
             );
         }
         Ok(remote_hash == local_hash)
+    }
+
+    /// Compares root hashes of the latest local batch and of the same batch from the main node.
+    async fn commitment_match(
+        &self,
+        local_l1_batch: L1BatchNumber,
+        l1batch_hashed_data: L1BatchHashedData,
+    ) -> Result<bool, HashMatchError> {
+        let Some(remote_commitment) = l1batch_hashed_data.commitment else {
+            // If the commitment is missing on the main node (the version is not yet expose the commitment),
+            // we treat it as a match.
+            return Ok(true);
+        };
+
+        let mut storage = self.pool.connection().await?;
+        let local_commitment = storage
+            .blocks_dal()
+            .get_commitment_for_l1_batch(local_l1_batch)
+            .await?
+            .context(format!(
+                "Commitment does not exist for local batch #{local_l1_batch}"
+            ))?;
+        drop(storage);
+
+        if remote_commitment != local_commitment {
+            tracing::warn!(
+                "Reorg detected: local commitment {local_commitment:?} doesn't match the state hash from \
+                main node {remote_commitment:?} (L1 batch #{local_l1_batch})"
+            );
+        }
+        Ok(remote_commitment == local_commitment)
     }
 
     /// Because the node can fetch L1 batch root hash from an external source using the tree data fetcher, there's no strict guarantee
@@ -386,8 +471,17 @@ impl ReorgDetector {
         &self,
         l1_batch: L1BatchNumber,
     ) -> Result<bool, HashMatchError> {
-        let root_hashes_match = self.root_hashes_match(l1_batch).await?;
+        let l1batch_hashed_data = self.client.l1_batch_data(l1_batch).await??;
+
+        let root_hashes_match = self
+            .root_hashes_match(l1_batch, l1batch_hashed_data)
+            .await?;
         if !root_hashes_match {
+            return Ok(false);
+        }
+
+        let commitment_match = self.commitment_match(l1_batch, l1batch_hashed_data).await?;
+        if !commitment_match {
             return Ok(false);
         }
 
@@ -427,44 +521,43 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    /// Runs this detector *once* checking whether there is a reorg. This method will return:
+    /// Runs this detector *once* checking whether there is a reorg.
     ///
-    /// - `Ok(())` if there is no reorg, or if a stop signal is received.
-    /// - `Err(ReorgDetected(_))` if a reorg was detected.
-    /// - `Err(_)` for fatal errors.
-    ///
-    /// Retriable errors are retried indefinitely accounting for a stop signal.
-    pub async fn run_once(&mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    /// Only fatal errors are returned (incl. detected reorgs). Retriable errors are retried indefinitely accounting for a stop request.
+    pub async fn run_once(
+        &mut self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), OrStopped<Error>> {
         self.run_inner(true, stop_receiver).await
     }
 
     /// Runs this detector continuously checking for a reorg until a fatal error occurs (including if a reorg is detected),
-    /// or a stop signal is received.
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    /// or a stop request is received.
+    pub async fn run(
+        mut self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Result<Infallible, OrStopped<Error>> {
         self.event_handler.initialize();
-        self.run_inner(false, stop_receiver).await?;
-        self.event_handler.start_shutting_down();
-        tracing::info!("Shutting down reorg detector");
-        Ok(())
+        // `unwrap_err()` is safe: `run_inner()` can only return `Ok(())` if `stop_after_success` is set.
+        let err = self.run_inner(false, stop_receiver).await.unwrap_err();
+        if matches!(&err, OrStopped::Stopped) {
+            self.event_handler.start_shutting_down();
+            tracing::info!("Shutting down reorg detector");
+        }
+        Err(err)
     }
 
     async fn run_inner(
         &mut self,
         stop_after_success: bool,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), OrStopped<Error>> {
         while !*stop_receiver.borrow_and_update() {
             let sleep_interval = match self.check_consistency().await {
-                Err(Error::HashMatch(HashMatchError::MissingData(MissingData::RootHash))) => {
-                    tracing::debug!("Last L1 batch on the main node doesn't have a state root hash; waiting until it is computed");
-                    self.sleep_interval / 10
+                Err(Error::HashMatch(err)) => {
+                    self.handle_hash_err(err).map_err(OrStopped::internal)?
                 }
-                Err(err) if err.is_retriable() => {
-                    tracing::warn!("Following transient error occurred: {err}");
-                    tracing::info!("Trying again after a delay");
-                    self.sleep_interval
-                }
-                Err(err) => return Err(err),
+                Err(err) => return Err(err.into()),
                 Ok(()) if stop_after_success => return Ok(()),
                 Ok(()) => self.sleep_interval,
             };
@@ -478,7 +571,58 @@ impl ReorgDetector {
                 break;
             }
         }
-        Ok(())
+        Err(OrStopped::Stopped)
+    }
+
+    /// Returns the sleep interval if the error is transient.
+    fn handle_hash_err(&self, err: HashMatchError) -> Result<Duration, HashMatchError> {
+        match err {
+            HashMatchError::MissingData(MissingData::RootHash) => {
+                tracing::debug!("Last L1 batch on the main node doesn't have a state root hash; waiting until it is computed");
+                Ok(self.sleep_interval / 10)
+            }
+            err if err.is_retriable() => {
+                tracing::warn!("Following transient error occurred: {err}");
+                tracing::info!("Trying again after a delay");
+                Ok(self.sleep_interval)
+            }
+            err => Err(err),
+        }
+    }
+
+    /// Checks whether a reorg is present. Unlike [`Self::run_once()`], this method doesn't pinpoint the first diverged L1 batch;
+    /// it just checks whether diverged batches / blocks exist in general.
+    ///
+    /// Internally retries transient errors.
+    pub async fn check_reorg_presence(
+        &mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+        ignore_rpc_error: bool,
+    ) -> Result<bool, OrStopped> {
+        while !*stop_receiver.borrow_and_update() {
+            let sleep_interval = match self.find_last_diverged_batch().await {
+                Err(HashMatchError::Rpc(err)) => {
+                    // If we have rpc error, we won't try to check the reorg presence.
+                    // In the worst case, we will restart right after the main node recovers.
+                    if ignore_rpc_error {
+                        return Ok(false);
+                    } else {
+                        self.handle_hash_err(HashMatchError::Rpc(err))
+                            .map_err(OrStopped::internal)?
+                    }
+                }
+                Err(err) => self.handle_hash_err(err).map_err(OrStopped::internal)?,
+                Ok(maybe_diverged_batch) => return Ok(maybe_diverged_batch.is_some()),
+            };
+
+            if tokio::time::timeout(sleep_interval, stop_receiver.changed())
+                .await
+                .is_ok()
+            {
+                return Err(OrStopped::Stopped);
+            }
+        }
+        Ok(false)
     }
 }
 

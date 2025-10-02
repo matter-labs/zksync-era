@@ -2,19 +2,19 @@ use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
     ops::Add,
-    path::PathBuf,
+    path::Path,
     time::Duration,
 };
 
 use anyhow::Context;
 use args::SendTransactionsArgs;
 use chrono::Local;
-use common::{ethereum::create_ethers_client, logger};
-use config::EcosystemConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
 use serde::Deserialize;
 use tokio::time::sleep;
 use xshell::Shell;
+use zkstack_cli_common::{ethereum::create_ethers_client, logger};
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{H160, U256};
 
 use crate::commands::dev::{
@@ -52,8 +52,8 @@ struct Txns {
 pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_id = ecosystem_config.l1_network.chain_id();
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let chain_id = chain_config.l1_network.chain_id();
 
     // Read the JSON file
     let mut file = File::open(args.file).context(MSG_UNABLE_TO_OPEN_FILE_ERR)?;
@@ -65,8 +65,8 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
     let txns: Txns = serde_json::from_str(&data).context(MSG_UNABLE_TO_READ_PARSE_JSON_ERR)?;
 
     let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
-    let log_file = ecosystem_config
-        .link_to_code
+    let log_file = chain_config
+        .link_to_code()
         .join(DEFAULT_UNSIGNED_TRANSACTIONS_DIR)
         .join(format!("{}_receipt.log", timestamp));
 
@@ -119,7 +119,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
     Ok(())
 }
 
-fn log_receipt(path: &PathBuf, receipt: &str) -> anyhow::Result<()> {
+fn log_receipt(path: &Path, receipt: &str) -> anyhow::Result<()> {
     let mut file = OpenOptions::new()
         .append(true)
         .create(true)

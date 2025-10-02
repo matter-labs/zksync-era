@@ -1,7 +1,7 @@
 [package]
 name = "merkle_tree_consistency_checker"
 description = "Tool to verify consistency of ZKsync Merkle Tree"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -13,7 +13,6 @@ publish = false
 
 [dependencies]
 zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_env_config.workspace = true
 zksync_merkle_tree.workspace = true
 zksync_types.workspace = true
 zksync_storage.workspace = true

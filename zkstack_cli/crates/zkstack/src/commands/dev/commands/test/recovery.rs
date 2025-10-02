@@ -1,33 +1,24 @@
-use std::path::PathBuf;
-
-use anyhow::Context;
-use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
 
-use super::{
-    args::recovery::RecoveryArgs,
-    utils::{install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
-};
-use crate::commands::dev::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_RECOVERY_TEST_RUN_INFO,
-    MSG_RECOVERY_TEST_RUN_SUCCESS,
-};
+use super::{args::recovery::RecoveryArgs, utils::install_and_build_dependencies};
+use crate::commands::dev::messages::{MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS};
 
 const RECOVERY_TESTS_PATH: &str = "core/tests/recovery-test";
 
 pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    shell.change_dir(ecosystem_config.link_to_code.join(RECOVERY_TESTS_PATH));
+    let config = ZkStackConfig::ecosystem(shell)?;
+    shell.change_dir(config.link_to_code().join(RECOVERY_TESTS_PATH));
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);
-    Server::new(None, ecosystem_config.link_to_code.clone(), false).build(shell)?;
+    Server::new(None, None, config.link_to_code().clone(), false).build(shell)?;
 
     if !args.no_deps {
-        install_and_build_dependencies(shell, &ecosystem_config)?;
+        install_and_build_dependencies(shell, &config.link_to_code())?;
     }
 
-    run_test(shell, &args, &ecosystem_config).await?;
+    run_test(shell, &args, &config).await?;
     logger::outro(MSG_RECOVERY_TEST_RUN_SUCCESS);
 
     Ok(())
@@ -39,28 +30,14 @@ async fn run_test(
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     Spinner::new("Running test...").freeze();
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-
     let cmd = if args.snapshot {
         cmd!(shell, "yarn mocha tests/snapshot-recovery.test.ts")
     } else {
         cmd!(shell, "yarn mocha tests/genesis-recovery.test.ts")
     };
-
-    let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
-    let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
-        .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
-
-    wallets
-        .init_test_wallet(ecosystem_config, &chain_config)
-        .await?;
-
     let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("NO_KILL", args.no_kill.to_string())
-        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
+        .env("NO_KILL", args.no_kill.to_string());
 
     cmd.with_force_run().run()?;
 

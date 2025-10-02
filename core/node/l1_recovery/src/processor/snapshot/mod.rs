@@ -3,6 +3,7 @@ use std::{fs, path::PathBuf, sync::Arc};
 use serde_json::Value;
 use tokio::sync::watch;
 use zksync_basic_types::{
+    bytecode::BytecodeHash,
     h256_to_u256, u256_to_h256,
     web3::{keccak256, Bytes},
     AccountTreeId, L1BatchNumber, H256, U256,
@@ -63,6 +64,7 @@ impl StateCompressor {
         let mut result: Vec<SnapshotFactoryDependency> = get_genesis_factory_deps()
             .iter()
             .map(|dep| SnapshotFactoryDependency {
+                hash: Some(BytecodeHash::for_bytecode(&dep).value()),
                 bytecode: dep.clone().into(),
             })
             .collect();
@@ -204,6 +206,7 @@ impl StateCompressor {
         for factory_dep in processed_deps {
             self.database
                 .insert_factory_dep(&SnapshotFactoryDependency {
+                    hash: Some(BytecodeHash::for_bytecode(&factory_dep).value()),
                     bytecode: Bytes(factory_dep),
                 })
                 .expect("failed to save factory dep");
@@ -294,6 +297,7 @@ impl StateCompressor {
         for dep in block.factory_deps {
             self.database
                 .insert_factory_dep(&SnapshotFactoryDependency {
+                    hash: Some(BytecodeHash::for_bytecode(&dep).value()),
                     bytecode: Bytes(dep),
                 })
                 .expect("failed to save factory dep");

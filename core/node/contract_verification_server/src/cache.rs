@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::RwLock;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_types::contract_verification_api::CompilerVersions;
+use zksync_types::contract_verification::api::CompilerVersions;
 
 /// Compiler versions supported by the contract verifier.
 #[derive(Debug, Clone)]
@@ -27,7 +27,7 @@ impl SupportedCompilerVersions {
                 self.solc.contains(compiler_solc_version)
                     && compiler_zksolc_version
                         .as_ref()
-                        .map_or(true, |ver| self.zksolc.contains(ver))
+                        .is_none_or(|ver| self.zksolc.contains(ver))
             }
             CompilerVersions::Vyper {
                 compiler_vyper_version,
@@ -36,7 +36,7 @@ impl SupportedCompilerVersions {
                 self.vyper.contains(compiler_vyper_version)
                     && compiler_zkvyper_version
                         .as_ref()
-                        .map_or(true, |ver| self.zkvyper.contains(ver))
+                        .is_none_or(|ver| self.zkvyper.contains(ver))
             }
         }
     }

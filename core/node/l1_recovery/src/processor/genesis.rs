@@ -97,7 +97,7 @@ pub fn reconstruct_genesis_state(path: PathBuf) -> Vec<TreeEntry> {
 }
 
 pub fn get_genesis_factory_deps() -> Vec<Vec<u8>> {
-    let contracts = get_system_smart_contracts(false);
+    let contracts = get_system_smart_contracts();
     let mut hashes: HashSet<H256> = HashSet::new();
     let mut bytecodes: Vec<Vec<u8>> = vec![];
     for contract in &contracts {
@@ -116,7 +116,7 @@ pub fn get_genesis_factory_deps() -> Vec<Vec<u8>> {
 }
 
 pub fn get_genesis_state() -> Vec<TreeEntry> {
-    let contracts = get_system_smart_contracts(false);
+    let contracts = get_system_smart_contracts();
     let storage_logs = get_storage_logs(&contracts);
     tracing::info!("Found {} storage logs", storage_logs.len());
     let raw_storage_logs = storage_logs

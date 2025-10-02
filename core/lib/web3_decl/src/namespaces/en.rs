@@ -1,10 +1,16 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_config::{configs::EcosystemContracts, GenesisConfig};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
+use zksync_types::{
+    api::{en, ProtocolVersionInfo},
+    tokens::TokenInfo,
+    Address, L2BlockNumber,
+};
 
-use crate::client::{ForWeb3Network, L2};
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::{EcosystemContractsDto, GenesisConfigDto},
+};
 
 #[cfg_attr(
     feature = "server",
@@ -21,9 +27,6 @@ pub trait EnNamespace {
         block_number: L2BlockNumber,
         include_transactions: bool,
     ) -> RpcResult<Option<en::SyncBlock>>;
-
-    #[method(name = "consensusGenesis")]
-    async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>>;
 
     #[method(name = "consensusGlobalConfig")]
     async fn consensus_global_config(&self) -> RpcResult<Option<en::ConsensusGlobalConfig>>;
@@ -42,19 +45,18 @@ pub trait EnNamespace {
 
     /// Get genesis configuration
     #[method(name = "genesisConfig")]
-    async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
-
-    /// MAIN NODE ONLY:
-    /// Gets the AttestationStatus of L1 batches.
-    /// This is a temporary RPC used for testing L1 batch signing
-    /// by consensus attesters.
-    #[method(name = "attestationStatus")]
-    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>>;
+    async fn genesis_config(&self) -> RpcResult<GenesisConfigDto>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]
     async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>>;
 
     #[method(name = "getEcosystemContracts")]
-    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContractsDto>;
+
+    #[method(name = "getProtocolVersionInfo")]
+    async fn get_protocol_version_info(
+        &self,
+        version_id: Option<u16>,
+    ) -> RpcResult<Option<ProtocolVersionInfo>>;
 }

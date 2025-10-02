@@ -23,7 +23,7 @@ pub(crate) struct EnvCompilerResolver {
 impl Default for EnvCompilerResolver {
     fn default() -> Self {
         Self {
-            home_dir: Workspace::locate().core(),
+            home_dir: Workspace::locate().root(),
         }
     }
 }

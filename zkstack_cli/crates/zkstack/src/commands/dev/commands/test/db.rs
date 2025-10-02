@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use common::{cmd::Cmd, db::wait_for_db, logger};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, db::wait_for_db, logger};
 
 use crate::commands::dev::{commands::database, dals::Dal, messages::MSG_RESETTING_TEST_DATABASES};
 

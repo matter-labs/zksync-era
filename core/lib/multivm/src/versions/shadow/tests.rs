@@ -1,20 +1,30 @@
 //! Unit tests from the `testonly` test suite.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_vm2::interface::Tracer;
+use zksync_vm_interface::{
+    utils::{CheckDivergence, DivergenceErrors},
+    Call,
+};
 
 use super::ShadowedFastVm;
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
+        storage::InMemoryStorage,
         utils::{ShadowMut, ShadowRef},
         CurrentExecutionState, L2BlockEnv, VmExecutionResultAndLogs,
     },
-    versions::testonly::TestedVm,
+    versions::testonly::{TestedVm, TestedVmWithCallTracer},
+    vm_fast,
 };
 
-impl TestedVm for ShadowedFastVm {
+impl<Tr> TestedVm for ShadowedFastVm<InMemoryStorage, Tr>
+where
+    Tr: Tracer + Default + fmt::Debug + 'static,
+{
     type StateDump = ();
 
     fn dump_state(&self) -> Self::StateDump {
@@ -115,8 +125,8 @@ impl TestedVm for ShadowedFastVm {
 
     fn push_l2_block_unchecked(&mut self, block: L2BlockEnv) {
         self.get_mut("push_l2_block_unchecked", |r| match r {
-            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block),
-            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block),
+            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block.clone()),
+            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block.clone()),
         });
     }
 
@@ -132,6 +142,44 @@ impl TestedVm for ShadowedFastVm {
             ShadowRef::Main(vm) => vm.pubdata_input(),
             ShadowRef::Shadow(vm) => vm.pubdata_input(),
         })
+    }
+}
+
+#[derive(Debug)]
+struct ExecutionResultAndTraces {
+    result: VmExecutionResultAndLogs,
+    traces: Vec<Call>,
+}
+
+impl From<(VmExecutionResultAndLogs, Vec<Call>)> for ExecutionResultAndTraces {
+    fn from((result, traces): (VmExecutionResultAndLogs, Vec<Call>)) -> Self {
+        Self { result, traces }
+    }
+}
+
+impl From<ExecutionResultAndTraces> for (VmExecutionResultAndLogs, Vec<Call>) {
+    fn from(value: ExecutionResultAndTraces) -> Self {
+        (value.result, value.traces)
+    }
+}
+
+impl CheckDivergence for ExecutionResultAndTraces {
+    fn check_divergence(&self, other: &Self) -> DivergenceErrors {
+        let mut errors = self.result.check_divergence(&other.result);
+        errors.extend(self.traces.check_divergence(&other.traces));
+        errors
+    }
+}
+
+impl TestedVmWithCallTracer for ShadowedFastVm<InMemoryStorage, vm_fast::CallTracer> {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        self.get_custom_mut("inspect_with_call_tracer", |r| {
+            ExecutionResultAndTraces::from(match r {
+                ShadowMut::Main(vm) => vm.inspect_with_call_tracer(),
+                ShadowMut::Shadow(vm) => vm.inspect_with_call_tracer(),
+            })
+        })
+        .into()
     }
 }
 
@@ -164,6 +212,55 @@ mod bytecode_publishing {
     #[test]
     fn bytecode_publishing() {
         test_bytecode_publishing::<super::ShadowedFastVm>();
+    }
+}
+
+mod call_tracer {
+    use crate::versions::testonly::call_tracer::*;
+
+    #[test]
+    fn basic_behavior() {
+        test_basic_behavior::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn transfer() {
+        test_transfer::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn reverted_tx() {
+        test_reverted_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn reverted_deployment() {
+        test_reverted_deployment_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn out_of_gas() {
+        test_out_of_gas::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn recursive_tx() {
+        test_recursive_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_to_eravm_call() {
+        test_evm_to_eravm_call::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_deployment_tx() {
+        test_evm_deployment_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_deployment_from_contract() {
+        test_evm_deployment_from_contract::<super::ShadowedFastVm<_, _>>();
     }
 }
 
@@ -202,12 +299,116 @@ mod default_aa {
     fn default_aa_interaction() {
         test_default_aa_interaction::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn permissive_aa_works() {
+        test_permissive_aa_works::<super::ShadowedFastVm>();
+    }
 }
 
-mod evm_emulator {
+mod evm {
+    use crate::versions::testonly::evm::*;
+
+    #[test]
+    fn evm_deployment_tx() {
+        test_evm_deployment_tx::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn evm_bytecode_decommit() {
+        test_evm_bytecode_decommit::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_basics() {
+        test_real_emulator_basics::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_code_hash() {
+        test_real_emulator_code_hash::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_block_info() {
+        test_real_emulator_block_info::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_msg_info() {
+        test_real_emulator_msg_info::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_gas_management() {
+        test_real_emulator_gas_management::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_recursion() {
+        test_real_emulator_recursion::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_deployment() {
+        test_real_emulator_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_create2_deployment() {
+        test_create2_deployment_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create_address() {
+        test_reusing_create_address_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create2_salt() {
+        test_reusing_create2_salt_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn deployment_with_partial_reverts() {
+        test_deployment_with_partial_reverts::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn era_vm_deployment_after_evm_execution() {
+        test_era_vm_deployment_after_evm_execution::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn era_vm_deployment_after_evm_deployment() {
+        test_era_vm_deployment_after_evm_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_era_contract_from_evm() {
+        test_calling_era_contract_from_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn far_calls_from_evm_contract() {
+        test_far_calls_from_evm_contract::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_sha256_precompile() {
+        test_calling_sha256_precompile::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_ecrecover_precompile() {
+        test_calling_ecrecover_precompile::<super::ShadowedFastVm>();
+    }
+}
+
+mod mock_evm {
     use test_casing::{test_casing, Product};
 
-    use crate::versions::testonly::evm_emulator::*;
+    use crate::versions::testonly::mock_evm::*;
 
     #[test]
     fn tracing_evm_contract_deployment() {
@@ -308,7 +509,6 @@ mod l1_messenger {
     use crate::versions::testonly::l1_messenger::*;
 
     #[test]
-    #[ignore] // Requires post-gateway system contracts
     fn rollup_da_output_hash_match() {
         test_rollup_da_output_hash_match::<super::ShadowedFastVm>();
     }
@@ -383,6 +583,31 @@ mod precompiles {
     fn ecrecover() {
         test_ecrecover::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn ecadd() {
+        test_ecadd::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecmul() {
+        test_ecmul::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecpairing() {
+        test_ecpairing::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn modexp() {
+        test_modexp::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn v28_precompiles_disabled() {
+        test_v28_precompiles_disabled::<super::ShadowedFastVm>();
+    }
 }
 
 mod refunds {
@@ -447,6 +672,26 @@ mod simple_execution {
     #[test]
     fn simple_execute() {
         test_simple_execute::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn create2_deployment_address() {
+        test_create2_deployment_address::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create_address() {
+        test_reusing_create_address::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create2_salt() {
+        test_reusing_create2_salt::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn transfer_to_self_with_low_gas_limit() {
+        test_transfer_to_self_with_low_gas_limit::<super::ShadowedFastVm<_>>();
     }
 }
 

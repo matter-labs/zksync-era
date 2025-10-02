@@ -14,6 +14,20 @@ pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
 pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 
+pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
+    "EVM Interpreter (v27) upgrade checker and calldata generator";
+
+pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
+    "Precompiles (v28) upgrade checker and calldata generator";
+
+pub(super) const GENERAL_ECOSYSTEM_UPGRADE: &str =
+    "General ecosystem upgrade checker and calldata generator";
+
+pub(super) const GENERAL_CHAIN_UPGRADE: &str =
+    "General chain upgrade checker and calldata generator";
+
+pub(super) const V29_CHAIN_UPGRADE: &str = "V29 chain upgrade checker and calldata generator";
+
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
@@ -45,7 +59,6 @@ pub(super) const MSG_DATABASE_RESET_GERUND: &str = "Resetting";
 pub(super) const MSG_DATABASE_RESET_PAST: &str = "reset";
 pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
-pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
 pub(super) const MSG_DATABASE_COMMON_PROVER_URL_HELP: &str =
     "URL of the Prover database. If not specified, it is used from the current chain's secrets";
@@ -86,13 +99,20 @@ pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
 pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
+pub(super) const MSG_GATEWAY_TEST_ABOUT: &str = "Run gateway tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
+pub(super) const MSG_EVM_TESTS_HELP: &str =
+    "Expect EVM contracts to be enabled for the chain; fail EVM tests if they are not";
+pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contracts' or 'erc20'";
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
+pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
+pub(super) const MSG_TEST_SECOND_CHAIN_HELP: &str =
+    "Second chain to run tests on, used for interop tests. If not specified, interop tests will be run on the same chain";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
@@ -102,7 +122,6 @@ pub(super) const MSG_L1_CONTRACTS_ABOUT: &str = "Run L1 contracts tests";
 pub(super) const MSG_L1_CONTRACTS_TEST_SUCCESS: &str = "L1 contracts tests ran successfully";
 pub(super) const MSG_PROVER_TEST_ABOUT: &str = "Run prover tests";
 pub(super) const MSG_PROVER_TEST_SUCCESS: &str = "Prover tests ran successfully";
-pub(super) const MSG_POSTGRES_CONFIG_NOT_FOUND_ERR: &str = "Postgres config not found";
 pub(super) const MSG_RESETTING_TEST_DATABASES: &str = "Resetting test databases";
 
 // Contract building related messages
@@ -110,9 +129,11 @@ pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
 pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
 pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
+pub(super) const MSG_BUILDING_L1_DA_CONTRACTS_SPINNER: &str = "Building L1 DA contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
 pub(super) const MSG_BUILDING_CONTRACTS_SUCCESS: &str = "Contracts built successfully";
 pub(super) const MSG_BUILD_L1_CONTRACTS_HELP: &str = "Build L1 contracts";
+pub(super) const MSG_BUILD_L1_DA_CONTRACTS_HELP: &str = "Build L1 DA contracts";
 pub(super) const MSG_BUILD_L2_CONTRACTS_HELP: &str = "Build L2 contracts";
 pub(super) const MSG_BUILD_SYSTEM_CONTRACTS_HELP: &str = "Build system contracts";
 
@@ -135,20 +156,21 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
-pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
-    let base = "Running integration tests";
-    if external_node {
-        format!("{} for external node", base)
-    } else {
-        format!("{} for main server", base)
-    }
-}
-
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
 
 // Recovery tests related messages
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
+// Init test wallet related messages
+pub(super) const MSG_INIT_TEST_WALLET_ABOUT: &str = "Initialize test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_INFO: &str = "Initializing test wallet";
+pub(super) const MSG_INIT_TEST_WALLET_RUN_SUCCESS: &str = "Test wallet initialized successfully";
+
+// Migration test related messages
+pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
+pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
+    "Gateway migration test ran successfully";
 
 // Upgrade tests related messages
 pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";
@@ -173,24 +195,13 @@ pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
 pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
     format!("Running linter for files with extension: .{}", target)
 }
-
-pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
-    format!("Running prettier for: {target:?}")
-}
-
-pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
-    format!("Running rustfmt for: {dir:?}")
-}
-
-pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
-    format!("Running prettier for: {targets:?} and rustfmt")
+pub(super) fn msg_running_fmt_spinner(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!("{}", e)).collect();
+    format!("Running formatters for: {:?}", targets)
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
-pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
-
-pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
 
 pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
     format!("File {} is not formatted", file)
@@ -228,9 +239,14 @@ pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON
 pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
 pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
 
+pub(super) const MSG_RICH_ACCOUNT_ABOUT: &str = "Make L2 account rich";
+
+pub(super) fn msg_rich_account_outro(account: &str) -> String {
+    format!("$$ You are rich $$: {:?}", account)
+}
+
 // Status related messages
 pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
-pub(super) const MSG_API_CONFIG_NOT_FOUND_ERR: &str = "API config not found";
 pub(super) const MSG_STATUS_URL_HELP: &str = "URL of the health check endpoint";
 pub(super) const MSG_STATUS_PORTS_HELP: &str = "Show used ports";
 pub(super) const MSG_COMPONENTS: &str = "Components:\n";

@@ -57,6 +57,7 @@ impl StorageViewStats {
 }
 
 /// `StorageView` is a buffer for `StorageLog`s between storage and transaction execution code.
+///
 /// In order to commit transactions logs should be submitted to the underlying storage
 /// after a transaction is executed.
 ///
@@ -261,8 +262,10 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 }
 
-/// Immutable wrapper around [`StorageView`] that reads directly from the underlying storage ignoring any
-/// modifications in the [`StorageView`]. Used by the fast VM, which has its own internal management of writes.
+/// Immutable wrapper around [`StorageView`] for direct reads.
+///
+/// Reads directly from the underlying storage ignoring any modifications in the [`StorageView`].
+/// Used by the fast VM, which has its own internal management of writes.
 #[derive(Debug)]
 pub struct ImmutableStorageView<S>(StoragePtr<StorageView<S>>);
 
@@ -270,6 +273,11 @@ impl<S: ReadStorage> ImmutableStorageView<S> {
     /// Creates a new view based on the provided storage pointer.
     pub fn new(ptr: StoragePtr<StorageView<S>>) -> Self {
         Self(ptr)
+    }
+
+    #[doc(hidden)] // can easily break invariants if not used carefully
+    pub fn to_rc_ptr(&self) -> StoragePtr<StorageView<S>> {
+        self.0.clone()
     }
 }
 

@@ -21,6 +21,9 @@ way.
 - [ZK deeper overview](./14_zk_deeper_overview.md)
 - [Prover keys](./15_prover_keys.md)
 - [Decentralization](./16_decentralization.md)
+- [L1 Batch reversion](./17_batch_reverter.md)
+- [Allowlist](./18_allowlist.md)
+- [Interop basics](./19_interop_basics.md)
 
 Additionally, there are a few articles that cover specific topics that may be useful for developers actively working on
 `zksync-era` repo:

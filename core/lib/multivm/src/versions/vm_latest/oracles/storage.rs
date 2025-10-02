@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     abstractions::{Storage as VmStorageOracle, StorageAccessRefund},
     aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::{
@@ -35,11 +35,11 @@ use crate::{
     },
 };
 
-/// We employ the following rules for cold/warm storage rules:
-/// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
-///   would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
-/// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
-///   and so require more RAM to store them.
+// We employ the following rules for cold/warm storage rules:
+// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
+//   would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
+// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
+//   and so require more RAM to store them.
 
 const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
 const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_WARM_WRITE_COST;
@@ -55,7 +55,7 @@ pub(crate) fn storage_key_of_log(query: &LogQuery) -> StorageKey {
     triplet_to_storage_key(query.shard_id, query.address, query.key)
 }
 
-/// The same struct as `zk_evm_1_5_0::aux_structures::LogQuery`, but without the fields that
+/// The same struct as `zk_evm_1_5_2::aux_structures::LogQuery`, but without the fields that
 /// are not needed to maintain the frame stack of the transient storage.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReducedTstoreLogQuery {
@@ -576,7 +576,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         // Note that while the history is preserved, the inner parts are fully cleared out.
         // TODO(X): potentially optimize this function by allowing rollbacks only at the bounds of transactions.
 
-        let current_active_keys = self.transient_storage.drain_inner();
+        let current_active_keys = self.transient_storage.clone_vec();
         for (key, current_value) in current_active_keys {
             self.write_transient_storage_value(ReducedTstoreLogQuery {
                 // We currently only support rollup shard id

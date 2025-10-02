@@ -1,41 +1,55 @@
+use std::time::Duration;
+
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
+use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{
+    clients::{DynClient, SigningClient, L2},
+    BoundEthInterface,
+};
+use zksync_eth_signer::PrivateKeySigner;
 use zksync_l1_contract_interface::{
     i_executor::methods::ExecuteBatches, multicall3::Multicall3Call, Tokenizable,
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
+    api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
-    ethabi,
-    ethabi::Token,
+    eth_sender::EthTxFinalityStatus,
+    ethabi::{self, Token},
     helpers::unix_timestamp_ms,
-    web3,
-    web3::contract::Error,
-    Address, ProtocolVersionId, H256,
+    settlement::SettlementLayer,
+    web3::{self, contract::Error},
+    Address, K256PrivateKey, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
+use zksync_web3_decl::client::MockClient;
 
 use crate::{
-    abstract_l1_interface::OperatorType,
-    aggregated_operations::AggregatedOperation,
-    tester::{EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS},
+    abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
+    tester::{
+        EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
+        STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
+    },
     zksync_functions::ZkSyncFunctions,
     EthSenderError,
 };
 
 fn get_dummy_operation(number: u32) -> AggregatedOperation {
-    AggregatedOperation::Execute(ExecuteBatches {
+    AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(number),
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
         priority_ops_proofs: Vec::new(),
-    })
+        dependency_roots: vec![vec![], vec![]],
+    }))
 }
 
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
@@ -66,30 +80,86 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         panic!("Unexpected input: {tokens:?}");
     };
 
+    let validator_timelock_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelock")
+        .unwrap()
+        .short_signature();
+    let valdaitor_timelock_post_v29_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelockPostV29")
+        .unwrap()
+        .short_signature();
+    let prototol_version_short_selector = functions
+        .state_transition_manager_contract
+        .function("protocolVersion")
+        .unwrap()
+        .short_signature();
+
+    let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
+    let execution_delay_selector = functions
+        .validator_timelock_contract
+        .function("executionDelay")
+        .unwrap()
+        .short_signature();
+
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
         let call = call.unwrap();
-        assert_eq!(call.target, STATE_TRANSITION_CONTRACT_ADDRESS);
         let output = match &call.calldata[..4] {
             selector if selector == bootloader_signature => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![1u8; 32]
             }
             selector if selector == default_aa_signature => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![2u8; 32]
             }
             selector if Some(selector) == evm_emulator_getter_signature => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![3u8; 32]
             }
             selector if selector == functions.get_verifier_params.short_signature() => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![4u8; 96]
             }
             selector if selector == functions.get_verifier.short_signature() => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 vec![5u8; 32]
             }
             selector if selector == functions.get_protocol_version.short_signature() => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 H256::from_low_u64_be(ProtocolVersionId::default() as u64)
                     .0
                     .to_vec()
+            }
+            selector if selector == validator_timelock_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![6u8; 32]
+            }
+            selector if selector == prototol_version_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec()
+            }
+            selector if selector == get_da_validator_pair_selector => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
+                let non_zero_address = vec![6u8; 32];
+
+                [non_zero_address.clone(), non_zero_address].concat()
+            }
+            selector if selector == execution_delay_selector => {
+                // The target is config_timelock_contract_address which is a random address in tests
+                // Return a mock execution delay (e.g., 3600 seconds = 1 hour)
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }
+            selector if selector == valdaitor_timelock_post_v29_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![7u8; 32]
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -148,6 +218,7 @@ async fn confirm_many(
         false,
         aggregator_operate_4844_mode,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -192,11 +263,14 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         false,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
     // after this, median should be 6
-    tester.gateway.advance_block_number(3);
+    tester
+        .gateway
+        .advance_block_number(3, EthTxFinalityStatus::Finalized);
     tester.gas_adjuster.keep_updated().await?;
 
     TestL1Batch::sealed(&mut tester).await;
@@ -208,6 +282,8 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &get_dummy_operation(0),
+            Address::random(),
+            ProtocolVersionId::latest(),
             false,
         )
         .await?;
@@ -249,7 +325,9 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     );
 
     // now, median is 5
-    tester.gateway.advance_block_number(2);
+    tester
+        .gateway
+        .advance_block_number(2, EthTxFinalityStatus::Finalized);
     tester.gas_adjuster.keep_updated().await?;
     let block_numbers = tester.get_block_numbers().await;
 
@@ -318,6 +396,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
         false,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -335,10 +414,9 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
     tester
         .execute_tx(
             l1_batch.number,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
             true,
-            // we use -2 as running eth_sender iteration implicitly advances block number by 1
-            EthSenderTester::WAIT_CONFIRMATIONS - 2,
+            EthTxFinalityStatus::Pending,
         )
         .await;
     tester.run_eth_sender_tx_manager_iteration().await;
@@ -362,6 +440,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
         false,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -395,6 +474,65 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
     Ok(())
 }
 
+#[test_casing(2, COMMITMENT_MODES)]
+#[test_log::test(tokio::test)]
+async fn fast_finalization(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = EthSenderTester::new(
+        connection_pool.clone(),
+        vec![100; 100],
+        false,
+        true,
+        commitment_mode,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+
+    let first_batch = TestL1Batch::sealed(&mut tester).await;
+    let second_batch = TestL1Batch::sealed(&mut tester).await;
+    let third_batch = TestL1Batch::sealed(&mut tester).await;
+    let fourth_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_batch.save_commit_tx(&mut tester).await;
+    second_batch.save_commit_tx(&mut tester).await;
+    third_batch.save_commit_tx(&mut tester).await;
+    fourth_batch.save_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // we should have sent transactions for all batches for the first time
+    tester.assert_just_sent_tx_count_equals(4).await;
+
+    first_batch.fast_finalize_commit_tx(&mut tester).await;
+    second_batch.fast_finalize_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // check that last 2 transactions are still considered in-flight
+    tester.assert_inflight_txs_count_equals(2).await;
+    tester.assert_non_finalized_txs_count_equals(2).await;
+    tester.revert_blocks(2).await;
+    // After revert we send transactions one by one
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // Automatically we resend first transaction
+    tester.assert_just_sent_tx_count_equals(1).await;
+    first_batch.execute_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // Now we should send all remaining transactions, except the one that was already mined
+    tester.assert_just_sent_tx_count_equals(3).await;
+    second_batch.execute_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(2).await;
+    tester.assert_non_finalized_txs_count_equals(0).await;
+
+    //We should have resent only first not-mined transaction
+    third_batch.assert_commit_tx_just_sent(&mut tester).await;
+    tester.assert_just_sent_tx_count_equals(1).await;
+
+    Ok(())
+}
+
 #[should_panic(expected = "We can't operate after tx fail")]
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
@@ -406,6 +544,7 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
         false,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -428,6 +567,7 @@ async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -447,7 +587,9 @@ async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
     // second iteration sends first_batch prove tx and resends second_batch commit tx
     tester.assert_just_sent_tx_count_equals(2).await;
 
-    tester.run_eth_sender_tx_manager_iteration().await;
+    tester
+        .run_eth_sender_tx_manager_iteration_after_n_blocks(10)
+        .await;
     // we should resend both of those transactions here as they use different operators
     tester.assert_just_sent_tx_count_equals(2).await;
 }
@@ -460,6 +602,7 @@ async fn transactions_are_not_resent_on_the_same_block() {
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -480,33 +623,6 @@ async fn transactions_are_not_resent_on_the_same_block() {
     tester.assert_just_sent_tx_count_equals(0).await;
 }
 
-#[should_panic(
-    expected = "eth-sender was switched to gateway, but there are still 1 pre-gateway transactions in-flight!"
-)]
-#[test_log::test(tokio::test)]
-async fn switching_to_gateway_while_some_transactions_were_in_flight_should_cause_panic() {
-    let mut tester = EthSenderTester::new(
-        ConnectionPool::<Core>::test_pool().await,
-        vec![100; 100],
-        true,
-        true,
-        L1BatchCommitmentMode::Rollup,
-    )
-    .await;
-
-    let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
-    let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
-
-    first_l1_batch.save_commit_tx(&mut tester).await;
-    tester.run_eth_sender_tx_manager_iteration().await;
-
-    // sanity check
-    tester.assert_inflight_txs_count_equals(1).await;
-
-    tester.switch_to_using_gateway();
-    tester.run_eth_sender_tx_manager_iteration().await;
-}
-
 #[test_log::test(tokio::test)]
 async fn switching_to_gateway_works_for_most_basic_scenario() {
     let mut tester = EthSenderTester::new(
@@ -515,6 +631,7 @@ async fn switching_to_gateway_works_for_most_basic_scenario() {
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -552,6 +669,7 @@ async fn correct_order_for_confirmations(
         true,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -599,6 +717,7 @@ async fn skipped_l1_batch_at_the_start(
         true,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -658,6 +777,7 @@ async fn skipped_l1_batch_in_the_middle(
         true,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -713,6 +833,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         false,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -729,6 +850,27 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
                     .to_vec(),
             ),
         ]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::latest() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes({
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }),
+        ]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -756,7 +898,16 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         expected_evm_emulator_hash
     );
     assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
-    assert_eq!(parsed.protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(
+        parsed.chain_protocol_version_id,
+        ProtocolVersionId::latest()
+    );
+    assert_eq!(
+        parsed.stm_validator_timelock_address,
+        Address::repeat_byte(7)
+    );
+    assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
 }
 
 #[test_log::test(tokio::test)]
@@ -767,6 +918,7 @@ async fn parsing_multicall_data_errors() {
         false,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -834,6 +986,7 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         false,
         true,
         commitment_mode,
+        SettlementLayer::L1(10.into()),
     )
     .await;
 
@@ -848,5 +1001,132 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
     );
     assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
-    assert_eq!(data.protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::latest());
+}
+
+#[test_log::test(tokio::test)]
+// Tests the encoding of the `EIP712` transaction to
+// network format defined by the `EIP`. That is, a signed transaction
+// itself and the sidecar containing the blobs.
+async fn test_signing_eip712_tx() {
+    let chain_id = 10;
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        false,
+        L1BatchCommitmentMode::Rollup,
+        SettlementLayer::Gateway(chain_id.into()),
+    )
+    .await;
+
+    let private_key = "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+        .parse()
+        .unwrap();
+    let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
+
+    let signer = PrivateKeySigner::new(private_key);
+    let client = MockClient::builder(L2ChainId::new(chain_id).unwrap().into()).build();
+    let client = Box::new(client) as Box<DynClient<L2>>;
+    let sign_client = Box::new(SigningClient::new(
+        client,
+        hyperchain_contract(),
+        Address::random(),
+        signer,
+        Address::zero(),
+        U256::one(),
+        SLChainId(chain_id),
+    )) as Box<dyn BoundEthInterface>;
+    let l1_interface = RealL1Interface {
+        ethereum_client: None,
+        ethereum_client_blobs: None,
+        sl_client: Some(sign_client),
+        wait_confirmations: Some(10),
+    };
+
+    tester.seal_l1_batch().await;
+    let header = tester.seal_l1_batch().await;
+    let eth_tx = tester.save_commit_tx(header.number).await;
+
+    let tx = l1_interface
+        .sign_tx(
+            &eth_tx,
+            0,
+            0,
+            None,
+            Default::default(),
+            OperatorType::Gateway,
+            Some(1.into()),
+        )
+        .await;
+    let (_tx_req, _tx_hash) =
+        TransactionRequest::from_bytes(tx.raw_tx.as_ref(), L2ChainId::new(chain_id).unwrap())
+            .unwrap();
+}
+
+#[test_log::test(tokio::test)]
+async fn manager_monitors_even_unsuccesfully_sent_txs() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+
+    let mut tester = EthSenderTester::new(
+        pool.clone(),
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+    let l1_batch = TestL1Batch::sealed(&mut tester).await;
+    l1_batch.save_commit_tx(&mut tester).await;
+    tester.gateway_blobs.set_return_error_on_tx_request(true);
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+
+    // check that we sent something and stored it in the db.
+    tester.assert_just_sent_tx_count_equals(1).await;
+    // tx should be considered in-flight.
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    let mut conn = pool.connection().await.unwrap();
+    let tx = conn
+        .eth_sender_dal()
+        .get_last_sent_successfully_eth_tx_by_batch_and_op(
+            L1BatchNumber(1),
+            L1BatchAggregatedActionType::Commit,
+        )
+        .await;
+    assert!(tx.is_none());
+
+    let all_attempts = conn
+        .eth_sender_dal()
+        .get_tx_history_to_check(1)
+        .await
+        .unwrap();
+    assert_eq!(all_attempts.len(), 1);
+
+    // Mark tx as successful on SL side and run eth tx manager iteration.
+    tester.confirm_tx(all_attempts[0].tx_hash, true).await;
+
+    // Check that `sent_successfully` was reset to true.
+    let tx = conn
+        .eth_sender_dal()
+        .get_last_sent_successfully_eth_tx_by_batch_and_op(
+            L1BatchNumber(1),
+            L1BatchAggregatedActionType::Commit,
+        )
+        .await
+        .unwrap();
+    assert!(tx.sent_successfully);
+
+    // Check that tx is confirmed.
+    let is_confirmed = conn
+        .eth_sender_dal()
+        .get_confirmed_tx_hash_by_eth_tx_id(tx.eth_tx_id)
+        .await
+        .unwrap()
+        .is_some();
+    assert!(is_confirmed);
 }

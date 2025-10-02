@@ -1,21 +1,38 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+    str::FromStr,
+};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 use strum::{Display, EnumString};
+use vise::_reexports::encoding::{EncodeLabelValue, LabelValueEncoder};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug)]
+pub struct ParseAError;
+impl fmt::Display for ParseAError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("")
+    }
+}
+
+string_type!(ClusterName);
+string_type!(NamespaceName);
+string_type!(DeploymentName);
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pod {
-    // pub name: String, // TODO: Consider if it's needed.
     pub owner: String,
     pub status: String,
     pub changed: DateTime<Utc>,
+    pub out_of_resources: bool,
 }
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deployment {
-    // pub name: String, // TODO: Consider if it's needed.
-    pub running: i32,
-    pub desired: i32,
+    pub running: usize,
+    pub desired: usize,
 }
 
 fn ordered_map<S, K: Ord + Serialize, V: Serialize>(
@@ -38,7 +55,7 @@ pub struct ScaleEvent {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Namespace {
     #[serde(serialize_with = "ordered_map")]
-    pub deployments: HashMap<String, Deployment>,
+    pub deployments: HashMap<DeploymentName, Deployment>,
     pub pods: HashMap<String, Pod>,
     #[serde(default)]
     pub scale_errors: Vec<ScaleEvent>,
@@ -46,15 +63,15 @@ pub struct Namespace {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Cluster {
-    pub name: String,
-    pub namespaces: HashMap<String, Namespace>,
+    pub name: ClusterName,
+    pub namespaces: HashMap<NamespaceName, Namespace>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Clusters {
-    pub clusters: HashMap<String, Cluster>,
+    pub clusters: HashMap<ClusterName, Cluster>,
     /// Map from cluster to index in agent URLs Vec.
-    pub agent_ids: HashMap<String, usize>,
+    pub agent_ids: HashMap<ClusterName, usize>,
 }
 
 #[derive(Default, Debug, EnumString, Display, Hash, PartialEq, Eq, Clone, Copy)]

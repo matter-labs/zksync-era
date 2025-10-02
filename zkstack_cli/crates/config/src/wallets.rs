@@ -1,20 +1,28 @@
-use common::wallets::Wallet;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
+use zkstack_cli_common::wallets::Wallet;
 
 use crate::{
     consts::WALLETS_FILE,
-    traits::{FileConfigWithDefaultName, ZkStackConfig},
+    traits::{FileConfigTrait, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletsConfig {
     pub deployer: Option<Wallet>,
+    /// This wallet can be used for any operations (commit, prove, execute, etc.)
     pub operator: Wallet,
+    /// This wallet should be used only for 'commit' when using blobs.
     pub blob_operator: Wallet,
+    /// These are optional wallets, that can be used for prove & execute (when these are handled by different entities).
+    pub prove_operator: Option<Wallet>,
+    pub execute_operator: Option<Wallet>,
+
     pub fee_account: Wallet,
     pub governor: Wallet,
     pub token_multiplier_setter: Option<Wallet>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_wallet: Option<Wallet>,
 }
 
 impl WalletsConfig {
@@ -25,8 +33,11 @@ impl WalletsConfig {
             operator: Wallet::random(rng),
             blob_operator: Wallet::random(rng),
             fee_account: Wallet::random(rng),
+            prove_operator: Some(Wallet::random(rng)),
+            execute_operator: Some(Wallet::random(rng)),
             governor: Wallet::random(rng),
             token_multiplier_setter: Some(Wallet::random(rng)),
+            test_wallet: None,
         }
     }
 
@@ -36,9 +47,12 @@ impl WalletsConfig {
             deployer: Some(Wallet::empty()),
             operator: Wallet::empty(),
             blob_operator: Wallet::empty(),
+            prove_operator: None,
+            execute_operator: None,
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
             token_multiplier_setter: Some(Wallet::empty()),
+            test_wallet: None,
         }
     }
 }
@@ -55,6 +69,6 @@ pub(crate) struct EthMnemonicConfig {
     pub(crate) base_path: String,
 }
 
-impl ZkStackConfig for EthMnemonicConfig {}
+impl FileConfigTrait for EthMnemonicConfig {}
 
-impl ZkStackConfig for WalletsConfig {}
+impl FileConfigTrait for WalletsConfig {}

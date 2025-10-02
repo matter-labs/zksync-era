@@ -17,6 +17,8 @@ pub mod vm_virtual_blocks;
 #[derive(Debug, Clone)]
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
+    finished_calls: Vec<Call>,
+
     result: Arc<OnceCell<Vec<Call>>>,
 
     max_stack_depth: usize,
@@ -41,6 +43,7 @@ impl CallTracer {
     pub fn new(result: Arc<OnceCell<Vec<Call>>>) -> Self {
         Self {
             stack: vec![],
+            finished_calls: vec![],
             result,
             max_stack_depth: 0,
             max_near_calls: 0,

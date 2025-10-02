@@ -16,7 +16,7 @@ Recovery from a snapshot consists of several parts.
   to take about 1 hour on the mainnet.
 - **Merkle tree** recovery starts once Postgres is fully recovered. Merkle tree recovery can take about 3 hours on the
   mainnet. Ordinarily, Merkle tree recovery is a blocker for node synchronization; i.e., the node will not process
-  blocks newer than the snapshot block until the Merkle tree is recovered. If the [treeless mode](10_treeless_mode.md)
+  blocks newer than the snapshot block until the Merkle tree is recovered. If the [treeless mode](09_treeless_mode.md)
   is enabled, tree recovery is not performed, and the node will start catching up blocks immediately after Postgres
   recovery. This is still true if the tree data fetcher is enabled _together_ with a Merkle tree; tree recovery is
   asynchronous in this case.
@@ -39,10 +39,10 @@ error mentioning the first locally retained block or L1 batch if queried this mi
 used for [pruning](08_pruning.md) because logically, recovering from a snapshot is equivalent to pruning node storage to
 the snapshot L1 batch.
 
-## Configuration
+## Configuration (for ZKsync Era)
 
-To enable snapshot recovery on mainnet, you need to set environment variables for a node before starting it for the
-first time:
+To enable snapshot recovery on ZKsync mainnet, you need to set environment variables for a node before starting it for
+the first time:
 
 ```yaml
 EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
@@ -50,7 +50,7 @@ EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-mainnet-external-node-sna
 EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
 ```
 
-For the Sepolia testnet, use:
+For the ZKsync Sepolia testnet, use:
 
 ```yaml
 EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
@@ -58,8 +58,9 @@ EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-boojnet-external-node-sna
 EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
 ```
 
-For a working examples of a fully configured Nodes recovering from snapshots, see
-[Docker Compose examples](docker-compose-examples) and [_Quick Start_](00_quick_start.md).
+For a working examples of a fully configured ZKsync Nodes recovering from snapshots, see
+[Docker Compose examples](https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/external-node/docker-compose-examples)
+and [_Quick Start_](00_quick_start.md).
 
 If a node is already recovered (does not matter whether from a snapshot or from a Postgres dump), setting these env
 variables will have no effect; the node will never reset its state.

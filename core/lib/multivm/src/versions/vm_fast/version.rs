@@ -4,6 +4,7 @@ use crate::{vm_latest::MultiVmSubversion, VmVersion};
 pub(crate) enum FastVmVersion {
     IncreasedBootloaderMemory,
     Gateway,
+    Interop,
 }
 
 impl From<FastVmVersion> for MultiVmSubversion {
@@ -11,6 +12,7 @@ impl From<FastVmVersion> for MultiVmSubversion {
         match value {
             FastVmVersion::IncreasedBootloaderMemory => Self::IncreasedBootloaderMemory,
             FastVmVersion::Gateway => Self::Gateway,
+            FastVmVersion::Interop => Self::Interop,
         }
     }
 }
@@ -21,7 +23,11 @@ impl TryFrom<VmVersion> for FastVmVersion {
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
-            VmVersion::VmGateway => Ok(Self::Gateway),
+            // FIXME: implement differentiated memory model in fast VM
+            VmVersion::VmGateway | VmVersion::VmEvmEmulator | VmVersion::VmEcPrecompiles => {
+                Ok(Self::Gateway)
+            }
+            VmVersion::VmInterop => Ok(Self::Interop),
             _ => Err(()),
         }
     }

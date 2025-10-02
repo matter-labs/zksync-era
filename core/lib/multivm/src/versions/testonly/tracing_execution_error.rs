@@ -11,7 +11,6 @@ pub(crate) fn test_tracing_of_execution_errors<VM: TestedVm>() {
     let contract_address = Address::repeat_byte(1);
     let bytecode = TestContract::reverts_test().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_custom_contracts(vec![ContractToDeploy::new(bytecode, contract_address)])
         .with_execution_mode(TxExecutionMode::VerifyExecute)

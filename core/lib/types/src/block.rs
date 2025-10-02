@@ -8,10 +8,9 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::{keccak256, keccak256_concat},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
-/// Represents a successfully deployed smart contract.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeployedContract {
     pub account_id: AccountTreeId,
@@ -27,12 +26,35 @@ impl DeployedContract {
     }
 }
 
-/// Holder for l1 batches data, used in eth sender metrics
-pub struct L1BatchStatistics {
-    pub number: L1BatchNumber,
+/// Holder for l1 batches or l2 blocks data.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CommonBlockStatistics {
+    pub number: u32,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
+}
+
+impl From<L1BatchHeader> for CommonBlockStatistics {
+    fn from(header: L1BatchHeader) -> Self {
+        Self {
+            number: header.number.0,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
+}
+
+impl From<L2BlockHeader> for CommonBlockStatistics {
+    fn from(header: L2BlockHeader) -> Self {
+        Self {
+            number: header.number.0,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
 }
 
 /// Holder for the block metadata that is not available from transactions themselves.
@@ -63,20 +85,24 @@ pub struct L1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
+    pub batch_fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 impl L1BatchHeader {
-    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+    pub fn to_unsealed_header(&self) -> UnsealedL1BatchHeader {
         UnsealedL1BatchHeader {
             number: self.number,
             timestamp: self.timestamp,
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
-            fee_input,
+            fee_input: self.batch_fee_input,
+            pubdata_limit: self.pubdata_limit,
         }
     }
 }
 
+/// Holder for the metadata that is relevant for unsealed batches.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnsealedL1BatchHeader {
     pub number: L1BatchNumber,
@@ -84,6 +110,18 @@ pub struct UnsealedL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
+}
+
+/// Holder for the metadata that is relevant for both sealed and unsealed batches.
+pub struct CommonL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub is_sealed: bool,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
+    pub pubdata_limit: Option<u64>,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -111,6 +149,7 @@ pub struct L2BlockHeader {
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
     pub pubdata_params: PubdataParams,
+    pub rolling_txs_hash: Option<H256>,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -129,6 +168,7 @@ pub struct L2BlockExecutionData {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub txs: Vec<Transaction>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl L1BatchHeader {
@@ -153,6 +193,8 @@ impl L1BatchHeader {
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            pubdata_limit: (protocol_version >= ProtocolVersionId::Version29).then_some(0),
         }
     }
 

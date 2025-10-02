@@ -1,108 +1,92 @@
 use anyhow::Context as _;
-use config::ChainConfig;
-use secrecy::{ExposeSecret, Secret};
-use zksync_config::configs::consensus::{
-    AttesterPublicKey, AttesterSecretKey, ConsensusSecrets, GenesisSpec, NodePublicKey,
-    NodeSecretKey, ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey, WeightedAttester,
-    WeightedValidator,
-};
+use serde::{Deserialize, Serialize};
 use zksync_consensus_crypto::{Text, TextFmt};
-use zksync_consensus_roles::{attester, node, validator};
+use zksync_consensus_roles::{node, validator};
 
-pub(crate) fn parse_attester_committee(
-    attesters: &[WeightedAttester],
-) -> anyhow::Result<attester::Committee> {
-    let attesters: Vec<_> = attesters
-        .iter()
-        .enumerate()
-        .map(|(i, v)| {
-            Ok(attester::WeightedAttester {
-                key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                weight: v.weight,
-            })
-        })
-        .collect::<anyhow::Result<_>>()
-        .context("attesters")?;
-    attester::Committee::new(attesters).context("Committee::new()")
-}
+pub(crate) fn read_validator_schedule_yaml(
+    raw_yaml: serde_yaml::Value,
+) -> anyhow::Result<(
+    validator::Schedule,
+    Vec<ValidatorWithPop>,
+    LeaderSelectionInFile,
+)> {
+    let file: SetValidatorScheduleFile =
+        serde_yaml::from_value(raw_yaml).context("invalid validator schedule file format")?;
 
-#[derive(Debug, Clone)]
-pub struct ConsensusSecretKeys {
-    validator_key: validator::SecretKey,
-    attester_key: attester::SecretKey,
-    node_key: node::SecretKey,
-}
+    let mut validators = Vec::with_capacity(file.validators.len());
+    let mut validators_with_pop = Vec::with_capacity(file.validators.len());
 
-pub struct ConsensusPublicKeys {
-    validator_key: validator::PublicKey,
-    attester_key: attester::PublicKey,
-}
+    for v in &file.validators {
+        let key: validator::PublicKey = Text::new(&v.key).decode().context("key")?;
 
-pub fn generate_consensus_keys() -> ConsensusSecretKeys {
-    ConsensusSecretKeys {
-        validator_key: validator::SecretKey::generate(),
-        attester_key: attester::SecretKey::generate(),
-        node_key: node::SecretKey::generate(),
+        validators.push(validator::ValidatorInfo {
+            key: key.clone(),
+            weight: v.weight,
+            leader: v.leader,
+        });
+
+        validators_with_pop.push(ValidatorWithPop {
+            key,
+            pop: Text::new(&v.pop).decode().context("pop")?,
+            weight: v.weight,
+            leader: v.leader,
+        });
     }
-}
 
-fn get_consensus_public_keys(consensus_keys: &ConsensusSecretKeys) -> ConsensusPublicKeys {
-    ConsensusPublicKeys {
-        validator_key: consensus_keys.validator_key.public(),
-        attester_key: consensus_keys.attester_key.public(),
-    }
-}
-
-pub fn get_genesis_specs(
-    chain_config: &ChainConfig,
-    consensus_keys: &ConsensusSecretKeys,
-) -> GenesisSpec {
-    let public_keys = get_consensus_public_keys(consensus_keys);
-    let validator_key = public_keys.validator_key.encode();
-    let attester_key = public_keys.attester_key.encode();
-
-    let validator = WeightedValidator {
-        key: ValidatorPublicKey(validator_key.clone()),
-        weight: 1,
+    let leader_selection = validator::LeaderSelection {
+        frequency: file.leader_selection.frequency,
+        mode: if file.leader_selection.weighted {
+            validator::LeaderSelectionMode::Weighted
+        } else {
+            validator::LeaderSelectionMode::RoundRobin
+        },
     };
-    let attester = WeightedAttester {
-        key: AttesterPublicKey(attester_key),
-        weight: 1,
-    };
-    let leader = ValidatorPublicKey(validator_key);
 
-    GenesisSpec {
-        chain_id: chain_config.chain_id,
-        protocol_version: ProtocolVersion(1),
-        validators: vec![validator],
-        attesters: vec![attester],
-        leader,
-        registry_address: None,
-        seed_peers: [].into(),
-    }
+    let schedule = validator::Schedule::new(validators, leader_selection)?;
+
+    Ok((schedule, validators_with_pop, file.leader_selection))
 }
 
-pub fn get_consensus_secrets(consensus_keys: &ConsensusSecretKeys) -> ConsensusSecrets {
-    let validator_key = consensus_keys.validator_key.encode();
-    let attester_key = consensus_keys.attester_key.encode();
-    let node_key = consensus_keys.node_key.encode();
-
-    ConsensusSecrets {
-        validator_key: Some(ValidatorSecretKey(Secret::new(validator_key))),
-        attester_key: Some(AttesterSecretKey(Secret::new(attester_key))),
-        node_key: Some(NodeSecretKey(Secret::new(node_key))),
-    }
+/// This is the file that contains the validator schedule.
+/// It is used to set the validator schedule in the consensus registry.
+#[derive(Debug, Deserialize)]
+pub(crate) struct SetValidatorScheduleFile {
+    validators: Vec<ValidatorInFile>,
+    leader_selection: LeaderSelectionInFile,
 }
 
-pub fn node_public_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<NodePublicKey>> {
-    Ok(node_key(secrets)?.map(|node_secret_key| NodePublicKey(node_secret_key.public().encode())))
-}
-fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
-    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+/// This represents a validator with its proof of possession in a YAML file.
+/// The proof of possession is necessary because we don't trust the validator to provide
+/// a valid key.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct ValidatorInFile {
+    pub(crate) key: String,
+    pub(crate) pop: String,
+    pub(crate) weight: u64,
+    pub(crate) leader: bool,
 }
 
-fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
-    text.map(|text| Text::new(text.expose_secret()).decode())
-        .transpose()
-        .map_err(|_| anyhow::format_err!("invalid format"))
+/// This represents the leader selection parameters in the YAML file.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct LeaderSelectionInFile {
+    pub(crate) frequency: u64,
+    pub(crate) weighted: bool,
+}
+
+/// This represents a validator in the consensus registry.
+/// The proof of possession is necessary because we don't trust the validator to provide
+/// a valid key.
+#[derive(Debug)]
+pub(crate) struct ValidatorWithPop {
+    pub(crate) key: validator::PublicKey,
+    pub(crate) pop: validator::ProofOfPossession,
+    pub(crate) weight: u64,
+    pub(crate) leader: bool,
+}
+
+pub fn node_public_key(secret_key: &str) -> anyhow::Result<String> {
+    let secret_key: node::SecretKey = Text::new(secret_key)
+        .decode()
+        .context("invalid node key format")?;
+    Ok(secret_key.public().encode())
 }

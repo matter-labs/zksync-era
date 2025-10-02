@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use common::wallets::Wallet;
 use rand::thread_rng;
-use types::WalletCreation;
 use xshell::Shell;
+use zkstack_cli_common::wallets::Wallet;
+use zkstack_cli_types::WalletCreation;
 
 use crate::{
     consts::{BASE_PATH, TEST_CONFIG_PATH},
@@ -62,6 +62,17 @@ pub fn create_localhost_wallets(
             &eth_mnemonic.test_mnemonic,
             &base_path,
             5,
+        )?),
+        test_wallet: None,
+        prove_operator: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            6,
+        )?),
+        execute_operator: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            7,
         )?),
     })
 }

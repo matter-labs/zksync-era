@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use common::{forge::ForgeScript, wallets::Wallet};
 use ethers::types::U256;
+use zkstack_cli_common::{forge::ForgeScript, wallets::Wallet};
 
 use crate::{
     consts::MINIMUM_BALANCE_FOR_WALLET,
@@ -28,6 +28,10 @@ pub fn fill_forge_private_key(
 }
 
 pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
+    const MSG_CONTINUE: &str = "Proceed with the deployment anyway";
+    const MSG_CHECK_BALANCE: &str = "Check the balance again";
+    const MSG_EXIT: &str = "Exit";
+
     let Some(address) = forge.address() else {
         return Ok(());
     };
@@ -37,14 +41,19 @@ pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
         if balance >= expected_balance {
             return Ok(());
         }
-        if !common::PromptConfirm::new(msg_address_doesnt_have_enough_money_prompt(
-            &address,
-            balance,
-            expected_balance,
-        ))
+
+        let prompt_msg =
+            msg_address_doesnt_have_enough_money_prompt(&address, balance, expected_balance);
+        match zkstack_cli_common::PromptSelect::new(
+            &prompt_msg,
+            [MSG_CONTINUE, MSG_CHECK_BALANCE, MSG_EXIT],
+        )
         .ask()
         {
-            break;
+            MSG_CONTINUE => return Ok(()),
+            MSG_CHECK_BALANCE => continue,
+            MSG_EXIT => anyhow::bail!("Exiting the deployment process"),
+            _ => unreachable!(),
         }
     }
     Ok(())

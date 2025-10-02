@@ -38,7 +38,7 @@ impl HttpTest for BasicFilterChangesTest {
         // Sleep a little so that the filter timestamp is strictly lesser than the transaction "received at" timestamp.
         tokio::time::sleep(POLL_INTERVAL).await;
 
-        let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
+        let tx_result = mock_execute_transaction(create_l2_transaction(1, 2).into());
         let new_tx_hash = tx_result.hash;
         let new_l2_block = store_l2_block(
             &mut pool.connection().await?,
@@ -315,8 +315,11 @@ impl HttpTest for DisableFiltersTest {
         Ok(())
     }
 
-    fn filters_disabled(&self) -> bool {
-        true
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            filters_disabled: true,
+            ..Web3JsonRpcConfig::for_tests()
+        }
     }
 }
 

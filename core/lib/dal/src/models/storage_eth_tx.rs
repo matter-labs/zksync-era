@@ -3,8 +3,8 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, Nonce, SLChainId, H256,
+    eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
+    Address, L1BatchNumber, L2BlockNumber, Nonce, SLChainId, H256,
 };
 
 #[derive(Debug, Clone)]
@@ -31,29 +31,22 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
+    pub status: Option<String>,
 }
 
+// Common struct for l2 blocks and l1 batches eth sender stats.
 #[derive(Debug, Default)]
-pub struct L1BatchEthSenderStats {
-    pub saved: Vec<(AggregatedActionType, L1BatchNumber)>,
-    pub mined: Vec<(AggregatedActionType, L1BatchNumber)>,
-}
-
-#[derive(Clone, Debug)]
-pub struct StorageTxHistoryToSend {
-    pub id: i32,
-    pub eth_tx_id: i32,
-    pub tx_hash: String,
-    pub priority_fee_per_gas: i64,
-    pub base_fee_per_gas: i64,
-    pub signed_raw_tx: Option<Vec<u8>>,
-    pub nonce: i64,
+pub struct BlocksEthSenderStats {
+    pub saved: Vec<(AggregatedActionType, u32)>,
+    pub mined: Vec<(AggregatedActionType, u32)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct StorageTxHistory {
     pub id: i32,
     pub eth_tx_id: i32,
+    pub tx_type: String,
+    pub chain_id: Option<i64>,
     pub priority_fee_per_gas: i64,
     pub base_fee_per_gas: i64,
     pub tx_hash: String,
@@ -68,6 +61,12 @@ pub struct StorageTxHistory {
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
     pub blob_base_fee_per_gas: Option<i64>,
+
+    // EIP712 txs
+    pub max_gas_per_pubdata: Option<i64>,
+    pub predicted_gas_limit: Option<i64>,
+    pub sent_successfully: bool,
+    pub finality_status: String,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -78,7 +77,7 @@ impl From<StorageEthTx> for EthTx {
             contract_address: Address::from_str(&tx.contract_address)
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
-            tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
+            tx_type: tx.tx_type.parse().expect("Invalid action type"),
             created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost.map(|c| c as u64),
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
@@ -98,6 +97,10 @@ impl From<StorageTxHistory> for TxHistory {
         TxHistory {
             id: history.id as u32,
             eth_tx_id: history.eth_tx_id as u32,
+            tx_type: history.tx_type.parse().expect("Invalid action type"),
+            chain_id: history
+                .chain_id
+                .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
             base_fee_per_gas: history.base_fee_per_gas as u64,
             priority_fee_per_gas: history.priority_fee_per_gas as u64,
             blob_base_fee_per_gas: history.blob_base_fee_per_gas.map(|v| v as u64),
@@ -107,22 +110,17 @@ impl From<StorageTxHistory> for TxHistory {
                 .expect("Should rely only on the new txs"),
 
             sent_at_block: history.sent_at_block.map(|block| block as u32),
+            max_gas_per_pubdata: history.max_gas_per_pubdata.map(|v| v as u64),
+            sent_successfully: history.sent_successfully,
+            eth_tx_finality_status: EthTxFinalityStatus::from_str(history.finality_status.as_ref())
+                .expect("Invalid finality status"),
         }
     }
 }
 
-impl From<StorageTxHistoryToSend> for TxHistoryToSend {
-    fn from(history: StorageTxHistoryToSend) -> TxHistoryToSend {
-        TxHistoryToSend {
-            id: history.id as u32,
-            eth_tx_id: history.eth_tx_id as u32,
-            tx_hash: H256::from_str(&history.tx_hash).expect("Incorrect hash"),
-            base_fee_per_gas: history.base_fee_per_gas as u64,
-            priority_fee_per_gas: history.priority_fee_per_gas as u64,
-            signed_raw_tx: history
-                .signed_raw_tx
-                .expect("Should rely only on the new txs"),
-            nonce: Nonce(history.nonce as u32),
-        }
-    }
+pub struct L2BlockWithEthTx {
+    pub l1_batch_number: L1BatchNumber,
+    pub l2_block_number: L2BlockNumber,
+    pub rolling_txs_hash: H256,
+    pub precommit_eth_tx_id: Option<i32>,
 }

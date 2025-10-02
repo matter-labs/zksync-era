@@ -1,31 +1,74 @@
 //! Test utils.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops};
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{
         AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
         L1BatchMetadata,
     },
     fee::Fee,
-    fee_model::BatchFeeInput,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
-    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
-    ProtocolVersionId, StorageLog, H256, U256,
+    AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
+    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
-use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics};
+use zksync_vm_interface::{
+    L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionResult, TxExecutionMode,
+    TxExecutionStatus, VmExecutionMetrics,
+};
 
 /// Value for recent protocol versions.
 const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
+
+/// Creates a mock system env with reasonable params.
+pub fn default_system_env() -> SystemEnv {
+    SystemEnv {
+        zk_porter_available: ZKPORTER_IS_AVAILABLE,
+        version: ProtocolVersionId::latest(),
+        base_system_smart_contracts: BaseSystemContracts::load_from_disk(),
+        bootloader_gas_limit: u32::MAX,
+        execution_mode: TxExecutionMode::VerifyExecute,
+        default_validation_computational_gas_limit: u32::MAX,
+        chain_id: L2ChainId::from(270),
+    }
+}
+
+/// Creates a mock L1 batch env with reasonable params.
+pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -> L1BatchEnv {
+    L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(number),
+        timestamp,
+        fee_account,
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number,
+            timestamp,
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
+            max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
+        },
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            fair_l2_gas_price: 1,
+            fair_pubdata_price: 1,
+            l1_gas_price: 1,
+        }),
+    }
+}
+
+pub fn fake_rolling_txs_hash_for_block(number: u32) -> H256 {
+    H256::from_low_u64_be(number.into())
+}
 
 /// Creates an L2 block header with the specified number and deterministic contents.
 pub fn create_l2_block(number: u32) -> L2BlockHeader {
@@ -45,6 +88,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: Some(fake_rolling_txs_hash_for_block(number)),
     }
 }
 
@@ -172,8 +216,6 @@ pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
         execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
         call_traces: vec![],
         revert_reason: None,
     }
@@ -219,6 +261,7 @@ impl Snapshot {
             gas_limit: 0,
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
+            rolling_txs_hash: Some(H256::zero()),
         };
         Snapshot {
             l1_batch,
@@ -396,4 +439,73 @@ pub async fn recover(
         .unwrap();
     storage.commit().await.unwrap();
     snapshot_recovery
+}
+
+/// Inserts initial writes for the specified L1 batch based on storage logs.
+pub async fn insert_initial_writes_for_batch(
+    connection: &mut Connection<'_, Core>,
+    l1_batch_number: L1BatchNumber,
+) {
+    let mut written_non_zero_slots: Vec<_> = connection
+        .storage_logs_dal()
+        .get_touched_slots_for_executed_l1_batch(l1_batch_number)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter_map(|(key, value)| (!value.is_zero()).then_some(key))
+        .collect();
+    written_non_zero_slots.sort_unstable();
+
+    let hashed_keys: Vec<_> = written_non_zero_slots
+        .iter()
+        .map(|key| key.hashed_key())
+        .collect();
+    let pre_written_slots = connection
+        .storage_logs_dedup_dal()
+        .filter_written_slots(&hashed_keys)
+        .await
+        .unwrap();
+
+    let keys_to_insert: Vec<_> = written_non_zero_slots
+        .into_iter()
+        .filter(|key| !pre_written_slots.contains(&key.hashed_key()))
+        .map(|key| key.hashed_key())
+        .collect();
+    connection
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(l1_batch_number, &keys_to_insert)
+        .await
+        .unwrap();
+}
+
+/// Generates storage logs using provided indices as seeds.
+pub fn generate_storage_logs(indices: ops::Range<u32>) -> Vec<StorageLog> {
+    // Addresses and keys of storage logs must be sorted for the `multi_block_workflow` test.
+    let mut accounts = [
+        "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
+        "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",
+        "89b8988a018f5348f52eeac77155a793adf03ecc",
+        "782806db027c08d36b2bed376b4271d1237626b3",
+        "b2b57b76717ee02ae1327cc3cf1f40e76f692311",
+    ]
+    .map(|s| AccountTreeId::new(s.parse::<Address>().unwrap()));
+    accounts.sort_unstable();
+
+    let account_keys = (indices.start / 5)..(indices.end / 5);
+    let proof_keys = accounts.iter().flat_map(|&account| {
+        account_keys
+            .clone()
+            .map(move |i| StorageKey::new(account, H256::from_low_u64_be(i.into())))
+    });
+    let proof_values = indices.map(|i| H256::from_low_u64_be(i.into()));
+
+    let logs: Vec<_> = proof_keys
+        .zip(proof_values)
+        .map(|(proof_key, proof_value)| StorageLog::new_write_log(proof_key, proof_value))
+        .collect();
+    for window in logs.windows(2) {
+        let [prev, next] = window else { unreachable!() };
+        assert!(prev.key < next.key);
+    }
+    logs
 }

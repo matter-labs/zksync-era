@@ -21,8 +21,10 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-multicall3`↴](#zk_inception-chain-deploy-multicall3)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
-- [`zk_inception consensus set-attester-committee`↴](#zk_inception-consensus-set-attester-committee)
-- [`zk_inception consensus get-attester-committee`↴](#zk_inception-consensus-get-attester-committee)
+- [`zk_inception consensus set-validator-schedule`↴](#zk_inception-consensus-set-validator-schedule)
+- [`zk_inception consensus set-schedule-activation-delay`↴](#zk_inception-consensus-set-schedule-activation-delay)
+- [`zk_inception consensus get-validator-schedule`↴](#zk_inception-consensus-get-validator-schedule)
+- [`zk_inception consensus get-pending-validator-schedule`↴](#zk_inception-consensus-get-pending-validator-schedule)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
@@ -438,38 +440,62 @@ Consensus related commands
 
 ###### **Subcommands:**
 
-- `set-attester-committee` — Set attester committee
-- `get-attester-committee` — Get attester committee
+- `set-validator-schedule` — Set validator schedule
+- `set-schedule-activation-delay` — Set schedule activation delay
+- `get-validator-schedule` — Get validator schedule
+- `get-pending-validator-schedule` — Get pending validator schedule
 
-## `zk_inception consensus set-attester-committee`
+## `zk_inception consensus set-validator-schedule`
 
-Set attester committee in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+Set validator schedule in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
 contracts to be deployed.
 
-**Usage:** `zk_inception consensus set-attester-committee [OPTIONS]`
+**Usage:** `zk_inception consensus set-validator-schedule [OPTIONS]`
 
 ###### **Options:**
 
-- `--from-genesis` — Set attester committee to `consensus.genesis_spec.attesters` in general.yaml Mutually exclusive
-  with `--from-file`.
-- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`.  
-  Mutually exclusive with `--from-genesis`. File format is specified in
-  `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
+- `--from-file <PATH>` — Set validator committee to committee specified in yaml file at `PATH`. File format is as in
+  this example:
 
   ```yaml
-  attesters:
-    - key: attester:public:secp256k1:0339d4b0cdd9896d3929631a4e5e9a5b4919f52592bec571d70bb0e50a3a824714
+  validators:
+    - key: validator:public:bls12_381:ab0dacba7f37f4b05f2472f47d8fc1d36af5ea52fef26c2b411980bd9803c59d7d0c315afdd9feabc7fba00792a8334a050225b7683933e03b58b27e207ce68d83526c016cadbce38fb72a08613a02aeaf02526aff3b5131256a89c2224172f2
+      pop: validator:pop:bls12_381:b924d44d5254991547cb56ed950f6303b25e09f08f1f48acb6920a65b06df6a97bb8d0ba894717f6860834b1b409af40
+      weight: 3
+      leader: true
+    - key: validator:public:bls12_381:af2e889cb27f3e2473e6970af631d0133574bcbac65e1742deb08e7c6fa4b9c0e8f5bf5f600f4685fc3dcddae9541026058fa724fe94dd14f3ce4e79d49159b9b6e55077a6bbba02a122365e4fa8755f3c9bc274c703e515e1d739f499db27b9
+      pop: validator:pop:bls12_381:924eec0d926068c6da9cd525780ac9112286015ba4509e13b59a1a31e0c95e9598d712af12e1dbb76abc4ccbb52a6180
       weight: 1
-    - key: attester:public:secp256k1:024897d8c10d7a57d108cfe2a724d7824c657f219ef5d9f7674810a6746c19fa7b
-      weight: 1
+      leader: false
+  leader_selection:
+    frequency: 100
+    weighted: true
   ```
 
-## `zk_inception consensus get-attester-committee`
+## `zk_inception consensus set-schedule-activation-delay`
 
-Requires `consensus_registry` and `multicall3` contracts to be deployed. Fetches attester committee from the consensus
-registry contract and prints it.
+Set schedule activation delay in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+contracts to be deployed.
 
-**Usage:** `zk_inception consensus get-attester-committee`
+**Usage:** `zk_inception consensus set-schedule-activation-delay [OPTIONS]`
+
+###### **Options:**
+
+- `--delay <DELAY>` — Set schedule activation delay to `DELAY` blocks.
+
+## `zk_inception consensus get-validator-schedule`
+
+Get validator schedule from the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+contracts to be deployed.
+
+**Usage:** `zk_inception consensus get-validator-schedule`
+
+## `zk_inception consensus get-pending-validator-schedule`
+
+Get pending validator schedule from the consensus registry smart contract. Requires `consensus_registry` and
+`multicall3` contracts to be deployed.
+
+**Usage:** `zk_inception consensus get-pending-validator-schedule`
 
 ## `zk_inception prover`
 
@@ -497,16 +523,9 @@ Initialize prover
 - `--bucket-name <BUCKET_NAME>`
 - `--location <LOCATION>`
 - `--project-id <PROJECT_ID>`
-- `--shall-save-to-public-bucket <SHALL_SAVE_TO_PUBLIC_BUCKET>`
 
   Possible values: `true`, `false`
 
-- `--public-store-dir <PUBLIC_STORE_DIR>`
-- `--public-bucket-base-url <PUBLIC_BUCKET_BASE_URL>`
-- `--public-credentials-file <PUBLIC_CREDENTIALS_FILE>`
-- `--public-bucket-name <PUBLIC_BUCKET_NAME>`
-- `--public-location <PUBLIC_LOCATION>`
-- `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--bellman-cuda`
 

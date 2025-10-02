@@ -35,7 +35,6 @@ async-recursion.workspace = true
 
 zksync_merkle_tree.workspace = true
 zksync_storage.workspace = true
-zksync_protobuf.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_basic_types.workspace = true
@@ -49,9 +48,8 @@ zksync_snapshots_applier.workspace = true
 zksync_vm_interface.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_block_reverter.workspace = true
+zksync_node_framework.workspace = true
 
 [dev-dependencies]
 test-log.workspace = true
 
-[build-dependencies]
-zksync_protobuf_build.workspace = true

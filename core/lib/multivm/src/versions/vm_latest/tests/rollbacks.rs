@@ -12,13 +12,13 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     versions::testonly::{
         rollbacks::{test_rollback_in_call_mode, test_vm_loadnext_rollbacks, test_vm_rollbacks},
         VmTesterBuilder,
     },
     vm_latest::{
-        types::internals::ZkSyncVmState, BootloaderState, HistoryEnabled, HistoryMode,
+        bootloader::BootloaderState, types::ZkSyncVmState, HistoryEnabled, HistoryMode,
         SimpleMemory, ToTracerPointer, Vm, VmTracer,
     },
 };
@@ -64,7 +64,6 @@ fn layered_rollback() {
     // the rollback by the operator will always revert all the changes
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<TestedLatestVm>();

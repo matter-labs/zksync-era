@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 
 use async_trait::async_trait;
 use tokio::{fs, io};
@@ -20,7 +20,7 @@ impl From<io::Error> for ObjectStoreError {
 /// [`ObjectStore`] implementation storing objects as files in a local filesystem. Mostly useful for local testing.
 #[derive(Debug)]
 pub struct FileBackedObjectStore {
-    base_dir: String,
+    base_dir: PathBuf,
 }
 
 impl FileBackedObjectStore {
@@ -29,7 +29,7 @@ impl FileBackedObjectStore {
     /// # Errors
     ///
     /// Propagates I/O errors.
-    pub async fn new(base_dir: String) -> Result<Self, ObjectStoreError> {
+    pub async fn new(base_dir: PathBuf) -> Result<Self, ObjectStoreError> {
         for bucket in &[
             Bucket::ProverJobs,
             Bucket::WitnessInput,
@@ -46,14 +46,14 @@ impl FileBackedObjectStore {
             Bucket::CommitBlocksCache,
             Bucket::LocalBlobs,
         ] {
-            let bucket_path = format!("{base_dir}/{bucket}");
+            let bucket_path = base_dir.join(bucket.to_string());
             fs::create_dir_all(&bucket_path).await?;
         }
         Ok(FileBackedObjectStore { base_dir })
     }
 
-    fn filename(&self, bucket: Bucket, key: &str) -> String {
-        format!("{}/{bucket}/{key}", self.base_dir)
+    fn filename(&self, bucket: Bucket, key: &str) -> PathBuf {
+        self.base_dir.join(format!("{bucket}/{key}"))
     }
 }
 
@@ -80,7 +80,11 @@ impl ObjectStore for FileBackedObjectStore {
     }
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String {
-        format!("{}/{}", self.base_dir, bucket)
+        self.base_dir
+            .join(bucket.to_string())
+            .into_os_string()
+            .into_string()
+            .unwrap()
     }
 }
 
@@ -93,7 +97,7 @@ mod test {
     #[tokio::test]
     async fn test_get() {
         let dir = TempDir::new().unwrap();
-        let path = dir.into_path().into_os_string().into_string().unwrap();
+        let path = dir.path().to_owned();
         let object_store = FileBackedObjectStore::new(path).await.unwrap();
         let expected = vec![9, 0, 8, 9, 0, 7];
         object_store
@@ -110,7 +114,7 @@ mod test {
     #[tokio::test]
     async fn test_put() {
         let dir = TempDir::new().unwrap();
-        let path = dir.into_path().into_os_string().into_string().unwrap();
+        let path = dir.path().to_owned();
         let object_store = FileBackedObjectStore::new(path).await.unwrap();
         let bytes = vec![9, 0, 8, 9, 0, 7];
         object_store
@@ -122,7 +126,7 @@ mod test {
     #[tokio::test]
     async fn test_remove() {
         let dir = TempDir::new().unwrap();
-        let path = dir.into_path().into_os_string().into_string().unwrap();
+        let path = dir.path().to_owned();
         let object_store = FileBackedObjectStore::new(path).await.unwrap();
         object_store
             .put_raw(Bucket::ProverJobs, "test-key.bin", vec![0, 1])

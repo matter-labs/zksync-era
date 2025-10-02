@@ -1,7 +1,7 @@
-const GIT_VERSION: &str = git_version_macro::build_git_revision!();
-const GIT_BRANCH: &str = git_version_macro::build_git_branch!();
-const GIT_SUBMODULES: &[(&str, &str)] = git_version_macro::build_git_submodules!();
-const BUILD_TIMESTAMP: &str = git_version_macro::build_timestamp!();
+const GIT_VERSION: &str = zkstack_cli_git_version_macro::build_git_revision!();
+const GIT_BRANCH: &str = zkstack_cli_git_version_macro::build_git_branch!();
+const GIT_SUBMODULES: &[(&str, &str)] = zkstack_cli_git_version_macro::build_git_submodules!();
+const BUILD_TIMESTAMP: &str = zkstack_cli_git_version_macro::build_timestamp!();
 
 /// Returns a multi-line version message that includes:
 /// - provided crate version

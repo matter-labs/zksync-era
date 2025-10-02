@@ -1,54 +1,46 @@
 use rand::Rng as _;
-use zksync_concurrency::{ctx, scope, time};
-use zksync_consensus_roles::{attester, validator::testonly::Setup};
+use zksync_concurrency::{ctx, scope};
+use zksync_consensus_roles::validator;
 use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 
 use super::*;
 use crate::storage::ConnectionPool;
 
-const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
-
 /// Test checking that parsing logic matches the abi specified in the json file.
 #[test]
 fn test_consensus_registry_abi() {
     zksync_concurrency::testonly::abort_on_panic();
     let c = abi::ConsensusRegistry::load();
-    c.call(abi::GetAttesterCommittee).test().unwrap();
     c.call(abi::Add::default()).test().unwrap();
     c.call(abi::Initialize::default()).test().unwrap();
-    c.call(abi::CommitAttesterCommittee).test().unwrap();
+    c.call(abi::CommitValidatorCommittee).test().unwrap();
+    c.call(abi::GetValidatorCommittee).test().unwrap();
+    c.call(abi::GetNextValidatorCommittee).test().unwrap();
+    c.call(abi::SetCommitteeActivationDelay::default())
+        .test()
+        .unwrap();
+    c.call(abi::ValidatorsCommitBlock).test().unwrap();
     c.call(abi::Owner).test().unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_attester_committee() {
+async fn test_current_validator_committee() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 10);
     let account = &mut Account::random();
     let to_fund = &[account.address];
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
-        let registry = Registry::new(setup.genesis.clone(), pool.clone()).await;
-
-        // If the registry contract address is not specified,
-        // then the committee from genesis should be returned.
-        let got = registry
-            .attester_committee_for(ctx, None, attester::BatchNumber(10))
-            .await
-            .unwrap();
-        assert_eq!(setup.genesis.attesters, got);
 
         let (mut node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx, to_fund));
 
         // Deploy registry contract and initialize it.
-        let committee =
-            attester::Committee::new((0..5).map(|_| testonly::gen_attester(rng))).unwrap();
-        let (registry_addr, tx) = registry.deploy(account);
+        let (registry_addr, tx) = Registry::deploy(account);
+        let registry = Registry::new(pool.clone(), registry_addr).await;
         let mut txs = vec![tx];
         let account_addr = account.address();
         txs.push(testonly::make_tx(
@@ -56,38 +48,166 @@ async fn test_attester_committee() {
             registry_addr,
             registry.initialize(account_addr),
         ));
-        // Add attesters.
-        for a in committee.iter() {
+
+        // Generate validators.
+        let validators: Vec<_> = (0..5).map(|_| testonly::gen_validator(rng)).collect();
+        // This is the default leader selection for the Registry contract.
+        let leader_selection = validator::LeaderSelection {
+            frequency: 1,
+            mode: validator::LeaderSelectionMode::RoundRobin,
+        };
+        let validator_infos: Vec<_> = validators
+            .iter()
+            .map(|v| validator::ValidatorInfo {
+                key: v.key.clone(),
+                weight: v.weight,
+                leader: v.is_leader,
+            })
+            .collect();
+        let schedule = validator::Schedule::new(validator_infos, leader_selection).unwrap();
+
+        // Add validators to the registry.
+        for v in validators.iter() {
             txs.push(testonly::make_tx(
                 account,
                 registry_addr,
-                registry
-                    .add(rng.gen(), testonly::gen_validator(rng), a.clone())
-                    .unwrap(),
+                registry.add(rng.gen(), v.clone()).unwrap(),
             ));
         }
+
         // Commit the update.
         txs.push(testonly::make_tx(
             account,
             registry_addr,
-            registry.commit_attester_committee(),
+            registry.commit_validator_committee(),
         ));
 
+        // Push the block and wait for it to be executed.
         node.push_block(&txs).await;
-        node.seal_batch().await;
-        pool.wait_for_batch_info(ctx, node.last_batch(), POLL_INTERVAL)
+        let block_num = node.last_block();
+        pool.wait_for_payload(ctx, block_num)
             .await
-            .wrap("wait_for_batch_info()")?;
+            .wrap("wait_for_payload()")?;
 
-        // Read the attester committee using the vm.
-        let batch = attester::BatchNumber(node.last_batch().0);
-        assert_eq!(
-            Some(committee),
-            registry
-                .attester_committee_for(ctx, Some(registry_addr), batch + 1)
-                .await
-                .unwrap()
-        );
+        // Read the validator schedule using the vm.
+        let (actual_schedule, commit_block) = registry
+            .get_current_validator_schedule(ctx, block_num)
+            .await
+            .unwrap();
+
+        // Check the schedule and commit block number.
+        assert_eq!(schedule, actual_schedule);
+        assert_eq!(block_num, commit_block);
+
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_pending_validator_committee() {
+    const DELAY: u32 = 100;
+
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+    let account = &mut Account::random();
+    let to_fund = &[account.address];
+
+    scope::run!(ctx, |ctx, s| async {
+        let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
+
+        let (mut node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        s.spawn_bg(runner.run_real(ctx, to_fund));
+
+        // Deploy registry contract and initialize it.
+        let (registry_addr, tx) = Registry::deploy(account);
+        let registry = Registry::new(pool.clone(), registry_addr).await;
+        let mut txs = vec![tx];
+        let account_addr = account.address();
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry.initialize(account_addr),
+        ));
+
+        // *Change the activation delay so it's not immediate*
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry.set_committee_activation_delay(DELAY),
+        ));
+
+        // Push the block and wait for it to be executed.
+        node.push_block(&txs).await;
+        let block_num = node.last_block();
+        pool.wait_for_payload(ctx, block_num)
+            .await
+            .wrap("wait_for_payload()")?;
+
+        // Read the *pending* validator schedule using the vm before doing anything.
+        // It should return `None`.
+        assert!(registry
+            .get_pending_validator_schedule(ctx, block_num)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Start a new batch of transactions.
+        txs.clear();
+
+        // Generate validators.
+        let validators: Vec<_> = (0..5).map(|_| testonly::gen_validator(rng)).collect();
+        // This is the default leader selection for the Registry contract.
+        let leader_selection = validator::LeaderSelection {
+            frequency: 1,
+            mode: validator::LeaderSelectionMode::RoundRobin,
+        };
+        let validator_infos: Vec<_> = validators
+            .iter()
+            .map(|v| validator::ValidatorInfo {
+                key: v.key.clone(),
+                weight: v.weight,
+                leader: v.is_leader,
+            })
+            .collect();
+        let schedule = validator::Schedule::new(validator_infos, leader_selection).unwrap();
+
+        // Add validators to the registry.
+        for v in validators.iter() {
+            txs.push(testonly::make_tx(
+                account,
+                registry_addr,
+                registry.add(rng.gen(), v.clone()).unwrap(),
+            ));
+        }
+
+        // Commit the update.
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry.commit_validator_committee(),
+        ));
+
+        // Push the block and wait for it to be executed.
+        node.push_block(&txs).await;
+        let block_num = node.last_block();
+        pool.wait_for_payload(ctx, block_num)
+            .await
+            .wrap("wait_for_payload()")?;
+
+        // Read the *pending* validator schedule using the vm.
+        let (actual_schedule, commit_block) = registry
+            .get_pending_validator_schedule(ctx, block_num)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Check the schedule and commit block number.
+        assert_eq!(schedule, actual_schedule);
+        assert_eq!(block_num + DELAY as u64, commit_block);
+
         Ok(())
     })
     .await

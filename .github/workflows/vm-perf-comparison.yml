@@ -9,10 +9,12 @@ jobs:
   vm-benchmarks:
     name: Run VM benchmarks
     runs-on: [ matterlabs-ci-runner-highmem-long ]
+    permissions:
+      pull-requests: write
 
     steps:
       - name: checkout base branch
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -32,43 +34,35 @@ jobs:
 
       - name: setup-env
         run: |
-          touch .env
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
           # Set the minimum reported instruction count difference to reduce noise
           echo "BENCHMARK_DIFF_THRESHOLD_PERCENT=2" >> .env
 
-      - name: init
-        run: |
-          run_retried docker compose pull zk
-          docker compose up -d zk
-  
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          ci_run zkstackup -g --local
-          ci_run zkstack dev contracts --system-contracts
-          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
-          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
+          ci_run zkstack dev contracts
+          ci_run cargo bench --manifest-path ./core/Cargo.toml \
+            --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
+          ci_run cargo run --manifest-path ./core/Cargo.toml \
+            --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
 
       - name: checkout PR
         run: |
           git checkout --force FETCH_HEAD --recurse-submodules
+          git submodule update --init --recursive
 
       - name: run benchmarks on PR
         shell: bash
         id: comparison
         run: |
-          ci_run zkstackup -g --local
-          ci_run zkstack dev contracts --system-contracts
-          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose
+          ci_run zkstack dev contracts
+          ci_run cargo bench --manifest-path ./core/Cargo.toml --package vm-benchmark --bench instructions -- --verbose
 
-          ci_run cargo bench --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null
+          ci_run cargo bench --manifest-path ./core/Cargo.toml \
+            --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null
           # Output all lines from the benchmark result starting from the "## ..." comparison header.
           # Since the output spans multiple lines, we use a heredoc declaration.
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
@@ -76,7 +70,8 @@ jobs:
           sed -n '/^## /,$p' instructions.log >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT
           
-          ci_run cargo run --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes > opcodes.log
+          ci_run cargo run --manifest-path ./core/Cargo.toml \
+            --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes > opcodes.log
           echo "opcodes<<$EOF" >> $GITHUB_OUTPUT
           sed -n '/^## /,$p' opcodes.log >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT

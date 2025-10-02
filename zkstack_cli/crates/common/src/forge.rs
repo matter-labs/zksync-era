@@ -9,7 +9,7 @@ use ethers::{
     middleware::Middleware,
     prelude::{LocalWallet, Signer},
     types::{Address, H256, U256},
-    utils::{hex, hex::ToHex},
+    utils::{hex, hex::ToHexExt},
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -56,6 +56,12 @@ pub struct ForgeScript {
 impl ForgeScript {
     /// Run the forge script command.
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
+        // When running the DeployCTM script, we skip recompiling the Bridgehub
+        // because it must be compiled with a low optimizer-runs value.
+        if self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol") {
+            let skip_path: String = String::from("contracts/bridgehub/*");
+            self.args.add_arg(ForgeScriptArg::Skip { skip_path });
+        }
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
         let args_no_resume = self.args.build();
@@ -69,6 +75,17 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
+
+        // TODO: This line is very helpful for debugging purposes,
+        // maybe it makes sense to make it conditionally displayed.
+        let command = format!(
+            "forge script {} --legacy {}",
+            script_path.to_str().unwrap(),
+            args_no_resume.join(" ")
+        );
+
+        println!("Command: {}", command);
+
         let mut cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
@@ -121,10 +138,20 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_zksync(mut self) -> Self {
+        self.args.add_arg(ForgeScriptArg::Zksync);
+        self
+    }
+
     pub fn with_calldata(mut self, calldata: &Bytes) -> Self {
         self.args.add_arg(ForgeScriptArg::Sig {
             sig: hex::encode(calldata),
         });
+        self
+    }
+
+    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
         self
     }
 
@@ -253,6 +280,15 @@ pub enum ForgeScriptArg {
     Sender {
         address: String,
     },
+    #[strum(to_string = "gas-limit={gas_limit}")]
+    GasLimit {
+        gas_limit: u64,
+    },
+    Zksync,
+    #[strum(to_string = "skip={skip_path}")]
+    Skip {
+        skip_path: String,
+    },
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
@@ -276,6 +312,8 @@ pub struct ForgeScriptArgs {
     pub verifier_api_key: Option<String>,
     #[clap(long)]
     pub resume: bool,
+    #[clap(long)]
+    pub zksync: bool,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
@@ -289,6 +327,9 @@ impl ForgeScriptArgs {
     pub fn build(&mut self) -> Vec<String> {
         self.add_verify_args();
         self.cleanup_contract_args();
+        if self.zksync {
+            self.add_arg(ForgeScriptArg::Zksync);
+        }
         self.args
             .iter()
             .map(|arg| arg.to_string())
@@ -383,6 +424,10 @@ impl ForgeScriptArgs {
         self.additional_args
             .iter()
             .any(|arg| WALLET_ARGS.contains(&arg.as_ref()))
+    }
+
+    pub fn with_zksync(&mut self) {
+        self.zksync = true;
     }
 }
 

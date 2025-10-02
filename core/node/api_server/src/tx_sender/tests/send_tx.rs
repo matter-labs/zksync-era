@@ -8,7 +8,7 @@ use test_casing::test_casing;
 use zksync_multivm::interface::{tracer::ValidationTraces, ExecutionResult};
 use zksync_node_fee_model::{BatchFeeModelInputProvider, MockBatchFeeParamsProvider};
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_types::K256PrivateKey;
+use zksync_test_contracts::Account;
 
 use super::*;
 use crate::testonly::{StateBuilder, TestAccount};
@@ -33,9 +33,8 @@ async fn submitting_tx_requires_one_connection() {
     // Manually set sufficient balance for the tx initiator.
     StateBuilder::default()
         .with_balance(tx.initiator_account(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let mut tx_executor = MockOneshotExecutor::default();
     tx_executor.set_tx_responses(move |received_tx, _| {
@@ -46,8 +45,7 @@ async fn submitting_tx_requires_one_connection() {
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let submission_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
+    tx_sender.submit_tx(tx, block_args).await.unwrap();
 
     let mut storage = pool.connection().await.unwrap();
     storage
@@ -138,9 +136,8 @@ async fn fee_validation_errors() {
 
     StateBuilder::default()
         .with_balance(tx.initiator_account(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     // Sanity check: validation should succeed with reasonable fee params.
     tx_sender
@@ -191,20 +188,18 @@ async fn sending_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     // Manually set sufficient balance for the tx initiator.
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let transfer = alice.create_transfer(1_000_000_000.into());
-    let (sub_result, vm_result) = tx_sender.submit_tx(transfer, block_args).await.unwrap();
-    assert_matches!(sub_result, L2TxSubmissionResult::Added);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let vm_result = tx_sender.submit_tx(transfer, block_args).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -212,7 +207,7 @@ async fn sending_transfer_with_insufficient_balance() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
     let transfer = alice.create_transfer(transfer_value);
@@ -229,15 +224,14 @@ async fn sending_transfer_with_incorrect_signature() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let mut transfer = alice.create_transfer(transfer_value);
     transfer.execute.value = transfer_value / 2; // This should invalidate tx signature
@@ -251,20 +245,18 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_load_test_contract()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let tx = alice.create_load_test_tx(tx_params);
-    let (sub_result, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(sub_result, L2TxSubmissionResult::Added);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -272,18 +264,17 @@ async fn sending_reverting_transaction() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
-        .with_counter_contract(0)
+        .with_counter_contract(None)
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let tx = alice.create_counter_tx(1.into(), true);
-    let (_, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(
         vm_result.result,
         ExecutionResult::Revert { output } if output.to_string().contains("This method always reverts")
@@ -295,18 +286,17 @@ async fn sending_transaction_out_of_gas() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_infinite_loop_contract()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let tx = alice.create_infinite_loop_tx();
-    let (_, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(vm_result.result, ExecutionResult::Revert { .. });
 }
 
@@ -331,9 +321,8 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     // Manually set sufficient balance for the tx initiator.
     StateBuilder::default()
         .with_balance(tx.initiator_account(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let mut tx_executor = MockOneshotExecutor::default();
     tx_executor.set_tx_responses(move |received_tx, _| {
@@ -351,8 +340,7 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let submission_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
+    tx_sender.submit_tx(tx, block_args).await.unwrap();
 
     let mut storage = pool.connection().await.unwrap();
     let storage_tx = storage
@@ -392,4 +380,42 @@ async fn submitting_tx_with_validation_traces_resulting_into_overflow() {
     // the maximum value supported by the NaiveDateTime type
     submit_tx_with_validation_traces(10..u64::MAX, 10..NaiveDateTime::MAX.and_utc().timestamp())
         .await;
+}
+
+#[tokio::test]
+async fn submitting_call_to_evm_contract() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut alice = Account::random();
+
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
+    StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .with_evm_counter_contract(None)
+        .apply(storage)
+        .await;
+
+    let tx = alice.create_counter_tx(42.into(), false);
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert_matches!(&vm_result.result, ExecutionResult::Success { .. });
+}
+
+#[tokio::test]
+async fn submitting_evm_deployment() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut alice = Account::random();
+
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
+    StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .enable_evm_deployments()
+        .apply(storage)
+        .await;
+
+    let tx = alice.create_evm_counter_deployment(42.into());
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert_matches!(&vm_result.result, ExecutionResult::Success { .. });
 }

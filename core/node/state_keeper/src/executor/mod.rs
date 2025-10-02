@@ -1,8 +1,7 @@
 use zksync_multivm::interface::{
-    BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult, Halt,
-    VmExecutionMetrics, VmExecutionResultAndLogs,
+    BatchTransactionExecutionResult, Call, ExecutionResult, Halt, VmExecutionMetrics,
+    VmExecutionResultAndLogs,
 };
-use zksync_types::Transaction;
 pub use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 #[cfg(test)]
@@ -18,7 +17,6 @@ pub enum TxExecutionResult {
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
         tx_metrics: Box<VmExecutionMetrics>,
-        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
         gas_remaining: u32,
     },
@@ -29,17 +27,16 @@ pub enum TxExecutionResult {
 }
 
 impl TxExecutionResult {
-    pub(crate) fn new(res: BatchTransactionExecutionResult, tx: &Transaction) -> Self {
+    pub(crate) fn new(res: BatchTransactionExecutionResult) -> Self {
         match res.tx_result.result {
             ExecutionResult::Halt {
                 reason: Halt::BootloaderOutOfGas,
             } => Self::BootloaderOutOfGasForTx,
             ExecutionResult::Halt { reason } => Self::RejectedByVm { reason },
             _ => Self::Success {
-                tx_metrics: Box::new(res.tx_result.get_execution_metrics(Some(tx))),
+                tx_metrics: Box::new(res.tx_result.get_execution_metrics()),
                 gas_remaining: res.tx_result.statistics.gas_remaining,
                 tx_result: res.tx_result.clone(),
-                compressed_bytecodes: res.compressed_bytecodes,
                 call_tracer_result: res.call_traces,
             },
         }

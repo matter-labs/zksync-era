@@ -1,20 +1,16 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::docker;
-use config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::docker;
+use zkstack_cli_config::{explorer_compose::ExplorerBackendComposeConfig, ZkStackConfig};
 
 use crate::messages::{
-    msg_explorer_chain_not_initialized, MSG_CHAIN_NOT_FOUND_ERR,
-    MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR,
+    msg_explorer_chain_not_initialized, MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR,
 };
 
 pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
     let chain_name = chain_config.name.clone();
     // Read chain-level explorer backend docker compose file
     let ecosystem_path = shell.current_dir();

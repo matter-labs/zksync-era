@@ -137,8 +137,7 @@ sequenceDiagram
 participant Ob as Prover GCS
 participant DB as Prover DB
 participant WG as Witness Generator
-participant WVG as Witness Vector Generator
-participant P as Prover
+participant CP as Circuit Prover
 WG-->>DB: Get WG job
 DB->>WG: Job
 WG-->>Ob: Get job data
@@ -146,15 +145,12 @@ Ob->>WG: Data for witness generation
 WG->>WG: Build witness
 WG->>Ob: Save witness
 WG->>DB: Create prover job
-WVG-->>DB: Get prover job
-DB->>WVG: Prover job
-WVG->>WVG: Build witness vector
-WVG-->>DB: Lock a free prover
-DB->>WVG: Prover address
-WVG->>P: Submit witness vector over TCP
-P->>P: Generate a proof
-P->>Ob: Store proof
-P->>DB: Mark proof as stored
+CP-->>DB: Get prover job
+DB->>CP: Prover job
+CP->>CP: Build witness vector
+CP->>CP: Generate a proof
+CP->>Ob: Store proof
+CP->>DB: Mark proof as stored
 ```
 
 ## Circuits
@@ -169,35 +165,10 @@ run, and which outputs we should produce.
 
 As of Jul 2024, we have 35 circuit types mapped to 5 aggregation layers.
 
-_Note:_ specifics of each circuit type and aggregation layers are out of scope for this document, but you can find more
+```admonish note
+The specifics of each circuit type and aggregation layers are out of scope for this document, but you can find more
 information on that in the [further reading](99_further_reading.md) section.
-
-## Prover groups
-
-The next problem you would meet once you start proving in production environment is that different
-`(aggregation_round, circuit_id)` pairs have different load. For some, you need a lot of machines, while for some a few
-is enough.
-
-To help with that, we spread the machines into 15 different groups, based on how "busy" they are, and configure each
-group to work with a specific set of `(aggregation_round, circuit_id)` pairs only.
-
-Here you can see
-[an example mapping](https://github.com/matter-labs/zksync-era/blob/3fbbee10be99e8c5a696bfd50d81230141bccbf4/etc/env/base/fri_prover_group.toml).
-
-Whenever you launch a witness generator, witness vector generator, or prover, it will check the group it belongs to, and
-will only work with pairs configured for that group.
-
-If a non-existent group is chosen, all of the pairs will be processed by default.
-
-## Regions
-
-Since the number of jobs is high, a cluster in a single region may not have enough machines to process them in a timely
-manner. Because of that, our prover infrastructure is designed to work across multiple clusters in different GCP
-regions.
-
-It mostly doesn't affect the code, since we use Postgres and GCS for communication, with one major exception: since WVG
-streams data directly to GPU provers via TCP, it will only look for prover machines that are registered in the same zone
-as WVG in order to reduce network transfers (inter-AZ costs less than intra-AZ or even cross DC).
+```
 
 ## Protocol versions
 
@@ -225,14 +196,11 @@ Once all the "old" batches are proven, no "old" provers will be spawned anymore.
 That's a quite sophisticated infrastructure, and it may be hard to understand it in one go. Here's a quick recap of this
 page:
 
-- Main components of the prover subsystem are house keeper, prover gateway, witness generator, witness vector generator,
-  GPU prover, and proof compressor.
+- Main components of the prover subsystem are house keeper, prover gateway, witness generator, circuit prover, and proof
+  compressor.
 - House keeper and prover gateway don't perform any significant computations, and there is just one instance of each.
 - Witness generator, witness vector generator, and GPU prover work together as a "sub-pipeline".
 - As of Jul 2024, the pipeline consists of 5 aggregation rounds, which are further split into 35
   `(aggregation_round, circuit_id)` pairs, followed by the proof compression.
-- On the infrastructure level, these 35 pairs are spread across 15 different prover groups, according to how "busy" the
-  group is.
-- Groups may exist in different clusters in different GCP regions.
 - Provers are versioned according to the L1 protocol version. There may be provers with different versions running at
   the same time.

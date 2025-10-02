@@ -1,6 +1,6 @@
-use common::{git, logger, spinner::Spinner};
-use config::{ERA_OBSERBAVILITY_DIR, ERA_OBSERBAVILITY_GIT_REPO};
 use xshell::Shell;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{ERA_OBSERBAVILITY_DIR, ERA_OBSERBAVILITY_GIT_REPO};
 
 use crate::messages::{
     MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER, MSG_ERA_OBSERVABILITY_ALREADY_SETUP,
@@ -16,7 +16,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER);
     git::clone(
         shell,
-        shell.current_dir(),
+        &shell.current_dir(),
         ERA_OBSERBAVILITY_GIT_REPO,
         ERA_OBSERBAVILITY_DIR,
     )?;

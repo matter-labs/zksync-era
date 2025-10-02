@@ -1,15 +1,15 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use types::TokenInfo;
 use xshell::Shell;
+use zkstack_cli_types::TokenInfo;
 
 use crate::{
     consts::{
         LOCAL_APPS_PATH, LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH, PORTAL_CONFIG_FILE,
         PORTAL_JS_CONFIG_FILE,
     },
-    traits::{ReadConfig, SaveConfig, ZkStackConfig},
+    traits::{FileConfigTrait, ReadConfig, SaveConfig},
 };
 
 /// Portal JSON configuration file. This file contains configuration for the portal app.
@@ -172,4 +172,4 @@ impl Default for PortalConfig {
     }
 }
 
-impl ZkStackConfig for PortalConfig {}
+impl FileConfigTrait for PortalConfig {}

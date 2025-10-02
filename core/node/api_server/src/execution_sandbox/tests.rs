@@ -9,11 +9,12 @@ use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
+use zksync_test_contracts::Account;
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
     fee::Fee,
     fee_model::BatchFeeInput,
-    K256PrivateKey, ProtocolVersionId, Transaction, U256,
+    Address, ProtocolVersionId, Transaction, U256,
 };
 
 use super::*;
@@ -223,7 +224,8 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
-    let tx = K256PrivateKey::random().create_transfer_with_fee(
+    let tx = Account::random().create_transfer_with_fee(
+        Address::random(),
         0.into(),
         Fee {
             gas_limit: 200_000.into(),
@@ -247,8 +249,8 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
         .unwrap();
 
     assert!(output.are_published_bytecodes_ok);
-    let tx_result = output.vm;
-    assert!(!tx_result.result.is_failed(), "{tx_result:#?}");
+    let tx_result = output.result;
+    assert!(!tx_result.is_failed(), "{tx_result:#?}");
 }
 
 #[test_casing(2, [false, true])]
@@ -272,7 +274,8 @@ async fn validating_transaction(set_balance: bool) {
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
-    let tx = K256PrivateKey::random().create_transfer_with_fee(
+    let tx = Account::random().create_transfer_with_fee(
+        Address::random(),
         0.into(),
         Fee {
             gas_limit: 200_000.into(),
@@ -305,7 +308,7 @@ async fn validating_transaction(set_balance: bool) {
         .await
         .unwrap();
 
-    let result = result.vm.result;
+    let result = result.result;
     if set_balance {
         assert_matches!(result, ExecutionResult::Success { .. });
     } else {

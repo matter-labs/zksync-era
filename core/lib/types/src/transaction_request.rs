@@ -576,6 +576,12 @@ impl TransactionRequest {
         Ok(())
     }
 
+    pub fn set_signature(&mut self, signature: &PackedEthSignature) {
+        self.r = Some(U256::from_big_endian(signature.r()));
+        self.s = Some(U256::from_big_endian(signature.s()));
+        self.v = Some(signature.v().into())
+    }
+
     fn decode_standard_fields(rlp: &Rlp, offset: usize) -> Result<Self, DecoderError> {
         Ok(Self {
             nonce: rlp.val_at(offset)?,
@@ -738,12 +744,17 @@ impl TransactionRequest {
     }
 
     pub fn get_tx_hash(&self) -> Result<H256, SerializationTransactionError> {
+        Ok(self.get_signed_and_tx_hashes()?.1)
+    }
+
+    pub fn get_signed_and_tx_hashes(&self) -> Result<(H256, H256), SerializationTransactionError> {
         let signed_message = self.get_default_signed_message()?;
-        if let Some(hash) = self.get_tx_hash_with_signed_message(signed_message)? {
-            return Ok(hash);
+        if let Some(tx_hash) = self.get_tx_hash_with_signed_message(signed_message)? {
+            return Ok((signed_message, tx_hash));
         }
         let signature = self.get_packed_signature()?;
-        Ok(H256(keccak256(&self.get_signed_bytes(&signature)?)))
+        let tx_hash = H256(keccak256(&self.get_signed_bytes(&signature)?));
+        Ok((signed_message, tx_hash))
     }
 
     fn recover_default_signer(
@@ -815,7 +826,7 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
-        if value.to.is_none() && !allow_no_target {
+        if value.to.is_none() && (!allow_no_target || value.is_eip712_tx()) {
             return Err(SerializationTransactionError::ToAddressIsNull);
         }
 
@@ -1451,7 +1462,7 @@ mod tests {
 
     #[test]
     fn check_call_req_to_l2_tx_oversize_data() {
-        let factory_dep = vec![2u8; 1600000];
+        let calldata = vec![2u8; 1600000];
         let random_tx_max_size = 100_000; // bytes
         let call_request = CallRequest {
             from: Some(Address::random()),
@@ -1461,7 +1472,7 @@ mod tests {
             max_fee_per_gas: Some(U256::from(12u32)),
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
-            data: Some(Bytes(factory_dep)),
+            data: Some(Bytes(calldata)),
             input: None,
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
@@ -1531,5 +1542,34 @@ mod tests {
         call_request.data = None;
         let tx_request = TransactionRequest::from(call_request.clone());
         assert_eq!(tx_request.input, call_request.input.unwrap());
+    }
+
+    #[test]
+    fn test_eip712_without_field_to() {
+        let calldata = vec![2u8; 64];
+        let random_tx_max_size = 100_000; // bytes
+        let eip712_call_request = CallRequest {
+            from: Some(Address::random()),
+            to: None,
+            gas: Some(U256::from(12u32)),
+            gas_price: Some(U256::from(12u32)),
+            max_fee_per_gas: Some(U256::from(12u32)),
+            max_priority_fee_per_gas: Some(U256::from(12u32)),
+            value: Some(U256::from(12u32)),
+            data: Some(Bytes(calldata)),
+            input: None,
+            nonce: None,
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            access_list: None,
+            eip712_meta: None,
+        };
+
+        let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(eip712_call_request.into(), random_tx_max_size, true);
+
+        assert_matches!(
+            try_to_l2_tx,
+            Err(SerializationTransactionError::ToAddressIsNull)
+        );
     }
 }

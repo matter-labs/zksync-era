@@ -1,99 +1,93 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_cli_common::{
     cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use config::{
-    copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
-    EcosystemConfig,
+use zkstack_cli_config::{
+    copy_configs, get_link_to_prover, ObjectStoreConfig, ObjectStoreMode, ZkStackConfig,
+    ZkStackConfigTrait,
 };
-use xshell::{cmd, Shell};
-use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
-    args::init::{ProofStorageConfig, ProverInitArgs},
-    compressor_keys::{download_compressor_key, get_default_compressor_keys_path},
+    args::init::{ProofStorageConfig, ProofStorageFileBacked, ProverInitArgs},
+    compressor_keys::{get_default_compressor_keys_path, run as compressor_keys},
     gcs::create_gcs_bucket,
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
 use crate::{
-    commands::prover::args::init::ProofStorageFileBacked,
+    commands::prover::deploy_proving_network::deploy_proving_network,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
-        MSG_SETUP_KEY_PATH_ERROR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
+        MSG_PROVER_INITIALIZED,
     },
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
-    let default_compressor_key_path = get_default_compressor_keys_path(&ecosystem_config)?;
-
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    let default_compressor_key_path =
+        get_default_compressor_keys_path(&chain_config.link_to_code())?;
+
     let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 
-    if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
-        copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    if chain_config.get_general_config().await.is_err()
+        || chain_config.get_secrets_config().await.is_err()
+        || chain_config.get_wallets_config().is_err()
+        || chain_config.get_contracts_config().is_err()
+    {
+        copy_configs(
+            shell,
+            &chain_config.default_configs_path(),
+            &chain_config.configs,
+        )?;
     }
 
-    let mut general_config = chain_config
-        .get_general_config()
-        .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
 
-    let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
-    let public_object_store_config = get_object_store_config(shell, args.public_store)?;
+    let proof_object_store_config =
+        get_object_store_config(shell, Some(args.proof_store))?.unwrap();
 
-    if let Some(args) = args.compressor_key_args {
-        let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-        download_compressor_key(shell, &mut general_config, &path)?;
+    if let Some(args) = args.deploy_proving_network {
+        deploy_proving_network(shell, &ecosystem_config, &chain_config, args).await?;
     }
-
-    if let Some(args) = args.setup_keys {
-        setup_keys::run(args, shell).await?;
-    }
-
-    let mut prover_config = general_config
-        .prover_config
-        .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
-    prover_config
-        .prover_object_store
-        .clone_from(&proof_object_store_config);
-    if let Some(public_object_store_config) = public_object_store_config {
-        prover_config.shall_save_to_public_bucket = true;
-        prover_config.public_object_store = Some(public_object_store_config);
-    } else {
-        prover_config.shall_save_to_public_bucket = false;
-    }
-    prover_config.cloud_type = args.cloud_type;
-    general_config.prover_config = Some(prover_config);
-
-    chain_config.save_general_config(&general_config)?;
 
     if let Some(args) = args.bellman_cuda_config {
         init_bellman_cuda(shell, args).await?;
     }
 
+    if let Some(args) = args.compressor_key_args {
+        compressor_keys(shell, args).await?;
+    }
+
+    general_config.set_prover_object_store(&proof_object_store_config)?;
+    general_config.save().await?;
+
+    if let Some(args) = args.setup_keys {
+        setup_keys::run(args, shell).await?;
+    }
+
     if let Some(prover_db) = &args.database_config {
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
-        let mut secrets = chain_config.get_secrets_config()?;
-        set_prover_database(&mut secrets, &prover_db.database_config)?;
-        secrets.save_with_base_path(shell, &chain_config.configs)?;
+        let mut secrets = chain_config.get_secrets_config().await?.patched();
+        secrets.set_prover_database(&prover_db.database_config)?;
+        secrets.save().await?;
         initialize_prover_database(
             shell,
             &prover_db.database_config,
-            ecosystem_config.link_to_code.clone(),
+            &chain_config.link_to_code(),
             prover_db.dont_drop,
         )
         .await?;
@@ -112,7 +106,7 @@ fn get_object_store_config(
     let object_store = match config {
         Some(ProofStorageConfig::FileBacked(config)) => Some(init_file_backed_proof_storage(
             shell,
-            &EcosystemConfig::from_file(shell)?,
+            &ZkStackConfig::from_file(shell)?.link_to_code(),
             config,
         )?),
         Some(ProofStorageConfig::GCS(config)) => Some(ObjectStoreConfig {
@@ -121,7 +115,6 @@ fn get_object_store_config(
                 gcs_credential_file_path: config.credentials_file,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
         }),
         Some(ProofStorageConfig::GCSCreateBucket(config)) => {
             Some(create_gcs_bucket(shell, config)?)
@@ -135,7 +128,7 @@ fn get_object_store_config(
 async fn initialize_prover_database(
     shell: &Shell,
     prover_db_config: &DatabaseConfig,
-    link_to_code: PathBuf,
+    link_to_code: &Path,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
     if global_config().verbose {
@@ -150,7 +143,7 @@ async fn initialize_prover_database(
     let path_to_prover_migration = link_to_code.join(PROVER_MIGRATIONS);
     migrate_db(
         shell,
-        path_to_prover_migration,
+        &path_to_prover_migration,
         &prover_db_config.full_url(),
     )
     .await?;
@@ -160,11 +153,11 @@ async fn initialize_prover_database(
 
 fn init_file_backed_proof_storage(
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
+    link_to_code: &Path,
     config: ProofStorageFileBacked,
 ) -> anyhow::Result<ObjectStoreConfig> {
     let proof_store_dir = config.proof_store_dir.clone();
-    let prover_path = get_link_to_prover(ecosystem_config);
+    let prover_path = get_link_to_prover(link_to_code);
 
     let proof_store_dir = prover_path.join(proof_store_dir).join("witness_inputs");
 
@@ -176,7 +169,6 @@ fn init_file_backed_proof_storage(
             file_backed_base_path: config.proof_store_dir,
         },
         max_retries: PROVER_STORE_MAX_RETRIES,
-        local_mirror_path: None,
     };
 
     Ok(object_store_config)

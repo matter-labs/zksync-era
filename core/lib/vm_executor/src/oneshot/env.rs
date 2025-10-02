@@ -9,6 +9,7 @@ use super::{
 };
 
 /// Oneshot environment parameters that are expected to be constant or rarely change during the program lifetime.
+///
 /// These parameters can be used to create [a full environment](OneshotEnv) for transaction / call execution.
 ///
 /// Notably, these parameters include base system contracts (bootloader and default account abstraction) for all supported

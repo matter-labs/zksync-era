@@ -2,6 +2,8 @@ id: 1
 name: era
 chain_id: 271
 prover_version: NoProofs
+l1_network: Localhost
+link_to_code: .
 configs: ./chains/era/configs/
 rocks_db_path: ./chains/era/db/
 external_node_config_path: ./chains/era/configs/external_node
@@ -12,3 +14,5 @@ base_token:
   nominator: 1
   denominator: 1
 wallet_creation: Localhost
+evm_emulator: true
+tight_ports: false

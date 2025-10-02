@@ -34,10 +34,6 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     };
 
     transaction.tokens_dal().add_tokens(&[eth_token]).await?;
-    transaction
-        .tokens_dal()
-        .mark_token_as_well_known(ETHEREUM_ADDRESS)
-        .await?;
     Ok(())
 }
 
@@ -99,7 +95,7 @@ pub fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQuery> {
         })
         .collect();
 
-    let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(&log_queries)
+    let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(log_queries)
         .1
         .into_iter()
         .map(|log_query| LogQuery {
@@ -120,12 +116,11 @@ pub fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQuery> {
     deduped_log_queries
 }
 
-// Default account and bootloader are not a regular system contracts
-// they have never been actually deployed anywhere,
-// They are the initial code that is fed into the VM upon its start.
-// Both are rather parameters of a block and not system contracts.
-// The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
-// because in this case we will have to worry about protecting it.
+/// Default account, bootloader and EVM emulator are not regular system contracts.
+/// They have never been actually deployed anywhere, rather, they are the initial code that is fed into the VM upon its start.
+/// Hence, they are rather parameters of a block and not *real* system contracts.
+/// The code of the bootloader should not be deployed anywhere in the kernel space (i.e. addresses below 2^16)
+/// because in this case we will have to worry about protecting it.
 pub(super) async fn insert_base_system_contracts_to_factory_deps(
     storage: &mut Connection<'_, Core>,
     contracts: &BaseSystemContracts,
@@ -159,7 +154,7 @@ pub(super) async fn save_genesis_l1_batch_metadata(
         .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
         .await?;
 
-    let mut commitment_artifacts = commitment.artifacts();
+    let mut commitment_artifacts = commitment.artifacts()?;
     // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
     commitment_artifacts.l2_l1_merkle_root = H256::zero();
 

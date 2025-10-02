@@ -13,7 +13,8 @@ categories.workspace = true
 [dependencies]
 vise.workspace = true
 zksync_config.workspace = true
-zksync_types.workspace = true
+zksync_node_framework = { workspace = true, optional = true }
+zksync_types = { workspace = true, features = ["protobuf"] }
 zksync_protobuf.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
@@ -28,7 +29,17 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 prost.workspace = true
 reqwest.workspace = true
+aws-config.workspace = true
+aws-runtime.workspace = true
+aws-sdk-s3.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
 tempfile.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+smart-config.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework"]

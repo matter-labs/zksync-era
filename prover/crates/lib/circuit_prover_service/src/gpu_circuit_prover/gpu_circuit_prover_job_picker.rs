@@ -4,14 +4,13 @@ use anyhow::Context;
 use async_trait::async_trait;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_prover_job_processor::JobPicker;
-use zksync_prover_keystore::GoldilocksGpuProverSetupData;
 use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     metrics::CIRCUIT_PROVER_METRICS,
     types::{
-        circuit_prover_payload::GpuCircuitProverPayload,
+        circuit_prover_payload::GpuCircuitProverPayload, setup_data::GoldilocksGpuProverSetupData,
         witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
     },
 };
@@ -56,13 +55,13 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .await
             .context("no witness vector generators are available, stopping...")?;
         let WitnessVectorGeneratorExecutionOutput {
-            circuit,
+            circuit_wrapper,
             witness_vector,
         } = wvg_output;
 
         let key = ProverServiceDataKey {
             circuit_id: metadata.circuit_id,
-            round: metadata.aggregation_round,
+            stage: metadata.aggregation_round.into(),
         }
         .crypto_setup_key();
         let setup_data = self
@@ -72,14 +71,14 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .clone();
 
         let payload = GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         };
         tracing::info!(
             "Finished picking gpu circuit prover job {}, on batch {}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

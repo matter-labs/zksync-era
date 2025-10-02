@@ -12,7 +12,7 @@
 pub use zksync_vm_interface::storage as interface;
 
 pub use self::{
-    cache::sequential_cache::SequentialCache,
+    cache::{lru_cache::LruCache, sequential_cache::SequentialCache},
     catchup::{AsyncCatchupTask, RocksdbCell},
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{
@@ -20,7 +20,7 @@ pub use self::{
     },
     shadow_storage::ShadowStorage,
     storage_factory::{
-        BatchDiff, CommonStorage, OwnedStorage, ReadStorageFactory, RocksdbWithMemory,
+        BatchDiff, BatchDiffs, CommonStorage, OwnedStorage, ReadStorageFactory, RocksdbWithMemory,
         SnapshotStorage,
     },
 };

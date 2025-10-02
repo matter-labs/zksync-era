@@ -2,7 +2,7 @@ use std::ops;
 
 use zksync_db_connection::connection::Connection;
 use zksync_types::{
-    tx::IncludedTxLocation, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    tx::IncludedTxLocation, AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256,
 };
 use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
@@ -38,13 +38,11 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
     let first_location = IncludedTxLocation {
         tx_hash: H256([1; 32]),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: Address::default(),
     };
     let first_logs = [create_l2_to_l1_log(0, 0), create_l2_to_l1_log(0, 0)];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
-        tx_initiator_address: Address::default(),
     };
     let second_logs = vec![
         create_l2_to_l1_log(0, 0),
@@ -65,13 +63,11 @@ async fn insert_events(conn: &mut Connection<'_, Core>, l2_block_number: L2Block
     let first_location = IncludedTxLocation {
         tx_hash: H256([1; 32]),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: Address::default(),
     };
     let first_events = [mock_vm_event(0), mock_vm_event(1)];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
-        tx_initiator_address: Address::default(),
     };
     let second_events = vec![mock_vm_event(2), mock_vm_event(3), mock_vm_event(4)];
     let all_events = vec![

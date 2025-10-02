@@ -8,9 +8,10 @@ use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     block::{L1BatchHeader, L1BatchTreeData, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchCommitmentArtifacts, L1BatchCommitmentHash},
+    eth_sender::EthTxFinalityStatus,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     snapshots::SnapshotFactoryDependencies,
     tokens::{TokenInfo, TokenMetadata},
@@ -79,6 +80,7 @@ pub async fn recover_latest_l1_batch(
         gas_limit: 0,
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: None,
     };
     tracing::info!(
         "Reconstructed previous l2 block {} with hash {:?}",
@@ -114,9 +116,11 @@ pub async fn recover_latest_l1_batch(
                 fair_l2_gas_price: 0,
                 l1_gas_price: 0,
             }),
+            pubdata_limit: None,
         })
         .await
         .unwrap();
+    // todo verify pubdata limit
     storage
         .blocks_dal()
         .mark_l1_batch_as_sealed(
@@ -135,11 +139,14 @@ pub async fn recover_latest_l1_batch(
                 protocol_version: Some(latest_protocol_version.minor),
                 pubdata_input: None,
                 fee_address: Default::default(),
+                batch_fee_input: Default::default(),
+                pubdata_limit: None,
             },
             &[],
             &[],
             &[],
             CircuitStatistic::default(),
+            0,
         )
         .await
         .unwrap();
@@ -206,11 +213,6 @@ pub async fn recover_latest_l1_batch(
     };
 
     storage.tokens_dal().add_tokens(&[eth_token]).await.unwrap();
-    storage
-        .tokens_dal()
-        .mark_token_as_well_known(ETHEREUM_ADDRESS)
-        .await
-        .unwrap();
 }
 
 pub async fn recover_eth_sender(
@@ -233,36 +235,57 @@ pub async fn recover_eth_sender(
         .unwrap();
     let mut storage = connection_pool.connection().await.unwrap();
     let chain_id = Some(l1_client.fetch_chain_id().await.unwrap());
+    let commit_tx_hash = H256::random();
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
+        .insert_pending_received_eth_tx(
             last_l1_batch_number,
-            AggregatedActionType::Commit,
-            H256::random(),
-            DateTime::default(),
+            L1BatchAggregatedActionType::Commit,
+            commit_tx_hash,
             chain_id,
         )
         .await
         .unwrap();
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
+        .confirm_tx(commit_tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
+        .await
+        .unwrap();
+
+    let prover_tx_hash = H256::random();
+    storage
+        .eth_sender_dal()
+        .insert_pending_received_eth_tx(
             last_l1_batch_number,
-            AggregatedActionType::PublishProofOnchain,
-            H256::random(),
-            DateTime::default(),
+            L1BatchAggregatedActionType::PublishProofOnchain,
+            prover_tx_hash,
             chain_id,
         )
         .await
         .unwrap();
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
+        .confirm_tx(prover_tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
+        .await
+        .unwrap();
+
+    let execute_tx_hash = H256::random();
+    storage
+        .eth_sender_dal()
+        .insert_pending_received_eth_tx(
             last_l1_batch_number,
-            AggregatedActionType::Execute,
-            H256::random(),
-            DateTime::default(),
+            L1BatchAggregatedActionType::Execute,
+            execute_tx_hash,
             chain_id,
+        )
+        .await
+        .unwrap();
+    storage
+        .eth_sender_dal()
+        .confirm_tx(
+            execute_tx_hash,
+            EthTxFinalityStatus::Finalized,
+            U256::zero(),
         )
         .await
         .unwrap();
@@ -325,8 +348,6 @@ pub async fn recover_latest_priority_tx(
             execution_info: VmExecutionMetrics::default(),
             execution_status: TxExecutionStatus::Success,
             refunded_gas: 0,
-            operator_suggested_refund: 0,
-            compressed_bytecodes: vec![],
             call_traces: vec![],
             revert_reason: None,
         };
@@ -350,7 +371,7 @@ pub async fn recover_latest_priority_tx(
             .unwrap();
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_l1_batch(last_l1_batch_number, &[tx_result])
+            .mark_txs_as_executed_in_l1_batch(last_l1_batch_number, &[tx_result.hash])
             .await
             .unwrap();
         tracing::info!(

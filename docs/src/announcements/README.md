@@ -5,4 +5,4 @@ information to be stored long-term.
 
 Current announcements:
 
-- 01.08.2024 - [Attester committee invitation](./attester_commitee.md)
+- Apr 30, 2025 - [Changes in the configuration format](./config_format_changes.md)

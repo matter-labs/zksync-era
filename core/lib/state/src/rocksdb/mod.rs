@@ -30,14 +30,15 @@ use std::{
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
-use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, OrStopped, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
+use self::metrics::METRICS;
+pub use self::recovery::InitStrategy;
 #[cfg(test)]
 use self::tests::RocksdbStorageEventListener;
-use self::{metrics::METRICS, recovery::Strategy};
 
 mod metrics;
 mod recovery;
@@ -48,9 +49,13 @@ fn serialize_l1_batch_number(block_number: u32) -> [u8; 4] {
     block_number.to_le_bytes()
 }
 
+fn try_deserialize_l1_batch_number(bytes: &[u8]) -> anyhow::Result<u32> {
+    let bytes: [u8; 4] = bytes.try_into().context("incorrect block number format")?;
+    Ok(u32::from_le_bytes(bytes))
+}
+
 fn deserialize_l1_batch_number(bytes: &[u8]) -> u32 {
-    let bytes: [u8; 4] = bytes.try_into().expect("incorrect block number format");
-    u32::from_le_bytes(bytes)
+    try_deserialize_l1_batch_number(bytes).unwrap()
 }
 
 /// RocksDB column families used by the state keeper.
@@ -112,21 +117,8 @@ impl StateValue {
     }
 }
 
-/// Error emitted when [`RocksdbStorage`] is being updated.
-#[derive(Debug)]
-enum RocksdbSyncError {
-    Internal(anyhow::Error),
-    Interrupted,
-}
-
-impl From<anyhow::Error> for RocksdbSyncError {
-    fn from(err: anyhow::Error) -> Self {
-        Self::Internal(err)
-    }
-}
-
 /// Options for [`RocksdbStorage`].
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RocksdbStorageOptions {
     /// Size of the RocksDB block cache in bytes. The default value is 128 MiB.
     pub block_cache_capacity: usize,
@@ -186,13 +178,9 @@ impl RocksdbStorageBuilder {
         })
     }
 
-    /// Returns the last processed l1 batch number + 1.
-    ///
-    /// # Panics
-    ///
-    /// Panics on RocksDB errors.
-    pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
-        self.0.l1_batch_number().await
+    /// Returns the last processed l1 batch number + 1, or `None` if the storage is not initialized.
+    pub(crate) async fn next_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.0.next_l1_batch_number_opt().await
     }
 
     /// Ensures that the storage is ready to process L1 batches (i.e., has completed snapshot recovery).
@@ -205,86 +193,41 @@ impl RocksdbStorageBuilder {
     ///
     /// Returns I/O RocksDB and Postgres errors.
     pub async fn ensure_ready(
-        &mut self,
-        storage: &mut Connection<'_, Core>,
+        mut self,
+        recovery_pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<bool> {
-        let ready_result = self
+    ) -> Result<(RocksdbStorage, InitStrategy), OrStopped> {
+        let init_strategy = self
             .0
             .ensure_ready(
-                storage,
+                recovery_pool,
                 RocksdbStorage::DESIRED_LOG_CHUNK_SIZE,
                 stop_receiver,
             )
-            .await;
-        match ready_result {
-            Ok((strategy, _)) => Ok(matches!(strategy, Strategy::Recovery)),
-            Err(RocksdbSyncError::Interrupted) => Ok(false),
-            Err(RocksdbSyncError::Internal(err)) => Err(err),
+            .await?;
+        Ok((self.0, init_strategy))
+    }
+
+    /// Gets the underlying storage if it is initialized. Unlike [`Self::ensure_ready()`], this method
+    /// won't attempt to initialize the storage.
+    pub async fn get(&self) -> Option<RocksdbStorage> {
+        if self.next_l1_batch_number().await.is_some() {
+            Some(self.0.clone())
+        } else {
+            None
         }
-    }
-
-    /// Synchronizes this storage with Postgres using the provided connection.
-    ///
-    /// # Return value
-    ///
-    /// Returns `Ok(None)` if the update is interrupted using `stop_receiver`.
-    ///
-    /// # Errors
-    ///
-    /// - Errors if the local L1 batch number is greater than the last sealed L1 batch number
-    ///   in Postgres.
-    pub async fn synchronize(
-        self,
-        storage: &mut Connection<'_, Core>,
-        stop_receiver: &watch::Receiver<bool>,
-        to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> anyhow::Result<Option<RocksdbStorage>> {
-        let mut inner = self.0;
-        match inner
-            .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
-            .await
-        {
-            Ok(()) => Ok(Some(inner)),
-            Err(RocksdbSyncError::Interrupted) => Ok(None),
-            Err(RocksdbSyncError::Internal(err)) => Err(err),
-        }
-    }
-
-    /// Reverts the state to a previous L1 batch number.
-    ///
-    /// # Errors
-    ///
-    /// Propagates RocksDB and Postgres errors.
-    pub async fn roll_back(
-        mut self,
-        storage: &mut Connection<'_, Core>,
-        last_l1_batch_to_keep: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        self.0.revert(storage, last_l1_batch_to_keep).await
-    }
-
-    /// Returns the underlying storage without any checks. Should only be used in test code.
-    #[doc(hidden)]
-    pub fn build_unchecked(self) -> RocksdbStorage {
-        self.0
     }
 }
 
 impl RocksdbStorage {
+    // Named for backward compatibility
     const L1_BATCH_NUMBER_KEY: &'static [u8] = b"block_number";
-    #[allow(dead_code)]
-    const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
+    const RECOVERY_L1_BATCH_NUMBER_KEY: &'static [u8] = b"recovery_l1_batch";
 
     /// Desired size of log chunks loaded from Postgres during snapshot recovery.
     /// This is intentionally not configurable because chunks must be the same for the entire recovery
     /// (i.e., not changed after a node restart).
     const DESIRED_LOG_CHUNK_SIZE: u64 = 200_000;
-
-    #[allow(dead_code)]
-    fn is_special_key(key: &[u8]) -> bool {
-        key == Self::L1_BATCH_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
-    }
 
     /// Creates a new storage builder with the provided RocksDB `path`.
     ///
@@ -324,26 +267,38 @@ impl RocksdbStorage {
         .context("panicked initializing state keeper RocksDB")?
     }
 
-    async fn update_from_postgres(
-        &mut self,
+    /// Synchronizes this storage with Postgres using the provided connection.
+    ///
+    /// # Return value
+    ///
+    /// Returns `Ok(None)` if the update is interrupted using `stop_receiver`.
+    ///
+    /// # Errors
+    ///
+    /// - Errors if the local L1 batch number is greater than the last sealed L1 batch number
+    ///   in Postgres.
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        err,
+        fields(to_l1_batch_number = ?to_l1_batch_number)
+    )]
+    pub async fn synchronize(
+        mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> Result<(), RocksdbSyncError> {
-        let (_, mut current_l1_batch_number) = self
-            .ensure_ready(storage, Self::DESIRED_LOG_CHUNK_SIZE, stop_receiver)
-            .await?;
+    ) -> Result<Self, OrStopped> {
+        let mut current_l1_batch_number = self.next_l1_batch_number().await;
 
         let latency = METRICS.update.start();
-        let Some(latest_l1_batch_number) = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .map_err(DalError::generalize)?
+        let Some(latest_l1_batch_number) =
+            storage.blocks_dal().get_sealed_l1_batch_number().await?
         else {
             // No L1 batches are persisted in Postgres; update is not necessary.
-            return Ok(());
+            return Ok(self);
         };
+
         let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
             if to_l1_batch_number > latest_l1_batch_number {
                 let err = anyhow::anyhow!(
@@ -368,7 +323,7 @@ impl RocksdbStorage {
 
         while current_l1_batch_number <= to_l1_batch_number {
             if *stop_receiver.borrow() {
-                return Err(RocksdbSyncError::Interrupted);
+                return Err(OrStopped::Stopped);
             }
             let current_lag = to_l1_batch_number.0 - current_l1_batch_number.0 + 1;
             METRICS.lag.set(current_lag.into());
@@ -396,7 +351,10 @@ impl RocksdbStorage {
                 .await
                 .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
             #[cfg(test)]
-            (self.listener.on_l1_batch_synced.write().await)(current_l1_batch_number - 1);
+            self.listener
+                .on_l1_batch_synced
+                .handle(current_l1_batch_number - 1)
+                .await;
         }
 
         latency.observe();
@@ -407,7 +365,7 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{to_l1_batch_number} initialized, size is {estimated_size}"
         );
 
-        Ok(())
+        Ok(self)
     }
 
     async fn apply_storage_logs(
@@ -492,7 +450,12 @@ impl RocksdbStorage {
         self.pending_patch.factory_deps.insert(hash, bytecode);
     }
 
-    async fn revert(
+    /// Reverts the state to a previous L1 batch number.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB and Postgres errors.
+    pub async fn roll_back(
         &mut self,
         connection: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
@@ -580,7 +543,10 @@ impl RocksdbStorage {
                     Self::L1_BATCH_NUMBER_KEY,
                     &serialize_l1_batch_number(l1_batch_number.0),
                 );
+                // Having an L1 batch number means that recovery is complete.
+                batch.delete_cf(cf, Self::RECOVERY_L1_BATCH_NUMBER_KEY);
             }
+
             for (key, (value, enum_index)) in pending_patch.state {
                 batch.put_cf(
                     cf,
@@ -606,7 +572,13 @@ impl RocksdbStorage {
     /// # Panics
     ///
     /// Panics on RocksDB errors.
-    pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
+    pub async fn next_l1_batch_number(&self) -> L1BatchNumber {
+        self.next_l1_batch_number_opt()
+            .await
+            .expect("Next L1 batch number is not set for initialized RocksDB cache")
+    }
+
+    async fn next_l1_batch_number_opt(&self) -> Option<L1BatchNumber> {
         let cf = StateKeeperColumnFamily::State;
         let db = self.db.clone();
         let number_bytes =
@@ -615,6 +587,43 @@ impl RocksdbStorage {
                 .expect("failed getting L1 batch number from RocksDB")
                 .expect("failed getting L1 batch number from RocksDB");
         number_bytes.map(|bytes| L1BatchNumber(deserialize_l1_batch_number(&bytes)))
+    }
+
+    async fn recovery_l1_batch_number(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+        let cf = StateKeeperColumnFamily::State;
+        let db = self.db.clone();
+        let number_bytes =
+            tokio::task::spawn_blocking(move || db.get_cf(cf, Self::RECOVERY_L1_BATCH_NUMBER_KEY))
+                .await
+                .context("panicked getting L1 batch number from RocksDB")?
+                .context("failed getting L1 batch number from RocksDB")?;
+        number_bytes
+            .map(|bytes| try_deserialize_l1_batch_number(&bytes).map(L1BatchNumber))
+            .transpose()
+    }
+
+    async fn set_l1_batch_number(
+        &self,
+        batch_number: L1BatchNumber,
+        for_recovery: bool,
+    ) -> anyhow::Result<()> {
+        let db = self.db.clone();
+        let save_task = tokio::task::spawn_blocking(move || {
+            let mut batch = db.new_write_batch();
+            let cf = StateKeeperColumnFamily::State;
+            let key = if for_recovery {
+                Self::RECOVERY_L1_BATCH_NUMBER_KEY
+            } else {
+                Self::L1_BATCH_NUMBER_KEY
+            };
+
+            batch.put_cf(cf, key, &serialize_l1_batch_number(batch_number.0));
+            db.write(batch)
+                .context("failed to save state data into RocksDB")
+        });
+        save_task
+            .await
+            .context("panicked when saving recovery L1 batch number into RocksDB")?
     }
 
     fn serialize_state_key(key: H256) -> [u8; 32] {

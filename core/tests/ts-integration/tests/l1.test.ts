@@ -8,13 +8,15 @@
 import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { bigIntMax, deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
 import {
-    getHashedL2ToL1Msg,
-    L1_MESSENGER,
-    L1_MESSENGER_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
-} from 'zksync-ethers/build/utils';
+    deployContract,
+    getTestContract,
+    scaledGasPrice,
+    waitForL2ToL1LogProof,
+    maxL2GasLimitForPriorityTxs
+} from '../src/helpers';
+import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
+import { waitForNewL1Batch } from 'utils';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -140,13 +142,14 @@ describe('Tests for L1 behavior', () => {
         const l2ToL1LogIndex = receipt.l2ToL1Logs.findIndex(
             (log: zksync.types.L2ToL1Log) => log.sender == L1_MESSENGER_ADDRESS
         );
+        await waitForL2ToL1LogProof(alice, receipt.blockNumber, tx.hash);
         const msgProof = await alice.provider.getLogProof(tx.hash, l2ToL1LogIndex);
         expect(msgProof).toBeTruthy();
 
-        // Ensure that received proof matches the provided root hash.
-        const { id, proof, root } = msgProof!;
-        const accumulatedRoot = calculateAccumulatedRoot(alice.address, message, receipt.l1BatchTxIndex!, id, proof);
-        expect(accumulatedRoot).toBe(root);
+        // Note, that if a chain uses gateway, its `root` will correspond to the root of the messages from the batch,
+        // while the `proof` would contain both the proof for the leaf belonging to the batch and the batch belonging
+        // to the gateway.
+        const { id, proof } = msgProof!;
 
         // Ensure that provided proof is accepted by the main ZKsync contract.
         const chainContract = await alice.getMainContract();
@@ -368,46 +371,3 @@ describe('Tests for L1 behavior', () => {
         await testMaster.deinitialize();
     });
 });
-
-/**
- * Recreates the root hash of the merkle tree based on the provided proof.
- */
-function calculateAccumulatedRoot(
-    address: string,
-    message: Uint8Array,
-    l1BatchTxIndex: number,
-    id: number,
-    proof: string[]
-): string {
-    let accumutatedRoot = getHashedL2ToL1Msg(address, message, l1BatchTxIndex);
-
-    let idCopy = id;
-    for (const elem of proof) {
-        const bytes =
-            (idCopy & 1) == 0
-                ? new Uint8Array([...ethers.getBytes(accumutatedRoot), ...ethers.getBytes(elem)])
-                : new Uint8Array([...ethers.getBytes(elem), ...ethers.getBytes(accumutatedRoot)]);
-
-        accumutatedRoot = ethers.keccak256(bytes);
-        idCopy /= 2;
-    }
-    return accumutatedRoot;
-}
-
-function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
-    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
-    // using binary search.
-    const overhead = getOverheadForTransaction(
-        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
-        // will be greater than `overheadForLength` for a typical transacction
-        0n
-    );
-    return maxGasBodyLimit + overhead;
-}
-
-function getOverheadForTransaction(encodingLength: bigint): bigint {
-    const TX_SLOT_OVERHEAD_GAS = 10_000n;
-    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
-
-    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
-}

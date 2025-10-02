@@ -1,31 +1,27 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{anyhow, Context};
-use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
-use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
+use zkstack_cli_config::{get_link_to_prover, ChainConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{
-    MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
-    MSG_RUNNING_CIRCUIT_PROVER, MSG_RUNNING_CIRCUIT_PROVER_ERR, MSG_RUNNING_COMPRESSOR,
-    MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
+    MSG_BELLMAN_CUDA_DIR_ERR, MSG_MISSING_COMPONENT_ERR, MSG_RUNNING_CIRCUIT_PROVER,
+    MSG_RUNNING_CIRCUIT_PROVER_ERR, MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR,
     MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_PROVER_JOB_MONITOR,
     MSG_RUNNING_PROVER_JOB_MONITOR_ERR, MSG_RUNNING_WITNESS_GENERATOR,
-    MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
-    MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
+    MSG_RUNNING_WITNESS_GENERATOR_ERR,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt()?;
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem_config
-        .load_current_chain()
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
+    let chain = ecosystem.load_current_chain()?;
 
     let path_to_ecosystem = shell.current_dir();
 
-    let link_to_prover = get_link_to_prover(&ecosystem_config);
+    let link_to_prover = get_link_to_prover(&chain.link_to_code());
     shell.change_dir(link_to_prover.clone());
 
     let component = args.component.context(anyhow!(MSG_MISSING_COMPONENT_ERR))?;
@@ -40,16 +36,6 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             MSG_RUNNING_WITNESS_GENERATOR,
             MSG_RUNNING_WITNESS_GENERATOR_ERR,
         ),
-        ProverComponent::WitnessVectorGenerator => (
-            MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
-            MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
-        ),
-        ProverComponent::Prover => {
-            if !in_docker {
-                check_prerequisites(shell, &GPU_PREREQUISITES, false);
-            }
-            (MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR)
-        }
         ProverComponent::CircuitProver => {
             if !in_docker {
                 check_prerequisites(shell, &GPU_PREREQUISITES, false);
@@ -61,7 +47,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
                 check_prerequisites(shell, &GPU_PREREQUISITES, false);
                 shell.set_var(
                     "BELLMAN_CUDA_DIR",
-                    ecosystem_config
+                    ecosystem
                         .bellman_cuda_dir
                         .clone()
                         .expect(MSG_BELLMAN_CUDA_DIR_ERR),
@@ -78,8 +64,8 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     if in_docker {
         let path_to_configs = chain.configs.clone();
-        let path_to_prover = get_link_to_prover(&ecosystem_config);
-        update_setup_data_path(&chain, "prover/data/keys".to_string())?;
+        let path_to_prover = get_link_to_prover(&chain.link_to_code());
+        update_setup_data_path(&chain, "prover/data/keys").await?;
         run_dockerized_component(
             shell,
             component.image_name(),
@@ -93,7 +79,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             &path_to_ecosystem,
         )?
     } else {
-        update_setup_data_path(&chain, "data/keys".to_string())?;
+        update_setup_data_path(&chain, "data/keys").await?;
         run_binary_component(
             shell,
             component.binary_name(),
@@ -116,8 +102,8 @@ fn run_dockerized_component(
     args: &[String],
     message: &'static str,
     error: &'static str,
-    path_to_configs: &PathBuf,
-    path_to_prover: &PathBuf,
+    path_to_configs: &Path,
+    path_to_prover: &Path,
     path_to_ecosystem: &Path,
 ) -> anyhow::Result<()> {
     logger::info(message);
@@ -145,19 +131,14 @@ fn run_binary_component(
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "cargo run {application_args...} --release --bin {binary_name} -- {args...}"
+        "cargo run {application_args...} --release --package {binary_name} -- {args...}"
     ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)
 }
 
-fn update_setup_data_path(chain: &ChainConfig, path: String) -> anyhow::Result<()> {
-    let mut general_config = chain.get_general_config()?;
-    general_config
-        .prover_config
-        .as_mut()
-        .expect("Prover config not found")
-        .setup_data_path = path;
-    chain.save_general_config(&general_config)?;
-    Ok(())
+async fn update_setup_data_path(chain: &ChainConfig, path: &str) -> anyhow::Result<()> {
+    let mut general_config = chain.get_general_config().await?.patched();
+    general_config.set_prover_setup_path(path.as_ref())?;
+    general_config.save().await
 }
