@@ -31,14 +31,16 @@ use zksync_types::{
 };
 
 use crate::utils::{
-    add_eth_token, get_deduped_log_queries, get_storage_logs,
-    insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
-    insert_factory_deps, insert_storage_logs, save_genesis_l1_batch_metadata,
+    add_eth_token, get_deduped_log_queries, insert_base_system_contracts_to_factory_deps,
+    insert_deduplicated_writes_and_protective_reads, insert_factory_deps, insert_storage_logs,
+    save_genesis_l1_batch_metadata,
 };
 
 #[cfg(test)]
 mod tests;
 pub mod utils;
+
+pub use crate::utils::get_storage_logs;
 
 #[derive(Debug, Clone)]
 pub struct BaseContractsHashError {

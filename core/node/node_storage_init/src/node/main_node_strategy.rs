@@ -16,6 +16,7 @@ use crate::{main_node::MainNodeGenesis, NodeInitializationStrategy};
 pub struct MainNodeInitStrategyLayer {
     pub genesis: GenesisConfig,
     pub event_expiration_blocks: u64,
+    pub l1_recovery_enabled: bool,
 }
 
 #[derive(Debug, FromContext)]

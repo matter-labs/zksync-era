@@ -11,7 +11,7 @@ use zksync_types::{
     },
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
     server_notification::GatewayMigrationNotification,
-    Address, L1BatchNumber, L2BlockNumber, SLChainId, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, SLChainId, H160, H256, U256,
 };
 
 use crate::{
@@ -766,9 +766,10 @@ impl EthSenderDal<'_, '_> {
         } else {
             let eth_tx_id = sqlx::query_scalar!(
                 r#"INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at)
-                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now())
+                VALUES ('\\x00', 0, $1, $2, NULL, $3, now(), now())
                 RETURNING id"#,
                 tx_type.to_string(),
+                format!("{:#x}", H160::zero()),
                 sl_chain_id.map(|chain_id| chain_id.0 as i64)
             )
             .fetch_one(transaction.conn())

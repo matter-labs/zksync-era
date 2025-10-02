@@ -84,7 +84,6 @@ impl MempoolStore {
             } = transaction;
             match common_data {
                 ExecuteTransactionCommon::L1(data) => {
-                    tracing::trace!("inserting L1 transaction {}", data.serial_id);
                     self.l1_transactions.insert(
                         data.serial_id,
                         L1Tx {

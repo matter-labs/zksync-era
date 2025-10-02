@@ -24,6 +24,7 @@ pub struct Server {
 pub enum ServerMode {
     Normal,
     Genesis,
+    L1Recovery,
 }
 
 impl Server {
@@ -66,6 +67,9 @@ impl Server {
         }
         if let ServerMode::Genesis = server_mode {
             inserted_args.push("--genesis".to_string());
+        }
+        if let ServerMode::L1Recovery = server_mode {
+            inserted_args.push("--l1-recovery".to_string());
         }
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");

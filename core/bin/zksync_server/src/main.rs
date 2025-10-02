@@ -35,6 +35,8 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    #[arg(long)]
+    l1_recovery: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
@@ -145,6 +147,12 @@ fn main() -> anyhow::Result<()> {
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
         node.only_genesis()?.run(observability_guard)?;
+        return Ok(());
+    }
+
+    if opt.l1_recovery {
+        // If genesis is requested, we don't need to run the node.
+        node.only_l1_recovery()?.run(observability_guard)?;
         return Ok(());
     }
 

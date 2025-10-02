@@ -55,7 +55,9 @@ impl BlockInfo {
             .get_expected_l1_batch_timestamp(&l1_batch)
             .await
             .map_err(DalError::generalize)?
-            .context("missing timestamp for non-pending block")?;
+            .context(format!(
+                "missing timestamp for non-pending block {number}, l1_batch {l1_batch:?}"
+            ))?;
         Ok(Self {
             resolved_block_number: number,
             l1_batch_timestamp_s: Some(l1_batch_timestamp),

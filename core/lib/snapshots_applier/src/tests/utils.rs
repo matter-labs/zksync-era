@@ -25,7 +25,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
-use crate::SnapshotsApplierMainNodeClient;
+use crate::{L1BlockMetadata, L2BlockMetadata, SnapshotsApplierMainNodeClient};
 
 pub(super) trait SnapshotLogKey: Clone {
     const VERSION: SnapshotVersion;
@@ -75,15 +75,30 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
     async fn fetch_l1_batch_details(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
-        Ok(self.fetch_l1_batch_responses.get(&number).cloned())
+    ) -> EnrichedClientResult<Option<L1BlockMetadata>> {
+        Ok(self
+            .fetch_l1_batch_responses
+            .get(&number)
+            .cloned()
+            .map(|details| L1BlockMetadata {
+                root_hash: details.base.root_hash,
+                timestamp: details.base.timestamp,
+            }))
     }
 
     async fn fetch_l2_block_details(
         &self,
         number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
-        Ok(self.fetch_l2_block_responses.get(&number).cloned())
+    ) -> EnrichedClientResult<Option<L2BlockMetadata>> {
+        Ok(self
+            .fetch_l2_block_responses
+            .get(&number)
+            .cloned()
+            .map(|details| L2BlockMetadata {
+                block_hash: details.base.root_hash,
+                protocol_version: details.protocol_version,
+                timestamp: details.base.timestamp,
+            }))
     }
 
     async fn fetch_newest_snapshot_l1_batch_number(
