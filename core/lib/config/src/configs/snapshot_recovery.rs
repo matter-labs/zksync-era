@@ -87,6 +87,7 @@ mod tests {
                 max_retries: 100,
                 local_mirror_path: None,
             }),
+            recover_from_l1: false,
         }
     }
 

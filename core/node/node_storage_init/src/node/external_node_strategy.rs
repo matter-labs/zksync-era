@@ -1,7 +1,6 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
 use zksync_block_reverter::node::BlockReverterResource;
-use zksync_config::ContractsConfig;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::AppHealthCheck;
 use zksync_l1_recovery::BlobClientResource;
@@ -10,7 +9,7 @@ use zksync_node_framework::{
     FromContext,
 };
 use zksync_shared_resources::contracts::SettlementLayerContractsResource;
-use zksync_types::{Address, L2ChainId};
+use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::{

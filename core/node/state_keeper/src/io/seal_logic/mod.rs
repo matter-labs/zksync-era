@@ -65,7 +65,7 @@ impl UpdatesManager {
         let transaction = connection.start_transaction().await?;
 
         // We rely on the fact that fictive L2 block and L1 batch data is saved in the same transaction.
-        let mut strategy = SealStrategy::Sequential(transaction);
+        let mut strategy = SealStrategy::Sequential(Box::new(transaction));
         l2_block_command
             .seal_inner(&mut strategy, true)
             .await
@@ -291,8 +291,8 @@ impl UpdatesManager {
 
 #[derive(Debug)]
 pub enum SealStrategy<'pool> {
-    Sequential(Connection<'pool, Core>),
-    Parallel(&'pool ConnectionPool<Core>),
+    Sequential(Box<Connection<'pool, Core>>),
+    Parallel(Box<&'pool ConnectionPool<Core>>),
 }
 
 // As opposed to `Cow` from `std`; a union of an owned type and a mutable ref to it
@@ -333,7 +333,7 @@ impl<'pool> SealStrategy<'pool> {
 impl L2BlockSealCommand {
     pub(super) async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
         let l2_block_number = self.l2_block.number;
-        self.seal_inner(&mut SealStrategy::Parallel(&pool), false)
+        self.seal_inner(&mut SealStrategy::Parallel(Box::new(&pool)), false)
             .await
             .with_context(|| format!("failed sealing L2 block #{l2_block_number}"))
     }

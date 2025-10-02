@@ -64,7 +64,7 @@ impl StateCompressor {
         let mut result: Vec<SnapshotFactoryDependency> = get_genesis_factory_deps()
             .iter()
             .map(|dep| SnapshotFactoryDependency {
-                hash: Some(BytecodeHash::for_bytecode(&dep).value()),
+                hash: Some(BytecodeHash::for_bytecode(dep).value()),
                 bytecode: dep.clone().into(),
             })
             .collect();

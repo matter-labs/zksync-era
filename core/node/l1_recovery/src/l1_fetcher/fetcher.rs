@@ -12,7 +12,7 @@ use tokio::{
 use zksync_basic_types::{
     bytecode::BytecodeHash,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    web3::{contract::Tokenizable, BlockId, BlockNumber, FilterBuilder, Log, Transaction},
+    web3::{BlockId, BlockNumber, FilterBuilder, Log, Transaction},
     Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
 };
 use zksync_contracts::{hyperchain_contract, BaseSystemContractsHashes};

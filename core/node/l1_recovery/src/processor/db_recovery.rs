@@ -1,6 +1,5 @@
 use std::{default::Default, fs, path::PathBuf, sync::Arc};
 
-use chrono::DateTime;
 use tempfile::TempDir;
 use tokio::sync::watch;
 use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, H256, U256};
@@ -8,7 +7,7 @@ use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    aggregated_operations::L1BatchAggregatedActionType,
     block::{L1BatchHeader, L1BatchTreeData, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchCommitmentArtifacts, L1BatchCommitmentHash},
     eth_sender::EthTxFinalityStatus,

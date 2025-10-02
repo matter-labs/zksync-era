@@ -116,8 +116,8 @@ impl CommitBlock {
         Ok(Self::from_commit_block(commit_block_info.to_enum_variant()))
     }
 
-    pub async fn try_from_token_resolve<'a>(
-        value: &'a ethabi::Token,
+    pub async fn try_from_token_resolve(
+        value: &ethabi::Token,
         client: &Arc<dyn BlobClient>,
     ) -> Result<Self, ParseError> {
         let commit_block_info = V3::try_from(value)?;
