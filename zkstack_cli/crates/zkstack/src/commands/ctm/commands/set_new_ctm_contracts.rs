@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use xshell::Shell;
-use zkstack_cli_common::logger;
+use zkstack_cli_common::{git, logger};
 use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig, ZkStackConfig};
 
 use crate::{
@@ -35,7 +35,8 @@ pub fn set_new_ctm_contracts(
     if !default_configs_path.exists() || !default_configs_path.is_dir() {
         return Err(anyhow::anyhow!(MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR));
     }
-
+    // Update submodules to make sure we have the latest code.
+    git::submodule_update(shell, &contracts_path)?;
     logger::info(format!(
         "Using contracts source path: {} and default_configs_path: {}",
         contracts_path.display(),

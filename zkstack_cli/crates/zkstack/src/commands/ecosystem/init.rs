@@ -7,7 +7,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfigWithBasePath},
+    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::L1Network;
@@ -247,7 +247,7 @@ async fn return_ecosystem_contracts(
             }
         });
 
-    CoreContractsConfig::read(shell, ecosystem_contracts_path)
+    CoreContractsConfig::read_with_fallback(shell, ecosystem_contracts_path, false)
 }
 
 async fn deploy_ecosystem(

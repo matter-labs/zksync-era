@@ -53,7 +53,16 @@ pub async fn init_configs(
         )?;
     }
 
-    let general_config = chain_config.get_general_config().await?;
+    // Initialize genesis config
+    let mut genesis_config = chain_config.get_genesis_config().await?.patched();
+    genesis_config.update_from_chain_config(chain_config)?;
+    genesis_config.save().await?;
+
+    let Ok(general_config) = chain_config.get_general_config().await else {
+        // If general config does not exist, we don't need to patch it.
+        return Ok(());
+    };
+
     let prover_data_handler_url = general_config.proof_data_handler_url()?;
     let tee_prover_data_handler_url = general_config.tee_proof_data_handler_url()?;
     let prover_gateway_url = general_config.prover_gateway_url()?;
