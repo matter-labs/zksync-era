@@ -12,7 +12,7 @@ use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
     traits::{FileConfigTrait, FileConfigWithDefaultName},
-    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
+    ContractsConfigForDeployERC20, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 /// Part of the genesis config influencing `DeployGatewayCTMInput`.
@@ -256,7 +256,7 @@ impl FileConfigTrait for DeployErc20Config {}
 impl DeployErc20Config {
     pub fn new(
         erc20_deployment_config: &Erc20DeploymentConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &ContractsConfigForDeployERC20,
         additional_addresses_for_minting: Vec<Address>,
     ) -> Self {
         let mut tokens = HashMap::new();

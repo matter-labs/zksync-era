@@ -4,16 +4,16 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS,
-    EVM_PREDEPLOYS_MANAGER_ADDRESS, GW_ASSET_TRACKER_ADDRESS, IDENTITY_ADDRESS,
-    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_TRACKER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, L2_INTEROP_CENTER_ADDRESS,
-    L2_INTEROP_HANDLER_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
-    L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
-    MODEXP_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    DUMMY_ADDRESS_1, DUMMY_ADDRESS_2, DUMMY_ADDRESS_3, DUMMY_ADDRESS_4, EVENT_WRITER_ADDRESS,
+    EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS,
+    GW_ASSET_TRACKER_ADDRESS, IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_TRACKER_ADDRESS,
+    L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
+    L2_INTEROP_CENTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
     SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
 };
-
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS,
@@ -31,7 +31,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 44] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 48] = [
     (
         "",
         "AccountCodeStorage",
@@ -160,8 +160,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 44] = [
     ),
     ("", "Compressor", COMPRESSOR_ADDRESS, ContractLanguage::Sol),
     (
-        "",
-        "ComplexUpgrader",
+        "../../l1-contracts/zkout/",
+        "L2ComplexUpgrader",
         COMPLEX_UPGRADER_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -205,20 +205,20 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 44] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
+        "../../l1-contracts/zkout/",
         "L2GenesisUpgrade",
         L2_GENESIS_UPGRADE_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
         "../../l1-contracts/zkout/",
-        "Bridgehub",
+        "L2Bridgehub",
         L2_BRIDGEHUB_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
         "../../l1-contracts/zkout/",
-        "MessageRoot",
+        "L2MessageRoot",
         L2_MESSAGE_ROOT_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -260,8 +260,14 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 44] = [
     ),
     (
         "../../l1-contracts/zkout/",
-        "ChainAssetHandler",
+        "L2ChainAssetHandler",
         L2_CHAIN_ASSET_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "UpgradeableBeaconDeployer",
+        UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
@@ -286,6 +292,25 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 44] = [
         "../../l1-contracts/zkout/",
         "GWAssetTracker",
         GW_ASSET_TRACKER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    // FIXME: I DUMMY_ADDRESS_1 is missing
+    (
+        "../../l1-contracts/zkout/",
+        "BridgedStandardERC20",
+        DUMMY_ADDRESS_2,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "UpgradeableBeacon",
+        DUMMY_ADDRESS_3,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "BeaconProxy",
+        DUMMY_ADDRESS_4,
         ContractLanguage::Sol,
     ),
 ];

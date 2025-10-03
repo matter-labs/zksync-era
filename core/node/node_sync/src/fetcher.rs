@@ -85,7 +85,9 @@ impl TryFrom<SyncBlock> for FetchedBlock {
         }
 
         let pubdata_params = if block.protocol_version.is_pre_gateway() {
-            block.pubdata_params.unwrap_or_default()
+            block
+                .pubdata_params
+                .unwrap_or_else(PubdataParams::pre_gateway)
         } else {
             block
                 .pubdata_params

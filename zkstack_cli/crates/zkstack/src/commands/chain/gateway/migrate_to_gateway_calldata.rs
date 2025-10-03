@@ -2,16 +2,12 @@ use std::path::Path;
 
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{encode, Token},
-    providers::{Middleware, Provider},
-};
+use ethers::providers::Middleware;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
-use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
-use zksync_types::ProtocolVersionId;
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256, U256};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     gateway_common::{
@@ -26,42 +22,11 @@ use crate::{
         set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
-    utils::addresses::apply_l1_to_l2_alias,
+    utils::{
+        addresses::{apply_l1_to_l2_alias, precompute_chain_address_on_gateway},
+        protocol_version::get_minor_protocol_version,
+    },
 };
-
-fn get_minor_protocol_version(protocol_version: U256) -> anyhow::Result<ProtocolVersionId> {
-    ProtocolVersionId::try_from_packed_semver(protocol_version)
-        .map_err(|err| anyhow::format_err!("Failed to unpack semver for protocol version: {err}"))
-}
-
-// The most reliable way to precompute the address is to simulate `createNewChain` function
-async fn precompute_chain_address_on_gateway(
-    l2_chain_id: u64,
-    base_token_asset_id: H256,
-    new_l2_admin: Address,
-    protocol_version: U256,
-    gateway_diamond_cut: Vec<u8>,
-    gw_ctm: ChainTypeManagerAbi<Provider<ethers::providers::Http>>,
-) -> anyhow::Result<Address> {
-    let ctm_data = encode(&[
-        Token::FixedBytes(base_token_asset_id.0.into()),
-        Token::Address(new_l2_admin),
-        Token::Uint(protocol_version),
-        Token::Bytes(gateway_diamond_cut),
-    ]);
-
-    let caller = if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
-        L2_BRIDGEHUB_ADDRESS
-    } else {
-        L2_CHAIN_ASSET_HANDLER_ADDRESS
-    };
-    let result = gw_ctm
-        .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(caller)
-        .await?;
-
-    Ok(result)
-}
 
 #[derive(Parser, Debug)]
 pub(crate) struct MigrateToGatewayParams {
@@ -140,6 +105,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
     let chain_admin_address = l1_zk_chain.get_admin().await?;
+
     let zk_chain_gw_address = {
         let recorded_zk_chain_gw_address =
             gw_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
@@ -176,11 +142,13 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l1_rpc_url.clone(),
     )
     .await?;
-
-    result.extend(finalize_migrate_to_gateway_output.calls);
-
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
-    let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
+    let (_, l2_da_validator_commitment_scheme) = l1_zk_chain.get_da_validator_pair().await?;
+
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
+            .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
+    result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
     // read storage here.
@@ -202,7 +170,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l2_chain_id,
         params.gateway_chain_id,
         params.new_sl_da_validator,
-        l2_da_validator,
+        l2_da_validator_commitment_scheme,
         zk_chain_gw_address,
         refund_recipient,
         params.l1_rpc_url.clone(),

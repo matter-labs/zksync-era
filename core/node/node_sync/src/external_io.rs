@@ -500,8 +500,8 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
-        api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-        H256,
+        api, commitment::PubdataParams, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
+        L2ChainId, ProtocolVersionId, H256,
     };
 
     use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
@@ -541,7 +541,7 @@ mod tests {
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
         };
         actions_sender

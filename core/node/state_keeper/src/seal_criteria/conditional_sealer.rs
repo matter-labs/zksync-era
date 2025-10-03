@@ -238,6 +238,7 @@ impl ConditionalSealer for NoopSealer {
 }
 
 /// Sealer for usage in EN. Panics if passed transaction should be excluded.
+/// Performs verification only from v29
 #[derive(Debug)]
 pub struct PanicSealer {
     sealers: Vec<Box<dyn SealCriterion>>,
@@ -293,6 +294,10 @@ impl ConditionalSealer for PanicSealer {
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
+        if protocol_version < ProtocolVersionId::Version29 {
+            // we do not validate seal criteria before v29. Appropriate constants are not available.
+            return SealResolution::NoSeal;
+        }
         tracing::trace!(
             "Checking seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
              and metrics {:?}",
@@ -317,7 +322,7 @@ impl ConditionalSealer for PanicSealer {
                     // no seal, don't need to do anything
                 }
                 SealResolution::ExcludeAndSeal => {
-                    panic!("Transaction should have been excluded, but was sequenced");
+                    panic!("Transaction from batch {}, tx_count {}, should have been excluded, but was sequenced due to sealer {}", l1_batch_number, tx_count, sealer.prom_criterion_name());
                 }
                 SealResolution::Unexecutable(reason) => {
                     panic!("Unexecutable transaction was sequenced: {reason:?}");

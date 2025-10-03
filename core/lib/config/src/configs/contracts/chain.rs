@@ -1,5 +1,5 @@
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256};
 
 use super::{
     ecosystem::L1SpecificContracts, EcosystemCommonContracts, SettlementLayerSpecificContracts,
@@ -72,6 +72,12 @@ pub struct L2Contracts {
     pub da_validator_addr: Option<Address>,
     pub testnet_paymaster_addr: Option<Address>,
     pub multicall3: Option<Address>,
+}
+
+/// Configuration for the ZKChain from on chain parameters.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ZkChainOnChainConfig {
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]

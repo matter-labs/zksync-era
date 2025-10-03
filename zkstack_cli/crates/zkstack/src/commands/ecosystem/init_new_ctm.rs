@@ -14,7 +14,7 @@ use zkstack_cli_config::{
 
 use super::{
     args::init::{EcosystemArgsFinal, InitNewCTMArgs, InitNewCTMArgsFinal},
-    common::deploy_l1,
+    common::deploy_ctm,
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
@@ -78,8 +78,9 @@ async fn init_ctm(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
-        init_args.bridgehub_address, // Scripts are expected to consume 0 address for BH
+        init_args.bridgehub_address,
         init_args.zksync_os,
+        init_args.reuse_gov_and_admin,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -94,12 +95,13 @@ pub async fn deploy_new_ctm(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
-    bridgehub_address: Option<H160>,
+    bridgehub_address: H160,
     zksync_os: bool,
+    reuse_gov_and_admin: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let l1_rpc_url = ecosystem.l1_rpc_url.clone();
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1(
+    let contracts_config = deploy_ctm(
         shell,
         &forge_args,
         ecosystem_config,
@@ -110,6 +112,7 @@ pub async fn deploy_new_ctm(
         support_l2_legacy_shared_bridge_test,
         bridgehub_address,
         zksync_os,
+        reuse_gov_and_admin,
     )
     .await?;
     spinner.finish();

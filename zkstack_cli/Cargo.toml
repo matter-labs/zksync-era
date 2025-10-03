@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "crates/common",
-    "crates/config",
-    "crates/types",
-    "crates/zkstack",
-    "crates/git_version_macro",
+  "crates/common",
+  "crates/config",
+  "crates/types",
+  "crates/zkstack",
+  "crates/git_version_macro",
 ]
 resolver = "2"
 
@@ -36,7 +36,7 @@ zksync_consensus_crypto = "=0.13"
 
 # External dependencies
 anyhow = "1.0.82"
-alloy = "0.14.0"
+alloy = "1.0"
 clap = { version = "4.4", features = ["derive", "wrap_help", "string"] }
 clap_complete = "4.5.33"
 dirs = "5.0.1"
@@ -55,9 +55,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 sqlx = { version = "0.8.1", features = [
-    "runtime-tokio",
-    "migrate",
-    "postgres",
+  "runtime-tokio",
+  "migrate",
+  "postgres",
 ] }
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "2.0.12"

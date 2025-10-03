@@ -200,7 +200,7 @@ impl LocalL1BatchCommitData {
         let this = Self {
             l1_batch,
             commit_tx_hash,
-            commitment_mode: pubdata_params.pubdata_type.into(),
+            commitment_mode: pubdata_params.pubdata_type().into(),
             commit_chain_id,
         };
         let metadata = &this.l1_batch.metadata;
@@ -855,7 +855,7 @@ async fn wait_for_l1_batch_with_metadata(
         let mut storage = pool.connection().await?;
         let sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_earliest_l1_batch_number_with_metadata()
+            .get_earliest_l1_batch_number_with_commitment()
             .await?;
         drop(storage);
 

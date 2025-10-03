@@ -5,18 +5,18 @@ zkstack dev contracts
 
 # zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 #     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
-#     --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
-#     --server-db-name=zksync_server_127.0.0.1_era \
+#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+#     --server-db-name=zksync_server_localhost_era \
 #     --ignore-prerequisites --observability=false \
 #     --chain era \
 #     --update-submodules false
-    
+
 zkstack dev generate-genesis
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
-    --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
-    --server-db-name=zksync_server_127.0.0.1_era \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_era \
     --ignore-prerequisites --observability=false \
     --chain era \
     --update-submodules false
@@ -37,8 +37,8 @@ zkstack chain create \
 zkstack chain init \
             --deploy-paymaster \
             --l1-rpc-url=http://127.0.0.1:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
-            --server-db-name=zksync_server_127.0.0.1_validium \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_validium \
             --chain validium --update-submodules false \
             --validium-type no-da
 
@@ -58,8 +58,8 @@ zkstack chain create \
 zkstack chain init \
             --deploy-paymaster \
             --l1-rpc-url=http://127.0.0.1:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@127.0.0.1:5432 \
-            --server-db-name=zksync_server_127.0.0.1_gateway \
+            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+            --server-db-name=zksync_server_localhost_gateway \
             --chain gateway --update-submodules false
 
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era1.log &
