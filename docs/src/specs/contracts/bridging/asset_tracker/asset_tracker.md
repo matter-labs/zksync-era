@@ -59,7 +59,7 @@ There are three types of asset trackers:
 
 - `L1AssetTracker`. It took over the job of tracking chain balances on L1, that was previosuly held by `L1NativeTokenVault`. Note that due to costs, it does not support interop.
 - `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages, then they have.
-- `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to this chain. More on it here (TODO link).
+- `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to their respective chains. More on it here (TODO link).
 
 ### Restrictions
 
@@ -105,7 +105,7 @@ Overall, the algorithm for determining whether to reduce the chain balance shoul
 ```
 
 Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessageRoot (TODO add link to the upgrade process):
- - Additionally we also assume that chains that have non-zero v30 upgrade batch number, belong to either era CTM or ZKsync OS based CTM (that are controlled by the governance). For all the other CTMs, when a chain will be spawned, its "v30 upgrade batch number" will be started from 0.
+ - Additionally we also assume that chains that have non-zero v30 upgrade batch number while settling on top of a ZK Gateway, belong to a CTM controlled by the decentralized governance (either Era CTM or ZKsync OS CTM after the ownership migration). For all the other CTMs, when a chain will be spawned, its "v30 upgrade batch number" will be started from 0.
 
 Also, this relies on the fact that message verification needs to always happen against the root of GW that was submitted on L1, basically to ensure that the "Gateway" approved this messages and checked via `GWAssetTracker` that it was correct.
 
@@ -267,7 +267,7 @@ TODO: the current system allows for some of the old token withdrawals to never g
 
 #### Recovering from missed migrations
 
-What happens if did not migrate a tokens' balance?
+What happens if one did not migrate a tokens' balance?
 
 - If a chain settles on L1, then only withdrawals wont be able to get finalized since `L1AssetTracker.chainBalance` of the chain would be too low.
 - If a chain settles on GW, and it tries to make an outbound operation (e.g. withdrawal) then it wont be able to settle. It is the job of the chain's `L2AssetTracker` to ensure that no withdrawals can happen until the chain balance has been migrated to ZK Gateway.
@@ -346,6 +346,8 @@ There are 3 ways how a token is registered on L1AssetRouter:
 - For the first time through deposit. This is applicable for L1 native assets, these are only ones for which the first time of registration is deposit, during which `chainBalance[block.chainid][assetId]` is assigned to the maximal value (reduced by the deposited amount of course). 
 - For the first time through withdrawals. This provides nice UX for L2-native assets that are withdrawn for the first time.
 - `registerL2NativeToken`. We will talk about the use case for it later in this section.
+
+> TODO: `registerL2NativeToken` is to be removed, this section has to be re-written
 
 The first two approaches work fine for chains that only settle on top of L1. However, chains may settle on top of a ZK Gateway. To use a token inside ZK Gateway, it needs its balance reflected inside ZK Gateway's chain balance. 
 
