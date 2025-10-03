@@ -247,6 +247,7 @@ pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover d
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
 pub(super) const MSG_GENESIS_DATABASES_INITIALIZED: &str = "Databases initialized successfully";
 pub(super) const MSG_BRIDGEHUB: &str = "Bridgehub address of existing ecosystem";
+pub(super) const MSG_CTM: &str = "Chain type manager address that has to be registered";
 
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";

@@ -56,9 +56,9 @@ pub struct ForgeScript {
 impl ForgeScript {
     /// Run the forge script command.
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
-        // When running the DeployL1 script, we skip recompiling the Bridgehub
+        // When running the DeployCTM script, we skip recompiling the Bridgehub
         // because it must be compiled with a low optimizer-runs value.
-        if self.script_path == Path::new("deploy-scripts/DeployL1.s.sol") {
+        if self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol") {
             let skip_path: String = String::from("contracts/bridgehub/*");
             self.args.add_arg(ForgeScriptArg::Skip { skip_path });
         }

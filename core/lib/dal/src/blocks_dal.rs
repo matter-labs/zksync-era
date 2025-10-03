@@ -351,6 +351,27 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    pub async fn get_last_l1_batch_number_with_commitment(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                commitment IS NOT NULL
+            "#
+        )
+        .instrument("get_last_l1_batch_number_with_commitment")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
     /// Gets a number of the earliest L1 batch that is ready for commitment generation (i.e., doesn't have commitment
     /// yet, and has tree data).
     pub async fn get_next_l1_batch_ready_for_commitment_generation(
@@ -377,6 +398,35 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Gets a number of the earliest L1 batch that is ready for commitment generation (i.e., doesn't have commitment
+    /// yet, and has tree data).
+    pub async fn get_commitment_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<H256>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                commitment AS "commitment!"
+            FROM
+                l1_batches
+            WHERE
+                number = $1 AND commitment IS NOT NULL
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_next_l1_batch_ready_for_commitment_generation")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| H256::from_slice(row.commitment.as_ref())))
     }
 
     /// Gets a number of the last L1 batch that is ready for commitment generation (i.e., doesn't have commitment
@@ -432,7 +482,7 @@ impl BlocksDal<'_, '_> {
 
     /// Returns the number of the earliest L1 batch with metadata (= state hash) present in the DB,
     /// or `None` if there are no such L1 batches.
-    pub async fn get_earliest_l1_batch_number_with_metadata(
+    pub async fn get_earliest_l1_batch_number_with_commitment(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
@@ -442,7 +492,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                hash IS NOT NULL
+                commitment IS NOT NULL
             "#
         )
         .instrument("get_earliest_l1_batch_number_with_metadata")
