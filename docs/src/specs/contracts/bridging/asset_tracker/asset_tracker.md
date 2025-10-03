@@ -27,7 +27,7 @@ The `AssetTracker` is the main component that is used to ensure that even if a m
 
 At the moment of the upgrade we will demand that all chains have migrated to L1, i.e. the number of chains that settle on top of ZK Gateway is 0.
 
-> The requirement for all chains moving back to L1 is necessitated by the need to stop any deposits incoming to ZK Gateway during the upgrade. This is why the rest of the code is still prepared for such scenarios in case it is suddenly decided that it is not an option. You can read more about it here (TODO: link to the upgrade process doc).
+> The requirement for all chains moving back to L1 is necessitated by the need to stop any deposits incoming to ZK Gateway during the upgrade. This is why the rest of the code is still prepared for such scenarios in case it is suddenly decided that it is not an option. You can read more about it here (../../../upgrade_history/v30-bundles/upgrade_process_v30.md#ecosystem-upgrade-process).
 
 ### After v30
 
@@ -59,7 +59,7 @@ There are three types of asset trackers:
 
 - `L1AssetTracker`. It took over the job of tracking chain balances on L1, that was previosuly held by `L1NativeTokenVault`. Note that due to costs, it does not support interop.
 - `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages, then they have.
-- `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to their respective chains. More on it here (TODO link).
+- `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to their respective chains. More on it [here](#l2assettracker).
 
 ### Restrictions
 
@@ -104,14 +104,14 @@ Overall, the algorithm for determining whether to reduce the chain balance shoul
     2b. If the batch is after the chain upgraded to v30, the settlement layer's balance is reduced.
 ```
 
-Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessageRoot (TODO add link to the upgrade process):
+Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessagThis is ensured inside MessageRoot (see [v30UpgradeChainBatchNumber](../../interop/message_root.md#v30upgradechainbatchnumber)):
  - Additionally we also assume that chains that have non-zero v30 upgrade batch number while settling on top of a ZK Gateway, belong to a CTM controlled by the decentralized governance (either Era CTM or ZKsync OS CTM after the ownership migration). For all the other CTMs, when a chain will be spawned, its "v30 upgrade batch number" will be started from 0.
 
 Also, this relies on the fact that message verification needs to always happen against the root of GW that was submitted on L1, basically to ensure that the "Gateway" approved this messages and checked via `GWAssetTracker` that it was correct.
 
 The above ensures that settlement layer has the ability to process interop internally, but also it puts heavy responsibility on it to ensure that each chain only does withdrawals/interops that do not exceed their "true" balance. 
 
-Similarly to how it was done before, when a deposit of `assetId` to `chainId` is done, we attribute the balance to the `chainBalance` of either the chain itself (if it settles on L1) or its settlement layer (if it settles on top of it). More on the process of deposits when chain settles on top of a settlement layer, will be expanded later (here TODO link).
+Similarly to how it was done before, when a deposit of `assetId` to `chainId` is done, we attribute the balance to the `chainBalance` of either the chain itself (if it settles on L1) or its settlement layer (if it settles on top of it). More on the process of deposits when a chain settles on top of a settlement layer is explained [here](#deposits-through-gateway).
 
 > Note, that to avoid any sort of edge cases related to chain migration, we assume that each deposit is always fully processed on the settlement layer, i.e. a chain can only have a message for success or failure of a deposit when settling on top of Gateway only if this deposit was initiated settled on Gateway too and as a result when through `GWAssetTracker` (more on it later). Note, that we can not assume the contrary: a malicious chain MAY publish an arbitrary message when settling failed depoist/successful deposit on L1, since L1AssetTracker does not check contents of the message.
 
@@ -189,7 +189,7 @@ contract GWAssetTracker {
 
 When a user deposits to a chain settling on GW, an L1->GW transaction is sent, which add the transaction to the chains Priority Queue in the Mailbox facet on Gateway. On L1 the Gateway's `chainBalance` is updated. We will include the balance change in the L1->GW `forwardTransactionOnGatewayWithBalanceChange` function call, so that the `GWAssetTracker` can update the balance of chain. 
 
-You can read about how the deposit flow starts on L1 here (TODO: link).
+You can read about how the deposit flow starts on L1 [here](#deposit-flow-with-l1assettracker).
 
 #### Failed deposits
 
@@ -206,7 +206,7 @@ This way, if a deposit failed, the ZK Gateway knows that it should keep enough f
 
 When a user withdraws from a chain settling on GW, we process the log on Gateway in `processLogsAndMessages`. This means that the balance of the chain is decreased on GW. Similarly to failed deposits, it means that these funds will be kept by the ZK Gateway to ensure that it can always serve unfinalized withdrawals.
 
-Similarly when finalizing the withdrawal on L1, we decrease the Gateway's `chainBalance`. We determine whether a withdrawal is processed on L1 or on GW by checking the `L1Nullifier` on L1, where we save the settlement layer. More on it here (TODO: link)
+Similarly when finalizing the withdrawal on L1, we decrease the Gateway's `chainBalance`. We determine whether a withdrawal is processed on L1 or on GW by checking the `L1Nullifier` on L1, where we save the settlement layer. More on it [here](#withdrawal-flow-with-l1assettracker).
 
 ### Migrating and settling on Gateway
 
@@ -306,13 +306,13 @@ This section dives deeper into how `L1AssetTracker` is used to perform withdrawa
 
 Withdrawals are always initiated from L1Nullifier (there are also some legacy methods that eventually end up calling L1Nullfier, so the principle is always the same). Similarly to deposits, where we needed to know the chain to increase the balance of (the chain itself or its settlement layer), we need to know which chain's balance to reduce. 
 
-To get the chain id of the settlement layer for a particular withdrawal (or claimed deposit), we look at the proof for the message. You can read more about its recursive format here (TODO: link to message root doc), but in a nutshell, a proof is a recursive structure that starts from the L2 chain's tree root and then (if chain settled on top of some Gateway), it ends with the GW's tree.
+To get the chain id of the settlement layer for a particular withdrawal (or claimed deposit), we look at the proof for the message. You can read more about its recursive format [here](../../interop/message_root.md#proving-that-a-message-belongs-to-a-messageroot), but in a nutshell, a proof is a recursive structure that starts from the L2 chain's tree root and then (if chain settled on top of some Gateway), it ends with the GW's tree.
 
 If the proof is of depth 1, i.e. it does not have any recursion, it means that the withdrawal belonged to the chain. If not, the withdrawal belonged to its settlement layer (the only exception is based on v30 upgrade, you can read more about in the sections above TODO). We ensure that all proofs have depth at most 2.
 
 After verifying the correctness of the message, `L1Nullifier` stores inside `TRANSIENT_SETTLEMENT_LAYER_SLOT` and `TRANSIENT_SETTLEMENT_LAYER_SLOT+1` the settlement layer at the time of withdrawal and the batch number when withdrawal happened (the batch number would be needed for the checks against the time when the chain upgraded to v30).
 
-To ensure secure verification, the `L1MessageRoot` is used (TODO: link to doc).
+To ensure secure verification, the `L1MessageRoot` is used (see [MessageRoot](../../interop/message_root.md)).
 
 Then, when processing the decrease of the balance, the `L1AssetTracker` would read the values from above and decide which chain to reduce the balance of:
 - If the withdrawal is from before the chain upgraded to v30, the chain is responsible.
@@ -334,7 +334,7 @@ With regards to L1AssetRouter, the process of claiming failed deposits is extrem
 
 ### L1 and L2 native token registration
 
-As discussed previously in the section about sum invariants (TODO: link), to ensure that that sum of chainBalances for each asset is lower than `2^256-1`, all chain balances must originate from L1 (starting from `2^256-1` for origin chain at the start the first time). We will refer to the process of initializing the token's chainBalances for the first as "registration". 
+As discussed previously in the section about sum invariants ([see here](#total-sum-invariant)), to ensure that that sum of chainBalances for each asset is lower than `2^256-1`, all chain balances must originate from L1 (starting from `2^256-1` for origin chain at the start the first time). We will refer to the process of initializing the token's chainBalances for the first as "registration".
 
 Note, that for this section we will only consider tokens that are interacted with for the first time starting from v30. To explore what the migration for pre-v30 assets looks like, check out the doc (TODO: upgrade doc link).
 

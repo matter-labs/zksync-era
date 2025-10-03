@@ -5,12 +5,12 @@
 This document explores what the upgrade to v30 will look like for chains. This document assumes your overall understanding of our system prior to v29 and what the system looks like after v30.
 
 Especially the following documents must be read first:
-- TODO: asset tracker link. This document is especially important as it explores what are the expected state of the system prior to v30 upgrade.
-- TODO: message root link.
+- [Asset Tracker](../../contracts/bridging/asset_tracker/asset_tracker.md). This document is especially important as it explores what are the expected state of the system prior to v30 upgrade.
+- [Message Root](../../contracts/interop/message_root.md).
 
 Quick recap on what the system is expected to look like when v30 reaches mainnet:
 - The ecosystem has only one ZK Gateway and it is Era based. Only Era-based chains can migrate there. So whenever something happens on Gateway one can assume that nothing malicious can happen there.
-- Some chains may be settling on top of Era based ZK Gateway (we plan (TODO: link) to migrate them back to L1 before the upgrade starts).
+- Some chains may be settling on top of Era based ZK Gateway (we plan to [migrate them back to L1](#stopping-deposits-for-zk-gateway) before the upgrade starts).
 - On L1 a separate CTM, temporarily controlled by a multisig is deployed. This is where ZKsync OS chains reside and these chains must be treated as potentially totally malicious with regard to Era based chains.
 
 What future state of the system should v30 support:
@@ -38,7 +38,7 @@ The `SettlementLayerV30Upgrade` will be the upgrade implementation for each chai
 
 #### Stopping deposits for ZK Gateway
 
-To successfully upgrade ZK Gateway, we need it to process all previous relayed deposits (i.e. not coming to ZK Gateway as *a chain*, but as *a settlement layer*). THis is needed to maintain the invariants around deposits (TODO: link). In reality, it is very hard to distinguish between relayed deposits and the normal ones, so we just demand that it processed all priority transactions.
+To successfully upgrade ZK Gateway, we need it to process all previous relayed deposits (i.e. not coming to ZK Gateway as *a chain*, but as *a settlement layer*). This is needed to maintain the invariants around deposits (see [Disabling deposits during migrations](../../contracts/bridging/asset_tracker/asset_tracker.md#disabling-deposits-during-migrations)). In reality, it is very hard to distinguish between relayed deposits and the normal ones, so we just demand that it processed all priority transactions.
 
 The easiest way to ensure that the condition above holds is to put a requirement that at the time of `stage0` all chains have migrated to L1. The additional requirement for this approach is a new `TransactionFilterer` that would ensure that no chain is allowed to migrate on top of ZK Gateway right before the upgrade as well as to ensure that no priority transactions will be incoming.
 
@@ -50,7 +50,7 @@ The rest of the codebase, however, should be ready to support even the case when
 
 Right after stage1 of the v30 upgrade, the bridging contracts will start using `L1AssetTracker` to track users balances. So balances of chains will have to be migrated to allow finalizing withdrawals.
 
-To migrate a balance for a token, a chain can call `migrateTokenBalanceFromNTVV30`. During such migration, the chain balance mapping zeroed out on L1NativeTokenVault and given to the corresponding chain inside L1AssetTracker. During the entire process we ensure that the [sum invariant](TODO link) is withheld. If the total sum of chain balance inside L1NTV for some token is larger than 2^256-1, chains wont be able to migrate its balance to their `L1AssetTracker` balance.
+To migrate a balance for a token, a chain can call `migrateTokenBalanceFromNTVV30`. During such migration, the chain balance mapping zeroed out on L1NativeTokenVault and given to the corresponding chain inside L1AssetTracker. During the entire process we ensure that the [sum invariant](../../contracts/bridging/asset_tracker/asset_tracker.md#total-sum-invariant) is withheld. If the total sum of chain balance inside L1NTV for some token is larger than 2^256-1, chains wont be able to migrate its balance to their `L1AssetTracker` balance.
 
 #### Security note on malicious token
 
@@ -66,7 +66,7 @@ In any case, all the invariants that are expected from a token will be preserved
 
 If at the time of the upgrade, the chain was settling on top of Gateway, very similar things need to happen:
 - Firstly, it will have to migrate its L1 balance in the same way as an L1-settling chain would do.
-- Secondly, the moment version v30 starts running on the L2 contracts, the `migrationNumber` of the chain will be incremented and so no withdrawals or interops will be available until the chain migrates its balance on top of ZK Gateway in the same way as it would've done when it settled on Gateway natively.
+- Secondly, the moment version v30 starts running on the L2 contracts, the `migrationNumber` of the chain will be incremented and so no withdrawals or interops will be available until the chain migrates its balance on top of ZK Gateway in the same way as it would've done when it settled on Gateway natively (see [Migrating and settling on Gateway](../../contracts/bridging/asset_tracker/asset_tracker.md#migrating-and-settling-on-gateway)).
 
 ### `L2AssetTracker`
 
@@ -77,7 +77,7 @@ If a token is registered for the first time (after v30), we can just set `2^256-
 This heuristic is correct for usual assets as whenever a token is withdrawn, it is escrowed inside `L2_NATIVE_TOKEN_VAULT` (increasing its balance). The token could be also sent directly to the contract, but these are unaccessible anyway.
 
 However, if a token has a malicious or unusual implementation, the situation gets tricker:
-- If we get an overly small number of tokens withdrawn so far (i.e. its `chainBalance` inside `L2AssetTracker` is bigger than it should be). This means that a chain can spawn withdrawals such that the total sum of potential withdrawals if larger than `2^256-1`. However, it does not impact chain settlement while it is on L1. In case chain settles on top of a Gateway, the chain would need to [migrate](TODO: link) these balances first. The migration process would fail, since the balance that the chain claims to have is smaller than what it would have on L1. And so no external interactions would be possible with such a token, but the chain itself will be secure and will settle correctly.
+- If we get an overly small number of tokens withdrawn so far (i.e. its `chainBalance` inside `L2AssetTracker` is bigger than it should be). This means that a chain can spawn withdrawals such that the total sum of potential withdrawals is larger than `2^256-1`. However, it does not impact chain settlement while it is on L1. In case a chain settles on top of a Gateway, the chain would need to [migrate](../../contracts/bridging/asset_tracker/asset_tracker.md#migrating-and-settling-on-gateway) these balances first. The migration process would fail, since the balance that the chain claims to have is smaller than what it would have on L1. And so no external interactions would be possible with such a token, but the chain itself will be secure and will settle correctly.
 - If we get an overly large number of tokens withdrawn so far (i.e. its `chainBalance` inside `L2AssetTracker` is smaller than it should be). Then the token will be withdrawable or interopable up to the point when the `L2AssetTracker.chainBalance` becomes 0.
 
 In all of the cases above, the impact is on the token only and not the chain. Considering how rare such cases are, it is acceptable.
