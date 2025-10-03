@@ -10,8 +10,6 @@ impl FileConfigTrait for Multicall3Output {}
 
 impl FileConfigTrait for TimestampAsserterOutput {}
 
-impl FileConfigTrait for L2DAValidatorAddressOutput {}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {
     pub l2_da_validator_address: Address,
@@ -36,9 +34,4 @@ pub struct Multicall3Output {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimestampAsserterOutput {
     pub timestamp_asserter: Address,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct L2DAValidatorAddressOutput {
-    pub l2_da_validator_address: Address,
 }

@@ -7,7 +7,9 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata, PubdataParams, PubdataType},
+    commitment::{
+        L1BatchMetaParameters, L1BatchMetadata, L2DACommitmentScheme, PubdataParams, PubdataType,
+    },
     eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
@@ -659,7 +661,8 @@ pub(crate) struct StorageL2BlockHeader {
     /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
     pub gas_limit: Option<i64>,
     pub logs_bloom: Option<Vec<u8>>,
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
     pub rolling_txs_hash: Option<Vec<u8>>,
 }
@@ -696,10 +699,19 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .logs_bloom
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
-            pubdata_params: PubdataParams {
-                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
-                pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
-            },
+            pubdata_params: PubdataParams::new(
+                (
+                    row.l2_da_validator_address.map(|a| Address::from_slice(&a)),
+                    row.l2_da_commitment_scheme
+                        .map(|a| L2DACommitmentScheme::try_from(a as u8))
+                        .transpose()
+                        .expect("wrong l2_da_commitment_scheme"),
+                )
+                    .try_into()
+                    .unwrap(),
+                PubdataType::from_str(&row.pubdata_type).unwrap(),
+            )
+            .expect("invalid pubdata params"),
             rolling_txs_hash: row.rolling_txs_hash.as_deref().map(H256::from_slice),
         }
     }
@@ -724,16 +736,25 @@ impl ResolvedL1BatchForL2Block {
 }
 
 pub(crate) struct StoragePubdataParams {
-    pub l2_da_validator_address: Vec<u8>,
+    pub l2_da_validator_address: Option<Vec<u8>>,
+    pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
 }
 
 impl From<StoragePubdataParams> for PubdataParams {
     fn from(row: StoragePubdataParams) -> Self {
-        Self {
-            l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
-            pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
-        }
+        Self::new(
+            (
+                row.l2_da_validator_address.map(|a| Address::from_slice(&a)),
+                row.l2_da_commitment_scheme.map(|a| {
+                    L2DACommitmentScheme::try_from(a as u8).expect("wrong l2_da_commitment_scheme")
+                }),
+            )
+                .try_into()
+                .unwrap(),
+            PubdataType::from_str(&row.pubdata_type).unwrap(),
+        )
+        .unwrap()
     }
 }
 

@@ -311,6 +311,7 @@ mod tests {
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
     use zksync_types::settlement::SettlementLayer;
+    use zksync_types::commitment::{L2DACommitmentScheme, L2PubdataValidator};
 
     use super::*;
 
@@ -366,7 +367,13 @@ mod tests {
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
             },
-            Default::default(),
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(
+                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                ),
+                Default::default(),
+            )
+            .unwrap(),
         );
         let tvi = TeeVerifierInput::new(tvi);
         let serialized = bincode::serialize(&tvi).expect("Failed to serialize TeeVerifierInput.");

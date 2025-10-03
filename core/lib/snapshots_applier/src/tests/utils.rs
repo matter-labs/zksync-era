@@ -13,6 +13,7 @@ use zksync_types::{
     api,
     block::L2BlockHeader,
     bytecode::{BytecodeHash, BytecodeMarker},
+    commitment::PubdataParams,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
@@ -183,7 +184,7 @@ pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHea
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Default::default(),
-        pubdata_params: Default::default(),
+        pubdata_params: PubdataParams::genesis(),
         rolling_txs_hash: Some(H256::zero()),
     }
 }

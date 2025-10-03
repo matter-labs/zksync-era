@@ -69,14 +69,15 @@ import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
     // REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
     ETH_ADDRESS_IN_CONTRACTS,
-    ArtifactBridgeHub,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
     ArtifactIERC7786Attributes,
     ArtifactL2InteropRootStorage,
-    ArtifactL2MessageVerification
+    ArtifactL2MessageVerification,
+    ArtifactL1BridgeHub,
+    GATEWAY_CHAIN_ID
 } from '../src/constants';
 // import { RetryProvider } from '../src/retry-provider';
 import { getInteropBundleData } from '../src/temp-sdk';
@@ -151,7 +152,7 @@ describe('Interop behavior checks', () => {
         // Skip interop tests if the SL is the same as the L1.
         const bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
-            ArtifactBridgeHub.abi,
+            ArtifactL1BridgeHub.abi,
             alice.providerL1
         );
 

@@ -12,6 +12,7 @@ use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_state::interface::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
+    commitment::PubdataParams,
     fee_model::BatchFeeInput,
     settlement::SettlementLayer,
     snapshots::SnapshotVersion,
@@ -69,7 +70,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             rolling_txs_hash: Some(H256::zero()),
         };
         storage

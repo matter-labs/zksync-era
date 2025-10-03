@@ -47,10 +47,10 @@ pub struct GatewayVotePreparationConfig {
     pub owner_address: Address,
     pub testnet_verifier: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
+    pub is_zk_sync_os: bool,
     pub contracts: GatewayContractsConfig,
     pub tokens: TokensConfig,
     pub refund_recipient: Address,
-    pub old_rollup_l2_da_validator: Address,
     pub gateway_chain_id: U256,
     pub force_deployments_data: String,
 }
@@ -67,8 +67,8 @@ impl GatewayVotePreparationConfig {
         gateway_chain_id: U256,
         owner_address: Address,
         testnet_verifier: bool,
+        is_zk_sync_os: bool,
         refund_recipient: Address,
-        old_rollup_l2_da_validator: Address,
     ) -> Self {
         let contracts = GatewayContractsConfig {
             governance_security_council_address: Address::zero(),
@@ -125,10 +125,10 @@ impl GatewayVotePreparationConfig {
             owner_address,
             testnet_verifier,
             support_l2_legacy_shared_bridge_test: false,
+            is_zk_sync_os,
             contracts,
             tokens,
             refund_recipient,
-            old_rollup_l2_da_validator,
             gateway_chain_id,
             force_deployments_data: external_contracts_config
                 .ecosystem_contracts

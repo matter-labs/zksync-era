@@ -174,8 +174,8 @@ mod tests {
     use zksync_node_test_utils::default_l1_batch_env;
     use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
     use zksync_types::{
-        protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
-        Transaction,
+        commitment::PubdataParams, protocol_version::ProtocolSemanticVersion, L2ChainId,
+        ProtocolVersion, ProtocolVersionId, Transaction,
     };
 
     use super::*;
@@ -331,7 +331,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env,
                 system_env,
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 pubdata_limit: Some(100_000),
                 timestamp_ms,
             },

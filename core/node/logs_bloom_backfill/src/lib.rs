@@ -134,7 +134,8 @@ impl LogsBloomBackfill {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::L2BlockHeader, tx::IncludedTxLocation, Address, L1BatchNumber, H256,
+        block::L2BlockHeader, commitment::PubdataParams, tx::IncludedTxLocation, Address,
+        L1BatchNumber, H256,
     };
     use zksync_vm_interface::VmEvent;
 
@@ -160,7 +161,7 @@ mod tests {
             virtual_blocks: 0,
             gas_limit: 0,
             logs_bloom: Default::default(),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             rolling_txs_hash: Some(H256::zero()),
         };
 

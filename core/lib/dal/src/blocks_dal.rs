@@ -1394,6 +1394,7 @@ impl BlocksDal<'_, '_> {
                 l2_da_validator_address,
                 pubdata_type,
                 rolling_txs_hash,
+                l2_da_commitment_scheme,
                 created_at,
                 updated_at
             )
@@ -1420,6 +1421,7 @@ impl BlocksDal<'_, '_> {
                 $19,
                 $20,
                 $21,
+                $22,
                 NOW(),
                 NOW()
             )
@@ -1454,12 +1456,18 @@ impl BlocksDal<'_, '_> {
             l2_block_header.logs_bloom.as_bytes(),
             l2_block_header
                 .pubdata_params
-                .l2_da_validator_address
-                .as_bytes(),
-            l2_block_header.pubdata_params.pubdata_type.to_string(),
+                .pubdata_validator()
+                .l2_da_validator()
+                .map(|addr| addr.as_bytes().to_vec()),
+            l2_block_header.pubdata_params.pubdata_type().to_string(),
             l2_block_header
                 .rolling_txs_hash
                 .map(|h| h.as_bytes().to_vec()),
+            l2_block_header
+                .pubdata_params
+                .pubdata_validator()
+                .l2_da_commitment_scheme()
+                .map(|l2_da_commitment_scheme| l2_da_commitment_scheme as i32)
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1490,6 +1498,7 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
+                l2_da_commitment_scheme,
                 pubdata_type,
                 rolling_txs_hash
             FROM
@@ -1534,8 +1543,9 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type,
-                rolling_txs_hash
+                rolling_txs_hash,
+                l2_da_commitment_scheme,
+                pubdata_type
             FROM
                 miniblocks
             WHERE
@@ -1969,7 +1979,7 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-            WHERE "#, 
+            WHERE "#,
             _,
             r#" ORDER BY
                 number DESC
@@ -2800,7 +2810,9 @@ impl BlocksDal<'_, '_> {
             StoragePubdataParams,
             r#"
             SELECT
-                l2_da_validator_address, pubdata_type
+                l2_da_validator_address,
+                l2_da_commitment_scheme,
+                pubdata_type
             FROM
                 miniblocks
             WHERE
