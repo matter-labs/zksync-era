@@ -123,7 +123,7 @@ Another notable example of the redundancy of data, is that we also have total `M
 
 Before v30, we used to simply store the chain batch roots for chains inside their DiamondProxy and then whenever someone needed to check whether a message was present, we queried its Mailbox (TODO: link).
 
-However, the logic about relies on the fact that this getter will never be malicious. This is no longer acceptable taking into account that potentially malicious chains could be present. Starting from v30 each chain (whether it settles on L1 or GW) is expected to store its batch roots inside `MessageRoot` (`chainBatchRoots` mapping). To ensure that the chain does append only blocks in the sequential order, we also maintain `currentChainBatchNumber`.
+However, the logic above relies on the fact that this getter will never be malicious. This is no longer acceptable taking into account that potentially malicious chains could be present. Starting from v30 each chain (whether it settles on L1 or GW) is expected to store its batch roots inside `MessageRoot` (`chainBatchRoots` mapping). To ensure that the chain does append only blocks in the sequential order, we also maintain `currentChainBatchNumber`.
 
 The `currentChainBatchNumber` mapping is expected to always have the up-to-date value on the chain's settlement layer and these are cloned to the new settlement layer whenever a chain migrates.
 
