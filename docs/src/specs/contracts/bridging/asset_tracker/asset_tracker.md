@@ -368,8 +368,6 @@ TODO: currently one can register l2 token + finalize withdrawal at the same time
 
 TODO: check that L2AssetTracker wont actually allow to withdraw such token.
 
-TODO: maybe write down invairants for `assetMigrationNumber` for l2 asset tracker in comments in the code.
-
 <!-- ## How full ZK IP could look like with the same user interface (+ migration) could look like
 
 Processing and updating all the logs on L1 or GW does not scale. Full ZK IP would be a zk validium running in parallel to the main chain, storing the balance of the chain and processing the logs. Instead of passing in all logs on the SL, we would only pass in a zk proof.  
