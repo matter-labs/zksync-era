@@ -19,93 +19,91 @@ impl SyncDal<'_, '_> {
         &mut self,
         numbers: std::ops::Range<L2BlockNumber>,
     ) -> DalResult<Vec<SyncBlock>> {
-        // FIXME: for some reason query below does not compile
-        panic!();
-        // // Check if range is non-empty, because BETWEEN in SQL in `unordered`.
-        // if numbers.is_empty() {
-        //     return Ok(vec![]);
-        // }
-        // let query = sqlx::query_as!(
-        //     StorageSyncBlock,
-        //     r#"
-        //     WITH l1_batch AS (
-        //         SELECT COALESCE(
-        //             (
-        //                 SELECT miniblocks.l1_batch_number
-        //                 FROM miniblocks
-        //                 WHERE number = $1
-        //             ),
-        //             (
-        //                 SELECT
-        //                     (MAX(number) + 1)
-        //                 FROM
-        //                     l1_batches
-        //                 WHERE
-        //                     is_sealed
-        //             ),
-        //             (
-        //                 SELECT
-        //                     MAX(l1_batch_number) + 1
-        //                 FROM
-        //                     snapshot_recovery
-        //             )
-        //         ) AS number
-        //     )
+        // Check if range is non-empty, because BETWEEN in SQL in `unordered`.
+        if numbers.is_empty() {
+            return Ok(vec![]);
+        }
+        let query = sqlx::query_as!(
+            StorageSyncBlock,
+            r#"
+            WITH l1_batch AS (
+                SELECT COALESCE(
+                    (
+                        SELECT miniblocks.l1_batch_number
+                        FROM miniblocks
+                        WHERE number = $1
+                    ),
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                        WHERE
+                            is_sealed
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
+                    )
+                ) AS number
+            )
             
-        //     SELECT
-        //         miniblocks.number,
-        //         l1_batch.number AS "l1_batch_number!",
-        //         (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
-        //         miniblocks.timestamp,
-        //         miniblocks.l1_gas_price,
-        //         miniblocks.l2_fair_gas_price,
-        //         miniblocks.fair_pubdata_price,
-        //         miniblocks.bootloader_code_hash,
-        //         miniblocks.default_aa_code_hash,
-        //         miniblocks.evm_emulator_code_hash,
-        //         miniblocks.virtual_blocks,
-        //         miniblocks.hash,
-        //         miniblocks.protocol_version AS "protocol_version!",
-        //         miniblocks.fee_account_address AS "fee_account_address!",
-        //         miniblocks.l2_da_validator_address,
-        //         miniblocks.l2_da_commitment_scheme,
-        //         miniblocks.pubdata_type AS "pubdata_type!",
-        //         l1_batches.pubdata_limit,
-        //         l1_batches.settlement_layer_type,
-        //         l1_batches.settlement_layer_chain_id
-        //     FROM
-        //         miniblocks
-        //     INNER JOIN l1_batch ON true
-        //     INNER JOIN l1_batches ON l1_batches.number = l1_batch.number
-        //     WHERE
-        //         miniblocks.number BETWEEN $1 AND $2
-        //     "#,
-        //     i64::from(numbers.start.0),
-        //     i64::from(numbers.end.0 - 1),
-        // );
-        // let instrumentation =
-        //     Instrumented::new("sync_dal_sync_blocks").with_arg("numbers", &numbers);
-        // let blocks = instrumentation
-        //     .clone()
-        //     .with(query)
-        //     .fetch_all(self.storage)
-        //     .await?;
+            SELECT
+                miniblocks.number,
+                l1_batch.number AS "l1_batch_number!",
+                (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
+                miniblocks.timestamp,
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                miniblocks.evm_emulator_code_hash,
+                miniblocks.virtual_blocks,
+                miniblocks.hash,
+                miniblocks.protocol_version AS "protocol_version!",
+                miniblocks.fee_account_address AS "fee_account_address!",
+                miniblocks.l2_da_validator_address,
+                miniblocks.l2_da_commitment_scheme,
+                miniblocks.pubdata_type AS "pubdata_type!",
+                l1_batches.pubdata_limit,
+                l1_batches.settlement_layer_type,
+                l1_batches.settlement_layer_chain_id
+            FROM
+                miniblocks
+            INNER JOIN l1_batch ON true
+            INNER JOIN l1_batches ON l1_batches.number = l1_batch.number
+            WHERE
+                miniblocks.number BETWEEN $1 AND $2
+            "#,
+            i64::from(numbers.start.0),
+            i64::from(numbers.end.0 - 1),
+        );
+        let instrumentation =
+            Instrumented::new("sync_dal_sync_blocks").with_arg("numbers", &numbers);
+        let blocks = instrumentation
+            .clone()
+            .with(query)
+            .fetch_all(self.storage)
+            .await?;
 
-        // let mut sync_blocks = vec![];
-        // for block in &blocks {
-        //     // Convert the block to the SyncBlock type.
-        //     let interop_roots = self
-        //         .storage
-        //         .interop_root_dal()
-        //         .get_interop_roots(L2BlockNumber(block.number as u32))
-        //         .await?;
-        //     sync_blocks.push(
-        //         SyncBlock::new(block.clone(), interop_roots)
-        //             .map_err(|err| instrumentation.constraint_error(err.into()))?,
-        //     );
-        // }
+        let mut sync_blocks = vec![];
+        for block in &blocks {
+            // Convert the block to the SyncBlock type.
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(L2BlockNumber(block.number as u32))
+                .await?;
+            sync_blocks.push(
+                SyncBlock::new(block.clone(), interop_roots)
+                    .map_err(|err| instrumentation.constraint_error(err.into()))?,
+            );
+        }
 
-        // Ok(sync_blocks)
+        Ok(sync_blocks)
     }
 
     pub async fn sync_block(
