@@ -119,6 +119,7 @@ transactions/
 
 # foundry-zksync
 install
+out
 
 
 .format_sql_snapshot

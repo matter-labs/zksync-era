@@ -15,6 +15,7 @@ mod migrate_from_gateway;
 mod migrate_from_gateway_calldata;
 pub mod migrate_to_gateway;
 pub(crate) mod migrate_to_gateway_calldata;
+pub(crate) mod migrate_token_balances;
 mod notify_server_calldata;
 
 #[derive(Subcommand, Debug)]
@@ -37,6 +38,7 @@ pub enum GatewayComamnds {
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
     NotifyAboutToGatewayUpdate(ForgeScriptArgs),
     NotifyAboutFromGatewayUpdate(ForgeScriptArgs),
+    MigrateTokenBalances(migrate_token_balances::MigrateTokenBalancesArgs),
 }
 
 pub async fn run(shell: &Shell, args: GatewayComamnds) -> anyhow::Result<()> {
@@ -68,6 +70,9 @@ pub async fn run(shell: &Shell, args: GatewayComamnds) -> anyhow::Result<()> {
         }
         GatewayComamnds::NotifyAboutFromGatewayUpdate(args) => {
             gateway_common::notify_server(args, shell, MigrationDirection::FromGateway).await
+        }
+        GatewayComamnds::MigrateTokenBalances(args) => {
+            migrate_token_balances::run(args, shell).await
         }
     }
 }

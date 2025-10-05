@@ -337,9 +337,6 @@ pub struct EcosystemContracts {
     pub l1_bytecodes_supplier_addr: Option<Address>,
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_rollup_l2_da_validator: Option<Address>,
-    // `Option` to be able to parse configs from pre-gateway protocol version.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_wrapped_base_token_store: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_notifier_proxy_addr: Option<Address>,

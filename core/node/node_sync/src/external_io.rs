@@ -322,6 +322,7 @@ impl StateKeeperIO for ExternalIO {
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
                         pubdata_limit: params.pubdata_limit,
+                        settlement_layer: params.settlement_layer,
                     })
                     .await?;
                 Ok(Some(params))

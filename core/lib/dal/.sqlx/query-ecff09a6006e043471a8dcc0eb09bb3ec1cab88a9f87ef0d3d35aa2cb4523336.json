@@ -1,0 +1,137 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH l1_batch AS (\n                SELECT COALESCE(\n                    (\n                        SELECT miniblocks.l1_batch_number\n                        FROM miniblocks\n                        WHERE number = $1\n                    ),\n                    (\n                        SELECT\n                            (MAX(number) + 1)\n                        FROM\n                            l1_batches\n                        WHERE\n                            is_sealed\n                    ),\n                    (\n                        SELECT\n                            MAX(l1_batch_number) + 1\n                        FROM\n                            snapshot_recovery\n                    )\n                ) AS number\n            )\n            \n            SELECT\n                miniblocks.number,\n                l1_batch.number AS \"l1_batch_number!\",\n                (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS \"tx_count!\",\n                miniblocks.timestamp,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.fair_pubdata_price,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                miniblocks.evm_emulator_code_hash,\n                miniblocks.virtual_blocks,\n                miniblocks.hash,\n                miniblocks.protocol_version AS \"protocol_version!\",\n                miniblocks.fee_account_address AS \"fee_account_address!\",\n                miniblocks.l2_da_validator_address,\n                miniblocks.l2_da_commitment_scheme,\n                miniblocks.pubdata_type AS \"pubdata_type!\",\n                l1_batches.pubdata_limit,\n                l1_batches.settlement_layer_type,\n                l1_batches.settlement_layer_chain_id\n            FROM\n                miniblocks\n            INNER JOIN l1_batch ON true\n            INNER JOIN l1_batches ON l1_batches.number = l1_batch.number\n            WHERE\n                miniblocks.number BETWEEN $1 AND $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "tx_count!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "l1_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "l2_fair_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "fair_pubdata_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "bootloader_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "default_aa_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "evm_emulator_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "virtual_blocks",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 12,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "fee_account_address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "l2_da_validator_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 15,
+        "name": "l2_da_commitment_scheme",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "pubdata_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "pubdata_limit",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "settlement_layer_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "settlement_layer_chain_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "ecff09a6006e043471a8dcc0eb09bb3ec1cab88a9f87ef0d3d35aa2cb4523336"
+}

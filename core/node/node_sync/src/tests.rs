@@ -23,6 +23,7 @@ use zksync_types::{
     block::{L2BlockHasher, UnsealedL1BatchHeader},
     commitment::PubdataParams,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    settlement::SettlementLayer,
     snapshots::SnapshotRecoveryStatus,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
@@ -140,6 +141,7 @@ impl StateKeeperHandles {
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
+            SettlementLayer::for_tests(),
         );
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
 

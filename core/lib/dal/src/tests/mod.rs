@@ -13,6 +13,7 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
+    settlement::SettlementLayer,
     snapshots::SnapshotRecoveryStatus,
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
     L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
@@ -69,6 +70,7 @@ pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
             evm_emulator: Some(H256::repeat_byte(43)),
         },
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     )
 }
 
