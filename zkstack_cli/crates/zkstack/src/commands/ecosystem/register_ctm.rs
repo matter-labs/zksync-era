@@ -49,6 +49,8 @@ pub async fn register_ctm(
         ecosystem_config,
         &init_args.ecosystem.l1_rpc_url,
         None,
+        init_args.bridgehub_address,
+        init_args.ctm_address,
         only_save_calldata,
     )
     .await?;

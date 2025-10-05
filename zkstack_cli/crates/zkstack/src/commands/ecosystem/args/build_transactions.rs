@@ -1,5 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::{Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -10,7 +11,7 @@ use crate::{
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_RPC_URL_PROMPT,
+        MSG_BRIDGEHUB, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_RPC_URL_PROMPT,
         MSG_SENDER_ADDRESS_PROMPT,
     },
 };
@@ -28,10 +29,12 @@ pub struct BuildTransactionsArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
+    #[clap(long, help = MSG_BRIDGEHUB)]
+    pub bridgehub: String,
 }
 
 impl BuildTransactionsArgs {
-    pub fn fill_values_with_prompt(self) -> BuildTransactionsFinal {
+    pub fn fill_values_with_prompt(self) -> Result<BuildTransactionsFinal> {
         let sender = self.sender.unwrap_or_else(|| {
             Prompt::new(MSG_SENDER_ADDRESS_PROMPT)
                 .validate_with(|val: &String| -> Result<(), String> {
@@ -50,12 +53,20 @@ impl BuildTransactionsArgs {
                 })
                 .ask()
         });
-        BuildTransactionsFinal {
+
+        // Parse bridgehub address
+        let bridgehub_address = self
+            .bridgehub
+            .parse::<H160>()
+            .with_context(|| format!("Invalid bridgehub address format: {}", self.bridgehub))?;
+
+        Ok(BuildTransactionsFinal {
             sender,
             out: self.out.unwrap_or(DEFAULT_UNSIGNED_TRANSACTIONS_DIR.into()),
             forge_args: self.forge_args.clone(),
             l1_rpc_url,
-        }
+            bridgehub_address,
+        })
     }
 }
 
@@ -65,4 +76,5 @@ pub struct BuildTransactionsFinal {
     pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,
     pub l1_rpc_url: String,
+    pub bridgehub_address: H160,
 }
