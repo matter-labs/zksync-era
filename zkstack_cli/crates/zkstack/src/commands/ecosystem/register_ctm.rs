@@ -14,7 +14,10 @@ use zksync_types::H160;
 
 use crate::{
     admin_functions::{AdminScriptOutput, AdminScriptOutputInner},
-    commands::{chain::utils::display_admin_script_output, ctm::args::RegisterCTMArgs},
+    commands::{
+        chain::utils::display_admin_script_output,
+        ecosystem::args::register_new_ctm::RegisterCTMArgs,
+    },
     messages::MSG_REGISTERING_CTM,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };

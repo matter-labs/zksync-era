@@ -8,6 +8,7 @@ use crate::{
         change_default::ChangeDefaultChain,
         create::EcosystemCreateArgs,
         init::{EcosystemInitArgs, InitCoreContractsArgs},
+        register_new_ctm::RegisterCTMArgs,
     },
     messages::{MSG_BUILDING_CONTRACTS, MSG_UPDATING_SUBMODULES_SPINNER},
 };
@@ -20,6 +21,7 @@ mod create;
 pub mod create_configs;
 pub(crate) mod init;
 pub(crate) mod init_core_contracts;
+pub(crate) mod register_ctm;
 pub(crate) mod setup_observability;
 
 #[derive(Subcommand, Debug)]
@@ -42,6 +44,8 @@ pub enum EcosystemCommands {
     /// downloading Grafana dashboards from the era-observability repo
     #[command(alias = "obs")]
     SetupObservability,
+    /// Register a new CTM on an existing BridgeHub
+    RegisterCTM(RegisterCTMArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -69,6 +73,7 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::InitCoreContracts(args) => init_core_contracts::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
+        EcosystemCommands::RegisterCTM(args) => register_ctm::run(args, shell).await,
     }
 }
 
@@ -81,6 +86,7 @@ impl EcosystemCommands {
             EcosystemCommands::BuildTransactions(args) => args.common.update_submodules,
             EcosystemCommands::Init(args) => args.common.update_submodules,
             EcosystemCommands::InitCoreContracts(args) => args.common.update_submodules,
+            EcosystemCommands::RegisterCTM(args) => args.common.update_submodules,
         }
     }
 
@@ -96,6 +102,7 @@ impl EcosystemCommands {
             EcosystemCommands::InitCoreContracts(args) => {
                 !args.common.skip_contract_compilation_override
             }
+            EcosystemCommands::RegisterCTM(args) => !args.common.skip_contract_compilation_override,
         }
     }
 
@@ -107,6 +114,7 @@ impl EcosystemCommands {
             EcosystemCommands::BuildTransactions(args) => args.common.zksync_os,
             EcosystemCommands::Init(args) => args.common.zksync_os,
             EcosystemCommands::InitCoreContracts(args) => args.common.zksync_os,
+            EcosystemCommands::RegisterCTM(args) => args.common.zksync_os,
         }
     }
 }

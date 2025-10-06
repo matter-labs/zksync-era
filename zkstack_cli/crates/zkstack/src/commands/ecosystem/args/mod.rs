@@ -4,3 +4,4 @@ pub(crate) mod common;
 pub mod create;
 pub mod gateway_upgrade;
 pub mod init;
+pub mod register_new_ctm;
