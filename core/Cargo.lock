@@ -6573,6 +6573,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "local_blobs_dump"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.23",
+ "hex",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_l1_recovery",
+ "zksync_object_store",
+ "zksync_types",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"

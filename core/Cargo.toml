@@ -13,6 +13,7 @@ members = [
   "bin/zksync_server",
   "bin/genesis_generator",
   "bin/zksync_tee_prover",
+  "bin/local_blobs_dump",
   # Node services
   "node/jemalloc",
   "node/proof_data_handler",
@@ -360,3 +361,4 @@ zksync_base_token_adjuster = { version = "29.4.1-non-semver-compat", path = "nod
 zksync_logs_bloom_backfill = { version = "29.4.1-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "29.4.1-non-semver-compat", path = "node/gateway_migrator" }
 zksync_l1_recovery = { version = "29.4.1-non-semver-compat", path = "node/l1_recovery" }
+local_blobs_dump = { version = "29.4.1-non-semver-compat", path = "bin/local_blobs_dump" }

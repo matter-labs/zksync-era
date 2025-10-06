@@ -2,7 +2,11 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::Parser;
-use zksync_core_leftovers::temp_config_store::read_yaml_repr;
+use zksync_config::{
+    configs::{GeneralConfig, Secrets},
+    full_config_schema,
+    sources::ConfigFilePaths,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_l1_recovery::{BlobKey, BlobWrapper};
 use zksync_object_store::ObjectStoreFactory;
@@ -20,23 +24,28 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opts = Cli::parse();
-    let secrets_config =
-        read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&opts.secrets_path)
-            .context("failed decoding secrets YAML config")?;
-    let database_secrets = secrets_config
-        .database
-        .clone()
-        .context("Failed to find database config")?;
+    let opt = Cli::parse();
+
+    let schema = full_config_schema();
+
+    let config_file_paths = ConfigFilePaths {
+        general: Some(opt.config_path),
+        secrets: Some(opt.secrets_path),
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+    let mut repo = config_sources.build_repository(&schema);
+    repo.capture_parsed_params();
+    let general_config: GeneralConfig = repo.parse()?;
+    let secrets_config: Secrets = repo.parse()?;
+
+    let database_secrets = secrets_config.postgres.clone();
 
     let connection_pool = ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
 
-    let general_config =
-        read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&opts.config_path)
-            .context("failed decoding general YAML config")?;
     let object_store_config = general_config
         .snapshot_recovery
         .unwrap()
