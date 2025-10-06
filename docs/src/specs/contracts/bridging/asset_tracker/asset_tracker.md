@@ -115,7 +115,7 @@ Similarly to how it was done before, when a deposit of `assetId` to `chainId` is
 
 > Note, that to avoid any sort of edge cases related to chain migration, we assume that each deposit is always fully processed on the settlement layer, i.e. a chain can only have a message for success or failure of a deposit when settling on top of Gateway only if this deposit was initiated settled on Gateway too and as a result when through `GWAssetTracker` (more on it later). Note, that we can not assume the contrary: a malicious chain MAY publish an arbitrary message when settling failed depoist/successful deposit on L1, since L1AssetTracker does not check contents of the message.
 
-When chain migrates on top of GW, it needs to "give" some of its balance for internal usage of Gateway. More on the migration process will be described later (TODO), but basically a chain can tell that a certain amount of funds inside the `chainBalance` is still "active", i.e. maintained within the chain and so can be used for future interop/withdrawals etc.
+When chain migrates on top of GW, it needs to "give" some of its balance for internal usage of Gateway. More on the migration process will be described [here](#migrating-and-settling-on-gateway), but basically a chain can tell that a certain amount of funds inside the `chainBalance` is still "active", i.e. maintained within the chain and so can be used for future interop/withdrawals etc.
 
 If a chain is malicious it can provide an incorrect value of "active" balance, but it will only affect this chain:
 - If chain keeps too much `chainBalance` for itself instead of giving it to its new settlement layer, it will miss out on interop/potenitally wont be able to settle correctly if it spends too much.
@@ -123,7 +123,7 @@ If a chain is malicious it can provide an incorrect value of "active" balance, b
 
 When a chain migrates back to L1, GW can provide the amount of funds that the chain had at the time of the migration and so all these funds will be moved to the L1 `chainBalance` of the chain. In this case, the chain trusts the settlement layer to provide the correct value.
 
-More on the processes above will be explained in the migration section (TODO).
+More on the processes above will be explained in the migration section [here](#migrating-and-settling-on-gateway).
 
 #### Total sum invariant
 
@@ -147,14 +147,14 @@ On `L1AssetTracker`:
 On `GWAssetTracker` for each `assetId` the sum of `chainBalance[chainId][assetId]` over all `chainId` is less than or equal to `L1AssetTracker.chainBalance[gw_chain_id][assetId]`. This is enforced by the following:
 - All `chainBalance` start with 0. 
 - When chains do interops, they do not change the sum of `chainBalance[chainId][assetId]`.
-- The only way the sum of `chainBalance[chainId][assetId]` for a certain asset can be increased is when a deposit happens or a chain migrates it balance (TODO: link), i.e. the chain needs to "give" the same portion of its L1 chain balance to ZK Gateway.
+- The only way the sum of `chainBalance[chainId][assetId]` for a certain asset can be increased is when a deposit happens or a chain migrates it balance [here](#migrating-to-gateway), i.e. the chain needs to "give" the same portion of its L1 chain balance to ZK Gateway.
 
 `L2AssetTracker`'s job is to ensure that a malicious user or token can not cause the chain to fail to settle. For example, if a bad token allows sending multiple interops of `2^256-1` units of the same token, then the chain would violate the invariant (it would be caught inside `GWAssetTracker`) and so would fail to settle. On `L2AssetTracker`:
 - `chainBalance[chainId][assetId]` is tracked only for balances of native assets for the current chain. These start from `2^256-1` and then get reduced with each outbound transaction or increased with inbound transaction. This way, even if a token is malicious, it can not withdraw more than `2^256-1`, ensuring that chain always settles.
 
 #### Migration of pre-v30 past chain balances
 
-The invariants above are very easy to hold for post-v30 tokens. However those that were present before v30, the process is a bit harder. The process of the v30 upgrade is described here (TODO: link).
+The invariants above are very easy to hold for post-v30 tokens. However those that were present before v30, the process is a bit harder. The process of the v30 upgrade is described [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md).
 
 ### Gateway asset tracker
 
@@ -200,7 +200,7 @@ These L1->GW->L2 deposits might fail. This is handled on the L1 and on GW.
 
 Note, that to ensure that the logic above is always secure, `GWAssetTracker` is also responsible for maintaining an invariant that all deposits that were submitted when the chain was settling on top of ZK Gateway must be processed *before* the chain tries to leave Gateway.
 
-This way, if a deposit failed, the ZK Gateway knows that it should keep enough funds to serve all these potential failed withdrawals when a chain will try to move out from ZK Gateway. (TODO: double check the comments on the PR)
+This way, if a deposit failed, the ZK Gateway knows that it should keep enough funds to serve all these potential failed withdrawals when a chain will try to move out from ZK Gateway.
 
 #### Withdrawals
 
@@ -245,7 +245,7 @@ On Gateway all withdrawals are processed in the `processLogsAndMessages` functio
 
 #### Disabling deposits during migrations
 
-Let's recall the deposit invariant from here (TODO: link): all deposits that go through GW must be fully processed inside of it: they should be initiated when chain settles there and should be processed inside batches while chain settles there.
+Let's recall the deposit invariant from [here](#failed-deposits): all deposits that go through GW must be fully processed inside of it: they should be initiated when chain settles there and should be processed inside batches while chain settles there.
 
 It is forced inside `GWAssetTracker` and every deposit that the chain processed inside the batch must've went through GW first. So if a chain accidentally has a deposit unexecuted on L1 and needs to settle on GW, it wont be able to do so. It is the job of the chain's implementation (done inside `AdminFacet.forwardedBridgeBurn`) to ensure that.
 
@@ -254,8 +254,6 @@ It is forced inside `GWAssetTracker` and every deposit that the chain processed 
 But the above means that if a chain is permissionless, users could DDoS it with deposits never allowing a chain to actually migrate. To provide a solution suitable for permissionless chains, we added the ability to temporarily disable all incoming priority transactions: `AdminFacet.pauseDepositsAndInitiateMigration`.
 
 This solution works even for permissionless chains, since it requires a cool off period, i.e. the deposits are paused for `PAUSE_DEPOSITS_TIME_WINDOW_START` but a new freeze can not be enabled sooner than `PAUSE_DEPOSITS_TIME_WINDOW_END`. Currently, `PAUSE_DEPOSITS_TIME_WINDOW_START` is equal to 3.5 days, while `PAUSE_DEPOSITS_TIME_WINDOW_END` is equal to 7 days.
-
-TODO: maybe ask Vlad for stage1 alignment + the current process seems too ddosable by service transactions
 
 #### Replay protection and edge cases with messaging
 
@@ -308,7 +306,7 @@ Withdrawals are always initiated from L1Nullifier (there are also some legacy me
 
 To get the chain id of the settlement layer for a particular withdrawal (or claimed deposit), we look at the proof for the message. You can read more about its recursive format [here](../../interop/message_root.md#proving-that-a-message-belongs-to-a-messageroot), but in a nutshell, a proof is a recursive structure that starts from the L2 chain's tree root and then (if chain settled on top of some Gateway), it ends with the GW's tree.
 
-If the proof is of depth 1, i.e. it does not have any recursion, it means that the withdrawal belonged to the chain. If not, the withdrawal belonged to its settlement layer (the only exception is based on v30 upgrade, you can read more about in the sections above TODO). We ensure that all proofs have depth at most 2.
+If the proof is of depth 1, i.e. it does not have any recursion, it means that the withdrawal belonged to the chain. If not, the withdrawal belonged to its settlement layer (the only exception is based on v30 upgrade, you can read more about in the sections above [here](#invariants-on-l1)). We ensure that all proofs have depth at most 2.
 
 After verifying the correctness of the message, `L1Nullifier` stores inside `TRANSIENT_SETTLEMENT_LAYER_SLOT` and `TRANSIENT_SETTLEMENT_LAYER_SLOT+1` the settlement layer at the time of withdrawal and the batch number when withdrawal happened (the batch number would be needed for the checks against the time when the chain upgraded to v30).
 
@@ -336,7 +334,7 @@ With regards to L1AssetRouter, the process of claiming failed deposits is extrem
 
 As discussed previously in the section about sum invariants ([see here](#total-sum-invariant)), to ensure that that sum of chainBalances for each asset is lower than `2^256-1`, all chain balances must originate from L1 (starting from `2^256-1` for origin chain at the start the first time). We will refer to the process of initializing the token's chainBalances for the first as "registration".
 
-Note, that for this section we will only consider tokens that are interacted with for the first time starting from v30. To explore what the migration for pre-v30 assets looks like, check out the doc (TODO: upgrade doc link).
+Note, that for this section we will only consider tokens that are interacted with for the first time starting from v30. To explore what the migration for pre-v30 assets looks like, check out the doc [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md).
 
 When a token is bridged for the first time, `registerNewToken` function is called, it would assign the max balance to the origin chain of the token. This function is only used in `L1AssetTracker` and `L2AssetTracker` (not `GWAssetTracker` TODO please check with Kalman).
 
