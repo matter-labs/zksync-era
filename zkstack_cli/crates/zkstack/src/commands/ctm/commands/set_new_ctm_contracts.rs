@@ -28,6 +28,10 @@ pub fn set_new_ctm_contracts(
     default_configs_path: PathBuf,
     zksync_os: bool,
 ) -> anyhow::Result<EcosystemConfig> {
+    logger::info(format!(
+        "Setting new CTM contracts source path to: {}",
+        contracts_path.display()
+    ));
     if !contracts_path.exists() || !contracts_path.is_dir() {
         return Err(anyhow::anyhow!(MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR));
     }

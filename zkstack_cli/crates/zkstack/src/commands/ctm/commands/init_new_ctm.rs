@@ -74,10 +74,14 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     if args.common.update_submodules {
+        // Update submodules to make sure we have the latest code.
+        logger::info("Updating submodules to the latest version...");
         git::submodule_update(shell, &ecosystem_config.link_to_code())?;
     }
     if !args.common.skip_contract_compilation_override {
+        let spinner = Spinner::new("Building contracts...");
         rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+        spinner.finish();
     }
 
     let contracts = deploy_new_ctm_and_accept_admin(
@@ -108,7 +112,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     zksync_os: bool,
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
-    let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
+    let spinner = Spinner::new("Deploying new CTM contracts...");
     let contracts_config = deploy_new_ctm(
         shell,
         forge_args,
