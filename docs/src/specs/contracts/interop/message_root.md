@@ -35,7 +35,9 @@ Note that the `MessageRoot` appears twice in the structure. So the structure is 
 
 At the end of each batch, the `L1Messenger` system contract would query the `MessageRoot` contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s, which is the `sharedTree` root, the upmost node of the `MessageRoot` on the chain), calculate the `LocalLogsRoot` itself, and finally calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, AggregatedRootHash)` and propagate it to the settlement layer. We store `ChainBatchRoot` for each executed batch on settlement layer.
 
-When a ZKsync chain's batch gets executed on the settlement layer, the chain calls the `L2AssetRouter.processLogsAndMessages` function, processing all the messages within the batch (see the flow [here](../bridging/asset_tracker/asset_tracker.md#settlement-of-chains-and-interop)). After all the checks are done, the `BatchRootLeaf` will be calculated and appended to the incremental Merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the Merkle tree of `ChainIdLeaf`s.
+When a ZKsync chain's batch gets executed on the settlement layer, the chain calls the `GWAssetRouter.processLogsAndMessages` function, processing all the messages within the batch (see the flow [here](../bridging/asset_tracker/asset_tracker.md#settlement-of-chains-and-interop)). After all the checks are done, the `BatchRootLeaf` will be calculated and appended to the incremental Merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the Merkle tree of `ChainIdLeaf`s. 
+
+Note, that the above only happens on Gateway. On L1, chains can append hashes of their batches without any additional checks. The `L1MessageRoot` contract serves mainly as a source of truth for appended batches' data.
 
 ## Proving that a message belongs to a MessageRoot
 

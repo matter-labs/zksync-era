@@ -14,6 +14,7 @@ The `AssetTracker` is the main component that is used to ensure that even if a m
 ## Security assumptions
 
 - All settlement layers are whitelisted and completely trusted: they are controlled by the decentralized governance and sufficient monitoring and defense in depth mechanisms ensure that their proof system will not be exploited.
+- What's more, until stage1 is reached, it is chains that migrate on top of Gateway assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time.
 
 > In the future, we want to allow untrusted settlement layers, however the scope of this release includes only trusted settlement layers. Any places that disallow it for now should be clearly marked with comments in the codebase.
 
@@ -34,7 +35,9 @@ At the moment of the upgrade we will demand that all chains have migrated to L1,
 - A new ZKsync OS powered settlement layer may be added. The transfer of control to decentralized governance is a prerequisite before the creation of such a settlement layer, i.e. then this settlement layer will also be completely trusted, but also ZKsync OS chains will be able to become "ZK compromised" at most. Note, that the transfer of the ownership to governance is a prerequisite for ZKsync OS based settlement layer, not v30 upgrade in general.
 - Chains can only migrate between L1 and ZK Gateway that belongs to their CTM (i.e. Era chains wont be able to migrate to ZKsync OS settlement layer and vice versa).
 
-> Future compatibility note 1. In the future we want to allow Era-based chains to migrate on top of ZKsync OS powered Gateway. The codebase should be ready for it in general. Any places that disallow it for now should be clearly marked in the codebase.
+> Future compatibility note 1. In the future we want to allow Era-based chains to migrate on top of ZKsync OS powered Gateway. The codebase should be ready for it in general. Any places that disallow it for now should be clearly marked in the codebase or documentation.
+
+TODO: talk about balance migration
 
 > Future compatibility note 2. In the future we would want to support chains from untrusted, potentially completely malicious CTMs settling on top of ZKsync OS powered Gateway. Any places that disallow it for now should be clearly marked in the codebase. 
 
@@ -104,16 +107,14 @@ Overall, the algorithm for determining whether to reduce the chain balance shoul
     2b. If the batch is after the chain upgraded to v30, the settlement layer's balance is reduced.
 ```
 
-Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessagThis is ensured inside MessageRoot (see [v30UpgradeChainBatchNumber](../../interop/message_root.md#v30upgradechainbatchnumber)):
+Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessageRoot (see [v30UpgradeChainBatchNumber](../../interop/message_root.md#v30upgradechainbatchnumber)):
  - Additionally we also assume that chains that have non-zero v30 upgrade batch number while settling on top of a ZK Gateway, belong to a CTM controlled by the decentralized governance (either Era CTM or ZKsync OS CTM after the ownership migration). For all the other CTMs, when a chain will be spawned, its "v30 upgrade batch number" will be started from 0.
 
 Also, this relies on the fact that message verification needs to always happen against the root of GW that was submitted on L1, basically to ensure that the "Gateway" approved this messages and checked via `GWAssetTracker` that it was correct.
 
-The above ensures that settlement layer has the ability to process interop internally, but also it puts heavy responsibility on it to ensure that each chain only does withdrawals/interops that do not exceed their "true" balance. 
+The above ensures that settlement layer has the ability to process interop internally, but also it puts heavy responsibility on it to ensure that each chain only does withdrawals/interops that do not exceed their "true" balance.
 
 Similarly to how it was done before, when a deposit of `assetId` to `chainId` is done, we attribute the balance to the `chainBalance` of either the chain itself (if it settles on L1) or its settlement layer (if it settles on top of it). More on the process of deposits when a chain settles on top of a settlement layer is explained [here](#deposits-through-gateway).
-
-> Note, that to avoid any sort of edge cases related to chain migration, we assume that each deposit is always fully processed on the settlement layer, i.e. a chain can only have a message for success or failure of a deposit when settling on top of Gateway only if this deposit was initiated settled on Gateway too and as a result when through `GWAssetTracker` (more on it later). Note, that we can not assume the contrary: a malicious chain MAY publish an arbitrary message when settling failed depoist/successful deposit on L1, since L1AssetTracker does not check contents of the message.
 
 When chain migrates on top of GW, it needs to "give" some of its balance for internal usage of Gateway. More on the migration process will be described [here](#migrating-and-settling-on-gateway), but basically a chain can tell that a certain amount of funds inside the `chainBalance` is still "active", i.e. maintained within the chain and so can be used for future interop/withdrawals etc.
 
@@ -141,12 +142,12 @@ To prevent the issue from above, we want to ensure that overflows never happen. 
 This invariant is held by tracking `chainBalance` for every chain, including the origin chain for the token, so it is possible that even an origin chain runs out of tokens.
 
 On `L1AssetTracker`:
-- All `chainBalance` start with 0. When a token is withdrawn/deposited for the first time (i.e. registered), the `chainBalance` for the responsible chain (either the origin chain or its current settlement layer) it set to `type(uint256).max`.
+- All `chainBalance` start with 0. When a token is withdrawn/deposited for the first time (i.e. registered), the `chainBalance` for the origin chain is set to `type(uint256).max`.
 - Note, that `chainBalance` is tracked even for tokens whose origin is L1, i.e. their `chainBalance[l1_chain_id][assetId]` starts from the maximal value when it is deposited for the first time.
 
 On `GWAssetTracker` for each `assetId` the sum of `chainBalance[chainId][assetId]` over all `chainId` is less than or equal to `L1AssetTracker.chainBalance[gw_chain_id][assetId]`. This is enforced by the following:
 - All `chainBalance` start with 0. 
-- When chains do interops, they do not change the sum of `chainBalance[chainId][assetId]`.
+- When chains do interops, they do not change the sum of `chainBalance[chainId][assetId]` (when a chain claims interop, it receives the same funds as the ones that were removed when the interop was sent).
 - The only way the sum of `chainBalance[chainId][assetId]` for a certain asset can be increased is when a deposit happens or a chain migrates it balance [here](#migrating-to-gateway), i.e. the chain needs to "give" the same portion of its L1 chain balance to ZK Gateway.
 
 `L2AssetTracker`'s job is to ensure that a malicious user or token can not cause the chain to fail to settle. For example, if a bad token allows sending multiple interops of `2^256-1` units of the same token, then the chain would violate the invariant (it would be caught inside `GWAssetTracker`) and so would fail to settle. On `L2AssetTracker`:
@@ -160,9 +161,15 @@ The invariants above are very easy to hold for post-v30 tokens. However those th
 
 #### Settlement of chains and interop
 
-As previously mentioned, for security reasons, we want to ensure that it is enforced by the system that every interop transaction that is added to the shared tree is backed up by the necessary amount of tokens. Also, note that ZK Gateway is responsible for any withdrawals that chains perform on top of it. 
+As previously mentioned, for security reasons, we want to ensure that it is enforced by the system that every interop transaction that is added to the shared tree is backed up by the necessary amount of tokens. Also, note that ZK Gateway is responsible for any withdrawals that chains perform on top of it.
 
 Thus, to ensure that chains always consume only the balance they have and interop is safe, we will have to parse every single message that the chain sends. This means we have to parse all `L2toL1` logs, and if the sender is the `interopCenter` parse the message, and update the `chainBalance` of both the sender and recipient on the settlement layer.
+
+Note, that when a chain sends interop, the sender chains' balance is decreased immediately, while the balance of the recipient chain is not increased right after the call. The expected balance changed is stored in the `interopBalanceChange` mapping. When the chain accepts the deposit and claims the interop, it must send a `verifyBundle` message to L1, the GW asset tracker will intercept it and mint the corresponding funds for the chain.
+
+The above procedure is needed to ensure that the balance that is maintained within `GWAssetTracker` is in sync with the in `L2AssetTracker`. It allows to ensure that in the future ifz the chain for some reason migrates from ZK Gateway, the balance that will be migrated from Gateway to L1 will contain exactly the balance that the chain has access to. You can read about the migration process [here](#migrating-and-settling-on-gateway). 
+
+TODO: do we have anything that prevents `verifyBundle` from being claimed twice inside the code.
 
 On GW we process all incoming and outgoing messages to chains. L1->L2 messages are processed as they are sent through the Gateway, and L2->L1 messages are processed together with L2->L2 messages in the `processLogsAndMessages` function.
 
@@ -198,9 +205,9 @@ These L1->GW->L2 deposits might fail. This is handled on the L1 and on GW.
 - On L1, when the user proves the `failedDeposit`, the balance is subtracted from the Gateway's `chainBalance`.
 - On GW the chain's `chainBalance` is decreased, when the chain executes its batch, and calls the `processLogsAndMessages` function. Each failed L1->L2 transaction produces a L2->L1 message, which we can verify in `processLogsAndMessages`. To know the balance change for the specific L1->L2 transaction, we save the balance change in the `forwardTransactionOnGatewayWithBalanceChange` function call.
 
-Note, that to ensure that the logic above is always secure, `GWAssetTracker` is also responsible for maintaining an invariant that all deposits that were submitted when the chain was settling on top of ZK Gateway must be processed *before* the chain tries to leave Gateway.
-
 This way, if a deposit failed, the ZK Gateway knows that it should keep enough funds to serve all these potential failed withdrawals when a chain will try to move out from ZK Gateway.
+
+Note, that Gateway can only process a deposit only when this deposit went through Gateway. It is the responsibility of the chain to ensure that when it migrates to Gateway, it has not outstanding priority transactions. It is current checked inside `AdminFacet.forwardedBridgeBurn`.
 
 #### Withdrawals
 
@@ -239,29 +246,43 @@ In order for information to flow smoothly, migrating to the Gateway has the foll
 
 On Gateway all withdrawals are processed in the `processLogsAndMessages` function. This means that the `chainBalance` mapping will match the totalSupply of the token on the chain. This means that the whole balance of the chain can be migrated to L1. The steps are accordingly:
 
-- The migration is initiated on the Gateway via `GWAssetTracker.initiateGatewayToL1MigrationOnGateway` function, the balance is decreased to zero and sent to L1.
+- The migration is initiated on the Gateway via `GWAssetTracker.initiateGatewayToL1MigrationOnGateway` function, the balance is balance to be migrated is sent back to L1.
 - The `L1AssetTracker` will receive the message and increase the `chainBalance` of the Chain and decrease the balance of the Gateway.
-- A message is sent to the L2 to increase the migration number of the token.
+- A message is sent to the L2 to increase the migration number of the token as well as to Gateway to decrease the chain balance of the chain.
+
+It is also worth getting into details of the implementation for the migration. Our initial intent is to ensure that the migration could support chain migrating from and to GW multiple times, so the following scheme is applied:
+
+- When a chain settles with migration number `N`, we remember its balance for a certain asset at the moment `N-1` (this usually happens when we migrate away from the chain for the first time).
+- When we migrate the balance from GW to L1, we provide the latest chain's saved balance as well as the `assetMigrationNumber` under which this balance is applied to L1.
+- On L1 we check that the `assetMigrationNumber` is exactly the same as on GW and then we process the withdrawal. 
+
+The approach from above relies on the following:
+1. All assignments to `assetMigrationNumber` happen through L1, i.e. all token migrations go through L1 and then are assigned to GW (and obviously those are unfallible due to being service transactions).
+2. Since `assetMigrationNumber` always goes up from such operations, the transactions are not replayable.
+3. Also, our implementation assumes that there is only one ZK Gateway that the chain can go to, so `assetMigrationNumber` being odd just means that it was fully migrated to ZK Gateway and it being even means that at least one migration from ZK Gateway happened before.
+4. It is also important to note, that our current implementation heavily relies on the fact, that **No L1->L2 transactions can happen when L2's migration is in intermediate state**: when the chain migrates to GW, but the GW has not yet processed the migration or when it migrates to L1, but L1 has not yet processed the migration. We will explore this assumption more in the following [sections](#disabling-deposits-during-migrations).
+
+> Note, that the first assumption is not exactly correct. We allow assigning `assetMigrationNumber` is a token is deposited for the first time inside Gateway. This is neded for better UX. However, this makes the implementation in its current form not viable for multiple migrations from L1 and L2. Thus, we require that the `chainMigrationNumber` can not be higher than 2, i.e. after a chain has successfully returned to L1, it can no longer go back to ZK Gateway. To accomodate for this restriction, we actually dont require that `readAssetMigrationNumber == data.assetMigrationNumber` on L1, we also allow `readAssetMigrationNumber + 1 == data.assetMigrationNumber`, when the assetMigrationNumber on L1 is 0, while `data.assetMigrationNumber` is 1.
 
 #### Disabling deposits during migrations
 
-Let's recall the deposit invariant from [here](#failed-deposits): all deposits that go through GW must be fully processed inside of it: they should be initiated when chain settles there and should be processed inside batches while chain settles there.
+Let's recall the deposit invariant from [here](#failed-deposits): all deposits that are processed when the chain settles on  GW must be fully processed inside of it: they should be initiated when chain settles there as otherwise the chain would not be able to process failed deposit notifications.
 
 It is forced inside `GWAssetTracker` and every deposit that the chain processed inside the batch must've went through GW first. So if a chain accidentally has a deposit unexecuted on L1 and needs to settle on GW, it wont be able to do so. It is the job of the chain's implementation (done inside `AdminFacet.forwardedBridgeBurn`) to ensure that.
 
-`GWAssetTracker` also forces on its own that every deposit that went through GW has been processed there as well.
+But the above means that if a chain is permissionless, users could DDoS it with deposits never allowing a chain to actually migrate. To provide a solution suitable for permissionless chains, we added the ability to temporarily disable all incoming priority transactions: `AdminFacet.pauseDepositsBeforeInitiatingMigration`.
 
-But the above means that if a chain is permissionless, users could DDoS it with deposits never allowing a chain to actually migrate. To provide a solution suitable for permissionless chains, we added the ability to temporarily disable all incoming priority transactions: `AdminFacet.pauseDepositsAndInitiateMigration`.
+This solution works even for permissionless chains, since it requires a grace period, i.e. the users are firstly notified 3.5 days in advance that the deposits are soon to be paused, and only then the deposits can be turned off for 3.5 days only.
 
-This solution works even for permissionless chains, since it requires a cool off period, i.e. the deposits are paused for `PAUSE_DEPOSITS_TIME_WINDOW_START` but a new freeze can not be enabled sooner than `PAUSE_DEPOSITS_TIME_WINDOW_END`. Currently, `PAUSE_DEPOSITS_TIME_WINDOW_START` is equal to 3.5 days, while `PAUSE_DEPOSITS_TIME_WINDOW_END` is equal to 7 days.
+Note, that for better UX the chain admin is allowed to turn on the deposits sooner, however it is risky: the current processing of balances for the purpose of [future migration on L1](#migration-from-gateway) heavily rely on the fact that during both migration to L1 and to GW no deposits are incoming. 
+
+> TODO (not implemented yet): we should implement a way to ensure that chains even with untrusted admin can not accidentally receive deposits during migration to or from Gateway. 
 
 #### Replay protection and edge cases with messaging
 
 Our L2->L1 (or GW->L1) messages are valid in perpetuity. Typically, for actions like token withdrawals, we used `L1Nullifier` contract to store the nullifier that ensures that the same message can not be replayed twice.
 
 However, for migration-related messages for the ease of implementation we used the `migrationNumber` and `assetMigrationNumber`: An asset-migrating message can be only processed on L1 once, since to process it, the carried `migrationNumber` needs to be greater than the current `assetMigrationNumber`.
-
-TODO: the current system allows for some of the old token withdrawals to never get finalized, this is bad, we'll have to rework it.
 
 #### Recovering from missed migrations
 
@@ -272,9 +293,11 @@ What happens if one did not migrate a tokens' balance?
 
 The above are just standard scenarios during migration, but what happens if e.g. a chain migrates to L1, does not finalize migration for the asset and then migrates back to Gateway?
 
-For GW->L1 token balance migrations, we always migrate all the funds, reducing the Gateway chainBalance to zero, independently of how many migrations we missed. 
+For GW->L1 token balance migrations, we always migrate all the funds, reducing the Gateway chainBalance to zero, independently of how many migrations we missed. Note, that if a chain settled on GW multiple times, multiple GW->L1 could be sent and still be valid. This is handled by using `assetMigrationNumber` as a replay protection. After a single of the old balance migrations is processed, we can always re-try to send the rest of the funds. You can read about the principles of funds migration to L1 [here](#migration-from-gateway).  
 
 For L1->GW token balance migration we need to ensure that all the balance have been moved from ZK Gateway. This is enforced inside `L1AssetTracker`. This is needed for simplicity since `L2AssetTracker` does not know which funds are still left on Gateway and which ones are on L1 already. So we always demand that `assetMigrationNumber` is even, i.e. the migration to L1 has been complete and the chain balance of GW is zero (except for tokens that it needs for pending withdrawals).
+
+> Note, that with the current approach "parity" means that that the funds were moved to the Gateway only because the chains can only migrate to ZK Gateway once. 
 
 ### Deposit flow with L1AssetTracker
 
@@ -294,9 +317,7 @@ Firstly, it is important to note that in the current implementation, we trust th
 
 Next, it is important to discuss the edge cases around the transient storage. To avoid any double spending, the only way to read the transient values is to irreversibly consume them once. So regardless of any actions of malicious actors, a single balance increase will only be relayed to GW only once. From this invariant we know that the sum of chainbalances inside GW will never exceed GW's balance on L1.
 
-However, the above opens doors for another potential error: someone maliciosuly consuming the variable for the chain. To prevent this, only whitelisted settlement layers are allowed to consume the balance. A second potential issue is overwrites: someone could overwrite the variable, but reentering and trying to make the deposit twice.
-
-TODO: explain how we combat overwrites, today it is a "require", but it does not work with l2 bridges deposits. 
+However, the above opens doors for another potential error: someone maliciosuly consuming the variable for the chain. To prevent this, only whitelisted settlement layers are allowed to consume the balance. A second potential issue is overwrites: someone could overwrite the variable, but reentering and trying to make the deposit twice. This is prohibited since we use a `require` to ensure that the values are 0 (i.e. either unset or consumed) before new ones could be used.
 
 ### Withdrawal flow with L1AssetTracker
 
@@ -336,37 +357,21 @@ As discussed previously in the section about sum invariants ([see here](#total-s
 
 Note, that for this section we will only consider tokens that are interacted with for the first time starting from v30. To explore what the migration for pre-v30 assets looks like, check out the doc [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md).
 
-When a token is bridged for the first time, `registerNewToken` function is called, it would assign the max balance to the origin chain of the token. This function is only used in `L1AssetTracker` and `L2AssetTracker` (not `GWAssetTracker` TODO please check with Kalman).
+When a token is bridged for the first time, `registerNewToken` function is called, it would assign the max balance to the origin chain of the token. This function is only used in `L1AssetTracker` and `L2AssetTracker`.
 
 #### L1AssetTracker
 
-There are 3 ways how a token is registered on L1AssetRouter:
+There are 2 ways how a token is registered on L1AssetRouter:
 - For the first time through deposit. This is applicable for L1 native assets, these are only ones for which the first time of registration is deposit, during which `chainBalance[block.chainid][assetId]` is assigned to the maximal value (reduced by the deposited amount of course). 
 - For the first time through withdrawals. This provides nice UX for L2-native assets that are withdrawn for the first time.
-- `registerL2NativeToken`. We will talk about the use case for it later in this section.
 
-> TODO: `registerL2NativeToken` is to be removed, this section has to be re-written
-
-The first two approaches work fine for chains that only settle on top of L1. However, chains may settle on top of a ZK Gateway. To use a token inside ZK Gateway, it needs its balance reflected inside ZK Gateway's chain balance. 
-
-Usually, for a token that has been already registered on L1, we would've just used the standard procedure of balance migrations from L1 to Gateway (TODO: link). So in theory the following could be done for a token:
-- Withdrawal of 0 tokens (to formally register it on L1).
-- Chain balance migration to GW (to ensure that GW recognizes its balance).
-
-However, the above flow means that the chain would have to wait 3 hours of the timelock (TODO: link) before settling on L1. Even if the timelock is removed, the waiting time would still be bound by proving and full finalization of GW batches on L1. To provide a much better UX, we introduced a new function: `registerL2NativeToken`:
-- It will ensure that the token is registered for the first time and assign the balance on L1 directly to the ZK Gateway and send confirmation to both ZK Gateway and the chain itself. 
-
-This way, the chain only needs to wait for the L1->GW and L1->GW->L2 tx to get processed, which makes the process a lot faster.
+What if an origin chain for a token tries to settle on ZK Gateway? These chains would have to "migrate" their balance to Gateway in the [usual](#migrating-to-gateway) way. If the origin chain migrates for the first time, the `2^256-1` token balance will be minted for it. The UX consequence of the above is that before an L2-native token can be used for interop, it has to be registered on L1, which require a batch to be full settled on L1.
 
 #### L2AssetTracker
 
-The main job of the L2AssetTracker in this context is to ensure that if a chain settles on top of Gateway, it will not be able to withdraw until its balance has been either migrated (TODO: link) or it has been registered via the `registerL2NativeToken` explained above.
+The main job of the L2AssetTracker in this context is to ensure that if a chain settles on top of Gateway, it will not be able to withdraw until its balance has been either [migrated](#migrating-to-gateway) or it has been registered via the `registerL2NativeToken` explained above.
 
 It is done by comparing `assetMigrationNumber` of the asset with the chain migration number and if those dont coincide, then not allowing to migrate.
-
-TODO: currently one can register l2 token + finalize withdrawal at the same time, while breaking the invariant.
-
-TODO: check that L2AssetTracker wont actually allow to withdraw such token.
 
 <!-- ## How full ZK IP could look like with the same user interface (+ migration) could look like
 
