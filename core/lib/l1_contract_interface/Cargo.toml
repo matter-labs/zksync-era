@@ -13,6 +13,7 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 zksync_prover_interface.workspace = true
+zksync_contracts.workspace = true
 
 # Used to serialize proof data
 crypto_codegen.workspace = true

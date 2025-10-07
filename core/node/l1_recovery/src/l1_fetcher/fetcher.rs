@@ -15,7 +15,11 @@ use zksync_basic_types::{
     web3::{BlockId, BlockNumber, FilterBuilder, Log, Transaction},
     Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
 };
-use zksync_contracts::{hyperchain_contract, BaseSystemContractsHashes};
+use zksync_contracts::{
+    hyperchain_contract, BaseSystemContractsHashes, POST_BOOJUM_COMMIT_FUNCTION,
+    POST_SHARED_BRIDGE_COMMIT_FUNCTION, POST_V26_GATEWAY_COMMIT_FUNCTION,
+    PRE_BOOJUM_COMMIT_FUNCTION,
+};
 use zksync_eth_client::{CallFunctionArgs, ClientError, EthInterface};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
@@ -110,7 +114,10 @@ impl L1Fetcher {
     fn commit_functions() -> Result<Vec<Function>> {
         let contract = Self::hyperchain_contract();
         Ok(vec![
-            contract.functions_by_name("commitBatches").unwrap()[0].clone(),
+            PRE_BOOJUM_COMMIT_FUNCTION.clone(),
+            POST_BOOJUM_COMMIT_FUNCTION.clone(),
+            POST_SHARED_BRIDGE_COMMIT_FUNCTION.clone(),
+            POST_V26_GATEWAY_COMMIT_FUNCTION.clone(),
             contract
                 .functions_by_name("commitBatchesSharedBridge")
                 .unwrap()[0]
@@ -819,8 +826,15 @@ pub async fn parse_last_committed_l1_batch(
         .unwrap();
     let mut parsed_input = commit_fn.decode_input(&calldata[4..]).unwrap();
 
-    let _new_blocks_data = parsed_input.pop().unwrap();
+    // let _new_blocks_data = parsed_input.pop().unwrap();
     let stored_block_info = parsed_input.pop().unwrap();
+    // let decoded = ethabi::decode(
+    //     &[StoredBatchInfo::schema_pre_interop()],
+    //     &stored_block_info
+    // )
+    // .map_err(|e| ParseError::InvalidStoredBlockInfo(e.to_string()))?;
+    // todo!();
+
     Ok(StoredBatchInfo::from_token(stored_block_info).unwrap())
 }
 

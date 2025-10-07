@@ -14253,6 +14253,7 @@ dependencies = [
  "sha2 0.10.8",
  "sha3 0.10.8",
  "tracing",
+ "zksync_contracts",
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",

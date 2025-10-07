@@ -1,9 +1,9 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use std::{mem, time::Duration};
-
 use anyhow::{bail, Context};
+use std::num::NonZeroUsize;
+use std::{mem, time::Duration};
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
@@ -733,12 +733,20 @@ impl MainNodeBuilder {
         kind: LayerKind,
     ) -> anyhow::Result<Self> {
         let eth_watcher_config = try_load_config!(self.configs.eth).watcher;
+        // TODO use proper object store config
+        let object_store_config = self
+            .configs
+            .snapshot_creator
+            .as_ref()
+            .map(|a| a.object_store.clone());
 
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
             l1_recovery_enabled: l1_recovery,
-
+            // TODO handle properly
+            max_postgres_concurrency: NonZeroUsize::new(10).unwrap(),
             event_expiration_blocks: eth_watcher_config.event_expiration_blocks,
+            object_store_config,
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::TaskEndingExecution) {
@@ -774,6 +782,7 @@ impl MainNodeBuilder {
             .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
             .add_healthcheck_layer()?
+            .add_settlement_mode_data()?
             .add_storage_initialization_layer(true, LayerKind::TaskEndingExecution)?;
 
         Ok(self.node.build())
