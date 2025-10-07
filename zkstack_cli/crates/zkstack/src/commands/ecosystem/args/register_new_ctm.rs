@@ -1,7 +1,7 @@
 use clap::Parser;
 use serde::Deserialize;
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 use zksync_types::Address;
 
 use crate::{
@@ -45,7 +45,7 @@ impl RegisterCTMArgs {
         Ok(RegisterCTMArgsFinal {
             l1_rpc_url: common.l1_rpc_url,
             forge_args,
-            zksync_os: common.zksync_os,
+            vm_option: common.vm_option,
             only_save_calldata,
             bridgehub,
             ctm,
@@ -59,6 +59,6 @@ pub struct RegisterCTMArgsFinal {
     pub only_save_calldata: bool,
     pub bridgehub: Option<Address>,
     pub ctm: Option<Address>,
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
     pub l1_rpc_url: String,
 }

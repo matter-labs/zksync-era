@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkstack_cli_types::L1BatchCommitmentMode;
+use zkstack_cli_types::{L1BatchCommitmentMode, VMOption};
 use zksync_basic_types::{L2ChainId, H256};
 
 use crate::{traits::FileConfigTrait, ChainConfig, CoreContractsConfig};
@@ -81,11 +81,11 @@ impl RegisterChainL1Config {
         let initialize_legacy_bridge = chain_config.legacy_bridge.unwrap_or_default();
         let wallets_config = chain_config.get_wallets_config()?;
 
-        let ctm = if chain_config.zksync_os {
-            &contracts.zksync_os_ctm.clone().unwrap()
-        } else {
-            &contracts.era_ctm.clone().unwrap()
+        let ctm = match chain_config.vm_option {
+            VMOption::EraVM => &contracts.era_ctm.clone().unwrap(),
+            VMOption::ZKSyncOsVM => &contracts.era_ctm.clone().unwrap(),
         };
+
         Ok(Self {
             contracts_config: Contracts {
                 diamond_cut_data: ctm.diamond_cut_data.clone(),

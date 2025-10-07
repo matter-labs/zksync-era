@@ -2,6 +2,7 @@ use args::build_transactions::BuildTransactionsArgs;
 use clap::Subcommand;
 use xshell::Shell;
 use zkstack_cli_common::{git, spinner::Spinner};
+use zkstack_cli_types::VMOption;
 
 use crate::{
     commands::ecosystem::args::{
@@ -44,7 +45,7 @@ pub enum EcosystemCommands {
     /// downloading Grafana dashboards from the era-observability repo
     #[command(alias = "obs")]
     SetupObservability,
-    /// Register a new CTM on an existing BridgeHub
+    /// Register a new CTM on an existing BridgeHub. CTM must be already deployed.(ctm init command)
     RegisterCTM(RegisterCTMArgs),
 }
 
@@ -60,7 +61,7 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
             let spinner = Spinner::new(MSG_BUILDING_CONTRACTS);
             zkstack_cli_common::contracts::rebuild_all_contracts(
                 shell,
-                &ecosystem.contracts_path_for_ctm(args.zksync_os()),
+                &ecosystem.contracts_path_for_ctm(args.vm_option()),
             )?;
             spinner.finish();
         }
@@ -106,15 +107,16 @@ impl EcosystemCommands {
         }
     }
 
-    fn zksync_os(&self) -> bool {
+    fn vm_option(&self) -> VMOption {
         match self {
-            EcosystemCommands::Create(_) => false,
-            EcosystemCommands::ChangeDefaultChain(_) => false,
-            EcosystemCommands::SetupObservability => false,
-            EcosystemCommands::BuildTransactions(args) => args.common.zksync_os,
-            EcosystemCommands::Init(args) => args.common.zksync_os,
-            EcosystemCommands::InitCoreContracts(args) => args.common.zksync_os,
-            EcosystemCommands::RegisterCTM(args) => args.common.zksync_os,
+            // For default commands, we use EraVM
+            EcosystemCommands::Create(_) => VMOption::default(),
+            EcosystemCommands::ChangeDefaultChain(_) => VMOption::default(),
+            EcosystemCommands::SetupObservability => VMOption::default(),
+            EcosystemCommands::BuildTransactions(args) => args.common.vm_option(),
+            EcosystemCommands::Init(args) => args.common.vm_option(),
+            EcosystemCommands::InitCoreContracts(args) => args.common.vm_option(),
+            EcosystemCommands::RegisterCTM(args) => args.common.vm_option(),
         }
     }
 }

@@ -3,7 +3,7 @@ use ethers::middleware::Middleware;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger, Prompt};
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 
 use crate::{
     defaults::LOCAL_RPC_URL,
@@ -28,7 +28,7 @@ impl CommonEcosystemArgs {
         l1_network: L1Network,
         dev: bool,
     ) -> anyhow::Result<CommonEcosystemFinalArgs> {
-        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
+        let l1_rpc_url = self.l1_rpc_url.clone().unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
             if dev {
                 return LOCAL_RPC_URL.to_string();
@@ -46,16 +46,25 @@ impl CommonEcosystemArgs {
         });
 
         check_l1_rpc_health(&l1_rpc_url).await?;
+
         Ok(CommonEcosystemFinalArgs {
-            zksync_os: self.zksync_os,
+            vm_option: self.vm_option(),
             l1_rpc_url,
         })
+    }
+
+    pub fn vm_option(&self) -> VMOption {
+        if self.zksync_os {
+            VMOption::ZKSyncOsVM
+        } else {
+            VMOption::EraVM
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct CommonEcosystemFinalArgs {
-    pub(crate) zksync_os: bool,
+    pub(crate) vm_option: VMOption,
     pub(crate) l1_rpc_url: String,
 }
 

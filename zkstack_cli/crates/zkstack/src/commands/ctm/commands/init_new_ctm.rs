@@ -18,7 +18,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
-use zkstack_cli_types::{L1Network, ProverMode};
+use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
 use crate::{
     admin_functions::{accept_admin, accept_owner},
@@ -26,7 +26,7 @@ use crate::{
         ctm::{args::InitNewCTMArgs, commands::set_new_ctm_contracts::set_new_ctm_contracts},
         ecosystem::create_configs::create_initial_deployments_config,
     },
-    messages::{MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_INITIALIZING_CTM},
+    messages::MSG_INITIALIZING_CTM,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -37,7 +37,7 @@ lazy_static! {
     );
 }
 pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
-    let zksync_os = args.common.zksync_os;
+    let vm_option = args.common.vm_option();
     let mut ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
@@ -58,7 +58,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
             init_ctm_args
                 .default_configs_src_path
                 .expect("default_configs_src_path is required, when contracts_src_path is set"),
-            zksync_os,
+            vm_option,
         )?;
     }
 
@@ -80,7 +80,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     }
     if !args.common.skip_contract_compilation_override {
         let spinner = Spinner::new("Building contracts...");
-        rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(zksync_os))?;
+        rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(vm_option))?;
         spinner.finish();
     }
 
@@ -92,7 +92,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         &initial_deployment_config,
         init_ctm_args.support_l2_legacy_shared_bridge_test,
         bridgehub_address,
-        init_ctm_args.zksync_os,
+        vm_option,
         init_ctm_args.reuse_gov_and_admin,
     )
     .await?;
@@ -109,7 +109,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: H160,
-    zksync_os: bool,
+    vm_option: VMOption,
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new("Deploying new CTM contracts...");
@@ -123,16 +123,16 @@ pub async fn deploy_new_ctm_and_accept_admin(
         true,
         support_l2_legacy_shared_bridge_test,
         bridgehub_address,
-        zksync_os,
+        vm_option,
         reuse_gov_and_admin,
     )
     .await?;
     spinner.finish();
 
-    let ctm = contracts_config.ctm(zksync_os);
+    let ctm = contracts_config.ctm(vm_option);
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         ctm.state_transition_proxy_addr,
@@ -143,7 +143,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
 
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         ctm.state_transition_proxy_addr,
@@ -166,14 +166,14 @@ pub async fn deploy_new_ctm(
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
     bridgehub_address: H160,
-    zksync_os: bool,
+    vm_option: VMOption,
     reuse_gov_and_admin: bool,
 ) -> anyhow::Result<CoreContractsConfig> {
     let mut contracts_config = config.get_contracts_config()?;
     let deploy_config_path =
-        DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(zksync_os));
+        DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(vm_option));
     let genesis_config_path = config
-        .default_configs_path_for_ctm(zksync_os)
+        .default_configs_path_for_ctm(vm_option)
         .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -188,7 +188,7 @@ pub async fn deploy_new_ctm(
         config.prover_version == ProverMode::NoProofs,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
-        zksync_os,
+        vm_option,
     );
     deploy_config.save(shell, deploy_config_path)?;
 
@@ -196,7 +196,7 @@ pub async fn deploy_new_ctm(
         .encode("runWithBridgehub", (bridgehub_address, reuse_gov_and_admin))
         .unwrap();
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(zksync_os))
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(&DEPLOY_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
@@ -226,9 +226,9 @@ pub async fn deploy_new_ctm(
 
     let script_output = DeployCTMOutput::read(
         shell,
-        DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(zksync_os)),
+        DEPLOY_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
-    contracts_config.update_from_ctm_output(&script_output, zksync_os);
+    contracts_config.update_from_ctm_output(&script_output, vm_option);
 
     Ok(contracts_config)
 }

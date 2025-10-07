@@ -7,6 +7,7 @@ use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
     EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
+use zkstack_cli_types::VMOption;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -29,7 +30,12 @@ pub async fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let zksync_os = args.zksync_os;
+    let vm_option = if args.zksync_os {
+        VMOption::ZKSyncOsVM
+    } else {
+        VMOption::EraVM
+    };
+
     let tokens = ecosystem_config.get_erc20_tokens();
     let args = args
         .fill_values_with_prompt(
@@ -45,7 +51,7 @@ pub async fn create(
     let spinner = Spinner::new(MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER);
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
-    create_chain_inner(args, ecosystem_config, shell, zksync_os).await?;
+    create_chain_inner(args, ecosystem_config, shell, vm_option).await?;
     if set_as_default {
         ecosystem_config.set_default_chain(name);
         ecosystem_config.save_with_base_path(shell, ".")?;
@@ -61,7 +67,7 @@ pub(crate) async fn create_chain_inner(
     args: ChainCreateArgsFinal,
     ecosystem_config: &EcosystemConfig,
     shell: &Shell,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     if args.legacy_bridge {
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
@@ -95,7 +101,7 @@ pub(crate) async fn create_chain_inner(
         ecosystem_config.list_of_chains()
     );
     let genesis_config_path = ecosystem_config
-        .default_configs_path_for_ctm(zksync_os)
+        .default_configs_path_for_ctm(vm_option)
         .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
@@ -122,8 +128,8 @@ pub(crate) async fn create_chain_inner(
         legacy_bridge,
         args.evm_emulator,
         args.tight_ports,
-        zksync_os,
-        Some(ecosystem_config.contracts_path_for_ctm(zksync_os)),
+        vm_option,
+        Some(ecosystem_config.contracts_path_for_ctm(vm_option)),
     );
 
     create_wallets(

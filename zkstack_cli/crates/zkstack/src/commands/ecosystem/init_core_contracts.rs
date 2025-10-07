@@ -5,6 +5,7 @@ use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
+use zkstack_cli_types::VMOption;
 
 use crate::{
     admin_functions::{accept_admin, accept_owner},
@@ -21,14 +22,14 @@ use crate::{
 
 pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let zksync_os = args.common.zksync_os;
+    let vm_option = args.common.vm_option();
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut final_ecosystem_args = args
+    let final_ecosystem_args = args
         .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
@@ -36,11 +37,11 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
     let contracts_config = init_ecosystem(
-        &mut final_ecosystem_args,
+        &final_ecosystem_args,
         shell,
         &ecosystem_config,
         &initial_deployment_config,
-        zksync_os,
+        vm_option,
     )
     .await?;
 
@@ -65,11 +66,11 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
 }
 
 async fn init_ecosystem(
-    init_args: &mut InitCoreContractsArgsFinal,
+    init_args: &InitCoreContractsArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
@@ -81,7 +82,7 @@ async fn init_ecosystem(
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
-        zksync_os,
+        vm_option,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -95,7 +96,7 @@ pub async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
@@ -107,14 +108,14 @@ pub async fn deploy_ecosystem(
         None,
         true,
         support_l2_legacy_shared_bridge_test,
-        zksync_os,
+        vm_option,
     )
     .await?;
     spinner.finish();
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -126,7 +127,7 @@ pub async fn deploy_ecosystem(
     .await?;
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -141,7 +142,7 @@ pub async fn deploy_ecosystem(
     // need to accept it
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -152,7 +153,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

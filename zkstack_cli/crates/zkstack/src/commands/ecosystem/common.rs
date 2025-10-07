@@ -23,7 +23,7 @@ use zkstack_cli_config::{
     ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
     GENESIS_FILE,
 };
-use zkstack_cli_types::{L1Network, ProverMode};
+use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
 use super::args::init::EcosystemInitArgsFinal;
 use crate::{
@@ -42,12 +42,12 @@ pub async fn deploy_l1_core_contracts(
     sender: Option<String>,
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<CoreContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS
-        .input(&config.path_to_foundry_scripts_for_ctm(zksync_os));
+        .input(&config.path_to_foundry_scripts_for_ctm(vm_option));
     let genesis_config_path = config
-        .default_configs_path_for_ctm(zksync_os)
+        .default_configs_path_for_ctm(vm_option)
         .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -61,12 +61,12 @@ pub async fn deploy_l1_core_contracts(
         config.prover_version == ProverMode::NoProofs,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
-        zksync_os,
+        vm_option,
     );
 
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(zksync_os))
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS.script(),
             forge_args.clone(),
@@ -99,7 +99,7 @@ pub async fn deploy_l1_core_contracts(
     let script_output = DeployL1CoreContractsOutput::read(
         shell,
         DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS
-            .output(&config.path_to_foundry_scripts_for_ctm(zksync_os)),
+            .output(&config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     let mut contracts_config = CoreContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
@@ -116,9 +116,9 @@ pub async fn deploy_erc20(
     l1_rpc_url: String,
 ) -> anyhow::Result<ERC20Tokens> {
     // Deploy ERC20 tokens is always from non zksync os
-    let zksync_os = false;
+    let vm_option = VMOption::EraVM;
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS
-        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os));
+        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
     let wallets = ecosystem_config.get_wallets()?;
     DeployErc20Config::new(
         erc20_deployment_config,
@@ -131,7 +131,7 @@ pub async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os))
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -151,7 +151,7 @@ pub async fn deploy_erc20(
     let result = ERC20Tokens::read(
         shell,
         DEPLOY_ERC20_SCRIPT_PARAMS
-            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     result.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(result)

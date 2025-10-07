@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_config::ChainConfig;
-use zkstack_cli_types::{L1BatchCommitmentMode, L1Network};
+use zkstack_cli_types::{L1BatchCommitmentMode, L1Network, VMOption};
 
 use crate::{
     commands::chain::args::{
@@ -67,10 +67,9 @@ impl InitArgs {
     }
 
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
-        let genesis = if !config.zksync_os {
-            self.get_genesis_args()
-        } else {
-            None
+        let genesis = match config.vm_option {
+            VMOption::EraVM => self.get_genesis_args(),
+            VMOption::ZKSyncOsVM => None,
         };
 
         let deploy_paymaster = if self.dev {

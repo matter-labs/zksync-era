@@ -1,5 +1,6 @@
 use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
+use zkstack_cli_types::VMOption;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -51,7 +52,7 @@ impl EcosystemUpgradeInput {
         era_diamond_proxy: Address,
         testnet_verifier: bool,
         specific_config: EcosystemUpgradeSpecificConfig,
-        zksync_os: bool,
+        vm_option: VMOption,
     ) -> Self {
         Self {
             era_chain_id,
@@ -94,7 +95,7 @@ impl EcosystemUpgradeInput {
                     .bridgehub_proxy_addr,
                 shared_bridge_proxy_address: current_contracts_config.bridges.shared.l1_address,
                 state_transition_manager_address: current_contracts_config
-                    .ctm(zksync_os)
+                    .ctm(vm_option)
                     .state_transition_proxy_addr,
                 transparent_proxy_admin: current_contracts_config
                     .core_ecosystem_contracts
@@ -102,13 +103,13 @@ impl EcosystemUpgradeInput {
                 era_diamond_proxy,
                 legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,
                 old_validator_timelock: current_contracts_config
-                    .ctm(zksync_os)
+                    .ctm(vm_option)
                     .validator_timelock_addr,
                 governance_security_council_address: Address::zero(),
                 latest_protocol_version: new_genesis_input.protocol_version.pack(),
                 evm_emulator_hash: new_genesis_input.evm_emulator_hash.unwrap_or_default(),
                 l1_bytecodes_supplier_addr: current_contracts_config
-                    .ctm(zksync_os)
+                    .ctm(vm_option)
                     .l1_bytecodes_supplier_addr,
                 protocol_upgrade_handler_proxy_address: Address::zero(),
                 rollup_da_manager: Address::zero(),

@@ -28,14 +28,14 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     let chain_config = config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let zksync_os = chain_config.zksync_os;
+    let vm_option = chain_config.vm_option;
 
     let args = args.fill_values_with_prompt(chain_config.name.clone());
 
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     copy_configs(
         shell,
-        &config.default_configs_path_for_ctm(zksync_os),
+        &config.default_configs_path_for_ctm(vm_option),
         &chain_config.configs,
     )?;
 
@@ -77,14 +77,14 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     shell.copy_file(
         config
-            .contracts_path_for_ctm(zksync_os)
+            .contracts_path_for_ctm(vm_option)
             .join(REGISTER_CHAIN_TXNS_FILE_SRC),
         args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
     shell.copy_file(
         config
-            .contracts_path_for_ctm(zksync_os)
+            .contracts_path_for_ctm(vm_option)
             .join(SCRIPT_CONFIG_FILE_SRC),
         args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;

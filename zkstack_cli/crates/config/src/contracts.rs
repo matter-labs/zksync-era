@@ -4,6 +4,7 @@ use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::contracts::encode_ntv_asset_id;
+use zkstack_cli_types::VMOption;
 use zksync_basic_types::H160;
 use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
@@ -36,13 +37,16 @@ pub struct CoreContractsConfig {
 }
 
 impl CoreContractsConfig {
-    pub fn ctm(&self, zksync_os: bool) -> ChainTransitionManagerContracts {
-        if zksync_os {
-            self.zksync_os_ctm
+    pub fn ctm(&self, vm_option: VMOption) -> ChainTransitionManagerContracts {
+        match vm_option {
+            VMOption::EraVM => self
+                .era_ctm
                 .clone()
-                .expect("ZkSync OS CTM is not deployed")
-        } else {
-            self.era_ctm.clone().expect("Era CTM is not deployed")
+                .expect("Era CTM is not deployed, please deploy it first"),
+            VMOption::ZKSyncOsVM => self
+                .zksync_os_ctm
+                .clone()
+                .expect("ZkSync OS CTM is not deployed, please deploy it first"),
         }
     }
 
@@ -52,7 +56,7 @@ impl CoreContractsConfig {
         register_chain_output: &RegisterChainOutput,
         chain_config: &ChainConfig,
     ) -> ContractsConfig {
-        let ctm = self.ctm(chain_config.zksync_os);
+        let ctm = self.ctm(chain_config.vm_option);
         ContractsConfig {
             create2_factory_addr: self.create2_factory_addr,
             create2_factory_salt: self.create2_factory_salt,
@@ -120,14 +124,14 @@ impl CoreContractsConfig {
     pub fn read_with_fallback(
         shell: &Shell,
         path: impl AsRef<Path>,
-        zksync_os: bool,
+        vm_option: VMOption,
     ) -> anyhow::Result<CoreContractsConfig> {
         match CoreContractsConfig::read(shell, &path) {
             Ok(config) => Ok(config),
             Err(_) => {
                 let old_config: ContractsConfig = ContractsConfig::read(shell, path)?;
                 Ok(CoreContractsConfig::from_chain_contracts(
-                    old_config, zksync_os,
+                    old_config, vm_option,
                 ))
             }
         }
@@ -137,7 +141,7 @@ impl CoreContractsConfig {
 impl CoreContractsConfig {
     pub fn from_chain_contracts(
         chain_contracts: ContractsConfig,
-        zksync_os: bool,
+        vm_option: VMOption,
     ) -> CoreContractsConfig {
         let mut contracts = CoreContractsConfig {
             create2_factory_addr: chain_contracts.create2_factory_addr,
@@ -170,10 +174,13 @@ impl CoreContractsConfig {
             zksync_os_ctm: None,
             proof_manager_contracts: chain_contracts.proof_manager_contracts,
         };
-        if zksync_os {
-            contracts.zksync_os_ctm = Some(chain_contracts.ecosystem_contracts.ctm);
-        } else {
-            contracts.era_ctm = Some(chain_contracts.ecosystem_contracts.ctm);
+        match vm_option {
+            VMOption::EraVM => {
+                contracts.era_ctm = Some(chain_contracts.ecosystem_contracts.ctm);
+            }
+            VMOption::ZKSyncOsVM => {
+                contracts.zksync_os_ctm = Some(chain_contracts.ecosystem_contracts.ctm);
+            }
         }
         contracts
     }
@@ -234,7 +241,11 @@ impl CoreContractsConfig {
     }
 
     // Update CTM related fields from the output of CTM deployment
-    pub fn update_from_ctm_output(&mut self, deploy_ctm_output: &DeployCTMOutput, zksync_os: bool) {
+    pub fn update_from_ctm_output(
+        &mut self,
+        deploy_ctm_output: &DeployCTMOutput,
+        vm_option: VMOption,
+    ) {
         let ctm = ChainTransitionManagerContracts {
             state_transition_proxy_addr: deploy_ctm_output
                 .deployed_addresses
@@ -285,10 +296,13 @@ impl CoreContractsConfig {
             l1_rollup_da_manager: deploy_ctm_output.deployed_addresses.l1_rollup_da_manager,
         };
         self.multicall3_addr = deploy_ctm_output.multicall3_addr;
-        if zksync_os {
-            self.zksync_os_ctm = Some(ctm);
-        } else {
-            self.era_ctm = Some(ctm);
+        match vm_option {
+            VMOption::EraVM => {
+                self.era_ctm = Some(ctm);
+            }
+            VMOption::ZKSyncOsVM => {
+                self.zksync_os_ctm = Some(ctm);
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
 };
+use zkstack_cli_types::VMOption;
 
 use crate::{
     commands::{
@@ -93,7 +94,7 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
     // By default, do not use zksync os for the ecosystem chain
-    create_chain_inner(chain_config, &ecosystem_config, shell, false).await?;
+    create_chain_inner(chain_config, &ecosystem_config, shell, VMOption::EraVM).await?;
     spinner.finish();
 
     if args.start_containers {

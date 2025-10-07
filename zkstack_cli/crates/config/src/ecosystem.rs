@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, files::find_file, logger};
-use zkstack_cli_types::{L1Network, ProverMode, WalletCreation};
+use zkstack_cli_types::{L1Network, ProverMode, VMOption, WalletCreation};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -72,18 +72,21 @@ impl EcosystemConfig {
         &mut self,
         contracts_path: PathBuf,
         default_configs_path: PathBuf,
-        zksync_os: bool,
+        vm_option: VMOption,
     ) {
-        if zksync_os {
-            self.zksync_os_source_files = Some(SourceFiles {
-                contracts_path,
-                default_configs_path,
-            });
-        } else {
-            self.era_source_files = Some(SourceFiles {
-                contracts_path,
-                default_configs_path,
-            });
+        match vm_option {
+            VMOption::EraVM => {
+                self.zksync_os_source_files = Some(SourceFiles {
+                    contracts_path,
+                    default_configs_path,
+                });
+            }
+            VMOption::ZKSyncOsVM => {
+                self.era_source_files = Some(SourceFiles {
+                    contracts_path,
+                    default_configs_path,
+                });
+            }
         }
     }
 }
@@ -249,7 +252,7 @@ impl EcosystemConfig {
             config.legacy_bridge,
             config.evm_emulator,
             config.tight_ports,
-            config.zksync_os,
+            config.vm_option,
             config.contracts_source_path,
         ))
     }
@@ -285,7 +288,7 @@ impl EcosystemConfig {
         CoreContractsConfig::read_with_fallback(
             self.get_shell(),
             self.config.join(CONTRACTS_FILE),
-            false,
+            VMOption::EraVM,
         )
     }
 
@@ -347,38 +350,37 @@ impl EcosystemConfig {
         }
     }
 
-    pub fn get_source_files(&self, zksync_os: bool) -> Option<&SourceFiles> {
-        if zksync_os {
-            self.zksync_os_source_files.as_ref()
-        } else {
-            self.era_source_files.as_ref()
+    pub fn get_source_files(&self, vm_option: VMOption) -> Option<&SourceFiles> {
+        match vm_option {
+            VMOption::EraVM => self.era_source_files.as_ref(),
+            VMOption::ZKSyncOsVM => self.zksync_os_source_files.as_ref(),
         }
     }
 
-    pub fn default_configs_path_for_ctm(&self, zksync_os: bool) -> PathBuf {
-        self.get_source_files(zksync_os)
+    pub fn default_configs_path_for_ctm(&self, vm_option: VMOption) -> PathBuf {
+        self.get_source_files(vm_option)
             .map(|files| files.default_configs_path.clone())
             .unwrap_or_else(|| {
-                if zksync_os {
+                if vm_option.is_zksync_os() {
                     logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
                 }
                 self.link_to_code.join(CONFIGS_PATH)
             })
     }
 
-    pub fn contracts_path_for_ctm(&self, zksync_os: bool) -> PathBuf {
-        self.get_source_files(zksync_os)
+    pub fn contracts_path_for_ctm(&self, vm_option: VMOption) -> PathBuf {
+        self.get_source_files(vm_option)
             .map(|files| files.contracts_path.clone())
             .unwrap_or_else(|| {
-                if zksync_os {
+                if vm_option.is_zksync_os(){
                     logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
                 }
                 self.link_to_code.join(CONTRACTS_PATH)
             })
     }
 
-    pub fn path_to_foundry_scripts_for_ctm(&self, zksync_os: bool) -> PathBuf {
-        self.contracts_path_for_ctm(zksync_os)
+    pub fn path_to_foundry_scripts_for_ctm(&self, vm_option: VMOption) -> PathBuf {
+        self.contracts_path_for_ctm(vm_option)
             .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
     }
 

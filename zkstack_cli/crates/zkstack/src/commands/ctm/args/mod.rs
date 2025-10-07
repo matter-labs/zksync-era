@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::Deserialize;
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 use zksync_basic_types::Address;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
@@ -52,7 +52,7 @@ impl InitNewCTMArgs {
             forge_args,
             support_l2_legacy_shared_bridge_test,
             bridgehub_address: bridgehub,
-            zksync_os: common.zksync_os,
+            vm_option: common.vm_option,
             reuse_gov_and_admin,
             contracts_src_path,
             default_configs_src_path,
@@ -65,7 +65,7 @@ pub struct InitNewCTMArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<Address>,
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
     pub reuse_gov_and_admin: bool,
     pub contracts_src_path: Option<PathBuf>,
     pub default_configs_src_path: Option<PathBuf>,
@@ -95,11 +95,16 @@ impl SetNewCTMArgs {
         let default_configs_src_path = self.default_configs_src_path.unwrap_or_else(|| {
             zkstack_cli_common::Prompt::new("Provide path to default configs sources").ask()
         });
+        let vm_option = if self.zksync_os {
+            VMOption::ZKSyncOsVM
+        } else {
+            VMOption::EraVM
+        };
 
         Ok(SetNewCTMArgsFinal {
             contracts_src_path,
             default_configs_src_path,
-            zksync_os: self.zksync_os,
+            vm_option,
         })
     }
 }
@@ -107,5 +112,5 @@ impl SetNewCTMArgs {
 pub struct SetNewCTMArgsFinal {
     pub contracts_src_path: PathBuf,
     pub default_configs_src_path: PathBuf,
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
 }

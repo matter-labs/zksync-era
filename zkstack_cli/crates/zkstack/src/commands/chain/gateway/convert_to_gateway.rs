@@ -85,7 +85,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     override_config(
         shell,
         &ecosystem_config
-            .default_configs_path_for_ctm(chain_config.zksync_os)
+            .default_configs_path_for_ctm(chain_config.vm_option)
             .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
         &chain_config,
     )?;
@@ -182,7 +182,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     // These calls will produce some L1->L2 transactions. However tracking those is hard at this point, so we won't do it here.
     output = governance_execute_calls(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(chain_config.zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(chain_config.vm_option),
         mode_ecosystem_governor,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,

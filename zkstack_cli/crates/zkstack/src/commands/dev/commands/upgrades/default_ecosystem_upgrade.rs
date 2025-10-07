@@ -27,7 +27,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
-use zkstack_cli_types::ProverMode;
+use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
@@ -50,7 +50,7 @@ pub async fn run(
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
-    let zksync_os = args.common.zksync_os;
+    let vm_option = args.common.vm_option();
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
@@ -65,7 +65,7 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
-                zksync_os,
+                vm_option,
             )
             .await?;
         }
@@ -75,7 +75,7 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
-                zksync_os,
+                vm_option,
             )
             .await?;
         }
@@ -85,7 +85,7 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
-                zksync_os,
+                vm_option,
             )
             .await?;
         }
@@ -95,15 +95,15 @@ pub async fn run(
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
-                zksync_os,
+                vm_option,
             )
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage2 => {
-            governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, zksync_os).await?;
+            governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, vm_option).await?;
         }
         EcosystemUpgradeStage::NoGovernanceStage2 => {
-            no_governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, zksync_os)
+            no_governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, vm_option)
                 .await?;
         }
     }
@@ -125,7 +125,7 @@ async fn no_governance_prepare(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
@@ -142,7 +142,7 @@ async fn no_governance_prepare(
     };
 
     let genesis_config_path = ecosystem_config
-        .default_configs_path_for_ctm(zksync_os)
+        .default_configs_path_for_ctm(vm_option)
         .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
@@ -189,7 +189,7 @@ async fn no_governance_prepare(
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
     let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(upgrade_version)
-        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os));
+        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
@@ -213,7 +213,7 @@ async fn no_governance_prepare(
                 encoded_old_validator_timelocks: hex::encode(encode(&[Token::Array(vec![
                     Token::Address(
                         current_contracts_config
-                            .ctm(zksync_os)
+                            .ctm(vm_option)
                             .validator_timelock_addr,
                     ),
                 ])])),
@@ -235,7 +235,7 @@ async fn no_governance_prepare(
         Address::zero(),
         ecosystem_config.prover_version == ProverMode::NoProofs,
         upgrade_specific_config,
-        zksync_os,
+        vm_option,
     );
 
     logger::info(format!("ecosystem_upgrade: {:?}", ecosystem_upgrade));
@@ -244,7 +244,7 @@ async fn no_governance_prepare(
         ecosystem_upgrade_config_path
     ));
     ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os))
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
             forge_args.clone(),
@@ -273,7 +273,7 @@ async fn no_governance_prepare(
     let broadcast_file: BroadcastFile = {
         let file_content = std::fs::read_to_string(
             ecosystem_config
-                .path_to_foundry_scripts_for_ctm(zksync_os)
+                .path_to_foundry_scripts_for_ctm(vm_option)
                 .join(format!(
                     "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
                     l1_chain_id
@@ -286,7 +286,7 @@ async fn no_governance_prepare(
     let mut output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
 
     // Add all the transaction hashes.
@@ -304,14 +304,14 @@ async fn ecosystem_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing ecosystem admin!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -332,7 +332,7 @@ async fn ecosystem_admin(
         // Note, that ecosystem admin and governor use the same wallet.
         &ecosystem_config.get_wallets()?.governor,
         ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         ecosystem_admin_calls.server_notifier_upgrade.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
@@ -348,14 +348,14 @@ async fn governance_stage_0(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 0!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -373,7 +373,7 @@ async fn governance_stage_0(
 
     governance_execute_calls(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
         &init_args.forge_args.clone(),
@@ -392,14 +392,14 @@ async fn governance_stage_1(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     println!("Executing governance stage 1!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os)),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -417,7 +417,7 @@ async fn governance_stage_1(
 
     governance_execute_calls(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
         &init_args.forge_args.clone(),
@@ -434,7 +434,7 @@ async fn governance_stage_1(
     update_contracts_config_from_output(
         &mut contracts_config,
         &gateway_ecosystem_preparation_output,
-        zksync_os,
+        vm_option,
     );
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -445,12 +445,11 @@ async fn governance_stage_1(
 fn update_contracts_config_from_output(
     contracts_config: &mut CoreContractsConfig,
     output: &EcosystemUpgradeOutput,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) {
-    let ctm = if zksync_os {
-        contracts_config.zksync_os_ctm.as_mut().unwrap()
-    } else {
-        contracts_config.era_ctm.as_mut().unwrap()
+    let ctm = match vm_option {
+        VMOption::EraVM => contracts_config.era_ctm.as_mut().unwrap(),
+        VMOption::ZKSyncOsVM => contracts_config.zksync_os_ctm.as_mut().unwrap(),
     };
 
     // This is force deployment data for creating new contracts, not really relevant here tbh,
@@ -466,7 +465,7 @@ async fn governance_stage_2(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 2!");
 
@@ -487,7 +486,7 @@ async fn governance_stage_2(
 
     governance_execute_calls(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
         &init_args.forge_args.clone(),
@@ -517,7 +516,7 @@ async fn no_governance_stage_2(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let contracts_config = ecosystem_config.get_contracts_config()?;
     let wallets = ecosystem_config.get_wallets()?;
@@ -599,7 +598,7 @@ async fn no_governance_stage_2(
         .unwrap();
 
     logger::info("Initiing chains!");
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os);
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option);
     let forge = Forge::new(&foundry_contracts_path)
         .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()

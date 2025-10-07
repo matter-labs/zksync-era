@@ -4,7 +4,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{forge::ForgeScriptArgs, PromptConfirm};
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 
 use crate::{
     commands::{
@@ -68,7 +68,7 @@ pub struct EcosystemInitArgs {
 
 impl EcosystemInitArgs {
     pub fn get_genesis_args(&self) -> Option<GenesisArgs> {
-        if self.no_genesis || self.common.zksync_os {
+        if self.no_genesis || self.common.vm_option().is_zksync_os() {
             None
         } else {
             Some(GenesisArgs {
@@ -145,7 +145,7 @@ impl EcosystemInitArgs {
             deploy_paymaster,
             make_permanent_rollup,
             genesis_args,
-            zksync_os: common.zksync_os,
+            vm_option: common.vm_option,
             ecosystem_contracts_path,
             l1_rpc_url: common.l1_rpc_url,
         })
@@ -168,7 +168,7 @@ pub struct EcosystemInitArgsFinal {
     pub deploy_paymaster: Option<bool>,
     pub make_permanent_rollup: bool,
     pub genesis_args: Option<GenesisArgs>,
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -212,7 +212,7 @@ impl InitCoreContractsArgs {
         let common = common.fill_values_with_prompt(l1_network, dev).await?;
 
         Ok(InitCoreContractsArgsFinal {
-            zksync_os: common.zksync_os,
+            vm_option: common.vm_option,
             deploy_erc20,
             l1_rpc_url: common.l1_rpc_url,
             forge_args,
@@ -223,7 +223,7 @@ impl InitCoreContractsArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InitCoreContractsArgsFinal {
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
     pub deploy_erc20: bool,
     pub forge_args: ForgeScriptArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
@@ -234,7 +234,7 @@ impl From<EcosystemInitArgsFinal> for InitCoreContractsArgsFinal {
     fn from(args: EcosystemInitArgsFinal) -> Self {
         InitCoreContractsArgsFinal {
             l1_rpc_url: args.l1_rpc_url,
-            zksync_os: args.zksync_os,
+            vm_option: args.vm_option,
             deploy_erc20: args.deploy_erc20,
             forge_args: args.forge_args,
             support_l2_legacy_shared_bridge_test: args.support_l2_legacy_shared_bridge_test,

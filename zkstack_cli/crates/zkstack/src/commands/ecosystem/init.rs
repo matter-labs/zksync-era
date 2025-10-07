@@ -10,7 +10,7 @@ use zkstack_cli_config::{
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 use zksync_basic_types::Address;
 
 use super::{
@@ -113,7 +113,7 @@ async fn init_ecosystem(
             ecosystem_config,
             initial_deployment_config,
             init_args.support_l2_legacy_shared_bridge_test,
-            init_args.zksync_os,
+            init_args.vm_option,
         )
         .await?;
         core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -126,13 +126,19 @@ async fn init_ecosystem(
             core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
             init_args.support_l2_legacy_shared_bridge_test,
             &init_args.forge_args,
-            init_args.zksync_os,
+            init_args.vm_option,
         )
         .await?;
 
         // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
-        if !init_args.zksync_os && ecosystem_config.zksync_os_exist() && init_args.dev {
-            rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(true))?;
+        if !init_args.vm_option.is_zksync_os()
+            && ecosystem_config.zksync_os_exist()
+            && init_args.dev
+        {
+            rebuild_all_contracts(
+                shell,
+                &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),
+            )?;
             contracts = deploy_and_register_ctm(
                 shell,
                 init_args.l1_rpc_url.clone(),
@@ -141,7 +147,7 @@ async fn init_ecosystem(
                 core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
                 init_args.support_l2_legacy_shared_bridge_test,
                 &init_args.forge_args,
-                true,
+                VMOption::ZKSyncOsVM,
             )
             .await?;
         }
@@ -160,7 +166,7 @@ async fn deploy_and_register_ctm(
     bridgehub_proxy_addr: Address,
     support_l2_legacy_shared_bridge_test: bool,
     forge_args: &ForgeScriptArgs,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<CoreContractsConfig> {
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
@@ -170,7 +176,7 @@ async fn deploy_and_register_ctm(
         initial_deployment_config,
         support_l2_legacy_shared_bridge_test,
         bridgehub_proxy_addr,
-        zksync_os,
+        vm_option,
         true,
     )
     .await?;
@@ -184,9 +190,9 @@ async fn deploy_and_register_ctm(
         &l1_rpc_url,
         None,
         bridgehub_proxy_addr,
-        contracts.ctm(zksync_os).state_transition_proxy_addr,
+        contracts.ctm(vm_option).state_transition_proxy_addr,
         false,
-        zksync_os,
+        vm_option,
     )
     .await?;
     Ok(contracts)
@@ -245,7 +251,9 @@ async fn return_ecosystem_contracts(
             }
         });
 
-    CoreContractsConfig::read_with_fallback(shell, ecosystem_contracts_path, false)
+    // We don't have a zksync os preexisting contracts config, so we can assume
+    // that it's always false during fallback
+    CoreContractsConfig::read_with_fallback(shell, ecosystem_contracts_path, VMOption::EraVM)
 }
 
 async fn deploy_ecosystem(
@@ -255,7 +263,7 @@ async fn deploy_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
@@ -267,14 +275,14 @@ async fn deploy_ecosystem(
         None,
         true,
         support_l2_legacy_shared_bridge_test,
-        zksync_os,
+        vm_option,
     )
     .await?;
     spinner.finish();
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -286,7 +294,7 @@ async fn deploy_ecosystem(
     .await?;
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
@@ -301,7 +309,7 @@ async fn deploy_ecosystem(
     // need to accept it
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
@@ -312,7 +320,7 @@ async fn deploy_ecosystem(
 
     accept_owner(
         shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os),
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config

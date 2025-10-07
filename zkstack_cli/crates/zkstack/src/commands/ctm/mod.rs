@@ -12,9 +12,10 @@ use crate::commands::ctm::{
 #[derive(Subcommand, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum CTMCommands {
-    /// Initialize new ecosystem on existing bridgehub
+    /// Initialize new CTM on existing bridgehub
     InitNewCTM(InitNewCTMArgs),
-    /// Set contracts and configs for future commands
+    /// Specify source contracts and configs for the specific CTM.
+    /// These sources will be used in the future when deploying new CTM.
     SetCTMContracts(SetNewCTMArgs),
 }
 

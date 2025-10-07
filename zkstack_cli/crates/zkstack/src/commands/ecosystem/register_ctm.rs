@@ -9,7 +9,7 @@ use zkstack_cli_config::{
     forge_interface::script_params::REGISTER_CTM_SCRIPT_PARAMS, traits::ReadConfig,
     EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 use zksync_types::H160;
 
 use crate::{
@@ -29,7 +29,7 @@ lazy_static! {
 
 pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    let zksync_os = args.common.zksync_os;
+    let vm_option = args.common.vm_option();
 
     let final_ecosystem_args = args
         .clone()
@@ -52,7 +52,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     } else {
         ecosystem_config
             .get_contracts_config()?
-            .ctm(zksync_os)
+            .ctm(vm_option)
             .state_transition_proxy_addr
     };
 
@@ -65,7 +65,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         bridgehub_address,
         ctm_address,
         final_ecosystem_args.only_save_calldata,
-        zksync_os,
+        vm_option,
     )
     .await?;
 
@@ -85,7 +85,7 @@ pub async fn register_ctm_on_existing_bh(
     bridgehub_address: H160,
     ctm_address: H160,
     only_save_calldata: bool,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<AdminScriptOutput> {
     let wallets_config = config.get_wallets()?;
 
@@ -96,7 +96,7 @@ pub async fn register_ctm_on_existing_bh(
         )
         .unwrap();
 
-    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(zksync_os))
+    let mut forge = Forge::new(&config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(&REGISTER_CTM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_calldata(&calldata)
@@ -120,7 +120,7 @@ pub async fn register_ctm_on_existing_bh(
     }
 
     let output_path =
-        REGISTER_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(zksync_os));
+        REGISTER_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(vm_option));
     forge.run(shell)?;
 
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())

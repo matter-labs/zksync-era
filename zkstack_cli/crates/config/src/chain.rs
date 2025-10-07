@@ -7,7 +7,9 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
 use zkstack_cli_common::files::find_file;
-use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
+use zkstack_cli_types::{
+    BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, VMOption, WalletCreation,
+};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -51,7 +53,7 @@ pub struct ChainConfigInternal {
     #[serde(default)] // for backward compatibility
     pub tight_ports: bool,
     #[serde(default)] // for backward compatibility
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contracts_source_path: Option<PathBuf>,
 }
@@ -75,7 +77,7 @@ pub struct ChainConfig {
     pub legacy_bridge: Option<bool>,
     pub evm_emulator: bool,
     pub tight_ports: bool,
-    pub zksync_os: bool,
+    pub vm_option: VMOption,
     shell: OnceCell<Shell>,
     self_path: PathBuf,
     link_to_code: PathBuf,
@@ -119,7 +121,7 @@ impl ChainConfig {
         legacy_bridge: Option<bool>,
         evm_emulator: bool,
         tight_ports: bool,
-        zksync_os: bool,
+        vm_option: VMOption,
         contracts_source_path: Option<PathBuf>,
     ) -> Self {
         Self {
@@ -141,7 +143,7 @@ impl ChainConfig {
             legacy_bridge,
             evm_emulator,
             tight_ports,
-            zksync_os,
+            vm_option,
             contracts_source_path,
         }
     }
@@ -244,7 +246,7 @@ impl ChainConfig {
             legacy_bridge: self.legacy_bridge,
             evm_emulator: self.evm_emulator,
             tight_ports: self.tight_ports,
-            zksync_os: self.zksync_os,
+            vm_option: self.vm_option,
             contracts_source_path: self.contracts_source_path.clone(),
         }
     }
@@ -279,7 +281,7 @@ impl ChainConfig {
             tight_ports: chain_internal.tight_ports,
             self_path: shell.current_dir(),
             shell: shell.into(),
-            zksync_os: chain_internal.zksync_os,
+            vm_option: chain_internal.vm_option,
             contracts_source_path: chain_internal.contracts_source_path.clone(),
         })
     }

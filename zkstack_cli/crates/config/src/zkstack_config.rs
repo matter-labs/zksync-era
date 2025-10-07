@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::bail;
 use xshell::Shell;
+use zkstack_cli_types::VMOption;
 
 use crate::{ChainConfig, ChainConfigInternal, EcosystemConfig, EcosystemConfigFromFileError};
 
@@ -51,7 +52,7 @@ impl ZkStackConfigTrait for ZkStackConfig {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
                 // For default zksync config files we use default paths to foundry scripts
-                .default_configs_path_for_ctm(false)
+                .default_configs_path_for_ctm(VMOption::EraVM)
                 .clone(),
             ZkStackConfig::ChainConfig(chain) => chain.default_configs_path().clone(),
         }
@@ -61,7 +62,7 @@ impl ZkStackConfigTrait for ZkStackConfig {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => {
                 // For default zksync config files we use default paths to foundry scripts
-                ecosystem.contracts_path_for_ctm(false)
+                ecosystem.contracts_path_for_ctm(VMOption::EraVM)
             }
             ZkStackConfig::ChainConfig(chain) => chain.contracts_path(),
         }
@@ -71,7 +72,7 @@ impl ZkStackConfigTrait for ZkStackConfig {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => {
                 // For default zksync config files we use default paths to foundry scripts
-                ecosystem.path_to_foundry_scripts_for_ctm(false)
+                ecosystem.path_to_foundry_scripts_for_ctm(VMOption::EraVM)
             }
             ZkStackConfig::ChainConfig(chain) => chain.path_to_foundry_scripts().clone(),
         }

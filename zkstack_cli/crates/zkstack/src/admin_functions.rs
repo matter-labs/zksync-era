@@ -20,6 +20,7 @@ use zkstack_cli_config::{
     traits::{FileConfigTrait, ReadConfig},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
+use zkstack_cli_types::VMOption;
 use zksync_basic_types::U256;
 
 use crate::{
@@ -281,7 +282,7 @@ pub async fn admin_schedule_upgrade(
     governor: &Wallet,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
-    zksync_os: bool,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     // resume doesn't properly work here.
     let mut forge_args = forge_args.clone();
@@ -304,7 +305,7 @@ pub async fn admin_schedule_upgrade(
             ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(zksync_os);
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option);
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
