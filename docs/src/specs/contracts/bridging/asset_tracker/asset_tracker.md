@@ -37,8 +37,6 @@ At the moment of the upgrade we will demand that all chains have migrated to L1,
 
 > Future compatibility note 1. In the future we want to allow Era-based chains to migrate on top of ZKsync OS powered Gateway. The codebase should be ready for it in general. Any places that disallow it for now should be clearly marked in the codebase or documentation.
 
-TODO: talk about balance migration
-
 > Future compatibility note 2. In the future we would want to support chains from untrusted, potentially completely malicious CTMs settling on top of ZKsync OS powered Gateway. Any places that disallow it for now should be clearly marked in the codebase. 
 
 ## How chain balances were tracked before v30 (only L1<>L2 messaging)
@@ -168,8 +166,6 @@ Thus, to ensure that chains always consume only the balance they have and intero
 Note, that when a chain sends interop, the sender chains' balance is decreased immediately, while the balance of the recipient chain is not increased right after the call. The expected balance changed is stored in the `interopBalanceChange` mapping. When the chain accepts the deposit and claims the interop, it must send a `verifyBundle` message to L1, the GW asset tracker will intercept it and mint the corresponding funds for the chain.
 
 The above procedure is needed to ensure that the balance that is maintained within `GWAssetTracker` is in sync with the in `L2AssetTracker`. It allows to ensure that in the future ifz the chain for some reason migrates from ZK Gateway, the balance that will be migrated from Gateway to L1 will contain exactly the balance that the chain has access to. You can read about the migration process [here](#migrating-and-settling-on-gateway). 
-
-TODO: do we have anything that prevents `verifyBundle` from being claimed twice inside the code.
 
 On GW we process all incoming and outgoing messages to chains. L1->L2 messages are processed as they are sent through the Gateway, and L2->L1 messages are processed together with L2->L2 messages in the `processLogsAndMessages` function.
 

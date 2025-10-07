@@ -40,7 +40,7 @@ The biggest complexities of the upgrade process are:
 The overall upgrade will consist of the usual three steps:
 
 - **Stage0.** We pause all migrations to the ZK Gateway. This is just a standard step done during every upgrde. Almost
-  nothing changes at this point, except for the fact that chains wont be able to change their settlement layer.
+  nothing changes at this point, except for the fact that chains wont be able to change their settlement layer. Note, that we will also [ensure](#stopping-deposits-for-zk-gateway) that no chains are settling on top of ZK Gateway at the time of this upgrade.
 - **Stage1.** We upgrade all contracts on L1 as well as the CTM inside ZK Gateway (via L1->GW transaction as usual).
   Will be done ~2 days after the previous stage.
 - **Stage2.** We unblock migrations, will be done very soon after the previous stage.
@@ -66,13 +66,6 @@ The easiest way to ensure that the condition above holds is to put a requirement
 have migrated to L1. The additional requirement for this approach is a new `TransactionFilterer` that would ensure that
 no chain is allowed to migrate on top of ZK Gateway right before the upgrade as well as to ensure that no priority
 transactions will be incoming.
-
-The rest of the codebase, however, should be ready to support even the case when chains settle on top of GW at the
-moment of the upgrade, just in case it is decided that moving everyone to L1 is too hard to coordinate. Alternatively,
-one could just delete the
-[function](https://github.com/matter-labs/era-contracts/blob/a6a51b69e5456841993c05d1f7f254406b6da637/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L311)
-responsible for relaying transactions from the ZK Gateway `DiamondProxy` during stage1, but it is not the road we wish
-to take.
 
 ## Chain balance migration
 
@@ -103,16 +96,6 @@ allow to use this token.
 
 In any case, all the invariants that are expected from a token will be preserved and only the users of such tokens will
 be affected and not the chain itself.
-
-### When settling on Gateway
-
-If at the time of the upgrade, the chain was settling on top of Gateway, very similar things need to happen:
-
-- Firstly, it will have to migrate its L1 balance in the same way as an L1-settling chain would do.
-- Secondly, the moment version v30 starts running on the L2 contracts, the `migrationNumber` of the chain will be
-  incremented and so no withdrawals or interops will be available until the chain migrates its balance on top of ZK
-  Gateway in the same way as it would've done when it settled on Gateway natively (see
-  [Migrating and settling on Gateway](../../contracts/bridging/asset_tracker/asset_tracker.md#migrating-and-settling-on-gateway)).
 
 ### `L2AssetTracker`
 
@@ -184,20 +167,3 @@ Additionally, before ZKsync OS chains will even be able to move to a ZKsync OS p
 CTM will be moved under the control of the decentralized governance, so during the vote to accept the ownership everyone
 will have plenty of time to double check that no malicious behavior ever happened while the CTM was controlled by a
 development wallet.
-
-## More notes on ZK chains settling on top of Gateway
-
-While we do plan to ask everyone to move to L1 before v30 upgrade, we want to keep the system generally ready if it will
-prove not feasible.
-
-The overall plan for them will look the following way:
-
-- After stage1, relayed deposits will stop flowing through Gateway, meaning that no new deposits will be able to come.
-- Once ZK Gateway processes all previous deposits and upgrades itself, the chains are expected to upgrade themselves
-  too.
-- Note, that before any deposit can come from a chain it needs to both upgrade its L1 and GW parts to v30: the L1 part
-  upgrade is needed since the old methods for relaying messages are not present, while the GW part is needed since
-  before relaying a message we require that the `v30ChainBatchNumber` is stored (a clear sign that the chain has
-  upgraded to v30).
-- Also note, that until the chain upgrades to v30 and pushes the `v30ChainBatchNumber` to L1 it will not be able to
-  finalize its withdrawals either.
