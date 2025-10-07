@@ -15334,6 +15334,8 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "once_cell",
+ "serde",
+ "serde_json",
  "test-casing",
  "tokio",
  "tracing",

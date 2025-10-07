@@ -9,9 +9,7 @@ use zksync_protobuf::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
-    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType},
-    web3::Bytes,
-    Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType}, web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, Transaction
 };
 
 use super::*;
@@ -80,6 +78,8 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             Some(rng.gen())
         },
         interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
+        // FIXME: maybe use rng
+        settlement_layer: Some(SettlementLayer::L1(SLChainId::from(9))),
     }
 }
 

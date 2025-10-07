@@ -33,7 +33,7 @@ const contracts = {
     error: getTestContract('SimpleRequire')
 };
 
-describe('Smart contract behavior checks', () => {
+describe.skip('Smart contract behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 

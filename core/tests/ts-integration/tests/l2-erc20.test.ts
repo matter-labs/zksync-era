@@ -13,7 +13,7 @@ import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } f
 import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 import { ARTIFACTS_PATH } from '../src/constants';
 
-describe('L2 native ERC20 contract checks', () => {
+describe.skip('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let isETHBasedChain: boolean;

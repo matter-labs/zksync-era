@@ -11,7 +11,7 @@ import { getL2bUrl } from '../helpers';
 import { IERC20__factory as IERC20Factory } from 'zksync-ethers/build/typechain';
 import {
     ArtifactL2AssetTracker,
-    ArtifactBridgeHub,
+    ArtifactL1BridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
     L2_ASSET_TRACKER_ADDRESS
@@ -374,7 +374,7 @@ async function getChainBalance(l1: boolean, wallet: zksync.Wallet, token: string
 async function isMinterChain(l1: boolean, wallet: zksync.Wallet, token: string): Promise<boolean> {
     const bridgehub = new zksync.Contract(
         await (await wallet.getBridgehubContract()).getAddress(),
-        ArtifactBridgeHub.abi,
+        ArtifactL1BridgeHub.abi,
         wallet.providerL1!
     );
     const assetRouter = new zksync.Contract(

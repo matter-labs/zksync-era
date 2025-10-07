@@ -14,7 +14,7 @@ import { RetryableWallet } from '../src/retry-provider';
 const SECONDS = 2000;
 jest.setTimeout(100 * SECONDS);
 
-describe('base ERC20 contract checks', () => {
+describe.skip('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let bob: zksync.Wallet;

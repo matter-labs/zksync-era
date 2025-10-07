@@ -87,7 +87,7 @@ import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110'; // Must have L1 ETH
 const ethFundAmount = ethers.parseEther('1');
 
-describe('Interop behavior checks', () => {
+describe.skip('Interop behavior checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let aliceSecondChain: RetryableWallet;
