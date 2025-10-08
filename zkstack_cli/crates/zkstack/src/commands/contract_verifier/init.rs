@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
-use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::ZkStackConfig;
 
 use super::args::{init::InitContractVerifierArgs, releases::Version};
 use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};

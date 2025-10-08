@@ -1,6 +1,6 @@
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, logger};
-use zkstack_cli_config::{EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
+use zkstack_cli_config::{EcosystemConfig, ZkStackConfig};
 
 use super::{args::revert::RevertArgs, utils::install_and_build_dependencies};
 use crate::commands::dev::messages::{MSG_REVERT_TEST_RUN_INFO, MSG_REVERT_TEST_RUN_SUCCESS};

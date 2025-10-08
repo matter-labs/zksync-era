@@ -45,7 +45,7 @@ pub struct ProverInitArgs {
     #[clap(flatten)]
     pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
 
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_proving_network: Option<bool>,
     #[clap(flatten)]
     pub deploy_proving_network_args: DeployProvingNetworkArgs,

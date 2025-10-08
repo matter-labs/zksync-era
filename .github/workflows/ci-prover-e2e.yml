@@ -47,10 +47,9 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default true \
             --ignore-prerequisites \
-            --evm-emulator false \
-            --update-submodules=true
+            --evm-emulator false 
 
-          ci_run zkstack ecosystem init --dev --update-submodules=true --verbose
+          ci_run zkstack ecosystem init --dev  --verbose
 
           ci_run zkstack prover init --dev --verbose
           WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
