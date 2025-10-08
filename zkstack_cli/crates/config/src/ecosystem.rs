@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, files::find_file, logger};
-use zkstack_cli_types::{L1Network, ProverMode, WalletCreation};
+use zkstack_cli_types::{L1Network, ProverMode, VMOption, WalletCreation};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -21,8 +21,9 @@ use crate::{
         input::{Erc20DeploymentConfig, InitialDeploymentConfig},
         output::{ERC20Tokens, Erc20Token},
     },
+    source_files::SourceFiles,
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig, ZkStackConfigTrait,
+    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig,
     PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
@@ -30,16 +31,21 @@ use crate::{
 /// directory before network initialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EcosystemConfigInternal {
-    pub name: String,
-    pub l1_network: L1Network,
-    pub link_to_code: PathBuf,
-    pub bellman_cuda_dir: Option<PathBuf>,
-    pub chains: PathBuf,
-    pub config: PathBuf,
-    pub default_chain: String,
-    pub era_chain_id: L2ChainId,
-    pub prover_version: ProverMode,
-    pub wallet_creation: WalletCreation,
+    name: String,
+    l1_network: L1Network,
+    link_to_code: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bellman_cuda_dir: Option<PathBuf>,
+    chains: PathBuf,
+    config: PathBuf,
+    default_chain: String,
+    era_chain_id: L2ChainId,
+    prover_version: ProverMode,
+    wallet_creation: WalletCreation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    era_source_files: Option<SourceFiles>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    zksync_os_source_files: Option<SourceFiles>,
 }
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -56,7 +62,33 @@ pub struct EcosystemConfig {
     pub wallet_creation: WalletCreation,
     default_chain: String,
     link_to_code: PathBuf,
+    era_source_files: Option<SourceFiles>,
+    zksync_os_source_files: Option<SourceFiles>,
     shell: OnceCell<Shell>,
+}
+
+impl EcosystemConfig {
+    pub fn set_sources_path(
+        &mut self,
+        contracts_path: PathBuf,
+        default_configs_path: PathBuf,
+        vm_option: VMOption,
+    ) {
+        match vm_option {
+            VMOption::EraVM => {
+                self.era_source_files = Some(SourceFiles {
+                    contracts_path,
+                    default_configs_path,
+                });
+            }
+            VMOption::ZKSyncOsVM => {
+                self.zksync_os_source_files = Some(SourceFiles {
+                    contracts_path,
+                    default_configs_path,
+                });
+            }
+        }
+    }
 }
 
 impl Serialize for EcosystemConfig {
@@ -79,6 +111,7 @@ impl ReadConfig for EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
             link_to_code: shell.current_dir().join(config.link_to_code),
+            era_source_files: config.era_source_files.clone(),
             bellman_cuda_dir,
             chains: config.chains.clone(),
             config: config.config.clone(),
@@ -87,6 +120,7 @@ impl ReadConfig for EcosystemConfig {
             prover_version: config.prover_version,
             wallet_creation: config.wallet_creation,
             shell: Default::default(),
+            zksync_os_source_files: config.zksync_os_source_files.clone(),
         })
     }
 }
@@ -126,6 +160,8 @@ impl EcosystemConfig {
             prover_version,
             wallet_creation,
             shell,
+            era_source_files: None,
+            zksync_os_source_files: None,
         }
     }
 
@@ -216,7 +252,8 @@ impl EcosystemConfig {
             config.legacy_bridge,
             config.evm_emulator,
             config.tight_ports,
-            config.zksync_os,
+            config.vm_option,
+            config.contracts_source_path,
         ))
     }
 
@@ -247,8 +284,15 @@ impl EcosystemConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
-    pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
-        ContractsConfig::read(self.get_shell(), self.config.join(CONTRACTS_FILE))
+    pub fn get_contracts_config(&self) -> anyhow::Result<CoreContractsConfig> {
+        // Read contracts config with fallback to EraVM if not specified
+        // This is required for backward compatibility, as previously we had only EraVM
+        // and core contracts are were always EraVM
+        CoreContractsConfig::read_with_fallback(
+            self.get_shell(),
+            self.config.join(CONTRACTS_FILE),
+            VMOption::EraVM,
+        )
     }
 
     pub fn path_to_proving_networks(&self) -> PathBuf {
@@ -304,7 +348,51 @@ impl EcosystemConfig {
             era_chain_id: self.era_chain_id,
             prover_version: self.prover_version,
             wallet_creation: self.wallet_creation,
+            era_source_files: self.era_source_files.clone(),
+            zksync_os_source_files: self.zksync_os_source_files.clone(),
         }
+    }
+
+    pub fn get_source_files(&self, vm_option: VMOption) -> Option<&SourceFiles> {
+        match vm_option {
+            VMOption::EraVM => self.era_source_files.as_ref(),
+            VMOption::ZKSyncOsVM => self.zksync_os_source_files.as_ref(),
+        }
+    }
+
+    pub fn default_configs_path_for_ctm(&self, vm_option: VMOption) -> PathBuf {
+        self.get_source_files(vm_option)
+            .map(|files| files.default_configs_path.clone())
+            .unwrap_or_else(|| {
+                if vm_option.is_zksync_os() {
+                    logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                }
+                self.link_to_code.join(CONFIGS_PATH)
+            })
+    }
+
+    pub fn contracts_path_for_ctm(&self, vm_option: VMOption) -> PathBuf {
+        self.get_source_files(vm_option)
+            .map(|files| files.contracts_path.clone())
+            .unwrap_or_else(|| {
+                if vm_option.is_zksync_os(){
+                    logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
+                }
+                self.link_to_code.join(CONTRACTS_PATH)
+            })
+    }
+
+    pub fn path_to_foundry_scripts_for_ctm(&self, vm_option: VMOption) -> PathBuf {
+        self.contracts_path_for_ctm(vm_option)
+            .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
+    }
+
+    pub fn link_to_code(&self) -> PathBuf {
+        self.link_to_code.clone()
+    }
+
+    pub fn zksync_os_exist(&self) -> bool {
+        self.zksync_os_source_files.is_some()
     }
 }
 
@@ -324,23 +412,4 @@ pub fn get_default_era_chain_id() -> L2ChainId {
 
 pub fn get_link_to_prover(link_to_code: &Path) -> PathBuf {
     link_to_code.join("prover")
-}
-
-impl ZkStackConfigTrait for EcosystemConfig {
-    fn link_to_code(&self) -> PathBuf {
-        self.link_to_code.clone()
-    }
-
-    fn default_configs_path(&self) -> PathBuf {
-        self.link_to_code().join(CONFIGS_PATH)
-    }
-
-    fn contracts_path(&self) -> PathBuf {
-        self.link_to_code().join(CONTRACTS_PATH)
-    }
-
-    fn path_to_foundry_scripts(&self) -> PathBuf {
-        self.contracts_path()
-            .join(L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS)
-    }
 }

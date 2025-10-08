@@ -4,8 +4,8 @@ use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZkStackConfig,
-    ZkStackConfigTrait,
 };
+use zkstack_cli_types::VMOption;
 
 use crate::{
     commands::{
@@ -54,12 +54,8 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let configs_path = create_local_configs_dir(shell, ".")?;
 
-    let link_to_code = resolve_link_to_code(
-        shell,
-        &shell.current_dir(),
-        args.link_to_code.clone(),
-        args.update_submodules,
-    )?;
+    let link_to_code =
+        resolve_link_to_code(shell, &shell.current_dir(), args.link_to_code.clone())?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();
@@ -97,7 +93,8 @@ async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> 
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell).await?;
+    // By default, do not use zksync os for the ecosystem chain
+    create_chain_inner(chain_config, &ecosystem_config, shell, VMOption::EraVM).await?;
     spinner.finish();
 
     if args.start_containers {
