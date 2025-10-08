@@ -259,8 +259,7 @@ pub struct L2ToL1LogProof {
     /// The root of the tree.
     pub root: H256,
     /// The L1 batch number where the log was included.
-    #[serde(rename = "batch_number")]
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_number: L1BatchNumber,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
