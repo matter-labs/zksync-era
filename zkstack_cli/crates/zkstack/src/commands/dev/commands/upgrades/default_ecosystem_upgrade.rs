@@ -8,9 +8,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{
-    ethereum::get_ethers_provider, forge::Forge, git, logger, spinner::Spinner,
-};
+use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
@@ -27,10 +25,10 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
-    ZkStackConfigTrait, GENESIS_FILE,
+    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
-use zkstack_cli_types::ProverMode;
+use zkstack_cli_types::{ProverMode, VMOption};
+use zksync_basic_types::Address;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
@@ -52,56 +50,61 @@ pub async fn run(
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
+    let vm_option = args.common.vm_option();
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    git::submodule_update(shell, &ecosystem_config.link_to_code())?;
 
     let upgrade_version = args.upgrade_version;
 
-    let mut final_ecosystem_args = args.fill_values_with_prompt(run_upgrade);
+    let final_ecosystem_args = args.fill_values_with_prompt(run_upgrade);
 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                vm_option,
             )
             .await?;
         }
         EcosystemUpgradeStage::EcosystemAdmin => {
             ecosystem_admin(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                vm_option,
             )
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage0 => {
             governance_stage_0(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                vm_option,
             )
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage1 => {
             governance_stage_1(
-                &mut final_ecosystem_args,
+                &final_ecosystem_args,
                 shell,
                 &ecosystem_config,
                 &upgrade_version,
+                vm_option,
             )
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage2 => {
-            governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+            governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, vm_option).await?;
         }
         EcosystemUpgradeStage::NoGovernanceStage2 => {
-            no_governance_stage_2(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
+            no_governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, vm_option)
+                .await?;
         }
     }
 
@@ -118,10 +121,11 @@ struct BroadcastFileTransactions {
 }
 
 async fn no_governance_prepare(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
@@ -136,14 +140,15 @@ async fn no_governance_prepare(
             .await?
             .l1_rpc_url()?
     };
-    dbg!(&l1_rpc_url);
 
-    let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
+    let genesis_config_path = ecosystem_config
+        .default_configs_path_for_ctm(vm_option)
+        .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
-        .ecosystem_contracts
+        .core_ecosystem_contracts
         .bridgehub_proxy_addr;
 
     let bridgehub_proxy_address_str = format!("{:#x}", bridgehub_proxy_address);
@@ -184,7 +189,7 @@ async fn no_governance_prepare(
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
     let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(upgrade_version)
-        .input(&ecosystem_config.path_to_foundry_scripts());
+        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
 
     let mut new_genesis = default_genesis_input;
     let mut new_version = new_genesis.protocol_version;
@@ -208,7 +213,7 @@ async fn no_governance_prepare(
                 encoded_old_validator_timelocks: hex::encode(encode(&[Token::Array(vec![
                     Token::Address(
                         current_contracts_config
-                            .ecosystem_contracts
+                            .ctm(vm_option)
                             .validator_timelock_addr,
                     ),
                 ])])),
@@ -226,12 +231,11 @@ async fn no_governance_prepare(
         &gateway_upgrade_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
-        ecosystem_config
-            .get_contracts_config()?
-            .l1
-            .diamond_proxy_addr,
+        // TODO NEED TO USE ERA DIAMOND PROXY
+        Address::zero(),
         ecosystem_config.prover_version == ProverMode::NoProofs,
         upgrade_specific_config,
+        vm_option,
     );
 
     logger::info(format!("ecosystem_upgrade: {:?}", ecosystem_upgrade));
@@ -240,7 +244,7 @@ async fn no_governance_prepare(
         ecosystem_upgrade_config_path
     ));
     ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts())
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
             forge_args.clone(),
@@ -265,20 +269,24 @@ async fn no_governance_prepare(
 
     let l1_chain_id = ecosystem_config.l1_network.chain_id();
 
+    // TODO Get rid of BrodacastFile usage
     let broadcast_file: BroadcastFile = {
-        let file_content =
-            std::fs::read_to_string(ecosystem_config.path_to_foundry_scripts().join(format!(
-                "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
-                l1_chain_id
-            )))
-            .context("Failed to read broadcast file")?;
+        let file_content = std::fs::read_to_string(
+            ecosystem_config
+                .path_to_foundry_scripts_for_ctm(vm_option)
+                .join(format!(
+                    "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
+                    l1_chain_id
+                )),
+        )
+        .context("Failed to read broadcast file")?;
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
     let mut output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
 
     // Add all the transaction hashes.
@@ -292,17 +300,18 @@ async fn no_governance_prepare(
 }
 
 async fn ecosystem_admin(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing ecosystem admin!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -320,9 +329,10 @@ async fn ecosystem_admin(
 
     ecosystem_admin_execute_calls(
         shell,
-        ecosystem_config,
         // Note, that ecosystem admin and governor use the same wallet.
         &ecosystem_config.get_wallets()?.governor,
+        ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         ecosystem_admin_calls.server_notifier_upgrade.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
@@ -334,17 +344,18 @@ async fn ecosystem_admin(
 }
 
 async fn governance_stage_0(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 0!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
     let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
@@ -362,12 +373,12 @@ async fn governance_stage_0(
 
     governance_execute_calls(
         shell,
-        ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url,
-        None,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
     .await?;
     spinner.finish();
@@ -377,17 +388,18 @@ async fn governance_stage_0(
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 async fn governance_stage_1(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     println!("Executing governance stage 1!");
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts()),
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -405,12 +417,12 @@ async fn governance_stage_1(
 
     governance_execute_calls(
         shell,
-        ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
-        None,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
     .await?;
 
@@ -422,6 +434,7 @@ async fn governance_stage_1(
     update_contracts_config_from_output(
         &mut contracts_config,
         &gateway_ecosystem_preparation_output,
+        vm_option,
     );
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -430,24 +443,29 @@ async fn governance_stage_1(
 }
 
 fn update_contracts_config_from_output(
-    contracts_config: &mut ContractsConfig,
+    contracts_config: &mut CoreContractsConfig,
     output: &EcosystemUpgradeOutput,
+    vm_option: VMOption,
 ) {
+    let ctm = match vm_option {
+        VMOption::EraVM => contracts_config.era_ctm.as_mut().unwrap(),
+        VMOption::ZKSyncOsVM => contracts_config.zksync_os_ctm.as_mut().unwrap(),
+    };
+
     // This is force deployment data for creating new contracts, not really relevant here tbh,
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
+    ctm.force_deployments_data = Some(hex::encode(
         &output.contracts_config.force_deployments_data.0,
     ));
-    contracts_config.l1.rollup_l1_da_validator_addr =
-        Some(output.deployed_addresses.rollup_l1_da_validator_addr);
-    contracts_config.l1.no_da_validium_l1_validator_addr =
-        Some(output.deployed_addresses.validium_l1_da_validator_addr);
+    ctm.rollup_l1_da_validator_addr = output.deployed_addresses.rollup_l1_da_validator_addr;
+    ctm.no_da_validium_l1_validator_addr = output.deployed_addresses.validium_l1_da_validator_addr;
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 async fn governance_stage_2(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new("Executing governance stage 2!");
 
@@ -468,12 +486,12 @@ async fn governance_stage_2(
 
     governance_execute_calls(
         shell,
-        ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
         &init_args.forge_args.clone(),
         l1_rpc_url.clone(),
-        None,
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
     .await?;
 
@@ -495,9 +513,10 @@ lazy_static! {
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
 // TODO: maybe delete the file?
 async fn no_governance_stage_2(
-    init_args: &mut EcosystemUpgradeArgsFinal,
+    init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
+    vm_option: VMOption,
 ) -> anyhow::Result<()> {
     let contracts_config = ecosystem_config.get_contracts_config()?;
     let wallets = ecosystem_config.get_wallets()?;
@@ -554,7 +573,9 @@ async fn no_governance_stage_2(
             "initChains",
             (
                 ethers::abi::Token::Address(
-                    contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+                    contracts_config
+                        .core_ecosystem_contracts
+                        .bridgehub_proxy_addr,
                 ),
                 ethers::abi::Token::Array(chain_ids.clone()),
             ),
@@ -566,7 +587,7 @@ async fn no_governance_stage_2(
             (
                 ethers::abi::Token::Address(
                     contracts_config
-                        .ecosystem_contracts
+                        .core_ecosystem_contracts
                         .native_token_vault_addr
                         .context("native_token_vault_addr")?,
                 ),
@@ -577,7 +598,7 @@ async fn no_governance_stage_2(
         .unwrap();
 
     logger::info("Initiing chains!");
-    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts();
+    let foundry_contracts_path = ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option);
     let forge = Forge::new(&foundry_contracts_path)
         .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
