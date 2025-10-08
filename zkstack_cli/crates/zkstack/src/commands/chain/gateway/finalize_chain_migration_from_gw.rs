@@ -49,7 +49,7 @@ pub struct FinalizeChainMigrationFromGatewayArgs {
     pub l2_rpc_url: Option<String>,
     /// Whether to force providing the full migration calldata even if the chain
     /// isn't strictly ready for final calls.
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     pub no_cross_check: bool,
 }
 

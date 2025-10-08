@@ -6,7 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkstack_cli_types::L1Network;
+use zkstack_cli_types::{L1Network, VMOption};
 use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 use crate::{
@@ -157,10 +157,10 @@ impl DeployL1Config {
         testnet_verifier: bool,
         l1_network: L1Network,
         support_l2_legacy_shared_bridge_test: bool,
-        zksync_os: bool,
+        vm_option: VMOption,
     ) -> Self {
         Self {
-            is_zk_sync_os: zksync_os,
+            is_zk_sync_os: vm_option.is_zksync_os(),
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,
