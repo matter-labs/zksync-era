@@ -43,7 +43,6 @@ pub struct DeployCTMOutput {
     pub owner_address: Address,
     pub contracts_config: DeployCTMContractsConfigOutput,
     pub deployed_addresses: DeployCTMDeployedAddressesOutput,
-    pub expected_rollup_l2_da_validator_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
