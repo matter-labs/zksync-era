@@ -1,4 +1,6 @@
 use std::{
+    fs,
+    io::IsTerminal as _,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -13,10 +15,12 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use url::Url;
 use xshell::{cmd, Shell};
 
 use crate::{
     cmd::{Cmd, CmdResult},
+    docker::adjust_localhost_for_docker,
     ethereum::create_ethers_client,
 };
 
@@ -62,9 +66,19 @@ impl ForgeScript {
             let skip_path: String = String::from("contracts/bridgehub/*");
             self.args.add_arg(ForgeScriptArg::Skip { skip_path });
         }
-        let _dir_guard = shell.push_dir(&self.base_path);
+
+        // If a Docker protocol image is provided, run inside the container.
+        if let Some(image) = &self.args.protocol_docker_image {
+            return self.run_with_docker(shell, image);
+        } else {
+            return self.run_locally(shell);
+        }
+    }
+
+    fn run_locally(&self, shell: &Shell) -> anyhow::Result<()> {
         let script_path = self.script_path.as_os_str();
-        let args_no_resume = self.args.build();
+        let args_no_resume = self.args.clone().build();
+        let _dir_guard = shell.push_dir(&self.base_path);
         if self.args.resume {
             let mut args = args_no_resume.clone();
             args.push(ForgeScriptArg::Resume.to_string());
@@ -75,28 +89,58 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
-
-        // TODO: This line is very helpful for debugging purposes,
-        // maybe it makes sense to make it conditionally displayed.
-        let command = format!(
-            "forge script {} --legacy {}",
-            script_path.to_str().unwrap(),
-            args_no_resume.join(" ")
-        );
-
-        println!("Command: {}", command);
-
-        let mut cmd = Cmd::new(cmd!(
+        let cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
         ));
-
-        if self.args.resume {
-            cmd = cmd.with_piped_std_err();
-        }
-
         let res = cmd.run();
-        // We won't catch this error if resume is not set.
+        if res.proposal_error() {
+            return Ok(());
+        }
+        Ok(res?)
+    }
+
+    fn run_with_docker(&self, shell: &Shell, image: &str) -> anyhow::Result<()> {
+        if self.args.resume {
+            anyhow::bail!("Resume is not supported for Dockerized protocol images");
+        }
+        let script_path = self.script_path.as_os_str();
+        let args = self.args.clone().build();
+        // Host paths for I/O that must be visible to the container
+        let host_base = self.base_path.clone();
+        let host_cfg = host_base.join("script-config");
+        let host_out = host_base.join("script-out");
+        // Ensure mount points exist to avoid Docker creating them as files
+        let _ = fs::create_dir_all(&host_cfg);
+        let _ = fs::create_dir_all(&host_out);
+
+        let workdir = PathBuf::from(&self.args.protocol_docker_workdir);
+        let container_cfg = workdir.join("script-config");
+        let container_out = workdir.join("script-out");
+
+        let mut docker_args: Vec<String> = vec![
+            "--rm".to_string(),
+            "--platform".to_string(),
+            "linux/amd64".to_string(),
+            "--add-host=host.docker.internal:host-gateway".to_string(),
+            format!("--workdir={}", workdir.display()),
+            format!("-v={}:{}", host_cfg.display(), container_cfg.display()),
+            format!("-v={}:{}", host_out.display(), container_out.display()),
+        ];
+        let stdin_is_tty = std::io::stdin().is_terminal();
+        let stdout_is_tty = std::io::stdout().is_terminal();
+        if stdin_is_tty {
+            docker_args.push("-i".to_string());
+        }
+        if stdout_is_tty {
+            docker_args.push("-t".to_string());
+        }
+        let cmd = Cmd::new(cmd!(
+            shell,
+            "docker run {docker_args...} {image} forge script {script_path} --legacy {args...}"
+        ))
+        .with_force_run();
+        let res = cmd.run();
         if res.proposal_error() {
             return Ok(());
         }
@@ -314,6 +358,17 @@ pub struct ForgeScriptArgs {
     pub resume: bool,
     #[clap(long)]
     pub zksync: bool,
+    /// Use forge scripts and binaries from a Dockerized protocol image.
+    /// Example: matterlabs/protocol:v0.29.0
+    #[clap(long = "protocol-docker-image", alias = "docker-image")]
+    pub protocol_docker_image: Option<String>,
+    /// Working directory inside the protocol image where l1-contracts live.
+    /// This is used to mount script-config and script-out for I/O.
+    #[clap(
+        long = "protocol-docker-workdir",
+        default_value = "/contracts/l1-contracts"
+    )]
+    pub protocol_docker_workdir: String,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
@@ -327,9 +382,11 @@ impl ForgeScriptArgs {
     pub fn build(&mut self) -> Vec<String> {
         self.add_verify_args();
         self.cleanup_contract_args();
+        self.adjust_args_for_docker();
         if self.zksync {
             self.add_arg(ForgeScriptArg::Zksync);
         }
+
         self.args
             .iter()
             .map(|arg| arg.to_string())
@@ -408,6 +465,23 @@ impl ForgeScriptArgs {
         }
 
         self.additional_args = cleaned_args;
+    }
+
+    // If running via Docker, rewrite localhost RPCs to host.docker.internal
+    pub fn adjust_args_for_docker(&mut self) {
+        if self.protocol_docker_image.is_some() {
+            if let Some(ForgeScriptArg::RpcUrl { url }) = self
+                .args
+                .iter_mut()
+                .find(|a| matches!(a, ForgeScriptArg::RpcUrl { .. }))
+            {
+                if let Ok(parsed) = Url::parse(&url) {
+                    if let Ok(new_url) = adjust_localhost_for_docker(parsed) {
+                        *url = new_url.to_string();
+                    }
+                }
+            }
+        }
     }
 
     /// Add additional arguments to the forge script command.
