@@ -29,7 +29,7 @@ impl std::str::FromStr for AutoscalerType {
         match s {
             "scaler" => Ok(AutoscalerType::Scaler),
             "agent" => Ok(AutoscalerType::Agent),
-            other => Err(format!("{} is not a valid AutoscalerType ", other)),
+            other => Err(format!("{} is not a valid AutoscalerType", other)),
         }
     }
 }
