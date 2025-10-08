@@ -13,6 +13,8 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
       YQ_VERSION: "4.45.1"
       CUDA_ARCH: "75;80;89;90"
+      CUDAARCHS: "75;80;89;90"
+      PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
