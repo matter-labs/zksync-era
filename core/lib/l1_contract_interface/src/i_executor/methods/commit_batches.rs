@@ -1,19 +1,19 @@
-use crate::{
-    i_executor::structures::{get_encoding_version, CommitBatchInfo, StoredBatchInfo},
-    Tokenizable, Tokenize,
-};
 use zksync_contracts::{
     hyperchain_contract, POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
     POST_V26_GATEWAY_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
-use zksync_types::ethabi::{Function, ParamType};
-use zksync_types::web3::Bytes;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
-    ethabi::{encode, Token},
+    ethabi::{encode, Function, ParamType, Token},
     pubdata_da::PubdataSendingMode,
+    web3::Bytes,
     ProtocolVersionId,
+};
+
+use crate::{
+    i_executor::structures::{get_encoding_version, CommitBatchInfo, StoredBatchInfo},
+    Tokenizable, Tokenize,
 };
 
 /// Input required to encode `commitBatches` call for a contract
@@ -57,75 +57,31 @@ impl Tokenize for &CommitBatches<'_> {
     }
 }
 
-impl CommitBatches {
-    fn function(protocol_version_id: ProtocolVersionId) -> Function {
-        if protocol_version_id.is_pre_boojum() {
-            *PRE_BOOJUM_COMMIT_FUNCTION.clone()
-        } else if protocol_version_id.is_pre_shared_bridge() {
-            *POST_BOOJUM_COMMIT_FUNCTION.clone()
-        } else if protocol_version_id.is_pre_gateway() {
-            *POST_SHARED_BRIDGE_COMMIT_FUNCTION.clone()
-        } else if protocol_version_id.is_pre_interop_fast_blocks() {
-            *POST_V26_GATEWAY_COMMIT_FUNCTION.clone()
-        } else {
-            hyperchain_contract()
-                .function("commitBatchesSharedBridge")
-                .unwrap()
-                .clone()
-            // .context("L1 contract does not have `commitBatchesSharedBridge` function")
-            // .map_err(CheckError::Internal)?
+impl CommitBatches<'_> {
+    pub fn function(short_signature: &[u8]) -> (Function, ProtocolVersionId) {
+        for (function, protocol_version) in [
+            (&*PRE_BOOJUM_COMMIT_FUNCTION, ProtocolVersionId::Version17),
+            (&*POST_BOOJUM_COMMIT_FUNCTION, ProtocolVersionId::Version22),
+            (
+                &*POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+                ProtocolVersionId::Version23,
+            ),
+            (
+                &*POST_V26_GATEWAY_COMMIT_FUNCTION,
+                ProtocolVersionId::Version27,
+            ),
+            (
+                &hyperchain_contract()
+                    .function("commitBatchesSharedBridge")
+                    .unwrap()
+                    .clone(),
+                ProtocolVersionId::Version29,
+            ),
+        ] {
+            if function.short_signature() == short_signature {
+                return (function.clone(), protocol_version);
+            }
         }
-    }
-}
-
-pub fn decode_commit_function(
-    bytes: Bytes,
-    protocol_version: ProtocolVersionId,
-) -> anyhow::Result<(StoredBatchInfo, Vec<CommitBatchInfo>)> {
-    let function = CommitBatches::function(protocol_version);
-    let mut tokens = function
-        .decode_input(&bytes.0)
-        .map_err(|err| format!("Failed to decode input: {:?}", err))?;
-
-    if protocol_version.is_pre_gateway() {
-        assert_eq!(tokens.len(), 2);
-        let stored_batch = StoredBatchInfo::from_token(tokens.pop().unwrap(), protocol_version)?;
-        let mut commit_batches = Vec::new();
-        for batch in tokens.pop().unwrap().into_array().unwrap() {
-            // let batch_info = CommitBatchInfo::from_token(batch, protocol_version)?;
-            // commit_batches.push(batch_info);
-        }
-        Ok((stored_batch, commit_batches))
-    } else if protocol_version.is_pre_interop_fast_blocks() {
-        assert_eq!(tokens.len(), 3);
-        let _chain_id_or_address = tokens.pop().unwrap();
-        let stored_batch = StoredBatchInfo::from_token(tokens[0].clone(), protocol_version)?;
-        let mut commit_batches = Vec::new();
-        for batch in tokens[1].clone().into_array().unwrap() {
-            // let batch_info = CommitBatchInfo::from_token(batch, protocol_version)?;
-            // commit_batches.push(batch_info);
-        }
-        Ok((stored_batch, commit_batches))
-    } else {
-        assert_eq!(tokens.len(), 3);
-        let _chain_id_or_address = tokens.pop().unwrap();
-        let _process_from_index = tokens.pop().unwrap();
-        let _process_to_index = tokens.pop().unwrap();
-        let data = tokens.pop().unwrap();
-        let decoded_data = ethabi::decode(
-            &[
-                StoredBatchInfo::schema_for_protocol_version(protocol_version),
-                ParamType::Tuple(vec![CommitBatchInfo::post_gateway_schema()]),
-            ],
-            &data.into_bytes().unwrap()[1..], // skip the first byte (encoding version)
-        );
-        todo!()
-        // let stored_batch = StoredBatchInfo::from_token(tokens[0].clone(), protocol_version)?;
-        // let mut commit_batches = Vec::new();
-        // for batch in tokens[1].clone().into_array().unwrap() {
-        //     let batch_info = CommitBatchInfo::from_token(batch, protocol_version)?;
-        //     commit_batches.push(batch_info);
-        // }
-        // Ok((stored_batch, commit_batches))
+        panic!("Unknown function signature: {:?}", short_signature)
     }
 }

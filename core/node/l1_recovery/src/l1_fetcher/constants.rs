@@ -31,23 +31,23 @@ pub mod zksync {
 
 pub fn initial_states_directory() -> PathBuf {
     let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/initial_states")
+    dbg!(&base_path);
+    base_path.join("node/l1_recovery/initial_states")
 }
+
 #[allow(unused)] // only used in tests
 pub fn sepolia_initial_state_path() -> PathBuf {
-    let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/initial_states/InitialStateSepolia.json")
+    initial_states_directory().join("InitialStateSepolia.json")
 }
+
 #[allow(unused)] // only used in tests
 pub fn mainnet_initial_state_path() -> PathBuf {
-    let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/initial_states/InitialStateMainnet.json")
+    initial_states_directory().join("InitialStateMainnet.json")
 }
 
 #[allow(unused)]
 pub fn local_initial_state_path() -> PathBuf {
-    let base_path = Workspace::locate().core();
-    base_path.join("core/node/l1_recovery/initial_states/InitialStateV25.json")
+    initial_states_directory().join("InitialStateV25.json")
 }
 
 #[allow(unused)]

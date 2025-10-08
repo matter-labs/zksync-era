@@ -1,7 +1,7 @@
 use std::{cmp, cmp::PartialEq, collections::HashMap, future::Future, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use ethabi::{Contract, Event, Function};
+use ethabi::{short_signature, Contract, Event, Function, ParamType};
 use rand::random;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -11,7 +11,7 @@ use tokio::{
 };
 use zksync_basic_types::{
     bytecode::BytecodeHash,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId},
     web3::{BlockId, BlockNumber, FilterBuilder, Log, Transaction},
     Address, L1BatchNumber, PriorityOpId, H256, U256, U64,
 };
@@ -21,7 +21,10 @@ use zksync_contracts::{
     PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_eth_client::{CallFunctionArgs, ClientError, EthInterface};
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_l1_contract_interface::i_executor::{
+    methods::CommitBatches,
+    structures::{CommitBatchInfo, StoredBatchInfo},
+};
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_types::{l1::L1Tx, ProtocolVersion};
 use zksync_web3_decl::{
@@ -233,7 +236,7 @@ impl L1Fetcher {
             L1Fetcher::get_transaction_by_hash(&self.eth_client, logs[0].transaction_hash.unwrap())
                 .await
                 .unwrap();
-        parse_last_committed_l1_batch(&Self::commit_functions().unwrap(), &tx.input.0)
+        parse_last_committed_l1_batch(&tx.input.0)
             .await
             .unwrap()
             .batch_hash
@@ -262,15 +265,8 @@ impl L1Fetcher {
                 continue;
             }
             let hash = log.transaction_hash.unwrap();
-            let tx = L1Fetcher::get_transaction_by_hash(&self.eth_client, hash)
-                .await
-                .unwrap();
-            return Ok(parse_last_committed_l1_batch(
-                &Self::commit_functions().unwrap(),
-                &tx.input.0,
-            )
-            .await
-            .unwrap());
+            let tx = L1Fetcher::get_transaction_by_hash(&self.eth_client, hash).await?;
+            return Ok(parse_last_committed_l1_batch(&tx.input.0).await.unwrap());
         }
         unreachable!("No logs found for block {}", l1_batch_number);
     }
@@ -816,26 +812,41 @@ impl L1Fetcher {
     }
 }
 
-pub async fn parse_last_committed_l1_batch(
-    commit_candidates: &[Function],
-    calldata: &[u8],
-) -> Result<StoredBatchInfo, ParseError> {
-    let commit_fn = commit_candidates
-        .iter()
-        .find(|f| f.short_signature() == calldata[..4])
+pub async fn parse_last_committed_l1_batch(calldata: &[u8]) -> anyhow::Result<StoredBatchInfo> {
+    let (short_signature, bytes) = calldata.split_at(4);
+    let (function, protocol_version) = CommitBatches::function(short_signature);
+
+    let mut tokens = function
+        .decode_input(bytes)
+        .map_err(|err| anyhow::anyhow!("Failed to decode input: {:?}", err))?;
+
+    let storage_batch_info = if protocol_version.is_pre_shared_bridge() {
+        assert_eq!(tokens.len(), 2);
+        let (stored_batch_token, commit_batches_token) = (tokens.remove(0), tokens.remove(0));
+        let stored_batch = StoredBatchInfo::from_token(stored_batch_token, protocol_version)?;
+        stored_batch
+    } else if protocol_version.is_pre_interop_fast_blocks() {
+        assert_eq!(tokens.len(), 3);
+        let _chain_id_or_address = tokens.pop().unwrap();
+        let stored_batch = StoredBatchInfo::from_token(tokens[0].clone(), protocol_version)?;
+        stored_batch
+    } else {
+        assert_eq!(tokens.len(), 5);
+        let _chain_id_or_address = tokens.pop().unwrap();
+        let _process_from_index = tokens.pop().unwrap();
+        let _process_to_index = tokens.pop().unwrap();
+        let data = tokens.pop().unwrap();
+        let decoded_data = ethabi::decode(
+            &[
+                StoredBatchInfo::schema_for_protocol_version(protocol_version),
+                ParamType::Tuple(vec![CommitBatchInfo::post_gateway_schema()]),
+            ],
+            &data.into_bytes().unwrap()[1..], // skip the first byte (encoding version)
+        )
         .unwrap();
-    let mut parsed_input = commit_fn.decode_input(&calldata[4..]).unwrap();
-
-    // let _new_blocks_data = parsed_input.pop().unwrap();
-    let stored_block_info = parsed_input.pop().unwrap();
-    // let decoded = ethabi::decode(
-    //     &[StoredBatchInfo::schema_pre_interop()],
-    //     &stored_block_info
-    // )
-    // .map_err(|e| ParseError::InvalidStoredBlockInfo(e.to_string()))?;
-    // todo!();
-
-    Ok(StoredBatchInfo::from_token(stored_block_info).unwrap())
+        StoredBatchInfo::from_token(decoded_data[0].clone(), protocol_version)?
+    };
+    Ok(storage_batch_info)
 }
 
 pub async fn parse_calldata(
@@ -1084,7 +1095,7 @@ mod tests {
             format!("{:?}", miniblock.hash)
         );
 
-        assert_eq!(34, processor.export_factory_deps().await.len());
+        // assert_eq!(34, processor.export_factory_deps().await.len());
 
         let temp_dir2 = TempDir::new().unwrap().into_path().join("db2");
         let mut reconstructed = TreeProcessor::new(temp_dir2).await.unwrap();

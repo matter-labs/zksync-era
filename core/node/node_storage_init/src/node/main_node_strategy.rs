@@ -1,5 +1,4 @@
-use std::num::NonZeroUsize;
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use zksync_config::{GenesisConfig, ObjectStoreConfig};
 use zksync_dal::node::{MasterPool, PoolResource};
@@ -12,10 +11,9 @@ use zksync_node_framework::{
 use zksync_shared_resources::contracts::SettlementLayerContractsResource;
 use zksync_web3_decl::client::{DynClient, L1};
 
-use crate::external_node::NodeRecovery;
 use crate::{
-    main_node::MainNodeGenesis, InitializeStorage, NodeInitializationStrategy,
-    SnapshotRecoveryConfig,
+    external_node::NodeRecovery, main_node::MainNodeGenesis, InitializeStorage,
+    NodeInitializationStrategy, SnapshotRecoveryConfig,
 };
 
 /// Wiring layer for main node initialization strategy.

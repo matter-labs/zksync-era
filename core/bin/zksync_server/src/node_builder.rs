@@ -1,9 +1,9 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
+use std::{mem, num::NonZeroUsize, time::Duration};
+
 use anyhow::{bail, Context};
-use std::num::NonZeroUsize;
-use std::{mem, time::Duration};
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
