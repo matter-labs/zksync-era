@@ -254,7 +254,7 @@ pub struct RegisterCTMArgs {
     pub update_submodules: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    #[clap(long, action)]
     pub only_save_calldata: bool,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub bridgehub: String,
