@@ -39,10 +39,9 @@ pub struct CoreContractsConfig {
 impl CoreContractsConfig {
     pub fn ctm(&self, vm_option: VMOption) -> ChainTransitionManagerContracts {
         match vm_option {
-            VMOption::EraVM => self
-                .era_ctm
-                .clone()
-                .expect("Era CTM is not deployed, please deploy it first"),
+            VMOption::EraVM => self.era_ctm.clone().expect(
+                "Era CTM is not deployed, please deploy it first by running `ctm init-new-ctm`",
+            ),
             VMOption::ZKSyncOsVM => self
                 .zksync_os_ctm
                 .clone()

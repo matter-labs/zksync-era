@@ -83,7 +83,7 @@ impl RegisterChainL1Config {
 
         let ctm = match chain_config.vm_option {
             VMOption::EraVM => &contracts.era_ctm.clone().unwrap(),
-            VMOption::ZKSyncOsVM => &contracts.era_ctm.clone().unwrap(),
+            VMOption::ZKSyncOsVM => &contracts.zksync_os_ctm.clone().unwrap(),
         };
 
         Ok(Self {

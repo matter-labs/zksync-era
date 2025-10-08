@@ -76,13 +76,13 @@ impl EcosystemConfig {
     ) {
         match vm_option {
             VMOption::EraVM => {
-                self.zksync_os_source_files = Some(SourceFiles {
+                self.era_source_files = Some(SourceFiles {
                     contracts_path,
                     default_configs_path,
                 });
             }
             VMOption::ZKSyncOsVM => {
-                self.era_source_files = Some(SourceFiles {
+                self.zksync_os_source_files = Some(SourceFiles {
                     contracts_path,
                     default_configs_path,
                 });
@@ -285,6 +285,9 @@ impl EcosystemConfig {
     }
 
     pub fn get_contracts_config(&self) -> anyhow::Result<CoreContractsConfig> {
+        // Read contracts config with fallback to EraVM if not specified
+        // This is required for backward compatibility, as previously we had only EraVM
+        // and core contracts are were always EraVM
         CoreContractsConfig::read_with_fallback(
             self.get_shell(),
             self.config.join(CONTRACTS_FILE),
