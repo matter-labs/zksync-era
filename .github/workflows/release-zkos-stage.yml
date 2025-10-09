@@ -73,20 +73,6 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-
-  build-push-prover-images:
-    name: Build and push images
-    needs: [ setup, changed_files ]
-    uses: ./.github/workflows/build-zksync-os-prover-template.yml
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      action: "push"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-
   regenerate-keys:
     name: Regenerate keys
     needs: [ setup, changed_files ]
