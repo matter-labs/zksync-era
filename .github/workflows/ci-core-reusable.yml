@@ -77,13 +77,26 @@ jobs:
         run: |
           ci_run yarn install
 
-      - name: Build contracts
-        working-directory: contracts
+      - name: Build da contracts
+        working-directory: contracts/da-contracts
         run: |
-          ci_run yarn --cwd da-contracts build:foundry
-          ci_run yarn --cwd l1-contracts build:foundry
-          ci_run yarn --cwd l2-contracts build:foundry
-          ci_run yarn --cwd system-contracts build:foundry
+          yarn build:foundry
+
+      - name: Build l1 contracts
+        working-directory: contracts/l1-contracts
+        run: |
+          yarn build:foundry
+
+      - name: Build l2 contracts
+        working-directory: contracts/l2-contracts
+        run: |
+          yarn build:foundry
+
+      - name: Build system contracts
+        working-directory: contracts/system-contracts
+        run: |
+          yarn install
+          yarn build:foundry
 
       - name: Check contracts hashes
         working-directory: contracts
