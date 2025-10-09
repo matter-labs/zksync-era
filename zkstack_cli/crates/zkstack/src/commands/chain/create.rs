@@ -7,7 +7,6 @@ use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
     EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
 };
-use zkstack_cli_types::VMOption;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -30,12 +29,6 @@ pub async fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let vm_option = if args.zksync_os {
-        VMOption::ZKSyncOsVM
-    } else {
-        VMOption::EraVM
-    };
-
     let tokens = ecosystem_config.get_erc20_tokens();
     let args = args
         .fill_values_with_prompt(
@@ -51,7 +44,7 @@ pub async fn create(
     let spinner = Spinner::new(MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER);
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
-    create_chain_inner(args, ecosystem_config, shell, vm_option).await?;
+    create_chain_inner(args, ecosystem_config, shell).await?;
     if set_as_default {
         ecosystem_config.set_default_chain(name);
         ecosystem_config.save_with_base_path(shell, ".")?;
@@ -67,8 +60,8 @@ pub(crate) async fn create_chain_inner(
     args: ChainCreateArgsFinal,
     ecosystem_config: &EcosystemConfig,
     shell: &Shell,
-    vm_option: VMOption,
 ) -> anyhow::Result<()> {
+    let vm_option = args.vm_option;
     if args.legacy_bridge {
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
