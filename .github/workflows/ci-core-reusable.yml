@@ -64,9 +64,12 @@ jobs:
           ci_run run_retried rustup show
 
       - name: Build contracts
+        working-directory: contracts
         run: |
-          ci_run forge --version
-          ci_run zkstack dev contracts
+          ci_run yarn --cwd da-contracts build:foundry
+          ci_run yarn --cwd l1-contracts build:foundry
+          ci_run yarn --cwd l2-contracts build:foundry
+          ci_run yarn --cwd system-contracts build:foundry
 
       - name: Use Node.js
         uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
