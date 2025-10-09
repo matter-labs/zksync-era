@@ -77,6 +77,16 @@ jobs:
         run: |
           ci_run yarn install
 
+      - name: Clean contracts cache
+        run: |
+          ci_run forge clean --root contracts/da-contracts
+          ci_run yarn --cwd contracts/l1-contracts clean
+          ci_run forge clean --root contracts/l1-contracts
+          ci_run yarn --cwd contracts/l2-contracts clean
+          ci_run forge clean --root contracts/l2-contracts
+          ci_run yarn --cwd contracts/system-contracts clean
+          ci_run forge clean --root contracts/system-contracts
+
       - name: Build da contracts
         run: |
           ci_run yarn --cwd contracts/da-contracts build:foundry
