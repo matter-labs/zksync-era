@@ -63,6 +63,11 @@ jobs:
         run: |
           ci_run run_retried rustup show
 
+      - name: Install yarn dependencies
+        working-directory: contracts
+        run: |
+          ci_run yarn install
+
       - name: Build contracts
         working-directory: contracts
         run: |
