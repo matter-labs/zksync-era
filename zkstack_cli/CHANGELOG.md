@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.0...zkstack_cli-v0.2.1) (2025-10-09)
+
+
+### Bug Fixes
+
+* **zkstack:** use vm_option in args properly ([#4533](https://github.com/matter-labs/zksync-era/issues/4533)) ([595034d](https://github.com/matter-labs/zksync-era/commit/595034d9b06fbe0f74d0acb3aac4a50c6ff2b907))
+
 ## [0.2.0](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.1.2...zkstack_cli-v0.2.0) (2025-10-09)
 
 
