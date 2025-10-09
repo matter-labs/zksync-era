@@ -65,6 +65,7 @@ jobs:
 
       - name: Build contracts
         run: |
+          ci_run forge --version
           ci_run zkstack dev contracts
 
       - name: Use Node.js
