@@ -63,6 +63,15 @@ jobs:
         run: |
           ci_run run_retried rustup show
 
+      - name: Use Node.js
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
+        with:
+          node-version: 18.20.8
+
+      - name: Install yarn
+        run: |
+          npm install -g yarn
+
       - name: Install yarn dependencies
         working-directory: contracts
         run: |
@@ -76,14 +85,6 @@ jobs:
           ci_run yarn --cwd l2-contracts build:foundry
           ci_run yarn --cwd system-contracts build:foundry
 
-      - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
-        with:
-          node-version: 18.20.8
-
-      - name: Install yarn
-        run: |
-          npm install -g yarn
       - name: Check contracts hashes
         working-directory: contracts
         run: |
