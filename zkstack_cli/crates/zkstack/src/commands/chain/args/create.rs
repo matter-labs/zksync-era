@@ -7,7 +7,9 @@ use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
 use zkstack_cli_common::{Prompt, PromptConfirm, PromptSelect};
 use zkstack_cli_config::forge_interface::deploy_ecosystem::output::Erc20Token;
-use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
+use zkstack_cli_types::{
+    BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, VMOption, WalletCreation,
+};
 use zksync_basic_types::H160;
 
 use crate::{
@@ -88,6 +90,11 @@ impl ChainCreateArgs {
         l1_network: &L1Network,
         possible_erc20: Vec<Erc20Token>,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
+        let vm_option = if self.zksync_os {
+            VMOption::ZKSyncOsVM
+        } else {
+            VMOption::EraVM
+        };
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
@@ -247,6 +254,7 @@ impl ChainCreateArgs {
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
             tight_ports: self.tight_ports,
+            vm_option,
         })
     }
 }
@@ -264,6 +272,7 @@ pub struct ChainCreateArgsFinal {
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
     pub tight_ports: bool,
+    pub vm_option: VMOption,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
