@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig, GenesisConfig, ZkStackConfig, ERA_VM_GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, SourceFiles, ZkStackConfig, ERA_VM_GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
 
@@ -122,7 +122,10 @@ pub(crate) async fn create_chain_inner(
         args.evm_emulator,
         args.tight_ports,
         vm_option,
-        Some(ecosystem_config.contracts_path_for_ctm(vm_option)),
+        Some(SourceFiles {
+            contracts_path: ecosystem_config.contracts_path_for_ctm(args.vm_option),
+            default_configs_path: ecosystem_config.default_configs_path_for_ctm(args.vm_option),
+        }),
     );
 
     create_wallets(

@@ -19,6 +19,7 @@ use crate::{
     },
     create_localhost_wallets,
     gateway::GatewayConfig,
+    source_files::SourceFiles,
     traits::{
         FileConfigTrait, FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
@@ -56,7 +57,8 @@ pub struct ChainConfigInternal {
     #[serde(default)] // for backward compatibility
     pub vm_option: VMOption,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub contracts_source_path: Option<PathBuf>,
+    #[serde(flatten)]
+    source_files: Option<SourceFiles>,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -82,7 +84,7 @@ pub struct ChainConfig {
     shell: OnceCell<Shell>,
     self_path: PathBuf,
     link_to_code: PathBuf,
-    contracts_source_path: Option<PathBuf>,
+    source_files: Option<SourceFiles>,
 }
 
 #[derive(Debug, Clone)]
@@ -123,7 +125,7 @@ impl ChainConfig {
         evm_emulator: bool,
         tight_ports: bool,
         vm_option: VMOption,
-        contracts_source_path: Option<PathBuf>,
+        source_files: Option<SourceFiles>,
     ) -> Self {
         Self {
             id,
@@ -145,7 +147,7 @@ impl ChainConfig {
             evm_emulator,
             tight_ports,
             vm_option,
-            contracts_source_path,
+            source_files,
         }
     }
 
@@ -251,7 +253,7 @@ impl ChainConfig {
             evm_emulator: self.evm_emulator,
             tight_ports: self.tight_ports,
             vm_option: self.vm_option,
-            contracts_source_path: self.contracts_source_path.clone(),
+            source_files: self.source_files.clone(),
         }
     }
     pub(crate) fn from_internal(
@@ -286,7 +288,7 @@ impl ChainConfig {
             self_path: shell.current_dir(),
             shell: shell.into(),
             vm_option: chain_internal.vm_option,
-            contracts_source_path: chain_internal.contracts_source_path.clone(),
+            source_files: chain_internal.source_files,
         })
     }
 }
@@ -325,12 +327,16 @@ impl ZkStackConfigTrait for ChainConfig {
     }
 
     fn default_configs_path(&self) -> PathBuf {
-        self.link_to_code().join(CONFIGS_PATH)
+        if let Some(sources) = &self.source_files {
+            sources.default_configs_path.clone()
+        } else {
+            self.link_to_code().join(CONFIGS_PATH)
+        }
     }
 
     fn contracts_path(&self) -> PathBuf {
-        if let Some(contracts_path) = &self.contracts_source_path {
-            contracts_path.clone()
+        if let Some(sources) = &self.source_files {
+            sources.contracts_path.clone()
         } else {
             self.link_to_code().join(CONTRACTS_PATH)
         }

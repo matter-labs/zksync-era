@@ -253,7 +253,10 @@ impl EcosystemConfig {
             config.evm_emulator,
             config.tight_ports,
             config.vm_option,
-            config.contracts_source_path,
+            Some(SourceFiles {
+                contracts_path: self.contracts_path_for_ctm(config.vm_option),
+                default_configs_path: self.default_configs_path_for_ctm(config.vm_option),
+            }),
         ))
     }
 
