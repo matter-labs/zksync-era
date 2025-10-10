@@ -47,12 +47,50 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
+      # TODO: Remove once merged into main
+      - name: (TEMPORARY) Update foundry
+        run: |
+          ci_run rm -rf ~/.foundry/cache
+          ci_run rm -rf ~/.foundry/zksolc-bin
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
+          ci_run mkdir ./foundry-temp
+          ci_run tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-temp
+          ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
+          ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
+          echo "Foundry version after update:"
+          ci_run forge --version
+          ci_run rm -rf ./foundry-temp foundry_zksync_v0.0.29_linux_amd64.tar.gz
+
       - name: Init
         run: |
           ci_run run_retried rustup show
 
+      - name: Clean all forge artifacts and preprocessing
+        run: |
+          # Clean forge caches
+          ci_run forge clean --root contracts/l1-contracts
+          ci_run forge clean --root contracts/system-contracts
+          ci_run forge clean --root contracts/l2-contracts
+          ci_run forge clean --root contracts/da-contracts
+
+          # Clean preprocessing artifacts and timestamps
+          ci_run rm -rf contracts/system-contracts/contracts-preprocessed
+          ci_run rm -f contracts/system-contracts/last_compilation_preprocessing.timestamp
+          ci_run rm -rf contracts/system-contracts/bootloader/build
+          
+          # Clean zkout directories that other contracts read from
+          ci_run rm -rf contracts/system-contracts/zkout
+          ci_run rm -rf contracts/l1-contracts/zkout
+          ci_run rm -rf contracts/l2-contracts/zkout
+          
+          # Clean out directories
+          ci_run rm -rf contracts/system-contracts/out
+          ci_run rm -rf contracts/l1-contracts/out
+          ci_run rm -rf contracts/l2-contracts/out
+
       - name: Build contracts
         run: |
+          ci_run forge --version
           ci_run zkstack dev contracts
 
       - name: Use Node.js
@@ -64,9 +102,8 @@ jobs:
         run: |
           npm install -g yarn
       - name: Check contracts hashes
-        working-directory: contracts
         run: |
-          yarn calculate-hashes:check
+          ci_run sh -c 'cd contracts && yarn calculate-hashes:check'
 
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
@@ -101,6 +138,18 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+
+      # TODO: Remove once merged into main
+      - name: (TEMPORARY) Update foundry
+        run: |
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
+          ci_run mkdir ./foundry-temp
+          ci_run tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-temp
+          ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
+          ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
+          echo "Foundry version after update:"
+          ci_run forge --version
+          ci_run rm -rf ./foundry-temp foundry_zksync_v0.0.29_linux_amd64.tar.gz
 
       - name: Create and initialize legacy chain
         run: |
@@ -174,6 +223,18 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+
+      # TODO: Remove once merged into main
+      - name: (TEMPORARY) Update foundry
+        run: |
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
+          ci_run mkdir ./foundry-temp
+          ci_run tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-temp
+          ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
+          ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
+          echo "Foundry version after update:"
+          ci_run forge --version
+          ci_run rm -rf ./foundry-temp foundry_zksync_v0.0.29_linux_amd64.tar.gz
 
       - name: Build test dependencies
         run: |

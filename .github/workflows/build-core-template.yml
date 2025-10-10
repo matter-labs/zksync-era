@@ -105,8 +105,8 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           mkdir ./foundry-zksync
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
-          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
+          tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
@@ -179,8 +179,8 @@ jobs:
         run: |
           mkdir ./foundry-zksync
           # downloading newer version of foundry-zksync since the latest nightly is not working
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.24/foundry_zksync_v0.0.24_linux_amd64.tar.gz
-          tar zxf foundry_zksync_v0.0.24_linux_amd64.tar.gz -C ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
+          tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
