@@ -29,18 +29,6 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
 
-      # TODO: Remove once merged into main
-      - name: (TEMPORARY) Update foundry
-        run: |
-          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
-          ci_run mkdir ./foundry-temp
-          ci_run tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-temp
-          ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
-          ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
-          echo "Foundry version after update:"
-          ci_run forge --version
-          ci_run rm -rf ./foundry-temp foundry_zksync_v0.0.29_linux_amd64.tar.gz
-
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
         run: |
@@ -58,6 +46,20 @@ jobs:
             wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
+
+      # TODO: Remove once merged into main
+      - name: (TEMPORARY) Update foundry
+        run: |
+          ci_run rm -rf ~/.foundry/cache
+          ci_run rm -rf ~/.foundry/zksolc-bin
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.29/foundry_zksync_v0.0.29_linux_amd64.tar.gz
+          ci_run mkdir ./foundry-temp
+          ci_run tar zxf foundry_zksync_v0.0.29_linux_amd64.tar.gz -C ./foundry-temp
+          ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
+          ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
+          echo "Foundry version after update:"
+          ci_run forge --version
+          ci_run rm -rf ./foundry-temp foundry_zksync_v0.0.29_linux_amd64.tar.gz
 
       - name: Init
         run: |
