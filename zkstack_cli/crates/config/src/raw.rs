@@ -164,7 +164,7 @@ impl PatchedConfig {
         let contents = match extension {
             "yaml" | "yml" => serde_yaml::to_string(&self.base.inner)
                 .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
-            "json" => serde_json::to_string(&self.base.inner)
+            "json" => serde_json::to_string_pretty(&self.base.inner)
                 .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
             _ => {
                 anyhow::bail!("unsupported config file extension `{extension}`");

@@ -42,14 +42,15 @@ impl GenesisInput {
                 protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
             }),
             VMOption::ZKSyncOsVM => {
+                let one = u256_to_h256(U256::one());
                 let genesis_root = raw.0.get("genesis_root")?;
                 Ok(Self {
                     genesis_root_hash: genesis_root,
-                    genesis_commitment: u256_to_h256(U256::one()),
                     // Placeholders, not used in zkSync OS mode. But necessary to be provided.
-                    bootloader_hash: Default::default(),
-                    default_aa_hash: Default::default(),
-                    evm_emulator_hash: Default::default(),
+                    genesis_commitment: one,
+                    bootloader_hash: one,
+                    default_aa_hash: one,
+                    evm_emulator_hash: one,
                     rollup_last_leaf_index: 0,
                     protocol_version: Default::default(),
                 })
