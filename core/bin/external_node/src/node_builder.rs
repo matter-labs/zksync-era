@@ -24,6 +24,7 @@ use zksync_da_clients::node::{
 };
 use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
+use zksync_l1_recovery::{BlobClientLayer, BlobClientMode};
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
@@ -53,7 +54,7 @@ use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_settlement_layer_data::{ENConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, L1ChainId};
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
@@ -477,6 +478,20 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_blob_client_layer(mut self, l1_chain_id: L1ChainId) -> anyhow::Result<Self> {
+        let url = if l1_chain_id.0 == 1 {
+            "https://api.blobscan.com/blobs/"
+        } else {
+            "https://api.sepolia.blobscan.com/blobs/"
+        };
+        let layer = BlobClientLayer {
+            mode: BlobClientMode::Blobscan,
+            blobscan_url: Some(url.to_string()),
+        };
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g.:
     /// - genesis or snapshot recovery will be performed if it's required.
@@ -496,11 +511,15 @@ impl ExternalNodeBuilder {
             snapshot_l1_batch_override: config.l1_batch,
             drop_storage_key_preimages: config.drop_storage_key_preimages,
             object_store_config: config.object_store.clone(),
+            recover_from_l1: config.recover_from_l1,
+            // TODO verify if we need to recover main node components on EN
+            recover_main_node_components: false,
         });
         self.node.add_layer(ExternalNodeInitStrategyLayer {
             l2_chain_id: self.config.local.networks.l2_chain_id,
             max_postgres_concurrency: config.postgres.max_concurrency,
             snapshot_recovery_config,
+            // diamond_proxy_addr: self.config.l1_diamond_proxy_address(),
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {
@@ -602,11 +621,13 @@ impl ExternalNodeBuilder {
 
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
+        let l1_chain_id = self.config.local.networks.l1_chain_id;
         self = self
             .add_sigint_handler_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?

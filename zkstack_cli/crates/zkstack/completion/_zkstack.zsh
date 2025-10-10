@@ -2478,6 +2478,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
+'--l1-recovery[Run server in L1 recovery mode]' \
 '--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2511,6 +2512,7 @@ _arguments "${_arguments_options[@]}" : \
 '--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
+'--l1-recovery[Run server in L1 recovery mode]' \
 '--uring[Enables uring support for RocksDB]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

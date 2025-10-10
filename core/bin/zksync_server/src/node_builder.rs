@@ -1,7 +1,7 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use std::{mem, time::Duration};
+use std::{mem, num::NonZeroUsize, time::Duration};
 
 use anyhow::{bail, Context};
 use zksync_base_token_adjuster::node::{
@@ -45,6 +45,7 @@ use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
 use zksync_gateway_migrator::node::GatewayMigratorLayer;
 use zksync_house_keeper::node::HouseKeeperLayer;
+use zksync_l1_recovery::{BlobClientLayer, BlobClientMode};
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer},
@@ -76,7 +77,7 @@ use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address, L2ChainId,
+    Address, L1ChainId, L2ChainId,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -216,6 +217,21 @@ impl MainNodeBuilder {
         let object_store_config = try_load_config!(self.configs.core_object_store);
         self.node
             .add_layer(ObjectStoreLayer::new(object_store_config));
+        Ok(self)
+    }
+
+    // TODO provide proper url
+    fn add_blob_client_layer(mut self, l1_chain_id: L1ChainId) -> anyhow::Result<Self> {
+        let url = if l1_chain_id.0 == 1 {
+            "https://api.blobscan.com/blobs/"
+        } else {
+            "https://api.sepolia.blobscan.com/blobs/"
+        };
+        let layer = BlobClientLayer {
+            mode: BlobClientMode::Blobscan,
+            blobscan_url: Some(url.to_string()),
+        };
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -711,14 +727,31 @@ impl MainNodeBuilder {
     ///
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
-    fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+    fn add_storage_initialization_layer(
+        mut self,
+        l1_recovery: bool,
+        kind: LayerKind,
+    ) -> anyhow::Result<Self> {
         let eth_watcher_config = try_load_config!(self.configs.eth).watcher;
+        // TODO use proper object store config
+        let object_store_config = self
+            .configs
+            .snapshot_creator
+            .as_ref()
+            .map(|a| a.object_store.clone());
 
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
+            l1_recovery_enabled: l1_recovery,
+            // TODO handle properly
+            max_postgres_concurrency: NonZeroUsize::new(10).unwrap(),
             event_expiration_blocks: eth_watcher_config.event_expiration_blocks,
+            object_store_config,
         });
         let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::TaskEndingExecution) {
+            layer = layer.stop_node_on_completion();
+        }
         if matches!(kind, LayerKind::Precondition) {
             layer = layer.as_precondition();
         }
@@ -728,11 +761,29 @@ impl MainNodeBuilder {
 
     /// Builds the node with the genesis initialization task only.
     pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_storage_initialization_layer(LayerKind::Task)?;
+            .add_healthcheck_layer()?
+            .add_storage_initialization_layer(false, LayerKind::TaskEndingExecution)?;
+
+        Ok(self.node.build())
+    }
+
+    pub fn only_l1_recovery(mut self) -> anyhow::Result<ZkStackService> {
+        let l1_chain_id = self.genesis_config.l1_chain_id;
+        self = self
+            .add_pools_layer()?
+            .add_object_store_layer()?
+            .add_blob_client_layer(l1_chain_id)?
+            .add_query_eth_client_layer()?
+            .add_healthcheck_layer()?
+            .add_settlement_mode_data()?
+            .add_storage_initialization_layer(true, LayerKind::TaskEndingExecution)?;
 
         Ok(self.node.build())
     }
@@ -740,10 +791,12 @@ impl MainNodeBuilder {
     /// Builds the node with the specified components.
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
+        let l1_chain_id = self.genesis_config.l1_chain_id;
         self = self
             .add_sigint_handler_layer()?
             .add_pools_layer()?
             .add_object_store_layer()?
+            .add_blob_client_layer(l1_chain_id)?
             .add_circuit_breaker_checker_layer()?
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
@@ -760,7 +813,7 @@ impl MainNodeBuilder {
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_storage_initialization_layer(LayerKind::Precondition)?;
+            .add_storage_initialization_layer(false, LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -789,7 +842,7 @@ impl MainNodeBuilder {
                     self = self
                         .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
-                        .add_storage_initialization_layer(LayerKind::Task)?
+                        .add_storage_initialization_layer(false, LayerKind::Task)?
                         .add_state_keeper_layer()?
                         .add_logs_bloom_backfill_layer()?;
                 }
@@ -886,4 +939,5 @@ impl MainNodeBuilder {
 enum LayerKind {
     Task,
     Precondition,
+    TaskEndingExecution,
 }

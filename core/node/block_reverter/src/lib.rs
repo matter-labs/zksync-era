@@ -522,8 +522,18 @@ impl BlockReverter {
         sl_client: &dyn BoundEthInterface,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
-        nonce: u64,
+        nonce: Option<u64>,
     ) -> anyhow::Result<()> {
+        let nonce = if let Some(nonce) = nonce {
+            nonce
+        } else {
+            sl_client
+                .nonce_at(BlockNumber::Latest)
+                .await
+                .context("cannot get nonce")?
+                .as_u64()
+        };
+
         tracing::info!(
             "Sending Ethereum revert transaction for L1 batch #{last_l1_batch_to_keep} with config {eth_config:?}, \
              nonce: {nonce}"

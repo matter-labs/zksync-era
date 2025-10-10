@@ -1,7 +1,14 @@
+use zksync_contracts::{
+    hyperchain_contract, POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+    POST_V26_GATEWAY_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
+};
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
-    ethabi::{encode, Token},
+    ethabi,
+    ethabi::{encode, Function, ParamType, Token},
     pubdata_da::PubdataSendingMode,
+    web3::Bytes,
+    ProtocolVersionId,
 };
 
 use crate::{
@@ -47,5 +54,34 @@ impl Tokenize for &CommitBatches<'_> {
                 Token::Bytes(encoded_data),
             ]
         }
+    }
+}
+
+impl CommitBatches<'_> {
+    pub fn function(short_signature: &[u8]) -> (Function, ProtocolVersionId) {
+        for (function, protocol_version) in [
+            (&*PRE_BOOJUM_COMMIT_FUNCTION, ProtocolVersionId::Version17),
+            (&*POST_BOOJUM_COMMIT_FUNCTION, ProtocolVersionId::Version22),
+            (
+                &*POST_SHARED_BRIDGE_COMMIT_FUNCTION,
+                ProtocolVersionId::Version23,
+            ),
+            (
+                &*POST_V26_GATEWAY_COMMIT_FUNCTION,
+                ProtocolVersionId::Version27,
+            ),
+            (
+                &hyperchain_contract()
+                    .function("commitBatchesSharedBridge")
+                    .unwrap()
+                    .clone(),
+                ProtocolVersionId::Version29,
+            ),
+        ] {
+            if function.short_signature() == short_signature {
+                return (function.clone(), protocol_version);
+            }
+        }
+        panic!("Unknown function signature: {:?}", short_signature)
     }
 }

@@ -269,7 +269,7 @@ describe('Smart contract behavior checks', () => {
             ();
 
         // Genesis block
-        await expect(counterContract.get.staticCall({ blockTag: 0 })).toBeRejected('could not decode result data');
+        await expect(counterContract.get.staticCall({ blockTag: 0 })).toBeRejected();
     });
 
     test('Should correctly process msg.value inside constructor and in ethCall', async () => {

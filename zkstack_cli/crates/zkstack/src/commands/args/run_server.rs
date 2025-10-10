@@ -5,7 +5,7 @@ use crate::{
     commands::args::WaitArgs,
     messages::{
         MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMMAND_HELP, MSG_SERVER_COMPONENTS_HELP,
-        MSG_SERVER_GENESIS_HELP, MSG_SERVER_URING_HELP,
+        MSG_SERVER_GENESIS_HELP, MSG_SERVER_L1_RECOVERY_HELP, MSG_SERVER_URING_HELP,
     },
 };
 
@@ -40,6 +40,8 @@ pub struct RunServerArgs {
     pub components: Option<Vec<String>>,
     #[arg(long, help = MSG_SERVER_GENESIS_HELP)]
     pub genesis: bool,
+    #[clap(long, help = MSG_SERVER_L1_RECOVERY_HELP)]
+    pub l1_recovery: bool,
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
     pub uring: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]

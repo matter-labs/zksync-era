@@ -25,6 +25,7 @@ zksync_types.workspace = true
 zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 zksync_reorg_detector.workspace = true
 zksync_block_reverter.workspace = true
+zksync_l1_recovery.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

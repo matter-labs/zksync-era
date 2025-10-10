@@ -1,0 +1,55 @@
+[package]
+name = "zksync_l1_recovery"
+description = "ZKsync L1 recovery"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+indexmap.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+hex.workspace = true
+ethabi.workspace = true
+rand.workspace = true
+rocksdb.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+reqwest.workspace = true
+zkevm_circuits.workspace = true
+blake2.workspace = true
+tempfile.workspace = true
+chrono.workspace = true
+async-recursion.workspace = true
+
+zksync_merkle_tree.workspace = true
+zksync_storage.workspace = true
+zksync_types.workspace = true
+zksync_utils.workspace = true
+zksync_basic_types.workspace = true
+zksync_web3_decl.workspace = true
+zksync_eth_client.workspace = true
+zksync_dal.workspace = true
+zksync_node_genesis.workspace = true
+zksync_contracts.workspace = true
+zksync_object_store = { workspace = true, features = ["node_framework"] }
+zksync_snapshots_applier.workspace = true
+zksync_vm_interface.workspace = true
+zksync_l1_contract_interface.workspace = true
+zksync_block_reverter.workspace = true
+zksync_node_framework.workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
+

@@ -14,6 +14,8 @@ mod traits;
 
 #[derive(Debug)]
 pub struct SnapshotRecoveryConfig {
+    pub recover_from_l1: bool,
+    pub recover_main_node_components: bool,
     /// If not specified, the latest snapshot will be used.
     pub snapshot_l1_batch_override: Option<L1BatchNumber>,
     pub drop_storage_key_preimages: bool,
@@ -47,11 +49,20 @@ pub struct NodeInitializationStrategy {
 pub struct NodeStorageInitializer {
     strategy: NodeInitializationStrategy,
     pool: ConnectionPool<Core>,
+    pub stop_node_on_completion: bool,
 }
 
 impl NodeStorageInitializer {
-    pub fn new(strategy: NodeInitializationStrategy, pool: ConnectionPool<Core>) -> Self {
-        Self { strategy, pool }
+    pub fn new(
+        strategy: NodeInitializationStrategy,
+        pool: ConnectionPool<Core>,
+        stop_node_on_completion: bool,
+    ) -> Self {
+        Self {
+            strategy,
+            pool,
+            stop_node_on_completion,
+        }
     }
 
     /// Returns the preferred kind of storage initialization.

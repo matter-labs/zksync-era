@@ -13,6 +13,7 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 zksync_prover_interface.workspace = true
+zksync_contracts.workspace = true
 
 # Used to serialize proof data
 crypto_codegen.workspace = true
@@ -26,6 +27,7 @@ sha2.workspace = true
 sha3.workspace = true
 hex.workspace = true
 once_cell.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

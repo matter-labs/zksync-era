@@ -73,7 +73,7 @@ impl StoredBatchInfo {
             ethabi::decode_whole(&[Self::schema_for_protocol_version(protocol_version)], rlp)?
                 .try_into()
                 .unwrap();
-        Self::from_token(token)
+        Self::from_token(token, protocol_version)
     }
 
     /// `_hashStoredBatchInfo` from `Executor.sol`.
@@ -81,7 +81,18 @@ impl StoredBatchInfo {
         H256(web3::keccak256(&self.encode()))
     }
 
-    pub fn from_token(token: Token) -> anyhow::Result<Self> {
+    pub fn from_token(
+        token: Token,
+        protocol_version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Self> {
+        if protocol_version_id.is_pre_interop_fast_blocks() {
+            Self::from_token_pre_interop(token)
+        } else {
+            Self::from_post_interop_token(token)
+        }
+    }
+
+    pub fn from_post_interop_token(token: Token) -> anyhow::Result<Self> {
         let [
             Token::Uint(batch_number),
             Token::FixedBytes(batch_hash),
@@ -113,6 +124,42 @@ impl StoredBatchInfo {
                 .context("priority_operations_hash")?,
             dependency_roots_rolling_hash: parse_h256(&dependency_roots_rolling_hash)
                 .context("dependency_roots_rolling_hash")?,
+            l2_logs_tree_root: parse_h256(&l2_logs_tree_root).context("l2_logs_tree_root")?,
+            timestamp,
+            commitment: parse_h256(&commitment).context("commitment")?,
+        })
+    }
+
+    fn from_token_pre_interop(token: Token) -> anyhow::Result<Self> {
+        let [
+            Token::Uint(batch_number),
+            Token::FixedBytes(batch_hash),
+            Token::Uint(index_repeated_storage_changes),
+            Token::Uint(number_of_layer1_txs),
+            Token::FixedBytes(priority_operations_hash),
+            Token::FixedBytes(l2_logs_tree_root),
+            Token::Uint(timestamp),
+            Token::FixedBytes(commitment),
+        ] : [Token;8] = token
+            .into_tuple().context("not a tuple")?
+            .try_into().ok().context("bad length")?
+        else { anyhow::bail!("bad format") };
+        Ok(Self {
+            batch_number: batch_number
+                .try_into()
+                .ok()
+                .context("overflow")
+                .context("batch_number")?,
+            batch_hash: parse_h256(&batch_hash).context("batch_hash")?,
+            index_repeated_storage_changes: index_repeated_storage_changes
+                .try_into()
+                .ok()
+                .context("overflow")
+                .context("index_repeated_storage_changes")?,
+            number_of_layer1_txs,
+            priority_operations_hash: parse_h256(&priority_operations_hash)
+                .context("priority_operations_hash")?,
+            dependency_roots_rolling_hash: H256::zero(),
             l2_logs_tree_root: parse_h256(&l2_logs_tree_root).context("l2_logs_tree_root")?,
             timestamp,
             commitment: parse_h256(&commitment).context("commitment")?,
