@@ -63,6 +63,34 @@ jobs:
         run: |
           ci_run run_retried rustup show
 
+      - name: Clean all forge artifacts and preprocessing
+        run: |
+          # Clean forge caches
+          ci_run forge clean --root contracts/l1-contracts
+          ci_run forge clean --root contracts/system-contracts
+          ci_run forge clean --root contracts/l2-contracts
+          ci_run forge clean --root contracts/da-contracts
+
+          # Clean preprocessing artifacts and timestamps
+          ci_run rm -rf contracts/system-contracts/contracts-preprocessed
+          ci_run rm -f contracts/system-contracts/last_compilation_preprocessing.timestamp
+          ci_run rm -rf contracts/system-contracts/bootloader/build
+          
+          # Clean zkout directories that other contracts read from
+          ci_run rm -rf contracts/system-contracts/zkout
+          ci_run rm -rf contracts/l1-contracts/zkout
+          ci_run rm -rf contracts/l2-contracts/zkout
+          
+          # Clean out directories
+          ci_run rm -rf contracts/system-contracts/out
+          ci_run rm -rf contracts/l1-contracts/out
+          ci_run rm -rf contracts/l2-contracts/out
+
+      - name: Build contracts
+        run: |
+          ci_run forge --version
+          ci_run zkstack dev contracts
+
       - name: Use Node.js
         uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
         with:
@@ -71,42 +99,10 @@ jobs:
       - name: Install yarn
         run: |
           npm install -g yarn
-
-      - name: Install yarn dependencies
+      - name: Check contracts hashes
         working-directory: contracts
         run: |
-          ci_run yarn install
-
-      - name: Clean contracts cache
-        run: |
-          ci_run forge clean --root contracts/da-contracts
-          ci_run yarn --cwd contracts/l1-contracts clean
-          ci_run forge clean --root contracts/l1-contracts
-          ci_run yarn --cwd contracts/l2-contracts clean
-          ci_run forge clean --root contracts/l2-contracts
-          ci_run yarn --cwd contracts/system-contracts clean
-          ci_run forge clean --root contracts/system-contracts
-
-      - name: Build da contracts
-        run: |
-          ci_run yarn --cwd contracts/da-contracts build:foundry
-
-      - name: Build l1 contracts
-        run: |
-          ci_run yarn --cwd contracts/l1-contracts build:foundry
-
-      - name: Build l2 contracts
-        run: |
-          ci_run yarn --cwd contracts/l2-contracts build:foundry
-
-      - name: Build system contracts
-        run: |
-          ci_run yarn --cwd contracts/system-contracts install
-          ci_run yarn --cwd contracts/system-contracts build:foundry
-
-      - name: Check contracts hashes
-        run: |
-          ci_run yarn --cwd contracts calculate-hashes:check
+          yarn calculate-hashes:check
 
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
