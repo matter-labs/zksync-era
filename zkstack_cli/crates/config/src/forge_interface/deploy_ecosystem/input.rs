@@ -20,7 +20,7 @@ use crate::{
 pub struct GenesisInput {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
-    pub evm_emulator_hash: Option<H256>,
+    pub evm_emulator_hash: H256,
     pub genesis_root_hash: H256,
     pub rollup_last_leaf_index: u64,
     pub genesis_commitment: H256,
@@ -35,7 +35,7 @@ impl GenesisInput {
             VMOption::EraVM => Ok(Self {
                 bootloader_hash: raw.0.get("bootloader_hash")?,
                 default_aa_hash: raw.0.get("default_aa_hash")?,
-                evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?,
+                evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?.unwrap_or_default(),
                 genesis_root_hash: raw.0.get("genesis_root")?,
                 rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
                 genesis_commitment: raw.0.get("genesis_batch_commitment")?,
@@ -49,7 +49,7 @@ impl GenesisInput {
                     // Placeholders, not used in zkSync OS mode. But necessary to be provided.
                     bootloader_hash: Default::default(),
                     default_aa_hash: Default::default(),
-                    evm_emulator_hash: None,
+                    evm_emulator_hash: Default::default(),
                     rollup_last_leaf_index: 0,
                     protocol_version: Default::default(),
                 })
@@ -248,7 +248,7 @@ pub struct ContractsDeployL1Config {
     pub diamond_init_minimal_l2_gas_price: u64,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
-    pub evm_emulator_hash: Option<H256>,
+    pub evm_emulator_hash: H256,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avail_l1_da_validator_addr: Option<Address>,
 }

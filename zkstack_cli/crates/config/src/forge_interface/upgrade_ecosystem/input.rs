@@ -107,7 +107,7 @@ impl EcosystemUpgradeInput {
                     .validator_timelock_addr,
                 governance_security_council_address: Address::zero(),
                 latest_protocol_version: new_genesis_input.protocol_version.pack(),
-                evm_emulator_hash: new_genesis_input.evm_emulator_hash.unwrap_or_default(),
+                evm_emulator_hash: new_genesis_input.evm_emulator_hash,
                 l1_bytecodes_supplier_addr: current_contracts_config
                     .ctm(vm_option)
                     .l1_bytecodes_supplier_addr,
