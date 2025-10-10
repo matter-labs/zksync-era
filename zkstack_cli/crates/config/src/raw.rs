@@ -156,10 +156,22 @@ impl PatchedConfig {
     }
 
     pub async fn save(self) -> anyhow::Result<()> {
-        let contents =
-            serde_yaml::to_string(&self.base.inner).context("failed serializing config")?;
-        fs::write(&self.base.path, contents)
+        let path = self.base.path;
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or_default();
+        let contents = match extension {
+            "yaml" | "yml" => serde_yaml::to_string(&self.base.inner)
+                .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
+            "json" => serde_json::to_string(&self.base.inner)
+                .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
+            _ => {
+                anyhow::bail!("unsupported config file extension `{extension}`");
+            }
+        };
+        fs::write(&path, contents)
             .await
-            .with_context(|| format!("failed writing config to `{:?}`", self.base.path))
+            .with_context(|| format!("failed writing config to `{:?}`", path))
     }
 }
