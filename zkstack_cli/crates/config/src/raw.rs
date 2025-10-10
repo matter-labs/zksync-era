@@ -17,8 +17,17 @@ impl RawConfig {
         let raw = fs::read_to_string(&path)
             .await
             .with_context(|| format!("failed reading config at `{path:?}`"))?;
-        let inner: serde_yaml::Value = serde_yaml::from_str(&raw)
-            .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?;
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or_default();
+        let inner = match extension {
+            "yaml" | "yml" => serde_yaml::from_str(&raw)
+                .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
+            "json" => serde_json::from_str(&raw)
+                .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
+            _ => anyhow::bail!("unsupported config file extension `{extension}`"),
+        };
         anyhow::ensure!(
             matches!(&inner, serde_yaml::Value::Mapping(_)),
             "configuration is not a map"

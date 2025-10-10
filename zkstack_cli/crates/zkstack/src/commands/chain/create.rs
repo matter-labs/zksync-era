@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, ZkStackConfig, ERA_VM_GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
 
@@ -95,7 +95,7 @@ pub(crate) async fn create_chain_inner(
     );
     let genesis_config_path = ecosystem_config
         .default_configs_path_for_ctm(vm_option)
-        .join(GENESIS_FILE);
+        .join(ERA_VM_GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {

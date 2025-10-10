@@ -7,7 +7,7 @@ use ethers::{
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_types::{L1Network, VMOption};
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
+use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, u256_to_h256, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
@@ -29,16 +29,32 @@ pub struct GenesisInput {
 
 impl GenesisInput {
     // FIXME: is this enough? (cf. aliases in the "real" config definition)
-    pub fn new(raw: &GenesisConfig) -> anyhow::Result<Self> {
-        Ok(Self {
-            bootloader_hash: raw.0.get("bootloader_hash")?,
-            default_aa_hash: raw.0.get("default_aa_hash")?,
-            evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?,
-            genesis_root_hash: raw.0.get("genesis_root")?,
-            rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
-            genesis_commitment: raw.0.get("genesis_batch_commitment")?,
-            protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
-        })
+    // For supporting zksync os genesis file, we need to have only genesis_root.
+    pub fn new(raw: &GenesisConfig, vmoption: VMOption) -> anyhow::Result<Self> {
+        match vmoption {
+            VMOption::EraVM => Ok(Self {
+                bootloader_hash: raw.0.get("bootloader_hash")?,
+                default_aa_hash: raw.0.get("default_aa_hash")?,
+                evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?,
+                genesis_root_hash: raw.0.get("genesis_root")?,
+                rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
+                genesis_commitment: raw.0.get("genesis_batch_commitment")?,
+                protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
+            }),
+            VMOption::ZKSyncOsVM => {
+                let genesis_root = raw.0.get("genesis_root")?;
+                Ok(Self {
+                    genesis_root_hash: genesis_root,
+                    genesis_commitment: u256_to_h256(U256::one()),
+                    // Placeholders, not used in zkSync OS mode. But necessary to be provided.
+                    bootloader_hash: Default::default(),
+                    default_aa_hash: Default::default(),
+                    evm_emulator_hash: None,
+                    rollup_last_leaf_index: 0,
+                    protocol_version: Default::default(),
+                })
+            }
+        }
     }
 }
 

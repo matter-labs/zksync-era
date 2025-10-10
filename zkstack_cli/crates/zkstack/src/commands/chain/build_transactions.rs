@@ -43,7 +43,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     genesis_config.update_from_chain_config(&chain_config)?;
-    // FIXME: config isn't saved; why?
+    genesis_config.save().await?;
 
     // Copy ecosystem contracts
     let contracts_config = config
