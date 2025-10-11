@@ -1,5 +1,13 @@
 # Changelog
 
+## [29.5.0](https://github.com/matter-labs/zksync-era/compare/core-v29.4.1...core-v29.5.0) (2025-10-11)
+
+
+### Features
+
+* adds l1_batch_number to zks_get_l2l1_logproof ([#4530](https://github.com/matter-labs/zksync-era/issues/4530)) ([004dcdc](https://github.com/matter-labs/zksync-era/commit/004dcdcf1fa21578798b90b58a2d6c3f1af0ff50))
+* **zkstack:** Deploy 2 ctms and deploy chain for each of them   ([#4458](https://github.com/matter-labs/zksync-era/issues/4458)) ([5d2a7cd](https://github.com/matter-labs/zksync-era/commit/5d2a7cd393f728b15e6e0b6b3fdee500e1ccd217))
+
 ## [29.4.1](https://github.com/matter-labs/zksync-era/compare/core-v29.4.0...core-v29.4.1) (2025-09-29)
 
 
