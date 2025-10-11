@@ -23,8 +23,8 @@ use crate::{
     },
     source_files::SourceFiles,
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig,
-    PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
+    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig, ERA_VM_GENESIS_FILE,
+    PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH, ZKSYNC_OS_GENESIS_FILE,
 };
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -253,7 +253,10 @@ impl EcosystemConfig {
             config.evm_emulator,
             config.tight_ports,
             config.vm_option,
-            config.contracts_source_path,
+            Some(SourceFiles {
+                contracts_path: self.contracts_path_for_ctm(config.vm_option),
+                default_configs_path: self.default_configs_path_for_ctm(config.vm_option),
+            }),
         ))
     }
 
@@ -368,6 +371,14 @@ impl EcosystemConfig {
                     logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
                 }
                 self.link_to_code.join(CONFIGS_PATH)
+            })
+    }
+
+    pub fn default_genesis_path(&self, vm_option: VMOption) -> PathBuf {
+        self.default_configs_path_for_ctm(vm_option)
+            .join(match vm_option {
+                VMOption::EraVM => ERA_VM_GENESIS_FILE,
+                VMOption::ZKSyncOsVM => ZKSYNC_OS_GENESIS_FILE,
             })
     }
 

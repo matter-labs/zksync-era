@@ -1,7 +1,7 @@
 pub use crate::{
     apps::*, chain::*, consensus::*, consts::*, contracts::*, ecosystem::*, en::*, file_config::*,
     gateway::*, general::*, genesis::*, manipulations::*, object_store::*, secrets::*,
-    wallet_creation::*, wallets::*, zkstack_config::*,
+    source_files::*, wallet_creation::*, wallets::*, zkstack_config::*,
 };
 
 mod apps;
