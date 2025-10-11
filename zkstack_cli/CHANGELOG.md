@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.1...zkstack_cli-v0.2.2) (2025-10-11)
+
+
+### Features
+
+* **zkstack:** support genesis for zksync os ([#4536](https://github.com/matter-labs/zksync-era/issues/4536)) ([c577d86](https://github.com/matter-labs/zksync-era/commit/c577d867cc3081b4ce12c59351e0a32c2fdfe241))
+
 ## [0.2.1](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.0...zkstack_cli-v0.2.1) (2025-10-09)
 
 
