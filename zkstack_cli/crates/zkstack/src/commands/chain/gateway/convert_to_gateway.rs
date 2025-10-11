@@ -81,7 +81,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
-    let genesis_input = GenesisInput::new(&chain_genesis_config)?;
+    let genesis_input = GenesisInput::new(&chain_genesis_config, chain_config.vm_option)?;
     override_config(
         shell,
         &ecosystem_config

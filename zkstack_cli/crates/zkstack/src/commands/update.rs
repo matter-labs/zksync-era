@@ -10,7 +10,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait, CONTRACTS_FILE,
-    EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR, ERA_VM_GENESIS_FILE, GENERAL_FILE, SECRETS_FILE,
 };
 use zkstack_cli_types::VMOption;
 
@@ -48,7 +48,7 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
         .join(EN_CONFIG_FILE);
     let genesis_config_path = ecosystem
         .default_configs_path_for_ctm(vm_option)
-        .join(GENESIS_FILE);
+        .join(ERA_VM_GENESIS_FILE);
     let contracts_config_path = ecosystem
         .default_configs_path_for_ctm(vm_option)
         .join(CONTRACTS_FILE);

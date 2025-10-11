@@ -25,7 +25,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, GENESIS_FILE,
+    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;
@@ -141,11 +141,9 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    let genesis_config_path = ecosystem_config
-        .default_configs_path_for_ctm(vm_option)
-        .join(GENESIS_FILE);
+    let genesis_config_path = ecosystem_config.default_genesis_path(vm_option);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
+    let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
         .core_ecosystem_contracts
