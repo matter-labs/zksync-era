@@ -1,7 +1,7 @@
 # Intro to ZKsync’s ZK
 
 This page is specific to our cryptography. For a general introduction, please read:
-[https://docs.zksync.io/build/developer-reference/rollups.html](https://docs.zksync.io/build/developer-reference/rollups.html)
+[https://docs.zksync.io/zksync-protocol/rollup](https://docs.zksync.io/zksync-protocol/rollup)
 
 As a ZK rollup, we want everything to be verified by cryptography and secured by Ethereum. The power of ZK allows for
 transaction compression, reducing fees for users while inheriting the same security.
