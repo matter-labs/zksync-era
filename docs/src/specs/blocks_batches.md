@@ -42,7 +42,7 @@ case is a bit more complex because we also need to consider prover capacity and 
 
 The decision of when to seal the block is handled by the code in the [conditional_sealer](https://github.com/matter-labs/zksync-era/blob/c577d867cc3081b4ce12c59351e0a32c2fdfe241/core/node/state_keeper/src/seal_criteria/conditional_sealer.rs) module. It
 maintains a list of `SealCriterion` and at the time of writing this article, [we have 9 reasons to seal the
-block][reasons_for_sealing], which include:
+block](https://github.com/matter-labs/zksync-era/blob/c577d867cc3081b4ce12c59351e0a32c2fdfe241/core/node/state_keeper/src/seal_criteria/mod.rs), which include:
 
 - Transaction slots limit (currently set to 750 transactions in `StateKeeper`'s config - `transaction_slots`).
 - Gas limit (currently set to `MAX_L2_TX_GAS_LIMIT` = 80M).
