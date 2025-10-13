@@ -34,7 +34,7 @@ at your option.
 - [GitHub](https://github.com/matter-labs)
 - [ZK Credo](https://github.com/zksync/credo)
 - [Twitter](https://x.com/zksync)
-- [Twitter for Developers](https://twitter.com/zkSyncDevs)
+- [Twitter for Developers](https://x.com/zkSyncDevs)
 - [Discord](https://join.zksync.dev/)
 - [Mirror](https://zksync.mirror.xyz/)
 - [Youtube](https://www.youtube.com/@zkSync-era)
