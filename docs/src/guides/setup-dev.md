@@ -240,7 +240,7 @@ Go to the zksync folder and run `nix develop`. After it finishes, you are in a s
 ## Foundry ZKsync
 
 ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
-[installation guide](https://foundry-book.zksync.io/getting-started/installation) to get started with Foundry ZKsync.
+[installation guide](https://foundry-book.zksync.io/introduction/installation/) to get started with Foundry ZKsync.
 
 Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
 for Foundry integration.
