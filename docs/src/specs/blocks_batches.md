@@ -40,7 +40,7 @@ as the container for executing the program and handling the transactions within 
 Most blockchains use factors like time and gas usage to determine when a block should be closed or sealed. However, our
 case is a bit more complex because we also need to consider prover capacity and limits related to publishing to L1.
 
-The decision of when to seal the block is handled by the code in the [conditional_sealer][conditional_sealer] module. It
+The decision of when to seal the block is handled by the code in the [conditional_sealer](https://github.com/matter-labs/zksync-era/blob/c577d867cc3081b4ce12c59351e0a32c2fdfe241/core/node/state_keeper/src/seal_criteria/conditional_sealer.rs) module. It
 maintains a list of `SealCriterion` and at the time of writing this article, [we have 9 reasons to seal the
 block][reasons_for_sealing], which include:
 
