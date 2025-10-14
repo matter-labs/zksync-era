@@ -30,6 +30,8 @@ pub struct SidecarBlobV1 {
     pub commitment: Vec<u8>,
     /// Blob proof
     pub proof: Vec<u8>,
+    /// Cell proofs
+    pub cell_proofs: Option<Vec<Vec<u8>>>,
     /// Blob commitment versioned hash
     pub versioned_hash: Vec<u8>,
 }
