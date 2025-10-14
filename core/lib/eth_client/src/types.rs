@@ -285,7 +285,12 @@ impl SignedCallResult {
 // format as defined in <https://eips.ethereum.org/EIPS/eip-4844#networking>
 pub fn encode_blob_tx_with_sidecar(raw_tx: &[u8], sidecar: &EthTxBlobSidecar) -> Vec<u8> {
     let EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) = sidecar;
-    let stream_outer = if sidecar.blobs[0].cell_proofs.is_none() {
+    let stream_outer = if sidecar
+        .blobs
+        .get(0)
+        .map(|b| b.cell_proofs.is_none())
+        .unwrap_or(true)
+    {
         let blobs_count = sidecar.blobs.len();
 
         let mut stream_outer = RlpStream::new();
