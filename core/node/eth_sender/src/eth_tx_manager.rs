@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::L1Stage;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
-    eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, L1BlockNumbers},
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
@@ -225,11 +225,10 @@ impl EthTxManager {
             )
             .await;
 
-        if let Some(blob_sidecar) = tx.blob_sidecar.clone() {
+        if let Some(blob_sidecar) = &tx.blob_sidecar {
             signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
                 signed_tx.raw_tx.as_ref(),
                 blob_sidecar,
-                self.config.use_fusaka_blob_format,
             ));
         }
 

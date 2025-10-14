@@ -1138,8 +1138,6 @@ dependencies = [
  "glob",
  "hex",
  "libc",
- "once_cell",
- "serde",
 ]
 
 [[package]]
@@ -9161,7 +9159,6 @@ dependencies = [
  "async-trait",
  "c-kzg",
  "jsonrpsee",
- "once_cell",
  "rlp",
  "serde_json",
  "thiserror 2.0.12",

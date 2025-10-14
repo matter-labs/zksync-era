@@ -22,6 +22,12 @@ impl From<EthTxBlobSidecarV1> for EthTxBlobSidecar {
     }
 }
 
+impl From<EthTxBlobSidecarV2> for EthTxBlobSidecar {
+    fn from(value: EthTxBlobSidecarV2) -> Self {
+        Self::EthTxBlobSidecarV2(value)
+    }
+}
+
 /// All sidecar data for a single blob for the EIP4844 transaction.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SidecarBlobV1 {
@@ -37,15 +43,13 @@ pub struct SidecarBlobV1 {
     pub versioned_hash: Vec<u8>,
 }
 
-/// All sidecar data for a single blob for the EIP4844 transaction.
+/// All sidecar data for a single blob for the EIP7594 transaction.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SidecarBlobV2 {
     /// Blob itself
     pub blob: Vec<u8>,
     /// Blob commitment
     pub commitment: Vec<u8>,
-    /// Blob proof
-    pub proof: Vec<u8>,
     /// Blob commitment versioned hash
     pub versioned_hash: Vec<u8>,
     /// The KZG proofs for each of the cells in the blob.

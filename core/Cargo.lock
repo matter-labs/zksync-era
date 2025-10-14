@@ -13936,7 +13936,6 @@ dependencies = [
  "c-kzg",
  "hex",
  "jsonrpsee",
- "once_cell",
  "pretty_assertions",
  "rlp",
  "serde_json",

@@ -4,7 +4,10 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
+use zksync_eth_client::{
+    convert_eip4844_sidecar_to_eip7594_sidecar, BoundEthInterface, CallFunctionArgs,
+    ContractCallError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -20,7 +23,10 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchWithMetadata, SerializeCommitment},
-    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxFinalityStatus, SidecarBlobV1},
+    eth_sender::{
+        EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, EthTxFinalityStatus,
+        SidecarBlobV1,
+    },
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -983,7 +989,12 @@ impl EthTxAggregator {
                             None
                         };
 
-                        Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
+                        Self::encode_commit_data(
+                            encoding_fn,
+                            &commit_data,
+                            l1_batch_for_sidecar,
+                            self.config.use_fusaka_blob_format,
+                        )
                     }
                     L1BatchAggregatedOperation::PublishProofOnchain(op) => {
                         args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
@@ -1054,6 +1065,7 @@ impl EthTxAggregator {
         commit_fn: &Function,
         commit_payload: &[Token],
         l1_batch: Option<L1BatchWithMetadata>,
+        use_eip7594_blobs: bool,
     ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
         let calldata = commit_fn
             .encode_input(commit_payload)
@@ -1080,8 +1092,20 @@ impl EthTxAggregator {
                     })
                     .collect::<Vec<SidecarBlobV1>>();
 
-                let eth_tx_blob_sidecar = EthTxBlobSidecarV1 { blobs: sidecar };
-                Some(eth_tx_blob_sidecar.into())
+                let eth_tx_blob_sidecar = if use_eip7594_blobs {
+                    EthTxBlobSidecarV2 {
+                        blobs: sidecar
+                            .into_iter()
+                            .map(|sidecar_blob| {
+                                convert_eip4844_sidecar_to_eip7594_sidecar(sidecar_blob).into()
+                            })
+                            .collect(),
+                    }
+                    .into()
+                } else {
+                    EthTxBlobSidecarV1 { blobs: sidecar }.into()
+                };
+                Some(eth_tx_blob_sidecar)
             }
         };
 

@@ -18,8 +18,9 @@ pub use zksync_web3_decl::{
 };
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractCallError,
-    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult, SigningError,
+    convert_eip4844_sidecar_to_eip7594_sidecar, encode_blob_tx_with_sidecar, CallFunctionArgs,
+    ContractCall, ContractCallError, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
+    SignedCallResult, SigningError,
 };
 
 pub mod clients;
@@ -62,8 +63,6 @@ pub struct Options {
     pub factory_deps: Option<Vec<Vec<u8>>>,
     // Paymaster params
     pub paymaster_params: Option<PaymasterParams>,
-    // support eip7594 upgrade
-    pub support_eip7594: Option<bool>,
 }
 
 impl Options {

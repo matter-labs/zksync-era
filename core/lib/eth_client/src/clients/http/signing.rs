@@ -264,12 +264,8 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
         };
 
         let mut signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
-        if let Some(sidecar) = options.blob_tx_sidecar {
-            signed_tx = encode_blob_tx_with_sidecar(
-                &signed_tx,
-                sidecar,
-                options.support_eip7594.unwrap_or_default(),
-            );
+        if let Some(sidecar) = &options.blob_tx_sidecar {
+            signed_tx = encode_blob_tx_with_sidecar(&signed_tx, sidecar);
         }
         let hash = web3::keccak256(&signed_tx).into();
         Ok((signed_tx, hash))
