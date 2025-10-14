@@ -1,7 +1,7 @@
 services:
   reth:
     restart: always
-    image: "ghcr.io/paradigmxyz/reth:v1.3.7"
+    image: "ghcr.io/paradigmxyz/reth:v1.8.2"
     ulimits:
       nofile:
         soft: 1048576

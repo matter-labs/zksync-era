@@ -210,6 +210,7 @@ time = "0.3.36" # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 yab = "0.1.0"
+c-kzg = { version = "2.1.1", default-features = false }
 
 # Proc-macro
 syn = "2.0"

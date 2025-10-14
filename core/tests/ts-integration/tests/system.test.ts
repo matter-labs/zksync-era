@@ -62,7 +62,6 @@ describe('System behavior checks', () => {
 
     test('Network should be supporting Cancun+Deneb', async () => {
         const address_a = '0x000000000000000000000000000000000000000A';
-        const address_b = '0x000000000000000000000000000000000000000b';
 
         const transaction_a = {
             to: address_a,
@@ -70,14 +69,6 @@ describe('System behavior checks', () => {
         };
 
         await expect(alice.providerL1!.call(transaction_a)).rejects.toThrow();
-
-        const transaction_b = {
-            to: address_b,
-            data: '0x'
-        };
-
-        const result_b = await alice.providerL1!.call(transaction_b);
-        expect(result_b).toEqual('0x');
     });
 
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {

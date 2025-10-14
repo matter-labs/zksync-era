@@ -1075,6 +1075,7 @@ impl EthTxAggregator {
                             commitment: kzg_info.kzg_commitment.to_vec(),
                             proof: kzg_info.blob_proof.to_vec(),
                             versioned_hash: kzg_info.versioned_hash.to_vec(),
+                            cell_proofs: None,
                         }
                     })
                     .collect::<Vec<SidecarBlobV1>>();
