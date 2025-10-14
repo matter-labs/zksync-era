@@ -3,15 +3,17 @@ use std::{num::NonZeroUsize, sync::Arc};
 use zksync_block_reverter::node::BlockReverterResource;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::AppHealthCheck;
+use zksync_l1_recovery::BlobClientResource;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext,
 };
+use zksync_shared_resources::contracts::SettlementLayerContractsResource;
 use zksync_types::L2ChainId;
-use zksync_web3_decl::client::{DynClient, L2};
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::{
-    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
+    external_node::{ExternalNodeGenesis, ExternalNodeReverter, NodeRecovery},
     InitializeStorage, NodeInitializationStrategy, RevertStorage, SnapshotRecoveryConfig,
 };
 
@@ -25,11 +27,14 @@ pub struct ExternalNodeInitStrategyLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
+    l1_client: Box<DynClient<L1>>,
     master_pool: PoolResource<MasterPool>,
     main_node_client: Box<DynClient<L2>>,
     block_reverter: Option<BlockReverterResource>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
+    blob_client: Option<BlobClientResource>,
+    contracts: SettlementLayerContractsResource,
 }
 
 #[async_trait::async_trait]
@@ -68,12 +73,15 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     .master_pool
                     .get_custom(self.max_postgres_concurrency.get() as u32 + 1)
                     .await?;
-                let recovery: Arc<dyn InitializeStorage> = Arc::new(ExternalNodeSnapshotRecovery {
-                    client: client.clone(),
+                let recovery: Arc<dyn InitializeStorage> = Arc::new(NodeRecovery {
+                    main_node_client: Some(client.clone()),
+                    l1_client: input.l1_client.clone(),
                     pool: recovery_pool,
                     max_concurrency: self.max_postgres_concurrency,
                     recovery_config,
                     app_health: input.app_health,
+                    diamond_proxy_addr: input.contracts.0.chain_contracts_config.diamond_proxy_addr,
+                    blob_client: input.blob_client.clone().map(|x| x.0),
                 });
                 Some(recovery)
             }

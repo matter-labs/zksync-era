@@ -365,6 +365,7 @@ pub struct FailureInfo {
     pub gas_used: Option<U256>,
     /// Gas limit of the transaction.
     pub gas_limit: U256,
+    pub error_selector: String,
 }
 
 #[cfg(test)]

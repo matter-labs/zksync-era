@@ -87,7 +87,7 @@ pub struct SnapshotStorageLogsChunk<K = H256> {
 ///
 /// Version 0 and version 1 snapshots differ in the key type; version 0 uses full [`StorageKey`]s (i.e., storage key preimages),
 /// and version 1 uses [`H256`] hashed keys. See [`SnapshotVersion`] for details.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SnapshotStorageLog<K = H256> {
     pub key: K,
     pub value: StorageValue,
@@ -111,7 +111,7 @@ pub struct SnapshotFactoryDependencies {
     pub factory_deps: Vec<SnapshotFactoryDependency>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SnapshotFactoryDependency {
     pub bytecode: Bytes,
     pub hash: Option<H256>,

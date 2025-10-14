@@ -28,6 +28,7 @@ zksync_base_token_adjuster.workspace = true
 zksync_commitment_generator.workspace = true
 zksync_contract_verification_server.workspace = true
 zksync_da_clients.workspace = true
+zksync_block_reverter.workspace = true
 zksync_da_dispatcher.workspace = true
 zksync_eth_sender.workspace = true
 zksync_eth_watch.workspace = true
@@ -49,6 +50,7 @@ zksync_tee_proof_data_handler.workspace = true
 zksync_vm_runner.workspace = true
 zksync_eth_proof_manager.workspace = true
 zksync_settlement_layer_data.workspace = true
+zksync_l1_recovery.workspace = true
 
 
 # Consensus dependenices

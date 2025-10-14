@@ -30,6 +30,18 @@ describe('web3 API compatibility tests', () => {
     let l2Token: string;
     let chainId: bigint;
 
+    async function firstBlock() {
+        let blockNumber = 1;
+        while (true) {
+            try {
+                await alice.provider.getBlock(blockNumber);
+                return blockNumber;
+            } catch (e) {
+                blockNumber += 1;
+            }
+        }
+    }
+
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
@@ -38,8 +50,8 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test block/transaction web3 methods', async () => {
-        const blockNumber = 1;
-        const blockNumberHex = '0x1';
+        const blockNumber = await firstBlock();
+        const blockNumberHex = '0x' + blockNumber.toString(16);
 
         // eth_getBlockByNumber
         const blockHash = (await alice.provider.getBlock(blockNumber)).hash!;
@@ -131,8 +143,8 @@ describe('web3 API compatibility tests', () => {
         const l1ChainIdFromL2Provider = BigInt(await alice.provider.l1ChainId());
         expect(l1ChainId).toEqual(l1ChainIdFromL2Provider);
         // zks_getBlockDetails
-        const blockDetails = await alice.provider.getBlockDetails(1);
-        const block = await alice.provider.getBlock(1);
+        const blockDetails = await alice.provider.getBlockDetails(await firstBlock());
+        const block = await alice.provider.getBlock(await firstBlock());
         expect(blockDetails.rootHash).toEqual(block.hash);
         expect(blockDetails.l1BatchNumber).toEqual(block.l1BatchNumber);
         // zks_getL1BatchDetails
@@ -189,7 +201,8 @@ describe('web3 API compatibility tests', () => {
 
     test('Should test bogus web3 methods (eth_getUncleCountByBlockHash)', async () => {
         // This test can't be represented as a part of the table, since the input is dynamic.
-        const firstBlockHash = (await alice.provider.getBlock(1)).hash;
+
+        const firstBlockHash = (await alice.provider.getBlock(await firstBlock())).hash;
         await expect(alice.provider.send('eth_getUncleCountByBlockHash', [firstBlockHash])).resolves.toEqual('0x0');
     });
 
@@ -686,8 +699,10 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check API returns correct block for every tag', async () => {
-        const earliestBlock = await alice.provider.send('eth_getBlockByNumber', ['earliest', true]);
-        expect(+earliestBlock.number!).toEqual(0);
+        if ((await firstBlock()) === 1) {
+            const earliestBlock = await alice.provider.send('eth_getBlockByNumber', ['earliest', true]);
+            expect(+earliestBlock.number!).toEqual(0);
+        }
         const committedBlock = await alice.provider.send('eth_getBlockByNumber', ['committed', true]);
         expect(+committedBlock.number!).toEqual(expect.any(Number));
         const finalizedBlock = await alice.provider.send('eth_getBlockByNumber', ['finalized', true]);
@@ -773,14 +788,16 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check getLogs endpoint works properly with block tags', async () => {
-        const earliestLogs = alice.provider.send('eth_getLogs', [
-            {
-                fromBlock: 'earliest',
-                // we have to set this parameter to avoid `Query returned more than 10000 results. Try with this block range` error
-                toBlock: '1'
-            }
-        ]);
-        await expect(earliestLogs).resolves.not.toThrow();
+        if ((await firstBlock()) === 1) {
+            const earliestLogs = alice.provider.send('eth_getLogs', [
+                {
+                    fromBlock: 'earliest',
+                    // we have to set this parameter to avoid `Query returned more than 10000 results. Try with this block range` error
+                    toBlock: '1'
+                }
+            ]);
+            await expect(earliestLogs).resolves.not.toThrow();
+        }
 
         const committedLogs = alice.provider.send('eth_getLogs', [
             {

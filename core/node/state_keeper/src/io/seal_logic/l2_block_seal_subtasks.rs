@@ -598,7 +598,7 @@ mod tests {
         };
 
         // Run.
-        let mut strategy = SealStrategy::Parallel(&pool);
+        let mut strategy = SealStrategy::Parallel(Box::new(&pool));
         L2BlockSealProcess::run_subtasks(&l2_block_seal_command, &mut strategy)
             .await
             .unwrap();
@@ -625,7 +625,7 @@ mod tests {
         drop(connection);
 
         // Run again.
-        let mut strategy = SealStrategy::Parallel(&pool);
+        let mut strategy = SealStrategy::Parallel(Box::new(&pool));
         L2BlockSealProcess::run_subtasks(&l2_block_seal_command, &mut strategy)
             .await
             .unwrap();

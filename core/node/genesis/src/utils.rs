@@ -37,7 +37,7 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     Ok(())
 }
 
-pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
+pub fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
     let system_context_init_logs =
         // During the genesis all chains have the same id.
         // TODO(EVM-579): make sure that the logic is compatible with Era.

@@ -57,6 +57,8 @@ pub struct SnapshotRecoveryConfig {
     #[config(nest)]
     // TODO: logically, this config is required if recovery is enabled, but this cannot be expressed yet
     pub object_store: Option<ObjectStoreConfig>,
+    #[config(default)]
+    pub recover_from_l1: bool,
 }
 
 #[cfg(test)]
@@ -85,6 +87,7 @@ mod tests {
                 max_retries: 100,
                 local_mirror_path: None,
             }),
+            recover_from_l1: false,
         }
     }
 

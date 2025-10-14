@@ -13,6 +13,7 @@ members = [
   "bin/zksync_server",
   "bin/genesis_generator",
   "bin/zksync_tee_prover",
+  "bin/local_blobs_dump",
   # Node services
   "node/jemalloc",
   "node/proof_data_handler",
@@ -43,6 +44,7 @@ members = [
   "node/gateway_migrator",
   "node/zk_os_tree_manager",
   "node/eth_proof_manager",
+  "node/l1_recovery",
   # Libraries
   "lib/db_connection",
   "lib/basic_types",
@@ -210,6 +212,7 @@ time = "0.3.36" # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 yab = "0.1.0"
+indexmap = { version = "2.0.2", features = ["serde"] }
 
 # Proc-macro
 syn = "2.0"
@@ -281,6 +284,7 @@ zksync_consensus_roles = "=0.13"
 zksync_consensus_utils = "=0.13"
 zksync_protobuf = "=0.13"
 zksync_protobuf_build = "=0.13"
+zkevm_circuits = "=0.153.1"
 
 # "Local" dependencies
 zksync_multivm = { version = "29.4.1-non-semver-compat", path = "lib/multivm" }
@@ -356,3 +360,5 @@ zksync_node_api_server = { version = "29.4.1-non-semver-compat", path = "node/ap
 zksync_base_token_adjuster = { version = "29.4.1-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "29.4.1-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "29.4.1-non-semver-compat", path = "node/gateway_migrator" }
+zksync_l1_recovery = { version = "29.4.1-non-semver-compat", path = "node/l1_recovery" }
+local_blobs_dump = { version = "29.4.1-non-semver-compat", path = "bin/local_blobs_dump" }

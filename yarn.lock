@@ -1872,11 +1872,12 @@
     ts-morph "^22.0.0"
 
 "@matterlabs/hardhat-zksync-node@^1.2.0":
-  version "1.3.1"
-  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-node/-/hardhat-zksync-node-1.3.1.tgz#975f0cb52e5a010bba2365b71727808e1254f4a9"
-  integrity sha512-DvPDf/+7Y3rU5LMOVcdFsB9kvrnJ1b2h1/SvYOuHh1BovyDINCUBs2NR0wlGZRD0M3xKG1BE9jn6wTN/wRVS8A==
+  version "1.5.3"
+  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-node/-/hardhat-zksync-node-1.5.3.tgz#6a55f88037e97944339645995969ae9b085a93fc"
+  integrity sha512-SfGlCJff864dtfLAdi7jyb0vR4Ox9N4cPcEyLx+UIfrCHuOW+RFoNVbsI+1X9uzOCx8TIpW9rLdt8gp5ZT8idg==
   dependencies:
-    "@matterlabs/hardhat-zksync-solc" "^1.2.6"
+    "@matterlabs/hardhat-zksync-solc" "^1.5.1"
+    "@matterlabs/hardhat-zksync-telemetry" "^1.1.1"
     axios "^1.7.2"
     chai "^4.3.4"
     chalk "^4.1.2"
@@ -1973,42 +1974,26 @@
     sinon-chai "^3.7.0"
     undici "^6.18.2"
 
-"@matterlabs/hardhat-zksync-solc@^1.2.5":
-  version "1.3.0"
-  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.3.0.tgz#f2d20d131139ec867c5ec89976dbed32621e8d50"
-  integrity sha512-n2WBdxyt5ZwF+bgyBOFwaMWB/QwyRd51FonvtClBSUxAuLyZHvPB7XApQg58SONiafT1uUVKgr+ajiSr3HB/8w==
+"@matterlabs/hardhat-zksync-solc@^1.2.5", "@matterlabs/hardhat-zksync-solc@^1.5.1":
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.5.1.tgz#9ceb413a7f4410bc00baadaecad5d3861fe3b72e"
+  integrity sha512-dd9CcOH31kgfe1QPAecNqGohcAzySVoFKFfp23kIfhenIXFhI7OfbxUy5uVyeycZYHip0zgRsNAIVPsIpgjPWw==
   dependencies:
-    "@matterlabs/hardhat-zksync-telemetry" "^1.1.0"
+    "@matterlabs/hardhat-zksync-telemetry" "^1.1.1"
     "@nomiclabs/hardhat-docker" "^2.0.2"
     chai "^4.3.4"
     chalk "^4.1.2"
     debug "^4.3.5"
     dockerode "^4.0.2"
     fs-extra "^11.2.0"
+    lodash "^4.17.21"
     proper-lockfile "^4.1.2"
     semver "^7.6.2"
     sinon "^18.0.0"
     sinon-chai "^3.7.0"
     undici "^6.18.2"
 
-"@matterlabs/hardhat-zksync-solc@^1.2.6":
-  version "1.2.6"
-  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.2.6.tgz#fb2d7b585d4551af01ef7a1af3d3e0d4ff6b90ba"
-  integrity sha512-9hje3aOKsW90hDxL7THW8ZuJGnGSS1rcaRNPkDXP7ROCgcF5AYKYpf+NPa6zXZRpVexxJM1e2HKyLgos2Fe8ZQ==
-  dependencies:
-    "@nomiclabs/hardhat-docker" "^2.0.2"
-    chai "^4.3.4"
-    chalk "^4.1.2"
-    debug "^4.3.5"
-    dockerode "^4.0.2"
-    fs-extra "^11.2.0"
-    proper-lockfile "^4.1.2"
-    semver "^7.6.2"
-    sinon "^18.0.0"
-    sinon-chai "^3.7.0"
-    undici "^6.18.2"
-
-"@matterlabs/hardhat-zksync-telemetry@^1.1.0":
+"@matterlabs/hardhat-zksync-telemetry@^1.1.1":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-telemetry/-/hardhat-zksync-telemetry-1.1.1.tgz#d2a373843c129ef7ed1fef38dd10ba124f201935"
   integrity sha512-yOV17igm4l73uik2pi729kpemV2LqWz6MdWb350p1FTmUqL4sdvjQWqhJG5XzrHNuslIVfAmLX+qqO7t8iVJAA==
@@ -2825,22 +2810,12 @@
   dependencies:
     "@opentelemetry/core" "^1.1.0"
 
-"@openzeppelin/contracts-upgradeable-v4@npm:@openzeppelin/contracts-upgradeable@4.9.5":
+"@openzeppelin/contracts-upgradeable-v4@npm:@openzeppelin/contracts-upgradeable@4.9.5", "@openzeppelin/contracts-upgradeable@4.9.5":
   version "4.9.5"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.9.5.tgz#572b5da102fc9be1d73f34968e0ca56765969812"
   integrity sha512-f7L1//4sLlflAN7fVzJLoRedrf5Na3Oal5PZfIq55NFcVZ90EpV1q5xOvL4lFvg3MNICSDr2hH0JUBxwlxcoPg==
 
-"@openzeppelin/contracts-upgradeable@4.9.5":
-  version "4.9.5"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.9.5.tgz#572b5da102fc9be1d73f34968e0ca56765969812"
-  integrity sha512-f7L1//4sLlflAN7fVzJLoRedrf5Na3Oal5PZfIq55NFcVZ90EpV1q5xOvL4lFvg3MNICSDr2hH0JUBxwlxcoPg==
-
-"@openzeppelin/contracts-v4@npm:@openzeppelin/contracts@4.9.5":
-  version "4.9.5"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.5.tgz#1eed23d4844c861a1835b5d33507c1017fa98de8"
-  integrity sha512-ZK+W5mVhRppff9BE6YdR8CC52C8zAvsVAiWhEtQ5+oNxFE6h1WdeWo+FJSF8KKvtxxVYZ7MTP/5KoVpAU3aSWg==
-
-"@openzeppelin/contracts@4.9.5":
+"@openzeppelin/contracts-v4@npm:@openzeppelin/contracts@4.9.5", "@openzeppelin/contracts@4.9.5":
   version "4.9.5"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.5.tgz#1eed23d4844c861a1835b5d33507c1017fa98de8"
   integrity sha512-ZK+W5mVhRppff9BE6YdR8CC52C8zAvsVAiWhEtQ5+oNxFE6h1WdeWo+FJSF8KKvtxxVYZ7MTP/5KoVpAU3aSWg==
@@ -6855,9 +6830,9 @@ fs-extra@^0.30.0:
     rimraf "^2.2.8"
 
 fs-extra@^11.1.0:
-  version "11.3.0"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-11.3.0.tgz#0daced136bbaf65a555a326719af931adc7a314d"
-  integrity sha512-Z4XaCL6dUDHfP/jT25jJKMmtxvuwbkrD1vNSMFlo9lNLY2c5FHYSQgHPRZUjAB26TpDEoW9HCOgplrdbaPV/ew==
+  version "11.3.2"
+  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-11.3.2.tgz#c838aeddc6f4a8c74dd15f85e11fe5511bfe02a4"
+  integrity sha512-Xr9F6z6up6Ws+NjzMCZc6WXg2YFRlrLP9NQDO3VQrWrfiojdhS56TzueT88ze0uBdCTwEIhQ3ptnmKeWGFAe0A==
   dependencies:
     graceful-fs "^4.2.0"
     jsonfile "^6.0.1"
@@ -11389,7 +11364,7 @@ string-length@^4.0.1:
     char-regex "^1.0.2"
     strip-ansi "^6.0.0"
 
-"string-width-cjs@npm:string-width@^4.2.0":
+"string-width-cjs@npm:string-width@^4.2.0", string-width@^4.0.0, string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.2, string-width@^4.2.3:
   version "4.2.3"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -11405,15 +11380,6 @@ string-width@^2.1.0, string-width@^2.1.1:
   dependencies:
     is-fullwidth-code-point "^2.0.0"
     strip-ansi "^4.0.0"
-
-string-width@^4.0.0, string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.2, string-width@^4.2.3:
-  version "4.2.3"
-  resolved "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
-  integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
-  dependencies:
-    emoji-regex "^8.0.0"
-    is-fullwidth-code-point "^3.0.0"
-    strip-ansi "^6.0.1"
 
 string-width@^5.0.1, string-width@^5.1.2:
   version "5.1.2"
@@ -11481,7 +11447,7 @@ string_decoder@~1.1.1:
   dependencies:
     safe-buffer "~5.1.0"
 
-"strip-ansi-cjs@npm:strip-ansi@^6.0.1":
+"strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
   version "6.0.1"
   resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
@@ -11501,13 +11467,6 @@ strip-ansi@^5.1.0:
   integrity sha512-DuRs1gKbBqsMKIZlrffwlug8MHkcnpjs5VPmL1PAh+mA30U0DTotfDZ0d2UUsXpPmPmMMJ6W773MaA3J+lbiWA==
   dependencies:
     ansi-regex "^4.1.0"
-
-strip-ansi@^6.0.0, strip-ansi@^6.0.1:
-  version "6.0.1"
-  resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
-  integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
-  dependencies:
-    ansi-regex "^5.0.1"
 
 strip-ansi@^7.0.1:
   version "7.1.0"
@@ -12479,16 +12438,7 @@ workerpool@6.2.1:
   resolved "https://registry.yarnpkg.com/workerpool/-/workerpool-6.2.1.tgz#46fc150c17d826b86a008e5a4508656777e9c343"
   integrity sha512-ILEIE97kDZvF9Wb9f6h5aXK4swSlKGUcOEGiIYb2OOu/IrDU9iwj0fD//SsA6E5ibwJxpEvhullJY4Sl4GcpAw==
 
-"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0":
-  version "7.0.0"
-  resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
-  integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
-  dependencies:
-    ansi-styles "^4.0.0"
-    string-width "^4.1.0"
-    strip-ansi "^6.0.0"
-
-wrap-ansi@^7.0.0:
+"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
   version "7.0.0"
   resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
@@ -12570,9 +12520,9 @@ yaml@^2.4.2:
   integrity sha512-B3VqDZ+JAg1nZpaEmWtTXUlBneoGx6CPM9b0TENK6aoSu5t73dItudwdgmi6tHlIZZId4dZ9skcAQ2UbcyAeVA==
 
 yaml@^2.7.0:
-  version "2.7.1"
-  resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.7.1.tgz#44a247d1b88523855679ac7fa7cda6ed7e135cf6"
-  integrity sha512-10ULxpnOCQXxJvBgxsn9ptjq6uviG/htZKk9veJGhlqn3w/DxQ631zFF+nlQXLwmImeS5amR2dl2U8sg6U9jsQ==
+  version "2.8.1"
+  resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.8.1.tgz#1870aa02b631f7e8328b93f8bc574fac5d6c4d79"
+  integrity sha512-lcYcMxX2PO9XMGvAJkJ3OsNMw+/7FKes7/hgerGUYWIoWu5j/+YQqcZr5JnPZWzOsEBgMbSbiSTn/dv/69Mkpw==
 
 yargs-parser@20.2.4:
   version "20.2.4"

@@ -79,7 +79,7 @@ enum Command {
         priority_fee_per_gas: Option<u64>,
         /// Nonce used for reverting Ethereum transaction.
         #[arg(long)]
-        nonce: u64,
+        nonce: Option<u64>,
     },
 
     /// Rolls back internal database state to a previous L1 batch.
