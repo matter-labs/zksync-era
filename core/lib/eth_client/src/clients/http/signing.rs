@@ -125,14 +125,19 @@ impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net
             None => self.inner.default_priority_fee_per_gas,
         };
 
-        if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
+        let use_fusaka_upgrade = if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
             if options.max_fee_per_blob_gas.is_none() {
                 return Err(SigningError::Eip4844MissingMaxFeePerBlobGas);
             }
-            if options.blob_versioned_hashes.is_none() {
-                return Err(SigningError::Eip4844MissingBlobVersionedHashes);
+            match options.blob_versioned_hashes {
+                None => {
+                    return Err(SigningError::Eip4844MissingBlobVersionedHashes);
+                }
+                Some(_) => true,
             }
-        }
+        } else {
+            false
+        };
 
         // Fetch current base fee and add `max_priority_fee_per_gas`
         let max_fee_per_gas = match options.max_fee_per_gas {
@@ -182,6 +187,7 @@ impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
                 gas,
+                use_fusaka_upgrade,
             )
             .await?
         };
@@ -246,6 +252,7 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
         max_fee_per_gas: U256,
         max_priority_fee_per_gas: U256,
         gas: U256,
+        use_fusaka_upgrade: bool,
     ) -> Result<(Vec<u8>, H256), SigningError> {
         let tx = TransactionParameters {
             nonce,
@@ -265,7 +272,7 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
 
         let mut signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
         if let Some(sidecar) = options.blob_tx_sidecar {
-            signed_tx = encode_blob_tx_with_sidecar(&signed_tx, &sidecar);
+            signed_tx = encode_blob_tx_with_sidecar(&signed_tx, sidecar, use_fusaka_upgrade);
         }
         let hash = web3::keccak256(&signed_tx).into();
         Ok((signed_tx, hash))

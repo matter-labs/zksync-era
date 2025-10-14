@@ -464,6 +464,7 @@ mod tests {
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
             force_use_validator_timelock: false
+            use_fusaka_blob_format: true
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec

@@ -1,6 +1,6 @@
 use rlp::RlpStream;
 use zksync_types::{
-    eth_sender::EthTxBlobSidecar,
+    eth_sender::{EthTxBlobSidecar, EthTxBlobSidecarV2, SidecarBlobV1, SidecarBlobV2},
     ethabi, web3,
     web3::{
         contract::{Detokenize, Tokenize},
@@ -283,59 +283,103 @@ impl SignedCallResult {
 
 // Encodes the blob transaction and the blob sidecar into the networking
 // format as defined in <https://eips.ethereum.org/EIPS/eip-4844#networking>
-pub fn encode_blob_tx_with_sidecar(raw_tx: &[u8], sidecar: &EthTxBlobSidecar) -> Vec<u8> {
-    let EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) = sidecar;
-    let stream_outer = if sidecar
-        .blobs
-        .first()
-        .map(|b| b.cell_proofs.is_none())
-        .unwrap_or(true)
-    {
-        let blobs_count = sidecar.blobs.len();
+pub fn encode_blob_tx_with_sidecar(
+    raw_tx: &[u8],
+    sidecar: EthTxBlobSidecar,
+    fusaka_upgrade_support: bool,
+) -> Vec<u8> {
+    let sidecar = match (&sidecar, fusaka_upgrade_support) {
+        (EthTxBlobSidecar::EthTxBlobSidecarV2(_), true) => sidecar,
+        (EthTxBlobSidecar::EthTxBlobSidecarV1(_), false) => sidecar,
+        (EthTxBlobSidecar::EthTxBlobSidecarV1(data), true) => {
+            let fusaka_blobs: Vec<SidecarBlobV2> = data
+                .blobs
+                .iter()
+                .map(|blob| convert_eip4844_blobs_to_eip7594_blobs(blob.clone()))
+                .collect();
+            EthTxBlobSidecar::EthTxBlobSidecarV2(EthTxBlobSidecarV2 {
+                blobs: fusaka_blobs,
+            })
+        }
+        (EthTxBlobSidecar::EthTxBlobSidecarV2(_), false) => {
+            panic!("EIP-7594 sidecars are not supported when fusaka upgrade support is disabled");
+        }
+    };
 
         let mut stream_outer = RlpStream::new();
 
-        // top-level RLP encoded struct is defined as
-        //
-        // ```
-        // rlp([tx_payload_body, blobs, commitments, proofs])
-        // ```
-        // and is a list of 4 elements.
-        stream_outer.begin_list(4);
-        // The EIP doc states the following:
-        //
-        // ```
-        // the EIP-2718 TransactionPayload of the blob transaction
-        // is wrapped to become:
-        //
-        // rlp([tx_payload_body, blobs, commitments, proofs])
-        // ```
-        //
-        // If you look into the specs what this means for us here is the following:
-        //
-        // 1. The `0x03` byte signaling the type of the blob transaction has
-        //    to be removed from the head of received payload body
-        // 2. The above four-element RLP list has to be constructed.
-        // 3. The `0x03` byte has to be concatenated with the RLP-encoded list from
-        //    the previous step
-        // 4. The result of this concatenation has to be again RLP-encoded into
-        //    what constitutes the final form of a blob transaction with the sidecar
-        //    as it is sent to the network.
-        stream_outer.append_raw(&raw_tx[1..], 1);
+    match sidecar {
+        EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) => {
+            let blobs_count = sidecar.blobs.len();
+            // top-level RLP encoded struct is defined as
+            //
+            // ```
+            // rlp([tx_payload_body, blobs, commitments, proofs])
+            // ```
+            // and is a list of 4 elements.
+            stream_outer.begin_list(4);
+            // The EIP doc states the following:
+            //
+            // ```
+            // the EIP-2718 TransactionPayload of the blob transaction
+            // is wrapped to become:
+            //
+            // rlp([tx_payload_body, blobs, commitments, proofs])
+            // ```
+            //
+            // If you look into the specs what this means for us here is the following:
+            //
+            // 1. The `0x03` byte signaling the type of the blob transaction has
+            //    to be removed from the head of received payload body
+            // 2. The above four-element RLP list has to be constructed.
+            // 3. The `0x03` byte has to be concatenated with the RLP-encoded list from
+            //    the previous step
+            // 4. The result of this concatenation has to be again RLP-encoded into
+            //    what constitutes the final form of a blob transaction with the sidecar
+            //    as it is sent to the network.
+            stream_outer.append_raw(&raw_tx[1..], 1);
 
-        let mut blob_stream = RlpStream::new_list(blobs_count);
-        let mut commitment_stream = RlpStream::new_list(blobs_count);
-        let mut proof_stream = RlpStream::new_list(blobs_count);
+            let mut blob_stream = RlpStream::new_list(blobs_count);
+            let mut commitment_stream = RlpStream::new_list(blobs_count);
+            let mut proof_stream = RlpStream::new_list(blobs_count);
 
-        for i in 0..blobs_count {
-            blob_stream.append(&sidecar.blobs[i].blob);
-            commitment_stream.append(&sidecar.blobs[i].commitment);
-            proof_stream.append(&sidecar.blobs[i].proof);
+            for i in 0..blobs_count {
+                blob_stream.append(&sidecar.blobs[i].blob);
+                commitment_stream.append(&sidecar.blobs[i].commitment);
+                proof_stream.append(&sidecar.blobs[i].proof);
+            }
+
+            stream_outer.append_raw(&blob_stream.out(), 1);
+            stream_outer.append_raw(&commitment_stream.out(), 1);
+            stream_outer.append_raw(&proof_stream.out(), 1);
         }
+        EthTxBlobSidecar::EthTxBlobSidecarV2(sidecar) => {
+            // rlp([tx_payload_body, wrapper_version, blobs, commitments, cell_proofs])
+            let blobs_count = sidecar.blobs.len();
 
-        stream_outer.append_raw(&blob_stream.out(), 1);
-        stream_outer.append_raw(&commitment_stream.out(), 1);
-        stream_outer.append_raw(&proof_stream.out(), 1);
+            stream_outer.begin_list(5);
+
+            stream_outer.append_raw(&raw_tx[1..], 1);
+            let wrapper_version = 1u8;
+            stream_outer.append_raw(&[wrapper_version], 1);
+
+            let mut blob_stream = RlpStream::new_list(blobs_count);
+            let mut commitment_stream = RlpStream::new_list(blobs_count);
+            let mut cell_proof_stream = RlpStream::new_list(128 * blobs_count);
+
+            for i in 0..blobs_count {
+                blob_stream.append(&sidecar.blobs[i].blob);
+                commitment_stream.append(&sidecar.blobs[i].commitment);
+                for cell_proof in &sidecar.blobs[i].cell_proofs {
+                    cell_proof_stream.append(cell_proof);
+                }
+            }
+
+            stream_outer.append_raw(&blob_stream.out(), 1);
+            stream_outer.append_raw(&commitment_stream.out(), 1);
+            stream_outer.append_raw(&cell_proof_stream.out(), 1);
+        }
+    }
 
         stream_outer
     } else {
@@ -402,6 +446,29 @@ pub struct FailureInfo {
     pub gas_used: Option<U256>,
     /// Gas limit of the transaction.
     pub gas_limit: U256,
+}
+
+fn convert_eip4844_blobs_to_eip7594_blobs(sidecar: SidecarBlobV1) -> SidecarBlobV2 {
+    let mut cell_proofs = Vec::new();
+
+    let blob_kzg = c_kzg::Blob::from_bytes(&sidecar.blob).unwrap();
+
+    let kzg_settings = c_kzg::ethereum_kzg_settings_arc(0);
+    // Compute cells and their KZG proofs for this blob
+    let (_cells, kzg_proofs) = kzg_settings
+        .compute_cells_and_kzg_proofs(&blob_kzg)
+        .unwrap();
+
+    for kzg_proof in kzg_proofs.iter() {
+        cell_proofs.push(kzg_proof.to_bytes().into_inner().to_vec());
+    }
+    SidecarBlobV2 {
+        blob: sidecar.blob,
+        commitment: sidecar.commitment,
+        proof: sidecar.proof,
+        versioned_hash: sidecar.versioned_hash,
+        cell_proofs,
+    }
 }
 
 #[cfg(test)]
@@ -479,7 +546,7 @@ mod tests {
         let expected_str = expected_str.trim();
         let raw_tx = encode_blob_tx_with_sidecar(
             &raw_tx,
-            &EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
+            EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
                 blobs: vec![SidecarBlobV1 {
                     blob,
                     commitment,
@@ -488,6 +555,7 @@ mod tests {
                     cell_proofs: None,
                 }],
             }),
+            true,
         );
 
         let signed_call_result = SignedCallResult::new(
@@ -586,7 +654,7 @@ mod tests {
         let expected_str = expected_str.trim();
         let raw_tx = encode_blob_tx_with_sidecar(
             &raw_tx,
-            &EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
+            EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
                 blobs: vec![
                     SidecarBlobV1 {
                         blob: blob_1,
@@ -604,6 +672,7 @@ mod tests {
                     },
                 ],
             }),
+            true,
         );
 
         let signed_call_result = SignedCallResult::new(
