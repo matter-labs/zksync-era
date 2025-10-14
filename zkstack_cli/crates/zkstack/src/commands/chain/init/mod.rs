@@ -147,20 +147,6 @@ pub async fn init(
         spinner.finish();
     }
 
-    // Enable EVM emulation if needed (run by L2 Governor)
-    if chain_config.evm_emulator {
-        enable_evm_emulator(
-            shell,
-            &chain_config.path_to_foundry_scripts(),
-            contracts_config.l1.chain_admin_addr,
-            &chain_config.get_wallets_config()?.governor,
-            contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args,
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-    }
-
     if !init_args.skip_priority_txs {
         send_priority_txs(
             shell,
@@ -254,6 +240,20 @@ pub async fn send_priority_txs(
     )
     .await?;
     spinner.finish();
+
+    // Enable EVM emulation if needed (run by L2 Governor)
+    if chain_config.evm_emulator {
+        enable_evm_emulator(
+            shell,
+            &chain_config.path_to_foundry_scripts(),
+            contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            contracts_config.l1.diamond_proxy_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     // Deploy Paymaster contract (run by L2 Governor)
     if deploy_paymaster {
