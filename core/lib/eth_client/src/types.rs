@@ -287,7 +287,7 @@ pub fn encode_blob_tx_with_sidecar(raw_tx: &[u8], sidecar: &EthTxBlobSidecar) ->
     let EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) = sidecar;
     let stream_outer = if sidecar
         .blobs
-        .get(0)
+        .first()
         .map(|b| b.cell_proofs.is_none())
         .unwrap_or(true)
     {
