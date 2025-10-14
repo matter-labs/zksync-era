@@ -283,6 +283,7 @@ impl EthSenderTester {
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 pubdata_sending_mode,
+                use_fusaka_blob_format: false,
                 ..eth_sender.clone()
             },
             // Aggregator - unused
