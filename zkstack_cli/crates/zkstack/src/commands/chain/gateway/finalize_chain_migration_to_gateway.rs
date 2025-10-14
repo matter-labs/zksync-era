@@ -77,9 +77,6 @@ pub async fn run_inner(
     let l1_rpc_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let mut contracts_config = chain_config.get_contracts_config()?;
 
-    // First check if this step should actually be run
-    // TODO, how to even check it?
-
     // Sends the priority txs that were skipped when the chain was initialized
     send_priority_txs(
         shell,
