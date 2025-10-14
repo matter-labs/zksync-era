@@ -62,6 +62,8 @@ pub struct Options {
     pub factory_deps: Option<Vec<Vec<u8>>>,
     // Paymaster params
     pub paymaster_params: Option<PaymasterParams>,
+    // support eip7594 upgrade
+    pub support_eip7594: Option<bool>,
 }
 
 impl Options {

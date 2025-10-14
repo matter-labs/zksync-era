@@ -286,23 +286,23 @@ impl SignedCallResult {
 pub fn encode_blob_tx_with_sidecar(
     raw_tx: &[u8],
     sidecar: EthTxBlobSidecar,
-    fusaka_upgrade_support: bool,
+    eip7594_upgrade_support: bool,
 ) -> Vec<u8> {
-    let sidecar = match (&sidecar, fusaka_upgrade_support) {
+    let sidecar = match (&sidecar, eip7594_upgrade_support) {
         (EthTxBlobSidecar::EthTxBlobSidecarV2(_), true) => sidecar,
         (EthTxBlobSidecar::EthTxBlobSidecarV1(_), false) => sidecar,
         (EthTxBlobSidecar::EthTxBlobSidecarV1(data), true) => {
-            let fusaka_blobs: Vec<SidecarBlobV2> = data
+            let eip7594_blobs: Vec<SidecarBlobV2> = data
                 .blobs
                 .iter()
                 .map(|blob| convert_eip4844_blobs_to_eip7594_blobs(blob.clone()))
                 .collect();
             EthTxBlobSidecar::EthTxBlobSidecarV2(EthTxBlobSidecarV2 {
-                blobs: fusaka_blobs,
+                blobs: eip7594_blobs,
             })
         }
         (EthTxBlobSidecar::EthTxBlobSidecarV2(_), false) => {
-            panic!("EIP-7594 sidecars are not supported when fusaka upgrade support is disabled");
+            panic!("EIP-7594 sidecars are not supported when eip7594 upgrade support is disabled");
         }
     };
 
