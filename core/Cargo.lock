@@ -13997,7 +13997,6 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "c-kzg",
  "chrono",
  "serde",
  "test-casing",

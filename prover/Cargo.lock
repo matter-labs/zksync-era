@@ -1138,6 +1138,7 @@ dependencies = [
  "glob",
  "hex",
  "libc",
+ "once_cell",
 ]
 
 [[package]]

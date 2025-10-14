@@ -37,8 +37,6 @@ pub struct SidecarBlobV1 {
     pub commitment: Vec<u8>,
     /// Blob proof
     pub proof: Vec<u8>,
-    /// Cell proofs
-    pub cell_proofs: Option<Vec<Vec<u8>>>,
     /// Blob commitment versioned hash
     pub versioned_hash: Vec<u8>,
 }
@@ -63,7 +61,7 @@ pub struct EthTxBlobSidecarV1 {
     pub blobs: Vec<SidecarBlobV1>,
 }
 
-/// A first version of sidecars for blob transactions as they are described in EIP4844.
+/// Second version of sidecars for blob transactions as they are described in EIP7594.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct EthTxBlobSidecarV2 {
     /// A vector of blobs for this tx and their commitments and proofs.

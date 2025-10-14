@@ -501,7 +501,6 @@ mod tests {
                     commitment,
                     proof,
                     versioned_hash,
-                    cell_proofs: None,
                 }],
             }),
         );
@@ -609,14 +608,12 @@ mod tests {
                         commitment: commitment_1,
                         proof: proof_1,
                         versioned_hash: versioned_hash_1.to_fixed_bytes().to_vec(),
-                        cell_proofs: None,
                     },
                     SidecarBlobV1 {
                         blob: blob_2,
                         commitment: commitment_2,
                         proof: proof_2,
                         versioned_hash: versioned_hash_2.to_fixed_bytes().to_vec(),
-                        cell_proofs: None,
                     },
                 ],
             }),

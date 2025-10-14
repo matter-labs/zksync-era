@@ -1087,7 +1087,6 @@ impl EthTxAggregator {
                             commitment: kzg_info.kzg_commitment.to_vec(),
                             proof: kzg_info.blob_proof.to_vec(),
                             versioned_hash: kzg_info.versioned_hash.to_vec(),
-                            cell_proofs: None,
                         }
                     })
                     .collect::<Vec<SidecarBlobV1>>();
@@ -1097,7 +1096,7 @@ impl EthTxAggregator {
                         blobs: sidecar
                             .into_iter()
                             .map(|sidecar_blob| {
-                                convert_eip4844_sidecar_to_eip7594_sidecar(sidecar_blob).into()
+                                convert_eip4844_sidecar_to_eip7594_sidecar(sidecar_blob)
                             })
                             .collect(),
                     }

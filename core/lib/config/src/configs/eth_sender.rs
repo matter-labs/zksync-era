@@ -468,7 +468,6 @@ mod tests {
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
-            use_fusaka_blob_format: true
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
