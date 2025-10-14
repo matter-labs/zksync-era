@@ -54,6 +54,7 @@ impl EthConfig {
                 time_in_mempool_multiplier_cap: None,
                 precommit_params: None,
                 force_use_validator_timelock: false,
+                use_fusaka_blob_format: true,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -177,6 +178,8 @@ pub struct SenderConfig {
     /// Allow to force change the validator timelock address.
     #[config(default)]
     pub force_use_validator_timelock: bool,
+    #[config(default)]
+    pub use_fusaka_blob_format: bool,
 }
 
 /// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
@@ -301,6 +304,7 @@ mod tests {
                     deadline: Duration::from_secs(1),
                 }),
                 force_use_validator_timelock: false,
+                use_fusaka_blob_format: true,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -365,6 +369,7 @@ mod tests {
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
+            ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -404,6 +409,7 @@ mod tests {
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
+            use_fusaka_blob_format: true
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
@@ -461,6 +467,7 @@ mod tests {
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
+            use_fusaka_blob_format: true
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

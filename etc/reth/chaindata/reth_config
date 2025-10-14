@@ -19,6 +19,7 @@
     "mergeNetsplitBlock": 0,
     "shanghaiTime": 0,
     "cancunTime": 0,
+    "osakaTime": 0,
     "clique": {
       "period": 0,
       "epoch": 30000
