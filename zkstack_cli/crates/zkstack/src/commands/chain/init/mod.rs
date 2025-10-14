@@ -249,7 +249,7 @@ pub async fn send_priority_txs(
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
-            &forge_args,
+            forge_args,
             l1_rpc_url.clone(),
         )
         .await?;
