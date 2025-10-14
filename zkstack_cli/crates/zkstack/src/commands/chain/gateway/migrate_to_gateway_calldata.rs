@@ -126,6 +126,15 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
     let protocol_version = l1_zk_chain.get_protocol_version().await?;
 
+    // Checking that the priority queue is empty
+    let priority_queue_size = l1_zk_chain.get_priority_queue_size().await?;
+    if !priority_queue_size.is_zero() && !params.only_set_da_validator_pair {
+        anyhow::bail!(
+            "{} priority queue is not empty! Please empty it before migrating to Gateway",
+            params.l2_chain_id
+        );
+    }
+
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
     let gw_ctm_protocol_version = gw_ctm.protocol_version().await?;
     if gw_ctm_protocol_version != protocol_version {
