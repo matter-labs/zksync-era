@@ -76,6 +76,7 @@ pub(crate) struct MigrateToGatewayParams {
     pub(crate) validator: Address,
     pub(crate) min_validator_balance: U256,
     pub(crate) refund_recipient: Option<Address>,
+    pub(crate) only_set_da_validator_pair: bool,
 }
 
 pub(crate) async fn get_migrate_to_gateway_calls(
@@ -104,7 +105,9 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     }
 
     // Checking whether the user has already done the migration
-    if current_settlement_layer == U256::from(params.gateway_chain_id) {
+    if current_settlement_layer == U256::from(params.gateway_chain_id)
+        && !params.only_set_da_validator_pair
+    {
         // TODO(EVM-1001): it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
         // diamond cut was not correct).
         // The recovery of the chain is not handled by the tool right now.
@@ -162,54 +165,57 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         }
     };
 
-    let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        crate::admin_functions::AdminScriptMode::OnlySave,
-        params.l1_bridgehub_addr,
-        params.max_l1_gas_price,
-        params.l2_chain_id,
-        params.gateway_chain_id,
-        params.gateway_diamond_cut.into(),
-        refund_recipient,
-        params.l1_rpc_url.clone(),
-    )
-    .await?;
+    if !params.only_set_da_validator_pair {
+        let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l1_bridgehub_addr,
+            params.max_l1_gas_price,
+            params.l2_chain_id,
+            params.gateway_chain_id,
+            params.gateway_diamond_cut.into(),
+            refund_recipient,
+            params.l1_rpc_url.clone(),
+        )
+        .await?;
 
-    result.extend(finalize_migrate_to_gateway_output.calls);
+        result.extend(finalize_migrate_to_gateway_output.calls);
+    }
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
+    if !l2_da_validator.is_zero() || params.only_set_da_validator_pair {
+        // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
+        // read storage here.
+        let is_permanent_rollup_slot = l1_provider
+            .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
+            .await?;
+        if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
+            // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
+            logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
+        }
 
-    // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
-    // read storage here.
-    let is_permanent_rollup_slot = l1_provider
-        .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
+        let da_validator_encoding_result = set_da_validator_pair_via_gateway(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l1_bridgehub_addr,
+            params.max_l1_gas_price.into(),
+            params.l2_chain_id,
+            params.gateway_chain_id,
+            params.new_sl_da_validator,
+            l2_da_validator,
+            zk_chain_gw_address,
+            refund_recipient,
+            params.l1_rpc_url.clone(),
+        )
         .await?;
-    if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
-        // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
-        logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
+
+        result.extend(da_validator_encoding_result.calls.into_iter());
     }
-
-    let da_validator_encoding_result = set_da_validator_pair_via_gateway(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        crate::admin_functions::AdminScriptMode::OnlySave,
-        params.l1_bridgehub_addr,
-        params.max_l1_gas_price.into(),
-        params.l2_chain_id,
-        params.gateway_chain_id,
-        params.new_sl_da_validator,
-        l2_da_validator,
-        zk_chain_gw_address,
-        refund_recipient,
-        params.l1_rpc_url.clone(),
-    )
-    .await?;
-
-    result.extend(da_validator_encoding_result.calls.into_iter());
 
     let is_validator_enabled =
         if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
@@ -228,7 +234,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         };
 
     // 4. If validator is not yet present, please include.
-    if !is_validator_enabled {
+    if !is_validator_enabled && !params.only_set_da_validator_pair {
         let enable_validator_calls = enable_validator_via_gateway(
             shell,
             forge_args,
@@ -252,7 +258,9 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         "Current balance of {:#?} = {}",
         params.validator, current_validator_balance
     ));
-    if current_validator_balance < params.min_validator_balance {
+    if current_validator_balance < params.min_validator_balance
+        && !params.only_set_da_validator_pair
+    {
         logger::info(format!(
             "Will send {} of the ZK Gateway base token",
             params.min_validator_balance - current_validator_balance
@@ -302,6 +310,8 @@ pub struct MigrateToGatewayCalldataArgs {
     pub min_validator_balance: u128,
     #[clap(long)]
     pub refund_recipient: Option<Address>,
+    #[clap(long, default_missing_value = "true")]
+    pub only_set_da_validator_pair: bool,
 
     /// RPC URL of the chain being migrated (L2).
     #[clap(long)]
@@ -331,6 +341,7 @@ impl MigrateToGatewayCalldataArgs {
             validator: self.validator,
             min_validator_balance: self.min_validator_balance.into(),
             refund_recipient: self.refund_recipient,
+            only_set_da_validator_pair: self.only_set_da_validator_pair,
         }
     }
 }

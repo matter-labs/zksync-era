@@ -30,6 +30,8 @@ pub struct MigrateToGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub only_set_da_validator_pair: bool,
 }
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -55,7 +57,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
-    logger::info("Migrating the chain to the Gateway...");
+    if args.only_set_da_validator_pair {
+        logger::info("Finalizing the chain migration to the Gateway...");
+    } else {
+        logger::info("Migrating the chain to the Gateway...");
+    }
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let gw_rpc_url = general_config.l2_http_url()?;
@@ -90,6 +96,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             validator: chain_secrets_config.operator.address,
             min_validator_balance: U256::from(10).pow(19.into()),
             refund_recipient: None,
+            only_set_da_validator_pair: args.only_set_da_validator_pair,
         },
     )
     .await?;
