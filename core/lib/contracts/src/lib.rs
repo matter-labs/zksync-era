@@ -83,7 +83,7 @@ const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "state-transition/verifiers",
-    "DualVerifier.sol/DualVerifier.json",
+    "EraDualVerifier.sol/EraDualVerifier.json",
 );
 
 const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
