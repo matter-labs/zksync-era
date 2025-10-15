@@ -177,12 +177,11 @@ export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, block
 }
 
 export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
-    
-    log("waiting for block to be finalized");
+    log('waiting for block to be finalized');
     // First, we wait for block to be finalized.
     await waitUntilBlockFinalized(wallet, blockNumber);
 
-    log("waiting for log proof");
+    log('waiting for log proof');
     // Second, we wait for the log proof.
     let i = 0;
     while ((await wallet.provider.getLogProof(txHash)) == null) {

@@ -30,9 +30,7 @@ async function migrateTokenBalanceFromL1ToGateway(
         alice.ethWallet()
     );
 
-    const initiatingTx = await l2AssetTracker.initiateL1ToGatewayMigrationOnL2(
-        assetId
-    );
+    const initiatingTx = await l2AssetTracker.initiateL1ToGatewayMigrationOnL2(assetId);
     await initiatingTx.wait();
 
     // Now we need to wait for the L2 to L1 message to be processed.
@@ -53,7 +51,7 @@ async function migrateTokenBalanceFromL1ToGateway(
 
     // Finalize the migration on L1.
     await expect(l1AssetTracker.receiveMigrationOnL1(finalizeDepositParams)).toBeAccepted();
-    
+
     // TODO: the above tx has created some priority ops, we should wait for them
     await sleep(5);
 }
@@ -163,7 +161,6 @@ describe('L2 native ERC20 contract checks', () => {
         await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
-
     test('Migrate token balance to Gateway', async () => {
         // TODO: if the chain settles on L1, skip this part + check that the token has not yet
         // been registered on L1
@@ -177,11 +174,7 @@ describe('L2 native ERC20 contract checks', () => {
         await registerTx.wait();
 
         // Migrate the balance to the Gateway
-        await migrateTokenBalanceFromL1ToGateway(
-            alice,
-            zkTokenAssetId,
-            l1NativeTokenVault
-        );
+        await migrateTokenBalanceFromL1ToGateway(alice, zkTokenAssetId, l1NativeTokenVault);
     });
 
     test('Can perform a withdrawal', async () => {

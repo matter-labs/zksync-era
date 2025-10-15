@@ -14,7 +14,7 @@ import * as zksync from 'zksync-ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
 import { RetryableWallet } from '../src/retry-provider';
-import { log} from 'console';
+import { log } from 'console';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;

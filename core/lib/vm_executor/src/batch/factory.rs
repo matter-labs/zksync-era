@@ -1,4 +1,4 @@
-use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{fmt, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -21,7 +21,6 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use std::io::Write;
 use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
@@ -300,7 +299,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         // Save the formatted call_traces to a file
         if let Ok(mut file) = std::fs::File::create("call_traces.json") {
             if let Ok(json) = serde_json::to_string(&call_traces) {
-            let _ = writeln!(file, "{}", json);
+                let _ = writeln!(file, "{}", json);
             }
         }
 
