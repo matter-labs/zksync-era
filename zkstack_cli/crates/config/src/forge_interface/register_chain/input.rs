@@ -57,7 +57,7 @@ pub struct ChainL1Config {
     pub base_token_addr: Address,
     pub bridgehub_create_new_chain_salt: u64,
     pub validium_mode: bool,
-    pub validator_sender_operator_commit_eth: Address,
+    pub validator_sender_operator_eth: Address,
     pub validator_sender_operator_blobs_eth: Address,
     /// Additional validators that can be used for prove & execute (when these are handled by different entities).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -128,7 +128,7 @@ impl RegisterChainL1Config {
                 bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
                 validium_mode: chain_config.l1_batch_commit_data_generator_mode
                     == L1BatchCommitmentMode::Validium,
-                validator_sender_operator_commit_eth: wallets_config.operator.address,
+                validator_sender_operator_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
                 validator_sender_operator_prove: wallets_config
                     .prove_operator
