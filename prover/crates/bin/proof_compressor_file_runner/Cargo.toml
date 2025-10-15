@@ -1,0 +1,30 @@
+[package]
+name = "zksync_proof_compressor_file_runner"
+description = "ZKsync proof compressor file runner - reads job from file and compresses proof"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_prover_fri_types.workspace = true
+zksync_prover_keystore = { workspace = true, features = ["gpu"] }
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_prover_interface.workspace = true
+
+proof-compression-gpu.workspace = true
+
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde.workspace = true
+bincode.workspace = true
+tokio = { workspace = true, features = ["fs", "macros"] }
+
