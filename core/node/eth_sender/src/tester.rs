@@ -586,6 +586,7 @@ impl EthSenderTester {
                 Address::random(),
                 ProtocolVersionId::latest(),
                 self.settlement_layer.is_gateway(),
+                false,
             )
             .await
             .unwrap()

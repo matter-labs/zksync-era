@@ -4,7 +4,10 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
+use zksync_eth_client::{
+    convert_eip4844_sidecar_to_eip7594_sidecar, BoundEthInterface, CallFunctionArgs,
+    ContractCallError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -20,7 +23,10 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
-    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxFinalityStatus, SidecarBlobV1},
+    eth_sender::{
+        EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, EthTxFinalityStatus,
+        SidecarBlobV1,
+    },
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -48,6 +54,13 @@ pub struct DAValidatorPair {
     pub l1_validator: Address,
     pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
     pub l2_validator: Option<Address>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum EthereumUpgradeState {
+    NotStarted,
+    Pending,
+    Finished,
 }
 
 /// Data queried from L1 using multicall contract.
@@ -184,6 +197,26 @@ impl EthTxAggregator {
 
         tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
         Ok(())
+    }
+
+    pub(super) async fn fusaka_activation_state(
+        &self,
+    ) -> Result<EthereumUpgradeState, EthSenderError> {
+        if self.config.fusaka_upgrade_block == Some(0) {
+            return Ok(EthereumUpgradeState::Finished);
+        }
+        let Some(fusaka_upgrade_block) = self.config.fusaka_upgrade_block else {
+            return Ok(EthereumUpgradeState::NotStarted);
+        };
+
+        let current_block = self.eth_client.block_number().await?.as_u64();
+        if current_block - self.config.fusaka_upgrade_safety_margin < fusaka_upgrade_block {
+            Ok(EthereumUpgradeState::NotStarted)
+        } else if current_block < fusaka_upgrade_block {
+            Ok(EthereumUpgradeState::Pending)
+        } else {
+            Ok(EthereumUpgradeState::Finished)
+        }
     }
 
     pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, EthSenderError> {
@@ -702,6 +735,8 @@ impl EthTxAggregator {
             err
         })?;
 
+        let fusaka_activation_state = self.fusaka_activation_state().await?;
+
         let snark_wrapper_vk_hash = self
             .get_snark_wrapper_vk_hash(verifier_address)
             .await
@@ -799,6 +834,11 @@ impl EthTxAggregator {
             .precommit_params(storage, chain_protocol_version_id)
             .await?;
 
+        if fusaka_activation_state == EthereumUpgradeState::Pending {
+            op_restrictions.commit_restriction = Some("Fusaka upgrade is pending");
+        }
+        let use_fusaka_blob_format = fusaka_activation_state == EthereumUpgradeState::Finished;
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -825,6 +865,7 @@ impl EthTxAggregator {
                     ),
                     chain_protocol_version_id,
                     is_gateway,
+                    use_fusaka_blob_format,
                 )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
@@ -976,6 +1017,7 @@ impl EthTxAggregator {
         &self,
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
+        use_fusaka_blob_format: bool,
     ) -> TxData {
         match op {
             AggregatedOperation::L1Batch(op) => {
@@ -1018,7 +1060,12 @@ impl EthTxAggregator {
                             None
                         };
 
-                        Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
+                        Self::encode_commit_data(
+                            encoding_fn,
+                            &commit_data,
+                            l1_batch_for_sidecar,
+                            use_fusaka_blob_format,
+                        )
                     }
                     L1BatchAggregatedOperation::PublishProofOnchain(op) => {
                         args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
@@ -1089,6 +1136,7 @@ impl EthTxAggregator {
         commit_fn: &Function,
         commit_payload: &[Token],
         l1_batch: Option<L1BatchWithMetadata>,
+        use_eip7594_blobs: bool,
     ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
         let calldata = commit_fn
             .encode_input(commit_payload)
@@ -1110,13 +1158,24 @@ impl EthTxAggregator {
                             commitment: kzg_info.kzg_commitment.to_vec(),
                             proof: kzg_info.blob_proof.to_vec(),
                             versioned_hash: kzg_info.versioned_hash.to_vec(),
-                            cell_proofs: None,
                         }
                     })
                     .collect::<Vec<SidecarBlobV1>>();
 
-                let eth_tx_blob_sidecar = EthTxBlobSidecarV1 { blobs: sidecar };
-                Some(eth_tx_blob_sidecar.into())
+                let eth_tx_blob_sidecar = if use_eip7594_blobs {
+                    EthTxBlobSidecarV2 {
+                        blobs: sidecar
+                            .into_iter()
+                            .map(|sidecar_blob| {
+                                convert_eip4844_sidecar_to_eip7594_sidecar(sidecar_blob)
+                            })
+                            .collect(),
+                    }
+                    .into()
+                } else {
+                    EthTxBlobSidecarV1 { blobs: sidecar }.into()
+                };
+                Some(eth_tx_blob_sidecar)
             }
         };
 
@@ -1130,6 +1189,7 @@ impl EthTxAggregator {
         timelock_contract_address: Address,
         chain_protocol_version_id: ProtocolVersionId,
         is_gateway: bool,
+        use_fusaka_blob_format: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
@@ -1145,8 +1205,11 @@ impl EthTxAggregator {
             (_, _) => self.eth_client.sender_account(),
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
-        let encoded_aggregated_op =
-            self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
+        let encoded_aggregated_op = self.encode_aggregated_op(
+            aggregated_op,
+            chain_protocol_version_id,
+            use_fusaka_blob_format,
+        );
 
         let eth_tx_predicted_gas = match aggregated_op {
             AggregatedOperation::L2Block(op) => match op {

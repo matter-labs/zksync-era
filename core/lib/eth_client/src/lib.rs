@@ -18,8 +18,9 @@ pub use zksync_web3_decl::{
 };
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractCallError,
-    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult, SigningError,
+    convert_eip4844_sidecar_to_eip7594_sidecar, encode_blob_tx_with_sidecar, CallFunctionArgs,
+    ContractCall, ContractCallError, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
+    SignedCallResult, SigningError,
 };
 
 pub mod clients;
@@ -328,5 +329,9 @@ impl dyn BoundEthInterface {
 
         f.encode_input(&params)
             .expect("failed to encode parameters")
+    }
+
+    pub async fn block_number(&self) -> EnrichedClientResult<U64> {
+        self.as_ref().block_number().await
     }
 }

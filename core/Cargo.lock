@@ -2755,9 +2755,9 @@ dependencies = [
 
 [[package]]
 name = "c-kzg"
-version = "2.1.1"
+version = "2.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7318cfa722931cb5fe0838b98d3ce5621e75f6a6408abc21721d80de9223f2e4"
+checksum = "e00bf4b112b07b505472dbefd19e37e53307e2bfed5a79e0cc161d58ccd0e687"
 dependencies = [
  "blst",
  "cc",
@@ -13933,6 +13933,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "c-kzg",
  "hex",
  "jsonrpsee",
  "pretty_assertions",
@@ -13996,7 +13997,6 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "c-kzg",
  "chrono",
  "serde",
  "test-casing",
