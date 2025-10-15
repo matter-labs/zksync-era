@@ -5,12 +5,11 @@ use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 
 use anyhow::Context;
 use clap::Parser;
-use proof_compression_gpu::{run_proof_chain, CompressorBlobStorage, SnarkWrapper};
-use zksync_config::configs::FriProofCompressorConfig;
+use proof_compression_gpu::{run_proof_chain, SnarkWrapper};
+use zksync_prover_fri_types::FriProofWrapper;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     AuxOutputWitnessWrapper, PROVER_PROTOCOL_SEMANTIC_VERSION,
@@ -31,7 +30,10 @@ struct Cli {
 
     /// Path to the input file containing the aux output witness (bincode format)
     /// Default: ./scheduler_witness_jobs_fri_aux_output_witness_22951_123.bin
-    #[arg(long, default_value = "scheduler_witness_jobs_fri_aux_output_witness_22951_123.bin")]
+    #[arg(
+        long,
+        default_value = "scheduler_witness_jobs_fri_aux_output_witness_22951_123.bin"
+    )]
     aux_witness: PathBuf,
 
     /// Path to the output file for the compressed proof (bincode format)
@@ -81,14 +83,24 @@ async fn main() -> anyhow::Result<()> {
     // Read scheduler proof from file
     let start_time = Instant::now();
     tracing::info!("Reading scheduler proof from file...");
-    let scheduler_proof_bytes = fs::read(&args.scheduler_proof)
-        .with_context(|| format!("Failed to read scheduler proof from {:?}", args.scheduler_proof))?;
-    let scheduler_proof: ZkSyncRecursionLayerProof = bincode::deserialize(&scheduler_proof_bytes)
-        .context("Failed to deserialize scheduler proof")?;
+    let fri_proof_bytes = fs::read(&args.scheduler_proof).with_context(|| {
+        format!(
+            "Failed to read scheduler proof from {:?}",
+            args.scheduler_proof
+        )
+    })?;
+    let fri_proof: FriProofWrapper =
+        bincode::deserialize(&fri_proof_bytes).context("Failed to deserialize scheduler proof")?;
+    let scheduler_proof = match fri_proof {
+        FriProofWrapper::Base(_) => {
+            anyhow::bail!("Must be a scheduler proof not base layer")
+        }
+        FriProofWrapper::Recursive(proof) => proof,
+    };
     tracing::info!(
         "Scheduler proof loaded in {:?}, size: {} bytes",
         start_time.elapsed(),
-        scheduler_proof_bytes.len()
+        fri_proof_bytes.len()
     );
 
     // Read aux output witness from file
@@ -124,10 +136,13 @@ async fn main() -> anyhow::Result<()> {
     // Run proof compression
     tracing::info!("Starting proof compression...");
     let start_time = Instant::now();
-    let proof_wrapper = run_proof_chain(snark_wrapper_mode, keystore.clone(), scheduler_proof)?;
+    let proof_wrapper = run_proof_chain(
+        snark_wrapper_mode,
+        keystore.clone(),
+        scheduler_proof.into_inner(),
+    )?;
 
-    let aggregation_result_coords =
-        aux_output_witness_to_array(aux_output_witness_wrapper.0);
+    let aggregation_result_coords = aux_output_witness_to_array(aux_output_witness_wrapper.0);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
     let l1_batch_proof: L1BatchProofForL1 = match proof_wrapper {
@@ -147,10 +162,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    tracing::info!(
-        "Proof compression finished in {:?}",
-        start_time.elapsed()
-    );
+    tracing::info!("Proof compression finished in {:?}", start_time.elapsed());
 
     // Save result to file
     tracing::info!("Saving compressed proof to {:?}...", args.output);
@@ -167,4 +179,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-

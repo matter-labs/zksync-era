@@ -25,40 +25,43 @@ warn() {
     echo -e "${YELLOW}WARN: $1${NC}"
 }
 
-# Check arguments
-if [ $# -lt 2 ]; then
-    echo "Usage: $0 <scheduler_proof_file> <aux_witness_file> [options]"
+# Default values
+SCHEDULER_PROOF_FILE="./proofs_fri_proof_21680346_123.bin"
+AUX_WITNESS_FILE="./scheduler_witness_jobs_fri_aux_output_witness_22951_123.bin"
+OUTPUT_FILE="./compressed_proof.bin"
+SETUP_DATA_PATH=""
+UNIVERSAL_SETUP_PATH=""
+FFLONK_FLAG=""
+
+# Show usage if --help is passed
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    echo "Usage: $0 [options]"
     echo ""
-    echo "Required:"
-    echo "  scheduler_proof_file      Path to scheduler proof file"
-    echo "  aux_witness_file          Path to auxiliary witness file"
-    echo ""
-    echo "Optional:"
+    echo "Options:"
+    echo "  --scheduler-proof <path>  Path to scheduler proof file (default: ./proofs_fri_proof_21680346_123.bin)"
+    echo "  --aux-witness <path>      Path to auxiliary witness file (default: ./scheduler_witness_jobs_fri_aux_output_witness_22951_123.bin)"
     echo "  --output <path>           Output file path (default: ./compressed_proof.bin)"
     echo "  --setup-data <path>       Setup data directory (required for compression)"
     echo "  --universal-setup <path>  Universal setup file (required for compression)"
     echo "  --fflonk                  Use FFLONK wrapper (default: Plonk)"
     echo ""
     echo "Example:"
-    echo "  $0 scheduler_proof.bin aux_witness.bin \\"
-    echo "    --setup-data /mnt/prover-setup-data \\"
+    echo "  $0 --setup-data /mnt/prover-setup-data \\"
     echo "    --universal-setup /mnt/prover-setup-data/setup_2^26.key"
-    exit 1
+    exit 0
 fi
-
-SCHEDULER_PROOF_FILE="$1"
-AUX_WITNESS_FILE="$2"
-shift 2
-
-# Default values
-OUTPUT_FILE="./compressed_proof.bin"
-SETUP_DATA_PATH=""
-UNIVERSAL_SETUP_PATH=""
-FFLONK_FLAG=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --scheduler-proof)
+            SCHEDULER_PROOF_FILE="$2"
+            shift 2
+            ;;
+        --aux-witness)
+            AUX_WITNESS_FILE="$2"
+            shift 2
+            ;;
         --output)
             OUTPUT_FILE="$2"
             shift 2
