@@ -1,6 +1,6 @@
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
-use zkstack_cli_config::{GenesisConfig, ZkStackConfig, ZkStackConfigTrait, GENESIS_FILE};
+use zkstack_cli_config::{GenesisConfig, ZkStackConfig, ZkStackConfigTrait, ERA_VM_GENESIS_FILE};
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,
@@ -10,7 +10,9 @@ use crate::{
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let genesis_config_path = chain_config.default_configs_path().join(GENESIS_FILE);
+    let genesis_config_path = chain_config
+        .default_configs_path()
+        .join(ERA_VM_GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
 
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();

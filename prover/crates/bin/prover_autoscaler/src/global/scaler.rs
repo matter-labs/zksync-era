@@ -111,7 +111,11 @@ impl<K: Key> Scaler<K> {
                 scale_errors: namespace_value
                     .scale_errors
                     .iter()
-                    .filter(|v| v.time > Utc::now() - self.config.scale_errors_duration)
+                    .filter(|v| {
+                        v.time > Utc::now() - self.config.scale_errors_duration
+                            && K::new(self.deployment.to_str(), &(v.name.clone().into()))
+                                == Some(key)
+                    })
                     .count(),
                 ..Default::default()
             });
@@ -133,6 +137,8 @@ impl<K: Key> Scaler<K> {
             let mut status = PodStatus::from_str(&pod_value.status).unwrap_or_default();
             if status == PodStatus::Pending {
                 if pod_value.out_of_resources {
+                    // This counts this scale error twice (see piil initialization above), but it's
+                    // consistent across all pools and guarantee that no error will be missed.
                     pool.scale_errors += 1;
                     status = PodStatus::NeedToMove;
                 } else if pod_value.changed < Utc::now() - self.config.long_pending_duration {
@@ -1687,7 +1693,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 0 * 3000, &clusters_h100),
+            scaler.calculate(&"prover".into(), 0, &clusters_h100),
             [
                 (
                     PoolKey {
@@ -1756,10 +1762,24 @@ mod tests {
                         ),
                     ]
                     .into(),
-                    scale_errors: vec![ScaleEvent {
-                        name: "".into(),
-                        time: Utc::now() - chrono::Duration::minutes(1),
-                    }],
+                    scale_errors: vec![
+                        ScaleEvent {
+                            name: "witness-generator-recursion-tip-fri-5bfdd77959-7ww7h.186b0284b4b8d17b".into(),
+                            time:  Utc::now() - chrono::Duration::minutes(1),
+                        },
+                        ScaleEvent {
+                            name: "circuit-prover-gpu-7c5f8fc747-12346.186afef8db6951b7".into(),
+                            time: Utc::now() - chrono::Duration::minutes(2),
+                        },
+                        ScaleEvent {
+                            name: "circuit-prover-gpu-998f89ff8-qr4x5.186afef8db6951b7".into(),
+                            time: Utc::now() - chrono::Duration::minutes(2),
+                        },
+                        ScaleEvent {
+                            name: "proof-fri-gpu-compressor-69f6999bbc-j88vg.186b02c88881ad70".into(),
+                            time: Utc::now() - chrono::Duration::minutes(3),
+                        },
+                    ],
                 },
             )]
             .into(),
@@ -1775,7 +1795,7 @@ mod tests {
                     (PodStatus::Running, 1)
                 ]
                 .into(),
-                scale_errors: 2,
+                scale_errors: 3,
                 max_pool_size: 100,
             }]
         );

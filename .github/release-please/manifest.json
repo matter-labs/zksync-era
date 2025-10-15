@@ -1,5 +1,5 @@
 {
-  "core": "29.4.0",
+  "core": "29.4.1",
   "prover": "22.1.0",
-  "zkstack_cli": "0.1.2"
+  "zkstack_cli": "0.2.1"
 }

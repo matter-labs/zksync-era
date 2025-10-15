@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
-use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
@@ -63,10 +63,6 @@ async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
-        git::submodule_update(shell, &config.link_to_code())?;
-    }
-
     let args = args.fill_values_with_prompt(&chain_config);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
@@ -86,8 +82,7 @@ pub async fn init(
 ) -> anyhow::Result<()> {
     // Initialize configs
     let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
-    let mut contracts_config =
-        init_configs(&init_configs_args, shell, ecosystem_config, chain_config).await?;
+    init_configs(&init_configs_args, shell, chain_config).await?;
 
     // Fund some wallet addresses with ETH or base token (only for Localhost)
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
@@ -95,17 +90,18 @@ pub async fn init(
 
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
-    register_chain(
+    let mut contracts_config = register_chain(
         shell,
         init_args.forge_args.clone(),
         ecosystem_config,
         chain_config,
-        &mut contracts_config,
+        &ecosystem_config.get_contracts_config()?,
         init_args.l1_rpc_url.clone(),
         None,
         true,
     )
     .await?;
+
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
@@ -113,7 +109,7 @@ pub async fn init(
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
-        ecosystem_config.path_to_foundry_scripts(),
+        chain_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
@@ -129,7 +125,7 @@ pub async fn init(
         let chain_contracts = chain_config.get_contracts_config()?;
         set_token_multiplier_setter(
             shell,
-            ecosystem_config.path_to_foundry_scripts(),
+            chain_config.path_to_foundry_scripts(),
             &chain_config.get_wallets_config()?.governor,
             chain_contracts
                 .l1
@@ -154,7 +150,7 @@ pub async fn init(
     if chain_config.evm_emulator {
         enable_evm_emulator(
             shell,
-            &ecosystem_config.path_to_foundry_scripts(),
+            &chain_config.path_to_foundry_scripts(),
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
@@ -198,7 +194,7 @@ pub async fn init(
     set_da_validator_pair(
         shell,
         &init_args.forge_args,
-        &ecosystem_config.path_to_foundry_scripts(),
+        &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),
@@ -215,7 +211,7 @@ pub async fn init(
         println!("Making permanent rollup!");
         make_permanent_rollup(
             shell,
-            ecosystem_config,
+            &chain_config.path_to_foundry_scripts(),
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,

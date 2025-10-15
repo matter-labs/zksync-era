@@ -7,7 +7,8 @@ pub const SECRETS_FILE: &str = "secrets.yaml";
 /// Name of the general config file
 pub const GENERAL_FILE: &str = "general.yaml";
 /// Name of the genesis config file
-pub const GENESIS_FILE: &str = "genesis.yaml";
+pub const ERA_VM_GENESIS_FILE: &str = "genesis.yaml";
+pub const ZKSYNC_OS_GENESIS_FILE: &str = "genesis.json";
 
 // Name of external node specific config
 pub const EN_CONFIG_FILE: &str = "external_node.yaml";

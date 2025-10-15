@@ -293,6 +293,7 @@ impl DataAvailabilityClient for AvailClient {
                 error: anyhow!("Unable to join to URL"),
                 is_retriable: false,
             })?;
+        tracing::debug!("Fetching inclusion data from Bridge API: {}", url);
 
         let response = self
             .api_client
@@ -301,6 +302,11 @@ impl DataAvailabilityClient for AvailClient {
             .send()
             .await
             .map_err(to_retriable_da_error)?;
+
+        tracing::debug!(
+            "Bridge API HTTP Response size: {:?}",
+            response.content_length()
+        );
 
         // 404 means that the blob is not included in the bridge yet
         if response.status() == StatusCode::NOT_FOUND {
