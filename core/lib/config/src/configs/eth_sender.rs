@@ -374,6 +374,10 @@ mod tests {
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
             ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
+            ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_BLOCK="33582142"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_SAFETY_MARGIN="100"
+
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
