@@ -283,7 +283,6 @@ impl EthSenderTester {
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 pubdata_sending_mode,
-                use_fusaka_blob_format: false,
                 ..eth_sender.clone()
             },
             // Aggregator - unused
@@ -558,6 +557,7 @@ impl EthSenderTester {
                 Address::random(),
                 ProtocolVersionId::latest(),
                 self.settlement_layer.is_gateway(),
+                false,
             )
             .await
             .unwrap()

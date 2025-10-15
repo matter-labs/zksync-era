@@ -55,6 +55,13 @@ pub struct DAValidatorPair {
     l2_validator: Address,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum EthereumUpgradeState {
+    NotStarted,
+    Pending,
+    Finished,
+}
+
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -189,6 +196,26 @@ impl EthTxAggregator {
 
         tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
         Ok(())
+    }
+
+    pub(super) async fn fusaka_activation_state(
+        &self,
+    ) -> Result<EthereumUpgradeState, EthSenderError> {
+        if self.config.fusaka_upgrade_block == Some(0) {
+            return Ok(EthereumUpgradeState::Finished);
+        }
+        let Some(fusaka_upgrade_block) = self.config.fusaka_upgrade_block else {
+            return Ok(EthereumUpgradeState::NotStarted);
+        };
+
+        let current_block = self.eth_client.block_number().await?.as_u64();
+        if current_block - self.config.fusaka_upgrade_safety_margin < fusaka_upgrade_block {
+            Ok(EthereumUpgradeState::NotStarted)
+        } else if current_block < fusaka_upgrade_block {
+            Ok(EthereumUpgradeState::Pending)
+        } else {
+            Ok(EthereumUpgradeState::Finished)
+        }
     }
 
     pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, EthSenderError> {
@@ -682,6 +709,8 @@ impl EthTxAggregator {
             err
         })?;
 
+        let fusaka_activation_state = self.fusaka_activation_state().await?;
+
         let snark_wrapper_vk_hash = self
             .get_snark_wrapper_vk_hash(verifier_address)
             .await
@@ -770,6 +799,11 @@ impl EthTxAggregator {
             .precommit_params(storage, chain_protocol_version_id)
             .await?;
 
+        if fusaka_activation_state == EthereumUpgradeState::Pending {
+            op_restrictions.commit_restriction = Some("Fusaka upgrade is pending");
+        }
+        let use_fusaka_blob_format = fusaka_activation_state == EthereumUpgradeState::Finished;
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -796,6 +830,7 @@ impl EthTxAggregator {
                     ),
                     chain_protocol_version_id,
                     is_gateway,
+                    use_fusaka_blob_format,
                 )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
@@ -947,6 +982,7 @@ impl EthTxAggregator {
         &self,
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
+        use_fusaka_blob_format: bool,
     ) -> TxData {
         match op {
             AggregatedOperation::L1Batch(op) => {
@@ -993,7 +1029,7 @@ impl EthTxAggregator {
                             encoding_fn,
                             &commit_data,
                             l1_batch_for_sidecar,
-                            self.config.use_fusaka_blob_format,
+                            use_fusaka_blob_format,
                         )
                     }
                     L1BatchAggregatedOperation::PublishProofOnchain(op) => {
@@ -1118,6 +1154,7 @@ impl EthTxAggregator {
         timelock_contract_address: Address,
         chain_protocol_version_id: ProtocolVersionId,
         is_gateway: bool,
+        use_fusaka_blob_format: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
@@ -1133,8 +1170,11 @@ impl EthTxAggregator {
             (_, _) => self.eth_client.sender_account(),
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
-        let encoded_aggregated_op =
-            self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
+        let encoded_aggregated_op = self.encode_aggregated_op(
+            aggregated_op,
+            chain_protocol_version_id,
+            use_fusaka_blob_format,
+        );
 
         let eth_tx_predicted_gas = match aggregated_op {
             AggregatedOperation::L2Block(op) => match op {

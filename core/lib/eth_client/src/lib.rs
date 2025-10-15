@@ -330,4 +330,8 @@ impl dyn BoundEthInterface {
         f.encode_input(&params)
             .expect("failed to encode parameters")
     }
+
+    pub async fn block_number(&self) -> EnrichedClientResult<U64> {
+        self.as_ref().block_number().await
+    }
 }
