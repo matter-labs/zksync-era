@@ -9329,6 +9329,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_proof_compressor_file_runner"
+version = "22.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap 4.5.37",
+ "proof-compression",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zksync_config",
+ "zksync_prover_fri_types",
+ "zksync_prover_interface",
+ "zksync_prover_keystore",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_proof_fri_compressor"
 version = "22.1.0"
 dependencies = [
