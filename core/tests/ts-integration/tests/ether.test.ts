@@ -14,6 +14,7 @@ import * as zksync from 'zksync-ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
 import { RetryableWallet } from '../src/retry-provider';
+import { log} from 'console';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;
@@ -250,11 +251,13 @@ describe('ETH token checks', () => {
         if (testMaster.isFastMode()) {
             return;
         }
+        log('Starting withdrawal test');
         const amount = 1n;
 
         const l2ethBalanceChange = isETHBasedChain
             ? await shouldChangeETHBalances([{ wallet: alice, change: -amount }])
             : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: -amount }]);
+        log('Sending...');
 
         const withdrawalPromise = alice.withdraw({
             token: isETHBasedChain ? zksync.utils.ETH_ADDRESS : l2EthTokenAddressNonBase,
@@ -262,9 +265,12 @@ describe('ETH token checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
+        log('awaited...');
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        log('Waiting for proof...');
         await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
+        log('Finalizing...');
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
         const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);

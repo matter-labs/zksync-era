@@ -18,7 +18,7 @@ import YAML from 'yaml';
 
 const chainName = shouldLoadConfigFromFile().chain;
 
-describe.skip('Tests for the private rpc', () => {
+describe('Tests for the private rpc', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let bob: zksync.Wallet;

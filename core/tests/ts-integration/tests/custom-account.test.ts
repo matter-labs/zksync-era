@@ -22,7 +22,7 @@ const DEFAULT_TIMESTAMP_ASSERTER_RANGE_START = 0;
 // 2555971200 is a number of seconds up to 30/12/2050
 const DEFAULT_TIMESTAMP_ASSERTER_RANGE_END = 2555971200;
 
-describe.skip('Tests for the custom account behavior', () => {
+describe('Tests for the custom account behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let customAccount: zksync.Contract;

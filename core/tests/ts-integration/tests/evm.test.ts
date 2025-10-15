@@ -225,14 +225,14 @@ function describeEvm(providerKind: ProviderKind) {
     });
 }
 
-describe.skip('EVM contract checks (provider: zksync)', () => {
+describe('EVM contract checks (provider: zksync)', () => {
     describeEvm(ProviderKind.ZKSYNC);
 });
 
-describe.skip('EVM contract checks (provider: ethers)', () => {
+describe('EVM contract checks (provider: ethers)', () => {
     describeEvm(ProviderKind.ETHERS);
 });
 
-describe.skip('EVM contract checks (provider: l1-ethers)', () => {
+describe('EVM contract checks (provider: l1-ethers)', () => {
     describeEvm(ProviderKind.L1_ETHERS);
 });

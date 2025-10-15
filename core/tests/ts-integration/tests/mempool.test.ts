@@ -5,7 +5,7 @@
 import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 
-describe.skip('Tests for the mempool behavior', () => {
+describe('Tests for the mempool behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 

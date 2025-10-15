@@ -12,7 +12,7 @@ import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { RetryableWallet } from '../src/retry-provider';
 
-describe.skip('L1 ERC20 contract checks', () => {
+describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let bob: zksync.Wallet;

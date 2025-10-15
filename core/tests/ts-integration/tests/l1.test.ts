@@ -28,7 +28,7 @@ const contracts = {
 // Sane amount of L2 gas enough to process a transaction.
 const DEFAULT_L2_GAS_LIMIT = 5000000;
 
-describe.skip('Tests for L1 behavior', () => {
+describe('Tests for L1 behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
