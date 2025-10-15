@@ -130,8 +130,9 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     let priority_queue_size = l1_zk_chain.get_priority_queue_size().await?;
     if !priority_queue_size.is_zero() && !params.only_set_da_validator_pair {
         anyhow::bail!(
-            "{} priority queue is not empty! Please empty it before migrating to Gateway",
-            params.l2_chain_id
+            "{} priority queue has {} items! Please empty it before migrating to Gateway",
+            params.l2_chain_id,
+            priority_queue_size
         );
     }
 
