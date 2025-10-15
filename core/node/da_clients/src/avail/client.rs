@@ -304,7 +304,10 @@ impl DataAvailabilityClient for AvailClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        tracing::info!("Bridge API HTTP Response size: {:?}", response.content_length());
+        tracing::info!(
+            "Bridge API HTTP Response size: {:?}",
+            response.content_length()
+        );
 
         // 404 means that the blob is not included in the bridge yet
         if response.status() == StatusCode::NOT_FOUND {
