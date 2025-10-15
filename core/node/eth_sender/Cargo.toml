@@ -34,7 +34,6 @@ async-trait.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-c-kzg = { workspace = true, features = ["ethereum_kzg_settings"] }
 
 [dev-dependencies]
 test-casing.workspace = true

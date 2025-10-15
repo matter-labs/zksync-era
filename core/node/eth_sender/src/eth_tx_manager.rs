@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::L1Stage;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
-    eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, L1BlockNumbers},
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
@@ -226,32 +226,10 @@ impl EthTxManager {
             .await;
 
         if let Some(blob_sidecar) = &tx.blob_sidecar {
-            if self.config.use_fusaka_blob_format {
-                let settings = c_kzg::ethereum_kzg_settings_arc(0);
-                let EthTxBlobSidecar::EthTxBlobSidecarV1(blob_sidecar_v1) = blob_sidecar;
-                let mut new_blob_sidecar = blob_sidecar_v1.clone();
-                for blob in &mut new_blob_sidecar.blobs {
-                    let c_kzg_blob = c_kzg::Blob::from_bytes(&blob.blob).unwrap();
-                    let (_cells, kzg_proofs) =
-                        settings.compute_cells_and_kzg_proofs(&c_kzg_blob).unwrap();
-                    blob.cell_proofs = Some(
-                        kzg_proofs
-                            .into_iter()
-                            .map(|p| p.to_bytes().into_inner().to_vec())
-                            .collect(),
-                    );
-                }
-                let new_blob_sidecar = EthTxBlobSidecar::EthTxBlobSidecarV1(new_blob_sidecar);
-                signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
-                    signed_tx.raw_tx.as_ref(),
-                    &new_blob_sidecar,
-                ));
-            } else {
-                signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
-                    signed_tx.raw_tx.as_ref(),
-                    blob_sidecar,
-                ));
-            }
+            signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
+                signed_tx.raw_tx.as_ref(),
+                blob_sidecar,
+            ));
         }
 
         let inserted_tx_history_id = storage

@@ -13,11 +13,18 @@ use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum EthTxBlobSidecar {
     EthTxBlobSidecarV1(EthTxBlobSidecarV1),
+    EthTxBlobSidecarV2(EthTxBlobSidecarV2),
 }
 
 impl From<EthTxBlobSidecarV1> for EthTxBlobSidecar {
     fn from(value: EthTxBlobSidecarV1) -> Self {
         Self::EthTxBlobSidecarV1(value)
+    }
+}
+
+impl From<EthTxBlobSidecarV2> for EthTxBlobSidecar {
+    fn from(value: EthTxBlobSidecarV2) -> Self {
+        Self::EthTxBlobSidecarV2(value)
     }
 }
 
@@ -30,10 +37,21 @@ pub struct SidecarBlobV1 {
     pub commitment: Vec<u8>,
     /// Blob proof
     pub proof: Vec<u8>,
-    /// Cell proofs
-    pub cell_proofs: Option<Vec<Vec<u8>>>,
     /// Blob commitment versioned hash
     pub versioned_hash: Vec<u8>,
+}
+
+/// All sidecar data for a single blob for the EIP7594 transaction.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SidecarBlobV2 {
+    /// Blob itself
+    pub blob: Vec<u8>,
+    /// Blob commitment
+    pub commitment: Vec<u8>,
+    /// Blob commitment versioned hash
+    pub versioned_hash: Vec<u8>,
+    /// The KZG proofs for each of the cells in the blob.
+    pub cell_proofs: Vec<Vec<u8>>,
 }
 
 /// A first version of sidecars for blob transactions as they are described in EIP4844.
@@ -41,6 +59,13 @@ pub struct SidecarBlobV1 {
 pub struct EthTxBlobSidecarV1 {
     /// A vector of blobs for this tx and their commitments and proofs.
     pub blobs: Vec<SidecarBlobV1>,
+}
+
+/// Second version of sidecars for blob transactions as they are described in EIP7594.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct EthTxBlobSidecarV2 {
+    /// A vector of blobs for this tx and their commitments and proofs.
+    pub blobs: Vec<SidecarBlobV2>,
 }
 
 #[derive(Clone)]
