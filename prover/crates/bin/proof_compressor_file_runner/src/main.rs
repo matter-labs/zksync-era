@@ -6,13 +6,12 @@ use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 use anyhow::Context;
 use clap::Parser;
 use proof_compression_gpu::{run_proof_chain, SnarkWrapper};
-use zksync_prover_fri_types::FriProofWrapper;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
-    AuxOutputWitnessWrapper, PROVER_PROTOCOL_SEMANTIC_VERSION,
+    AuxOutputWitnessWrapper, FriProofWrapper, PROVER_PROTOCOL_SEMANTIC_VERSION,
 };
 use zksync_prover_interface::outputs::{
     FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
