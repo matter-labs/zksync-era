@@ -287,6 +287,8 @@ impl DataAvailabilityDispatcher {
             .await?;
         drop(conn);
 
+        tracing::debug!("Getting inclusion data for blob_info: {:?}...", blob_info);
+
         let Some(blob_info) = blob_info else {
             return Ok(());
         };

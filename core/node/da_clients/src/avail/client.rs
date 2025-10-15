@@ -294,6 +294,8 @@ impl DataAvailabilityClient for AvailClient {
                 is_retriable: false,
             })?;
 
+        tracing::info!("Fetching inclusion data from Bridge API: {}", url);
+
         let response = self
             .api_client
             .get(url)
@@ -301,6 +303,8 @@ impl DataAvailabilityClient for AvailClient {
             .send()
             .await
             .map_err(to_retriable_da_error)?;
+
+        tracing::info!("Bridge API HTTP Response size: {:?}", response.content_length());
 
         // 404 means that the blob is not included in the bridge yet
         if response.status() == StatusCode::NOT_FOUND {
@@ -322,6 +326,8 @@ impl DataAvailabilityClient for AvailClient {
             );
             return Ok(None);
         }
+
+        tracing::info!("Bridge API returned data: {:?}", bridge_api_data);
 
         match bridge_response_to_merkle_proof_input(bridge_api_data) {
             Some(attestation_data) => Ok(Some(InclusionData {
