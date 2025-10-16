@@ -1,8 +1,11 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use anyhow::Context;
 use clap::Parser;
-use ethers::providers::Middleware;
+use ethers::{
+    prelude::Http,
+    providers::{Middleware, Provider},
+};
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
@@ -19,7 +22,7 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        set_da_validator_pair_via_gateway, AdminScriptOutput,
+        set_da_validator_pair_via_gateway, AdminScriptMode, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
     utils::{
@@ -43,14 +46,138 @@ pub(crate) struct MigrateToGatewayParams {
     pub(crate) refund_recipient: Option<Address>,
 }
 
+#[derive(Debug)]
+pub(crate) struct MigrateToGatewayData {
+    pub(crate) l1_provider: Arc<Provider<Http>>,
+    pub(crate) gw_provider: Arc<Provider<Http>>,
+    pub(crate) zk_chain_l1_address: Address,
+    pub(crate) l1_zk_chain: ZkChainAbi<Provider<Http>>,
+    pub(crate) protocol_version: U256,
+    pub(crate) gw_validator_timelock_addr: Address,
+    pub(crate) gw_validator_timelock: ValidatorTimelockAbi<Provider<Http>>,
+    pub(crate) chain_admin_address: Address,
+    pub(crate) zk_chain_gw_address: Address,
+    pub(crate) refund_recipient: Address,
+}
+
 pub(crate) async fn get_migrate_to_gateway_calls(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
-    params: MigrateToGatewayParams,
+    params: &MigrateToGatewayParams,
 ) -> anyhow::Result<(Address, Vec<AdminCall>)> {
-    let refund_recipient = params.refund_recipient.unwrap_or(params.validator);
+    let data = get_migrate_to_gateway_data(params, false).await?;
     let mut result = vec![];
+
+    let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        crate::admin_functions::AdminScriptMode::OnlySave,
+        params.l1_bridgehub_addr,
+        params.max_l1_gas_price,
+        params.l2_chain_id,
+        params.gateway_chain_id,
+        params.gateway_diamond_cut.clone().into(),
+        data.refund_recipient,
+        params.l1_rpc_url.clone(),
+    )
+    .await?;
+
+    result.extend(finalize_migrate_to_gateway_output.calls);
+
+    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
+    let (_, l2_da_validator_commitment_scheme) = data.l1_zk_chain.get_da_validator_pair().await?;
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
+            .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
+    if !l2_da_validator_commitment_scheme.is_none() {
+        let da_validator_encoding_result = check_permanent_rollup_and_set_da_validator_via_gateway(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            &data,
+            params,
+            l2_da_validator_commitment_scheme,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+        )
+        .await?;
+
+        result.extend(da_validator_encoding_result.calls.into_iter());
+    }
+
+    let is_validator_enabled =
+        if get_minor_protocol_version(data.protocol_version)?.is_pre_interop_fast_blocks() {
+            // In previous versions, we need to check if the validator is enabled
+            data.gw_validator_timelock
+                .validators(params.l2_chain_id.into(), params.validator)
+                .await?
+        } else {
+            data.gw_validator_timelock
+                .has_role_for_chain_id(
+                    params.l2_chain_id.into(),
+                    data.gw_validator_timelock.committer_role().call().await?,
+                    params.validator,
+                )
+                .await?
+        };
+
+    // 4. If validator is not yet present, please include.
+    if !is_validator_enabled {
+        let enable_validator_calls = enable_validator_via_gateway(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l1_bridgehub_addr,
+            params.max_l1_gas_price.into(),
+            params.l2_chain_id,
+            params.gateway_chain_id,
+            params.validator,
+            data.gw_validator_timelock_addr,
+            data.refund_recipient,
+            params.l1_rpc_url.clone(),
+        )
+        .await?;
+        result.extend(enable_validator_calls.calls);
+    }
+
+    let current_validator_balance = data.gw_provider.get_balance(params.validator, None).await?;
+    logger::info(format!(
+        "Current balance of {:#?} = {}",
+        params.validator, current_validator_balance
+    ));
+    if current_validator_balance < params.min_validator_balance {
+        logger::info(format!(
+            "Will send {} of the ZK Gateway base token",
+            params.min_validator_balance - current_validator_balance
+        ));
+        let supply_validator_balance_calls = admin_l1_l2_tx(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l1_bridgehub_addr,
+            params.max_l1_gas_price,
+            params.gateway_chain_id,
+            params.validator,
+            params.min_validator_balance - current_validator_balance,
+            Default::default(),
+            data.refund_recipient,
+            params.l1_rpc_url.clone(),
+        )
+        .await?;
+        result.extend(supply_validator_balance_calls.calls);
+    }
+
+    Ok((data.chain_admin_address, result))
+}
+
+pub(crate) async fn get_migrate_to_gateway_data(
+    params: &MigrateToGatewayParams,
+    skip_pre_migration_checks: bool,
+) -> anyhow::Result<MigrateToGatewayData> {
+    let refund_recipient = params.refund_recipient.unwrap_or(params.validator);
 
     let l1_provider = get_ethers_provider(&params.l1_rpc_url)?;
     let gw_provider = get_ethers_provider(&params.gateway_rpc_url)?;
@@ -69,7 +196,8 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     }
 
     // Checking whether the user has already done the migration
-    if current_settlement_layer == U256::from(params.gateway_chain_id) {
+    if current_settlement_layer == U256::from(params.gateway_chain_id) && !skip_pre_migration_checks
+    {
         // TODO(EVM-1001): it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
         // diamond cut was not correct).
         // The recovery of the chain is not handled by the tool right now.
@@ -87,6 +215,16 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
     let protocol_version = l1_zk_chain.get_protocol_version().await?;
+
+    // Checking that the priority queue is empty
+    let priority_queue_size = l1_zk_chain.get_priority_queue_size().await?;
+    if !priority_queue_size.is_zero() && !skip_pre_migration_checks {
+        anyhow::bail!(
+            "{} priority queue has {} items! Please empty it before migrating to Gateway",
+            params.l2_chain_id,
+            priority_queue_size
+        );
+    }
 
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
     let gw_ctm_protocol_version = gw_ctm.protocol_version().await?;
@@ -128,32 +266,34 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         }
     };
 
-    let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        crate::admin_functions::AdminScriptMode::OnlySave,
-        params.l1_bridgehub_addr,
-        params.max_l1_gas_price,
-        params.l2_chain_id,
-        params.gateway_chain_id,
-        params.gateway_diamond_cut.into(),
+    Ok(MigrateToGatewayData {
+        l1_provider,
+        gw_provider,
+        zk_chain_l1_address,
+        l1_zk_chain,
+        protocol_version,
+        gw_validator_timelock_addr,
+        gw_validator_timelock,
+        chain_admin_address,
+        zk_chain_gw_address,
         refund_recipient,
-        params.l1_rpc_url.clone(),
-    )
-    .await?;
-    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
-    let (_, l2_da_validator_commitment_scheme) = l1_zk_chain.get_da_validator_pair().await?;
+    })
+}
 
-    let l2_da_validator_commitment_scheme =
-        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
-            .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
-    result.extend(finalize_migrate_to_gateway_output.calls);
-
+pub(crate) async fn check_permanent_rollup_and_set_da_validator_via_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    data: &MigrateToGatewayData,
+    params: &MigrateToGatewayParams,
+    l2_da_validator_commitment_scheme: L2DACommitmentScheme,
+    mode: AdminScriptMode,
+) -> anyhow::Result<AdminScriptOutput> {
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
     // read storage here.
-    let is_permanent_rollup_slot = l1_provider
-        .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
+    let is_permanent_rollup_slot = data
+        .l1_provider
+        .get_storage_at(data.zk_chain_l1_address, H256::from_low_u64_be(57), None)
         .await?;
     if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
         // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
@@ -164,86 +304,20 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         shell,
         forge_args,
         foundry_contracts_path,
-        crate::admin_functions::AdminScriptMode::OnlySave,
+        mode,
         params.l1_bridgehub_addr,
         params.max_l1_gas_price.into(),
         params.l2_chain_id,
         params.gateway_chain_id,
         params.new_sl_da_validator,
         l2_da_validator_commitment_scheme,
-        zk_chain_gw_address,
-        refund_recipient,
+        data.zk_chain_gw_address,
+        data.refund_recipient,
         params.l1_rpc_url.clone(),
     )
     .await?;
 
-    result.extend(da_validator_encoding_result.calls.into_iter());
-
-    let is_validator_enabled =
-        if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
-            // In previous versions, we need to check if the validator is enabled
-            gw_validator_timelock
-                .validators(params.l2_chain_id.into(), params.validator)
-                .await?
-        } else {
-            gw_validator_timelock
-                .has_role_for_chain_id(
-                    params.l2_chain_id.into(),
-                    gw_validator_timelock.committer_role().call().await?,
-                    params.validator,
-                )
-                .await?
-        };
-
-    // 4. If validator is not yet present, please include.
-    if !is_validator_enabled {
-        let enable_validator_calls = enable_validator_via_gateway(
-            shell,
-            forge_args,
-            foundry_contracts_path,
-            crate::admin_functions::AdminScriptMode::OnlySave,
-            params.l1_bridgehub_addr,
-            params.max_l1_gas_price.into(),
-            params.l2_chain_id,
-            params.gateway_chain_id,
-            params.validator,
-            gw_validator_timelock_addr,
-            refund_recipient,
-            params.l1_rpc_url.clone(),
-        )
-        .await?;
-        result.extend(enable_validator_calls.calls);
-    }
-
-    let current_validator_balance = gw_provider.get_balance(params.validator, None).await?;
-    logger::info(format!(
-        "Current balance of {:#?} = {}",
-        params.validator, current_validator_balance
-    ));
-    if current_validator_balance < params.min_validator_balance {
-        logger::info(format!(
-            "Will send {} of the ZK Gateway base token",
-            params.min_validator_balance - current_validator_balance
-        ));
-        let supply_validator_balance_calls = admin_l1_l2_tx(
-            shell,
-            forge_args,
-            foundry_contracts_path,
-            crate::admin_functions::AdminScriptMode::OnlySave,
-            params.l1_bridgehub_addr,
-            params.max_l1_gas_price,
-            params.gateway_chain_id,
-            params.validator,
-            params.min_validator_balance - current_validator_balance,
-            Default::default(),
-            refund_recipient,
-            params.l1_rpc_url.clone(),
-        )
-        .await?;
-        result.extend(supply_validator_balance_calls.calls);
-    }
-
-    Ok((chain_admin_address, result))
+    Ok(da_validator_encoding_result)
 }
 
 #[derive(Parser, Debug)]
@@ -360,7 +434,7 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
         shell,
         &forge_args,
         &contracts_foundry_path,
-        params.into_migrate_params(gateway_config.diamond_cut_data.0),
+        &params.into_migrate_params(gateway_config.diamond_cut_data.0),
     )
     .await?;
 

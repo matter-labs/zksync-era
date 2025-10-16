@@ -8,6 +8,7 @@ mod constants;
 pub(crate) mod convert_to_gateway;
 pub(crate) mod create_tx_filterer;
 pub(crate) mod finalize_chain_migration_from_gw;
+pub(crate) mod finalize_chain_migration_to_gateway;
 pub(crate) mod gateway_common;
 pub(crate) mod grant_gateway_whitelist;
 mod messages;
@@ -33,6 +34,10 @@ pub enum GatewayComamnds {
     ConvertToGateway(convert_to_gateway::ConvertToGatewayArgs),
     /// Migrate chain to gateway
     MigrateToGateway(migrate_to_gateway::MigrateToGatewayArgs),
+    // Finalize chain migration to gateway by sending the remaining priority txs
+    FinalizeChainMigrationToGateway(
+        finalize_chain_migration_to_gateway::FinalizeChainMigrationToGatewayArgs,
+    ),
     /// Migrate chain from gateway
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
     NotifyAboutToGatewayUpdate(ForgeScriptArgs),
@@ -62,6 +67,9 @@ pub async fn run(shell: &Shell, args: GatewayComamnds) -> anyhow::Result<()> {
         GatewayComamnds::CreateTxFilterer(args) => create_tx_filterer::run(args, shell).await,
         GatewayComamnds::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         GatewayComamnds::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
+        GatewayComamnds::FinalizeChainMigrationToGateway(args) => {
+            finalize_chain_migration_to_gateway::run(args, shell).await
+        }
         GatewayComamnds::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
         GatewayComamnds::NotifyAboutToGatewayUpdate(args) => {
             gateway_common::notify_server(args, shell, MigrationDirection::ToGateway).await

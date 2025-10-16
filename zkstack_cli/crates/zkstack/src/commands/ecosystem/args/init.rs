@@ -60,6 +60,8 @@ pub struct EcosystemInitArgs {
     pub support_l2_legacy_shared_bridge_test: bool,
     #[clap(long, default_value_t =false,default_missing_value = "true",  num_args = 0..=1)]
     pub make_permanent_rollup: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub skip_priority_txs: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
@@ -97,6 +99,7 @@ impl EcosystemInitArgs {
             validium_args,
             support_l2_legacy_shared_bridge_test,
             make_permanent_rollup,
+            skip_priority_txs,
             deploy_paymaster,
             ecosystem_contracts_path,
             ..
@@ -144,6 +147,7 @@ impl EcosystemInitArgs {
             deploy_ecosystem,
             deploy_paymaster,
             make_permanent_rollup,
+            skip_priority_txs,
             genesis_args,
             vm_option: common.vm_option,
             ecosystem_contracts_path,
@@ -167,6 +171,7 @@ pub struct EcosystemInitArgsFinal {
     pub deploy_ecosystem: bool,
     pub deploy_paymaster: Option<bool>,
     pub make_permanent_rollup: bool,
+    pub skip_priority_txs: bool,
     pub genesis_args: Option<GenesisArgs>,
     pub vm_option: VMOption,
 }

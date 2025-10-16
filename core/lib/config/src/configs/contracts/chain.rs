@@ -1,5 +1,6 @@
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256};
+use zksync_system_constants::L2_ASSET_ROUTER_ADDRESS;
 
 use super::{
     ecosystem::L1SpecificContracts, EcosystemCommonContracts, SettlementLayerSpecificContracts,
@@ -223,7 +224,7 @@ impl ContractsConfig {
             .erc20
             .l2_address
             .or(self.bridges.shared.l2_address)
-            .expect("One of the l2 bridges should be presented");
+            .unwrap_or(L2_ASSET_ROUTER_ADDRESS);
         L2Contracts {
             erc20_default_bridge: bridge_address,
             shared_bridge_addr: bridge_address,
