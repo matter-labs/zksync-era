@@ -24,7 +24,7 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        AdminScriptOutput,
+        set_da_validator_pair_via_gateway, AdminScriptMode, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
     utils::addresses::apply_l1_to_l2_alias,
@@ -118,6 +118,23 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     .await?;
 
     result.extend(finalize_migrate_to_gateway_output.calls);
+
+    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
+    let (_, l2_da_validator) = data.l1_zk_chain.get_da_validator_pair().await?;
+    if !l2_da_validator.is_zero() {
+        let da_validator_encoding_result = check_permanent_rollup_and_set_da_validator_via_gateway(
+            shell,
+            &forge_args,
+            &foundry_contracts_path,
+            &data,
+            &params,
+            l2_da_validator,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+        )
+        .await?;
+
+        result.extend(da_validator_encoding_result.calls.into_iter());
+    }
 
     let is_validator_enabled =
         if get_minor_protocol_version(data.protocol_version)?.is_pre_interop_fast_blocks() {
@@ -290,6 +307,46 @@ pub(crate) async fn get_migrate_to_gateway_data(
         zk_chain_gw_address,
         refund_recipient,
     })
+}
+
+pub(crate) async fn check_permanent_rollup_and_set_da_validator_via_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    data: &MigrateToGatewayData,
+    params: &MigrateToGatewayParams,
+    l2_da_validator: Address,
+    mode: AdminScriptMode,
+) -> anyhow::Result<AdminScriptOutput> {
+    // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
+    // read storage here.
+    let is_permanent_rollup_slot = data
+        .l1_provider
+        .get_storage_at(data.zk_chain_l1_address, H256::from_low_u64_be(57), None)
+        .await?;
+    if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
+        // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
+        logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
+    }
+
+    let da_validator_encoding_result = set_da_validator_pair_via_gateway(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        params.l1_bridgehub_addr,
+        params.max_l1_gas_price.into(),
+        params.l2_chain_id,
+        params.gateway_chain_id,
+        params.new_sl_da_validator,
+        l2_da_validator,
+        data.zk_chain_gw_address,
+        data.refund_recipient,
+        params.l1_rpc_url.clone(),
+    )
+    .await?;
+
+    Ok(da_validator_encoding_result)
 }
 
 #[derive(Parser, Debug)]
