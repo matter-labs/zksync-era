@@ -124,10 +124,10 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     if !l2_da_validator.is_zero() {
         let da_validator_encoding_result = check_permanent_rollup_and_set_da_validator_via_gateway(
             shell,
-            &forge_args,
-            &foundry_contracts_path,
+            forge_args,
+            foundry_contracts_path,
             &data,
-            &params,
+            params,
             l2_da_validator,
             crate::admin_functions::AdminScriptMode::OnlySave,
         )
