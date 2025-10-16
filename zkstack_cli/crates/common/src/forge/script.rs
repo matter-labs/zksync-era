@@ -1,6 +1,4 @@
 use std::{
-    fs,
-    io::IsTerminal as _,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -16,135 +14,23 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use url::Url;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
-use crate::{
-    cmd::{Cmd, CmdResult},
-    docker::adjust_localhost_for_docker,
-    ethereum::create_ethers_client,
-};
-
-/// Forge is a wrapper around the forge binary.
-pub struct Forge {
-    path: PathBuf,
-}
-
-impl Forge {
-    /// Create a new Forge instance.
-    pub fn new(path: &Path) -> Self {
-        Forge {
-            path: path.to_path_buf(),
-        }
-    }
-
-    /// Create a new ForgeScript instance.
-    ///
-    /// The script path can be passed as a relative path to the base path
-    /// or as an absolute path.
-    pub fn script(&self, path: &Path, args: ForgeScriptArgs) -> ForgeScript {
-        ForgeScript {
-            base_path: self.path.clone(),
-            script_path: path.to_path_buf(),
-            args,
-        }
-    }
-}
+use super::runner::ForgeRunner;
+use crate::{docker::adjust_localhost_for_docker, ethereum::create_ethers_client};
 
 /// ForgeScript is a wrapper around the forge script command.
 pub struct ForgeScript {
-    base_path: PathBuf,
-    script_path: PathBuf,
-    args: ForgeScriptArgs,
+    pub(crate) base_path: PathBuf,
+    pub(crate) script_path: PathBuf,
+    pub(crate) args: ForgeScriptArgs,
 }
 
 impl ForgeScript {
-    /// Run the forge script command.
-    pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
-        // When running the DeployCTM script, we skip recompiling the Bridgehub
-        // because it must be compiled with a low optimizer-runs value.
-        if self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol") {
-            let skip_path: String = String::from("contracts/bridgehub/*");
-            self.args.add_arg(ForgeScriptArg::Skip { skip_path });
-        }
-
-        // If a Docker protocol image is provided, run inside the container.
-        if let Some(image) = &self.args.protocol_docker_image {
-            return self.run_with_docker(shell, image);
-        } else {
-            return self.run_locally(shell);
-        }
-    }
-
-    fn run_locally(&self, shell: &Shell) -> anyhow::Result<()> {
-        let script_path = self.script_path.as_os_str();
-        let args_no_resume = self.args.clone().build();
-        let _dir_guard = shell.push_dir(&self.base_path);
-        if self.args.resume {
-            let mut args = args_no_resume.clone();
-            args.push(ForgeScriptArg::Resume.to_string());
-            let res = Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}"))
-                .with_piped_std_err()
-                .run();
-            if !res.resume_not_successful_because_has_not_began() {
-                return Ok(res?);
-            }
-        }
-        let cmd = Cmd::new(cmd!(
-            shell,
-            "forge script {script_path} --legacy {args_no_resume...}"
-        ));
-        let res = cmd.run();
-        if res.proposal_error() {
-            return Ok(());
-        }
-        Ok(res?)
-    }
-
-    fn run_with_docker(&self, shell: &Shell, image: &str) -> anyhow::Result<()> {
-        if self.args.resume {
-            anyhow::bail!("Resume is not supported for Dockerized protocol images");
-        }
-        let script_path = self.script_path.as_os_str();
-        let args = self.args.clone().build();
-        // Host paths for I/O that must be visible to the container
-        let host_base = self.base_path.clone();
-        let host_cfg = host_base.join("script-config");
-        let host_out = host_base.join("script-out");
-        // Ensure mount points exist to avoid Docker creating them as files
-        let _ = fs::create_dir_all(&host_cfg);
-        let _ = fs::create_dir_all(&host_out);
-
-        let workdir = PathBuf::from(&self.args.protocol_docker_workdir);
-        let container_cfg = workdir.join("script-config");
-        let container_out = workdir.join("script-out");
-
-        let mut docker_args: Vec<String> = vec![
-            "--rm".to_string(),
-            "--platform".to_string(),
-            "linux/amd64".to_string(),
-            "--add-host=host.docker.internal:host-gateway".to_string(),
-            format!("--workdir={}", workdir.display()),
-            format!("-v={}:{}", host_cfg.display(), container_cfg.display()),
-            format!("-v={}:{}", host_out.display(), container_out.display()),
-        ];
-        let stdin_is_tty = std::io::stdin().is_terminal();
-        let stdout_is_tty = std::io::stdout().is_terminal();
-        if stdin_is_tty {
-            docker_args.push("-i".to_string());
-        }
-        if stdout_is_tty {
-            docker_args.push("-t".to_string());
-        }
-        let cmd = Cmd::new(cmd!(
-            shell,
-            "docker run {docker_args...} {image} forge script {script_path} --legacy {args...}"
-        ))
-        .with_force_run();
-        let res = cmd.run();
-        if res.proposal_error() {
-            return Ok(());
-        }
-        Ok(res?)
+    /// Run the forge script command using default runner configuration.
+    pub fn run(self, shell: &Shell) -> anyhow::Result<()> {
+        let mut runner = ForgeRunner::default();
+        runner.run(shell, self)
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -251,6 +137,18 @@ impl ForgeScript {
         let balance = client.get_balance(client.address(), None).await?;
         Ok(Some(balance))
     }
+
+    pub(crate) fn needs_bridgehub_skip(&self) -> bool {
+        self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol")
+    }
+
+    pub(crate) fn script_name(&self) -> &Path {
+        &self.script_path
+    }
+
+    pub(crate) fn base_path(&self) -> &Path {
+        &self.base_path
+    }
 }
 
 const PROHIBITED_ARGS: [&str; 10] = [
@@ -341,7 +239,7 @@ pub enum ForgeScriptArg {
 pub struct ForgeScriptArgs {
     /// List of known forge script arguments.
     #[clap(skip)]
-    args: Vec<ForgeScriptArg>,
+    pub(crate) args: Vec<ForgeScriptArg>,
     /// Verify deployed contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub verify: Option<bool>,
@@ -358,31 +256,22 @@ pub struct ForgeScriptArgs {
     pub resume: bool,
     #[clap(long)]
     pub zksync: bool,
-    /// Use forge scripts and binaries from a Dockerized protocol image.
-    /// Example: matterlabs/protocol:v0.29.0
-    #[clap(long = "protocol-docker-image", alias = "docker-image")]
-    pub protocol_docker_image: Option<String>,
-    /// Working directory inside the protocol image where l1-contracts live.
-    /// This is used to mount script-config and script-out for I/O.
-    #[clap(
-        long = "protocol-docker-workdir",
-        default_value = "/contracts/l1-contracts"
-    )]
-    pub protocol_docker_workdir: String,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
     #[clap(long, short)]
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = false)]
-    additional_args: Vec<String>,
+    pub(crate) additional_args: Vec<String>,
 }
 
 impl ForgeScriptArgs {
-    /// Build the forge script command arguments.
-    pub fn build(&mut self) -> Vec<String> {
+    /// Build the forge script command arguments for a specific runner mode.
+    pub(crate) fn build_for_runner(&mut self, use_docker: bool) -> Vec<String> {
         self.add_verify_args();
         self.cleanup_contract_args();
-        self.adjust_args_for_docker();
+        if use_docker {
+            self.adjust_args_for_docker();
+        }
         if self.zksync {
             self.add_arg(ForgeScriptArg::Zksync);
         }
@@ -392,6 +281,11 @@ impl ForgeScriptArgs {
             .map(|arg| arg.to_string())
             .chain(self.additional_args.clone())
             .collect()
+    }
+
+    /// Builds the forge script command arguments without any runner customisation.
+    pub fn build(&mut self) -> Vec<String> {
+        self.build_for_runner(false)
     }
 
     /// Adds verify arguments to the forge script command.
@@ -468,17 +362,15 @@ impl ForgeScriptArgs {
     }
 
     // If running via Docker, rewrite localhost RPCs to host.docker.internal
-    pub fn adjust_args_for_docker(&mut self) {
-        if self.protocol_docker_image.is_some() {
-            if let Some(ForgeScriptArg::RpcUrl { url }) = self
-                .args
-                .iter_mut()
-                .find(|a| matches!(a, ForgeScriptArg::RpcUrl { .. }))
-            {
-                if let Ok(parsed) = Url::parse(&url) {
-                    if let Ok(new_url) = adjust_localhost_for_docker(parsed) {
-                        *url = new_url.to_string();
-                    }
+    fn adjust_args_for_docker(&mut self) {
+        if let Some(ForgeScriptArg::RpcUrl { url }) = self
+            .args
+            .iter_mut()
+            .find(|a| matches!(a, ForgeScriptArg::RpcUrl { .. }))
+        {
+            if let Ok(parsed) = Url::parse(url) {
+                if let Ok(new_url) = adjust_localhost_for_docker(parsed) {
+                    *url = new_url.to_string();
                 }
             }
         }
@@ -513,36 +405,4 @@ pub enum ForgeVerifier {
     Sourcify,
     Blockscout,
     Oklink,
-}
-
-// Trait for handling forge errors. Required for implementing method for CmdResult
-trait ForgeErrorHandler {
-    // Resume doesn't work if the forge script has never been started on this chain before.
-    // So we want to catch it and try again without resume arg if it's the case
-    fn resume_not_successful_because_has_not_began(&self) -> bool;
-    // Catch the error if upgrade tx has already been processed. We do execute much of
-    // txs using upgrade mechanism and if this particular upgrade has already been processed we could assume
-    // it as a success
-    fn proposal_error(&self) -> bool;
-}
-
-impl ForgeErrorHandler for CmdResult<()> {
-    fn resume_not_successful_because_has_not_began(&self) -> bool {
-        let text = "Deployment not found for chain";
-        check_error(self, text)
-    }
-
-    fn proposal_error(&self) -> bool {
-        let text = "revert: Operation with this proposal id already exists";
-        check_error(self, text)
-    }
-}
-
-fn check_error(cmd_result: &CmdResult<()>, error_text: &str) -> bool {
-    if let Err(cmd_error) = &cmd_result {
-        if let Some(stderr) = &cmd_error.stderr {
-            return stderr.contains(error_text);
-        }
-    }
-    false
 }
