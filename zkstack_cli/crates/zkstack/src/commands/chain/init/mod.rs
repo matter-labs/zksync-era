@@ -161,7 +161,7 @@ pub async fn init(
     }
 
     if init_args.make_permanent_rollup {
-        println!("Making permanent rollup!");
+        logger::info("Making permanent rollup!");
         make_permanent_rollup(
             shell,
             &chain_config.path_to_foundry_scripts(),
@@ -172,7 +172,7 @@ pub async fn init(
             init_args.l1_rpc_url.clone(),
         )
         .await?;
-        println!("Done");
+        logger::info("Done making permanent rollup!");
     }
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
