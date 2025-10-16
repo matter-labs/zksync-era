@@ -13499,6 +13499,7 @@ dependencies = [
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_crypto_primitives",
+ "zksync_system_constants",
  "zksync_vlog",
 ]
 
