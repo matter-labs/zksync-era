@@ -8,7 +8,12 @@ use ethers::{
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
+use zkstack_cli_common::{
+    ethereum::get_ethers_provider,
+    forge::{Forge, ForgeRunner},
+    logger,
+    spinner::Spinner,
+};
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
@@ -57,12 +62,14 @@ pub async fn run(
     let upgrade_version = args.upgrade_version;
 
     let final_ecosystem_args = args.fill_values_with_prompt(run_upgrade);
+    let mut runner = ForgeRunner::new(final_ecosystem_args.forge_args.runner.clone());
 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(
                 &final_ecosystem_args,
                 shell,
+                &mut runner,
                 &ecosystem_config,
                 &upgrade_version,
                 vm_option,
@@ -73,6 +80,7 @@ pub async fn run(
             ecosystem_admin(
                 &final_ecosystem_args,
                 shell,
+                &mut runner,
                 &ecosystem_config,
                 &upgrade_version,
                 vm_option,
@@ -83,6 +91,7 @@ pub async fn run(
             governance_stage_0(
                 &final_ecosystem_args,
                 shell,
+                &mut runner,
                 &ecosystem_config,
                 &upgrade_version,
                 vm_option,
@@ -93,6 +102,7 @@ pub async fn run(
             governance_stage_1(
                 &final_ecosystem_args,
                 shell,
+                &mut runner,
                 &ecosystem_config,
                 &upgrade_version,
                 vm_option,
@@ -100,11 +110,24 @@ pub async fn run(
             .await?;
         }
         EcosystemUpgradeStage::GovernanceStage2 => {
-            governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, vm_option).await?;
+            governance_stage_2(
+                &final_ecosystem_args,
+                shell,
+                &mut runner,
+                &ecosystem_config,
+                vm_option,
+            )
+            .await?;
         }
         EcosystemUpgradeStage::NoGovernanceStage2 => {
-            no_governance_stage_2(&final_ecosystem_args, shell, &ecosystem_config, vm_option)
-                .await?;
+            no_governance_stage_2(
+                &final_ecosystem_args,
+                shell,
+                &mut runner,
+                &ecosystem_config,
+                vm_option,
+            )
+            .await?;
         }
     }
 
@@ -123,6 +146,7 @@ struct BroadcastFileTransactions {
 async fn no_governance_prepare(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
     vm_option: VMOption,
@@ -245,7 +269,7 @@ async fn no_governance_prepare(
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
-            forge_args.clone(),
+            forge_args.script.clone(),
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -261,7 +285,7 @@ async fn no_governance_prepare(
 
     logger::info("Preparing the ecosystem for the upgrade!".to_string());
 
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     logger::info("done!");
 
@@ -300,6 +324,7 @@ async fn no_governance_prepare(
 async fn ecosystem_admin(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
     vm_option: VMOption,
@@ -327,12 +352,13 @@ async fn ecosystem_admin(
 
     ecosystem_admin_execute_calls(
         shell,
+        runner,
         // Note, that ecosystem admin and governor use the same wallet.
         &ecosystem_config.get_wallets()?.governor,
         ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         ecosystem_admin_calls.server_notifier_upgrade.0,
-        &init_args.forge_args.clone(),
+        &init_args.forge_args.script.clone(),
         l1_rpc_url,
     )
     .await?;
@@ -344,6 +370,7 @@ async fn ecosystem_admin(
 async fn governance_stage_0(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
     vm_option: VMOption,
@@ -371,10 +398,11 @@ async fn governance_stage_0(
 
     governance_execute_calls(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage0_calls.0,
-        &init_args.forge_args.clone(),
+        &init_args.forge_args.script.clone(),
         l1_rpc_url,
         ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
@@ -388,6 +416,7 @@ async fn governance_stage_0(
 async fn governance_stage_1(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
     vm_option: VMOption,
@@ -415,10 +444,11 @@ async fn governance_stage_1(
 
     governance_execute_calls(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage1_calls.0,
-        &init_args.forge_args.clone(),
+        &init_args.forge_args.script.clone(),
         l1_rpc_url.clone(),
         ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
@@ -462,6 +492,7 @@ fn update_contracts_config_from_output(
 async fn governance_stage_2(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     vm_option: VMOption,
 ) -> anyhow::Result<()> {
@@ -484,10 +515,11 @@ async fn governance_stage_2(
 
     governance_execute_calls(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         AdminScriptMode::Broadcast(ecosystem_config.get_wallets()?.governor),
         stage2_calls.0,
-        &init_args.forge_args.clone(),
+        &init_args.forge_args.script.clone(),
         l1_rpc_url.clone(),
         ecosystem_config.get_contracts_config()?.l1.governance_addr,
     )
@@ -513,6 +545,7 @@ lazy_static! {
 async fn no_governance_stage_2(
     init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     vm_option: VMOption,
 ) -> anyhow::Result<()> {
@@ -563,7 +596,7 @@ async fn no_governance_stage_2(
     // Resume for accept admin doesn't work properly. Foundry assumes that if signature of the function is the same,
     // than it's the same call, but because we are calling this function multiple times during the init process,
     // code assumes that doing only once is enough, but actually we need to accept admin multiple times
-    let mut forge_args = init_args.forge_args.clone();
+    let mut forge_args = init_args.forge_args.script.clone();
     forge_args.resume = false;
 
     let init_chains_calldata = FINALIZE_UPGRADE
@@ -605,7 +638,7 @@ async fn no_governance_stage_2(
         .with_calldata(&init_chains_calldata)
         .with_private_key(deployer_private_key);
 
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     logger::info("Initiing tokens!");
 
@@ -617,7 +650,7 @@ async fn no_governance_stage_2(
         .with_calldata(&init_tokens_calldata)
         .with_private_key(deployer_private_key);
 
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     spinner.finish();
 

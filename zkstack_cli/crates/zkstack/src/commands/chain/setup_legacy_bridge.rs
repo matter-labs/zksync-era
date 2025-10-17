@@ -1,7 +1,7 @@
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeRunner, ForgeScriptArgs},
     spinner::Spinner,
 };
 use zkstack_cli_config::{
@@ -19,6 +19,7 @@ use crate::{
 
 pub async fn setup_legacy_bridge(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &ContractsConfig,
@@ -71,7 +72,7 @@ pub async fn setup_legacy_bridge(
 
     let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     spinner.finish();
 
     Ok(())

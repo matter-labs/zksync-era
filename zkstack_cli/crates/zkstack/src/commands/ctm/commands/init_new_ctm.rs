@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     contracts::rebuild_all_contracts,
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeRunner, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
 };
@@ -84,10 +84,12 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         spinner.finish();
     }
 
+    let mut runner = ForgeRunner::new(init_ctm_args.forge_args.runner);
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
+        &mut runner,
         init_ctm_args.l1_rpc_url.clone(),
-        &init_ctm_args.forge_args,
+        &init_ctm_args.forge_args.script,
         &ecosystem_config,
         &initial_deployment_config,
         init_ctm_args.support_l2_legacy_shared_bridge_test,
@@ -103,6 +105,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn deploy_new_ctm_and_accept_admin(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     l1_rpc_url: String,
     forge_args: &ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
@@ -132,6 +135,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     let ctm = contracts_config.ctm(vm_option);
     accept_owner(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
@@ -143,6 +147,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
 
     accept_admin(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,

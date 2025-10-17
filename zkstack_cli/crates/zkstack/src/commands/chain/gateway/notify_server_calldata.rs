@@ -4,7 +4,10 @@ use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_common::{
+    forge::{ForgeRunner, ForgeScriptArgs},
+    logger,
+};
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::Address;
 
@@ -31,6 +34,7 @@ pub struct NotifyServerCallsArgs {
 
 pub async fn get_notify_server_calls(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     forge_path: &Path,
     args: NotifyServerCallsArgs,
@@ -40,6 +44,7 @@ pub async fn get_notify_server_calls(
         MigrationDirection::FromGateway => {
             notify_server_migration_from_gateway(
                 shell,
+                runner,
                 forge_args,
                 forge_path,
                 AdminScriptMode::OnlySave,
@@ -52,6 +57,7 @@ pub async fn get_notify_server_calls(
         MigrationDirection::ToGateway => {
             notify_server_migration_to_gateway(
                 shell,
+                runner,
                 forge_args,
                 forge_path,
                 AdminScriptMode::OnlySave,
@@ -111,8 +117,10 @@ pub async fn run(
     }
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
+    let mut runner = ForgeRunner::default();
     let result = get_notify_server_calls(
         shell,
+        &mut runner,
         // We do not care about forge args that much here, since
         // we only need to obtain the calldata
         &Default::default(),

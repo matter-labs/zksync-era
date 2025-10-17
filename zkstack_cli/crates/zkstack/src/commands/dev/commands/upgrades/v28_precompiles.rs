@@ -3,7 +3,10 @@ use clap::Parser;
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
+use zkstack_cli_common::{
+    ethereum::{get_ethers_provider, get_zk_client},
+    forge::ForgeRunner,
+};
 use zkstack_cli_config::{
     traits::{FileConfigTrait, ReadConfig},
     ZkStackConfig, ZkStackConfigTrait,
@@ -204,6 +207,7 @@ pub struct V28UpgradeInfo {
 impl FileConfigTrait for V28UpgradeInfo {}
 
 pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyhow::Result<()> {
+    let mut runner = ForgeRunner::default();
     let forge_args = &Default::default();
     let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
@@ -259,6 +263,7 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
         admin_calls_gw
             .prepare_upgrade_chain_on_gateway_calls(
                 shell,
+                &mut runner,
                 forge_args,
                 &foundry_contracts_path,
                 args.chain_id,

@@ -1,6 +1,10 @@
 use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_cli_common::{
+    forge::{ForgeRunner, ForgeScriptArgs},
+    logger,
+    spinner::Spinner,
+};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::SaveConfigWithBasePath, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
@@ -33,12 +37,14 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
         .clone()
         .fill_values_with_prompt(ecosystem_config.l1_network)
         .await?;
+    let mut runner = ForgeRunner::new(final_ecosystem_args.forge_args.runner.clone());
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
     let contracts_config = init_ecosystem(
         &final_ecosystem_args,
         shell,
+        &mut runner,
         &ecosystem_config,
         &initial_deployment_config,
         vm_option,
@@ -53,10 +59,11 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
         };
         deploy_erc20(
             shell,
+            &mut runner,
             &erc20_deployment_config,
             &ecosystem_config,
             &contracts_config.into(),
-            final_ecosystem_args.forge_args.clone(),
+            final_ecosystem_args.forge_args.script.clone(),
             final_ecosystem_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -68,6 +75,7 @@ pub async fn run(args: InitCoreContractsArgs, shell: &Shell) -> anyhow::Result<(
 async fn init_ecosystem(
     init_args: &InitCoreContractsArgsFinal,
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     vm_option: VMOption,
@@ -77,8 +85,9 @@ async fn init_ecosystem(
 
     let contracts = deploy_ecosystem(
         shell,
+        runner,
         init_args.l1_rpc_url.clone(),
-        init_args.forge_args.clone(),
+        init_args.forge_args.script.clone(),
         ecosystem_config,
         initial_deployment_config,
         init_args.support_l2_legacy_shared_bridge_test,
@@ -91,6 +100,7 @@ async fn init_ecosystem(
 
 pub async fn deploy_ecosystem(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     l1_rpc_url: String,
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
@@ -101,6 +111,7 @@ pub async fn deploy_ecosystem(
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1_core_contracts(
         shell,
+        runner,
         &forge_args,
         ecosystem_config,
         initial_deployment_config,
@@ -115,6 +126,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
@@ -127,6 +139,7 @@ pub async fn deploy_ecosystem(
     .await?;
     accept_admin(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.chain_admin_addr,
         &ecosystem_config.get_wallets()?.governor,
@@ -142,6 +155,7 @@ pub async fn deploy_ecosystem(
     // need to accept it
     accept_owner(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
@@ -153,6 +167,7 @@ pub async fn deploy_ecosystem(
 
     accept_owner(
         shell,
+        runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,

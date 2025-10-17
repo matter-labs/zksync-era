@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
+    forge::ForgeRunner,
     logger,
 };
 use zkstack_cli_config::{
@@ -247,6 +248,7 @@ pub(crate) async fn run_chain_upgrade(
     run_upgrade: bool,
     upgrade_version: UpgradeVersion,
 ) -> anyhow::Result<()> {
+    let mut runner = ForgeRunner::default();
     let forge_args = &Default::default();
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
     let chain_config = ZkStackConfig::current_chain(shell)?;
@@ -320,6 +322,7 @@ pub(crate) async fn run_chain_upgrade(
         admin_calls_gw
             .prepare_upgrade_chain_on_gateway_calls(
                 shell,
+                &mut runner,
                 forge_args,
                 &contracts_foundry_path,
                 args.chain_id.expect("chain_id is required"),
@@ -347,6 +350,7 @@ pub(crate) async fn run_chain_upgrade(
             let operator = validators.operator.context("operator is required")?;
             let enable_validator_calls = crate::admin_functions::enable_validator_via_gateway(
                 shell,
+                &mut runner,
                 forge_args,
                 &contracts_foundry_path,
                 crate::admin_functions::AdminScriptMode::OnlySave,
@@ -398,6 +402,7 @@ pub(crate) async fn run_chain_upgrade(
             ] {
                 let enable_validator_calls = crate::admin_functions::enable_validator(
                     shell,
+                    &mut runner,
                     forge_args,
                     &contracts_foundry_path,
                     crate::admin_functions::AdminScriptMode::OnlySave,

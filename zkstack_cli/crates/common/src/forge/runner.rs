@@ -2,17 +2,21 @@ use std::{
     fs,
     io::IsTerminal as _,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::{bail, Context};
 use clap::Parser;
+use ethers::middleware::Middleware as _;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::task::block_in_place;
 use xshell::{cmd, Shell};
 
 use super::script::{ForgeScript, ForgeScriptArg};
-use crate::cmd::{Cmd, CmdResult};
+use crate::{
+    cmd::{Cmd, CmdResult},
+    ethereum::get_ethers_provider,
+};
 
 #[derive(Debug, Clone)]
 enum ForgeRunnerMode {
@@ -65,6 +69,7 @@ impl ForgeScriptRun {
 /// Arguments controlling how forge scripts are executed (local vs. docker, output handling, etc).
 #[derive(Debug, Serialize, Deserialize, Parser, Clone)]
 #[clap(next_help_heading = "Forge runner options")]
+#[derive(Default)]
 pub struct ForgeRunnerArgs {
     /// Use forge scripts and binaries from a Dockerized protocol image.
     /// Example: matterlabs/protocol:v0.29.0
@@ -73,15 +78,6 @@ pub struct ForgeRunnerArgs {
     /// Append each broadcast run into the specified JSON file.
     #[clap(long = "out")]
     pub out: Option<PathBuf>,
-}
-
-impl Default for ForgeRunnerArgs {
-    fn default() -> Self {
-        Self {
-            docker_image: None,
-            out: None,
-        }
-    }
 }
 
 pub struct ForgeRunner {
@@ -101,7 +97,7 @@ impl Default for ForgeRunner {
 }
 
 impl ForgeRunner {
-    pub fn new(args: ForgeRunnerArgs) -> anyhow::Result<Self> {
+    pub fn new(args: ForgeRunnerArgs) -> Self {
         let mode = if let Some(image) = args.docker_image.clone() {
             ForgeRunnerMode::Docker {
                 image,
@@ -111,11 +107,11 @@ impl ForgeRunner {
             ForgeRunnerMode::Local
         };
 
-        Ok(Self {
+        Self {
             mode,
             out: args.out,
             runs: Vec::new(),
-        })
+        }
     }
 
     pub fn run(&mut self, shell: &Shell, mut script: ForgeScript) -> anyhow::Result<()> {
@@ -229,8 +225,10 @@ impl ForgeRunner {
 
     fn collect_run(&self, script: &ForgeScript) -> anyhow::Result<Option<ForgeScriptRun>> {
         let Some(broadcast_file) = self.locate_latest_broadcast(script)? else {
+            println!("no broadcast file found");
             return Ok(None);
         };
+        println!("broadcast file: {}", broadcast_file.display());
         let payload = read_json(&broadcast_file)?;
         Ok(Some(ForgeScriptRun {
             script: script.script_name().to_path_buf(),
@@ -244,43 +242,24 @@ impl ForgeRunner {
         if !root.exists() {
             return Ok(None);
         }
-
         let Some(script_name) = script.script_name().file_name() else {
             return Ok(None);
         };
-        let script_dir = root.join(script_name);
+        let rpc_url = script
+            .rpc_url()
+            .context("failed to get rpc url to query chain id")?;
+        let l1_chain_id = query_chain_id_sync(&rpc_url)?;
+        let script_dir = root.join(script_name).join(l1_chain_id.to_string());
         if !script_dir.exists() {
             return Ok(None);
         }
-
-        let mut latest: Option<(SystemTime, PathBuf)> = None;
-        for chain_dir in fs::read_dir(&script_dir)? {
-            let chain_dir = chain_dir?.path();
-            if !chain_dir.is_dir() {
-                continue;
-            }
-            for entry in fs::read_dir(&chain_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if !path.is_file() {
-                    continue;
-                }
-                if !is_latest_json(&path) {
-                    continue;
-                }
-                let metadata = entry.metadata()?;
-                let modified = metadata.modified().unwrap_or(UNIX_EPOCH);
-                if latest
-                    .as_ref()
-                    .map(|(ts, _)| modified > *ts)
-                    .unwrap_or(true)
-                {
-                    latest = Some((modified, path));
-                }
-            }
+        let run_latest_filename = derive_latest_filename(script.sig());
+        let run_latest_path = script_dir.join(run_latest_filename);
+        if run_latest_path.exists() {
+            Ok(Some(run_latest_path))
+        } else {
+            Ok(None)
         }
-
-        Ok(latest.map(|(_, path)| path))
     }
 
     fn record_run(&mut self, run: &ForgeScriptRun) -> anyhow::Result<()> {
@@ -324,11 +303,31 @@ fn check_error(cmd_result: &CmdResult<()>, error_text: &str) -> bool {
     false
 }
 
-fn is_latest_json(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .map(|name| name.ends_with("-latest.json"))
-        .unwrap_or(false)
+/// Derive the latest.json filename from an optional --sig value:
+/// 1) no sig          -> "run-latest.json"
+/// 2) hex sig         -> "<first8hex>-latest.json"   (strip 0x, case-insensitive)
+/// 3) non-hex sig     -> "<sig>-latest.json"
+fn derive_latest_filename(sig: Option<String>) -> String {
+    fn is_hex_like(s: &str) -> bool {
+        let s = s.strip_prefix("0x").unwrap_or(s);
+        !s.is_empty() && s.chars().all(|c| c.is_ascii_hexdigit())
+    }
+
+    match sig {
+        None => "run-latest.json".to_string(),
+        Some(raw) => {
+            let trimmed = raw.trim();
+            if is_hex_like(trimmed) {
+                let no_prefix = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+                // lowercasing is optional, but helps consistency
+                let lower = no_prefix.to_ascii_lowercase();
+                let prefix8 = &lower[..lower.len().min(8)];
+                format!("{prefix8}-latest.json")
+            } else {
+                format!("{trimmed}-latest.json")
+            }
+        }
+    }
 }
 
 fn read_json(path: &Path) -> anyhow::Result<Value> {
@@ -365,4 +364,18 @@ fn append_to_out(path: &Path, payload: &Value) -> anyhow::Result<()> {
     fs::write(path, serialized)
         .with_context(|| format!("failed to write JSON output to {}", path.display()))?;
     Ok(())
+}
+
+fn query_chain_id_sync(rpc_url: &str) -> anyhow::Result<u64> {
+    let provider = get_ethers_provider(rpc_url)?;
+    let fut = provider.get_chainid();
+    let id = if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))?
+    } else {
+        tokio::runtime::Runtime::new()
+            .context("failed to create Tokio runtime")?
+            .block_on(fut)?
+    };
+
+    Ok(id.as_u64())
 }

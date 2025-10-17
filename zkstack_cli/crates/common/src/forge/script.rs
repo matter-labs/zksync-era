@@ -122,6 +122,16 @@ impl ForgeScript {
         })
     }
 
+    pub(crate) fn sig(&self) -> Option<String> {
+        self.args.args.iter().find_map(|a| {
+            if let ForgeScriptArg::Sig { sig } = a {
+                Some(sig.clone())
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn address(&self) -> Option<Address> {
         self.private_key().map(|k| k.address())
     }

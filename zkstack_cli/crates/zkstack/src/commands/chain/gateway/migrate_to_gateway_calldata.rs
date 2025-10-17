@@ -6,8 +6,13 @@ use ethers::{
     abi::{encode, Token},
     providers::{Middleware, Provider},
 };
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
+use zkstack_cli_common::{
+    ethereum::get_ethers_provider,
+    forge::{ForgeArgs, ForgeRunner, ForgeScriptArgs},
+    logger,
+};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
@@ -80,6 +85,7 @@ pub(crate) struct MigrateToGatewayParams {
 
 pub(crate) async fn get_migrate_to_gateway_calls(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     params: MigrateToGatewayParams,
@@ -164,6 +170,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         crate::admin_functions::AdminScriptMode::OnlySave,
@@ -194,6 +201,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let da_validator_encoding_result = set_da_validator_pair_via_gateway(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         crate::admin_functions::AdminScriptMode::OnlySave,
@@ -231,6 +239,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     if !is_validator_enabled {
         let enable_validator_calls = enable_validator_via_gateway(
             shell,
+            runner,
             forge_args,
             foundry_contracts_path,
             crate::admin_functions::AdminScriptMode::OnlySave,
@@ -259,6 +268,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         ));
         let supply_validator_balance_calls = admin_l1_l2_tx(
             shell,
+            runner,
             forge_args,
             foundry_contracts_path,
             crate::admin_functions::AdminScriptMode::OnlySave,
@@ -278,7 +288,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     Ok((chain_admin_address, result))
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Serialize, Deserialize)]
 pub struct MigrateToGatewayCalldataArgs {
     #[clap(long)]
     pub l1_rpc_url: String,
@@ -311,6 +321,10 @@ pub struct MigrateToGatewayCalldataArgs {
     /// isn't strictly ready for final calls.
     #[clap(long, default_missing_value = "true")]
     pub no_cross_check: Option<bool>,
+
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeArgs,
 }
 
 impl MigrateToGatewayCalldataArgs {
@@ -338,11 +352,12 @@ impl MigrateToGatewayCalldataArgs {
 /// Produces the calldata necessary to perform (or continue) a migration to Gateway.
 ///
 pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow::Result<()> {
-    let forge_args = Default::default();
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
-    let should_cross_check = !params.no_cross_check.unwrap_or_default();
+    let forge_args = params.forge_args.clone();
+    let mut runner = ForgeRunner::new(forge_args.runner.clone());
 
+    let should_cross_check = !params.no_cross_check.unwrap_or_default();
     if should_cross_check {
         let state = get_gateway_migration_state(
             params.l1_rpc_url.clone(),
@@ -390,7 +405,8 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
 
     let (admin_address, calls) = get_migrate_to_gateway_calls(
         shell,
-        &forge_args,
+        &mut runner,
+        &forge_args.script,
         &contracts_foundry_path,
         params.into_migrate_params(gateway_config.diamond_cut_data.0),
     )

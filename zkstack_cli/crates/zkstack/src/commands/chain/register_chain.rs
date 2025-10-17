@@ -1,7 +1,7 @@
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeArgs, ForgeRunner, ForgeScriptArgs},
     logger,
     spinner::Spinner,
 };
@@ -17,10 +17,10 @@ use zkstack_cli_config::{
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
@@ -29,9 +29,11 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let secrets = chain_config.get_secrets_config().await?;
     let l1_rpc_url = secrets.l1_rpc_url()?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
+    let mut runner = ForgeRunner::new(args.runner);
     let contracts = register_chain(
         shell,
-        args,
+        &mut runner,
+        args.script,
         &ecosystem_config,
         &chain_config,
         &contracts,
@@ -49,6 +51,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn register_chain(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
@@ -80,10 +83,9 @@ pub async fn register_chain(
             Some(&config.get_wallets()?.governor),
             WalletOwner::Governor,
         )?;
-        check_the_balance(&forge).await?;
     }
 
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     let register_chain_output = RegisterChainOutput::read(
         shell,

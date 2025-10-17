@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, Prompt};
+use zkstack_cli_common::{config::global_config, forge::ForgeArgs, Prompt};
 
 use crate::{
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
@@ -21,7 +21,7 @@ pub struct BuildTransactionsArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
 }
@@ -55,6 +55,6 @@ impl BuildTransactionsArgs {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BuildTransactionsArgsFinal {
     pub out: PathBuf,
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     pub l1_rpc_url: String,
 }

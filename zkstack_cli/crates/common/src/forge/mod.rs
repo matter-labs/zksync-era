@@ -31,11 +31,6 @@ impl Forge {
             args,
         }
     }
-
-    /// Create a forge runner configured with the provided arguments.
-    pub fn runner(&self, args: ForgeRunnerArgs) -> anyhow::Result<ForgeRunner> {
-        ForgeRunner::new(args)
-    }
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Parser, Clone)]

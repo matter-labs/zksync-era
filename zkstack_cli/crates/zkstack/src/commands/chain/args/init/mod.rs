@@ -1,7 +1,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
+use zkstack_cli_common::{forge::ForgeArgs, Prompt};
 use zkstack_cli_config::ChainConfig;
 use zkstack_cli_types::{L1BatchCommitmentMode, L1Network, VMOption};
 
@@ -27,7 +27,7 @@ pub struct InitArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
     pub server_db_url: Option<Url>,
     #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
@@ -126,7 +126,7 @@ impl InitArgs {
 
 #[derive(Debug, Clone)]
 pub struct InitArgsFinal {
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     pub genesis_args: Option<GenesisArgsFinal>,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,

@@ -2,7 +2,7 @@ use clap::Subcommand;
 use gateway_common::MigrationDirection;
 use grant_gateway_whitelist::GrantGatewayWhitelistCalldataArgs;
 use xshell::Shell;
-use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_common::forge::ForgeArgs;
 
 mod constants;
 pub(crate) mod convert_to_gateway;
@@ -28,15 +28,15 @@ pub enum GatewayComamnds {
         finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayArgs,
     ),
     /// Deploy tx filterer and set it for gateway
-    CreateTxFilterer(ForgeScriptArgs),
+    CreateTxFilterer(ForgeArgs),
     /// Prepare chain to be an eligible gateway
     ConvertToGateway(convert_to_gateway::ConvertToGatewayArgs),
     /// Migrate chain to gateway
     MigrateToGateway(migrate_to_gateway::MigrateToGatewayArgs),
     /// Migrate chain from gateway
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
-    NotifyAboutToGatewayUpdate(ForgeScriptArgs),
-    NotifyAboutFromGatewayUpdate(ForgeScriptArgs),
+    NotifyAboutToGatewayUpdate(ForgeArgs),
+    NotifyAboutFromGatewayUpdate(ForgeArgs),
 }
 
 pub async fn run(shell: &Shell, args: GatewayComamnds) -> anyhow::Result<()> {

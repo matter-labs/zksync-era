@@ -1,7 +1,7 @@
 use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{forge::ForgeRunner, logger, spinner::Spinner};
 use zkstack_cli_config::{copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig};
 
 use crate::{
@@ -52,11 +52,13 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
+    let mut runner = ForgeRunner::new(args.forge_args.runner.clone());
     let governor: String = config.get_wallets()?.governor.address.encode_hex_upper();
 
     let mut contracts = register_chain(
         shell,
-        args.forge_args.clone(),
+        &mut runner,
+        args.forge_args.script.clone(),
         &config,
         &chain_config,
         &contracts_config,
