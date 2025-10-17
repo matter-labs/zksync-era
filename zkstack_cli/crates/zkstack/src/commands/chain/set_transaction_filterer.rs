@@ -2,6 +2,7 @@ use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_common::forge::{ForgeArgs, ForgeRunner};
 use zkstack_cli_config::ZkStackConfigTrait;
 use zksync_types::Address;
 
@@ -20,14 +21,21 @@ pub struct SetTransactionFiltererArgs {
     pub chain_id: u64,
 
     pub l1_rpc_url: String,
+
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeArgs,
 }
 
 pub async fn run(shell: &Shell, args: SetTransactionFiltererArgs) -> anyhow::Result<()> {
     let chain_config = zkstack_cli_config::ZkStackConfig::current_chain(shell)
         .context("Failed to load the current chain configuration")?;
+    let mut runner = ForgeRunner::new(args.forge_args.runner.clone());
     let result = set_transaction_filterer(
         shell,
-        &Default::default(),
+        &mut runner,
+        &args.forge_args.script,
         &chain_config.path_to_foundry_scripts(),
         AdminScriptMode::OnlySave,
         args.chain_id,

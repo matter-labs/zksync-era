@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{forge::ForgeRunner, logger, spinner::Spinner};
 use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
@@ -88,11 +88,15 @@ pub async fn init(
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
 
+    // Create runner shared across all forge script runs
+    let mut runner = ForgeRunner::new(init_args.forge_args.runner.clone());
+
     // Register chain on BridgeHub (run by L1 Governor)
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     let mut contracts_config = register_chain(
         shell,
-        init_args.forge_args.clone(),
+        &mut runner,
+        init_args.forge_args.script.clone(),
         ecosystem_config,
         chain_config,
         &ecosystem_config.get_contracts_config()?,
@@ -109,11 +113,12 @@ pub async fn init(
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
+        &mut runner,
         chain_config.path_to_foundry_scripts(),
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
-        &init_args.forge_args,
+        &init_args.forge_args.script,
         init_args.l1_rpc_url.clone(),
     )
     .await?;
@@ -125,6 +130,7 @@ pub async fn init(
         let chain_contracts = chain_config.get_contracts_config()?;
         set_token_multiplier_setter(
             shell,
+            &mut runner,
             chain_config.path_to_foundry_scripts(),
             &chain_config.get_wallets_config()?.governor,
             chain_contracts
@@ -139,7 +145,7 @@ pub async fn init(
                 .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
                 .address,
             chain_contracts.l1.chain_admin_addr,
-            &init_args.forge_args.clone(),
+            &init_args.forge_args.script.clone(),
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -150,11 +156,12 @@ pub async fn init(
     if chain_config.evm_emulator {
         enable_evm_emulator(
             shell,
+            &mut runner,
             &chain_config.path_to_foundry_scripts(),
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args,
+            &init_args.forge_args.script,
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -163,10 +170,11 @@ pub async fn init(
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
     deploy_l2_contracts::deploy_l2_contracts(
         shell,
+        &mut runner,
         chain_config,
         ecosystem_config,
         &mut contracts_config,
-        init_args.forge_args.clone(),
+        init_args.forge_args.script.clone(),
         true,
     )
     .await?;
@@ -179,7 +187,8 @@ pub async fn init(
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
         shell,
-        &init_args.forge_args,
+        &mut runner,
+        &init_args.forge_args.script,
         &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
@@ -200,11 +209,12 @@ pub async fn init(
         println!("Making permanent rollup!");
         make_permanent_rollup(
             shell,
+            &mut runner,
             &chain_config.path_to_foundry_scripts(),
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args.clone(),
+            &init_args.forge_args.script.clone(),
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -215,10 +225,11 @@ pub async fn init(
     if let Some(true) = chain_config.legacy_bridge {
         setup_legacy_bridge(
             shell,
+            &mut runner,
             chain_config,
             ecosystem_config,
             &contracts_config,
-            init_args.forge_args.clone(),
+            init_args.forge_args.script.clone(),
         )
         .await?;
     }
@@ -228,9 +239,10 @@ pub async fn init(
         let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
         deploy_paymaster::deploy_paymaster(
             shell,
+            &mut runner,
             chain_config,
             &mut contracts_config,
-            init_args.forge_args.clone(),
+            init_args.forge_args.script.clone(),
             None,
             true,
         )

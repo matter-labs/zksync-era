@@ -11,7 +11,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
+    forge::{Forge, ForgeRunner, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
     wallets::Wallet,
 };
@@ -60,6 +60,7 @@ lazy_static! {
 
 pub async fn accept_admin(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     foundry_contracts_path: PathBuf,
     admin: Address,
     governor: &Wallet,
@@ -85,11 +86,12 @@ pub async fn accept_admin(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(shell, runner, governor, forge).await
 }
 
 pub async fn accept_owner(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     foundry_contracts_path: PathBuf,
     governor_contract: Address,
     governor: &Wallet,
@@ -113,12 +115,13 @@ pub async fn accept_owner(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(shell, runner, governor, forge).await
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn make_permanent_rollup(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     path_to_foundry_scripts: &Path,
     chain_admin_addr: Address,
     governor: &Wallet,
@@ -145,12 +148,13 @@ pub async fn make_permanent_rollup(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(shell, runner, governor, forge).await
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn governance_execute_calls(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     path_to_foundry_scripts: PathBuf,
     mode: AdminScriptMode,
     encoded_calls: Vec<u8>,
@@ -189,7 +193,7 @@ pub async fn governance_execute_calls(
     };
 
     let spinner = Spinner::new(&spinner_text);
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     spinner.finish();
 
     let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&path_to_foundry_scripts);
@@ -199,6 +203,7 @@ pub async fn governance_execute_calls(
 #[allow(clippy::too_many_arguments)]
 pub async fn ecosystem_admin_execute_calls(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_admin: &Wallet,
     ecosystem_admin_addr: Address,
     path_to_foundry_scripts: PathBuf,
@@ -225,12 +230,13 @@ pub async fn ecosystem_admin_execute_calls(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, ecosystem_admin, forge).await
+    accept_ownership(shell, runner, ecosystem_admin, forge).await
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_execute_upgrade(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     path_to_foundry_scripts: &Path,
     chain_contracts_config: &ContractsConfig,
     governor: &Wallet,
@@ -269,12 +275,13 @@ pub async fn admin_execute_upgrade(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(shell, runner, governor, forge).await
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_schedule_upgrade(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     ecosystem_config: &EcosystemConfig,
     chain_contracts_config: &ContractsConfig,
     new_protocol_version: U256,
@@ -315,12 +322,13 @@ pub async fn admin_schedule_upgrade(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(shell, runner, governor, forge).await
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_update_validator(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     path_to_foundry_scripts: &Path,
     chain_config: &ChainConfig,
     validator_timelock: Address,
@@ -364,18 +372,19 @@ pub async fn admin_update_validator(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    accept_ownership(shell, governor, forge).await
+    accept_ownership(shell, runner, governor, forge).await
 }
 
 async fn accept_ownership(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
     forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     spinner.finish();
     Ok(())
 }
@@ -417,6 +426,7 @@ impl From<AdminScriptOutputInner> for AdminScriptOutput {
 
 pub async fn call_script(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -447,7 +457,7 @@ pub async fn call_script(
     let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(foundry_contracts_path);
 
     let spinner = Spinner::new(&spiner_text);
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     spinner.finish();
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
@@ -455,6 +465,7 @@ pub async fn call_script(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn set_transaction_filterer(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -477,6 +488,7 @@ pub(crate) async fn set_transaction_filterer(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -493,6 +505,7 @@ pub(crate) async fn set_transaction_filterer(
 #[allow(clippy::too_many_arguments)]
 pub async fn set_da_validator_pair(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -517,6 +530,7 @@ pub async fn set_da_validator_pair(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -533,6 +547,7 @@ pub async fn set_da_validator_pair(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn grant_gateway_whitelist(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -560,6 +575,7 @@ pub(crate) async fn grant_gateway_whitelist(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -573,6 +589,7 @@ pub(crate) async fn grant_gateway_whitelist(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn revoke_gateway_whitelist(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -590,6 +607,7 @@ pub(crate) async fn revoke_gateway_whitelist(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -603,6 +621,7 @@ pub(crate) async fn revoke_gateway_whitelist(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn set_da_validator_pair_via_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -635,6 +654,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -651,6 +671,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn enable_validator_via_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -681,6 +702,7 @@ pub(crate) async fn enable_validator_via_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -694,6 +716,7 @@ pub(crate) async fn enable_validator_via_gateway(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn enable_validator(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -718,6 +741,7 @@ pub(crate) async fn enable_validator(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -731,6 +755,7 @@ pub(crate) async fn enable_validator(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_to_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -747,6 +772,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -760,6 +786,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn finalize_migrate_to_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -788,6 +815,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -801,6 +829,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_from_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -817,6 +846,7 @@ pub(crate) async fn notify_server_migration_from_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -830,6 +860,7 @@ pub(crate) async fn notify_server_migration_from_gateway(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn admin_l1_l2_tx(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -861,6 +892,7 @@ pub(crate) async fn admin_l1_l2_tx(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -877,6 +909,7 @@ pub(crate) async fn admin_l1_l2_tx(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -911,6 +944,7 @@ pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,
@@ -924,6 +958,7 @@ pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
 #[allow(clippy::too_many_arguments)]
 pub async fn start_migrate_chain_from_gateway(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     mode: AdminScriptMode,
@@ -952,6 +987,7 @@ pub async fn start_migrate_chain_from_gateway(
 
     call_script(
         shell,
+        runner,
         forge_args,
         foundry_contracts_path,
         mode,

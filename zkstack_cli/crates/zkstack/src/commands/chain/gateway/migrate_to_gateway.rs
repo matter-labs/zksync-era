@@ -3,7 +3,10 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger,
+    config::global_config,
+    ethereum::get_ethers_provider,
+    forge::{ForgeArgs, ForgeRunner},
+    logger,
 };
 use zkstack_cli_config::{GatewayChainConfigPatch, ZkStackConfig, ZkStackConfigTrait};
 use zkstack_cli_types::L1BatchCommitmentMode;
@@ -26,7 +29,7 @@ pub struct MigrateToGatewayArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
 
     #[clap(long)]
     pub gateway_chain_name: String,
@@ -72,9 +75,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     };
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
+    let mut runner = ForgeRunner::new(args.forge_args.runner.clone());
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
-        &args.forge_args,
+        &mut runner,
+        &args.forge_args.script,
         &chain_config.path_to_foundry_scripts(),
         MigrateToGatewayParams {
             l1_rpc_url: l1_url.clone(),

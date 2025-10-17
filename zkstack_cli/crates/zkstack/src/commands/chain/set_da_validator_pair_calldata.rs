@@ -3,7 +3,7 @@ use clap::Parser;
 use ethers::providers::Middleware;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
+use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeRunner, logger};
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::{Address, L2_BRIDGEHUB_ADDRESS};
 
@@ -79,9 +79,11 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         current_sl_chain_id
     };
 
+    let mut runner = ForgeRunner::default();
     let result = if l1_chain_id == used_settlement_layer {
         set_da_validator_pair(
             shell,
+            &mut runner,
             &Default::default(),
             &chain_config.path_to_foundry_scripts(),
             AdminScriptMode::OnlySave,
@@ -108,6 +110,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
 
         let output = set_da_validator_pair_via_gateway(
             shell,
+            &mut runner,
             &Default::default(),
             &contracts_foundry_path,
             AdminScriptMode::OnlySave,

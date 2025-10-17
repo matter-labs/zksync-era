@@ -4,7 +4,10 @@ use ethers::utils::hex;
 use serde::Deserialize;
 use xshell::Shell;
 use zkstack_cli_common::{
-    ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger, spinner::Spinner,
+    ethereum::get_ethers_provider,
+    forge::{ForgeArgs, ForgeRunner},
+    logger,
+    spinner::Spinner,
 };
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::Address;
@@ -23,11 +26,6 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct SetDAValidatorPairArgs {
-    /// All ethereum environment related arguments
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
-
     /// The address of the DA validator be to used on the settlement layer.
     /// It is a contract that is deployed on the corresponding settlement layer (either L1 or GW).
     pub l1_da_validator: Address,
@@ -36,6 +34,10 @@ pub struct SetDAValidatorPairArgs {
     pub max_l1_gas_price: Option<u64>,
     #[clap(long, help = MSG_USE_GATEWAY_HELP)]
     pub gateway: bool,
+
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeArgs,
 }
 
 pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -54,6 +56,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         .to_string();
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
+    let mut runner = ForgeRunner::new(args.forge_args.runner.clone());
 
     if args.gateway {
         let gateway_url = chain_config
@@ -88,7 +91,8 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
 
         set_da_validator_pair_via_gateway(
             shell,
-            &args.forge_args.clone(),
+            &mut runner,
+            &args.forge_args.script.clone(),
             &contracts_foundry_path,
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
@@ -127,7 +131,8 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
 
         set_da_validator_pair(
             shell,
-            &args.forge_args.clone(),
+            &mut runner,
+            &args.forge_args.script.clone(),
             &chain_config.path_to_foundry_scripts(),
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             chain_id,

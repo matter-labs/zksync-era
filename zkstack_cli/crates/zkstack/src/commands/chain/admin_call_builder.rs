@@ -7,7 +7,7 @@ use ethers::{
 };
 use serde::Serialize;
 use xshell::Shell;
-use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_common::forge::{ForgeRunner, ForgeScriptArgs};
 use zksync_types::{Address, U256};
 
 use crate::abi::{
@@ -107,6 +107,7 @@ impl AdminCallBuilder {
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
         shell: &Shell,
+        runner: &mut ForgeRunner,
         forge_args: &ForgeScriptArgs,
         foundry_contracts_path: &Path,
         chain_id: u64,
@@ -122,6 +123,7 @@ impl AdminCallBuilder {
     ) {
         let result = crate::admin_functions::prepare_upgrade_zk_chain_on_gateway(
             shell,
+            runner,
             forge_args,
             foundry_contracts_path,
             crate::admin_functions::AdminScriptMode::OnlySave,

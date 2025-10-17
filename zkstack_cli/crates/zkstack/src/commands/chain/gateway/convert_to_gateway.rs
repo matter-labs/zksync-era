@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::get_ethers_provider,
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeArgs, ForgeRunner, ForgeScriptArgs},
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -51,7 +51,7 @@ pub struct ConvertToGatewayArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
 
     /// Pass the bridgehub, if existing ecosystem is being used
     #[clap(long)]
@@ -82,6 +82,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config, chain_config.vm_option)?;
+    let mut runner = ForgeRunner::new(args.runner.clone());
     override_config(
         shell,
         &ecosystem_config
@@ -132,7 +133,8 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 
     let mut output = grant_gateway_whitelist(
         shell,
-        &args,
+        &mut runner,
+        &args.script,
         &chain_config.path_to_foundry_scripts(),
         mode_chain_governor.clone(),
         chain_config.chain_id.as_u64(),
@@ -150,7 +152,8 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 
     let vote_preparation_output = gateway_vote_preparation(
         shell,
-        args.clone(),
+        &mut runner,
+        &args.script,
         &chain_config,
         &chain_deployer_wallet,
         GatewayVotePreparationConfig::new(
@@ -182,10 +185,11 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     // These calls will produce some L1->L2 transactions. However tracking those is hard at this point, so we won't do it here.
     output = governance_execute_calls(
         shell,
+        &mut runner,
         ecosystem_config.path_to_foundry_scripts_for_ctm(chain_config.vm_option),
         mode_ecosystem_governor,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
-        &args,
+        &args.script,
         l1_url.clone(),
         bridgehub_governance_addr,
     )
@@ -197,7 +201,8 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         // We will revoke the access of the hot wallet immediately
         revoke_gateway_whitelist(
             shell,
-            &args,
+            &mut runner,
+            &args.script,
             &chain_config.path_to_foundry_scripts(),
             mode_chain_governor,
             chain_config.chain_id.as_u64(),
@@ -220,7 +225,8 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 #[allow(clippy::too_many_arguments)]
 pub async fn gateway_vote_preparation(
     shell: &Shell,
-    forge_args: ForgeScriptArgs,
+    runner: &mut ForgeRunner,
+    forge_args: &ForgeScriptArgs,
     chain_config: &ChainConfig,
     deployer: &Wallet,
     input: GatewayVotePreparationConfig,
@@ -247,7 +253,7 @@ pub async fn gateway_vote_preparation(
     // Governor private key is required for this script
     forge = fill_forge_private_key(forge, Some(deployer), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     DeployGatewayCTMOutput::read(
         shell,

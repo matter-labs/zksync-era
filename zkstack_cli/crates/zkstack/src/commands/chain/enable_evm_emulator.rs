@@ -1,5 +1,8 @@
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_common::{
+    forge::{ForgeArgs, ForgeRunner},
+    logger,
+};
 use zkstack_cli_config::{GenesisConfig, ZkStackConfig, ZkStackConfigTrait, ERA_VM_GENESIS_FILE};
 
 use crate::{
@@ -7,7 +10,7 @@ use crate::{
     messages::{MSG_EVM_EMULATOR_ENABLED, MSG_EVM_EMULATOR_HASH_MISSING_ERR},
 };
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let genesis_config_path = chain_config
@@ -22,13 +25,15 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let secrets = chain_config.get_secrets_config().await?;
     let l1_rpc_url = secrets.l1_rpc_url()?;
 
+    let mut runner = ForgeRunner::new(args.runner.clone());
     enable_evm_emulator(
         shell,
+        &mut runner,
         &chain_config.path_to_foundry_scripts(),
         contracts.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,
-        &args,
+        &args.script,
         l1_rpc_url,
     )
     .await?;

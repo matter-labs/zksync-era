@@ -4,7 +4,7 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     contracts::build_l2_contracts,
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeArgs, ForgeRunner, ForgeScriptArgs},
     spinner::Spinner,
 };
 use zkstack_cli_config::{
@@ -37,7 +37,7 @@ pub enum Deploy2ContractsOption {
 }
 
 pub async fn run(
-    args: ForgeScriptArgs,
+    args: ForgeArgs,
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
 ) -> anyhow::Result<()> {
@@ -51,14 +51,16 @@ pub async fn run(
 
     let spinner = Spinner::new(MSG_DEPLOYING_L2_CONTRACT_SPINNER);
 
+    let mut runner = ForgeRunner::new(args.runner.clone());
     match deploy_option {
         Deploy2ContractsOption::All => {
             deploy_l2_contracts(
                 shell,
+                &mut runner,
                 &chain_config,
                 &ecosystem_config,
                 &mut contracts,
-                args,
+                args.script.clone(),
                 true,
             )
             .await?;
@@ -66,50 +68,55 @@ pub async fn run(
         Deploy2ContractsOption::Upgrader => {
             deploy_upgrader(
                 shell,
+                &mut runner,
                 &chain_config,
                 &ecosystem_config,
                 &mut contracts,
-                args,
+                args.script.clone(),
             )
             .await?;
         }
         Deploy2ContractsOption::ConsensusRegistry => {
             deploy_consensus_registry(
                 shell,
+                &mut runner,
                 &chain_config,
                 &ecosystem_config,
                 &mut contracts,
-                args,
+                args.script.clone(),
             )
             .await?;
         }
         Deploy2ContractsOption::Multicall3 => {
             deploy_multicall3(
                 shell,
+                &mut runner,
                 &chain_config,
                 &ecosystem_config,
                 &mut contracts,
-                args,
+                args.script.clone(),
             )
             .await?;
         }
         Deploy2ContractsOption::TimestampAsserter => {
             deploy_timestamp_asserter(
                 shell,
+                &mut runner,
                 &chain_config,
                 &ecosystem_config,
                 &mut contracts,
-                args,
+                args.script.clone(),
             )
             .await?;
         }
         Deploy2ContractsOption::L2DAValidator => {
             deploy_l2_da_validator(
                 shell,
+                &mut runner,
                 &chain_config,
                 &ecosystem_config,
                 &mut contracts,
-                args,
+                args.script.clone(),
             )
             .await?
         }
@@ -125,6 +132,7 @@ pub async fn run(
 /// by reading one or all outputs written by the deploy scripts.
 async fn build_and_deploy(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     forge_args: ForgeScriptArgs,
@@ -135,6 +143,7 @@ async fn build_and_deploy(
     build_l2_contracts(shell.clone(), &chain_config.contracts_path())?;
     call_forge(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -151,6 +160,7 @@ async fn build_and_deploy(
 
 pub async fn deploy_upgrader(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
@@ -158,6 +168,7 @@ pub async fn deploy_upgrader(
 ) -> anyhow::Result<()> {
     build_and_deploy(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -172,6 +183,7 @@ pub async fn deploy_upgrader(
 
 pub async fn deploy_consensus_registry(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
@@ -179,6 +191,7 @@ pub async fn deploy_consensus_registry(
 ) -> anyhow::Result<()> {
     build_and_deploy(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -193,6 +206,7 @@ pub async fn deploy_consensus_registry(
 
 pub async fn deploy_multicall3(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
@@ -200,6 +214,7 @@ pub async fn deploy_multicall3(
 ) -> anyhow::Result<()> {
     build_and_deploy(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -212,6 +227,7 @@ pub async fn deploy_multicall3(
 
 pub async fn deploy_timestamp_asserter(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
@@ -219,6 +235,7 @@ pub async fn deploy_timestamp_asserter(
 ) -> anyhow::Result<()> {
     build_and_deploy(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -234,6 +251,7 @@ pub async fn deploy_timestamp_asserter(
 
 pub async fn deploy_l2_da_validator(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
@@ -241,6 +259,7 @@ pub async fn deploy_l2_da_validator(
 ) -> anyhow::Result<()> {
     build_and_deploy(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -256,6 +275,7 @@ pub async fn deploy_l2_da_validator(
 
 pub async fn deploy_l2_contracts(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &mut ContractsConfig,
@@ -264,6 +284,7 @@ pub async fn deploy_l2_contracts(
 ) -> anyhow::Result<()> {
     build_and_deploy(
         shell,
+        runner,
         chain_config,
         ecosystem_config,
         forge_args,
@@ -284,6 +305,7 @@ pub async fn deploy_l2_contracts(
 
 async fn call_forge(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
     forge_args: ForgeScriptArgs,
@@ -326,6 +348,6 @@ async fn call_forge(
     )?;
 
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     Ok(())
 }

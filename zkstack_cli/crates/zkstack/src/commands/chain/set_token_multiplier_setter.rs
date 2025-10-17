@@ -5,7 +5,7 @@ use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
+    forge::{Forge, ForgeArgs, ForgeRunner, ForgeScript, ForgeScriptArgs},
     logger,
     spinner::Spinner,
     wallets::Wallet,
@@ -33,7 +33,7 @@ lazy_static! {
     );
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
@@ -43,10 +43,12 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .token_multiplier_setter
         .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
         .address;
+    let mut runner = ForgeRunner::new(args.runner);
 
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
     set_token_multiplier_setter(
         shell,
+        &mut runner,
         chain_config.path_to_foundry_scripts(),
         &chain_config.get_wallets_config()?.governor,
         contracts_config
@@ -56,7 +58,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         contracts_config.l1.diamond_proxy_addr,
         token_multiplier_setter_address,
         contracts_config.l1.chain_admin_addr,
-        &args.clone(),
+        &args.script.clone(),
         l1_url,
     )
     .await?;
@@ -73,6 +75,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn set_token_multiplier_setter(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     foundry_contracts_path: PathBuf,
     governor: &Wallet,
     access_control_restriction_address: Address,
@@ -108,16 +111,17 @@ pub async fn set_token_multiplier_setter(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    update_token_multiplier_setter(shell, governor, forge).await
+    update_token_multiplier_setter(shell, runner, governor, forge).await
 }
 
 async fn update_token_multiplier_setter(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
     forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     Ok(())
 }

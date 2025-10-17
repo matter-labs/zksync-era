@@ -1,5 +1,5 @@
 use xshell::Shell;
-use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
+use zkstack_cli_common::forge::{Forge, ForgeArgs, ForgeRunner, ForgeScriptArgs};
 use zkstack_cli_config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
@@ -11,15 +11,26 @@ use zkstack_cli_config::{
 
 use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
     let mut contracts = chain_config.get_contracts_config()?;
-    deploy_paymaster(shell, &chain_config, &mut contracts, args, None, true).await?;
+    let mut runner = ForgeRunner::new(args.runner.clone());
+    deploy_paymaster(
+        shell,
+        &mut runner,
+        &chain_config,
+        &mut contracts,
+        args.script.clone(),
+        None,
+        true,
+    )
+    .await?;
     contracts.save_with_base_path(shell, chain_config.configs)
 }
 
 pub async fn deploy_paymaster(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     chain_config: &ChainConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
@@ -54,7 +65,7 @@ pub async fn deploy_paymaster(
         check_the_balance(&forge).await?;
     }
 
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     let output = DeployPaymasterOutput::read(
         shell,

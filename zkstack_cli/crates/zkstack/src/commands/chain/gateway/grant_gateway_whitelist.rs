@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_common::forge::ForgeRunner;
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::Address;
 
@@ -23,8 +24,10 @@ pub struct GrantGatewayWhitelistCalldataArgs {
 
 pub async fn run(shell: &Shell, args: GrantGatewayWhitelistCalldataArgs) -> anyhow::Result<()> {
     let foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
+    let mut runner = ForgeRunner::default();
     let result = grant_gateway_whitelist(
         shell,
+        &mut runner,
         // We do not care about forge args that much here, since
         // we only need to obtain the calldata
         &Default::default(),

@@ -1,6 +1,6 @@
 use clap::Parser;
 use serde::Deserialize;
-use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_common::forge::ForgeArgs;
 use zkstack_cli_types::{L1Network, VMOption};
 use zksync_types::Address;
 
@@ -15,7 +15,7 @@ pub struct RegisterCTMArgs {
     pub common: CommonEcosystemArgs,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
@@ -55,7 +55,7 @@ impl RegisterCTMArgs {
 
 #[derive(Debug, zksync_web3_decl::jsonrpsee::core::Serialize, Deserialize)]
 pub struct RegisterCTMArgsFinal {
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     pub only_save_calldata: bool,
     pub bridgehub: Option<Address>,
     pub ctm: Option<Address>,

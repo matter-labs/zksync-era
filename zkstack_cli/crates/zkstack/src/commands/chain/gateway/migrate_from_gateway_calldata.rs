@@ -6,8 +6,13 @@ use ethers::{
     utils::hex,
 };
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
+use zkstack_cli_common::{
+    ethereum::get_ethers_provider,
+    forge::{ForgeArgs, ForgeRunner},
+    logger,
+};
 use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use super::{
@@ -31,7 +36,7 @@ lazy_static! {
     );
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Serialize, Deserialize)]
 pub struct MigrateFromGatewayCalldataArgs {
     #[clap(long)]
     pub l1_rpc_url: String,
@@ -58,13 +63,18 @@ pub struct MigrateFromGatewayCalldataArgs {
     /// isn't strictly ready for final calls.
     #[clap(long, default_missing_value = "true")]
     pub no_cross_check: bool,
+
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeArgs,
 }
 
 /// Produces the calldata necessary to perform (or continue) a migration to Gateway.
 ///
 pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyhow::Result<()> {
-    let forge_args = Default::default();
+    let forge_args = params.forge_args.clone();
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
+    let mut runner = ForgeRunner::new(forge_args.runner);
 
     if !params.no_cross_check {
         let state = get_gateway_migration_state(
@@ -137,7 +147,8 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
 
     let output = start_migrate_chain_from_gateway(
         shell,
-        &forge_args,
+        &mut runner,
+        &forge_args.script,
         &contracts_foundry_path,
         AdminScriptMode::OnlySave,
         params.l1_bridgehub_addr,

@@ -2,7 +2,7 @@ use ethers::{abi::parse_abi, contract::BaseContract};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeRunner, ForgeScriptArgs},
     logger,
 };
 use zkstack_cli_config::{
@@ -56,9 +56,11 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
             .state_transition_proxy_addr
     };
 
+    let mut runner = ForgeRunner::new(final_ecosystem_args.forge_args.runner.clone());
     let output = register_ctm_on_existing_bh(
         shell,
-        &final_ecosystem_args.forge_args,
+        &mut runner,
+        &final_ecosystem_args.forge_args.script,
         &ecosystem_config,
         &final_ecosystem_args.l1_rpc_url,
         None,
@@ -78,6 +80,7 @@ pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn register_ctm_on_existing_bh(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     config: &EcosystemConfig,
     l1_rpc_url: &str,
@@ -121,7 +124,7 @@ pub async fn register_ctm_on_existing_bh(
 
     let output_path =
         REGISTER_CTM_SCRIPT_PARAMS.output(&config.path_to_foundry_scripts_for_ctm(vm_option));
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }

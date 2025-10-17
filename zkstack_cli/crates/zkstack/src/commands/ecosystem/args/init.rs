@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::{forge::ForgeScriptArgs, PromptConfirm};
+use zkstack_cli_common::{forge::ForgeArgs, PromptConfirm};
 use zkstack_cli_types::{L1Network, VMOption};
 
 use crate::{
@@ -22,7 +22,6 @@ use crate::{
 pub struct EcosystemInitArgs {
     #[command(flatten)]
     pub common: CommonEcosystemArgs,
-
     /// Deploy ecosystem contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_ecosystem: Option<bool>,
@@ -31,9 +30,6 @@ pub struct EcosystemInitArgs {
     pub deploy_erc20: Option<bool>,
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
     /// Deploy Paymaster contract
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
@@ -64,6 +60,9 @@ pub struct EcosystemInitArgs {
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub no_genesis: bool,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeArgs,
 }
 
 impl EcosystemInitArgs {
@@ -157,7 +156,7 @@ pub struct EcosystemInitArgsFinal {
     pub deploy_erc20: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,
     pub l1_rpc_url: String,
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     pub dev: bool,
     pub observability: bool,
     pub ecosystem_only: bool,
@@ -179,7 +178,7 @@ pub struct InitCoreContractsArgs {
     pub deploy_erc20: Option<bool>,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(long, default_value_t = true, default_missing_value = "true", num_args = 0..=1)]
@@ -225,7 +224,7 @@ impl InitCoreContractsArgs {
 pub struct InitCoreContractsArgsFinal {
     pub vm_option: VMOption,
     pub deploy_erc20: bool,
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub l1_rpc_url: String,
 }
