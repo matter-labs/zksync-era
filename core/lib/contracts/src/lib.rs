@@ -39,7 +39,8 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 
-const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
+const BRIDGEHUB_CONTRACT_FILE: (&str, &str) =
+    ("bridgehub", "IBridgehubBase.sol/IBridgehubBase.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "ChainTypeManager.sol/ChainTypeManager.json",
@@ -82,7 +83,7 @@ const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "state-transition/verifiers",
-    "DualVerifier.sol/DualVerifier.json",
+    "EraDualVerifier.sol/EraDualVerifier.json",
 );
 
 const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
@@ -271,7 +272,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_l1_zk_contract("MessageRoot")
+    load_l1_zk_contract("L2MessageRoot")
 }
 
 pub fn l2_asset_router() -> Contract {

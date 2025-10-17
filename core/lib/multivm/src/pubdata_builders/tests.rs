@@ -1,6 +1,8 @@
 use zksync_types::{
-    u256_to_h256, writes::StateDiffRecord, Address, ProtocolVersionId,
-    ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
+    commitment::{L2DACommitmentScheme, L2PubdataValidator},
+    u256_to_h256,
+    writes::StateDiffRecord,
+    Address, ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
 };
 
 use super::{full_builder::FullPubdataBuilder, hashed_builder::HashedPubdataBuilder};
@@ -57,7 +59,8 @@ fn mock_input() -> PubdataInput {
 fn test_full_pubdata_building() {
     let input = mock_input();
 
-    let full_pubdata_builder = FullPubdataBuilder::new(Address::zero());
+    let full_pubdata_builder =
+        FullPubdataBuilder::new(L2PubdataValidator::Address(Address::zero()));
 
     let actual =
         full_pubdata_builder.l1_messenger_operator_input(&input, ProtocolVersionId::Version24);
@@ -94,13 +97,27 @@ fn test_full_pubdata_building() {
         expected,
         "mismatch for `settlement_layer_pubdata` (post gateway)"
     );
+
+    let full_pubdata_builder = FullPubdataBuilder::new(L2PubdataValidator::CommitmentScheme(
+        L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+    ));
+
+    let actual =
+        full_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version30);
+    let expected = "00000001000000000000000000000000000000000000000000008001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000100000004deadbeef0000000100000060bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0100002a040001000000000000000000000000000000000000000000000000000000000000007e090e0000000c0901";
+    assert_eq!(
+        &hex::encode(actual),
+        expected,
+        "mismatch for `BlobsAndPubdataKeccak256` (post gateway)"
+    );
 }
 
 #[test]
 fn test_hashed_pubdata_building() {
     let input = mock_input();
 
-    let hashed_pubdata_builder = HashedPubdataBuilder::new(Address::zero());
+    let hashed_pubdata_builder =
+        HashedPubdataBuilder::new(L2PubdataValidator::Address(Address::zero()));
 
     let actual =
         hashed_pubdata_builder.l1_messenger_operator_input(&input, ProtocolVersionId::Version27);
@@ -113,6 +130,18 @@ fn test_hashed_pubdata_building() {
 
     let actual =
         hashed_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version27);
+    let expected = "fa96e2436e6fb4d668f5a06681a7c53fcb199b2747ee624ee52a13e85aac5f1e";
+    assert_eq!(
+        &hex::encode(actual),
+        expected,
+        "mismatch for `settlement_layer_pubdata`"
+    );
+
+    let hashed_pubdata_builder = HashedPubdataBuilder::new(L2PubdataValidator::CommitmentScheme(
+        L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+    ));
+    let actual =
+        hashed_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version30);
     let expected = "fa96e2436e6fb4d668f5a06681a7c53fcb199b2747ee624ee52a13e85aac5f1e";
     assert_eq!(
         &hex::encode(actual),
