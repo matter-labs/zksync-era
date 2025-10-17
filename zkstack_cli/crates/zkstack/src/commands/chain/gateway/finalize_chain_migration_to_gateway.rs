@@ -5,10 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
 
-use super::{
-    migrate_to_gateway::get_migrate_to_gateway_params,
-    migrate_to_gateway_calldata::get_migrate_to_gateway_data,
-};
+use super::migrate_to_gateway::get_migrate_to_gateway_context;
 use crate::{
     admin_functions::AdminScriptMode,
     commands::chain::{
@@ -109,16 +106,14 @@ pub async fn run_inner(
     .await?;
 
     // Set the DA validator pair on the Gateway
-    let params = get_migrate_to_gateway_params(chain_config, gateway_chain_config).await?;
-    let data = get_migrate_to_gateway_data(&params, true).await?;
+    let context = get_migrate_to_gateway_context(chain_config, gateway_chain_config, true).await?;
 
-    let (_, l2_da_validator) = data.l1_zk_chain.get_da_validator_pair().await?;
+    let (_, l2_da_validator) = context.l1_zk_chain.get_da_validator_pair().await?;
     check_permanent_rollup_and_set_da_validator_via_gateway(
         shell,
         &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
-        &data,
-        &params,
+        &context,
         l2_da_validator,
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
     )

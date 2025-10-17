@@ -13,11 +13,14 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use super::{
     constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
     gateway_common::extract_and_wait_for_priority_ops,
-    migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
+    migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayConfig},
 };
 use crate::{
     abi::BridgehubAbi,
-    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
+    commands::chain::{
+        admin_call_builder::AdminCallBuilder,
+        gateway::migrate_to_gateway_calldata::MigrateToGatewayContext, utils::send_tx,
+    },
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
@@ -48,12 +51,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("Gateway config not present")?;
 
     logger::info("Migrating the chain to the Gateway...");
-    let params = get_migrate_to_gateway_params(&chain_config, &gateway_chain_config).await?;
+    let context =
+        get_migrate_to_gateway_context(&chain_config, &gateway_chain_config, false).await?;
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
-        &params,
+        &context,
     )
     .await?;
 
@@ -68,7 +72,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         chain_admin,
         calldata,
         value,
-        params.l1_rpc_url.clone(),
+        context.l1_rpc_url.clone(),
         chain_config
             .get_wallets_config()?
             .governor
@@ -78,7 +82,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    let gateway_provider = get_ethers_provider(&params.gateway_rpc_url)?;
+    let gateway_provider = get_ethers_provider(&context.gateway_rpc_url)?;
     extract_and_wait_for_priority_ops(
         receipt,
         gateway_chain_config
@@ -90,7 +94,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .await?;
 
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.set_gateway_rpc_url(params.gateway_rpc_url.clone())?;
+    chain_secrets_config.set_gateway_rpc_url(context.gateway_rpc_url.clone())?;
     chain_secrets_config.save().await?;
 
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
@@ -102,17 +106,18 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         gw_bridgehub
             .get_zk_chain(chain_config.chain_id.as_u64().into())
             .await?,
-        params.gateway_chain_id.into(),
+        context.gateway_chain_id.into(),
     )?;
     gateway_chain_config.save().await?;
 
     Ok(())
 }
 
-pub(crate) async fn get_migrate_to_gateway_params(
+pub(crate) async fn get_migrate_to_gateway_context(
     chain_config: &ChainConfig,
     gateway_chain_config: &ChainConfig,
-) -> anyhow::Result<MigrateToGatewayParams> {
+    skip_pre_migration_checks: bool,
+) -> anyhow::Result<MigrateToGatewayContext> {
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
@@ -138,7 +143,7 @@ pub(crate) async fn get_migrate_to_gateway_params(
     };
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
-    Ok(MigrateToGatewayParams {
+    let config = MigrateToGatewayConfig {
         l1_rpc_url: l1_url.clone(),
         l1_bridgehub_addr: chain_contracts_config
             .ecosystem_contracts
@@ -152,5 +157,11 @@ pub(crate) async fn get_migrate_to_gateway_params(
         validator: chain_secrets_config.operator.address,
         min_validator_balance: U256::from(10).pow(19.into()),
         refund_recipient: None,
-    })
+    };
+
+    if skip_pre_migration_checks {
+        Ok(config.into_context_unchecked().await?)
+    } else {
+        Ok(config.into_context().await?)
+    }
 }
