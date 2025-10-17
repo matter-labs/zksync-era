@@ -57,7 +57,7 @@ pub struct ChainL1Config {
     pub base_token_addr: Address,
     pub bridgehub_create_new_chain_salt: u64,
     pub validium_mode: bool,
-    pub validator_sender_operator_eth: Address,
+    pub validator_sender_operator_commit_eth: Address,
     pub validator_sender_operator_blobs_eth: Address,
     /// Additional validators that can be used for prove & execute (when these are handled by different entities).
     #[serde(skip_serializing_if = "Option::is_none")]
