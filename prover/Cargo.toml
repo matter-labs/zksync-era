@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "22.1.0" # x-release-please-version
+version = "23.0.0" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -102,17 +102,17 @@ zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { version = "=22.1.0", path = "crates/lib/prover_dal" }
-zksync_prover_fri_types = { version = "=22.1.0", path = "crates/lib/prover_fri_types" }
-zksync_prover_fri_utils = { version = "=22.1.0", path = "crates/lib/prover_fri_utils" }
-zksync_prover_task = { version = "=22.1.0", path = "crates/lib/prover_task" }
-zksync_prover_keystore = { version = "=22.1.0", path = "crates/lib/keystore" }
-zksync_vk_setup_data_generator_server_fri = { version = "=22.1.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_processor = { version = "=22.1.0", path = "crates/lib/prover_job_processor" }
-zksync_circuit_prover_service = { version = "=22.1.0", path = "crates/lib/circuit_prover_service" }
-zksync_prover_job_monitor = { version = "=22.1.0", path = "crates/bin/prover_job_monitor" }
-zksync_proof_fri_compressor_service = { version = "=22.1.0", path = "crates/lib/proof_fri_compressor_service" }
-zksync_witness_generator_service = { version = "=22.1.0", path = "crates/lib/witness_generator_service" }
+zksync_prover_dal = { version = "=23.0.0", path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { version = "=23.0.0", path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { version = "=23.0.0", path = "crates/lib/prover_fri_utils" }
+zksync_prover_task = { version = "=23.0.0", path = "crates/lib/prover_task" }
+zksync_prover_keystore = { version = "=23.0.0", path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { version = "=23.0.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { version = "=23.0.0", path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { version = "=23.0.0", path = "crates/lib/circuit_prover_service" }
+zksync_prover_job_monitor = { version = "=23.0.0", path = "crates/bin/prover_job_monitor" }
+zksync_proof_fri_compressor_service = { version = "=23.0.0", path = "crates/lib/proof_fri_compressor_service" }
+zksync_witness_generator_service = { version = "=23.0.0", path = "crates/lib/witness_generator_service" }
 
 # for `perf` profiling
 [profile.perf]
