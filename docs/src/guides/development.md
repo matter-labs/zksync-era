@@ -245,7 +245,7 @@ You must provide:
 - In case of Etherscan verification, you must also provide:
   - Your Etherscan API key, either by passing it as an argument or setting `ETHERSCAN_API_KEY`
 
-For more information check [Foundry's documentation](https://book.getfoundry.sh/reference/forge/forge-verify-contract).
+For more information check [Foundry's documentation](https://getfoundry.sh/forge/reference/verify-contract/).
 
 ## How to generate the `genesis.yaml` file
 
