@@ -143,6 +143,7 @@ async fn init_ecosystem(
         if !init_args.vm_option.is_zksync_os()
             && ecosystem_config.zksync_os_exist()
             && init_args.dev
+            && !init_args.forge_args.runner.is_docker()
         {
             rebuild_all_contracts(
                 shell,

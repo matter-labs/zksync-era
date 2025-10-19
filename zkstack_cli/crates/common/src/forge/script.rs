@@ -132,6 +132,13 @@ impl ForgeScript {
         })
     }
 
+    pub(crate) fn is_broadcast(&self) -> bool {
+        self.args
+            .args
+            .iter()
+            .any(|a| matches!(a, ForgeScriptArg::Broadcast))
+    }
+
     pub fn address(&self) -> Option<Address> {
         self.private_key().map(|k| k.address())
     }

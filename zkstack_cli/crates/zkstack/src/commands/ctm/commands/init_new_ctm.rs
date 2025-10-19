@@ -78,7 +78,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         logger::info("Updating submodules to the latest version...");
         git::submodule_update(shell, &ecosystem_config.link_to_code())?;
     }
-    if !args.common.skip_contract_compilation_override {
+    if !args.common.skip_contract_compilation_override && !args.forge_args.runner.is_docker() {
         let spinner = Spinner::new("Building contracts...");
         rebuild_all_contracts(shell, &ecosystem_config.contracts_path_for_ctm(vm_option))?;
         spinner.finish();
