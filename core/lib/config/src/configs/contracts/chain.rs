@@ -218,7 +218,7 @@ impl ContractsConfig {
             .erc20
             .l2_address
             .or(self.bridges.shared.l2_address)
-            .unwrap_or(L2_ASSET_ROUTER_ADDRESS);
+            .expect("One of the l2 bridges should be presented");
         L2Contracts {
             erc20_default_bridge: bridge_address,
             shared_bridge_addr: bridge_address,
