@@ -1,6 +1,5 @@
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{Address, H256};
-use zksync_system_constants::L2_ASSET_ROUTER_ADDRESS;
 
 use super::{
     ecosystem::L1SpecificContracts, EcosystemCommonContracts, SettlementLayerSpecificContracts,

@@ -12,7 +12,6 @@ categories.workspace = true
 
 [dependencies]
 zksync_basic_types.workspace = true
-zksync_system_constants.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_concurrency.workspace = true
 
