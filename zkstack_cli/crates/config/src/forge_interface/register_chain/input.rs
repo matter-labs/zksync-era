@@ -128,7 +128,7 @@ impl RegisterChainL1Config {
                 bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
                 validium_mode: chain_config.l1_batch_commit_data_generator_mode
                     == L1BatchCommitmentMode::Validium,
-                validator_sender_operator_eth: wallets_config.operator.address,
+                validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
                 validator_sender_operator_prove: wallets_config
                     .prove_operator
