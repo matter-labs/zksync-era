@@ -169,7 +169,7 @@ pub async fn init_chains(
     let mut deploy_paymaster = args.deploy_paymaster;
     let genesis_args = &mut args.genesis_args;
     if args.dev {
-        deploy_paymaster = Some(true);
+        deploy_paymaster = Some(deploy_paymaster.unwrap_or(true));
         if let Some(genesis) = genesis_args {
             genesis.dev = true;
         }

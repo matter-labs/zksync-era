@@ -17,7 +17,6 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH, ZkStackConfig,
-    ZkStackConfigTrait,
 };
 use zksync_basic_types::U256;
 use zksync_types::L2ChainId;
@@ -106,14 +105,14 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
         args.skip_funding.unwrap_or(false),
         &args.forge_args.clone(),
         args.to_gateway.unwrap_or(true),
-        &ecosystem_config.path_to_foundry_scripts(),
+        &ecosystem_config.path_to_foundry_scripts_for_ctm(chain_config.vm_option),
         ecosystem_config
             .get_wallets()?
             .deployer
             .context("Missing deployer wallet")?,
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_config.chain_id.as_u64(),

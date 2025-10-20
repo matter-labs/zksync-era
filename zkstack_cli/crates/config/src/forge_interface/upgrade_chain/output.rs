@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::ZkStackConfigTrait;
+use crate::traits::FileConfigTrait;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainUpgradeOutput {
@@ -10,4 +10,5 @@ pub struct ChainUpgradeOutput {
     pub chain_admin_addr: Address,
     pub access_control_restriction: Address,
 }
-// impl ZkStackConfigTrait for ChainUpgradeOutput {}
+
+impl FileConfigTrait for ChainUpgradeOutput {}

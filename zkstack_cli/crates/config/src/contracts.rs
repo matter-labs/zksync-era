@@ -13,8 +13,8 @@ use crate::{
     forge_interface::{
         deploy_ecosystem::output::{DeployCTMOutput, DeployL1CoreContractsOutput},
         deploy_l2_contracts::output::{
-            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, L2DAValidatorAddressOutput,
+            Multicall3Output, TimestampAsserterOutput,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -260,7 +260,6 @@ impl CoreContractsConfig {
                 .deployed_addresses
                 .state_transition
                 .bytecodes_supplier_addr,
-            expected_rollup_l2_da_validator: deploy_ctm_output.expected_rollup_l2_da_validator_addr,
             l1_wrapped_base_token_store: None,
             server_notifier_proxy_addr: deploy_ctm_output
                 .deployed_addresses
@@ -342,14 +341,10 @@ impl ContractsConfig {
         Ok(())
     }
 
-    pub fn set_l2_shared_bridge(
-        &mut self,
-        initialize_bridges_output: &InitializeBridgeOutput,
-    ) -> anyhow::Result<()> {
+    pub fn set_l2_shared_bridge(&mut self) -> anyhow::Result<()> {
         self.bridges.shared.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.bridges.erc20.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        self.l2.da_validator_addr = Some(initialize_bridges_output.l2_da_validator_address);
         Ok(())
     }
 
@@ -442,7 +437,6 @@ pub struct ChainTransitionManagerContracts {
     pub diamond_cut_data: String,
     pub force_deployments_data: Option<String>,
     pub l1_bytecodes_supplier_addr: Address,
-    pub expected_rollup_l2_da_validator: Address,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_proxy_addr: Address,
     pub default_upgrade_addr: Address,
