@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "23.0.0" # x-release-please-version
+version = "23.1.0" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
