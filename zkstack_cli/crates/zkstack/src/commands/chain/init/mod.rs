@@ -168,6 +168,7 @@ pub async fn init(
         &mut contracts_config,
         init_args.forge_args.clone(),
         true,
+        init_args.l1_rpc_url.clone(),
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
@@ -244,6 +245,7 @@ pub async fn init(
             init_args.forge_args.clone(),
             None,
             true,
+            init_args.l1_rpc_url.clone(),
         )
         .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;

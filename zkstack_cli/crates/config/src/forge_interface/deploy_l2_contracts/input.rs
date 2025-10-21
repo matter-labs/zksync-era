@@ -44,11 +44,15 @@ impl DeployL2ContractsInput {
 }
 
 async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidatorType> {
-    let general = config.get_general_config().await?;
+    let da_client_type = config
+        .get_general_config()
+        .await
+        .map(|c| c.da_client_type())
+        .unwrap_or_default();
 
     match (
         config.l1_batch_commit_data_generator_mode,
-        general.da_client_type().as_deref(),
+        da_client_type.as_deref(),
     ) {
         (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
         (L1BatchCommitmentMode::Validium, None | Some("NoDA")) => Ok(DAValidatorType::NoDA),
