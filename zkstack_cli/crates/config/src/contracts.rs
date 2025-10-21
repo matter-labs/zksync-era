@@ -442,7 +442,7 @@ pub struct ChainTransitionManagerContracts {
     pub diamond_cut_data: String,
     pub force_deployments_data: Option<String>,
     pub l1_bytecodes_supplier_addr: Address,
-    pub expected_rollup_l2_da_validator: Address,
+    pub expected_rollup_l2_da_validator: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_proxy_addr: Address,
     pub default_upgrade_addr: Address,

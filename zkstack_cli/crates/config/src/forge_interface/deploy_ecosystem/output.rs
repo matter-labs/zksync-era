@@ -36,7 +36,7 @@ impl FileConfigTrait for DeployL1CoreContractsOutput {}
 pub struct DeployCTMOutput {
     pub contracts_config: DeployCTMContractsConfigOutput,
     pub deployed_addresses: DeployCTMDeployedAddressesOutput,
-    pub expected_rollup_l2_da_validator_addr: Address,
+    pub expected_rollup_l2_da_validator_addr: Option<Address>,
     pub multicall3_addr: Address,
 }
 

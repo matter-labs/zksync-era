@@ -42,8 +42,8 @@ pub struct EcosystemUpgradeContractsOutput {
     pub diamond_init_max_pubdata_per_batch: u64,
     pub diamond_init_minimal_l2_gas_price: u64,
     pub diamond_init_priority_tx_max_pubdata: u64,
-    pub expected_rollup_l2_da_validator: Address,
-    pub expected_validium_l2_da_validator: Address,
+    pub expected_rollup_l2_da_validator: Option<Address>,
+    pub expected_validium_l2_da_validator: Option<Address>,
 
     // Probably gonna need it to add new chains
     pub force_deployments_data: Bytes,
