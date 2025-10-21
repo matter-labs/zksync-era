@@ -213,6 +213,7 @@ pub async fn send_priority_txs(
         contracts_config,
         forge_args.clone(),
         true,
+        l1_rpc_url.clone(),
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
@@ -265,6 +266,7 @@ pub async fn send_priority_txs(
             forge_args.clone(),
             None,
             true,
+            l1_rpc_url.clone(),
         )
         .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;

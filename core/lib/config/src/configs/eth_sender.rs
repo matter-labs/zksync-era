@@ -54,6 +54,8 @@ impl EthConfig {
                 time_in_mempool_multiplier_cap: None,
                 precommit_params: None,
                 force_use_validator_timelock: false,
+                fusaka_upgrade_block: Some(0),
+                fusaka_upgrade_safety_margin: 0,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -177,6 +179,10 @@ pub struct SenderConfig {
     /// Allow to force change the validator timelock address.
     #[config(default)]
     pub force_use_validator_timelock: bool,
+    /// Use fusaka blob tx format if  the block has passed.
+    pub fusaka_upgrade_block: Option<u64>,
+    #[config(default_t = 100)]
+    pub fusaka_upgrade_safety_margin: u64,
 }
 
 /// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
@@ -301,6 +307,8 @@ mod tests {
                     deadline: Duration::from_secs(1),
                 }),
                 force_use_validator_timelock: false,
+                fusaka_upgrade_safety_margin: 100,
+                fusaka_upgrade_block: Some(33582142),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -365,6 +373,11 @@ mod tests {
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
+            ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
+            ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_BLOCK="33582142"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_SAFETY_MARGIN="100"
+
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -401,6 +414,8 @@ mod tests {
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
             force_use_validator_timelock: false
+            fusaka_upgrade_safety_margin: 100
+            fusaka_upgrade_block: 33582142
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
@@ -458,6 +473,8 @@ mod tests {
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
             force_use_validator_timelock: false
+            fusaka_upgrade_safety_margin: 100
+            fusaka_upgrade_block: 33582142
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec

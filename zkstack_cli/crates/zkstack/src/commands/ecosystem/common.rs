@@ -21,7 +21,6 @@ use zkstack_cli_config::{
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
-    GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
@@ -46,11 +45,9 @@ pub async fn deploy_l1_core_contracts(
 ) -> anyhow::Result<CoreContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS
         .input(&config.path_to_foundry_scripts_for_ctm(vm_option));
-    let genesis_config_path = config
-        .default_configs_path_for_ctm(vm_option)
-        .join(GENESIS_FILE);
+    let genesis_config_path = config.default_genesis_path(vm_option);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
+    let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployL1Config::new(
@@ -172,7 +169,7 @@ pub async fn init_chains(
     let mut deploy_paymaster = args.deploy_paymaster;
     let genesis_args = &mut args.genesis_args;
     if args.dev {
-        deploy_paymaster = Some(true);
+        deploy_paymaster = Some(deploy_paymaster.unwrap_or(true));
         if let Some(genesis) = genesis_args {
             genesis.dev = true;
         }

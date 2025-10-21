@@ -87,7 +87,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
 }
 
 // This constant is used for reading auxiliary events
-const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
+const LOOK_BACK_BLOCK_RANGE: u64 = 2_500_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";

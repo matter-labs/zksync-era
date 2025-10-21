@@ -2,7 +2,7 @@ version: '3.2'
 services:
   reth:
     restart: always
-    image: "ghcr.io/paradigmxyz/reth:v1.3.7"
+    image: "ghcr.io/paradigmxyz/reth:v1.8.2"
     volumes:
       - type: bind
         source: ./volumes/reth/data
