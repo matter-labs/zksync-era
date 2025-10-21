@@ -1,5 +1,12 @@
 # Changelog
 
+## [23.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.0.0...prover-v23.1.0) (2025-10-21)
+
+
+### Features
+
+* bumping versions ([#4555](https://github.com/matter-labs/zksync-era/issues/4555)) ([1cd803d](https://github.com/matter-labs/zksync-era/commit/1cd803d10af4942b500731f319caca2745a27f77))
+
 ## [23.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v22.1.0...prover-v23.0.0) (2025-10-17)
 
 
