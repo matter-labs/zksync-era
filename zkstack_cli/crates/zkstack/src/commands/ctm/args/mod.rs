@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use serde::Deserialize;
-use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_common::forge::ForgeArgs;
 use zkstack_cli_types::{L1Network, VMOption};
 use zksync_basic_types::Address;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
@@ -26,7 +26,7 @@ pub struct InitNewCTMArgs {
     pub default_configs_src_path: Option<PathBuf>,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
 }
 
 impl InitNewCTMArgs {
@@ -62,7 +62,7 @@ impl InitNewCTMArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InitNewCTMArgsFinal {
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub bridgehub_address: Option<Address>,
     pub vm_option: VMOption,

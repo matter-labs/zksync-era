@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeArgs, ForgeRunner, ForgeScriptArgs},
     logger,
     spinner::Spinner,
     wallets::Wallet,
@@ -52,7 +52,7 @@ pub struct MigrateFromGatewayArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
 
     #[clap(long)]
     pub gateway_chain_name: String,
@@ -88,9 +88,11 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .ctm
         .diamond_cut_data;
 
+    let mut runner = ForgeRunner::new(args.forge_args.runner.clone());
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
-        &args.forge_args,
+        &mut runner,
+        &args.forge_args.script.clone(),
         &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::OnlySave,
         chain_contracts_config
@@ -170,7 +172,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 
     finish_migrate_chain_from_gateway(
         shell,
-        args.forge_args.clone(),
+        &mut runner,
+        &args.forge_args.script.clone(),
         &chain_config.path_to_foundry_scripts(),
         ecosystem_config
             .get_wallets()?
@@ -194,7 +197,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
         shell,
-        &args.forge_args,
+        &mut runner,
+        &args.forge_args.script.clone(),
         &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
@@ -271,7 +275,8 @@ async fn await_for_withdrawal_to_finalize(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn finish_migrate_chain_from_gateway(
     shell: &Shell,
-    forge_args: ForgeScriptArgs,
+    runner: &mut ForgeRunner,
+    forge_args: &ForgeScriptArgs,
     foundry_scripts_path: &Path,
     wallet: Wallet,
     l1_bridgehub_addr: Address,
@@ -309,7 +314,7 @@ pub(crate) async fn finish_migrate_chain_from_gateway(
     // Governor private key is required for this script
     forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     Ok(())
 }

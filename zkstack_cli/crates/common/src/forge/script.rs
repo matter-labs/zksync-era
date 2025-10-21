@@ -13,94 +13,24 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
-use xshell::{cmd, Shell};
+use url::Url;
+use xshell::Shell;
 
-use crate::{
-    cmd::{Cmd, CmdResult},
-    ethereum::create_ethers_client,
-};
-
-/// Forge is a wrapper around the forge binary.
-pub struct Forge {
-    path: PathBuf,
-}
-
-impl Forge {
-    /// Create a new Forge instance.
-    pub fn new(path: &Path) -> Self {
-        Forge {
-            path: path.to_path_buf(),
-        }
-    }
-
-    /// Create a new ForgeScript instance.
-    ///
-    /// The script path can be passed as a relative path to the base path
-    /// or as an absolute path.
-    pub fn script(&self, path: &Path, args: ForgeScriptArgs) -> ForgeScript {
-        ForgeScript {
-            base_path: self.path.clone(),
-            script_path: path.to_path_buf(),
-            args,
-        }
-    }
-}
+use super::runner::ForgeRunner;
+use crate::{docker::adjust_localhost_for_docker, ethereum::create_ethers_client};
 
 /// ForgeScript is a wrapper around the forge script command.
 pub struct ForgeScript {
-    base_path: PathBuf,
-    script_path: PathBuf,
-    args: ForgeScriptArgs,
+    pub(crate) base_path: PathBuf,
+    pub(crate) script_path: PathBuf,
+    pub(crate) args: ForgeScriptArgs,
 }
 
 impl ForgeScript {
-    /// Run the forge script command.
-    pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
-        // When running the DeployCTM script, we skip recompiling the Bridgehub
-        // because it must be compiled with a low optimizer-runs value.
-        if self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol") {
-            let skip_path: String = String::from("contracts/bridgehub/*");
-            self.args.add_arg(ForgeScriptArg::Skip { skip_path });
-        }
-        let _dir_guard = shell.push_dir(&self.base_path);
-        let script_path = self.script_path.as_os_str();
-        let args_no_resume = self.args.build();
-        if self.args.resume {
-            let mut args = args_no_resume.clone();
-            args.push(ForgeScriptArg::Resume.to_string());
-            let res = Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}"))
-                .with_piped_std_err()
-                .run();
-            if !res.resume_not_successful_because_has_not_began() {
-                return Ok(res?);
-            }
-        }
-
-        // TODO: This line is very helpful for debugging purposes,
-        // maybe it makes sense to make it conditionally displayed.
-        let command = format!(
-            "forge script {} --legacy {}",
-            script_path.to_str().unwrap(),
-            args_no_resume.join(" ")
-        );
-
-        println!("Command: {}", command);
-
-        let mut cmd = Cmd::new(cmd!(
-            shell,
-            "forge script {script_path} --legacy {args_no_resume...}"
-        ));
-
-        if self.args.resume {
-            cmd = cmd.with_piped_std_err();
-        }
-
-        let res = cmd.run();
-        // We won't catch this error if resume is not set.
-        if res.proposal_error() {
-            return Ok(());
-        }
-        Ok(res?)
+    /// Run the forge script command using default runner configuration.
+    pub fn run(self, shell: &Shell) -> anyhow::Result<()> {
+        let mut runner = ForgeRunner::default();
+        runner.run(shell, self)
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -192,6 +122,23 @@ impl ForgeScript {
         })
     }
 
+    pub(crate) fn sig(&self) -> Option<String> {
+        self.args.args.iter().find_map(|a| {
+            if let ForgeScriptArg::Sig { sig } = a {
+                Some(sig.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub(crate) fn is_broadcast(&self) -> bool {
+        self.args
+            .args
+            .iter()
+            .any(|a| matches!(a, ForgeScriptArg::Broadcast))
+    }
+
     pub fn address(&self) -> Option<Address> {
         self.private_key().map(|k| k.address())
     }
@@ -206,6 +153,18 @@ impl ForgeScript {
         let client = create_ethers_client(private_key, rpc_url, None)?;
         let balance = client.get_balance(client.address(), None).await?;
         Ok(Some(balance))
+    }
+
+    pub(crate) fn needs_bridgehub_skip(&self) -> bool {
+        self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol")
+    }
+
+    pub(crate) fn script_name(&self) -> &Path {
+        &self.script_path
+    }
+
+    pub(crate) fn base_path(&self) -> &Path {
+        &self.base_path
     }
 }
 
@@ -297,7 +256,7 @@ pub enum ForgeScriptArg {
 pub struct ForgeScriptArgs {
     /// List of known forge script arguments.
     #[clap(skip)]
-    args: Vec<ForgeScriptArg>,
+    pub(crate) args: Vec<ForgeScriptArg>,
     /// Verify deployed contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub verify: Option<bool>,
@@ -319,22 +278,31 @@ pub struct ForgeScriptArgs {
     /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
     #[clap(long, short)]
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = false)]
-    additional_args: Vec<String>,
+    pub(crate) additional_args: Vec<String>,
 }
 
 impl ForgeScriptArgs {
-    /// Build the forge script command arguments.
-    pub fn build(&mut self) -> Vec<String> {
+    /// Build the forge script command arguments for a specific runner mode.
+    pub(crate) fn build_for_runner(&mut self, use_docker: bool) -> Vec<String> {
         self.add_verify_args();
         self.cleanup_contract_args();
+        if use_docker {
+            self.adjust_args_for_docker();
+        }
         if self.zksync {
             self.add_arg(ForgeScriptArg::Zksync);
         }
+
         self.args
             .iter()
             .map(|arg| arg.to_string())
             .chain(self.additional_args.clone())
             .collect()
+    }
+
+    /// Builds the forge script command arguments without any runner customisation.
+    pub fn build(&mut self) -> Vec<String> {
+        self.build_for_runner(false)
     }
 
     /// Adds verify arguments to the forge script command.
@@ -410,6 +378,21 @@ impl ForgeScriptArgs {
         self.additional_args = cleaned_args;
     }
 
+    // If running via Docker, rewrite localhost RPCs to host.docker.internal
+    fn adjust_args_for_docker(&mut self) {
+        if let Some(ForgeScriptArg::RpcUrl { url }) = self
+            .args
+            .iter_mut()
+            .find(|a| matches!(a, ForgeScriptArg::RpcUrl { .. }))
+        {
+            if let Ok(parsed) = Url::parse(url) {
+                if let Ok(new_url) = adjust_localhost_for_docker(parsed) {
+                    *url = new_url.to_string();
+                }
+            }
+        }
+    }
+
     /// Add additional arguments to the forge script command.
     /// If the argument already exists, a warning will be printed.
     pub fn add_arg(&mut self, arg: ForgeScriptArg) {
@@ -439,36 +422,4 @@ pub enum ForgeVerifier {
     Sourcify,
     Blockscout,
     Oklink,
-}
-
-// Trait for handling forge errors. Required for implementing method for CmdResult
-trait ForgeErrorHandler {
-    // Resume doesn't work if the forge script has never been started on this chain before.
-    // So we want to catch it and try again without resume arg if it's the case
-    fn resume_not_successful_because_has_not_began(&self) -> bool;
-    // Catch the error if upgrade tx has already been processed. We do execute much of
-    // txs using upgrade mechanism and if this particular upgrade has already been processed we could assume
-    // it as a success
-    fn proposal_error(&self) -> bool;
-}
-
-impl ForgeErrorHandler for CmdResult<()> {
-    fn resume_not_successful_because_has_not_began(&self) -> bool {
-        let text = "Deployment not found for chain";
-        check_error(self, text)
-    }
-
-    fn proposal_error(&self) -> bool {
-        let text = "revert: Operation with this proposal id already exists";
-        check_error(self, text)
-    }
-}
-
-fn check_error(cmd_result: &CmdResult<()>, error_text: &str) -> bool {
-    if let Err(cmd_error) = &cmd_result {
-        if let Some(stderr) = &cmd_error.stderr {
-            return stderr.contains(error_text);
-        }
-    }
-    false
 }

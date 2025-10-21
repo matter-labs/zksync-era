@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
-use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_common::forge::ForgeArgs;
 
 use crate::{
     commands::{
@@ -38,7 +38,7 @@ pub struct EcosystemUpgradeArgs {
     pub common: CommonEcosystemArgs,
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     #[clap(long, value_enum)]
     pub upgrade_version: UpgradeVersion,
     #[clap(long, value_enum)]
@@ -63,7 +63,7 @@ impl EcosystemUpgradeArgs {
 pub struct EcosystemUpgradeArgsFinal {
     #[clap(flatten)]
     #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
+    pub forge_args: ForgeArgs,
     #[clap(long, value_enum)]
     pub ecosystem_upgrade_stage: EcosystemUpgradeStage,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]

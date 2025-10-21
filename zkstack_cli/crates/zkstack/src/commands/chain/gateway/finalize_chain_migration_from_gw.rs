@@ -7,7 +7,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
-    ethereum::get_zk_client, logger, wallets::Wallet, zks_provider::ZKSProvider,
+    ethereum::get_zk_client, forge::ForgeRunner, logger, wallets::Wallet, zks_provider::ZKSProvider,
 };
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_types::L2_BRIDGEHUB_ADDRESS;
@@ -101,9 +101,11 @@ pub async fn run(
         .await?;
     let foundry_contracts_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
 
+    let mut runner = ForgeRunner::default();
     finish_migrate_chain_from_gateway(
         shell,
-        Default::default(),
+        &mut runner,
+        &Default::default(),
         &foundry_contracts_path,
         Wallet::new(
             params

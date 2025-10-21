@@ -3,7 +3,7 @@ use std::path::Path;
 use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
 use xshell::Shell;
 use zkstack_cli_common::{
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
+    forge::{Forge, ForgeRunner, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
     wallets::Wallet,
 };
@@ -16,6 +16,7 @@ use crate::{
 
 pub async fn enable_evm_emulator(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     foundry_contracts_path: &Path,
     admin: Address,
     governor: &Wallet,
@@ -36,18 +37,19 @@ pub async fn enable_evm_emulator(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    enable_evm_inner(shell, governor, forge).await
+    enable_evm_inner(shell, runner, governor, forge).await
 }
 
 async fn enable_evm_inner(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
     forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
     check_the_balance(&forge).await?;
     let spinner = Spinner::new(MSG_ENABLING_EVM_EMULATOR);
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     spinner.finish();
     Ok(())
 }

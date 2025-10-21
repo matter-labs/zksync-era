@@ -12,7 +12,7 @@ use ethers::{
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
-    forge::ForgeScriptArgs,
+    forge::{ForgeArgs, ForgeRunner},
     logger,
 };
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
@@ -458,7 +458,7 @@ pub(crate) async fn await_for_tx_to_complete(
 }
 
 pub(crate) async fn notify_server(
-    args: ForgeScriptArgs,
+    args: ForgeArgs,
     shell: &Shell,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
@@ -467,9 +467,11 @@ pub(crate) async fn notify_server(
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let contracts = chain_config.get_contracts_config()?;
 
+    let mut runner = ForgeRunner::new(args.runner);
     let calls = get_notify_server_calls(
         shell,
-        &args,
+        &mut runner,
+        &args.script,
         &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,

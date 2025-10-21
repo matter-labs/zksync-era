@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeArgs, ForgeRunner, ForgeScriptArgs},
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -29,7 +29,7 @@ lazy_static! {
         BaseContract::from(parse_abi(&["function runWithInputFromFile() public"]).unwrap(),);
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ForgeArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
@@ -37,15 +37,16 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
-
     let chain_deployer_wallet = chain_config
         .get_wallets_config()?
         .deployer
         .context("deployer")?;
 
+    let mut runner = ForgeRunner::new(args.runner.clone());
     let output: GatewayTxFiltererOutput = deploy_gateway_tx_filterer(
         shell,
-        args.clone(),
+        &mut runner,
+        &args.script,
         &chain_config,
         &chain_deployer_wallet,
         GatewayTxFiltererInput::new(
@@ -58,7 +59,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     set_transaction_filterer(
         shell,
-        &args,
+        &mut runner,
+        &args.script,
         &chain_config.path_to_foundry_scripts(),
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
         chain_config.chain_id.as_u64(),
@@ -79,7 +81,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 #[allow(clippy::too_many_arguments)]
 pub async fn deploy_gateway_tx_filterer(
     shell: &Shell,
-    forge_args: ForgeScriptArgs,
+    runner: &mut ForgeRunner,
+    forge_args: &ForgeScriptArgs,
     chain_config: &ChainConfig,
     deployer: &Wallet,
     input: GatewayTxFiltererInput,
@@ -104,7 +107,7 @@ pub async fn deploy_gateway_tx_filterer(
     // This script can be run by any wallet without privileges
     forge = fill_forge_private_key(forge, Some(deployer), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     GatewayTxFiltererOutput::read(
         shell,

@@ -1,4 +1,4 @@
-use ::zkstack_cli_common::forge::ForgeScriptArgs;
+use ::zkstack_cli_common::forge::ForgeArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
@@ -51,41 +51,41 @@ pub enum ChainCommands {
     /// registers chain with BridgeHub and sets pending admin for DiamondProxy.
     /// Note: After completion, L2 governor can accept ownership by running `accept-chain-ownership`
     #[command(alias = "register")]
-    RegisterChain(ForgeScriptArgs),
+    RegisterChain(ForgeArgs),
     /// Deploy all L2 contracts (executed by L1 governor).
     #[command(alias = "l2")]
-    DeployL2Contracts(ForgeScriptArgs),
+    DeployL2Contracts(ForgeArgs),
     /// Accept ownership of L2 chain (executed by L2 governor).
     /// This command should be run after `register-chain` to accept ownership of newly created
     /// DiamondProxy contract.
     #[command(alias = "accept-ownership")]
-    AcceptChainOwnership(ForgeScriptArgs),
+    AcceptChainOwnership(ForgeArgs),
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
-    DeployConsensusRegistry(ForgeScriptArgs),
+    DeployConsensusRegistry(ForgeArgs),
     /// Deploy L2 multicall3
     #[command(alias = "multicall3")]
-    DeployMulticall3(ForgeScriptArgs),
+    DeployMulticall3(ForgeArgs),
     /// Deploy L2 TimestampAsserter
     #[command(alias = "timestamp-asserter")]
-    DeployTimestampAsserter(ForgeScriptArgs),
+    DeployTimestampAsserter(ForgeArgs),
     /// Deploy L2 DA Validator
     #[command(alias = "da-validator")]
-    DeployL2DAValidator(ForgeScriptArgs),
+    DeployL2DAValidator(ForgeArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
-    DeployUpgrader(ForgeScriptArgs),
+    DeployUpgrader(ForgeArgs),
     /// Deploy paymaster smart contract
     #[command(alias = "paymaster")]
-    DeployPaymaster(ForgeScriptArgs),
+    DeployPaymaster(ForgeArgs),
     /// Update Token Multiplier Setter address on L1
-    UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    UpdateTokenMultiplierSetter(ForgeArgs),
     /// Provides calldata to set transaction filterer for a chain
     SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
     /// Provides calldata to set DA validator pair for a chain
     SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
     /// Enable EVM emulation on chain (Not supported yet)
-    EnableEvmEmulator(ForgeScriptArgs),
+    EnableEvmEmulator(ForgeArgs),
     /// Update pubdata pricing mode (used for Rollup -> Validium migration)
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)

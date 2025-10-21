@@ -99,11 +99,18 @@ impl EcosystemCommands {
             EcosystemCommands::BuildTransactions(args) => {
                 !args.common.skip_contract_compilation_override
             }
-            EcosystemCommands::Init(args) => !args.common.skip_contract_compilation_override,
+            EcosystemCommands::Init(args) => {
+                !args.common.skip_contract_compilation_override
+                    && !args.forge_args.runner.is_docker()
+            }
             EcosystemCommands::InitCoreContracts(args) => {
                 !args.common.skip_contract_compilation_override
+                    && !args.forge_args.runner.is_docker()
             }
-            EcosystemCommands::RegisterCTM(args) => !args.common.skip_contract_compilation_override,
+            EcosystemCommands::RegisterCTM(args) => {
+                !args.common.skip_contract_compilation_override
+                    && !args.forge_args.runner.is_docker()
+            }
         }
     }
 

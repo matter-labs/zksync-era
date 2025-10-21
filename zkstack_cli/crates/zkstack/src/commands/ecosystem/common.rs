@@ -2,7 +2,7 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
-    forge::{Forge, ForgeScriptArgs},
+    forge::{Forge, ForgeRunner, ForgeScriptArgs},
     logger,
     spinner::Spinner,
 };
@@ -34,6 +34,7 @@ use crate::{
 #[allow(clippy::too_many_arguments)]
 pub async fn deploy_l1_core_contracts(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     forge_args: &ForgeScriptArgs,
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
@@ -91,7 +92,7 @@ pub async fn deploy_l1_core_contracts(
         check_the_balance(&forge).await?;
     }
 
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
 
     let script_output = DeployL1CoreContractsOutput::read(
         shell,
@@ -106,6 +107,7 @@ pub async fn deploy_l1_core_contracts(
 
 pub async fn deploy_erc20(
     shell: &Shell,
+    runner: &mut ForgeRunner,
     erc20_deployment_config: &Erc20DeploymentConfig,
     ecosystem_config: &EcosystemConfig,
     contracts_config: &ContractsConfigForDeployERC20,
@@ -142,7 +144,7 @@ pub async fn deploy_erc20(
 
     let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
     check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    runner.run(shell, forge)?;
     spinner.finish();
 
     let result = ERC20Tokens::read(
