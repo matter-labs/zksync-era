@@ -39,6 +39,7 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
     pub diamond_init_priority_tx_max_pubdata: u64,
     pub expected_validium_l2_da_validator: Address,
 
+
     // Probably gonna need it to add new chains
     pub force_deployments_data: Bytes,
 
