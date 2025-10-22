@@ -342,8 +342,6 @@ impl ContractsConfig {
     }
 
     pub fn set_l2_shared_bridge(&mut self) -> anyhow::Result<()> {
-        self.bridges.shared.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
-        self.bridges.erc20.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
         Ok(())
     }
@@ -467,11 +465,20 @@ pub struct BridgesContracts {
     pub l1_nullifier_addr: Option<Address>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BridgeContractsDefinition {
     pub l1_address: Address,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub l2_address: Option<Address>,
+}
+
+impl Default for BridgeContractsDefinition {
+    fn default() -> Self {
+        Self {
+            l1_address: Address::zero(),
+            l2_address: Some(L2_ASSET_ROUTER_ADDRESS),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

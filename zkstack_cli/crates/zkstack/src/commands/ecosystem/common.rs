@@ -169,7 +169,7 @@ pub async fn init_chains(
     let mut deploy_paymaster = args.deploy_paymaster;
     let genesis_args = &mut args.genesis_args;
     if args.dev {
-        deploy_paymaster = Some(true);
+        deploy_paymaster = Some(deploy_paymaster.unwrap_or(true));
         if let Some(genesis) = genesis_args {
             genesis.dev = true;
         }
@@ -203,6 +203,7 @@ pub async fn init_chains(
             server_command: genesis_args.as_ref().and_then(|a| a.server_command.clone()),
             make_permanent_rollup: args.make_permanent_rollup,
             no_genesis: genesis_args.is_none(),
+            skip_priority_txs: args.skip_priority_txs,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
