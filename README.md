@@ -45,3 +45,5 @@ ZKsync Era has been through lots of testing and audits. Although it is live, it 
 through more audits and bug bounty programs. We would love to hear our community's thoughts and suggestions about it! It
 is important to state that forking it now can potentially lead to missing important security updates, critical features,
 and performance improvements.
+<br>## Welcome to ZK Rollups<br>zkSync Era's ZK proofs enable private Ethereum L2—new contributors, start with the Hyperchain tutorial for MegaETH-compatible scaling. Tip: Use zkEVM for validity! <br>
+
