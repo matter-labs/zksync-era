@@ -52,6 +52,8 @@ pub struct InitArgs {
     pub server_command: Option<String>,
     #[clap(long, short, action, help = MSG_NO_GENESIS)]
     pub no_genesis: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub pause_deposits: bool,
 }
 
 impl InitArgs {
@@ -129,6 +131,7 @@ impl InitArgs {
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
             make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
+            pause_deposits: self.pause_deposits,
         }
     }
 }
@@ -142,4 +145,5 @@ pub struct InitArgsFinal {
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
+    pub pause_deposits: bool,
 }

@@ -27,7 +27,8 @@ use crate::{
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
-        MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_GENESIS_DATABASE_ERR, MSG_PAUSING_DEPOSITS_BEFORE_INITIATING_MIGRATION_SPINNER,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
@@ -179,6 +180,23 @@ pub async fn init(
     let l1_da_validator_addr = get_l1_da_validator(chain_config)
         .await
         .context("l1_da_validator_addr")?;
+
+    if init_args.pause_deposits {
+        let spinner = Spinner::new(MSG_PAUSING_DEPOSITS_BEFORE_INITIATING_MIGRATION_SPINNER);
+        pause_deposits_before_initiating_migration(
+            shell,
+            &init_args.forge_args,
+            &ecosystem_config.path_to_foundry_scripts(),
+            crate::admin_functions::AdminScriptMode::Broadcast(
+                chain_config.get_wallets_config()?.governor,
+            ),
+            chain_config.chain_id.as_u64(),
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     let commitment_scheme =
         if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {

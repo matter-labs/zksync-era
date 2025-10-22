@@ -33,6 +33,8 @@ lazy_static! {
         parse_abi(&[
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
+            "function pauseDepositsBeforeInitiatingMigration(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
+            "function unpauseDeposits(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, uint8 _l2DaCommitmentScheme, bool _shouldSend) public",
             "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, uint8 _l2DaCommitmentScheme, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
@@ -500,6 +502,65 @@ pub(crate) async fn set_transaction_filterer(
             "setting transaction filterer {:#?} for chain {}",
             transaction_filterer_addr, chain_id
         ),
+    )
+    .await
+}
+
+pub(crate) async fn pause_deposits_before_initiating_migration(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "pauseDepositsBeforeInitiatingMigration",
+            (bridgehub, U256::from(chain_id), mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!(
+            "pausing deposits before initiating migration for chain {}",
+            chain_id
+        ),
+    )
+    .await
+}
+
+pub(crate) async fn unpause_deposits(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "unpauseDeposits",
+            (bridgehub, U256::from(chain_id), mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!("unpausing deposits for chain {}", chain_id),
     )
     .await
 }

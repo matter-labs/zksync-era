@@ -121,6 +121,9 @@ pub(super) const MSG_DEPLOYING_PROVING_NETWORKS_SPINNER: &str =
     "Deploying proving networks contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_PAUSING_DEPOSITS_BEFORE_INITIATING_MIGRATION_SPINNER: &str =
+    "Pausing deposits before initiating migration for chain...";
+pub(super) const MSG_UNPAUSING_DEPOSITS_SPINNER: &str = "Unpausing deposits for chain...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";

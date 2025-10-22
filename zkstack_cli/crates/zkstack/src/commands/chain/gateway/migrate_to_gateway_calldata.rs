@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use clap::Parser;
-use ethers::providers::Middleware;
+use ethers::{providers::Middleware, types::BlockNumber};
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
@@ -10,6 +10,7 @@ use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
+    constants::PAUSE_DEPOSITS_TIME_WINDOW_END,
     gateway_common::{
         get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
     },
@@ -19,7 +20,7 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        set_da_validator_pair_via_gateway, AdminScriptOutput,
+        set_da_validator_pair_via_gateway, unpause_deposits, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
     utils::{
@@ -142,13 +143,38 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l1_rpc_url.clone(),
     )
     .await?;
+    result.extend(finalize_migrate_to_gateway_output.calls);
+
+    // Unfortunately, there is no getter for the paused deposits timestamp, we have to read storage here.
+    let paused_deposits_timestamp = l1_provider
+        .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(62), None)
+        .await?;
+    let current_timestamp = l1_provider
+        .get_block(BlockNumber::Latest)
+        .await?
+        .context("Failed to get latest block")?
+        .timestamp;
+    if paused_deposits_timestamp + PAUSE_DEPOSITS_TIME_WINDOW_END >= current_timestamp {
+        // Unpause deposits after migration for better UX
+        let unpause_deposits_output = unpause_deposits(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            params.l2_chain_id,
+            params.l1_bridgehub_addr,
+            params.l1_rpc_url.clone(),
+        )
+        .await?;
+        result.extend(unpause_deposits_output.calls);
+    }
+
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator_commitment_scheme) = l1_zk_chain.get_da_validator_pair().await?;
 
     let l2_da_validator_commitment_scheme =
         L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
             .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
-    result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
     // read storage here.
