@@ -24,7 +24,7 @@ use zkstack_cli_config::{
     },
     override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
+    ChainConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::ProverMode;
 
@@ -81,11 +81,11 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
-    let genesis_input = GenesisInput::new(&chain_genesis_config)?;
+    let genesis_input = GenesisInput::new(&chain_genesis_config, chain_config.vm_option)?;
     override_config(
         shell,
         &ecosystem_config
-            .default_configs_path()
+            .default_configs_path_for_ctm(chain_config.vm_option)
             .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
         &chain_config,
     )?;
@@ -151,7 +151,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let vote_preparation_output = gateway_vote_preparation(
         shell,
         args.clone(),
-        &ecosystem_config,
         &chain_config,
         &chain_deployer_wallet,
         GatewayVotePreparationConfig::new(
@@ -162,7 +161,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             chain_config.chain_id.as_u64().into(),
             ecosystem_config.get_contracts_config()?.l1.governance_addr,
             ecosystem_config.prover_version == ProverMode::NoProofs,
-            chain_config.zksync_os,
+            chain_config.vm_option.is_zksync_os(),
             chain_deployer_wallet.address,
         ),
         l1_url.clone(),
@@ -176,12 +175,12 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     // These calls will produce some L1->L2 transactions. However tracking those is hard at this point, so we won't do it here.
     output = governance_execute_calls(
         shell,
-        &ecosystem_config,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(chain_config.vm_option),
         mode_ecosystem_governor,
         hex::decode(&vote_preparation_output.governance_calls_to_execute).unwrap(),
         &args,
         l1_url.clone(),
-        Some(bridgehub_governance_addr),
+        bridgehub_governance_addr,
     )
     .await?;
 
@@ -215,7 +214,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
 pub async fn gateway_vote_preparation(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
     chain_config: &ChainConfig,
     deployer: &Wallet,
     input: GatewayVotePreparationConfig,
@@ -232,7 +230,7 @@ pub async fn gateway_vote_preparation(
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =
-        Forge::new(&config.path_to_foundry_scripts())
+        Forge::new(&chain_config.path_to_foundry_scripts())
             .script(&GATEWAY_VOTE_PREPARATION.script(), forge_args.clone())
             .with_ffi()
             .with_rpc_url(l1_rpc_url)

@@ -258,6 +258,8 @@ pub struct L2ToL1LogProof {
     pub id: u32,
     /// The root of the tree.
     pub root: H256,
+    /// The L1 batch number where the log was included.
+    pub batch_number: L1BatchNumber,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

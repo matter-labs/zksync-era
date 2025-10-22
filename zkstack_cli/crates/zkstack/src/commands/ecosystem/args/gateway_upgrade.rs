@@ -8,6 +8,7 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_types::L1Network;
 
 use crate::{
+    commands::ecosystem::args::common::CommonEcosystemArgs,
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_RPC_URL_PROMPT,
@@ -37,6 +38,8 @@ pub enum GatewayUpgradeStage {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct GatewayUpgradeArgs {
+    #[command(flatten)]
+    pub common: CommonEcosystemArgs,
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
@@ -45,8 +48,6 @@ pub struct GatewayUpgradeArgs {
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
-    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
-    pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
 }
@@ -58,7 +59,7 @@ impl GatewayUpgradeArgs {
         l1_network: L1Network,
         dev: bool,
     ) -> GatewayUpgradeArgsFinal {
-        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
+        let l1_rpc_url = self.common.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
             if dev {
                 return LOCAL_RPC_URL.to_string();

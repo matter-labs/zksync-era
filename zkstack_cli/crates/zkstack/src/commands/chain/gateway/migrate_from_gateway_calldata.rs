@@ -153,6 +153,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
         hex::decode(
             &ecosystem_contracts_config
                 .ecosystem_contracts
+                .ctm
                 .diamond_cut_data,
         )
         .context("Failed to decode diamond cut data")?

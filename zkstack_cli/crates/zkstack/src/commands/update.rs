@@ -10,8 +10,9 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait, CONTRACTS_FILE,
-    EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR, ERA_VM_GENESIS_FILE, GENERAL_FILE, SECRETS_FILE,
 };
+use zkstack_cli_types::VMOption;
 
 use super::args::UpdateArgs;
 use crate::{
@@ -26,6 +27,12 @@ use crate::{
 };
 
 pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
+    let vm_option = if args.zksync_os {
+        VMOption::ZKSyncOsVM
+    } else {
+        VMOption::EraVM
+    };
+
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
@@ -33,11 +40,21 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
         update_repo(shell, &ecosystem)?;
     }
 
-    let general_config_path = ecosystem.default_configs_path().join(GENERAL_FILE);
-    let external_node_config_path = ecosystem.default_configs_path().join(EN_CONFIG_FILE);
-    let genesis_config_path = ecosystem.default_configs_path().join(GENESIS_FILE);
-    let contracts_config_path = ecosystem.default_configs_path().join(CONTRACTS_FILE);
-    let secrets_path = ecosystem.default_configs_path().join(SECRETS_FILE);
+    let general_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(GENERAL_FILE);
+    let external_node_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(EN_CONFIG_FILE);
+    let genesis_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(ERA_VM_GENESIS_FILE);
+    let contracts_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(CONTRACTS_FILE);
+    let secrets_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(SECRETS_FILE);
 
     for chain in ecosystem.list_of_chains() {
         logger::step(msg_updating_chain(&chain));

@@ -37,7 +37,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [ en, eth, net, web3, zks, pubsub, debug, unstable ]
+    api_namespaces: [en, eth, net, web3, zks, pubsub, debug, unstable]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -101,6 +101,9 @@ eth:
     is_verifier_pre_fflonk: true
     gas_limit_mode: CALCULATED
     max_acceptable_base_fee_in_wei: 100000000000
+    use_fusaka_blob_format: true
+    fusaka_upgrade_block: 0
+    fusaka_upgrade_safety_margin: 0
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100

@@ -30,6 +30,12 @@ pub async fn distribute_eth(
         if let Some(setter) = chain_wallets.token_multiplier_setter {
             addresses.push(setter.address)
         }
+        if let Some(operator) = chain_wallets.execute_operator {
+            addresses.push(operator.address)
+        }
+        if let Some(operator) = chain_wallets.prove_operator {
+            addresses.push(operator.address)
+        }
         zkstack_cli_common::ethereum::distribute_eth(
             wallets.operator,
             addresses,

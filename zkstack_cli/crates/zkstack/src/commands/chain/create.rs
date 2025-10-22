@@ -5,7 +5,7 @@ use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, SourceFiles, ZkStackConfig,
 };
 use zksync_basic_types::L2ChainId;
 
@@ -61,6 +61,7 @@ pub(crate) async fn create_chain_inner(
     ecosystem_config: &EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
+    let vm_option = args.vm_option;
     if args.legacy_bridge {
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
@@ -92,7 +93,7 @@ pub(crate) async fn create_chain_inner(
         "ecosystem_config.list_of_chains() after: {:?}",
         ecosystem_config.list_of_chains()
     );
-    let genesis_config_path = ecosystem_config.default_configs_path().join(GENESIS_FILE);
+    let genesis_config_path = ecosystem_config.default_genesis_path(vm_option);
     let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
     let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
@@ -118,8 +119,11 @@ pub(crate) async fn create_chain_inner(
         legacy_bridge,
         args.evm_emulator,
         args.tight_ports,
-        // TODO support creating zksync OS chains
-        false,
+        vm_option,
+        Some(SourceFiles {
+            contracts_path: ecosystem_config.contracts_path_for_ctm(args.vm_option),
+            default_configs_path: ecosystem_config.default_configs_path_for_ctm(args.vm_option),
+        }),
     );
 
     create_wallets(
