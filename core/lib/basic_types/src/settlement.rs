@@ -58,4 +58,8 @@ impl WorkingSettlementLayer {
             Some(self.unsafe_settlement_layer)
         }
     }
+
+    pub fn for_tests() -> Self {
+        Self::new(SettlementLayer::for_tests())
+    }
 }

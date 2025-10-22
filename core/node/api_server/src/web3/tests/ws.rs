@@ -8,7 +8,7 @@ use http::StatusCode;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api, settlement::SettlementLayer, Address, Bloom, L1BatchNumber, H160, H256, U64,
+    api, settlement::WorkingSettlementLayer, Address, Bloom, L1BatchNumber, H160, H256, U64,
 };
 use zksync_web3_decl::{
     client::{WsClient, L2},
@@ -174,7 +174,7 @@ async fn test_ws_server(test: impl WsTest) {
         &contracts_config.l2_contracts(),
         &genesis_config,
         false,
-        SettlementLayer::for_tests(),
+        WorkingSettlementLayer::for_tests(),
     );
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()

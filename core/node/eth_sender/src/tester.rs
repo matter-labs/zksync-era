@@ -471,6 +471,9 @@ impl EthSenderTester {
                     .map(l1_batch_with_metadata)
                     .collect(),
                 dependency_roots: vec![vec![], vec![]],
+                logs: vec![vec![], vec![]],
+                messages: vec![vec![vec![], vec![]]],
+                message_roots: vec![],
             }));
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await

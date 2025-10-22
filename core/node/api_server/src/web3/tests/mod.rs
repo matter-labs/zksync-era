@@ -35,7 +35,7 @@ use zksync_types::{
     eth_sender::EthTxFinalityStatus,
     fee_model::{BatchFeeInput, FeeParams},
     get_deployer_key, get_nonce_key,
-    settlement::SettlementLayer,
+    settlement::WorkingSettlementLayer,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tx::IncludedTxLocation,
@@ -285,7 +285,7 @@ async fn test_http_server(test: impl HttpTest) {
         &contracts_config.l2_contracts(),
         &genesis,
         false,
-        SettlementLayer::for_tests(),
+        WorkingSettlementLayer::for_tests(),
     );
 
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
