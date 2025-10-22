@@ -81,8 +81,11 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             Some(rng.gen())
         },
         interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
-        // FIXME: maybe use rng
-        settlement_layer: Some(SettlementLayer::L1(SLChainId::from(9))),
+        settlement_layer: if protocol_version < ProtocolVersionId::Version29 {
+            None
+        } else {
+            Some(SettlementLayer::L1(SLChainId(rng.gen::<u64>())))
+        },
     }
 }
 
