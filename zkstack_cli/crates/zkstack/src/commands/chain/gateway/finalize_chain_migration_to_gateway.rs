@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait};
+use zksync_basic_types::commitment::L2DACommitmentScheme;
 
 use super::migrate_to_gateway::get_migrate_to_gateway_context;
 use crate::{
@@ -108,13 +109,17 @@ pub async fn run_inner(
     // Set the DA validator pair on the Gateway
     let context = get_migrate_to_gateway_context(chain_config, gateway_chain_config, true).await?;
 
-    let (_, l2_da_validator) = context.l1_zk_chain.get_da_validator_pair().await?;
+    let (_, l2_da_validator_commitment_scheme) =
+        context.l1_zk_chain.get_da_validator_pair().await?;
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
+            .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
     check_permanent_rollup_and_set_da_validator_via_gateway(
         shell,
         &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
         &context,
-        l2_da_validator,
+        l2_da_validator_commitment_scheme,
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
     )
     .await?;

@@ -3,7 +3,6 @@ use std::{path::Path, sync::Arc};
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{encode, Token},
     prelude::Http,
     providers::{Middleware, Provider},
 };
