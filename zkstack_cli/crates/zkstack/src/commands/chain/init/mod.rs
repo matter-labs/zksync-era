@@ -1,9 +1,10 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
-use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::{
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_basic_types::Address;
@@ -146,9 +147,22 @@ pub async fn init(
         spinner.finish();
     }
 
-    // Enable EVM emulation if needed (run by L2 Governor)
-    if chain_config.evm_emulator {
-        enable_evm_emulator(
+    if !init_args.skip_priority_txs {
+        send_priority_txs(
+            shell,
+            chain_config,
+            ecosystem_config,
+            &mut contracts_config,
+            &init_args.forge_args,
+            init_args.l1_rpc_url.clone(),
+            init_args.deploy_paymaster,
+        )
+        .await?;
+    }
+
+    if init_args.make_permanent_rollup {
+        logger::info("Making permanent rollup!");
+        make_permanent_rollup(
             shell,
             &chain_config.path_to_foundry_scripts(),
             contracts_config.l1.chain_admin_addr,
@@ -158,58 +172,7 @@ pub async fn init(
             init_args.l1_rpc_url.clone(),
         )
         .await?;
-    }
-
-    // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
-    deploy_l2_contracts::deploy_l2_contracts(
-        shell,
-        chain_config,
-        ecosystem_config,
-        &mut contracts_config,
-        init_args.forge_args.clone(),
-        true,
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-
-    let l1_da_validator_addr = get_l1_da_validator(chain_config)
-        .await
-        .context("l1_da_validator_addr")?;
-
-    let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
-    set_da_validator_pair(
-        shell,
-        &init_args.forge_args,
-        &chain_config.path_to_foundry_scripts(),
-        crate::admin_functions::AdminScriptMode::Broadcast(
-            chain_config.get_wallets_config()?.governor,
-        ),
-        chain_config.chain_id.as_u64(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        l1_da_validator_addr,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
-
-    if init_args.make_permanent_rollup {
-        println!("Making permanent rollup!");
-        make_permanent_rollup(
-            shell,
-            &chain_config.path_to_foundry_scripts(),
-            contracts_config.l1.chain_admin_addr,
-            &chain_config.get_wallets_config()?.governor,
-            contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args.clone(),
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        println!("Done");
+        logger::info("Done making permanent rollup!");
     }
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
@@ -224,27 +187,90 @@ pub async fn init(
         .await?;
     }
 
-    // Deploy Paymaster contract (run by L2 Governor)
-    if init_args.deploy_paymaster {
-        let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
-        deploy_paymaster::deploy_paymaster(
-            shell,
-            chain_config,
-            &mut contracts_config,
-            init_args.forge_args.clone(),
-            None,
-            true,
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-        spinner.finish();
-    }
-
     if let Some(genesis_args) = &init_args.genesis_args {
         genesis(genesis_args, shell, chain_config)
             .await
             .context(MSG_GENESIS_DATABASE_ERR)?;
+    }
+
+    Ok(())
+}
+
+pub async fn send_priority_txs(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+    deploy_paymaster: bool,
+) -> anyhow::Result<()> {
+    // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
+    deploy_l2_contracts::deploy_l2_contracts(
+        shell,
+        chain_config,
+        ecosystem_config,
+        contracts_config,
+        forge_args.clone(),
+        true,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    let l1_da_validator_addr = get_l1_da_validator(chain_config)
+        .await
+        .context("l1_da_validator_addr")?;
+
+    let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+    set_da_validator_pair(
+        shell,
+        forge_args,
+        &chain_config.path_to_foundry_scripts(),
+        crate::admin_functions::AdminScriptMode::Broadcast(
+            chain_config.get_wallets_config()?.governor,
+        ),
+        chain_config.chain_id.as_u64(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        l1_da_validator_addr,
+        contracts_config
+            .l2
+            .da_validator_addr
+            .context("da_validator_addr")?,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+    spinner.finish();
+
+    // Enable EVM emulation if needed (run by L2 Governor)
+    if chain_config.evm_emulator {
+        enable_evm_emulator(
+            shell,
+            &chain_config.path_to_foundry_scripts(),
+            contracts_config.l1.chain_admin_addr,
+            &chain_config.get_wallets_config()?.governor,
+            contracts_config.l1.diamond_proxy_addr,
+            forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
+
+    // Deploy Paymaster contract (run by L2 Governor)
+    if deploy_paymaster {
+        let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
+        deploy_paymaster::deploy_paymaster(
+            shell,
+            chain_config,
+            contracts_config,
+            forge_args.clone(),
+            None,
+            true,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+        contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+        spinner.finish();
     }
 
     Ok(())
