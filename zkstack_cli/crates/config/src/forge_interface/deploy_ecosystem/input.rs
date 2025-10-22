@@ -6,8 +6,8 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkstack_cli_types::L1Network;
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
+use zkstack_cli_types::{L1Network, VMOption};
+use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, u256_to_h256, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
@@ -20,7 +20,7 @@ use crate::{
 pub struct GenesisInput {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
-    pub evm_emulator_hash: Option<H256>,
+    pub evm_emulator_hash: H256,
     pub genesis_root_hash: H256,
     pub rollup_last_leaf_index: u64,
     pub genesis_commitment: H256,
@@ -29,16 +29,33 @@ pub struct GenesisInput {
 
 impl GenesisInput {
     // FIXME: is this enough? (cf. aliases in the "real" config definition)
-    pub fn new(raw: &GenesisConfig) -> anyhow::Result<Self> {
-        Ok(Self {
-            bootloader_hash: raw.0.get("bootloader_hash")?,
-            default_aa_hash: raw.0.get("default_aa_hash")?,
-            evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?,
-            genesis_root_hash: raw.0.get("genesis_root")?,
-            rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
-            genesis_commitment: raw.0.get("genesis_batch_commitment")?,
-            protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
-        })
+    // For supporting zksync os genesis file, we need to have only genesis_root.
+    pub fn new(raw: &GenesisConfig, vmoption: VMOption) -> anyhow::Result<Self> {
+        match vmoption {
+            VMOption::EraVM => Ok(Self {
+                bootloader_hash: raw.0.get("bootloader_hash")?,
+                default_aa_hash: raw.0.get("default_aa_hash")?,
+                evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?.unwrap_or_default(),
+                genesis_root_hash: raw.0.get("genesis_root")?,
+                rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
+                genesis_commitment: raw.0.get("genesis_batch_commitment")?,
+                protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
+            }),
+            VMOption::ZKSyncOsVM => {
+                let one = u256_to_h256(U256::one());
+                let genesis_root = raw.0.get("genesis_root")?;
+                Ok(Self {
+                    genesis_root_hash: genesis_root,
+                    // Placeholders, not used in zkSync OS mode. But necessary to be provided.
+                    genesis_commitment: one,
+                    bootloader_hash: one,
+                    default_aa_hash: one,
+                    evm_emulator_hash: one,
+                    rollup_last_leaf_index: 0,
+                    protocol_version: Default::default(),
+                })
+            }
+        }
     }
 }
 
@@ -157,10 +174,10 @@ impl DeployL1Config {
         testnet_verifier: bool,
         l1_network: L1Network,
         support_l2_legacy_shared_bridge_test: bool,
-        zksync_os: bool,
+        vm_option: VMOption,
     ) -> Self {
         Self {
-            is_zk_sync_os: zksync_os,
+            is_zk_sync_os: vm_option.is_zksync_os(),
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,
@@ -232,7 +249,7 @@ pub struct ContractsDeployL1Config {
     pub diamond_init_minimal_l2_gas_price: u64,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
-    pub evm_emulator_hash: Option<H256>,
+    pub evm_emulator_hash: H256,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avail_l1_da_validator_addr: Option<Address>,
 }

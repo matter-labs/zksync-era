@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_config::ChainConfig;
-use zkstack_cli_types::{L1BatchCommitmentMode, L1Network};
+use zkstack_cli_types::{L1BatchCommitmentMode, L1Network, VMOption};
 
 use crate::{
     commands::chain::args::{
@@ -40,10 +40,8 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    #[clap(long)]
-    pub update_submodules: Option<bool>,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub make_permanent_rollup: Option<bool>,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub make_permanent_rollup: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(flatten)]
@@ -53,6 +51,7 @@ pub struct InitArgs {
     #[clap(long, short, action, help = MSG_NO_GENESIS)]
     pub no_genesis: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub skip_priority_txs: bool,
     pub pause_deposits: bool,
 }
 
@@ -71,10 +70,9 @@ impl InitArgs {
     }
 
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
-        let genesis = if !config.zksync_os {
-            self.get_genesis_args()
-        } else {
-            None
+        let genesis = match config.vm_option {
+            VMOption::EraVM => self.get_genesis_args(),
+            VMOption::ZKSyncOsVM => None,
         };
 
         let deploy_paymaster = if self.dev {
@@ -130,7 +128,8 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
-            make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
+            make_permanent_rollup: self.make_permanent_rollup,
+            skip_priority_txs: self.skip_priority_txs,
             pause_deposits: self.pause_deposits,
         }
     }
@@ -145,5 +144,6 @@ pub struct InitArgsFinal {
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
+    pub skip_priority_txs: bool,
     pub pause_deposits: bool,
 }

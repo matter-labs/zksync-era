@@ -17,6 +17,7 @@ use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData, L2BlockHeader},
     commitment::PubdataParams,
+    settlement::SettlementLayer,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,

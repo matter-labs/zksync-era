@@ -1,5 +1,30 @@
 # Changelog
 
+## [23.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.0.0...prover-v23.1.0) (2025-10-21)
+
+
+### Features
+
+* bumping versions ([#4555](https://github.com/matter-labs/zksync-era/issues/4555)) ([1cd803d](https://github.com/matter-labs/zksync-era/commit/1cd803d10af4942b500731f319caca2745a27f77))
+
+## [23.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v22.1.0...prover-v23.0.0) (2025-10-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* Upgrade prover version ([#4498](https://github.com/matter-labs/zksync-era/issues/4498))
+
+### Features
+
+* Bump dependencies ([#4495](https://github.com/matter-labs/zksync-era/issues/4495)) ([c27fe90](https://github.com/matter-labs/zksync-era/commit/c27fe90c5f6eab98ab2c1349e9f1017ad62a75d6))
+* Upgrade prover version ([#4498](https://github.com/matter-labs/zksync-era/issues/4498)) ([a3654fb](https://github.com/matter-labs/zksync-era/commit/a3654fb284ed0ca56d4018914542c9b7fc29f71c))
+
+
+### Bug Fixes
+
+* **eth_sender:** refactor support for eip7594 ([#4543](https://github.com/matter-labs/zksync-era/issues/4543)) ([462849a](https://github.com/matter-labs/zksync-era/commit/462849aa904dc84db05307c5e05d9e20c173a89d))
+* **prover:** Split scale errors per pool ([#4524](https://github.com/matter-labs/zksync-era/issues/4524)) ([0705b58](https://github.com/matter-labs/zksync-era/commit/0705b58a84a4e2e76951f46d95b15d6c22cd0e96))
+
 ## [22.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v22.0.0...prover-v22.1.0) (2025-09-06)
 
 

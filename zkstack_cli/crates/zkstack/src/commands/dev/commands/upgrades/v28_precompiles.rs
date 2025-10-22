@@ -163,9 +163,9 @@ pub struct V28PrecompilesCalldataArgs {
     l2_rpc_url: String,
     gw_rpc_url: String,
     server_upgrade_timestamp: u64,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     dangerous_no_cross_check: Option<bool>,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     force_display_finalization_params: Option<bool>,
 }
 

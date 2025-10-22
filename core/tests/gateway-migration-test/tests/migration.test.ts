@@ -159,6 +159,17 @@ describe('Migration From/To gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+
+        // Additionally wait until the priority queue is empty if we are migrating to gateway
+        if (direction == 'TO') {
+            let priorityQueueSize = await l1MainContract.getPriorityQueueSize();
+            let tryCount = 0;
+            while (priorityQueueSize > 0 && tryCount < 30) {
+                priorityQueueSize = await l1MainContract.getPriorityQueueSize();
+                tryCount += 1;
+                await utils.sleep(1);
+            }
+        }
     });
 
     step('Migrate to/from gateway', async () => {

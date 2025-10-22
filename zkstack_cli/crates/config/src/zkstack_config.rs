@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::bail;
 use xshell::Shell;
+use zkstack_cli_types::VMOption;
 
 use crate::{ChainConfig, ChainConfigInternal, EcosystemConfig, EcosystemConfigFromFileError};
 
@@ -42,29 +43,36 @@ impl ZkStackConfig {
 impl ZkStackConfigTrait for ZkStackConfig {
     fn link_to_code(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code().clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.link_to_code(),
             ZkStackConfig::ChainConfig(chain) => chain.link_to_code().clone(),
         }
     }
 
     fn default_configs_path(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.default_configs_path().clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem
+                // For default zksync config files we use default paths to foundry scripts
+                .default_configs_path_for_ctm(VMOption::EraVM)
+                .clone(),
             ZkStackConfig::ChainConfig(chain) => chain.default_configs_path().clone(),
         }
     }
 
     fn contracts_path(&self) -> PathBuf {
         match self {
-            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.contracts_path().clone(),
-            ZkStackConfig::ChainConfig(chain) => chain.contracts_path().clone(),
+            ZkStackConfig::EcosystemConfig(ecosystem) => {
+                // For default zksync config files we use default paths to foundry scripts
+                ecosystem.contracts_path_for_ctm(VMOption::EraVM)
+            }
+            ZkStackConfig::ChainConfig(chain) => chain.contracts_path(),
         }
     }
 
     fn path_to_foundry_scripts(&self) -> PathBuf {
         match self {
             ZkStackConfig::EcosystemConfig(ecosystem) => {
-                ecosystem.path_to_foundry_scripts().clone()
+                // For default zksync config files we use default paths to foundry scripts
+                ecosystem.path_to_foundry_scripts_for_ctm(VMOption::EraVM)
             }
             ZkStackConfig::ChainConfig(chain) => chain.path_to_foundry_scripts().clone(),
         }

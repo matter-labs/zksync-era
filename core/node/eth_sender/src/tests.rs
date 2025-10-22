@@ -300,6 +300,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             Address::random(),
             ProtocolVersionId::latest(),
             false,
+            false,
         )
         .await?;
 

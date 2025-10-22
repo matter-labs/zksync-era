@@ -11,6 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub struct GenesisConfig(pub(crate) RawConfig);
 
+// TODO get rid of the methods. Genesis config now should be used only for getting root data
 impl GenesisConfig {
     pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)

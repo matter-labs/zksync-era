@@ -74,7 +74,7 @@ pub struct NotifyServerCalldataArgs {
     pub l2_rpc_url: Option<String>,
     #[clap(long)]
     pub gw_rpc_url: Option<String>,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_missing_value = "true")]
     pub no_cross_check: bool,
 }
 

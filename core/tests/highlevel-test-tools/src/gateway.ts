@@ -37,6 +37,22 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
                 'gateway_migration'
             );
 
+            await executeCommand(
+                'zkstack',
+                [
+                    'chain',
+                    'gateway',
+                    'finalize-chain-migration-to-gateway',
+                    '--chain',
+                    chainName,
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--deploy-paymaster'
+                ],
+                chainName,
+                'gateway_migration'
+            );
+
             console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
 
             let server = await startServer(chainName);
