@@ -46,6 +46,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             first_l2_block: L2BlockParams::new(timestamp * 1000),
             pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
@@ -72,6 +73,7 @@ impl MockMainNodeClient {
             pubdata_params: Some(PubdataParams::genesis()),
             pubdata_limit: Some(100_000),
             interop_roots: Some(vec![]),
+            settlement_layer: Some(SettlementLayer::for_tests()),
         };
 
         Self {

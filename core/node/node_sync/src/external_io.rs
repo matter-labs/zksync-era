@@ -500,8 +500,8 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
-        api, commitment::PubdataParams, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
-        L2ChainId, ProtocolVersionId, H256,
+        api, commitment::PubdataParams, fee_model::BatchFeeInput, settlement::SettlementLayer,
+        L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
     };
 
     use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
@@ -543,6 +543,7 @@ mod tests {
             first_l2_block: L2BlockParams::new(1000),
             pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

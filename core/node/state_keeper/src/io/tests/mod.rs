@@ -599,7 +599,6 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
-        SettlementLayer::for_tests(),
     );
     let version = batch_init_params.system_env.version;
     let mut updates = UpdatesManager::new(
