@@ -2,7 +2,7 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId, U256};
 
-use crate::{traits::FileConfigTrait, ChainConfig, ContractsConfig, DAValidatorType};
+use crate::{traits::FileConfigTrait, ChainConfig, DAValidatorType};
 
 impl FileConfigTrait for DeployL2ContractsInput {}
 
@@ -23,7 +23,7 @@ pub struct DeployL2ContractsInput {
 impl DeployL2ContractsInput {
     pub async fn new(
         chain_config: &ChainConfig,
-        contracts_config: &ContractsConfig,
+        governance_addr: Address,
         era_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let contracts = chain_config.get_contracts_config()?;
@@ -35,7 +35,7 @@ impl DeployL2ContractsInput {
             chain_id: chain_config.chain_id,
             l1_shared_bridge: contracts.bridges.shared.l1_address,
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
-            governance: contracts_config.l1.governance_addr,
+            governance: governance_addr,
             erc20_bridge: contracts.bridges.erc20.l1_address,
             da_validator_type: U256::from(da_validator_type as u8),
             consensus_registry_owner: wallets.governor.address,
@@ -44,11 +44,15 @@ impl DeployL2ContractsInput {
 }
 
 async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidatorType> {
-    let general = config.get_general_config().await?;
+    let da_client_type = config
+        .get_general_config()
+        .await
+        .map(|c| c.da_client_type())
+        .unwrap_or_default();
 
     match (
         config.l1_batch_commit_data_generator_mode,
-        general.da_client_type().as_deref(),
+        da_client_type.as_deref(),
     ) {
         (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
         (L1BatchCommitmentMode::Validium, None | Some("NoDA")) => Ok(DAValidatorType::NoDA),

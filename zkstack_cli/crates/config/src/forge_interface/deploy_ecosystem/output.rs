@@ -34,15 +34,9 @@ impl FileConfigTrait for DeployL1CoreContractsOutput {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployCTMOutput {
-    pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
-    pub deployer_addr: Address,
-    pub era_chain_id: u32,
-    pub l1_chain_id: u32,
-    pub multicall3_addr: Address,
-    pub owner_address: Address,
     pub contracts_config: DeployCTMContractsConfigOutput,
     pub deployed_addresses: DeployCTMDeployedAddressesOutput,
+    pub multicall3_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -51,9 +45,6 @@ pub struct DeployCTMDeployedAddressesOutput {
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
     pub chain_admin: Address,
-    pub access_control_restriction_addr: Address,
-    pub bridgehub: L1BridgehubOutput,
-    pub bridges: L1BridgesOutput,
     pub state_transition: L1StateTransitionOutput,
     pub rollup_l1_da_validator_addr: Address,
     pub no_da_validium_l1_validator_addr: Address,

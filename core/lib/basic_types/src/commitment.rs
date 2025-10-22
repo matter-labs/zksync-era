@@ -107,6 +107,12 @@ pub enum L2DACommitmentScheme {
     BlobsAndPubdataKeccak256 = 3,
 }
 
+impl L2DACommitmentScheme {
+    pub fn is_none(&self) -> bool {
+        *self == L2DACommitmentScheme::None
+    }
+}
+
 impl TryFrom<u8> for L2DACommitmentScheme {
     type Error = &'static str;
     fn try_from(value: u8) -> Result<Self, Self::Error> {

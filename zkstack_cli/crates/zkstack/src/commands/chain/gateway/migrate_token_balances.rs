@@ -106,14 +106,14 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
         args.skip_funding.unwrap_or(false),
         &args.forge_args.clone(),
         args.to_gateway.unwrap_or(true),
-        &ecosystem_config.path_to_foundry_scripts(),
+        &chain_config.path_to_foundry_scripts(),
         ecosystem_config
             .get_wallets()?
             .deployer
             .context("Missing deployer wallet")?,
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_config.chain_id.as_u64(),

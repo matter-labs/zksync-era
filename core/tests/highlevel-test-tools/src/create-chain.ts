@@ -179,8 +179,6 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
                 [
                     'chain',
                     'create',
-                    '--update-submodules',
-                    'false',
                     '--chain-name',
                     chainConfig.chainName,
                     '--chain-id',
@@ -228,8 +226,7 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
                     chainConfig.chainName,
                     '--validium-type',
                     'no-da',
-                    '--update-submodules',
-                    'false',
+                    ...(process.env.USE_GATEWAY_CHAIN === 'WITH_GATEWAY' ? ['--skip-priority-txs'] : []),
                     '--verbose'
                 ],
                 chainConfig.chainName,

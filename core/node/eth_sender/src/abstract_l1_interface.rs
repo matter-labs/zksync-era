@@ -247,6 +247,11 @@ impl AbstractL1Interface for RealL1Interface {
                                 .iter()
                                 .map(|blob| H256::from_slice(&blob.versioned_hash))
                                 .collect(),
+                            EthTxBlobSidecar::EthTxBlobSidecarV2(s) => s
+                                .blobs
+                                .iter()
+                                .map(|blob| H256::from_slice(&blob.versioned_hash))
+                                .collect(),
                         });
                     }
                 }),

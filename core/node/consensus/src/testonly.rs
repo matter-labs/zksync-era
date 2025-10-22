@@ -42,7 +42,7 @@ use zksync_types::{
     commitment::PubdataParams,
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    settlement::SettlementLayer,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     Transaction,
 };
@@ -265,6 +265,7 @@ impl StateKeeper {
                     pubdata_params: PubdataParams::genesis(),
                     pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
                         .then_some(100_000),
+                    settlement_layer: SettlementLayer::for_tests(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -588,7 +589,7 @@ impl StateKeeperRunner {
                     &contracts_config.l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                     false,
-                    SettlementLayer::for_tests(),
+                    WorkingSettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -682,7 +683,7 @@ impl StateKeeperRunner {
                     &contracts_config.l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                     false,
-                    SettlementLayer::for_tests(),
+                    WorkingSettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)

@@ -14,7 +14,17 @@ use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
     let mut contracts = chain_config.get_contracts_config()?;
-    deploy_paymaster(shell, &chain_config, &mut contracts, args, None, true).await?;
+    let l1_rpc_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    deploy_paymaster(
+        shell,
+        &chain_config,
+        &mut contracts,
+        args,
+        None,
+        true,
+        l1_rpc_url,
+    )
+    .await?;
     contracts.save_with_base_path(shell, chain_config.configs)
 }
 
@@ -25,6 +35,7 @@ pub async fn deploy_paymaster(
     forge_args: ForgeScriptArgs,
     sender: Option<String>,
     broadcast: bool,
+    l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
     let foundry_contracts_path = chain_config.path_to_foundry_scripts();
@@ -32,12 +43,11 @@ pub async fn deploy_paymaster(
         shell,
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&foundry_contracts_path),
     )?;
-    let secrets = chain_config.get_secrets_config().await?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(secrets.l1_rpc_url()?);
+        .with_rpc_url(l1_rpc_url);
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

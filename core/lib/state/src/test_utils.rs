@@ -6,6 +6,7 @@ use zksync_dal::{pruning_dal::HardPruningStats, Connection, ConnectionPool, Core
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     commitment::PubdataParams,
+    settlement::SettlementLayer,
     snapshots::SnapshotRecoveryStatus,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     StorageKey, StorageLog, H256,
