@@ -28,7 +28,7 @@ use zksync_node_test_utils::{
 };
 use zksync_types::{
     block::L2BlockHeader,
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
@@ -159,6 +159,7 @@ impl Tester {
             Duration::from_secs(1),
             L2ChainId::from(270),
             Some(Default::default()),
+            Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
             Some(SettlementLayer::L1(chain_id)),
         )

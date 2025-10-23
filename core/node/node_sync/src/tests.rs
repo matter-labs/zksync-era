@@ -21,6 +21,7 @@ use zksync_state_keeper::{
 use zksync_types::{
     api,
     block::{L2BlockHasher, UnsealedL1BatchHeader},
+    commitment::PubdataParams,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotRecoveryStatus,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -42,7 +43,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams::new(timestamp * 1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
         },
         number: L1BatchNumber(number),
@@ -67,7 +68,7 @@ impl MockMainNodeClient {
             virtual_blocks: Some(0),
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
-            pubdata_params: Default::default(),
+            pubdata_params: Some(PubdataParams::genesis()),
             pubdata_limit: Some(100_000),
             interop_roots: Some(vec![]),
         };
