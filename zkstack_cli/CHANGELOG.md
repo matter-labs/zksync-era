@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.2](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.1...zkstack_cli-v0.2.2) (2025-10-23)
+
+
+### Features
+
+* add support for eip-7594 blob format ([#4542](https://github.com/matter-labs/zksync-era/issues/4542)) ([b57d6f6](https://github.com/matter-labs/zksync-era/commit/b57d6f6eb2c908692f356f584a8e3b0158ef2969))
+* **zkstack:** ensure priority queue is empty before migrating to gateway ([#4539](https://github.com/matter-labs/zksync-era/issues/4539)) ([a5e1133](https://github.com/matter-labs/zksync-era/commit/a5e1133e4974bde5e2dad81b211e5a205f6a65f5))
+* **zkstack:** support genesis for zksync os ([#4536](https://github.com/matter-labs/zksync-era/issues/4536)) ([c577d86](https://github.com/matter-labs/zksync-era/commit/c577d867cc3081b4ce12c59351e0a32c2fdfe241))
+
+
+### Bug Fixes
+
+* **zkstack:** fix `--update-submodules` flag to accept explicit values ([#4559](https://github.com/matter-labs/zksync-era/issues/4559)) ([88481ce](https://github.com/matter-labs/zksync-era/commit/88481cefa8e1536c95698cd7b07d37fd0e4bbe43))
+* **zkstack:** get rid of more dependencies from config ([#4554](https://github.com/matter-labs/zksync-era/issues/4554)) ([9e59509](https://github.com/matter-labs/zksync-era/commit/9e595099746fae6e216431270075dfa44d805b71))
+
 ## [0.2.1](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.0...zkstack_cli-v0.2.1) (2025-10-09)
 
 
