@@ -39,8 +39,10 @@ zkstack chain init \
             --l1-rpc-url=http://127.0.0.1:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --server-db-name=zksync_server_localhost_validium \
-            --chain validium --update-submodules false \
-            --validium-type no-da
+            --chain validium \
+            --validium-type no-da \
+            --skip-priority-txs \
+            --pause-deposits
 
 zkstack chain create \
         --chain-name gateway \
@@ -60,7 +62,7 @@ zkstack chain init \
             --l1-rpc-url=http://127.0.0.1:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --server-db-name=zksync_server_localhost_gateway \
-            --chain gateway --update-submodules false
+            --chain gateway
 
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era1.log &
 zkstack server wait --ignore-prerequisites --verbose --chain era
@@ -93,8 +95,14 @@ zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
 sleep 20
 
+# TODO: should pause deposits on chain `era` before migrating to gateway. Not needed now as the contract check is disabled.
 zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
+zkstack chain gateway finalize-chain-migration-to-gateway --chain era --gateway-chain-name gateway --deploy-paymaster
 zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
+zkstack chain gateway finalize-chain-migration-to-gateway --chain validium --gateway-chain-name gateway --deploy-paymaster
+
+# Chain registrations on chain `validium` were skipped, as its deposits were paused. Do these registrations now
+zkstack chain validium register-on-all-chains
 
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log & 
 zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium.log & 
