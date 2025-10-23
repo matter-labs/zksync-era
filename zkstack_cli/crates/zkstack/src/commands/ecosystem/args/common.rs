@@ -14,7 +14,7 @@ use crate::{
 pub struct CommonEcosystemArgs {
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub(crate) zksync_os: bool,
-    #[clap(long, default_value_t = true)]
+    #[clap(long, default_value_t = true, num_args = 0..=1)]
     pub(crate) update_submodules: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub(crate) skip_contract_compilation_override: bool,
