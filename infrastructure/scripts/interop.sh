@@ -105,7 +105,8 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
   --server-db-url="${DB_URL}" \
   --server-db-name="${DB_ERA_NAME}" \
   --ignore-prerequisites --observability=false \
-  --chain "${ERA_CHAIN}" 
+  --skip-contract-compilation-override \
+  --chain "${ERA_CHAIN}"
 
 ########################################
 # Stage 2: Create + init Validium & Gateway (config before servers!)
@@ -185,7 +186,11 @@ sleep 2
 ########################################
 log "Preparing Gateway mode transforms…"
 # Create filterer + convert to gateway
+
+log "Creating GATEWAY chain tx filterer…"
 zkstack chain gateway create-tx-filterer --chain "${GATEWAY_CHAIN}" --ignore-prerequisites
+
+log "Converting GATEWAY chain to Gateway mode…"
 zkstack chain gateway convert-to-gateway --chain "${GATEWAY_CHAIN}" --ignore-prerequisites
 
 # Write gateway config (this produces the gateway.yaml needed by the server)
