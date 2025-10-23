@@ -25,7 +25,7 @@ pub struct ManageDepositsArgs {
 }
 
 pub async fn run(
-    args: ForgeScriptArgs,
+    args: ManageDepositsArgs,
     shell: &Shell,
     option: ManageDepositsOption,
 ) -> anyhow::Result<()> {

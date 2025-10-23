@@ -52,6 +52,7 @@ pub struct InitArgs {
     pub no_genesis: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub skip_priority_txs: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub pause_deposits: bool,
 }
 
