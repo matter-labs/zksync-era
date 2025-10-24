@@ -69,7 +69,7 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
             ).deployedBytecode,
             chainTypeManager: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/l1-contracts/out/ChainTypeManager.sol/ChainTypeManager.json`).abi
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/EraChainTypeManager.sol/EraChainTypeManager.json`).abi
             )
         };
     } else {
