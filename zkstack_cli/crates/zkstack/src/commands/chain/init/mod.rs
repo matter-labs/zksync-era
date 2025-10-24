@@ -11,8 +11,7 @@ use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
     admin_functions::{
-        accept_admin, make_permanent_rollup, pause_deposits_before_initiating_migration,
-        set_da_validator_pair,
+        accept_admin, make_permanent_rollup, set_da_validator_pair, unpause_deposits,
     },
     commands::chain::{
         args::init::{
@@ -33,7 +32,8 @@ use crate::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
         MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_UNPAUSING_DEPOSITS_SPINNER, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -110,23 +110,6 @@ pub async fn init(
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
-    if init_args.pause_deposits {
-        let spinner = Spinner::new(MSG_PAUSING_DEPOSITS_BEFORE_INITIATING_MIGRATION_SPINNER);
-        pause_deposits_before_initiating_migration(
-            shell,
-            &init_args.forge_args,
-            &chain_config.path_to_foundry_scripts(),
-            crate::admin_functions::AdminScriptMode::Broadcast(
-                chain_config.get_wallets_config()?.governor,
-            ),
-            chain_config.chain_id.as_u64(),
-            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        spinner.finish();
-    }
-
     // Accept ownership for DiamondProxy (run by L2 Governor)
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
@@ -140,6 +123,24 @@ pub async fn init(
     )
     .await?;
     spinner.finish();
+
+    if !init_args.pause_deposits {
+        // Deposits are paused by default to allow immediate Gateway migration. If specified, unpause them.
+        let spinner = Spinner::new(MSG_UNPAUSING_DEPOSITS_SPINNER);
+        unpause_deposits(
+            shell,
+            &init_args.forge_args,
+            &chain_config.path_to_foundry_scripts(),
+            crate::admin_functions::AdminScriptMode::Broadcast(
+                chain_config.get_wallets_config()?.governor,
+            ),
+            chain_config.chain_id.as_u64(),
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     // Set token multiplier setter address (run by L2 Governor)
     if chain_config.base_token != BaseToken::eth() {
