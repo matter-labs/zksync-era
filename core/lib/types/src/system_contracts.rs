@@ -4,7 +4,7 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    DUMMY_ADDRESS_2, DUMMY_ADDRESS_3, DUMMY_ADDRESS_4, EVENT_WRITER_ADDRESS,
+    DUMMY_ADDRESS_1, DUMMY_ADDRESS_2, DUMMY_ADDRESS_3, DUMMY_ADDRESS_4, EVENT_WRITER_ADDRESS,
     EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS,
     GW_ASSET_TRACKER_ADDRESS, IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_TRACKER_ADDRESS,
     L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
@@ -32,7 +32,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 48] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 49] = [
     (
         "",
         "AccountCodeStorage",
@@ -295,7 +295,13 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 48] = [
         GW_ASSET_TRACKER_ADDRESS,
         ContractLanguage::Sol,
     ),
-    // FIXME: I DUMMY_ADDRESS_1 is missing
+    // todo FIXME, deploy normally instead using DUMMY_ADDRESS and deploying on genesis
+    (
+        "../../l1-contracts/zkout/",
+        "TransparentUpgradeableProxy",
+        DUMMY_ADDRESS_1,
+        ContractLanguage::Sol,
+    ),
     (
         "../../l1-contracts/zkout/",
         "BridgedStandardERC20",
