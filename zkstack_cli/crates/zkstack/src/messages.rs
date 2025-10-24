@@ -120,6 +120,7 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
 pub(super) const MSG_DEPLOYING_PROVING_NETWORKS_SPINNER: &str =
     "Deploying proving networks contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
+pub(super) const MSG_REGISTERING_ON_ALL_CHAINS_SPINNER: &str = "Registering on all chains...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_PAUSING_DEPOSITS_BEFORE_INITIATING_MIGRATION_SPINNER: &str =
     "Pausing deposits before initiating migration for chain...";

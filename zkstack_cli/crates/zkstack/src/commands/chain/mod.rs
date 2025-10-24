@@ -31,6 +31,7 @@ pub mod genesis;
 pub mod init;
 pub mod manage_deposits;
 pub mod register_chain;
+pub mod register_on_all_chains;
 mod set_da_validator_pair;
 mod set_da_validator_pair_calldata;
 mod set_pubdata_pricing_mode;
@@ -49,6 +50,8 @@ pub enum ChainCommands {
     Init(Box<ChainInitCommand>),
     /// Run server genesis
     Genesis(GenesisCommand),
+    /// Register a chain on all other chains
+    RegisterOnAllChains(ForgeScriptArgs),
     /// Register a new chain on L1 (executed by L1 governor).
     /// This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts,
     /// registers chain with BridgeHub and sets pending admin for DiamondProxy.
@@ -108,6 +111,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
+        ChainCommands::RegisterOnAllChains(args) => register_on_all_chains::run(args, shell).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await

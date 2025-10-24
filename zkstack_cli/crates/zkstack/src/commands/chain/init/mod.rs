@@ -24,6 +24,7 @@ use crate::{
         genesis::genesis,
         init::configs::init_configs,
         register_chain::register_chain,
+        register_on_all_chains::register_on_all_chains,
         set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
     },
@@ -31,8 +32,7 @@ use crate::{
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
-        MSG_GENESIS_DATABASE_ERR, MSG_PAUSING_DEPOSITS_BEFORE_INITIATING_MIGRATION_SPINNER,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
@@ -304,6 +304,18 @@ pub async fn send_priority_txs(
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
     }
+
+    // Register chain on all other chains
+    register_on_all_chains(
+        shell,
+        &chain_config.path_to_foundry_scripts(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        chain_config.chain_id,
+        &chain_config.get_wallets_config()?.governor,
+        forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
 
     Ok(())
 }
