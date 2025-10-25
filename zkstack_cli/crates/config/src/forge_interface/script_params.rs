@@ -54,6 +54,12 @@ pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/RegisterZKChain.s.sol",
 };
 
+pub const REGISTER_ON_ALL_CHAINS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/register-on-all-chains.toml",
+    output: "script-out/output-register-on-all-chains.toml",
+    script_path: "deploy-scripts/RegisterOnAllChains.s.sol",
+};
+
 pub const DEPLOY_ERC20_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-erc20.toml",
     output: "script-out/output-deploy-erc20.toml",

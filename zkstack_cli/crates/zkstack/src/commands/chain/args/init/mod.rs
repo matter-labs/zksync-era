@@ -52,6 +52,8 @@ pub struct InitArgs {
     pub no_genesis: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub skip_priority_txs: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub pause_deposits: bool,
 }
 
 impl InitArgs {
@@ -129,6 +131,7 @@ impl InitArgs {
             validium_config,
             make_permanent_rollup: self.make_permanent_rollup,
             skip_priority_txs: self.skip_priority_txs,
+            pause_deposits: self.pause_deposits,
         }
     }
 }
@@ -143,4 +146,5 @@ pub struct InitArgsFinal {
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
     pub skip_priority_txs: bool,
+    pub pause_deposits: bool,
 }
