@@ -2,9 +2,12 @@ use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zkstack_cli_config::{copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig};
+use zkstack_cli_config::{
+    copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig, ZkStackConfigTrait,
+};
 
 use crate::{
+    admin_functions::unpause_deposits,
     commands::chain::{
         args::build_transactions::BuildTransactionsArgs, register_chain::register_chain,
     },
@@ -12,7 +15,7 @@ use crate::{
         MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_CHAIN_TRANSACTIONS_BUILT, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
         MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR, MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_WRITING_OUTPUT_FILES_SPINNER,
+        MSG_UNPAUSING_DEPOSITS_SPINNER, MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
 
@@ -69,6 +72,26 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     contracts.l1.base_token_addr = chain_config.base_token.address;
     contracts.save_with_base_path(shell, &args.out)?;
     spinner.finish();
+
+    if !args.pause_deposits {
+        // Deposits are paused by default to allow immediate Gateway migration, so we need to unpause them.
+        let spinner = Spinner::new(MSG_UNPAUSING_DEPOSITS_SPINNER);
+        unpause_deposits(
+            shell,
+            &args.forge_args,
+            &chain_config.path_to_foundry_scripts(),
+            crate::admin_functions::AdminScriptMode::Broadcast(
+                chain_config.get_wallets_config()?.governor,
+            ),
+            chain_config.chain_id.as_u64(),
+            contracts_config
+                .core_ecosystem_contracts
+                .bridgehub_proxy_addr,
+            args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
     shell
