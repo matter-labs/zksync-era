@@ -24,8 +24,6 @@ pub struct BuildTransactionsArgs {
     pub forge_args: ForgeScriptArgs,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
-    #[clap(long, default_value_t = false, default_missing_value = "true")]
-    pub pause_deposits: bool,
 }
 
 impl BuildTransactionsArgs {
@@ -50,7 +48,6 @@ impl BuildTransactionsArgs {
                 .join(chain_name.unwrap_or(default_chain)),
             forge_args: self.forge_args,
             l1_rpc_url,
-            pause_deposits: self.pause_deposits,
         }
     }
 }
@@ -60,5 +57,4 @@ pub struct BuildTransactionsArgsFinal {
     pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,
     pub l1_rpc_url: String,
-    pub pause_deposits: bool,
 }
