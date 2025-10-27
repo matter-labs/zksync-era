@@ -39,7 +39,7 @@ zkstack chain init \
             --l1-rpc-url=http://127.0.0.1:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --server-db-name=zksync_server_localhost_validium \
-            --chain validium --update-submodules false \
+            --chain validium \
             --validium-type no-da
 
 zkstack chain create \
@@ -60,7 +60,7 @@ zkstack chain init \
             --l1-rpc-url=http://127.0.0.1:8545 \
             --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --server-db-name=zksync_server_localhost_gateway \
-            --chain gateway --update-submodules false
+            --chain gateway
 
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era1.log &
 zkstack server wait --ignore-prerequisites --verbose --chain era

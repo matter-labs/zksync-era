@@ -4,6 +4,8 @@
 
 import { TestMaster } from '../src';
 import { Token } from '../src/types';
+import * as utils from 'utils';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -12,6 +14,8 @@ import { waitForL2ToL1LogProof } from '../src/helpers';
 import { RetryableWallet } from '../src/retry-provider';
 
 import { scaledGasPrice, deployContract, waitUntilBlockFinalized } from '../src/helpers';
+
+const fileConfig = shouldLoadConfigFromFile();
 
 /**
  * Formats an Ethereum address as ERC-7930 InteroperableAddress bytes
@@ -343,6 +347,10 @@ describe('Interop behavior checks', () => {
         tokenA.assetId = await interop1NativeTokenVault.assetId(tokenA.l2Address);
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
         interop1TokenA = new zksync.Contract(tokenA.l2Address, ArtifactMintableERC20.abi, interop1Wallet);
+
+        await utils.spawn(
+            `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
+        );
     });
 
     test('Can perform cross chain transfer', async () => {

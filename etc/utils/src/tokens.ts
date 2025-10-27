@@ -7,7 +7,7 @@ import * as zksync from 'zksync-ethers';
 
 import {
     ArtifactL1AssetTracker,
-    ArtifactBridgeHub,
+    ArtifactL1BridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
     ArtifactL1NativeTokenVault,
@@ -24,7 +24,7 @@ export interface EcosystemContracts {
 export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<EcosystemContracts> {
     const bridgehub = new ethers.Contract(
         await (await wallet.getBridgehubContract()).getAddress(),
-        ArtifactBridgeHub.abi,
+        ArtifactL1BridgeHub.abi,
         wallet.providerL1!
     );
     // console.log('bridgehub', await bridgehub.getAddress());
