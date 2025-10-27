@@ -1,5 +1,13 @@
 # Changelog
 
+## [29.6.0](https://github.com/matter-labs/zksync-era/compare/core-v29.5.0...core-v29.6.0) (2025-10-27)
+
+
+### Features
+
+* bumping versions ([#4555](https://github.com/matter-labs/zksync-era/issues/4555)) ([1cd803d](https://github.com/matter-labs/zksync-era/commit/1cd803d10af4942b500731f319caca2745a27f77))
+* **zkstack:** ensure priority queue is empty before migrating to gateway ([#4539](https://github.com/matter-labs/zksync-era/issues/4539)) ([a5e1133](https://github.com/matter-labs/zksync-era/commit/a5e1133e4974bde5e2dad81b211e5a205f6a65f5))
+
 ## [29.5.0](https://github.com/matter-labs/zksync-era/compare/core-v29.4.1...core-v29.5.0) (2025-10-16)
 
 
