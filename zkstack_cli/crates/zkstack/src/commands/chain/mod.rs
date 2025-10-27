@@ -3,7 +3,6 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
-use manage_deposits::ManageDepositsArgs;
 use set_da_validator_pair::SetDAValidatorPairArgs;
 use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
@@ -96,9 +95,9 @@ pub enum ChainCommands {
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
     /// Pause deposits before initiating a chain migration to gateway
     #[command(alias = "pause-deposits")]
-    PauseDepositsBeforeInitiatingMigration(ManageDepositsArgs),
+    PauseDepositsBeforeInitiatingMigration(ForgeScriptArgs),
     /// Manually unpause deposits early for better UX
-    UnpauseDeposits(ManageDepositsArgs),
+    UnpauseDeposits(ForgeScriptArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)
     SetDAValidatorPair(SetDAValidatorPairArgs),
     #[command(subcommand, alias = "gw")]

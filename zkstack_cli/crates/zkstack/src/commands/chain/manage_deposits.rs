@@ -1,9 +1,6 @@
-use anyhow::Context;
-use clap::Parser;
-use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_config::ZkStackConfigTrait;
-use zksync_types::Address;
+use zkstack_cli_common::forge::ForgeScriptArgs;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 
 use super::utils::display_admin_script_output;
 use crate::admin_functions::{
@@ -15,22 +12,18 @@ pub enum ManageDepositsOption {
     UnpauseDeposits,
 }
 
-#[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct ManageDepositsArgs {
-    /// Bridgehub address
-    pub bridgehub_address: Address,
-    /// The chain ID of the ZK chain
-    pub chain_id: u64,
-    pub l1_rpc_url: String,
-}
-
 pub async fn run(
-    args: ManageDepositsArgs,
+    args: ForgeScriptArgs,
     shell: &Shell,
     option: ManageDepositsOption,
 ) -> anyhow::Result<()> {
-    let chain_config = zkstack_cli_config::ZkStackConfig::current_chain(shell)
-        .context("Failed to load the current chain configuration")?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let chain_id = chain_config.chain_id;
+
+    let contracts_config = chain_config.get_contracts_config()?;
+    let bridgehub_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+    let secrets = chain_config.get_secrets_config().await?;
+    let l1_rpc_url = secrets.l1_rpc_url()?;
 
     let result = match option {
         ManageDepositsOption::PauseDeposits => {
@@ -38,10 +31,10 @@ pub async fn run(
                 shell,
                 &Default::default(),
                 &chain_config.path_to_foundry_scripts(),
-                AdminScriptMode::OnlySave,
-                args.chain_id,
-                args.bridgehub_address,
-                args.l1_rpc_url,
+                AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+                chain_id.as_u64(),
+                bridgehub_address,
+                l1_rpc_url,
             )
             .await?
         }
@@ -50,10 +43,10 @@ pub async fn run(
                 shell,
                 &Default::default(),
                 &chain_config.path_to_foundry_scripts(),
-                AdminScriptMode::OnlySave,
-                args.chain_id,
-                args.bridgehub_address,
-                args.l1_rpc_url,
+                AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+                chain_id.as_u64(),
+                bridgehub_address,
+                l1_rpc_url,
             )
             .await?
         }
