@@ -95,7 +95,7 @@ zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
 sleep 20
 
-# TODO: should pause deposits on chain `era` before migrating to gateway. Not needed now as the contract check is disabled.
+zkstack chain pause-deposits --chain era
 zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
 zkstack chain gateway finalize-chain-migration-to-gateway --chain era --gateway-chain-name gateway --deploy-paymaster
 zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
