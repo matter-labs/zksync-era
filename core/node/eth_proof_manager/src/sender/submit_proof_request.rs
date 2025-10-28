@@ -169,7 +169,7 @@ impl ProofRequestSubmitter {
                 );
             }
             Err(e) => {
-                METRICS.failed_to_send_tx[&TxType::ProofRequest].inc();
+                METRICS.reached_max_attempts[&TxType::ProofRequest].inc_by(1);
                 return Err(anyhow::anyhow!(
                     "Failed to submit proof request for batch {}, error: {}",
                     batch_id,

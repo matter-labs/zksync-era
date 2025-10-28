@@ -7,7 +7,6 @@ use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
 use crate::client::EthProofManagerClient;
-
 mod client;
 mod metrics;
 pub mod node;

@@ -8,6 +8,7 @@ use zksync_types::web3::BlockNumber;
 
 use crate::{
     client::{EthProofManagerClient, RETRY_LIMIT},
+    metrics::METRICS,
     types::FflonkFinalVerificationKey,
     watcher::events::{EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler},
 };
@@ -58,11 +59,21 @@ impl EthProofWatcher {
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("Starting eth proof watcher");
 
+        let submitter_address: &'static str = self.client.submitter_address().to_string().leak();
+        let contract_address: &'static str = self.client.contract_address().to_string().leak();
+
+        METRICS.submitter_address[&submitter_address].set(1);
+        METRICS.contract_address[&contract_address].set(1);
+
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop request received, eth proof sender is shutting down");
                 break;
             }
+
+            METRICS
+                .submitter_balance
+                .set(self.client.submitter_balance().await?);
 
             for event in &self.event_handlers {
                 let to_block = self.client.get_latest_block().await?;

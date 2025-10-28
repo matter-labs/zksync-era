@@ -206,6 +206,7 @@ impl EthProofManagerDal<'_, '_> {
 
     pub async fn get_batch_to_send_validation_result(
         &mut self,
+        max_attempts: u64,
     ) -> anyhow::Result<Option<(L1BatchNumber, bool)>> {
         let batch_stats = self
             .storage
@@ -227,7 +228,7 @@ impl EthProofManagerDal<'_, '_> {
 
         let result: Option<(L1BatchNumber, Option<bool>)> = sqlx::query!(
             r#"
-            SELECT e.l1_batch_number, e.proof_validation_result
+            SELECT e.l1_batch_number, e.proof_validation_result, e.validation_tx_attempts
             FROM eth_proof_manager e
             JOIN proof_generation_details p
                 ON e.l1_batch_number = p.l1_batch_number
@@ -235,6 +236,7 @@ impl EthProofManagerDal<'_, '_> {
                 (
                     (e.status = $1 AND e.l1_batch_number <= $2)
                     OR (e.status = $3 AND e.proof_validation_result = false)
+                    AND e.validation_tx_attempts < $4
                 )
                 AND p.proving_mode = 'proving_network'
             ORDER BY e.l1_batch_number ASC
@@ -243,6 +245,7 @@ impl EthProofManagerDal<'_, '_> {
             EthProofManagerStatus::Proven.as_str(),
             i64::from(latest_proven_batch.0),
             EthProofManagerStatus::Fallbacked.as_str(),
+            max_attempts as i32,
         )
         .instrument("get_batch_to_validate")
         .fetch_optional(self.storage)
@@ -260,6 +263,42 @@ impl EthProofManagerDal<'_, '_> {
             }
             _ => Err(anyhow::anyhow!("No batch to send validation result")),
         }
+    }
+
+    pub async fn increment_validation_tx_attempts(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_proof_manager SET
+                validation_tx_attempts = validation_tx_attempts + 1, updated_at = NOW()
+            WHERE l1_batch_number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("increment_validation_tx_attempts")
+        .with_arg("batch_number", &batch_number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_reached_max_attempts_amount(&mut self, max_attempts: u64) -> DalResult<u64> {
+        let result = sqlx::query!(
+            r#"
+            SELECT COUNT(*) FROM eth_proof_manager WHERE validation_tx_attempts >= $1
+            "#,
+            max_attempts as i32,
+        )
+        .instrument("get_reached_max_attempts_amount")
+        .fetch_one(self.storage)
+        .await?
+        .count
+        .unwrap_or(0) as u64;
+
+        Ok(result)
     }
 
     pub async fn fallback_batches(

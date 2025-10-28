@@ -145,7 +145,7 @@ impl EventHandler for ProofRequestProvenHandler {
                     .await?;
 
                 METRICS.validated_batches[&ValidationResult::Success].inc();
-                METRICS.proven_batches[&event.assigned_to].inc();
+                METRICS.proven_batches[&event.assigned_to].set(batch_number.0 as u64);
                 true
             }
             Err(e) => {
@@ -186,12 +186,16 @@ async fn verify_proof(
     let verification_result = match proof.inner() {
         TypedL1BatchProofForL1::Fflonk(proof) => {
             let proof = proof.scheduler_proof;
-            fflonk::verify::<
+            let result = fflonk::verify::<
                 _,
                 ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
                 RollingKeccakTranscript<Fr>,
-            >(&verification_key, &proof, None)
-            .map_err(|e| anyhow::anyhow!("Failed to verify fflonk proof: {}", e))?
+            >(&verification_key, &proof, None);
+
+            match result {
+                Ok(valid) => valid,
+                Err(_) => false,
+            }
         }
         TypedL1BatchProofForL1::Plonk(_) => {
             return Err(anyhow::anyhow!(

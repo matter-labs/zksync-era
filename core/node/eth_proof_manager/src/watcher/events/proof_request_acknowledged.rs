@@ -91,7 +91,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
 
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
 
-        METRICS.acknowledged_batches[&event.assigned_to].inc();
+        METRICS.acknowledged_batches[&event.assigned_to].set(event.block_number.as_u64());
 
         if accepted {
             self.connection_pool
