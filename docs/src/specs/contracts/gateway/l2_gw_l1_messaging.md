@@ -2,20 +2,20 @@
 
 ## Introduction
 
-This document assumes that the reader is already aware of how [L2→L1 logs](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) are aggregated into the [MessageRoot](../interop/message_root.md) and what the [Gateway](../gateway/overview.md) is. To reduce interactions with L1, the Gateway gathers all the `ChainBatchRoot`s from all the chains into the tree with following structure:
+This document assumes that the reader is already aware of how [L2→L1 logs](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) are aggregated into the [MessageRoot](../interop/message_root.md) and what the [Gateway](../gateway/overview.md) is. To reduce interactions with L1, the Gateway gathers all the `ChainBatchRoot`s from all the chains into the tree with following structure (note that this is the same `MessageRoot` contract that is used for interop):
 
 ![NestedL2GWL1Messaging.png](./img/nested_l2_gw_l1_messaging.png)
 
 >
 ## Proving logs for chains settling on Gateway
 
-Proving these logs is almost the same as proving [interop](../interop/overview.md) logs. For chain settling on Gateway the `MessageRoot` of Gateway is aggregated with the `LocalLogsRoot` of GW, and the `ChainBatchRoot` is sent to L1 to the GW's diamond proxy. The only difference is that the `ChainBatchRoot` is not stored in the `MessageRoot` but in the `LocalLogsRoot`.
+Proving these logs is almost the same as proving [interop](../interop/message_root.md) logs. For interop logs the merkle proof extends to the MessageRoot of L1. For chain settling on Gateway the `MessageRoot` of Gateway is aggregated with the `LocalLogsRoot` of GW, and the `ChainBatchRoot` is sent to L1 to the GW's diamond proxy. So compared to the interop case the merkle proof has to be extended with one more intermediate node. The only difference is that the `ChainBatchRoot` is not stored in the `MessageRoot` but in the `LocalLogsRoot`.
 
 ## Trust assumptions
 
 Note, that the `_proof` field is provided by potentially malicious users. The only part that really checks anything with L1 state is the final step of the aggregated proof verification, i.e. that the settled `ChainBatchRoot` of batch of the final top layer was present on L1.
 
-It puts a lot of trust in the settlement layers as it can steal funds from chains and “verify” incorrect L2→GW→L1 logs if it wants to. It is the job of the chain itself to ensure that it trusts the aggregation layer. For this reason, all settlement layers have to be whitelisted by governance.
+It puts a lot of trust in the settlement layers as it can steal funds from chains and “verify” incorrect L2→GW→L1 logs if it wants to. For interop txs using the L1 MessageRoot this is ok, but it is riskier on Gateway. It is the job of the chain itself to ensure that it trusts the aggregation layer. For this reason, all settlement layers have to be whitelisted by governance.
 
 Also, note that that `address` of the settlement layer is provided by the user. Assuming that the settlement layer is trusted, this scheme works fine, since the `chainIdLeaf` belongs to it only if the chain really ever settled there. I.e. so the protection from maliciously chosen settlement layers is the fact that the settlement layers are trusted to never include batches that they did not have.
 
