@@ -186,16 +186,12 @@ async fn verify_proof(
     let verification_result = match proof.inner() {
         TypedL1BatchProofForL1::Fflonk(proof) => {
             let proof = proof.scheduler_proof;
-            let result = fflonk::verify::<
+            fflonk::verify::<
                 _,
                 ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
                 RollingKeccakTranscript<Fr>,
-            >(&verification_key, &proof, None);
-
-            match result {
-                Ok(valid) => valid,
-                Err(_) => false,
-            }
+            >(&verification_key, &proof, None)
+            .unwrap_or(false)
         }
         TypedL1BatchProofForL1::Plonk(_) => {
             return Err(anyhow::anyhow!(
