@@ -130,7 +130,7 @@ impl<PM: ProcessorMode> Processor<PM> {
             .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
-        let eip_4844_blobs = match pubdata_params.pubdata_type.into() {
+        let eip_4844_blobs = match pubdata_params.pubdata_type().into() {
             L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
             L1BatchCommitmentMode::Rollup => {
                 let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {

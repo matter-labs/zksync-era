@@ -21,6 +21,7 @@ use zksync_system_constants::{
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::{pad_evm_bytecode, BytecodeHash},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator},
     fee_model::BatchFeeInput,
     get_code_key, get_evm_code_hash_key, get_is_account_key, get_known_code_key, h256_to_address,
     h256_to_u256, u256_to_h256,
@@ -200,7 +201,9 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(FullPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(
+        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+    ))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {
