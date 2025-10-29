@@ -332,16 +332,21 @@ async fn deploy_ecosystem(
     )
     .await?;
 
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        chain_asset_handler_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+    if let Some(chain_asset_handler_addr) = contracts_config
+        .core_ecosystem_contracts
+        .chain_asset_handler_proxy_addr
+    {
+        accept_owner(
+            shell,
+            ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
+            contracts_config.l1.governance_addr,
+            &ecosystem_config.get_wallets()?.governor,
+            chain_asset_handler_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     Ok(contracts_config)
 }
