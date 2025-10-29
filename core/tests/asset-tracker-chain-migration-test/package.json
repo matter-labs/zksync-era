@@ -1,5 +1,5 @@
 {
-  "name": "upgrade-test",
+  "name": "asset-tracker-chain-migration-test",
   "version": "1.0.0",
   "license": "MIT",
   "mocha": {
@@ -13,7 +13,7 @@
     ]
   },
   "scripts": {
-    "migration-test": "zk f mocha tests/migration.test.ts"
+    "migration-test": "mocha tests/migration.test.ts"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",

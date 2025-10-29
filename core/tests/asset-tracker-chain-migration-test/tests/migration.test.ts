@@ -8,14 +8,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { BytesLike } from '@ethersproject/bytes';
 import { BigNumberish } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import {
-    Contracts,
-    initContracts,
-    setAggregatedBlockExecuteDeadline,
-    setAggregatedBlockProveDeadline,
-    setBlockCommitDeadlineMs,
-    setEthSenderSenderAggregatedBlockCommitDeadline
-} from './utils';
 import path from 'path';
 import { CONTRACT_DEPLOYER, CONTRACT_DEPLOYER_ADDRESS, hashBytecode, ZKSYNC_MAIN_ABI } from 'zksync-ethers/build/utils';
 import { utils as zksync_utils } from 'zksync-ethers';
@@ -36,7 +28,7 @@ const L2_BRIDGEHUB_ADDRESS = '0x0000000000000000000000000000000000010002';
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
-const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
+// const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
 
 const ZK_CHAIN_INTERFACE = JSON.parse(
     readFileSync(pathToHome + '/contracts/l1-contracts/out/IZKChain.sol/IZKChain.json').toString()
@@ -138,7 +130,7 @@ describe('Asset tracker migration test', function () {
         erc20ChainHandler = await ChainHandler.createNewChain('era');
     });
 
-    test('TMP spawn tokens', async function() {
+    step('TMP spawn tokens', async function() {
         // ethChainTokenPreBridged = await L2ERC20Handler.deployToken(ethChainHandler.l2RichWallet);
         // ethChainTokenNotPreBridged = await L2ERC20Handler.deployToken(ethChainHandler.l2RichWallet);
         
@@ -150,7 +142,7 @@ describe('Asset tracker migration test', function () {
         // erc20ChainTokenNotPreBridged = await L2ERC20Handler.deployToken(erc20ChainHandler.l2RichWallet);
     })
 
-    // test('Bridge tokens', async function () {
+    // step('Bridge tokens', async function () {
     //     const withdrawalHandler1 = await ethChainTokenPreBridged.withdraw();
 
     //     // For now it will be unfinalized, we'll use it later.
@@ -162,7 +154,7 @@ describe('Asset tracker migration test', function () {
     //     await withdrawalHandler1.finalizeWithdrawal(l1RichWallet);
     // })
 
-    // test('Migration of balances to GW', async function () {
+    // step('Migration of balances to GW', async function () {
     //     await Promise.all([
     //         ethChainHandler.migrateToGateway(),
     //         erc20ChainHandler.migrateToGateway()
@@ -212,11 +204,11 @@ describe('Asset tracker migration test', function () {
     //     ethChainTokenUnfinalizedWithdrawalHandler.finalizeWithdrawal(l1RichWallet);
     // });
 
-    // test('Test receiving interop for migrated assets', async function () {
+    // step('Test receiving interop for migrated assets', async function () {
     //     // TODO
     // })
 
-    // test('Test automatic registration', async function () {
+    // step('Test automatic registration', async function () {
     //     await l1NativeToken.deposit(ethChainHandler);
     //     // We dont withdraw it yet, we'll withdraw it after we migrate to L1.
     //     await l1NativeToken2.deposit(ethChainHandler);
@@ -229,7 +221,7 @@ describe('Asset tracker migration test', function () {
     //     // TODO: dont forget to check asset migrtion number.
     // });
 
-    // test('Migrate back to L1', async function () {
+    // step('Migrate back to L1', async function () {
     //     await ethChainHandler.migrateFromGateway();
         
     //     const l2Token = await l1NativeToken2.atL2SameWallet(ethChainHandler);
@@ -250,8 +242,12 @@ describe('Asset tracker migration test', function () {
 
     after('shutdown', async function () {
         console.log('Tearing down chains...');
-        await ethChainHandler.stopServer();
-        await erc20ChainHandler.stopServer();
+        if (ethChainHandler) {
+            await ethChainHandler.stopServer();
+        }
+        if (erc20ChainHandler) {
+            await erc20ChainHandler.stopServer();
+        }
         console.log('Complete');
     });
 });

@@ -4,6 +4,7 @@ import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 import {createChainAndStartServer, TestChain, ChainType} from 'highlevel-test-tools/src/create-chain';
 import path from 'path';
 import { loadConfig } from 'utils/build/file-configs';
+import { sleep } from 'zksync-ethers/build/utils';
 
 const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
 const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
@@ -76,6 +77,9 @@ export class ChainHandler {
             chainType,
             TEST_SUIT_NAME
         );
+
+        // Need to wait for a bit before the server works fully
+        await sleep(2000);
         
         const handler = new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
 
