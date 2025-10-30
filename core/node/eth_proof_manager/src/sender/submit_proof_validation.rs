@@ -75,13 +75,6 @@ impl SubmitProofValidationSubmitter {
                 block_number: batch_number.0 as u64,
             };
 
-            self.connection_pool
-                .connection()
-                .await?
-                .eth_proof_manager_dal()
-                .increment_validation_tx_attempts(batch_number)
-                .await?;
-
             match self
                 .client
                 .submit_proof_validation_result(proof_request_identifier, validation_result)
