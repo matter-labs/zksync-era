@@ -14,7 +14,7 @@ use zksync_prover_interface::outputs::{
 };
 use zksync_types::{
     api::Log, commitment::serialize_commitments, ethabi, h256_to_u256, web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY, U256,
+    L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY, U256,
 };
 
 use crate::{
@@ -35,6 +35,7 @@ pub struct ProofRequestProven {
 pub struct ProofRequestProvenHandler {
     connection_pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
+    chain_id: L2ChainId,
     fflonk_vk: FflonkFinalVerificationKey,
 }
 
@@ -42,11 +43,13 @@ impl ProofRequestProvenHandler {
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
+        chain_id: L2ChainId,
         fflonk_vk: FflonkFinalVerificationKey,
     ) -> Self {
         Self {
             connection_pool,
             blob_store,
+            chain_id,
             fflonk_vk,
         }
     }
@@ -88,6 +91,15 @@ impl EventHandler for ProofRequestProvenHandler {
         }
 
         let chain_id = h256_to_u256(*log.topics.get(1).context("missing topic 1")?);
+
+        if chain_id != U256::from(self.chain_id.as_u64()) {
+            return Err(anyhow::anyhow!(
+                "Chain ID from event didn't match, expected {}, received {}",
+                self.chain_id,
+                chain_id
+            ));
+        }
+
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
 
         let decoded = decode(&[ParamType::Bytes, ParamType::Uint(8)], &log.data.0)?;

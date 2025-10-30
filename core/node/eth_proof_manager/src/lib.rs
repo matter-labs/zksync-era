@@ -35,6 +35,7 @@ impl EthProofManager {
                 client.clone_boxed(),
                 connection_pool.clone(),
                 blob_store.clone(),
+                l2_chain_id,
                 config.clone(),
             ),
             sender: sender::EthProofSender::new(
