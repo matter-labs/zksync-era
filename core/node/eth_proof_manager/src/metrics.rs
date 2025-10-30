@@ -1,4 +1,4 @@
-use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Metrics};
+use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
 
 use crate::types::ProvingNetwork;
 
@@ -19,11 +19,16 @@ pub(super) enum ValidationResult {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_eth_proof_manager")]
 pub(super) struct EthProofManagerMetrics {
-    pub failed_to_send_tx: Family<TxType, Counter>,
     pub validated_batches: Family<ValidationResult, Counter>,
-    pub proven_batches: Family<ProvingNetwork, Counter>,
-    pub acknowledged_batches: Family<ProvingNetwork, Counter>,
+    pub proven_batches: Family<ProvingNetwork, Gauge<u64>>,
+    pub acknowledged_batches: Family<ProvingNetwork, Gauge<u64>>,
     pub fallbacked_batches: Counter<u64>,
+    pub reached_max_attempts: Family<TxType, Gauge<u64>>,
+    #[metrics(labels = ["submitter_address"])]
+    pub submitter_address: LabeledFamily<&'static str, Gauge, 1>,
+    #[metrics(labels = ["contract_address"])]
+    pub contract_address: LabeledFamily<&'static str, Gauge, 1>,
+    pub submitter_balance: Gauge<f64>,
 }
 
 #[vise::register]

@@ -4,10 +4,15 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_object_store::ObjectStore;
-use zksync_types::web3::BlockNumber;
+use zksync_types::{
+    ethabi::{self, Token},
+    web3::BlockNumber,
+    L2ChainId, H256,
+};
 
 use crate::{
     client::{EthProofManagerClient, RETRY_LIMIT},
+    metrics::METRICS,
     types::FflonkFinalVerificationKey,
     watcher::events::{EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler},
 };
@@ -18,6 +23,8 @@ pub struct EthProofWatcher {
     client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
     config: EthProofManagerConfig,
+    // Chain id of the current chain, to filter events by it
+    chain_id: L2ChainId,
     event_handlers: Vec<Box<dyn EventHandler>>,
 }
 
@@ -26,6 +33,7 @@ impl EthProofWatcher {
         client: Box<dyn EthProofManagerClient>,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
+        chain_id: L2ChainId,
         config: EthProofManagerConfig,
     ) -> Self {
         let fflonk_vk = serde_json::from_slice::<FflonkFinalVerificationKey>(
@@ -42,13 +50,16 @@ impl EthProofWatcher {
             client,
             connection_pool: connection_pool.clone(),
             config,
+            chain_id,
             event_handlers: vec![
                 Box::new(ProofRequestAcknowledgedHandler::new(
                     connection_pool.clone(),
+                    chain_id,
                 )),
                 Box::new(ProofRequestProvenHandler::new(
                     connection_pool,
                     blob_store,
+                    chain_id,
                     fflonk_vk,
                 )),
             ],
@@ -58,11 +69,21 @@ impl EthProofWatcher {
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("Starting eth proof watcher");
 
+        let submitter_address: &'static str = self.client.submitter_address().to_string().leak();
+        let contract_address: &'static str = self.client.contract_address().to_string().leak();
+
+        METRICS.submitter_address[&submitter_address].set(1);
+        METRICS.contract_address[&contract_address].set(1);
+
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop request received, eth proof sender is shutting down");
                 break;
             }
+
+            METRICS
+                .submitter_balance
+                .set(self.client.submitter_balance().await?);
 
             for event in &self.event_handlers {
                 let to_block = self.client.get_latest_block().await?;
@@ -81,10 +102,15 @@ impl EthProofWatcher {
                     .map_err(DalError::generalize)?;
 
                 tracing::info!(
-                    "Getting events from block {} to block {}",
+                    "Getting events from block {} to block {} for chain {}",
                     from_block,
-                    to_block
+                    to_block,
+                    self.chain_id.as_u64()
                 );
+
+                let chain_id_as_topic = H256::from_slice(&ethabi::encode(&[Token::Uint(
+                    self.chain_id.as_u64().into(),
+                )]));
 
                 let events = self
                     .client
@@ -92,7 +118,7 @@ impl EthProofWatcher {
                         BlockNumber::Number(from_block.into()),
                         BlockNumber::Number(to_block.into()),
                         Some(vec![event.signature()]),
-                        None,
+                        Some(vec![chain_id_as_topic]),
                         RETRY_LIMIT,
                     )
                     .await?;

@@ -69,20 +69,20 @@ vise = "0.3.2"
 smart-config = "=0.2.0-pre"
 
 # zksync-crypto dependencies
-fflonk = "=0.32.5"
-franklin-crypto = "=0.32.5"
+fflonk = "=0.32.6"
+franklin-crypto = "=0.32.6"
 
 # zksync-protocol dependencies
-circuit_definitions = "=0.153.3"
-circuit_sequencer_api = "=0.153.3"
-zkevm_test_harness = "=0.153.3"
+circuit_definitions = "=0.153.4"
+circuit_sequencer_api = "=0.153.4"
+zkevm_test_harness = "=0.153.4"
 
 # zksync-crypto-gpu dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.155.3" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.3" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.3" }
-shivini = "=0.155.3"
-boojum-cuda = "=0.155.3"
+proof-compression-gpu = { package = "proof-compression", version = "=0.155.4" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.4" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.4" }
+shivini = "=0.155.4"
+boojum-cuda = "=0.155.4"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
