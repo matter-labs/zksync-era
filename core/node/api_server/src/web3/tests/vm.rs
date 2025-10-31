@@ -20,9 +20,17 @@ use zksync_types::{
     StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
-use zksync_web3_decl::namespaces::{DebugNamespaceClient, UnstableNamespaceClient};
+use zksync_web3_decl::{
+    client::WsClient,
+    namespaces::{DebugNamespaceClient, UnstableNamespaceClient},
+    types::Bytes,
+};
 
 use super::*;
+use crate::web3::{
+    metrics::SubscriptionType,
+    tests::ws::{test_ws_server, wait_for_notifier_l2_block, wait_for_subscription, WsTest},
+};
 
 #[derive(Debug, Clone)]
 struct ExpectedFeeInput(Arc<Mutex<BatchFeeInput>>);
@@ -707,6 +715,469 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
 #[tokio::test]
 async fn send_raw_transaction_with_detailed_output() {
     test_http_server(SendTransactionWithDetailedOutputTest).await;
+}
+
+// Tests for `eth_sendRawTransactionSync` (EIP-7966)
+#[derive(Debug)]
+struct SendRawTransactionSyncImmediateReceiptTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncImmediateReceiptTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let submitted_hash = client.send_raw_transaction(tx_bytes.clone().into()).await?;
+        assert_eq!(submitted_hash, tx_hash);
+
+        let mut storage = pool.connection().await?;
+        store_l2_block(
+            &mut storage,
+            L2BlockNumber(1),
+            &[mock_execute_transaction(create_l2_transaction(1, 2).into())],
+        )
+        .await?;
+        drop(storage);
+
+        wait_for_notifier_l2_block(
+            &mut pub_sub_events,
+            SubscriptionType::Blocks,
+            L2BlockNumber(1),
+        )
+        .await;
+
+        let receipt: api::TransactionReceipt = client
+            .request(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Option::<U256>::None],
+            )
+            .await?;
+
+        assert_eq!(receipt.transaction_hash, tx_hash);
+        assert_eq!(receipt.block_number, U64::from(1));
+        assert_eq!(receipt.status, U64::from(1)); // Success
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_immediate_receipt() {
+    test_ws_server(SendRawTransactionSyncImmediateReceiptTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncDelayedReceiptTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncDelayedReceiptTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let client_clone = client.clone();
+        let tx_bytes_clone = tx_bytes.clone();
+        let sync_task = tokio::spawn(async move {
+            client_clone
+                .request(
+                    "eth_sendRawTransactionSync",
+                    rpc_params![Bytes(tx_bytes_clone), Some(U256::from(5000))],
+                )
+                .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut storage = pool.connection().await?;
+        store_l2_block(
+            &mut storage,
+            L2BlockNumber(1),
+            &[mock_execute_transaction(create_l2_transaction(1, 2).into())],
+        )
+        .await?;
+        drop(storage);
+
+        wait_for_notifier_l2_block(
+            &mut pub_sub_events,
+            SubscriptionType::Blocks,
+            L2BlockNumber(1),
+        )
+        .await;
+
+        let receipt: api::TransactionReceipt = sync_task.await??;
+
+        assert_eq!(receipt.transaction_hash, tx_hash);
+        assert_eq!(receipt.block_number, U64::from(1));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_delayed_receipt() {
+    test_ws_server(SendRawTransactionSyncDelayedReceiptTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncTimeoutTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncTimeoutTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, _tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Some(U256::from(100))], // 100ms timeout
+            )
+            .await
+            .unwrap_err();
+
+        if let ClientError::Call(e) = &err {
+            assert_eq!(e.code(), 4);
+            assert!(
+                e.message().contains("timeout"),
+                "Error message: {}",
+                e.message()
+            );
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_timeout() {
+    test_ws_server(SendRawTransactionSyncTimeoutTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncMultipleBlocksTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncMultipleBlocksTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let client_clone = client.clone();
+        let tx_bytes_clone = tx_bytes.clone();
+        let sync_task = tokio::spawn(async move {
+            client_clone
+                .request(
+                    "eth_sendRawTransactionSync",
+                    rpc_params![Bytes(tx_bytes_clone), Some(U256::from(5000))],
+                )
+                .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut storage = pool.connection().await?;
+        store_l2_block(&mut storage, L2BlockNumber(1), &[]).await?;
+        drop(storage);
+
+        wait_for_notifier_l2_block(
+            &mut pub_sub_events,
+            SubscriptionType::Blocks,
+            L2BlockNumber(1),
+        )
+        .await;
+
+        let mut storage = pool.connection().await?;
+        store_l2_block(
+            &mut storage,
+            L2BlockNumber(2),
+            &[mock_execute_transaction(create_l2_transaction(1, 2).into())],
+        )
+        .await?;
+        drop(storage);
+
+        wait_for_notifier_l2_block(
+            &mut pub_sub_events,
+            SubscriptionType::Blocks,
+            L2BlockNumber(2),
+        )
+        .await;
+
+        let receipt: api::TransactionReceipt = sync_task.await??;
+        assert_eq!(receipt.transaction_hash, tx_hash);
+        assert_eq!(receipt.block_number, U64::from(2));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_multiple_blocks() {
+    test_ws_server(SendRawTransactionSyncMultipleBlocksTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncCustomTimeoutTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncCustomTimeoutTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, _) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes.clone()), Some(U256::from(20000))], // 20 seconds > 10 second max
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, ClientError::Call(_)));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_custom_timeout() {
+    test_ws_server(SendRawTransactionSyncCustomTimeoutTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncSubmissionErrorTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncSubmissionErrorTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        _pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, _) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Option::<U256>::None],
+            )
+            .await
+            .unwrap_err();
+
+        if let ClientError::Call(e) = &err {
+            assert_eq!(e.code(), 3);
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_submission_error() {
+    test_ws_server(SendRawTransactionSyncSubmissionErrorTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncDefaultTimeoutTest;
+
+#[async_trait]
+impl WsTest for SendRawTransactionSyncDefaultTimeoutTest {
+    async fn test(
+        &self,
+        client: &WsClient<L2>,
+        pool: &ConnectionPool<Core>,
+        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        wait_for_subscription(&mut pub_sub_events, SubscriptionType::Blocks).await;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let client_clone = client.clone();
+        let tx_bytes_clone = tx_bytes.clone();
+        let sync_task = tokio::spawn(async move {
+            client_clone
+                .request(
+                    "eth_sendRawTransactionSync",
+                    rpc_params![Bytes(tx_bytes_clone), Option::<U256>::None],
+                )
+                .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut storage = pool.connection().await?;
+        store_l2_block(
+            &mut storage,
+            L2BlockNumber(1),
+            &[mock_execute_transaction(create_l2_transaction(1, 2).into())],
+        )
+        .await?;
+        drop(storage);
+
+        wait_for_notifier_l2_block(
+            &mut pub_sub_events,
+            SubscriptionType::Blocks,
+            L2BlockNumber(1),
+        )
+        .await;
+
+        let receipt: api::TransactionReceipt = sync_task.await??;
+        assert_eq!(receipt.transaction_hash, tx_hash);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_default_timeout() {
+    test_ws_server(SendRawTransactionSyncDefaultTimeoutTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncUnreadinessTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncUnreadinessTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        let (tx_bytes, _) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Option::<U256>::None],
+            )
+            .await
+            .unwrap_err();
+
+        // Should get error code 5 (unreadiness)
+        if let ClientError::Call(e) = &err {
+            assert_eq!(e.code(), 5);
+            assert!(
+                e.message().contains("not available") || e.message().contains("not configured"),
+                "Error message: {}",
+                e.message()
+            );
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_unreadiness_http() {
+    test_http_server(SendRawTransactionSyncUnreadinessTest).await;
 }
 
 #[derive(Debug, Default)]

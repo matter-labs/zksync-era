@@ -27,7 +27,7 @@ use zksync_web3_decl::{
 use super::*;
 use crate::web3::metrics::SubscriptionType;
 
-async fn wait_for_subscription(
+pub(super) async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
 ) {
@@ -73,7 +73,7 @@ async fn wait_for_notifiers(
     wait_future.await.expect("Timed out waiting for notifier");
 }
 
-async fn wait_for_notifier_l2_block(
+pub(super) async fn wait_for_notifier_l2_block(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
     expected: L2BlockNumber,
@@ -144,7 +144,7 @@ async fn notifiers_start_after_snapshot_recovery() {
 }
 
 #[async_trait]
-trait WsTest: Send + Sync {
+pub(super) trait WsTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis()
@@ -162,7 +162,7 @@ trait WsTest: Send + Sync {
     }
 }
 
-async fn test_ws_server(test: impl WsTest) {
+pub(super) async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
