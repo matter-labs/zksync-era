@@ -26,7 +26,7 @@ use zksync_types::{
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    migrate_from_gateway::check_whether_gw_transaction_is_finalized,
+    migrate_from_gateway::{check_whether_gw_transaction_is_finalized, GatewayTransactionType},
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
 };
 use crate::{
@@ -361,6 +361,7 @@ pub(crate) async fn get_gateway_migration_state(
         l1_provider,
         l1_bridgehub.get_zk_chain(gw_chain_id).await?,
         migration_transaction,
+        GatewayTransactionType::Withdrawal,
     )
     .await?;
 
