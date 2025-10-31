@@ -9,8 +9,7 @@ use ethers::{
     abi::{parse_abi, Address},
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
-    types::{BlockNumber, Bytes, Filter, TransactionReceipt},
-    utils::{hex, keccak256},
+    types::Bytes,
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -20,42 +19,32 @@ use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
     forge::{Forge, ForgeScriptArgs},
     logger,
-    spinner::Spinner,
     wallets::Wallet,
-    zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
+    zks_provider::{FinalizeMigrationParams, ZKSProvider},
 };
 use zkstack_cli_config::{
     forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, ChainConfig, EcosystemConfig,
     ZkStackConfig, ZkStackConfigTrait,
 };
 use zksync_basic_types::{commitment::L2DACommitmentScheme, H256, U256};
-use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
-use zksync_web3_decl::{
-    client::{Client, L2},
-    namespaces::EthNamespaceClient,
-};
+use zksync_web3_decl::client::{Client, L2};
 
 use super::migrate_to_gateway::get_migrate_to_gateway_context;
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi},
-    admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway, AdminScriptMode},
+    admin_functions::AdminScriptMode,
     commands::chain::{
-        admin_call_builder::AdminCallBuilder,
         gateway::{
-            constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-            gateway_common::{
-                await_for_tx_to_complete, extract_and_wait_for_priority_ops, extract_priority_ops,
-                get_migration_transaction,
+            gateway_common::{extract_and_wait_for_priority_ops, get_migration_transaction},
+            migrate_from_gateway::{
+                check_whether_gw_transaction_is_finalized, GatewayTransactionType,
             },
-            migrate_from_gateway::check_whether_gw_transaction_is_finalized,
             migrate_to_gateway_calldata::check_permanent_rollup_and_set_da_validator_via_gateway,
         },
-        init::{get_l1_da_validator, send_priority_txs},
-        utils::send_tx,
+        init::send_priority_txs,
     },
     messages::{
         msg_initializing_chain, MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOY_PAYMASTER_PROMPT, MSG_SELECTED_CONFIG,
+        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_SELECTED_CONFIG,
     },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -218,18 +207,18 @@ pub async fn run_inner(
         !priority_ops.is_empty(),
         "No priority op hashes were emitted during the migration calls"
     );
-    let last_priority_op_hash = *priority_ops.last().unwrap();
+    let first_priority_op_hash = *priority_ops.first().unwrap();
 
     await_for_migration_to_finalize(
         &gateway_zk_client,
         get_ethers_provider(&l1_rpc_url)?,
         gw_diamond_proxy,
-        last_priority_op_hash,
+        first_priority_op_hash,
     )
     .await?;
 
     let params = gateway_zk_client
-        .get_finalize_withdrawal_params(last_priority_op_hash, 0)
+        .get_finalize_migration_params(first_priority_op_hash, 0)
         .await?;
 
     let gateway_gateway_config = gateway_chain_config
@@ -251,7 +240,7 @@ pub async fn run_inner(
         gateway_diamond_cut.into(),
         chain_config.chain_id.as_u64(),
         gateway_chain_id,
-        last_priority_op_hash,
+        first_priority_op_hash,
         params,
         args.tx_status,
         l1_rpc_url.clone(),
@@ -304,6 +293,7 @@ async fn await_for_migration_to_finalize(
         l1_provider.clone(),
         gateway_diamond_proxy,
         hash,
+        GatewayTransactionType::Migration,
     )
     .await?
     {
@@ -325,7 +315,7 @@ pub(crate) async fn finish_migrate_chain_to_gateway(
     l2_chain_id: u64,
     gateway_chain_id: u64,
     l2_tx_hash: H256,
-    params: FinalizeWithdrawalParams,
+    params: FinalizeMigrationParams,
     tx_status: bool,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
