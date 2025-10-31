@@ -173,6 +173,9 @@ enum Web3ErrorKind {
     LogsLimitExceeded,
     InvalidFilterBlockHash,
     TreeApiUnavailable,
+    TransactionTimeout,
+    TransactionUnready,
+    InvalidTimeout,
     Internal,
 }
 
@@ -189,6 +192,9 @@ impl Web3ErrorKind {
             Web3Error::LogsLimitExceeded(..) => Self::LogsLimitExceeded,
             Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
             Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
+            Web3Error::TransactionTimeout(_) => Self::TransactionTimeout,
+            Web3Error::TransactionUnready(_) => Self::TransactionUnready,
+            Web3Error::InvalidTimeout(_) => Self::InvalidTimeout,
             Web3Error::InternalError(_)
             | Web3Error::MethodNotImplemented
             | Web3Error::ServerShuttingDown => Self::Internal,
