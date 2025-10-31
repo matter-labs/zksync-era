@@ -24,7 +24,7 @@ use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        set_da_validator_pair_via_gateway, unpause_deposits, AdminScriptMode, AdminScriptOutput,
+        set_da_validator_pair_via_gateway, AdminScriptMode, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
     utils::{
@@ -222,35 +222,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     )
     .await?;
     result.extend(finalize_migrate_to_gateway_output.calls);
-
-    // Unfortunately, there is no getter for the paused deposits timestamp, we have to read storage here.
-    let paused_deposits_timestamp = context
-        .l1_provider
-        .get_storage_at(context.zk_chain_l1_address, H256::from_low_u64_be(62), None)
-        .await?;
-    let current_timestamp = context
-        .l1_provider
-        .get_block(BlockNumber::Latest)
-        .await?
-        .context("Failed to get latest block")?
-        .timestamp;
-    if U256::from(paused_deposits_timestamp.to_low_u64_le())
-        + U256::from(PAUSE_DEPOSITS_TIME_WINDOW_END)
-        >= current_timestamp
-    {
-        // Unpause deposits after migration for better UX
-        let unpause_deposits_output = unpause_deposits(
-            shell,
-            forge_args,
-            foundry_contracts_path,
-            crate::admin_functions::AdminScriptMode::OnlySave,
-            context.l2_chain_id,
-            context.l1_bridgehub_addr,
-            context.l1_rpc_url.clone(),
-        )
-        .await?;
-        result.extend(unpause_deposits_output.calls);
-    }
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator_commitment_scheme) =
