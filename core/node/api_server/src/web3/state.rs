@@ -7,6 +7,8 @@ use std::{
     time::Instant,
 };
 
+use tokio::sync::broadcast;
+
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
@@ -122,6 +124,8 @@ pub struct InternalApiConfigBase {
     pub filters_disabled: bool,
     pub l1_to_l2_txs_paused: bool,
     pub eth_call_gas_cap: Option<u64>,
+    pub send_raw_tx_sync_default_timeout_ms: u64,
+    pub send_raw_tx_sync_max_timeout_ms: u64,
 }
 
 impl InternalApiConfigBase {
@@ -139,6 +143,8 @@ impl InternalApiConfigBase {
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
             eth_call_gas_cap: web3_config.eth_call_gas_cap,
+            send_raw_tx_sync_default_timeout_ms: 2000, // EIP-7966 default: 2 seconds
+            send_raw_tx_sync_max_timeout_ms: 10000,    // Safety limit: 10 seconds
         }
     }
 
@@ -180,6 +186,8 @@ pub struct InternalApiConfig {
     pub l1_to_l2_txs_paused: bool,
     pub settlement_layer: Option<SettlementLayer>,
     pub eth_call_gas_cap: Option<u64>,
+    pub send_raw_tx_sync_default_timeout_ms: u64,
+    pub send_raw_tx_sync_max_timeout_ms: u64,
 }
 
 impl InternalApiConfig {
@@ -228,6 +236,8 @@ impl InternalApiConfig {
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
             settlement_layer,
             eth_call_gas_cap: base.eth_call_gas_cap,
+            send_raw_tx_sync_default_timeout_ms: base.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_max_timeout_ms: base.send_raw_tx_sync_max_timeout_ms,
         }
     }
 
@@ -310,6 +320,9 @@ pub(crate) struct RpcState {
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
+    /// Broadcast channel for new block notifications (used for eth_sendRawTransactionSync)
+    /// Sends Vec<PubSubResult> but can be used as a signal for new blocks
+    pub(super) block_notifications: Option<broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>>,
 }
 
 impl RpcState {

@@ -317,7 +317,10 @@ impl ApiServer {
         self.health_updater.as_ref().unwrap().subscribe()
     }
 
-    async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
+    async fn build_rpc_state_with_notifications(
+        self,
+        block_notifications: Option<tokio::sync::broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>>,
+    ) -> anyhow::Result<RpcState> {
         let mut storage = self.pool.connection_tagged("api").await?;
         let start_info =
             BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
@@ -347,6 +350,7 @@ impl ApiServer {
             bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,
             l2_l1_log_proof_handler: self.optional.l2_l1_log_proof_handler,
+            block_notifications,
         })
     }
 
@@ -356,7 +360,10 @@ impl ApiServer {
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state().await?;
+
+        // Extract blocks sender before consuming pub_sub (for eth_sendRawTransactionSync)
+        let block_notifications = pub_sub.as_ref().map(|ps| ps.blocks.clone());
+        let rpc_state = self.build_rpc_state_with_notifications(block_notifications).await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
