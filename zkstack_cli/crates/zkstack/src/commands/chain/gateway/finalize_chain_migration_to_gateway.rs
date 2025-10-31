@@ -136,53 +136,19 @@ pub async fn run_inner(
 ) -> anyhow::Result<()> {
     let l1_rpc_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
-    // TODO: should move to migrate_to_gateway.rs ?
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
     let gw_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
-    // let gw_provider = get_ethers_provider(&gw_rpc_url)?;
 
     let mut contracts_config = chain_config.get_contracts_config()?;
-    // let chain_gateway_config = chain_config
-    //     .get_gateway_chain_config()
-    //     .await
-    //     .context("Gateway config not present")?;
 
     let gw_diamond_proxy = gateway_chain_config
         .get_contracts_config()?
         .l1
         .diamond_proxy_addr;
-
-    // let chain_migration_tx_hash = chain_gateway_config
-    //     .migration_tx_hash()
-    //     .context("Migration tx hash not present")?;
-    // let chain_migration_receipt = l1_provider
-    //     .get_transaction_receipt(chain_migration_tx_hash)
-    //     .await?
-    //     .context("Chain migration receipt not found")?;
-    // let priority_ops = extract_priority_ops(chain_migration_receipt, gw_diamond_proxy).await?;
-    // let l2_tx_hash = priority_ops.first().context("L2 tx hash not found")?;
-    // let l2_tx_receipt = gw_provider
-    //     .get_transaction_receipt(l2_tx_hash)
-    //     .await?
-    //     .context("L2 tx receipt not found")?;
-
-    // // Wait for the block containing the L2 tx to be finalized
-    // let spinner = Spinner::new(&msg_waiting_for_gateway_block_to_finalize(
-    //     l2_tx_receipt.block_number,
-    // ));
-    // loop {
-    //     if let Some(block) = gw_provider.get_block(BlockNumber::Finalized).await? {
-    //         if block.number >= l2_tx_receipt.block_number {
-    //             break;
-    //         }
-    //     }
-    //     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-    // }
-    // spinner.finish();
 
     let chain_migration_tx_hash = get_migration_transaction(
         &l1_rpc_url,
