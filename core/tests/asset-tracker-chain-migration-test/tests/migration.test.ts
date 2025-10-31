@@ -1,5 +1,5 @@
 import * as utils from 'utils';
-import { L1ERC20Handler, L2ERC20Handler, Tester, WithdrawalHandler } from './tester';
+import { DEFAULT_LARGE_AMOUNT, L1ERC20Handler, L2ERC20Handler, Tester, WithdrawalHandler } from './tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect } from 'chai';
@@ -131,78 +131,78 @@ describe('Asset tracker migration test', function () {
     });
 
     step('TMP spawn tokens', async function() {
-        // ethChainTokenPreBridged = await L2ERC20Handler.deployToken(ethChainHandler.l2RichWallet);
-        // ethChainTokenNotPreBridged = await L2ERC20Handler.deployToken(ethChainHandler.l2RichWallet);
+        ethChainTokenPreBridged = await ethChainHandler.deployNativeToken();
+        ethChainTokenNotPreBridged = await ethChainHandler.deployNativeToken();
         
-        // l1NativeToken = await L1ERC20Handler.deployToken(l1RichWallet);
-        // l1NativeTokenPreBridged = await L1ERC20Handler.deployToken(l1RichWallet);
-        // l1NativeToken2 = await L1ERC20Handler.deployToken(l1RichWallet);
+        l1NativeToken = await L1ERC20Handler.deployToken(l1RichWallet);
+        l1NativeTokenPreBridged = await L1ERC20Handler.deployToken(l1RichWallet);
+        l1NativeToken2 = await L1ERC20Handler.deployToken(l1RichWallet);
 
-        // erc20ChainTokenPreBridged = await L2ERC20Handler.deployToken(erc20ChainHandler.l2RichWallet);
-        // erc20ChainTokenNotPreBridged = await L2ERC20Handler.deployToken(erc20ChainHandler.l2RichWallet);
+        erc20ChainTokenPreBridged = await erc20ChainHandler.deployNativeToken();
+        erc20ChainTokenNotPreBridged = await erc20ChainHandler.deployNativeToken();
     })
 
-    // step('Bridge tokens', async function () {
-    //     const withdrawalHandler1 = await ethChainTokenPreBridged.withdraw();
+    step('Bridge tokens', async function () {
+        const withdrawalHandler1 = await ethChainTokenPreBridged.withdraw();
 
-    //     // For now it will be unfinalized, we'll use it later.
-    //     ethChainTokenUnfinalizedWithdrawalHandler = await ethChainTokenNotPreBridged.withdraw();
+        // For now it will be unfinalized, we'll use it later.
+        ethChainTokenUnfinalizedWithdrawalHandler = await ethChainTokenNotPreBridged.withdraw();
         
-    //     await l1NativeTokenPreBridged.deposit(ethChainHandler);
-    //     await l1NativeTokenPreBridged.deposit(erc20ChainHandler);
+        await l1NativeTokenPreBridged.deposit(ethChainHandler, DEFAULT_LARGE_AMOUNT);
+        await l1NativeTokenPreBridged.deposit(erc20ChainHandler, DEFAULT_LARGE_AMOUNT);
 
-    //     await withdrawalHandler1.finalizeWithdrawal(l1RichWallet);
-    // })
+        await withdrawalHandler1.finalizeWithdrawal(l1RichWallet);
+    })
 
-    // step('Migration of balances to GW', async function () {
-    //     await Promise.all([
-    //         ethChainHandler.migrateToGateway(),
-    //         erc20ChainHandler.migrateToGateway()
-    //     ]);
+    step('Migration of balances to GW', async function () {
+        await Promise.all([
+            ethChainHandler.migrateToGateway(),
+            // erc20ChainHandler.migrateToGateway()
+        ]);
 
-    //     const l2VersionTokenPreBridged = await l1NativeTokenPreBridged.atL2SameWallet(ethChainHandler);
+        // const l2VersionTokenPreBridged = await l1NativeTokenPreBridged.atL2SameWallet(ethChainHandler);
 
-    //     // const l1Native
+        // const l1Native
 
-    //     // Each of the below should Fail
-    //     ethChainTokenPreBridged.withdraw();
-    //     ethChainTokenNotPreBridged.withdraw();
+        // Each of the below should Fail
+        ethChainTokenPreBridged.withdraw();
+        ethChainTokenNotPreBridged.withdraw();
 
 
-    //     // should fail
-    //     l2VersionTokenPreBridged.withdraw();
-    //     // should also fail
-    //     ethChainTokenUnfinalizedWithdrawalHandler.finalizeWithdrawal(l1RichWallet);
+        // // should fail
+        // l2VersionTokenPreBridged.withdraw();
+        // // should also fail
+        // ethChainTokenUnfinalizedWithdrawalHandler.finalizeWithdrawal(l1RichWallet);
         
-    //     // We migrate the tokens two times. This is to 
-    //     // demonstrate that it is possible to call the migration again 
-    //     // and the handlers will still work.
-    //     const migrationHandlers1 = [
-    //         await ethChainTokenPreBridged.migrateBalanceL2ToGW(),
-    //         await ethChainTokenNotPreBridged.migrateBalanceL2ToGW(),
-    //         await l2VersionTokenPreBridged.migrateBalanceL2ToGW()
-    //     ];
-    //     const migrationHandlers2 = [
-    //         await ethChainTokenPreBridged.migrateBalanceL2ToGW(),
-    //         await ethChainTokenNotPreBridged.migrateBalanceL2ToGW(),
-    //         await l2VersionTokenPreBridged.migrateBalanceL2ToGW()
-    //     ];
+        // // We migrate the tokens two times. This is to 
+        // // demonstrate that it is possible to call the migration again 
+        // // and the handlers will still work.
+        // const migrationHandlers1 = [
+        //     await ethChainTokenPreBridged.migrateBalanceL2ToGW(),
+        //     await ethChainTokenNotPreBridged.migrateBalanceL2ToGW(),
+        //     await l2VersionTokenPreBridged.migrateBalanceL2ToGW()
+        // ];
+        // const migrationHandlers2 = [
+        //     await ethChainTokenPreBridged.migrateBalanceL2ToGW(),
+        //     await ethChainTokenNotPreBridged.migrateBalanceL2ToGW(),
+        //     await l2VersionTokenPreBridged.migrateBalanceL2ToGW()
+        // ];
 
-    //     // Sometimes we use migrationHandlers1, sometimes migrationHandlers 2,
-    //     // these should be equivalent. 
-    //     // TODO: maybe check for actual equivalence of messages.
-    //     await migrationHandlers1[0].finalizeMigration(l1RichWallet);
-    //     await migrationHandlers2[1].finalizeMigration(l1RichWallet);
-    //     await migrationHandlers1[0].finalizeMigration(l1RichWallet);
+        // // Sometimes we use migrationHandlers1, sometimes migrationHandlers 2,
+        // // these should be equivalent. 
+        // // TODO: maybe check for actual equivalence of messages.
+        // await migrationHandlers1[0].finalizeMigration(l1RichWallet);
+        // await migrationHandlers2[1].finalizeMigration(l1RichWallet);
+        // await migrationHandlers1[0].finalizeMigration(l1RichWallet);
 
-    //     // Now all the below should succeed:
-    //     // TODO: actually check that these withdrawals will finalize fine.
-    //     // We should also spawn a withdrawal to be finalized after the chain has moved away from GW.
-    //     await ethChainTokenPreBridged.withdraw();
-    //     await ethChainTokenNotPreBridged.withdraw();
-    //     await l2VersionTokenPreBridged.withdraw();
-    //     ethChainTokenUnfinalizedWithdrawalHandler.finalizeWithdrawal(l1RichWallet);
-    // });
+        // // Now all the below should succeed:
+        // // TODO: actually check that these withdrawals will finalize fine.
+        // // We should also spawn a withdrawal to be finalized after the chain has moved away from GW.
+        // await ethChainTokenPreBridged.withdraw();
+        // await ethChainTokenNotPreBridged.withdraw();
+        // await l2VersionTokenPreBridged.withdraw();
+        // ethChainTokenUnfinalizedWithdrawalHandler.finalizeWithdrawal(l1RichWallet);
+    });
 
     // step('Test receiving interop for migrated assets', async function () {
     //     // TODO

@@ -5,11 +5,36 @@ import {createChainAndStartServer, TestChain, ChainType} from 'highlevel-test-to
 import path from 'path';
 import { loadConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
+import { L2_NATIVE_TOKEN_VAULT_ADDRESS } from 'utils/src/constants';
+import * as fs from 'fs';
 
 const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
 const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
 const TEST_SUIT_NAME = 'AT_CHAIN_MIGRATION_TEST';
 const pathToHome = path.join(__dirname, '../../../..');
+
+const ERC20_EVM_ARTIFACT = JSON.parse(fs.readFileSync(path.join(pathToHome, './contracts/l1-contracts/out/TestnetERC20Token.sol/TestnetERC20Token.json')).toString()); 
+const ERC20_EVM_BYTECODE = ERC20_EVM_ARTIFACT.bytecode.object;
+const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
+
+const ERC20_ZKEVM_BYTECODE = JSON.parse(fs.readFileSync(path.join(pathToHome, './contracts/l1-contracts/zkout/TestnetERC20Token.sol/TestnetERC20Token.json')).toString()).bytecode.object;
+
+function readAbi(contractName: string) {
+    return JSON.parse(fs.readFileSync(path.join(pathToHome, `./contracts/l1-contracts/out/${contractName}.sol/${contractName}.json`)).toString()).abi;
+}
+
+const L2_NTV_ABI = readAbi("L2NativeTokenVault");
+
+function randomTokenProps() {
+    const name = 'NAME-' + ethers.hexlify(ethers.randomBytes(4));
+    const symbol = 'SYM-' + ethers.hexlify(ethers.randomBytes(4));
+    const decimals = Math.min(Math.floor(Math.random() * 18) + 1, 18);
+
+    return {name, symbol, decimals};
+}
+
+export const DEFAULT_SMALL_AMOUNT = 1n;
+export const DEFAULT_LARGE_AMOUNT = ethers.parseEther('0.01');
 
 // TODO: For now, only works with ETH chains
 async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet> {
@@ -37,15 +62,20 @@ async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet
     // We deposit funds to ensure that the wallet is rich
     await (await richWallet.deposit({
         token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
-        amount: ethers.parseEther('10.0')
+        amount: RICH_WALLET_L2_BALANCE
     })).wait();
 
     return richWallet;
 }
 
-// async function zkstackSpawnNewChain() {
+function getL2Ntv(l2Wallet: zksync.Wallet) {
+    return new zksync.Contract(
+        L2_NATIVE_TOKEN_VAULT_ADDRESS,
+        L2_NTV_ABI,
+        l2Wallet
+    );
+}
 
-// }
 
 export class ChainHandler {
     // public name: string;
@@ -56,6 +86,14 @@ export class ChainHandler {
     constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
         this.inner = inner;
         this.l2RichWallet = l2RichWallet;
+    }
+
+    ethersWalletToZK(ethersWallet: ethers.Wallet) {
+        return new zksync.Wallet(
+            ethersWallet.privateKey,
+            this.l2RichWallet.provider,
+            ethersWallet.provider!
+        );
     }
 
     async stopServer() {
@@ -85,26 +123,73 @@ export class ChainHandler {
 
         return handler;
     }
+
+    async deployNativeToken() {
+        return await L2ERC20Handler.deployToken(this.l2RichWallet);
+    }
 }
 
 export class L2ERC20Handler {
     public address: string;
     public l2Wallet: zksync.Wallet;
     public contract: zksync.Contract;
+    _cachedAssetId: string | null = null;
 
     constructor(address: string, l2Wallet: zksync.Wallet) {
         this.address = address;
         this.l2Wallet = l2Wallet;
         this.contract = new zksync.Contract(
             address,
-            // FIXME: use erc20 ABI
-            [],
+            ERC20_ABI,
             l2Wallet
         );
     }
+    
+    async assetId(assertNonNull: boolean = true): Promise<string> {
+        if (this._cachedAssetId) {
+            return this._cachedAssetId;
+        }
+        const l2Ntv = getL2Ntv(this.l2Wallet);
+        
+        const l2AssetId = await l2Ntv.assetId(this.address);
+        if (l2AssetId == ethers.ZeroHash) {
+            if (assertNonNull) {
+                throw new Error('Expected to be non null');
+            } else {
+                // We dont cache empty value.
+                return l2AssetId;
+            }
+        }
+    
+        this._cachedAssetId = l2AssetId;
+        return l2AssetId;
+    }
 
-    async withdraw(): Promise<WithdrawalHandler> {
-        throw new Error('');
+    async registerIfNeeded(): Promise<string> {
+        const l2Ntv = getL2Ntv(this.l2Wallet);
+        const currentAssetId = await this.assetId(false);
+        if (currentAssetId == ethers.ZeroHash) {
+            // Registering the token
+            await(await l2Ntv.registerToken(this.address)).wait();
+        }
+
+        return await this.assetId();
+    }
+
+    async withdraw(amount: bigint = DEFAULT_SMALL_AMOUNT): Promise<WithdrawalHandler> {
+        await this.registerIfNeeded();
+
+        if((await this.contract.allowance(this.l2Wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < amount) {
+            await (await this.contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
+            await (await this.contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, amount)).wait();
+        }
+
+        const withdrawTx = await this.l2Wallet.withdraw({
+            token: this.address,
+            amount
+        });
+
+        return new WithdrawalHandler(withdrawTx.hash, this.l2Wallet.provider);
     }
 
     async migrateBalanceL2ToGW(): Promise<MigrationHandler> {
@@ -116,8 +201,21 @@ export class L2ERC20Handler {
     }
 
     static async deployToken(l2Wallet: zksync.Wallet) {
-        // FIXME actually deploy it.
-        return new L2ERC20Handler(ethers.ZeroAddress, l2Wallet);
+        const factory = new zksync.ContractFactory(
+            ERC20_ABI,
+            ERC20_ZKEVM_BYTECODE,
+            l2Wallet,
+            'create'
+        );
+
+        const props = randomTokenProps();
+        const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
+        await newToken.waitForDeployment();
+
+        const handler = new L2ERC20Handler(await newToken.getAddress(), l2Wallet); 
+        await (await handler.contract.mint(l2Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
+
+        return handler;
     }
 }
 
@@ -126,49 +224,79 @@ export class L1ERC20Handler {
     public l1Wallet: ethers.Wallet;
     public contract: zksync.Contract;
 
-
     constructor(address: string, l1Wallet: ethers.Wallet) {
         this.address = address;
         this.l1Wallet = l1Wallet;
         this.contract = new ethers.Contract(
             address,
-            // FIXME: use erc20 ABI
-            [],
+            ERC20_ABI,
             l1Wallet
         );
     }
     
     // We always wait for the deposit to be finalized.
-    async deposit(chain: ChainHandler) {
-        // TODO: actually perform deposit + wait for it.
+    async deposit(chain: ChainHandler, amount: ethers.BigNumberish = DEFAULT_SMALL_AMOUNT) {
+        const zksyncWallet = chain.ethersWalletToZK(this.l1Wallet);
+        const depositTx = await zksyncWallet.deposit({
+            token: this.address,
+            amount,
+            approveERC20: true,
+            approveBaseERC20: true
+        });
+        await depositTx.wait();
     }
 
     async atL2SameWallet(chainHandler: ChainHandler) {
         // FIXME: actually obtain it
         const addrL2 = ethers.ZeroAddress;
 
-        return new L2ERC20Handler(addrL2, new zksync.Wallet(
-            this.l1Wallet.privateKey,
-            chainHandler.l2RichWallet.provider,
-            this.l1Wallet.provider!
-        ));
+        return new L2ERC20Handler(addrL2, chainHandler.ethersWalletToZK(this.l1Wallet));
     }
 
     static async deployToken(l1Wallet: ethers.Wallet) {
-        // FIXME actually deploy it.
-        return new L1ERC20Handler(ethers.ZeroAddress, l1Wallet);
+        const factory = new ethers.ContractFactory(
+            ERC20_ABI,
+            ERC20_EVM_BYTECODE,
+            l1Wallet
+        );
+
+        const props = randomTokenProps();
+        const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
+        await newToken.waitForDeployment();
+
+        const handler = new L1ERC20Handler(await newToken.getAddress(), l1Wallet);
+        await (await handler.contract.mint(l1Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
+
+        return handler;
     } 
 }
 
 export class WithdrawalHandler {
     public txHash: string;
+    public l2Provider: zksync.Provider;
 
     constructor(txHash: string, provider: zksync.Provider) {
         this.txHash = txHash;
+        this.l2Provider = provider;
     }
 
     async finalizeWithdrawal(l1RichWallet: ethers.Wallet) {
+        // Firstly, we've need to wait for the batch to be finalized.
 
+        const l2Wallet = new zksync.Wallet(
+            l1RichWallet.privateKey,
+            this.l2Provider,
+            l1RichWallet.provider!
+        );
+          
+        const receipt = await l2Wallet.provider.getTransactionReceipt(this.txHash);
+        if(!receipt) {
+            throw new Error('Receipt');
+        }
+        
+        await waitForL2ToL1LogProof(l2Wallet.provider, receipt.blockNumber, this.txHash);
+
+        await(await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
     }
 }
 
@@ -238,5 +366,38 @@ export class Tester {
     emptyWallet() {
         const walletHD = zksync.Wallet.createRandom();
         return new zksync.Wallet(walletHD.privateKey, this.web3Provider, this.ethProvider);
+    }
+}
+
+export async function waitUntilBlockFinalized(provider: zksync.Provider, blockNumber: number) {
+    console.log('Waiting for block to be finalized...', blockNumber);
+    let printedBlockNumber = 0;
+    while (true) {
+        const block = await provider.getBlock('finalized');
+        if (blockNumber <= block.number) {
+            break;
+        } else {
+            if (printedBlockNumber < block.number) {
+                console.log('Waiting for block to be finalized...', blockNumber, block.number);
+                console.log('time', new Date().toISOString());
+                printedBlockNumber = block.number;
+            }
+            await zksync.utils.sleep(provider.pollingInterval);
+        }
+    }
+}
+
+export async function waitForL2ToL1LogProof(provider: zksync.Provider, blockNumber: number, txHash: string) {
+    console.log('waiting for block to be finalized');
+    // First, we wait for block to be finalized.
+    await waitUntilBlockFinalized(provider, blockNumber);
+
+    console.log('waiting for log proof');
+    // Second, we wait for the log proof.
+    let i = 0;
+    while ((await provider.getLogProof(txHash)) == null) {
+        console.log(`Waiting for log proof... ${i}`);
+        await zksync.utils.sleep(provider.pollingInterval);
+        i++;
     }
 }
