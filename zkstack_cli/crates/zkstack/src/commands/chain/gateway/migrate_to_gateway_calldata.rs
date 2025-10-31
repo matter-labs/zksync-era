@@ -5,7 +5,6 @@ use clap::Parser;
 use ethers::{
     prelude::Http,
     providers::{Middleware, Provider},
-    types::BlockNumber,
 };
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
@@ -14,7 +13,6 @@ use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
-    constants::PAUSE_DEPOSITS_TIME_WINDOW_END,
     gateway_common::{
         get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
     },

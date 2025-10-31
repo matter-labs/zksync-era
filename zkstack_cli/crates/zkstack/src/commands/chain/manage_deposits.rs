@@ -13,7 +13,7 @@ pub enum ManageDepositsOption {
 }
 
 pub async fn run(
-    args: ForgeScriptArgs,
+    _args: ForgeScriptArgs,
     shell: &Shell,
     option: ManageDepositsOption,
 ) -> anyhow::Result<()> {
