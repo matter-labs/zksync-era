@@ -85,6 +85,8 @@ api:
     fee_history_limit: 100
     whitelisted_tokens_for_aa:
       - '0x0000000000000000000000000000000000000001'
+    send_raw_tx_sync_max_timeout_ms: 10000
+    send_raw_tx_sync_default_timeout_ms: 2000
 
 contracts:
   l1:

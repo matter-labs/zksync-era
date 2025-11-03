@@ -305,6 +305,9 @@ fn parsing_from_full_env() {
         EN_API_TREE_API_REMOTE_URL=http://tree/
         # Tree component config
         EN_TREE_API_PORT=2955
+
+        EN_API_WEB3_JSON_RPC_SEND_RAW_TX_SYNC_MAX_TIMEOUT_MS=10000
+        EN_API_WEB3_JSON_RPC_SEND_RAW_TX_SYNC_DEFAULT_TIMEOUT_MS=2000
     "#;
     let env = smart_config::Environment::from_dotenv("test.env", env)
         .unwrap()

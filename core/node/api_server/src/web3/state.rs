@@ -141,8 +141,8 @@ impl InternalApiConfigBase {
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
             eth_call_gas_cap: web3_config.eth_call_gas_cap,
-            send_raw_tx_sync_default_timeout_ms: 2000, // EIP-7966 default: 2 seconds
-            send_raw_tx_sync_max_timeout_ms: 10000,    // Safety limit: 10 seconds
+            send_raw_tx_sync_default_timeout_ms: web3_config.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_max_timeout_ms: web3_config.send_raw_tx_sync_max_timeout_ms,
         }
     }
 
