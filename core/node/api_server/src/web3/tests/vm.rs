@@ -754,8 +754,8 @@ fn create_tx_result_from_bytes(tx_bytes: &[u8], tx_hash: H256) -> TransactionExe
 
     // Convert to L2Tx
     let max_tx_size = 1_000_000; // 1MB, same as used in tests
-    let mut l2_tx = L2Tx::from_request(tx_request, max_tx_size, false)
-        .expect("Failed to convert to L2Tx");
+    let mut l2_tx =
+        L2Tx::from_request(tx_request, max_tx_size, false).expect("Failed to convert to L2Tx");
 
     // Set the raw input data (required for the transaction to be valid)
     l2_tx.set_input(tx_bytes.to_vec(), tx_hash);
@@ -797,7 +797,8 @@ impl WsTest for SendRawTransactionSyncImmediateReceiptTest {
         wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Blocks]).await;
 
         // Use unique transaction to avoid duplicates with other tests
-        let (tx_bytes, tx_hash) = SendRawTransactionTest::unique_transaction_bytes_and_hash(100_001);
+        let (tx_bytes, tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(100_001);
 
         // Spawn a task that will store the block very quickly after the sync call starts
         let pool_clone = pool.clone();
@@ -875,7 +876,8 @@ impl WsTest for SendRawTransactionSyncDelayedReceiptTest {
         wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Blocks]).await;
 
         // Use unique transaction to avoid duplicates
-        let (tx_bytes, _tx_hash) = SendRawTransactionTest::unique_transaction_bytes_and_hash(200_002);
+        let (tx_bytes, _tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(200_002);
 
         let client_clone = client.clone();
         let tx_bytes_clone = tx_bytes.clone();
@@ -899,8 +901,17 @@ impl WsTest for SendRawTransactionSyncDelayedReceiptTest {
 
         // Verify it's a timeout error (code 4)
         if let ClientError::Call(e) = &err {
-            assert_eq!(e.code(), 4, "Expected timeout error code 4, got: {}", e.code());
-            assert!(e.message().contains("timeout"), "Expected timeout message, got: {}", e.message());
+            assert_eq!(
+                e.code(),
+                4,
+                "Expected timeout error code 4, got: {}",
+                e.code()
+            );
+            assert!(
+                e.message().contains("timeout"),
+                "Expected timeout message, got: {}",
+                e.message()
+            );
         } else {
             panic!("Expected ClientError::Call, got: {:?}", err);
         }
@@ -1005,7 +1016,8 @@ impl WsTest for SendRawTransactionSyncMultipleBlocksTest {
         wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Blocks]).await;
 
         // Use unique transaction to avoid duplicates
-        let (tx_bytes, _tx_hash) = SendRawTransactionTest::unique_transaction_bytes_and_hash(300_003);
+        let (tx_bytes, _tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(300_003);
 
         let client_clone = client.clone();
         let tx_bytes_clone = tx_bytes.clone();
@@ -1051,8 +1063,17 @@ impl WsTest for SendRawTransactionSyncMultipleBlocksTest {
 
         // Verify it's a timeout error (code 4)
         if let ClientError::Call(e) = &err {
-            assert_eq!(e.code(), 4, "Expected timeout error code 4, got: {}", e.code());
-            assert!(e.message().contains("timeout"), "Expected timeout message, got: {}", e.message());
+            assert_eq!(
+                e.code(),
+                4,
+                "Expected timeout error code 4, got: {}",
+                e.code()
+            );
+            assert!(
+                e.message().contains("timeout"),
+                "Expected timeout message, got: {}",
+                e.message()
+            );
         } else {
             panic!("Expected ClientError::Call, got: {:?}", err);
         }
@@ -1199,7 +1220,8 @@ impl WsTest for SendRawTransactionSyncDefaultTimeoutTest {
         wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Blocks]).await;
 
         // Use unique transaction to avoid duplicates
-        let (tx_bytes, _tx_hash) = SendRawTransactionTest::unique_transaction_bytes_and_hash(400_004);
+        let (tx_bytes, _tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(400_004);
 
         // Call sync without specifying timeout (should use default 2000ms)
         let err = client
@@ -1213,8 +1235,17 @@ impl WsTest for SendRawTransactionSyncDefaultTimeoutTest {
         // Verify it times out with the default timeout (2000ms)
         // Since we don't create any blocks, it should timeout
         if let ClientError::Call(e) = &err {
-            assert_eq!(e.code(), 4, "Expected timeout error code 4, got: {}", e.code());
-            assert!(e.message().contains("timeout"), "Expected timeout message, got: {}", e.message());
+            assert_eq!(
+                e.code(),
+                4,
+                "Expected timeout error code 4, got: {}",
+                e.code()
+            );
+            assert!(
+                e.message().contains("timeout"),
+                "Expected timeout message, got: {}",
+                e.message()
+            );
         } else {
             panic!("Expected ClientError::Call, got: {:?}", err);
         }
