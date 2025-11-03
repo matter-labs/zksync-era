@@ -15,7 +15,7 @@ use zksync_multivm::interface::{
     ExecutionResult, OneshotEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
-    api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants, l2::L2Tx,
+    api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
     transaction_request::CallRequest, u256_to_h256, K256PrivateKey, L2ChainId, PackedEthSignature,
     StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
@@ -743,107 +743,6 @@ async fn send_raw_transaction_with_detailed_output() {
 }
 
 // Tests for `eth_sendRawTransactionSync` (EIP-7966)
-
-// Helper to create transaction execution result from raw transaction bytes
-fn create_tx_result_from_bytes(tx_bytes: &[u8], tx_hash: H256) -> TransactionExecutionResult {
-    // Parse the transaction from bytes
-    let chain_id = L2ChainId::default();
-    let (tx_request, parsed_hash) = api::TransactionRequest::from_bytes(tx_bytes, chain_id)
-        .expect("Failed to parse transaction");
-    assert_eq!(parsed_hash, tx_hash, "Transaction hash mismatch");
-
-    // Convert to L2Tx
-    let max_tx_size = 1_000_000; // 1MB, same as used in tests
-    let mut l2_tx =
-        L2Tx::from_request(tx_request, max_tx_size, false).expect("Failed to convert to L2Tx");
-
-    // Set the raw input data (required for the transaction to be valid)
-    l2_tx.set_input(tx_bytes.to_vec(), tx_hash);
-
-    mock_execute_transaction(l2_tx.into())
-}
-
-#[derive(Debug)]
-struct SendRawTransactionSyncImmediateReceiptTest;
-
-#[async_trait]
-impl WsTest for SendRawTransactionSyncImmediateReceiptTest {
-    fn transaction_executor(&self) -> MockOneshotExecutor {
-        let mut executor = MockOneshotExecutor::default();
-        executor.set_tx_responses(|_, _| {
-            // Accept the transaction from transaction_bytes_and_hash(true)
-            ExecutionResult::Success { output: vec![] }
-        });
-        executor
-    }
-
-    async fn test(
-        &self,
-        client: &WsClient<L2>,
-        pool: &ConnectionPool<Core>,
-        mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
-    ) -> anyhow::Result<()> {
-        let mut storage = pool.connection().await?;
-        storage
-            .storage_logs_dal()
-            .append_storage_logs(
-                L2BlockNumber(0),
-                &[SendRawTransactionTest::balance_storage_log()],
-            )
-            .await?;
-        drop(storage);
-
-        // Wait for the notifiers to initialize before proceeding
-        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Blocks]).await;
-
-        // Use unique transaction to avoid duplicates with other tests
-        let (tx_bytes, tx_hash) =
-            SendRawTransactionTest::unique_transaction_bytes_and_hash(100_001);
-
-        // Spawn a task that will store the block very quickly after the sync call starts
-        let pool_clone = pool.clone();
-        let tx_bytes_clone = tx_bytes.clone();
-        let tx_hash_clone = tx_hash;
-        tokio::spawn(async move {
-            // Small delay to let the sync call submit the transaction first
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-
-            let mut storage = pool_clone.connection().await.unwrap();
-            store_l2_block(
-                &mut storage,
-                L2BlockNumber(1),
-                &[create_tx_result_from_bytes(&tx_bytes_clone, tx_hash_clone)],
-            )
-            .await
-            .unwrap();
-        });
-
-        // Call sync - it submits the transaction and should find the receipt very quickly
-        let receipt: api::TransactionReceipt = client
-            .request(
-                "eth_sendRawTransactionSync",
-                rpc_params![Bytes(tx_bytes), Option::<U256>::None],
-            )
-            .await?;
-
-        assert_eq!(receipt.transaction_hash, tx_hash);
-        assert_eq!(receipt.block_number, U64::from(1));
-        assert_eq!(receipt.status, U64::from(1)); // Success
-
-        Ok(())
-    }
-}
-
-// NOTE: This test cannot be implemented with the current test infrastructure.
-// It would require a transaction to be pre-mined before calling eth_sendRawTransactionSync,
-// but manually storing blocks with transactions causes "Duplicate" assertion failures
-// in the test infrastructure when the method tries to submit the transaction.
-// This scenario (calling sync on an already-mined transaction) would return a
-// "known transaction" error in practice, which is the correct behavior.
-// #[tokio::test]
-// async fn send_raw_transaction_sync_immediate_receipt() {
-//     test_ws_server(SendRawTransactionSyncImmediateReceiptTest).await;
-// }
 
 #[derive(Debug)]
 struct SendRawTransactionSyncDelayedReceiptTest;
