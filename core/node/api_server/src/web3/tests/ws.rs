@@ -49,7 +49,7 @@ pub(super) async fn wait_for_subscription(
         .expect("Timed out waiting for subscription")
 }
 
-async fn wait_for_notifiers(
+pub(super) async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_types: &[SubscriptionType],
 ) {
@@ -150,6 +150,11 @@ pub(super) trait WsTest: Send + Sync {
         StorageInitialization::genesis()
     }
 
+    /// Configures the transaction executor. The default implementation returns a mock that panics on any transaction.
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        MockOneshotExecutor::default()
+    }
+
     async fn test(
         &self,
         client: &WsClient<L2>,
@@ -185,6 +190,7 @@ pub(super) async fn test_ws_server(test: impl WsTest) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (mut server_handles, pub_sub_events) = TestServerBuilder::new(pool.clone(), api_config)
+        .with_tx_executor(test.transaction_executor())
         .build_ws(test.websocket_requests_per_minute_limit(), stop_receiver)
         .await;
 
