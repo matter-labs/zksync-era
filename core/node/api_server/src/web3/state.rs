@@ -7,12 +7,10 @@ use std::{
     time::Instant,
 };
 
-use tokio::sync::broadcast;
-
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{
@@ -322,7 +320,8 @@ pub(crate) struct RpcState {
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
     /// Broadcast channel for new block notifications (used for eth_sendRawTransactionSync)
     /// Sends Vec<PubSubResult> but can be used as a signal for new blocks
-    pub(super) block_notifications: Option<broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>>,
+    pub(super) block_notifications:
+        Option<broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>>,
 }
 
 impl RpcState {

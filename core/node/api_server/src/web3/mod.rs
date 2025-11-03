@@ -319,7 +319,9 @@ impl ApiServer {
 
     async fn build_rpc_state_with_notifications(
         self,
-        block_notifications: Option<tokio::sync::broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>>,
+        block_notifications: Option<
+            tokio::sync::broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>,
+        >,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.pool.connection_tagged("api").await?;
         let start_info =
@@ -363,7 +365,9 @@ impl ApiServer {
 
         // Extract blocks sender before consuming pub_sub (for eth_sendRawTransactionSync)
         let block_notifications = pub_sub.as_ref().map(|ps| ps.blocks.clone());
-        let rpc_state = self.build_rpc_state_with_notifications(block_notifications).await?;
+        let rpc_state = self
+            .build_rpc_state_with_notifications(block_notifications)
+            .await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());

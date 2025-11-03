@@ -695,18 +695,25 @@ impl EthNamespace {
             .map_err(|err| self.current_method().map_submit_err(err))
     }
 
-    pub async fn send_raw_transaction_sync_impl(&self, tx_bytes: Bytes, max_wait_ms: Option<U256>) -> Result<TransactionReceipt, Web3Error> {
+    pub async fn send_raw_transaction_sync_impl(
+        &self,
+        tx_bytes: Bytes,
+        max_wait_ms: Option<U256>,
+    ) -> Result<TransactionReceipt, Web3Error> {
         // Check that block notifier exists before submitting transaction
         let Some(block_notifier) = &self.state.block_notifications else {
             return Err(Web3Error::TransactionUnready(
-                "eth_sendRawTransactionSync is not available - block notifications not configured".to_string()
+                "eth_sendRawTransactionSync is not available - block notifications not configured"
+                    .to_string(),
             ));
         };
 
         let timeout_ms = if let Some(timeout) = max_wait_ms {
             let timeout_u64 = timeout.as_u64();
             if timeout_u64 > self.state.api_config.send_raw_tx_sync_max_timeout_ms {
-                return Err(Web3Error::InvalidTimeout(self.state.api_config.send_raw_tx_sync_max_timeout_ms));
+                return Err(Web3Error::InvalidTimeout(
+                    self.state.api_config.send_raw_tx_sync_max_timeout_ms,
+                ));
             }
             timeout_u64
         } else {

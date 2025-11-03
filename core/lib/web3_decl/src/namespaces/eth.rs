@@ -154,7 +154,11 @@ pub trait EthNamespace {
     async fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256>;
 
     #[method(name = "sendRawTransactionSync")]
-    async fn send_raw_transaction_sync(&self, tx_bytes: Bytes, max_wait_ms: Option<U256>) -> RpcResult<TransactionReceipt>;
+    async fn send_raw_transaction_sync(
+        &self,
+        tx_bytes: Bytes,
+        max_wait_ms: Option<U256>,
+    ) -> RpcResult<TransactionReceipt>;
 
     #[method(name = "syncing")]
     async fn syncing(&self) -> RpcResult<SyncState>;

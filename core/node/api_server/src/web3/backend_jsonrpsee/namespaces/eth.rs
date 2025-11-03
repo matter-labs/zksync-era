@@ -225,7 +225,11 @@ impl EthNamespaceServer for EthNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn send_raw_transaction_sync(&self, tx_bytes: Bytes, max_wait_ms: Option<U256>) -> RpcResult<TransactionReceipt> {
+    async fn send_raw_transaction_sync(
+        &self,
+        tx_bytes: Bytes,
+        max_wait_ms: Option<U256>,
+    ) -> RpcResult<TransactionReceipt> {
         self.send_raw_transaction_sync_impl(tx_bytes, max_wait_ms)
             .await
             .map_err(|err| self.current_method().map_err(err))
