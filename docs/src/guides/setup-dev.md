@@ -41,7 +41,7 @@ npm install -g yarn
 yarn set version 1.22.19
 
 # For running unit tests
-cargo install cargo-nextest
+cargo install cargo-nextest --version 0.9.109 --locked
 # SQL tools
 cargo install sqlx-cli --version 0.8.1
 
