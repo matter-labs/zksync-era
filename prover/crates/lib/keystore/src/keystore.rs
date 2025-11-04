@@ -96,7 +96,7 @@ impl Keystore {
                 // We want to be very conservative here, and checking
                 // more locations than we likely need to not accidentally
                 // break something.
-                let paths = ["./prover/data", "./data", "/prover/data", "/data"];
+                let paths = ["./prover/data", "./data", "/prover/data", "/data", "../prover/data", "../data",];
                 paths.iter().map(PathBuf::from).find(|path| path.exists()).unwrap_or_else(|| {
                     panic!("Failed to locate the prover data directory. Locations checked: {paths:?}")
                 })
