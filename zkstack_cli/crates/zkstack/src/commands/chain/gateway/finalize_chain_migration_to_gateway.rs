@@ -156,7 +156,7 @@ pub async fn run_inner(
         chain_config.chain_id.as_u64(),
     )
     .await?
-    .context("Failed to find the transaction where the migration from GW to L1 happened")?;
+    .context("Failed to find the transaction where the migration from L1 to GW happened")?;
     let migration_tx_receipt = l1_provider
         .get_transaction_receipt(chain_migration_tx_hash)
         .await?
