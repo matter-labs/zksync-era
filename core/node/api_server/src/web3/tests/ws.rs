@@ -27,7 +27,7 @@ use zksync_web3_decl::{
 use super::*;
 use crate::web3::metrics::SubscriptionType;
 
-pub(super) async fn wait_for_subscription(
+async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
 ) {
@@ -49,7 +49,7 @@ pub(super) async fn wait_for_subscription(
         .expect("Timed out waiting for subscription")
 }
 
-pub(super) async fn wait_for_notifiers(
+async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_types: &[SubscriptionType],
 ) {
@@ -73,7 +73,7 @@ pub(super) async fn wait_for_notifiers(
     wait_future.await.expect("Timed out waiting for notifier");
 }
 
-pub(super) async fn wait_for_notifier_l2_block(
+async fn wait_for_notifier_l2_block(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
     expected: L2BlockNumber,
@@ -144,15 +144,10 @@ async fn notifiers_start_after_snapshot_recovery() {
 }
 
 #[async_trait]
-pub(super) trait WsTest: Send + Sync {
+trait WsTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
         StorageInitialization::genesis()
-    }
-
-    /// Configures the transaction executor. The default implementation returns a mock that panics on any transaction.
-    fn transaction_executor(&self) -> MockOneshotExecutor {
-        MockOneshotExecutor::default()
     }
 
     async fn test(
@@ -167,7 +162,7 @@ pub(super) trait WsTest: Send + Sync {
     }
 }
 
-pub(super) async fn test_ws_server(test: impl WsTest) {
+async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -192,7 +187,6 @@ pub(super) async fn test_ws_server(test: impl WsTest) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (mut server_handles, pub_sub_events) = TestServerBuilder::new(pool.clone(), api_config)
-        .with_tx_executor(test.transaction_executor())
         .build_ws(test.websocket_requests_per_minute_limit(), stop_receiver)
         .await;
 
