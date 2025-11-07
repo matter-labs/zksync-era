@@ -579,8 +579,10 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let contracts_config = configs::ContractsConfig::for_tests();
+                let state_keeper_config = configs::chain::StateKeeperConfig::for_tests();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
+                    &state_keeper_config,
                     &contracts_config.settlement_layer_specific_contracts(),
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
@@ -672,8 +674,10 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let contracts_config = configs::ContractsConfig::for_tests();
+                let state_keeper_config = configs::chain::StateKeeperConfig::for_tests();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
+                    &state_keeper_config,
                     &contracts_config.settlement_layer_specific_contracts(),
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),

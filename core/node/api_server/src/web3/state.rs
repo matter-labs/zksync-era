@@ -10,11 +10,12 @@ use std::{
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::Mutex;
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
+        chain::StateKeeperConfig,
         contracts::{
             chain::L2Contracts,
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
@@ -124,10 +125,15 @@ pub struct InternalApiConfigBase {
     pub eth_call_gas_cap: Option<u64>,
     pub send_raw_tx_sync_default_timeout_ms: u64,
     pub send_raw_tx_sync_max_timeout_ms: u64,
+    pub send_raw_tx_sync_poll_interval_ms: u64,
 }
 
 impl InternalApiConfigBase {
-    pub fn new(genesis: &GenesisConfig, web3_config: &Web3JsonRpcConfig) -> Self {
+    pub fn new(
+        genesis: &GenesisConfig,
+        web3_config: &Web3JsonRpcConfig,
+        state_keeper_config: &StateKeeperConfig,
+    ) -> Self {
         Self {
             l1_chain_id: genesis.l1_chain_id,
             l2_chain_id: genesis.l2_chain_id,
@@ -143,6 +149,9 @@ impl InternalApiConfigBase {
             eth_call_gas_cap: web3_config.eth_call_gas_cap,
             send_raw_tx_sync_default_timeout_ms: web3_config.send_raw_tx_sync_default_timeout_ms,
             send_raw_tx_sync_max_timeout_ms: web3_config.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: state_keeper_config
+                .l2_block_commit_deadline
+                .as_millis() as u64,
         }
     }
 
@@ -186,6 +195,7 @@ pub struct InternalApiConfig {
     pub eth_call_gas_cap: Option<u64>,
     pub send_raw_tx_sync_default_timeout_ms: u64,
     pub send_raw_tx_sync_max_timeout_ms: u64,
+    pub send_raw_tx_sync_poll_interval_ms: u64,
 }
 
 impl InternalApiConfig {
@@ -236,11 +246,13 @@ impl InternalApiConfig {
             eth_call_gas_cap: base.eth_call_gas_cap,
             send_raw_tx_sync_default_timeout_ms: base.send_raw_tx_sync_default_timeout_ms,
             send_raw_tx_sync_max_timeout_ms: base.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: base.send_raw_tx_sync_poll_interval_ms,
         }
     }
 
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
+        state_keeper_config: &StateKeeperConfig,
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
@@ -248,7 +260,7 @@ impl InternalApiConfig {
         l1_to_l2_txs_paused: bool,
         settlement_layer: SettlementLayer,
     ) -> Self {
-        let base = InternalApiConfigBase::new(genesis_config, web3_config)
+        let base = InternalApiConfigBase::new(genesis_config, web3_config, state_keeper_config)
             .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
         Self::from_base_and_contracts(
             base,
@@ -318,10 +330,6 @@ pub(crate) struct RpcState {
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
-    /// Broadcast channel for new block notifications (used for eth_sendRawTransactionSync)
-    /// Sends Vec<PubSubResult> but can be used as a signal for new blocks
-    pub(super) block_notifications:
-        Option<broadcast::Sender<Vec<zksync_web3_decl::types::PubSubResult>>>,
 }
 
 impl RpcState {

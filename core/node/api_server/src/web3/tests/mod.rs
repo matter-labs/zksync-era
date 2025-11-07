@@ -278,8 +278,10 @@ async fn test_http_server(test: impl HttpTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = test.web3_config();
     let genesis = GenesisConfig::for_tests();
+    let state_keeper_config = StateKeeperConfig::for_tests();
     let api_config = InternalApiConfig::new(
         &web3_config,
+        &state_keeper_config,
         &contracts_config.settlement_layer_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),

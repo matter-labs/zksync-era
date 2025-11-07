@@ -218,6 +218,8 @@ impl From<&LocalConfig> for InternalApiConfigBase {
             eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
             send_raw_tx_sync_max_timeout_ms: web3_rpc.send_raw_tx_sync_max_timeout_ms,
             send_raw_tx_sync_default_timeout_ms: web3_rpc.send_raw_tx_sync_default_timeout_ms,
+            // Default to 1 second polling interval (matches StateKeeperConfig default)
+            send_raw_tx_sync_poll_interval_ms: 1000,
         }
     }
 }

@@ -700,14 +700,6 @@ impl EthNamespace {
         tx_bytes: Bytes,
         max_wait_ms: Option<U256>,
     ) -> Result<TransactionReceipt, Web3Error> {
-        // Check that block notifier exists before submitting transaction
-        let Some(block_notifier) = &self.state.block_notifications else {
-            return Err(Web3Error::TransactionUnready(
-                "eth_sendRawTransactionSync is not available - block notifications not configured"
-                    .to_string(),
-            ));
-        };
-
         let timeout_ms = if let Some(timeout) = max_wait_ms {
             let timeout_u64 = timeout.as_u64();
             if timeout_u64 > self.state.api_config.send_raw_tx_sync_max_timeout_ms {
@@ -723,37 +715,27 @@ impl EthNamespace {
         // Submit transaction and get hash
         let hash = self.send_raw_transaction_impl(tx_bytes).await?;
 
-        let mut block_rx = block_notifier.subscribe();
+        // Poll for receipt at regular intervals
+        let poll_interval = std::time::Duration::from_millis(
+            self.state.api_config.send_raw_tx_sync_poll_interval_ms,
+        );
+        let mut interval = tokio::time::interval(poll_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
         let deadline = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms));
         tokio::pin!(deadline);
 
-        // Wait for receipt or timeout
+        // Check immediately, then poll at intervals
         loop {
             tokio::select! {
                 _ = &mut deadline => {
                     return Err(Web3Error::TransactionTimeout(hash));
                 }
-                result = block_rx.recv() => {
-                    match result {
-                        Ok(_new_block) => {
-                            // New block arrived, check for receipt
-                            if let Some(receipt) = self.get_transaction_receipt_impl(hash).await? {
-                                return Ok(receipt);
-                            }
-                            // Continue waiting
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                            // Lagged behind, check receipt and continue
-                            if let Some(receipt) = self.get_transaction_receipt_impl(hash).await? {
-                                return Ok(receipt);
-                            }
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                            return Err(Web3Error::TransactionUnready(
-                                "Block notification channel closed".to_string()
-                            ));
-                        }
+                _ = interval.tick() => {
+                    if let Some(receipt) = self.get_transaction_receipt_impl(hash).await? {
+                        return Ok(receipt);
                     }
+                    // Continue waiting
                 }
             }
         }
