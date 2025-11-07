@@ -257,7 +257,7 @@ impl PubSubNotifier {
 #[derive(Debug)]
 pub(crate) struct EthSubscribe {
     polling_interval: Duration,
-    pub(crate) blocks: broadcast::Sender<Vec<PubSubResult>>,
+    blocks: broadcast::Sender<Vec<PubSubResult>>,
     transactions: broadcast::Sender<Vec<PubSubResult>>,
     logs: broadcast::Sender<Vec<PubSubResult>>,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,

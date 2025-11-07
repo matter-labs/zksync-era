@@ -356,7 +356,6 @@ impl ApiServer {
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-
         let rpc_state = self.build_rpc_state().await?;
 
         // Collect all the methods into a single RPC module.
