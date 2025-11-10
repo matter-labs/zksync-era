@@ -310,7 +310,10 @@ mod tests {
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
-    use zksync_types::commitment::{L2DACommitmentScheme, L2PubdataValidator};
+    use zksync_types::{
+        commitment::{L2DACommitmentScheme, L2PubdataValidator},
+        settlement::SettlementLayer,
+    };
 
     use super::*;
 
@@ -345,6 +348,7 @@ mod tests {
                     max_virtual_blocks_to_create: 0,
                     interop_roots: vec![],
                 },
+                settlement_layer: SettlementLayer::for_tests(),
             },
             SystemEnv {
                 zk_porter_available: false,

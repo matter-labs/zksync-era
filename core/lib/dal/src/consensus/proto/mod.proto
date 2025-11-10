@@ -23,6 +23,16 @@ message InteropRoot {
   repeated bytes sides = 3; // required; Vec<U256>
 }
 
+enum SettlementLayerType {
+  L1 = 0;
+  GATEWAY = 1;
+}
+
+message SettlementLayer {
+    optional uint64 chain_id = 1; // required; u32
+    optional SettlementLayerType settlement_layer_type = 2; // required;
+}
+
 message Payload {
   // zksync-era ProtocolVersionId
   optional uint32 protocol_version = 9; // required; u16
@@ -42,6 +52,7 @@ message Payload {
   optional PubdataParams pubdata_params = 13; // optional
   optional uint64 pubdata_limit = 14; // required since v29
   repeated InteropRoot interop_roots = 15; // optional; set for protocol_version >= 29
+  optional SettlementLayer settlement_layer = 16; // optional; set for protocol_version >= 29
 }
 
 message PubdataParams {

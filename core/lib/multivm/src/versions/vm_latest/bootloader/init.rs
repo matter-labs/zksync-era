@@ -1,7 +1,12 @@
 use zksync_types::{address_to_u256, h256_to_u256, U256};
 
 use super::BootloaderState;
-use crate::{interface::L1BatchEnv, vm_latest::utils::fee::get_batch_base_fee};
+use crate::{
+    interface::L1BatchEnv,
+    vm_latest::{
+        constants::get_settlement_layer_offset, utils::fee::get_batch_base_fee, MultiVmSubversion,
+    },
+};
 
 const OPERATOR_ADDRESS_SLOT: usize = 0;
 const PREV_BLOCK_HASH_SLOT: usize = 1;
@@ -14,7 +19,10 @@ const SHOULD_SET_NEW_BLOCK_SLOT: usize = 7;
 
 impl BootloaderState {
     /// Returns the initial memory for the bootloader based on the current batch environment.
-    pub(crate) fn initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U256)> {
+    pub(crate) fn initial_memory(
+        vm_version: MultiVmSubversion,
+        l1_batch: &L1BatchEnv,
+    ) -> Vec<(usize, U256)> {
         let (prev_block_hash, should_set_new_block) = l1_batch
             .previous_batch_hash
             .map(|prev_block_hash| (h256_to_u256(prev_block_hash), U256::one()))
@@ -41,6 +49,10 @@ impl BootloaderState {
                 U256::from(get_batch_base_fee(l1_batch)),
             ),
             (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
+            (
+                get_settlement_layer_offset(vm_version),
+                U256::from(l1_batch.settlement_layer.chain_id().0),
+            ),
         ]
     }
 }

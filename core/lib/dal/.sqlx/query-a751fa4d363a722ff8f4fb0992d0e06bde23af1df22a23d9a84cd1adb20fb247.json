@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                is_sealed,\n                timestamp,\n                protocol_version,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit\n            FROM\n                l1_batches\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                number,\n                is_sealed,\n                timestamp,\n                protocol_version,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price,\n                pubdata_limit,\n                settlement_layer_type,\n                settlement_layer_chain_id\n            \n            FROM\n                l1_batches\n            WHERE number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -47,10 +47,22 @@
         "ordinal": 8,
         "name": "pubdata_limit",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "settlement_layer_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "settlement_layer_chain_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -61,8 +73,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "d56d12ba1802fe09e9255717ad488d251b95974b504653ebdb8c4a567e1ccdb9"
+  "hash": "a751fa4d363a722ff8f4fb0992d0e06bde23af1df22a23d9a84cd1adb20fb247"
 }

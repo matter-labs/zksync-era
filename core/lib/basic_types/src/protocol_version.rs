@@ -131,9 +131,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version31 => VmVersion::VmInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
         }
     }
 
@@ -171,6 +171,10 @@ impl ProtocolVersionId {
         self < &Self::Version29
     }
 
+    pub fn is_pre_medium_interop(&self) -> bool {
+        self < &Self::Version30
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }
@@ -205,10 +209,6 @@ impl ProtocolVersionId {
 
     pub fn is_post_1_5_0(&self) -> bool {
         self >= &ProtocolVersionId::Version23
-    }
-
-    pub fn is_pre_medium_interop(&self) -> bool {
-        self < &ProtocolVersionId::Version30
     }
 
     pub const fn gateway_upgrade() -> Self {
@@ -322,9 +322,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version31 => VmVersion::VmInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
         }
     }
 }

@@ -17,6 +17,7 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
+    settlement::SettlementLayer,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
     AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
@@ -63,6 +64,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
             fair_pubdata_price: 1,
             l1_gas_price: 1,
         }),
+        settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(79)),
     }
 }
 
@@ -103,6 +105,7 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
             evm_emulator: None,
         },
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     );
     header.l1_tx_count = 3;
     header.l2_tx_count = 5;
@@ -244,6 +247,7 @@ impl Snapshot {
             l1_batch.0.into(),
             contracts.hashes(),
             protocol_version,
+            SettlementLayer::for_tests(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,

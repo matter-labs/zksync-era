@@ -3,6 +3,7 @@ use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::ZkStackConfig;
 use zksync_basic_types::H256;
+use zksync_types::L2ChainId;
 
 use crate::commands::dev::messages::msg_rich_account_outro;
 pub mod args;
@@ -32,7 +33,11 @@ sol! {
     }
 }
 
-pub async fn run(shell: &Shell, args: RichAccountArgs) -> anyhow::Result<()> {
+pub async fn run(
+    shell: &Shell,
+    args: RichAccountArgs,
+    chain_id: Option<L2ChainId>,
+) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
     let chain_config = ZkStackConfig::current_chain(shell)?;
@@ -56,7 +61,10 @@ pub async fn run(shell: &Shell, args: RichAccountArgs) -> anyhow::Result<()> {
     let amount = U256::from_le_bytes(tmp_bytes);
 
     let request = BridgehubAbi::L2TransactionRequestDirect {
-        chainId: chain_config.chain_id.as_u64().try_into().unwrap(),
+        chainId: (chain_id.unwrap_or(chain_config.chain_id))
+            .as_u64()
+            .try_into()
+            .unwrap(),
         mintValue: amount,
         l2Contract: args.l2_account.0.into(),
         l2Value: 0.try_into().unwrap(),

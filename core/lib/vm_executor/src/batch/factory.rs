@@ -1,4 +1,4 @@
-use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{fmt, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -249,7 +249,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         with_compression: bool,
     ) -> BatchTransactionExecutionResult {
         let legacy_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if Tr::TRACE_CALLS {
+        let legacy_tracer = if true {
             vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
@@ -295,6 +295,13 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 fast_traces
             }
         };
+
+        // Save the formatted call_traces to a file
+        if let Ok(mut file) = std::fs::File::create("call_traces.json") {
+            if let Ok(json) = serde_json::to_string(&call_traces) {
+                let _ = writeln!(file, "{}", json);
+            }
+        }
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),

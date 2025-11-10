@@ -6,7 +6,9 @@ use test_casing::TestCases;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_test_contracts::LoadnextContractExecutionParams;
-use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
+use zksync_types::{
+    get_nonce_key, settlement::SettlementLayer, L1BatchNumber, L2BlockNumber, StorageLog,
+};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::*;
@@ -229,5 +231,7 @@ async fn create_real_tx_sender_with_options(
 
 async fn pending_block_args(tx_sender: &TxSender) -> BlockArgs {
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
-    BlockArgs::pending(&mut storage).await.unwrap()
+    BlockArgs::pending(&mut storage, SettlementLayer::for_tests())
+        .await
+        .unwrap()
 }
