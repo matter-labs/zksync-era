@@ -150,6 +150,7 @@ impl InternalApiConfigBase {
             send_raw_tx_sync_default_timeout_ms: web3_config.send_raw_tx_sync_default_timeout_ms,
             send_raw_tx_sync_max_timeout_ms: web3_config.send_raw_tx_sync_max_timeout_ms,
             send_raw_tx_sync_poll_interval_ms: state_keeper_config
+                .shared
                 .l2_block_commit_deadline
                 .as_millis() as u64,
         }

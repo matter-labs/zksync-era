@@ -95,6 +95,7 @@ state_keeper:
   l2_block_seal_queue_capacity: 20
   save_call_traces: false
   protective_reads_persistence_enabled: true
+  l2_block_commit_deadline_ms: 1000
 commitment_generator:
   max_parallelism: 4
 timestamp_asserter:

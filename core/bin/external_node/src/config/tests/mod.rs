@@ -257,6 +257,7 @@ fn parsing_from_full_env() {
 
         EN_L2_BLOCK_SEAL_QUEUE_CAPACITY=20
         EN_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
+        EN_L2_BLOCK_COMMIT_DEADLINE_MS=1000
         # NEW PARAMS: From SharedStateKeeperConfig
         EN_SAVE_CALL_TRACES=false
 
