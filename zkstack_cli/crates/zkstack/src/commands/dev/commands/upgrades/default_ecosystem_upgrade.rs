@@ -456,9 +456,9 @@ fn update_contracts_config_from_output(
     ));
     ctm.rollup_l1_da_validator_addr = output.deployed_addresses.rollup_l1_da_validator_addr;
     ctm.no_da_validium_l1_validator_addr = output.deployed_addresses.validium_l1_da_validator_addr;
-    ctm.l1_blobs_da_validator_zksync_os_addr = output
+    ctm.blobs_zksync_os_l1_da_validator_addr = output
         .deployed_addresses
-        .l1_blobs_da_validator_zksync_os_addr;
+        .blobs_zksync_os_l1_da_validator_addr;
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)

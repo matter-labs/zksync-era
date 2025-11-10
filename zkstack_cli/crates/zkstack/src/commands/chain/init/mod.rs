@@ -271,7 +271,7 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
         L1BatchCommitmentMode::Rollup => {
             if chain_config.vm_option.is_zksync_os() {
-                contracts_config.l1.l1_blobs_da_validator_zksync_os_addr
+                contracts_config.l1.blobs_zksync_os_l1_da_validator_addr
             } else {
                 contracts_config.l1.rollup_l1_da_validator_addr
             }

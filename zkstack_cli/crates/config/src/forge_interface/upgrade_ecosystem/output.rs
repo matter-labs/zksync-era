@@ -64,7 +64,7 @@ pub struct EcosystemUpgradeContractsOutput {
 pub struct EcosystemUpgradeDeployedAddresses {
     pub native_token_vault_addr: Address,
     pub rollup_l1_da_validator_addr: Address,
-    pub l1_blobs_da_validator_zksync_os_addr: Option<Address>,
+    pub blobs_zksync_os_l1_da_validator_addr: Option<Address>,
     pub validator_timelock_addr: Address,
     pub validium_l1_da_validator_addr: Address,
     pub l1_bytecodes_supplier_addr: Address,
