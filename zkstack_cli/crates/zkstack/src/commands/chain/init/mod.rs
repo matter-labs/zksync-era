@@ -179,7 +179,11 @@ pub async fn init(
 
     let commitment_scheme =
         if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
-            L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            if chain_config.vm_option.is_zksync_os() {
+                L2DACommitmentScheme::BlobsZKSyncOS
+            } else {
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            }
         } else {
             let da_client_type = chain_config.get_general_config().await?.da_client_type();
 
@@ -265,7 +269,13 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
     let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
-        L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
+        L1BatchCommitmentMode::Rollup => {
+            if chain_config.vm_option.is_zksync_os() {
+                contracts_config.l1.l1_blobs_da_validator_zksync_os_addr
+            } else {
+                contracts_config.l1.rollup_l1_da_validator_addr
+            }
+        }
         L1BatchCommitmentMode::Validium => {
             let general_config = chain_config.get_general_config().await?;
             match general_config.da_client_type().as_deref() {

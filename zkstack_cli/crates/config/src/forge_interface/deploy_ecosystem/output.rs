@@ -48,6 +48,7 @@ pub struct DeployCTMDeployedAddressesOutput {
     pub state_transition: L1StateTransitionOutput,
     pub rollup_l1_da_validator_addr: Address,
     pub no_da_validium_l1_validator_addr: Address,
+    pub l1_blobs_da_validator_zksync_os_addr: Option<Address>,
     pub avail_l1_da_validator_addr: Address,
     pub l1_rollup_da_manager: Address,
     pub native_token_vault_addr: Address,
