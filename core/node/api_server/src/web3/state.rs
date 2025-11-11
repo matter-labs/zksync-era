@@ -252,17 +252,13 @@ impl InternalApiConfig {
     }
 
     pub fn new(
-        web3_config: &Web3JsonRpcConfig,
-        state_keeper_config: &StateKeeperConfig,
+        base: InternalApiConfigBase,
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
-        l1_to_l2_txs_paused: bool,
         settlement_layer: SettlementLayer,
     ) -> Self {
-        let base = InternalApiConfigBase::new(genesis_config, web3_config, state_keeper_config)
-            .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
         Self::from_base_and_contracts(
             base,
             l1_contracts_config,

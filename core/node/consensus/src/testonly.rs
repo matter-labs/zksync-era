@@ -19,7 +19,10 @@ use zksync_consensus_network as network;
 use zksync_consensus_roles::{validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
-use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
+use zksync_node_api_server::web3::{
+    state::{InternalApiConfig, InternalApiConfigBase},
+    testonly::TestServerBuilder,
+};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
@@ -580,14 +583,15 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let contracts_config = configs::ContractsConfig::for_tests();
                 let state_keeper_config = configs::chain::StateKeeperConfig::for_tests();
+                let genesis_config = configs::GenesisConfig::for_tests();
+                let web3_config = &configs::api::Web3JsonRpcConfig::for_tests();
                 let cfg = InternalApiConfig::new(
-                    &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &state_keeper_config,
+                    InternalApiConfigBase::new(&genesis_config, web3_config, &state_keeper_config)
+                        .with_l1_to_l2_txs_paused(false),
                     &contracts_config.settlement_layer_specific_contracts(),
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
-                    &configs::GenesisConfig::for_tests(),
-                    false,
+                    &genesis_config,
                     SettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
@@ -675,14 +679,15 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let contracts_config = configs::ContractsConfig::for_tests();
                 let state_keeper_config = configs::chain::StateKeeperConfig::for_tests();
+                let genesis_config = configs::GenesisConfig::for_tests();
+                let web3_config = &configs::api::Web3JsonRpcConfig::for_tests();
                 let cfg = InternalApiConfig::new(
-                    &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &state_keeper_config,
+                    InternalApiConfigBase::new(&genesis_config, web3_config, &state_keeper_config)
+                        .with_l1_to_l2_txs_paused(false),
                     &contracts_config.settlement_layer_specific_contracts(),
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
-                    &configs::GenesisConfig::for_tests(),
-                    false,
+                    &genesis_config,
                     SettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
