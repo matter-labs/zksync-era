@@ -462,8 +462,9 @@ impl MainNodeBuilder {
             pruning_info_refresh_interval: Duration::from_secs(10),
             polling_interval: rpc_config.pubsub_polling_interval,
         };
-        let base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
-            .with_l1_to_l2_txs_paused(self.configs.mempool_config.l1_to_l2_txs_paused);
+        let base =
+            InternalApiConfigBase::new(&self.genesis_config, &rpc_config, &state_keeper_config)
+                .with_l1_to_l2_txs_paused(self.configs.mempool_config.l1_to_l2_txs_paused);
         Ok((base, optional_config))
     }
 
