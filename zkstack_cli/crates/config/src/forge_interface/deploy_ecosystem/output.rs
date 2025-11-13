@@ -69,6 +69,8 @@ pub struct L1BridgehubOutput {
     pub ctm_deployment_tracker_implementation_addr: Address,
     pub message_root_proxy_addr: Address,
     pub message_root_implementation_addr: Address,
+    pub chain_asset_handler_proxy_addr: Address,
+    pub chain_asset_handler_implementation_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

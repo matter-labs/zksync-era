@@ -402,6 +402,12 @@ pub struct Web3JsonRpcConfig {
     /// (hundreds or thousands RPS).
     #[config(default, alias = "extended_rpc_tracing")]
     pub extended_api_tracing: bool,
+    /// Maximum timeout for `eth_sendRawTransactionSync` in milliseconds.
+    #[config(default_t = 10_000)]
+    pub send_raw_tx_sync_max_timeout_ms: u64,
+    /// Default timeout for `eth_sendRawTransactionSync` in milliseconds.
+    #[config(default_t = 2_000)]
+    pub send_raw_tx_sync_default_timeout_ms: u64,
 }
 
 impl Web3JsonRpcConfig {
@@ -546,6 +552,8 @@ mod tests {
                 extended_api_tracing: true,
                 gas_price_scale_factor_open_batch: Some(1.3),
                 eth_call_gas_cap: None,
+                send_raw_tx_sync_max_timeout_ms: 10000,
+                send_raw_tx_sync_default_timeout_ms: 2000,
             },
             healthcheck: HealthCheckConfig {
                 port: 8081.into(),
@@ -592,6 +600,8 @@ mod tests {
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_SIZE=10000
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_UPDATE_INTERVAL=50
+            API_WEB3_JSON_RPC_SEND_RAW_TX_SYNC_MAX_TIMEOUT_MS=10000
+            API_WEB3_JSON_RPC_SEND_RAW_TX_SYNC_DEFAULT_TIMEOUT_MS=2000
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_TREE_API_URL="http://tree/"
@@ -658,6 +668,8 @@ mod tests {
             eth_call_gas_cap: null
             request_timeout_sec: 20
             tree_api_url: "http://tree/"
+            send_raw_tx_sync_max_timeout_ms: 10000
+            send_raw_tx_sync_default_timeout_ms: 2000
           prometheus:
             listener_port: 3312
             pushgateway_url: http://127.0.0.1:9091
@@ -721,6 +733,8 @@ mod tests {
             eth_call_gas_cap: null
             request_timeout: 20s
             tree_api_url: "http://tree/"
+            send_raw_tx_sync_max_timeout_ms: 10000
+            send_raw_tx_sync_default_timeout_ms: 2000
           prometheus:
             listener_port: 3312
             pushgateway_url: http://127.0.0.1:9091
