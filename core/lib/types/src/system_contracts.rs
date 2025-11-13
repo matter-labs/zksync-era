@@ -10,8 +10,8 @@ use zksync_system_constants::{
     L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS,
     L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
-    SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    L2_SYSTEM_CONTRACT_PROXY_ADMIN_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
     UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
 };
 
@@ -32,7 +32,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 49] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 50] = [
     (
         "",
         "AccountCodeStorage",
@@ -287,6 +287,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 49] = [
         "../../l1-contracts/zkout/",
         "L2AssetTracker",
         L2_ASSET_TRACKER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "SystemContractProxyAdmin",
+        L2_SYSTEM_CONTRACT_PROXY_ADMIN_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
