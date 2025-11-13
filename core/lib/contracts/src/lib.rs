@@ -43,7 +43,7 @@ const BRIDGEHUB_CONTRACT_FILE: (&str, &str) =
     ("bridgehub", "IBridgehubBase.sol/IBridgehubBase.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "ChainTypeManagerBase.sol/ChainTypeManagerBase.sol",
+    "ChainTypeManagerBase.sol/ChainTypeManagerBase.json",
 );
 const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
     ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
