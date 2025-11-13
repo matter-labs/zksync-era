@@ -15,6 +15,7 @@ use vise::GaugeGuard;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
+        chain::StateKeeperConfig,
         contracts::{
             chain::L2Contracts,
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
@@ -122,10 +123,17 @@ pub struct InternalApiConfigBase {
     pub filters_disabled: bool,
     pub l1_to_l2_txs_paused: bool,
     pub eth_call_gas_cap: Option<u64>,
+    pub send_raw_tx_sync_default_timeout_ms: u64,
+    pub send_raw_tx_sync_max_timeout_ms: u64,
+    pub send_raw_tx_sync_poll_interval_ms: u64,
 }
 
 impl InternalApiConfigBase {
-    pub fn new(genesis: &GenesisConfig, web3_config: &Web3JsonRpcConfig) -> Self {
+    pub fn new(
+        genesis: &GenesisConfig,
+        web3_config: &Web3JsonRpcConfig,
+        state_keeper_config: &StateKeeperConfig,
+    ) -> Self {
         Self {
             l1_chain_id: genesis.l1_chain_id,
             l2_chain_id: genesis.l2_chain_id,
@@ -139,6 +147,12 @@ impl InternalApiConfigBase {
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
             eth_call_gas_cap: web3_config.eth_call_gas_cap,
+            send_raw_tx_sync_default_timeout_ms: web3_config.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_max_timeout_ms: web3_config.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: state_keeper_config
+                .shared
+                .l2_block_commit_deadline
+                .as_millis() as u64,
         }
     }
 
@@ -180,6 +194,9 @@ pub struct InternalApiConfig {
     pub l1_to_l2_txs_paused: bool,
     pub settlement_layer: Option<SettlementLayer>,
     pub eth_call_gas_cap: Option<u64>,
+    pub send_raw_tx_sync_default_timeout_ms: u64,
+    pub send_raw_tx_sync_max_timeout_ms: u64,
+    pub send_raw_tx_sync_poll_interval_ms: u64,
 }
 
 impl InternalApiConfig {
@@ -228,20 +245,20 @@ impl InternalApiConfig {
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
             settlement_layer,
             eth_call_gas_cap: base.eth_call_gas_cap,
+            send_raw_tx_sync_default_timeout_ms: base.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_max_timeout_ms: base.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: base.send_raw_tx_sync_poll_interval_ms,
         }
     }
 
     pub fn new(
-        web3_config: &Web3JsonRpcConfig,
+        base: InternalApiConfigBase,
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
-        l1_to_l2_txs_paused: bool,
         settlement_layer: SettlementLayer,
     ) -> Self {
-        let base = InternalApiConfigBase::new(genesis_config, web3_config)
-            .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
         Self::from_base_and_contracts(
             base,
             l1_contracts_config,

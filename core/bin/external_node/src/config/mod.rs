@@ -203,6 +203,7 @@ impl ExternalNodeConfig {
 
 impl From<&LocalConfig> for InternalApiConfigBase {
     fn from(config: &LocalConfig) -> Self {
+        let state_keeper_config = &config.state_keeper;
         let web3_rpc = &config.api.web3_json_rpc;
         Self {
             l1_chain_id: config.networks.l1_chain_id,
@@ -216,6 +217,11 @@ impl From<&LocalConfig> for InternalApiConfigBase {
             filters_disabled: web3_rpc.filters_disabled,
             l1_to_l2_txs_paused: false,
             eth_call_gas_cap: web3_rpc.eth_call_gas_cap,
+            send_raw_tx_sync_max_timeout_ms: web3_rpc.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_default_timeout_ms: web3_rpc.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: state_keeper_config
+                .l2_block_commit_deadline
+                .as_millis() as u64,
         }
     }
 }

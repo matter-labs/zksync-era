@@ -25,7 +25,7 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::web3::metrics::SubscriptionType;
+use crate::web3::{metrics::SubscriptionType, state::InternalApiConfigBase};
 
 async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
@@ -167,13 +167,14 @@ async fn test_ws_server(test: impl WsTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis_config = GenesisConfig::for_tests();
+    let state_keeper_config = StateKeeperConfig::for_tests();
     let api_config = InternalApiConfig::new(
-        &web3_config,
+        InternalApiConfigBase::new(&genesis_config, &web3_config, &state_keeper_config)
+            .with_l1_to_l2_txs_paused(false),
         &contracts_config.settlement_layer_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis_config,
-        false,
         SettlementLayer::for_tests(),
     );
     let mut storage = pool.connection().await.unwrap();

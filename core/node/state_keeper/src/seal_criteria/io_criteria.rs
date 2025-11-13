@@ -36,7 +36,7 @@ impl TimeoutSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
             l1_batch_commit_deadline_ms: config.l1_batch_commit_deadline.as_millis() as u64,
-            l2_block_commit_deadline_ms: config.l2_block_commit_deadline.as_millis() as u64,
+            l2_block_commit_deadline_ms: config.shared.l2_block_commit_deadline.as_millis() as u64,
         }
     }
 }
