@@ -298,8 +298,50 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 
         // Save the formatted call_traces to a file
         if let Ok(mut file) = std::fs::File::create("call_traces.json") {
-            if let Ok(json) = serde_json::to_string(&call_traces) {
-                let _ = writeln!(file, "{}", json);
+            // Helper to format bytes as hex in JSON
+            fn hex_encode_bytes(mut value: serde_json::Value) -> serde_json::Value {
+                if let Some(obj) = value.as_object_mut() {
+                    if let Some(input) = obj.get("input").and_then(|v| v.as_array()) {
+                        let hex = format!(
+                            "0x{}",
+                            input
+                                .iter()
+                                .filter_map(|v| v.as_u64())
+                                .map(|b| format!("{:02x}", b as u8))
+                                .collect::<String>()
+                        );
+                        obj.insert("input".to_string(), serde_json::Value::String(hex));
+                    }
+                    if let Some(output) = obj.get("output").and_then(|v| v.as_array()) {
+                        let hex = format!(
+                            "0x{}",
+                            output
+                                .iter()
+                                .filter_map(|v| v.as_u64())
+                                .map(|b| format!("{:02x}", b as u8))
+                                .collect::<String>()
+                        );
+                        obj.insert("output".to_string(), serde_json::Value::String(hex));
+                    }
+                    if let Some(calls) = obj.get_mut("calls").and_then(|v| v.as_array_mut()) {
+                        *calls = calls.iter().map(|c| hex_encode_bytes(c.clone())).collect();
+                    }
+                }
+                value
+            }
+
+            if let Ok(mut json_value) = serde_json::to_value(&call_traces) {
+                let formatted = json_value
+                    .as_array_mut()
+                    .map(|arr| {
+                        arr.iter()
+                            .map(|v| hex_encode_bytes(v.clone()))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                if let Ok(json) = serde_json::to_string_pretty(&formatted) {
+                    let _ = writeln!(file, "{}", json);
+                }
             }
         }
 

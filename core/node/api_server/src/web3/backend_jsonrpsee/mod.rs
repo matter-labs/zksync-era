@@ -40,10 +40,13 @@ impl MethodTracer {
             | Web3Error::TooManyTopics
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFilterBlockHash
+            | Web3Error::InvalidTimeout(_)
             | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams.code(),
             Web3Error::SubmitTransactionError(_, _)
             | Web3Error::SerializationError(_)
             | Web3Error::ProxyError(_) => 3,
+            Web3Error::TransactionTimeout(_) => 4,
+            Web3Error::TransactionUnready(_) => 5,
             Web3Error::TreeApiUnavailable => 6,
             Web3Error::ServerShuttingDown => ErrorCode::ServerIsBusy.code(),
         };

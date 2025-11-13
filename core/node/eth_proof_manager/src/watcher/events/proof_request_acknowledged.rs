@@ -1,7 +1,7 @@
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal};
-use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, H256, U256};
+use zksync_types::{api::Log, ethabi, h256_to_u256, L1BatchNumber, L2ChainId, H256, U256};
 
 use crate::{metrics::METRICS, types::ProvingNetwork, watcher::events::EventHandler};
 
@@ -23,11 +23,15 @@ pub struct ProofRequestAcknowledged {
 #[derive(Debug)]
 pub struct ProofRequestAcknowledgedHandler {
     connection_pool: ConnectionPool<Core>,
+    chain_id: L2ChainId,
 }
 
 impl ProofRequestAcknowledgedHandler {
-    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
-        Self { connection_pool }
+    pub fn new(connection_pool: ConnectionPool<Core>, chain_id: L2ChainId) -> Self {
+        Self {
+            connection_pool,
+            chain_id,
+        }
     }
 }
 
@@ -67,6 +71,15 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         }
 
         let chain_id = h256_to_u256(*log.topics.get(1).context("missing topic 1")?);
+
+        if chain_id != U256::from(self.chain_id.as_u64()) {
+            return Err(anyhow::anyhow!(
+                "Chain ID from event didn't match, expected {}, received {}",
+                self.chain_id,
+                chain_id
+            ));
+        }
+
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
 
         let accepted = if let Some(accepted) = log.data.0.get(31) {
@@ -91,7 +104,7 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
 
         tracing::info!("Received ProofRequestAcknowledgedEvent: {:?}", event);
 
-        METRICS.acknowledged_batches[&event.assigned_to].inc();
+        METRICS.acknowledged_batches[&event.assigned_to].set(event.block_number.as_u64());
 
         if accepted {
             self.connection_pool
