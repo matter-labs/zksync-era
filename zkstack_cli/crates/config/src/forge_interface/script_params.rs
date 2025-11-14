@@ -25,8 +25,8 @@ impl ForgeScriptParams {
 }
 
 pub const DEPLOY_CTM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-deploy-l1.toml",
-    output: "script-out/output-deploy-l1.toml",
+    input: "script-config/config-deploy-ctm.toml",
+    output: "script-out/output-deploy-ctm.toml",
     script_path: "deploy-scripts/DeployCTM.s.sol",
 };
 
