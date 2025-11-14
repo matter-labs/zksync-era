@@ -9,6 +9,8 @@ import { ZeroAddress } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
+import { getEcosystemContracts } from 'utils/build/tokens';
+import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
@@ -130,6 +132,25 @@ describe('Migration From/To gateway test', function () {
         const balance = await alice.getBalance();
         expect(balance === depositAmount * 2n, 'Incorrect balance after deposits').to.be.true;
 
+        const tokenDetails = tester.token;
+        const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+        const l1Erc20Contract = new ethers.Contract(tokenDetails.address, l1Erc20ABI, tester.ethWallet);
+        await (await l1Erc20Contract.mint(tester.syncWallet.address, depositAmount)).wait();
+
+        const thirdDepositHandle = await tester.syncWallet.deposit({
+            token: tokenDetails.address,
+            amount: depositAmount,
+            approveERC20: true,
+            approveBaseERC20: true,
+            to: alice.address
+        });
+        await thirdDepositHandle.wait();
+        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+            await utils.sleep(1);
+        }
+
+        // kl todo add an L2 token and withdrawal here, to check token balance migration properly.
+
         // Wait for at least one new committed block
         let newBlocksCommitted = await l1MainContract.getTotalBatchesCommitted();
         let tryCount = 0;
@@ -202,9 +223,54 @@ describe('Migration From/To gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
+        await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
+    });
+
+    step('Migrate token balances', async () => {
+        if (direction == 'TO') {
+            await utils.spawn(
+                `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
+            );
+        } else {
+            await utils.spawn(
+                `zkstack chain gateway migrate-token-balances --to-gateway false --gateway-chain-name gateway --chain ${fileConfig.chain}`
+            );
+        }
+    });
+
+    step('Check token settlement layers', async () => {
+        const tokenDetails = tester.token;
+        const ecosystemContracts = await getEcosystemContracts(tester.syncWallet);
+        let assetId = await ecosystemContracts.nativeTokenVault.assetId(tokenDetails.address);
+        const chainId = (await tester.syncWallet.provider!.getNetwork()).chainId;
+        const migrationNumberL1 = await ecosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
+
+        await utils.spawn(`zkstack dev init-test-wallet --chain gateway`);
+
+        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        const gatewayEcosystemContracts = await getEcosystemContracts(
+            new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!, tester.syncWallet.providerL1)
+        );
+        const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(
+            chainId,
+            assetId
+        );
+
+        // let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
+        // let expectedGatewayAssetSettlementLayer = 0n;
+        if (direction == 'TO') {
+            // expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
+            // expectedGatewayAssetSettlementLayer = BigInt(fileConfig.chain!);
+        } else {
+            return; // kl todo add migrate back from gateway
+        }
+        // expect(l1AssetSettlementLayer === fileConfig.chain).to.be.true;
+        // expect(gatewayAssetSettlementLayer === gatewayChain).to.be.true;
+        expect(migrationNumberL1 === migrationNumberGateway).to.be.true;
+        console.log('migrationNumberL1', migrationNumberL1);
     });
 
     step('Execute transactions after simple restart', async () => {

@@ -151,7 +151,7 @@ impl WiringLayer for MempoolIOLayer {
             input.l2_contracts.0.da_validator_addr,
             input.zk_chain_on_chain_config.0.l2_da_commitment_scheme,
             self.pubdata_type,
-            input.settlement_mode.settlement_layer_for_sending_txs(),
+            input.settlement_mode.settlement_layer(),
         )?;
 
         // Create sealer.

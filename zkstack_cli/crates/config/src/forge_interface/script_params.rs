@@ -25,8 +25,8 @@ impl ForgeScriptParams {
 }
 
 pub const DEPLOY_CTM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-deploy-l1.toml",
-    output: "script-out/output-deploy-l1.toml",
+    input: "script-config/config-deploy-ctm.toml",
+    output: "script-out/output-deploy-ctm.toml",
     script_path: "deploy-scripts/DeployCTM.s.sol",
 };
 
@@ -106,6 +106,9 @@ pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
 
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
+
+pub const GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH: &str =
+    "deploy-scripts/gateway/GatewayMigrateTokenBalances.s.sol";
 
 pub const V29_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/v29-upgrade-ecosystem.toml",

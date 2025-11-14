@@ -13,6 +13,7 @@ use zksync_types::{
     eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    settlement::SettlementLayer,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
 };
 
@@ -63,6 +64,8 @@ pub(crate) struct StorageL1BatchHeader {
     pub fair_pubdata_price: Option<i64>,
 
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: Option<i64>,
+    pub settlement_layer_type: Option<String>,
 }
 
 impl StorageL1BatchHeader {
@@ -86,6 +89,8 @@ impl StorageL1BatchHeader {
             self.fair_pubdata_price.map(|p| p as u64),
         );
 
+        let settlement_layer =
+            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id);
         L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
             timestamp: self.timestamp as u64,
@@ -111,6 +116,7 @@ impl StorageL1BatchHeader {
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
+            settlement_layer,
         }
     }
 }
@@ -184,6 +190,8 @@ pub(crate) struct StorageL1Batch {
     pub fair_pubdata_price: Option<i64>,
 
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: Option<i64>,
+    pub settlement_layer_type: Option<String>,
 }
 
 impl StorageL1Batch {
@@ -206,6 +214,8 @@ impl StorageL1Batch {
             self.l2_fair_gas_price as u64,
             self.fair_pubdata_price.map(|p| p as u64),
         );
+        let settlement_layer =
+            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id);
 
         L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
@@ -232,6 +242,7 @@ impl StorageL1Batch {
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
+            settlement_layer,
         }
     }
 }
@@ -321,6 +332,8 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: Option<i64>,
+    pub settlement_layer_type: Option<String>,
 }
 
 impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
@@ -328,6 +341,9 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
+        let settlement_layer =
+            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id);
+
         Self {
             number: L1BatchNumber(batch.number as u32),
             timestamp: batch.timestamp as u64,
@@ -340,6 +356,7 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.l1_gas_price as u64,
             ),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
+            settlement_layer,
         }
     }
 }
@@ -355,6 +372,8 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: Option<i64>,
+    pub settlement_layer_type: Option<String>,
 }
 
 impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
@@ -362,6 +381,9 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
+        let settlement_layer =
+            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id);
+
         Self {
             number: L1BatchNumber(batch.number as u32),
             is_sealed: batch.is_sealed,
@@ -375,6 +397,7 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.l1_gas_price as u64,
             ),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
+            settlement_layer,
         }
     }
 }
@@ -732,5 +755,27 @@ impl From<StoragePubdataParams> for PubdataParams {
             PubdataType::from_str(&row.pubdata_type).unwrap(),
         )
         .unwrap()
+    }
+}
+
+pub(crate) fn to_settlement_layer(
+    settlement_layer_type: Option<String>,
+    settlement_layer_chain_id: Option<i64>,
+) -> SettlementLayer {
+    match settlement_layer_type.as_deref() {
+        Some("L1") => {
+            SettlementLayer::L1(SLChainId(settlement_layer_chain_id.unwrap_or(29) as u64))
+        }
+        Some("Gateway") => {
+            SettlementLayer::Gateway(SLChainId(settlement_layer_chain_id.unwrap_or(506) as u64))
+        }
+        _ => SettlementLayer::L1(SLChainId(settlement_layer_chain_id.unwrap_or(19) as u64)),
+    }
+}
+
+pub(crate) fn from_settlement_layer(settlement_layer: &SettlementLayer) -> (String, i64) {
+    match settlement_layer {
+        SettlementLayer::L1(SLChainId(id)) => ("L1".to_string(), *id as i64),
+        SettlementLayer::Gateway(SLChainId(id)) => ("Gateway".to_string(), *id as i64),
     }
 }
