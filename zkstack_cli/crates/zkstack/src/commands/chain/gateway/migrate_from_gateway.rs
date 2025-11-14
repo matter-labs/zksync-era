@@ -220,11 +220,17 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 
 const LOOK_WAITING_TIME_MS: u64 = 1600;
 
+pub(crate) enum GatewayTransactionType {
+    Withdrawal,
+    Migration,
+}
+
 pub(crate) async fn check_whether_gw_transaction_is_finalized(
     gateway_provider: &Client<L2>,
     l1_provider: Arc<Provider<Http>>,
     gateway_diamond_proxy: Address,
     hash: H256,
+    transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
     let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
         return Ok(false);
@@ -236,12 +242,25 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
 
     let batch_number = receipt.l1_batch_number.unwrap();
 
-    if gateway_provider
-        .get_finalize_withdrawal_params(hash, 0)
-        .await
-        .is_err()
-    {
-        return Ok(false);
+    match transaction_type {
+        GatewayTransactionType::Withdrawal => {
+            if gateway_provider
+                .get_finalize_withdrawal_params(hash, 0)
+                .await
+                .is_err()
+            {
+                return Ok(false);
+            }
+        }
+        GatewayTransactionType::Migration => {
+            if gateway_provider
+                .get_finalize_migration_params(hash, 0)
+                .await
+                .is_err()
+            {
+                return Ok(false);
+            }
+        }
     }
 
     // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
@@ -261,6 +280,7 @@ async fn await_for_withdrawal_to_finalize(
         l1_provider.clone(),
         gateway_diamond_proxy,
         hash,
+        GatewayTransactionType::Withdrawal,
     )
     .await?
     {

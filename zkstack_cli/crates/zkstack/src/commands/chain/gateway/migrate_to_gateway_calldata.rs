@@ -219,7 +219,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         context.l1_rpc_url.clone(),
     )
     .await?;
-    result.extend(finalize_migrate_to_gateway_output.calls.into_iter());
+    result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator_commitment_scheme) =
