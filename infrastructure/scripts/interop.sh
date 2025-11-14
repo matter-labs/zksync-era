@@ -102,7 +102,7 @@ zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name g
 zkstack chain gateway finalize-chain-migration-to-gateway --chain validium --gateway-chain-name gateway --deploy-paymaster
 
 # Chain registrations on chain `validium` were skipped, as its deposits were paused. Do these registrations now
-zkstack chain validium register-on-all-chains
+zkstack chain --chain validium register-on-all-chains 
 
 zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log & 
 zkstack server --ignore-prerequisites --chain validium &> ./zruns/validium.log & 
