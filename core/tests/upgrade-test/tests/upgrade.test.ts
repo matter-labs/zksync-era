@@ -772,12 +772,30 @@ async function pauseMigrationsCalldata(
     gatewayInfo: GatewayInfo | null
 ) {
     const l1BridgehubAddr = await l2Provider.getBridgehubContractAddress();
-    const to = gatewayInfo ? L2_BRIDGEHUB_ADDRESS : l1BridgehubAddr;
+
+    let chainAssetHandlerAddr: string;
+    if (gatewayInfo) {
+        // For gateway, get the ChainAssetHandler address from L2 Bridgehub
+        const l2BridgehubContract = new ethers.Contract(
+            L2_BRIDGEHUB_ADDRESS,
+            ['function chainAssetHandler() external view returns (address)'],
+            gatewayInfo.gatewayProvider
+        );
+        chainAssetHandlerAddr = await l2BridgehubContract.chainAssetHandler();
+    } else {
+        // For L1, get the ChainAssetHandler address from L1 Bridgehub
+        const bridgehubContract = new ethers.Contract(
+            l1BridgehubAddr,
+            ['function chainAssetHandler() external view returns (address)'],
+            l1Provider
+        );
+        chainAssetHandlerAddr = await bridgehubContract.chainAssetHandler();
+    }
 
     const iface = new ethers.Interface(['function pauseMigration() external']);
 
     return prepareGovernanceCalldata(
-        to,
+        chainAssetHandlerAddr,
         iface.encodeFunctionData('pauseMigration', []),
         l1BridgehubAddr,
         l1Provider,

@@ -15,7 +15,7 @@ import {
     L2_INTEROP_ROOT_STORAGE_ADDRESS,
     ArtifactL2MessageVerification,
     ArtifactL2InteropRootStorage,
-    ArtifactBridgeHub,
+    ArtifactL1BridgeHub,
     GATEWAY_CHAIN_ID
 } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
@@ -37,7 +37,7 @@ describe('Interop behavior checks', () => {
         // Skip interop tests if the SL is the same as the L1.
         const bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
-            ArtifactBridgeHub.abi,
+            ArtifactL1BridgeHub.abi,
             alice.providerL1
         );
 
