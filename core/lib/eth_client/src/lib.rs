@@ -334,4 +334,8 @@ impl dyn BoundEthInterface {
     pub async fn block_number(&self) -> EnrichedClientResult<U64> {
         self.as_ref().block_number().await
     }
+
+    pub async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>> {
+        self.as_ref().block(block_id).await
+    }
 }

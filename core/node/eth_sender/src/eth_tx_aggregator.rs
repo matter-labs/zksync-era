@@ -33,7 +33,7 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
-    web3::{contract::Error as Web3ContractError, CallRequest},
+    web3::{contract::Error as Web3ContractError, BlockId, BlockNumber, CallRequest},
     Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -204,17 +204,56 @@ impl EthTxAggregator {
         if self.config.fusaka_upgrade_block == Some(0) {
             return Ok(EthereumUpgradeState::Finished);
         }
-        let Some(fusaka_upgrade_block) = self.config.fusaka_upgrade_block else {
-            return Ok(EthereumUpgradeState::NotStarted);
-        };
 
-        let current_block = self.eth_client.block_number().await?.as_u64();
-        if current_block - self.config.fusaka_upgrade_safety_margin < fusaka_upgrade_block {
-            Ok(EthereumUpgradeState::NotStarted)
-        } else if current_block < fusaka_upgrade_block {
-            Ok(EthereumUpgradeState::Pending)
-        } else {
-            Ok(EthereumUpgradeState::Finished)
+        if self.config.fusaka_upgrade_timestamp.is_none()
+            && self.config.fusaka_upgrade_block.is_none()
+        {
+            return Ok(EthereumUpgradeState::NotStarted);
+        }
+
+        let current_block = self
+            .eth_client
+            .block(BlockId::Number(BlockNumber::Latest))
+            .await?
+            .expect("Latest block not found");
+
+        // Prioritize using the block number for the upgrade if both are set
+        // Timestamp is set with default, so block number takes precedence
+        match (
+            self.config.fusaka_upgrade_block,
+            self.config.fusaka_upgrade_timestamp,
+        ) {
+            (Some(fusaka_upgrade_block), _) => {
+                if current_block.number.unwrap().as_u64() - self.config.fusaka_upgrade_safety_margin
+                    < fusaka_upgrade_block
+                {
+                    Ok(EthereumUpgradeState::NotStarted)
+                } else if current_block.number.unwrap().as_u64()
+                    + self.config.fusaka_upgrade_safety_margin
+                    >= fusaka_upgrade_block
+                {
+                    Ok(EthereumUpgradeState::Finished)
+                } else {
+                    Ok(EthereumUpgradeState::Pending)
+                }
+            }
+            (_, Some(fusaka_upgrade_timestamp)) => {
+                let current_timestamp = current_block.timestamp.as_u64();
+                if current_timestamp
+                    < fusaka_upgrade_timestamp - self.config.fusaka_upgrade_safety_margin
+                {
+                    Ok(EthereumUpgradeState::NotStarted)
+                } else if current_timestamp + self.config.fusaka_upgrade_safety_margin
+                    >= fusaka_upgrade_timestamp
+                {
+                    Ok(EthereumUpgradeState::Finished)
+                } else {
+                    Ok(EthereumUpgradeState::Pending)
+                }
+            }
+            // All the values has already been checked this case is rather unreachable.
+            // But for safety reasons, it's better to not panic if it's not necessary
+            (_, _) => Ok(EthereumUpgradeState::NotStarted),
         }
     }
 
