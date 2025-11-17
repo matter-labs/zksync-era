@@ -10,11 +10,10 @@ use serde::Deserialize;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
-    forge_interface::{
+    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ForgeScriptParams, ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
-            V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS, ForgeScriptParams, V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V30_BLOBS_UPGRADE_ECOSYSTEM_PARAMS
         },
         upgrade_ecosystem::{
             input::{
@@ -23,9 +22,7 @@ use zkstack_cli_config::{
             },
             output::EcosystemUpgradeOutput,
         },
-    },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    }, traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath}
 };
 use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;
@@ -221,6 +218,11 @@ async fn no_governance_prepare(
             })
         }
         UpgradeVersion::V28_1VkEra => EcosystemUpgradeSpecificConfig::V28,
+        UpgradeVersion::V30ZkSyncOsBlobs => {
+            // zkstack cli is not expected to be called to generate the upgrade's content for v30 zksync os upgrade.
+            // It may be implemetned in the future if needed.
+            unimplemented!()
+        }
     };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
@@ -632,6 +634,7 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
         UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V30ZkSyncOsBlobs => ZK_OS_V30_BLOBS_UPGRADE_ECOSYSTEM_PARAMS
     }
 }
 

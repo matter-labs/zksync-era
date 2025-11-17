@@ -13,7 +13,7 @@ use zkstack_cli_config::{
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
-use zksync_types::L2_BRIDGEHUB_ADDRESS;
+use zksync_types::{L2_BRIDGEHUB_ADDRESS, commitment::L2DACommitmentScheme};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
@@ -211,6 +211,10 @@ pub struct ContractsConfig {
 pub struct DeployedAddresses {
     pub(crate) bridgehub: BridgehubAddresses,
     pub(crate) validator_timelock_addr: Address,
+    // Present only on zksync os chains
+    pub(crate) blobs_zksync_os_l1_da_validator_addr: Option<Address>,
+    pub(crate) validium_l1_da_validator_addr: Option<Address>,
+    pub(crate) rollup_l1_da_validator_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -235,9 +239,34 @@ pub struct UpdatedValidators {
     pub blob_operator: Option<Address>,
 }
 
+pub struct NewDAValidators {
+    pub new_l1_da_validator: Address,
+    pub new_l2_commitment_scheme: L2DACommitmentScheme,
+}
+
 #[derive(Default)]
 pub struct AdditionalUpgradeParams {
     pub updated_validators: Option<UpdatedValidators>,
+    pub updated_da_validators: Option<NewDAValidators>,
+}
+
+pub(crate) async fn get_full_chain_upgrade_params(
+    shell: &Shell,
+    args_input: ChainUpgradeParams,
+    upgrade_version: UpgradeVersion,
+) -> anyhow::Result<ChainUpgradeParams> {
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let mut args = args_input.fill_if_empty(shell).await?;
+    if args.upgrade_description_path.is_none() {
+        args.upgrade_description_path = Some(
+            chain_config
+                .contracts_path()
+                .join(upgrade_version.get_default_upgrade_description_path())
+                .to_string_lossy()
+                .to_string(),
+        );
+    }
+    Ok(args)
 }
 
 pub(crate) async fn run_chain_upgrade(
@@ -249,18 +278,8 @@ pub(crate) async fn run_chain_upgrade(
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
-    let chain_config = ZkStackConfig::current_chain(shell)?;
-
-    let mut args = args_input.clone().fill_if_empty(shell).await?;
-    if args.upgrade_description_path.is_none() {
-        args.upgrade_description_path = Some(
-            chain_config
-                .contracts_path()
-                .join(upgrade_version.get_default_upgrade_description_path())
-                .to_string_lossy()
-                .to_string(),
-        );
-    }
+    
+    let args = get_full_chain_upgrade_params(shell, args_input.clone(), upgrade_version).await?;
 
     // 0. Read the GatewayUpgradeInfo
     let upgrade_info = UpgradeInfo::read(
@@ -369,12 +388,18 @@ pub(crate) async fn run_chain_upgrade(
             admin_calls_gw.extend_with_calls(enable_validator_calls.calls);
         }
 
+        // v30 is never supposed to be ran on a chain that settles on Gateway
+        if upgrade_version == UpgradeVersion::V30ZkSyncOsBlobs {
+            anyhow::bail!("V30ZkSyncOsBlobs upgrade is not supported on Gateway-settled chains");
+        }
+
         admin_calls_gw.display();
 
         let (gw_chain_admin_calldata, total_value) = admin_calls_gw.compile_full_calldata();
 
         logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+            "Full calldata to call `ChainAdmin` with : chain_admin_addr: {}\n{}\nTotal value: {}",
+            chain_info.chain_admin_addr,
             hex::encode(&gw_chain_admin_calldata),
             total_value,
         ));
@@ -415,12 +440,32 @@ pub(crate) async fn run_chain_upgrade(
             }
         }
 
+        if let Some(new_da_validators) = &additional.updated_da_validators {
+            let set_da_validator_calls = crate::admin_functions::set_da_validator_pair(
+                shell,
+                forge_args,
+                &contracts_foundry_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                args.chain_id.expect("chain_id is required"),
+                upgrade_info
+                    .deployed_addresses
+                    .bridgehub
+                    .bridgehub_proxy_addr,
+                new_da_validators.new_l1_da_validator,
+                new_da_validators.new_l2_commitment_scheme,
+                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+            )
+            .await?;
+            admin_calls_finalize.extend_with_calls(set_da_validator_calls.calls);
+        }
+
         admin_calls_finalize.display();
 
         let (chain_admin_calldata, total_value) = admin_calls_finalize.compile_full_calldata();
 
         logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+            "Full calldata to call `ChainAdmin` with : chain_admin_addr: {}\n{}\nTotal value: {}",
+            chain_info.chain_admin_addr,
             hex::encode(&chain_admin_calldata),
             total_value,
         ));

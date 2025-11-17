@@ -18,6 +18,7 @@ pub(crate) async fn run(
                 operator: args_input.operator,
                 blob_operator: args_input.blob_operator,
             }),
+            updated_da_validators: None,
         },
         run_upgrade,
         crate::commands::dev::commands::upgrades::types::UpgradeVersion::V29InteropAFf,

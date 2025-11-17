@@ -77,6 +77,11 @@ pub enum DevCommands {
     RunV29ChainUpgrade(commands::upgrades::args::v29_chain::V29ChainUpgradeArgs),
     #[command(about = V29_CHAIN_UPGRADE)]
     GenerateV29ChainUpgrade(commands::upgrades::args::v29_chain::V29ChainUpgradeArgs),
+    #[command(about = V29_CHAIN_UPGRADE)]
+    RunV30ZKsyncOSChainUpgrade(commands::upgrades::args::v30_chain::V30ChainUpgradeArgs),
+    #[command(about = V29_CHAIN_UPGRADE)]
+    GenerateV30ZKsyncOSChainUpgrade(commands::upgrades::args::v30_chain::V30ChainUpgradeArgs),
+
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -122,6 +127,12 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::RunV29ChainUpgrade(args) => {
             commands::upgrades::v29_upgrade::run(shell, args, true).await?
+        }
+        DevCommands::GenerateV30ZKsyncOSChainUpgrade(args) => {
+            commands::upgrades::v30_upgrade::run(shell, args, false).await?
+        }
+        DevCommands::RunV30ZKsyncOSChainUpgrade(args) => {
+            commands::upgrades::v30_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())
