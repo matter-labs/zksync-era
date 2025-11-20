@@ -21,6 +21,8 @@ main() {
   echo "zkstackup: successfully installed in ${BIN_DIR}."
 
   add_bin_folder_to_path
+
+  "$BIN_PATH" "$@"
 }
 
 add_bin_folder_to_path() {

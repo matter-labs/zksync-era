@@ -8,22 +8,21 @@ BINS=()
 
 main() {
   parse_args "$@"
-
   zkstack_banner
-
-  check_prerequisites
   mkdir -p "$BIN_DIR"
 
-  BINS+=(zkstack)
-
   if [ -n "$ZKSTACKUP_PATH" ]; then
+    check_prerequisites
     install_local
-  else
+  elif [ -n "$ZKSTACKUP_BRANCH" ] || [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_REPO" ] || [ -n "$ZKSTACKUP_FEATURES" ]; then
+    check_prerequisites
     install_from_repo
+  else
+    BINS+=(zkstack)
+    install_from_release
   fi
 
   zkstack_banner
-
   add_bin_folder_to_path
 
   for bin in "${BINS[@]}"; do
@@ -127,6 +126,23 @@ Examples:
 EOF
 }
 
+get_architecture() {
+  local os arch
+  os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  arch=$(uname -m)
+  case "$os" in
+    linux)
+      if [[ "$arch" == "x86_64" ]]; then echo "x86_64-unknown-linux-gnu"; return; fi
+      if [[ "$arch" == "aarch64" ]]; then echo "aarch64-unknown-linux-gnu"; return; fi
+      ;;
+    darwin)
+      if [[ "$arch" == "x86_64" ]]; then echo "x86_64-apple-darwin"; return; fi
+      if [[ "$arch" == "arm64" ]]; then echo "aarch64-apple-darwin"; return; fi
+      ;;
+  esac
+  err "Unsupported platform: $os $arch"; exit 1
+}
+
 install_local() {
   if [ ! -d "$ZKSTACKUP_PATH/zkstack_cli" ]; then
     err "Path $ZKSTACKUP_PATH does not contain zkstack_cli"
@@ -204,6 +220,46 @@ install_from_repo() {
       --force \
       ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
   fi
+}
+
+install_from_release() {
+  local arch=$(get_architecture)
+  local repo=${ZKSTACKUP_REPO:-"matter-labs/zksync-era"}
+  
+  # 1. Resolve Tag
+  local tag="$ZKSTACKUP_VERSION"
+  if [ -z "$tag" ]; then
+    say "Resolving latest version..."
+    tag=$(curl -sSf "https://api.github.com/repos/$repo/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    [ -z "$tag" ] && { err "Unable to find latest release."; exit 1; }
+  fi
+
+  # 2. Download
+  local filename="zkstack-${tag}-${arch}.tar.gz"
+  local url="https://github.com/$repo/releases/download/${tag}/${filename}"
+  
+  say "Downloading $tag for $arch..."
+  local tmp=$(mktemp -d)
+  if ! curl -sSfL "$url" -o "$tmp/zkstack.tar.gz"; then
+    rm -rf "$tmp"
+    err "Download failed. Check if version '$tag' exists for arch '$arch'."
+    exit 1
+  fi
+
+  # 3. Install
+  tar -xzf "$tmp/zkstack.tar.gz" -C "$tmp"
+  # Find binary recursively in extracted folder (handles different nesting)
+  local bin_path=$(find "$tmp" -type f -name "zkstack" | head -n 1)
+  
+  if [ -f "$bin_path" ]; then
+    mv "$bin_path" "$BIN_DIR/zkstack"
+    chmod +x "$BIN_DIR/zkstack"
+  else
+    err "Binary not found in archive."
+    rm -rf "$tmp"
+    exit 1
+  fi
+  rm -rf "$tmp"
 }
 
 
