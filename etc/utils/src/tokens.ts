@@ -94,6 +94,15 @@ export function getToken(
             baseToken = token;
         }
     }
+    if (baseToken === undefined) {
+        baseToken = {
+            address: baseTokenAddress,
+            name: "Base Token",
+            symbol: "BT",
+            decimals: 18n,
+            asset_id: "0"
+        };
+    }
     return { token, baseToken };
 }
 
