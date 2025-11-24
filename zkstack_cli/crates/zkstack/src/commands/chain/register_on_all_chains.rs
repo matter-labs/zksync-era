@@ -30,7 +30,10 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config.path_to_foundry_scripts(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         chain_config.chain_id,
-        &chain_config.get_wallets_config()?.governor,
+        &chain_config
+            .get_wallets_config()?
+            .deployer
+            .expect("Deployer wallet not set"),
         &args,
         l1_rpc_url,
     )
@@ -44,7 +47,7 @@ pub async fn register_on_all_chains(
     foundry_contracts_path: &Path,
     bridgehub_address: Address,
     chain_id: L2ChainId,
-    governor: &Wallet,
+    deployer: &Wallet,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
@@ -69,15 +72,15 @@ pub async fn register_on_all_chains(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
         .with_calldata(&calldata);
-    register_on_all_chains_inner(shell, governor, forge).await
+    register_on_all_chains_inner(shell, deployer, forge).await
 }
 
 async fn register_on_all_chains_inner(
     shell: &Shell,
-    governor: &Wallet,
+    deployer: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
-    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
+    forge = fill_forge_private_key(forge, Some(deployer), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
     let spinner = Spinner::new(MSG_REGISTERING_ON_ALL_CHAINS_SPINNER);
     forge.run(shell)?;

@@ -1,3 +1,5 @@
+use clap::Parser;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::forge::ForgeScriptArgs;
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
@@ -12,8 +14,18 @@ pub enum ManageDepositsOption {
     UnpauseDeposits,
 }
 
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct ManageDepositsArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+    #[clap(long, default_value_t = false)]
+    pub only_save_calldata: bool,
+}
+
 pub async fn run(
-    _args: ForgeScriptArgs,
+    _args: ManageDepositsArgs,
     shell: &Shell,
     option: ManageDepositsOption,
 ) -> anyhow::Result<()> {
@@ -25,13 +37,19 @@ pub async fn run(
     let secrets = chain_config.get_secrets_config().await?;
     let l1_rpc_url = secrets.l1_rpc_url()?;
 
+    let mode = if _args.only_save_calldata {
+        AdminScriptMode::OnlySave
+    } else {
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor)
+    };
+
     let result = match option {
         ManageDepositsOption::PauseDeposits => {
             pause_deposits_before_initiating_migration(
                 shell,
                 &Default::default(),
                 &chain_config.path_to_foundry_scripts(),
-                AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+                mode,
                 chain_id.as_u64(),
                 bridgehub_address,
                 l1_rpc_url,
@@ -43,7 +61,7 @@ pub async fn run(
                 shell,
                 &Default::default(),
                 &chain_config.path_to_foundry_scripts(),
-                AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+                mode,
                 chain_id.as_u64(),
                 bridgehub_address,
                 l1_rpc_url,
@@ -52,7 +70,9 @@ pub async fn run(
         }
     };
 
-    display_admin_script_output(result);
+    if _args.only_save_calldata {
+        display_admin_script_output(result);
+    }
 
     Ok(())
 }

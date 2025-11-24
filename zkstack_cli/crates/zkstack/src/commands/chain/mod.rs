@@ -13,7 +13,7 @@ use crate::commands::chain::{
     deploy_l2_contracts::Deploy2ContractsOption,
     genesis::GenesisCommand,
     init::ChainInitCommand,
-    manage_deposits::ManageDepositsOption,
+    manage_deposits::{ManageDepositsArgs, ManageDepositsOption},
 };
 
 mod accept_chain_ownership;
@@ -95,9 +95,9 @@ pub enum ChainCommands {
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
     /// Pause deposits before initiating a chain migration to gateway
     #[command(alias = "pause-deposits")]
-    PauseDepositsBeforeInitiatingMigration(ForgeScriptArgs),
+    PauseDepositsBeforeInitiatingMigration(ManageDepositsArgs),
     /// Manually unpause deposits early for better UX
-    UnpauseDeposits(ForgeScriptArgs),
+    UnpauseDeposits(ManageDepositsArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)
     SetDAValidatorPair(SetDAValidatorPairArgs),
     #[command(subcommand, alias = "gw")]

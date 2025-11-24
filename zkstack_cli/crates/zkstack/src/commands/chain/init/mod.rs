@@ -312,7 +312,10 @@ pub async fn send_priority_txs(
         &chain_config.path_to_foundry_scripts(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         chain_config.chain_id,
-        &chain_config.get_wallets_config()?.governor,
+        &chain_config
+            .get_wallets_config()?
+            .deployer
+            .expect("Deployer wallet not set"),
         forge_args,
         l1_rpc_url.clone(),
     )
