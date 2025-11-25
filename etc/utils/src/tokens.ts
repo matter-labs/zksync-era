@@ -99,8 +99,7 @@ export function getToken(
             address: baseTokenAddress,
             name: "Base Token",
             symbol: "BT",
-            decimals: 18n,
-            asset_id: "0"
+            decimals: 18n
         };
     }
     return { token, baseToken };
