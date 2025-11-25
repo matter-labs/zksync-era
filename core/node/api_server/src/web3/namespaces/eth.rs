@@ -24,7 +24,10 @@ use crate::{
     utils::open_readonly_transaction,
     web3::{
         backend_jsonrpsee::MethodTracer, namespaces::validate_gas_cap,
-        receipts::fill_transaction_receipts, state::RpcState, TypedFilter,
+        receipts::fill_transaction_receipts,
+        state::RpcState,
+        metrics::{SendRawTxSyncStage, SEND_RAW_TX_SYNC_METRICS},
+        TypedFilter,
     },
 };
 
@@ -713,7 +716,17 @@ impl EthNamespace {
         };
 
         // Submit transaction and get hash
-        let hash = self.send_raw_transaction_impl(tx_bytes).await?;
+        let submit_latency = SEND_RAW_TX_SYNC_METRICS.latency[&SendRawTxSyncStage::Submit].start();
+        let hash = match self.send_raw_transaction_impl(tx_bytes).await {
+            Ok(hash) => {
+                submit_latency.observe();
+                hash
+            }
+            Err(err) => {
+                submit_latency.observe();
+                return Err(err);
+            }
+        };
 
         // Poll for receipt at regular intervals
         let poll_interval = std::time::Duration::from_millis(
@@ -724,15 +737,25 @@ impl EthNamespace {
 
         let deadline = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms));
         tokio::pin!(deadline);
+        let poll_latency =
+            SEND_RAW_TX_SYNC_METRICS.latency[&SendRawTxSyncStage::PollReceipt].start();
+        let timeout_latency =
+            SEND_RAW_TX_SYNC_METRICS.latency[&SendRawTxSyncStage::Timeout].start();
+        let mut polls = 0u64;
 
         // Check immediately, then poll at intervals
         loop {
             tokio::select! {
                 _ = &mut deadline => {
+                    timeout_latency.observe();
+                    SEND_RAW_TX_SYNC_METRICS.polls[&SendRawTxSyncStage::Timeout].observe(polls);
                     return Err(Web3Error::TransactionTimeout(hash));
                 }
                 _ = interval.tick() => {
+                    polls += 1;
                     if let Some(receipt) = self.get_transaction_receipt_impl(hash).await? {
+                        poll_latency.observe();
+                        SEND_RAW_TX_SYNC_METRICS.polls[&SendRawTxSyncStage::PollReceipt].observe(polls);
                         return Ok(receipt);
                     }
                     // Continue waiting
