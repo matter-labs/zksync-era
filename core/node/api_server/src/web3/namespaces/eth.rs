@@ -23,10 +23,11 @@ use crate::{
     tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{
-        backend_jsonrpsee::MethodTracer, namespaces::validate_gas_cap,
+        backend_jsonrpsee::MethodTracer,
+        metrics::{SendRawTxSyncStage, SEND_RAW_TX_SYNC_METRICS},
+        namespaces::validate_gas_cap,
         receipts::fill_transaction_receipts,
         state::RpcState,
-        metrics::{SendRawTxSyncStage, SEND_RAW_TX_SYNC_METRICS},
         TypedFilter,
     },
 };
