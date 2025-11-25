@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                settlement_layer_type,\n                settlement_layer_chain_id\n            FROM\n                l1_batches\n            WHERE\n                ($1 AND is_sealed = false) OR (number = $2)\n            ORDER BY number DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "settlement_layer_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "settlement_layer_chain_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "da681d57590f2bf4ff6f94c8349249fef9782f45139440d99ac55e9acf1173a7"
+}

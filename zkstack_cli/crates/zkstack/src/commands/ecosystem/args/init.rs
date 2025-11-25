@@ -62,6 +62,8 @@ pub struct EcosystemInitArgs {
     pub make_permanent_rollup: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub skip_priority_txs: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub pause_deposits: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
@@ -100,6 +102,7 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test,
             make_permanent_rollup,
             skip_priority_txs,
+            pause_deposits,
             deploy_paymaster,
             ecosystem_contracts_path,
             ..
@@ -148,6 +151,7 @@ impl EcosystemInitArgs {
             deploy_paymaster,
             make_permanent_rollup,
             skip_priority_txs,
+            pause_deposits,
             genesis_args,
             vm_option: common.vm_option,
             ecosystem_contracts_path,
@@ -172,6 +176,7 @@ pub struct EcosystemInitArgsFinal {
     pub deploy_paymaster: Option<bool>,
     pub make_permanent_rollup: bool,
     pub skip_priority_txs: bool,
+    pub pause_deposits: bool,
     pub genesis_args: Option<GenesisArgs>,
     pub vm_option: VMOption,
 }

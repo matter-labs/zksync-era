@@ -1,11 +1,10 @@
-pub mod storage_block;
-
 use bigdecimal::{num_bigint::BigUint, BigDecimal};
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{ProtocolVersionId, U256};
 
 mod call;
 pub mod storage_base_token_ratio;
+pub mod storage_block;
 pub(crate) mod storage_data_availability;
 pub mod storage_eth_tx;
 pub mod storage_event;
