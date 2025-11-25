@@ -259,6 +259,7 @@ pub async fn migrate_token_balances_from_gateway(
                         Ok(pending_tx) => {
                             if let Some(receipt) = pending_tx.await? {
                                 tx_hashes.push(receipt.transaction_hash);
+                                println!("Transaction hash: {:?}", U256::from(receipt.transaction_hash.0));
                             }
                         }
                         Err(e) => println!("Warning: Failed to migrate asset: {}", e),
