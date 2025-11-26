@@ -99,7 +99,7 @@ export function getToken(
             address: baseTokenAddress,
             name: 'Base Token',
             symbol: 'BT',
-            decimals: 18n
+            decimals: BigInt(18)
         };
     }
     return { token, baseToken };
