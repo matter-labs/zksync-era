@@ -37,9 +37,6 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
                 'gateway_migration'
             );
 
-            // Wait for the transaction to be indexed to avoid race conditions in CI
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-
             await executeCommand(
                 'zkstack',
                 [
