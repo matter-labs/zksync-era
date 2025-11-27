@@ -1,5 +1,3 @@
-<!--- WIP --->
-
 # ZK Stack contracts specs
 
 The order of the files here only roughly represents the order of reading. A lot of topics are intertwined, so it is recommended to read everything first to have a complete picture and then refer to specific documents for more details.
@@ -13,6 +11,7 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Chain genesis](../contracts/chain_management/chain_genesis.md)
   - [Standard Upgrade process](../contracts/chain_management/upgrade_process.md)
 - [Bridging](../contracts/bridging/overview.md)
+  - [Asset Router and NTV](../contracts/bridging/asset_router_and_ntv/overview.md)
   - [Asset Router](../contracts/bridging/asset_router_and_ntv/asset_router.md)
   - [Native token vault](../contracts/bridging/asset_router_and_ntv/native_token_vault.md)
 - [Interop](../contracts/interop/overview.md)
@@ -35,15 +34,12 @@ The order of the files here only roughly represents the order of reading. A lot 
     - [Custom DA support](../contracts/settlement_contracts/data_availability/custom_da.md)
     - [Rollup DA support](../contracts/settlement_contracts/data_availability/rollup_da.md)
     - [Standard pubdata format](../contracts/settlement_contracts/data_availability/standard_pubdata_format.md)
-    - [State diff compression v1 spec](../contracts/settlement_contracts/data_availability/state_diff_compression_v1_spec.md)
 - [Gateway](../contracts/gateway/overview.md)
   - [Chain migration](../contracts/gateway/chain_migration.md)
   - [L1->L2 messaging via gateway](../contracts/gateway/messaging_via_gateway.md)
   - [L2->L1 messaging via gateway](../contracts/gateway/l2_gw_l1_messaging.md)
   - [Gateway protocol versioning](../contracts/gateway/gateway_protocol_upgrades.md)
   - [DA handling on Gateway](../contracts/gateway/gateway_da.md)
-- [Consensus](../contracts/consensus/README.md)
-  - [Consensus Registry](../contracts/consensus/consensus-registry.md)
 - [zkEVM](../contracts/zkevm/overview.md)
   - [Batches and blocks on ZKsync](../contracts/zkevm/batches_and_blocks_on_zksync.md)
   - [Bootloader](../contracts/zkevm/bootloader.md)
@@ -51,6 +47,10 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Precompiles](../contracts/zkevm/precompiles.md)
   - [Account abstraction](../contracts/zkevm/account_abstraction.md)
   - [Fee model](../contracts/zkevm/zksync_fee_model.md)
+- [EVM Emulation](../contracts/evm_emulation/technical_overview.md)
+  - [Differences from Cancun EVM](../contracts/evm_emulation/differences_from_cancun_evm.md)
+  - [EVM Gas Emulation](../contracts/evm_emulation/evm_gas_emulation.md)
+  - [EVM Predeploys List](../contracts/evm_emulation/evm_predeploys_list.md)
 
 ![Reading order](./img/reading_order.png)
 
