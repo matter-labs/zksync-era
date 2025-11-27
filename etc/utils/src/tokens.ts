@@ -97,9 +97,9 @@ export function getToken(
     if (baseToken === undefined) {
         baseToken = {
             address: baseTokenAddress,
-            name: "Base Token",
-            symbol: "BT",
-            decimals: 18n
+            name: 'Base Token',
+            symbol: 'BT',
+            decimals: BigInt(18)
         };
     }
     return { token, baseToken };

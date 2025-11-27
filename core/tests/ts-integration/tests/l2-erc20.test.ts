@@ -162,8 +162,9 @@ describe('L2 native ERC20 contract checks', () => {
     });
 
     test('Migrate token balance to Gateway', async () => {
-        // TODO: if the chain settles on L1, skip this part + check that the token has not yet
-        // been registered on L1
+        if (process.env.USE_GATEWAY_CHAIN !== 'WITH_GATEWAY') {
+            return;
+        }
 
         // Ensure that the token has not yet been registered on L1
         const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);

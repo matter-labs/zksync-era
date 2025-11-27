@@ -85,6 +85,8 @@ describe('Migration From/To gateway test', function () {
             baseTokenAddress: contractsConfig.l1.base_token_addr
         });
 
+        await mainNodeSpawner.killAndSpawnMainNode();
+
         tester = await Tester.init(ethProviderAddress!, web3JsonRpc!);
         alice = tester.emptyWallet();
 
@@ -96,8 +98,6 @@ describe('Migration From/To gateway test', function () {
     });
 
     step('Run server and execute some transactions', async () => {
-        await mainNodeSpawner.killAndSpawnMainNode();
-
         let blocksCommitted = await l1MainContract.getTotalBatchesCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
