@@ -44,7 +44,6 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Batches and blocks on ZKsync](../contracts/zkevm/batches_and_blocks_on_zksync.md)
   - [Bootloader](../contracts/zkevm/bootloader.md)
   - [System contracts](../contracts/zkevm/system_contracts.md)
-  - [Precompiles](../contracts/zkevm/precompiles.md)
   - [Account abstraction](../contracts/zkevm/account_abstraction.md)
   - [Fee model](../contracts/zkevm/zksync_fee_model.md)
 - [EVM Emulation](../contracts/evm_emulation/technical_overview.md)
