@@ -87,7 +87,9 @@ deployed_addresses:
     state_transition_implementation_addr: "0x7b1D031BEb039705743371231196020825ED1e63"
     verifier_addr: "0xBe953765e45FE69A6Fb9Abcc263c6Ed564e6B0b9"
     verifier_fflonk_addr: "0xbEc00bB9F1BA69C3f7A20050fC373dD4e259eDe5"
-    verifier_plonk_addr: "0x70387e1Aef27eDAAe42700B8B2bd126A7c91164F"
+    verifier_plonk_addr: "0x348f02A9cE6517796F92782a5863F83d1ecDd32d"
+    constructor_verifier_fflonk_addr: "0xbEc00bB9F1BA69C3f7A20050fC373dD4e259eDe5"
+    constructor_verifier_plonk_addr: "0x70387e1Aef27eDAAe42700B8B2bd126A7c91164F"
 gateway:
   diamond_cut_data: 0x
   upgrade_cut_data: 0x
@@ -146,3 +148,4 @@ transactions:
   - "0xf9791b3dba441a9e71867b6f78ec7175f7f524979c9af785fc4cf3996988f8e8"
   - "0xa0ab69c397b04df4b90eb94a16a252e69b25a0362cd124151cfddb417845fa14"
   - "0x3c6a74b976541faec4b57617549543219774082a3fd649f2423053dfcd4bd4bf"
+  - "0xef0a861b8e15d8222b5183c340f5d09487846de37bd300a1dd3aee84ab94f3b8"

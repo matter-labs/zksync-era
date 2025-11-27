@@ -13,7 +13,7 @@ use zkstack_cli_config::{
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
-use zksync_types::{L2_BRIDGEHUB_ADDRESS, commitment::L2DACommitmentScheme};
+use zksync_types::{commitment::L2DACommitmentScheme, L2_BRIDGEHUB_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
@@ -278,7 +278,7 @@ pub(crate) async fn run_chain_upgrade(
 ) -> anyhow::Result<()> {
     let forge_args = &Default::default();
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
-    
+
     let args = get_full_chain_upgrade_params(shell, args_input.clone(), upgrade_version).await?;
 
     // 0. Read the GatewayUpgradeInfo
