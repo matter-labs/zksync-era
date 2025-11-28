@@ -95,6 +95,10 @@ describe('Migration From/To gateway test', function () {
             ZK_CHAIN_INTERFACE,
             tester.syncWallet.providerL1
         );
+
+        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
+        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
     });
 
     step('Run server and execute some transactions', async () => {
@@ -159,16 +163,34 @@ describe('Migration From/To gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+    });
 
-        // Additionally wait until the priority queue is empty if we are migrating to gateway
-        if (direction == 'TO') {
-            let priorityQueueSize = await l1MainContract.getPriorityQueueSize();
-            let tryCount = 0;
-            while (priorityQueueSize > 0 && tryCount < 30) {
-                priorityQueueSize = await l1MainContract.getPriorityQueueSize();
-                tryCount += 1;
-                await utils.sleep(1);
+    step('Pause deposits before initiating migration', async () => {
+        await utils.spawn(`zkstack chain pause-deposits --chain ${fileConfig.chain}`);
+
+        // We need to wait for a new block for the deposits paused time check to pass
+        const startBlock = await tester.ethProvider.getBlock('latest');
+        let tryCount = 0;
+        while ((await tester.ethProvider.getBlock('latest'))?.timestamp! <= startBlock?.timestamp! && tryCount < 30) {
+            tryCount += 1;
+            await utils.sleep(1);
+        }
+
+        // Additionally wait until the priority queue is empty
+        let getPriorityQueueSize = async () => {
+            if (direction == 'TO') {
+                return await l1MainContract.getPriorityQueueSize();
+            } else {
+                // return await gwMainContract.getPriorityQueueSize();
+                const priorityQueueSize = await gwMainContract.getPriorityQueueSize();
+                console.log("Priority queue size on gateway", priorityQueueSize);
+                return priorityQueueSize;
             }
+        }
+        tryCount = 0;
+        while (await getPriorityQueueSize() > 0 && tryCount < 100) {
+            tryCount += 1;
+            await utils.sleep(1);
         }
     });
 
@@ -208,9 +230,6 @@ describe('Migration From/To gateway test', function () {
             gatewayInfo?.gatewayProvider
         );
 
-        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
-        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
-
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
@@ -227,6 +246,10 @@ describe('Migration From/To gateway test', function () {
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
+    });
+
+    step('Unpause deposits', async () => {
+        await utils.spawn(`zkstack chain unpause-deposits --chain ${fileConfig.chain}`);
     });
 
     step('Migrate token balances', async () => {
