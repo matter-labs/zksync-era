@@ -14,7 +14,7 @@ The zkEVM has a lot of special features compared to the EVM that are needed for 
 precompiles etc. These functions are either built into the zkEVM, or there are special
 [system contracts](./system_contracts.md) for them. The system contracts are deployed at predefined addresses, they are
 called by the Bootloader, and they have special permissions compared to normal user contracts. These are not to be
-confused with the [precompiles](./precompiles.md), which are also pre-deployed contracts with special support from the
+confused with the precompiles, which are also pre-deployed contracts with special support from the
 zkEVM, but these contract do not have special permissions and are called by the users and not the Bootloader.
 
 The zkEVM also has user-facing features. For the best possible UX the ZK Stack supports native
