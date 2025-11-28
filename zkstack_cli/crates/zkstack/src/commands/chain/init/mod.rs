@@ -7,7 +7,7 @@ use zkstack_cli_config::{
     ZkStackConfigTrait,
 };
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
-use zksync_basic_types::Address;
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
     admin_functions::{accept_admin, make_permanent_rollup, set_da_validator_pair},
@@ -168,7 +168,7 @@ pub async fn init(
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args,
+            &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -221,6 +221,20 @@ pub async fn send_priority_txs(
     let l1_da_validator_addr = get_l1_da_validator(chain_config)
         .await
         .context("l1_da_validator_addr")?;
+    let commitment_scheme =
+        if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+            L2DACommitmentScheme::BlobsAndPubdataKeccak256
+        } else {
+            let da_client_type = chain_config.get_general_config().await?.da_client_type();
+
+            match da_client_type.as_deref() {
+                Some("Avail") | Some("Eigen") => L2DACommitmentScheme::PubdataKeccak256,
+                Some("NoDA") | None => L2DACommitmentScheme::EmptyNoDA,
+                Some(unsupported) => {
+                    anyhow::bail!("DA client config is not supported: {unsupported:?}");
+                }
+            }
+        };
 
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
@@ -233,10 +247,7 @@ pub async fn send_priority_txs(
         chain_config.chain_id.as_u64(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         l1_da_validator_addr,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
+        commitment_scheme,
         l1_rpc_url.clone(),
     )
     .await?;
