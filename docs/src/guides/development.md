@@ -255,7 +255,7 @@ For more information check [Foundry's documentation](https://book.getfoundry.sh/
 
 ## How to generate the `genesis.yaml` file
 
-To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main//etc/env/file_based/genesis.yaml)
+To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main/etc/env/file_based/genesis.yaml)
 file checkout to the desired `zksync-era` branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it,
 [configure ecosystem](#configure-ecosystem) and run the following command:
 
