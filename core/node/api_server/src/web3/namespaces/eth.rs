@@ -23,8 +23,12 @@ use crate::{
     tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{
-        backend_jsonrpsee::MethodTracer, namespaces::validate_gas_cap,
-        receipts::fill_transaction_receipts, state::RpcState, TypedFilter,
+        backend_jsonrpsee::MethodTracer,
+        metrics::{SendRawTxSyncStage, SEND_RAW_TX_SYNC_METRICS},
+        namespaces::validate_gas_cap,
+        receipts::fill_transaction_receipts,
+        state::RpcState,
+        TypedFilter,
     },
 };
 
@@ -693,6 +697,72 @@ impl EthNamespace {
         submit_result
             .map(|_| hash)
             .map_err(|err| self.current_method().map_submit_err(err))
+    }
+
+    pub async fn send_raw_transaction_sync_impl(
+        &self,
+        tx_bytes: Bytes,
+        max_wait_ms: Option<U256>,
+    ) -> Result<TransactionReceipt, Web3Error> {
+        let timeout_ms = if let Some(timeout) = max_wait_ms {
+            let timeout_u64 = timeout.as_u64();
+            if timeout_u64 > self.state.api_config.send_raw_tx_sync_max_timeout_ms {
+                return Err(Web3Error::InvalidTimeout(
+                    self.state.api_config.send_raw_tx_sync_max_timeout_ms,
+                ));
+            }
+            timeout_u64
+        } else {
+            self.state.api_config.send_raw_tx_sync_default_timeout_ms
+        };
+
+        // Submit transaction and get hash
+        let submit_latency = SEND_RAW_TX_SYNC_METRICS.latency[&SendRawTxSyncStage::Submit].start();
+        let hash = match self.send_raw_transaction_impl(tx_bytes).await {
+            Ok(hash) => {
+                submit_latency.observe();
+                hash
+            }
+            Err(err) => {
+                submit_latency.observe();
+                return Err(err);
+            }
+        };
+
+        // Poll for receipt at regular intervals
+        let poll_interval = std::time::Duration::from_millis(
+            self.state.api_config.send_raw_tx_sync_poll_interval_ms,
+        );
+        let mut interval = tokio::time::interval(poll_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        let deadline = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms));
+        tokio::pin!(deadline);
+        let poll_latency =
+            SEND_RAW_TX_SYNC_METRICS.latency[&SendRawTxSyncStage::PollReceipt].start();
+        let timeout_latency =
+            SEND_RAW_TX_SYNC_METRICS.latency[&SendRawTxSyncStage::Timeout].start();
+        let mut polls = 0u64;
+
+        // Check immediately, then poll at intervals
+        loop {
+            tokio::select! {
+                _ = &mut deadline => {
+                    timeout_latency.observe();
+                    SEND_RAW_TX_SYNC_METRICS.polls[&SendRawTxSyncStage::Timeout].observe(polls);
+                    return Err(Web3Error::TransactionTimeout(hash));
+                }
+                _ = interval.tick() => {
+                    polls += 1;
+                    if let Some(receipt) = self.get_transaction_receipt_impl(hash).await? {
+                        poll_latency.observe();
+                        SEND_RAW_TX_SYNC_METRICS.polls[&SendRawTxSyncStage::PollReceipt].observe(polls);
+                        return Ok(receipt);
+                    }
+                    // Continue waiting
+                }
+            }
+        }
     }
 
     pub fn accounts_impl(&self) -> Vec<Address> {

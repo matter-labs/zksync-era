@@ -1,5 +1,30 @@
 # Changelog
 
+## [29.6.0](https://github.com/matter-labs/zksync-era/compare/core-v29.5.0...core-v29.6.0) (2025-11-17)
+
+
+### Features
+
+* **api:** add EIP-7966 eth_sendRawTransactionSync method ([#4565](https://github.com/matter-labs/zksync-era/issues/4565)) ([7c4c428](https://github.com/matter-labs/zksync-era/commit/7c4c428b1ea3fd75d9884f3e842fb12d847705c1))
+* bumping versions ([#4555](https://github.com/matter-labs/zksync-era/issues/4555)) ([1cd803d](https://github.com/matter-labs/zksync-era/commit/1cd803d10af4942b500731f319caca2745a27f77))
+* **eth_sender:** Set fusaka upgrade timestamp ([#4571](https://github.com/matter-labs/zksync-era/issues/4571)) ([3b5a9df](https://github.com/matter-labs/zksync-era/commit/3b5a9df5313414557a0736bbc06cb806d4904258))
+* Improve proving networks setup ([#4563](https://github.com/matter-labs/zksync-era/issues/4563)) ([42c3f0f](https://github.com/matter-labs/zksync-era/commit/42c3f0f4efe1975f734c8e0d45a43007cc2ff9f7))
+* **zkstack:** ensure priority queue is empty before migrating to gateway ([#4539](https://github.com/matter-labs/zksync-era/issues/4539)) ([a5e1133](https://github.com/matter-labs/zksync-era/commit/a5e1133e4974bde5e2dad81b211e5a205f6a65f5))
+
+## [29.5.0](https://github.com/matter-labs/zksync-era/compare/core-v29.4.1...core-v29.5.0) (2025-10-16)
+
+
+### Features
+
+* add support for eip-7594 blob format ([#4542](https://github.com/matter-labs/zksync-era/issues/4542)) ([b57d6f6](https://github.com/matter-labs/zksync-era/commit/b57d6f6eb2c908692f356f584a8e3b0158ef2969))
+* adds l1_batch_number to zks_get_l2l1_logproof ([#4530](https://github.com/matter-labs/zksync-era/issues/4530)) ([004dcdc](https://github.com/matter-labs/zksync-era/commit/004dcdcf1fa21578798b90b58a2d6c3f1af0ff50))
+* **zkstack:** Deploy 2 ctms and deploy chain for each of them   ([#4458](https://github.com/matter-labs/zksync-era/issues/4458)) ([5d2a7cd](https://github.com/matter-labs/zksync-era/commit/5d2a7cd393f728b15e6e0b6b3fdee500e1ccd217))
+
+
+### Bug Fixes
+
+* **eth_sender:** refactor support for eip7594 ([#4543](https://github.com/matter-labs/zksync-era/issues/4543)) ([462849a](https://github.com/matter-labs/zksync-era/commit/462849aa904dc84db05307c5e05d9e20c173a89d))
+
 ## [29.4.1](https://github.com/matter-labs/zksync-era/compare/core-v29.4.0...core-v29.4.1) (2025-09-29)
 
 

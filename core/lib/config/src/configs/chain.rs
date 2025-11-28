@@ -40,6 +40,11 @@ pub struct SharedStateKeeperConfig {
     #[config(default_t = 10)]
     pub l2_block_seal_queue_capacity: usize,
 
+    /// Deadline after which an L2 block should be sealed by the timeout sealer.
+    #[config(deprecated = "miniblock_commit_deadline")]
+    #[config(default_t = Duration::from_secs(1))]
+    pub l2_block_commit_deadline: Duration,
+
     /// Whether to save call traces when processing blocks in the state keeper.
     #[config(default_t = true)]
     pub save_call_traces: bool,
@@ -127,10 +132,6 @@ pub struct StateKeeperConfig {
     #[config(deprecated = "block_commit_deadline")]
     #[config(default_t = Duration::from_millis(2_500))]
     pub l1_batch_commit_deadline: Duration,
-    /// Deadline after which an L2 block should be sealed by the timeout sealer.
-    #[config(deprecated = "miniblock_commit_deadline")]
-    #[config(default_t = Duration::from_secs(1))]
-    pub l2_block_commit_deadline: Duration,
     /// The max payload size threshold that triggers sealing of an L2 block.
     #[config(deprecated = "miniblock_max_payload_size")]
     #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
@@ -177,10 +178,11 @@ impl StateKeeperConfig {
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
         Self {
-            shared: SharedStateKeeperConfig::default(),
+            shared: SharedStateKeeperConfig {
+                ..SharedStateKeeperConfig::default()
+            },
             seal_criteria: SealCriteriaConfig::for_tests(),
             l1_batch_commit_deadline: Duration::from_millis(2500),
-            l2_block_commit_deadline: Duration::from_secs(1),
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
@@ -281,6 +283,7 @@ mod tests {
         StateKeeperConfig {
             shared: SharedStateKeeperConfig {
                 l2_block_seal_queue_capacity: 10,
+                l2_block_commit_deadline: Duration::from_millis(1000),
                 save_call_traces: false,
                 protective_reads_persistence_enabled: true,
             },
@@ -296,7 +299,6 @@ mod tests {
                 max_circuits_per_batch: 24100,
             },
             l1_batch_commit_deadline: Duration::from_millis(2500),
-            l2_block_commit_deadline: Duration::from_millis(1000),
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,

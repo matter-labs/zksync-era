@@ -62,7 +62,7 @@ use super::*;
 use crate::{
     testonly::{mock_execute_transaction, store_custom_l2_block},
     tx_sender::SandboxExecutorOptions,
-    web3::testonly::TestServerBuilder,
+    web3::{state::InternalApiConfigBase, testonly::TestServerBuilder},
 };
 
 mod debug;
@@ -278,13 +278,14 @@ async fn test_http_server(test: impl HttpTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = test.web3_config();
     let genesis = GenesisConfig::for_tests();
+    let state_keeper_config = StateKeeperConfig::for_tests();
     let api_config = InternalApiConfig::new(
-        &web3_config,
+        InternalApiConfigBase::new(&genesis, &web3_config, &state_keeper_config)
+            .with_l1_to_l2_txs_paused(false),
         &contracts_config.settlement_layer_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis,
-        false,
         SettlementLayer::for_tests(),
     );
 

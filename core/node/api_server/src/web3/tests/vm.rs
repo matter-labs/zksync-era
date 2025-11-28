@@ -20,7 +20,10 @@ use zksync_types::{
     StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
-use zksync_web3_decl::namespaces::{DebugNamespaceClient, UnstableNamespaceClient};
+use zksync_web3_decl::{
+    namespaces::{DebugNamespaceClient, UnstableNamespaceClient},
+    types::Bytes,
+};
 
 use super::*;
 
@@ -440,6 +443,31 @@ impl SendRawTransactionTest {
         K256PrivateKey::from_bytes(H256::repeat_byte(11)).unwrap()
     }
 
+    // Helper to create unique transactions for each test (to avoid duplicates)
+    fn unique_transaction_bytes_and_hash(unique_value: u64) -> (Vec<u8>, H256) {
+        let private_key = Self::private_key();
+        let tx_request = api::TransactionRequest {
+            chain_id: Some(L2ChainId::default().as_u64()),
+            from: Some(private_key.address()),
+            to: Some(Address::repeat_byte(2)),
+            value: unique_value.into(), // Unique value makes each transaction different
+            gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
+            gas_price: StateKeeperConfig::for_tests().minimal_l2_gas_price.into(),
+            input: vec![1, 2, 3, 4].into(),
+            ..api::TransactionRequest::default()
+        };
+        let data = tx_request.get_rlp().unwrap();
+        let signed_message = PackedEthSignature::message_to_signed_bytes(&data);
+        let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
+
+        let mut rlp = Default::default();
+        tx_request.rlp(&mut rlp, Some(&signature)).unwrap();
+        let data = rlp.out();
+        let (_, tx_hash) =
+            api::TransactionRequest::from_bytes(&data, L2ChainId::default()).unwrap();
+        (data.into(), tx_hash)
+    }
+
     fn balance_storage_log() -> StorageLog {
         let balance_key = storage_key_for_eth_balance(&Self::private_key().address());
         StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64))
@@ -707,6 +735,355 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
 #[tokio::test]
 async fn send_raw_transaction_with_detailed_output() {
     test_http_server(SendTransactionWithDetailedOutputTest).await;
+}
+
+// Tests for `eth_sendRawTransactionSync` (EIP-7966)
+
+#[derive(Debug)]
+struct SendRawTransactionSyncDelayedReceiptTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncDelayedReceiptTest {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(|_, _| ExecutionResult::Success { output: vec![] });
+        executor
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        // Use unique transaction to avoid duplicates
+        let (tx_bytes, _tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(200_002);
+
+        // Call will timeout since no block with the transaction will be created
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Some(U256::from(200))], // Short timeout
+            )
+            .await
+            .unwrap_err();
+
+        // Verify it's a timeout error (code 4)
+        if let ClientError::Call(e) = &err {
+            assert_eq!(
+                e.code(),
+                4,
+                "Expected timeout error code 4, got: {}",
+                e.code()
+            );
+            assert!(
+                e.message().contains("timeout"),
+                "Expected timeout message, got: {}",
+                e.message()
+            );
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_delayed_receipt() {
+    test_http_server(SendRawTransactionSyncDelayedReceiptTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncTimeoutTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncTimeoutTest {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(|_, _| ExecutionResult::Success { output: vec![] });
+        executor
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        let (tx_bytes, _tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Some(U256::from(100))], // 100ms timeout
+            )
+            .await
+            .unwrap_err();
+
+        if let ClientError::Call(e) = &err {
+            assert_eq!(e.code(), 4);
+            assert!(
+                e.message().contains("timeout"),
+                "Error message: {}",
+                e.message()
+            );
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_timeout() {
+    test_http_server(SendRawTransactionSyncTimeoutTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncMultipleBlocksTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncMultipleBlocksTest {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(|_, _| ExecutionResult::Success { output: vec![] });
+        executor
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        // Use unique transaction to avoid duplicates
+        let (tx_bytes, _tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(300_003);
+
+        // Call will timeout since no block with the transaction will be created
+        // Even though we create empty blocks, the transaction won't be in them
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Some(U256::from(500))],
+            )
+            .await
+            .unwrap_err();
+
+        // Verify it's a timeout error (code 4)
+        if let ClientError::Call(e) = &err {
+            assert_eq!(
+                e.code(),
+                4,
+                "Expected timeout error code 4, got: {}",
+                e.code()
+            );
+            assert!(
+                e.message().contains("timeout"),
+                "Expected timeout message, got: {}",
+                e.message()
+            );
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_multiple_blocks() {
+    test_http_server(SendRawTransactionSyncMultipleBlocksTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncCustomTimeoutTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncCustomTimeoutTest {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(|_, _| ExecutionResult::Success { output: vec![] });
+        executor
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        let (tx_bytes, _) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes.clone()), Some(U256::from(20000))], // 20 seconds > 10 second max
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, ClientError::Call(_)));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_custom_timeout() {
+    test_http_server(SendRawTransactionSyncCustomTimeoutTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncSubmissionErrorTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncSubmissionErrorTest {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        // This test expects the transaction submission to fail, so configure the executor to fail
+        executor.set_tx_responses(|_, _| ExecutionResult::Revert {
+            output: VmRevertReason::General {
+                msg: "Insufficient balance".to_string(),
+                data: vec![],
+            },
+        });
+        executor
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let (tx_bytes, _) = SendRawTransactionTest::transaction_bytes_and_hash(true);
+
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Option::<U256>::None],
+            )
+            .await
+            .unwrap_err();
+
+        if let ClientError::Call(e) = &err {
+            assert_eq!(e.code(), 3);
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_submission_error() {
+    test_http_server(SendRawTransactionSyncSubmissionErrorTest).await;
+}
+
+#[derive(Debug)]
+struct SendRawTransactionSyncDefaultTimeoutTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionSyncDefaultTimeoutTest {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(|_, _| ExecutionResult::Success { output: vec![] });
+        executor
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+        drop(storage);
+
+        // Use unique transaction to avoid duplicates
+        let (tx_bytes, _tx_hash) =
+            SendRawTransactionTest::unique_transaction_bytes_and_hash(400_004);
+
+        // Call sync without specifying timeout (should use default 2000ms)
+        let err = client
+            .request::<api::TransactionReceipt, _>(
+                "eth_sendRawTransactionSync",
+                rpc_params![Bytes(tx_bytes), Option::<U256>::None],
+            )
+            .await
+            .unwrap_err();
+
+        // Verify it times out with the default timeout (2000ms)
+        // Since we don't create any blocks, it should timeout
+        if let ClientError::Call(e) = &err {
+            assert_eq!(
+                e.code(),
+                4,
+                "Expected timeout error code 4, got: {}",
+                e.code()
+            );
+            assert!(
+                e.message().contains("timeout"),
+                "Expected timeout message, got: {}",
+                e.message()
+            );
+        } else {
+            panic!("Expected ClientError::Call, got: {:?}", err);
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_sync_default_timeout() {
+    test_http_server(SendRawTransactionSyncDefaultTimeoutTest).await;
 }
 
 #[derive(Debug, Default)]

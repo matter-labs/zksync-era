@@ -61,6 +61,7 @@ impl EthProofSender {
             self.client.clone_boxed(),
             self.connection_pool.clone(),
             self.l2_chain_id,
+            self.config.max_tx_sending_attempts,
         );
 
         tokio::select! {
