@@ -21,7 +21,7 @@ jobs:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -56,9 +56,9 @@ jobs:
           ci_run zkstack dev contracts
 
       - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6
         with:
-          node-version: 18.20.8
+          node-version: 24.11.1
 
       - name: Install yarn
         run: |
@@ -87,7 +87,7 @@ jobs:
         vm_mode: [ "OLD", "NEW" ]
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -155,7 +155,7 @@ jobs:
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -289,7 +289,7 @@ jobs:
           ci_run zkstack dev test upgrade --no-deps --chain era
 
       - name: Upload logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
           name: logs_${{matrix.use_gateway_chain}}_${{matrix.tested_chain_type}}

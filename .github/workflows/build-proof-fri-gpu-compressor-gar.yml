@@ -21,7 +21,7 @@ jobs:
     name: Build proof FRI GPU Compressor gar
     runs-on: [matterlabs-ci-runner-high-performance]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
           submodules: "recursive"
 
