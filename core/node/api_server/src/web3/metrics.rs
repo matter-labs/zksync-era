@@ -517,6 +517,29 @@ pub(super) struct TxReceiptMetrics {
 #[vise::register]
 pub(super) static TX_RECEIPT_METRICS: vise::Global<TxReceiptMetrics> = vise::Global::new();
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(super) enum SendRawTxSyncStage {
+    Submit,
+    PollReceipt,
+    Timeout,
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_send_raw_tx_sync")]
+pub(super) struct SendRawTxSyncMetrics {
+    /// Latency of each stage of `eth_sendRawTransactionSync`.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub latency: Family<SendRawTxSyncStage, Histogram<Duration>>,
+    /// Number of poll iterations until completion or timeout.
+    #[metrics(buckets = Buckets::exponential(1.0..=256.0, 2.0))]
+    pub polls: Family<SendRawTxSyncStage, Histogram<u64>>,
+}
+
+#[vise::register]
+pub(super) static SEND_RAW_TX_SYNC_METRICS: vise::Global<SendRawTxSyncMetrics> =
+    vise::Global::new();
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
