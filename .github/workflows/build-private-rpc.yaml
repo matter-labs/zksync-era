@@ -16,7 +16,7 @@ jobs:
     name: Private Rpc - Build and Push Docker Image
     runs-on: [ matterlabs-ci-runner-high-performance ]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: "recursive"
 
