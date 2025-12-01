@@ -181,14 +181,11 @@ describe('Migration From/To gateway test', function () {
             if (direction == 'TO') {
                 return await l1MainContract.getPriorityQueueSize();
             } else {
-                // return await gwMainContract.getPriorityQueueSize();
-                const priorityQueueSize = await gwMainContract.getPriorityQueueSize();
-                console.log("Priority queue size on gateway", priorityQueueSize);
-                return priorityQueueSize;
+                return await gwMainContract.getPriorityQueueSize();
             }
-        }
+        };
         tryCount = 0;
-        while (await getPriorityQueueSize() > 0 && tryCount < 100) {
+        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
             tryCount += 1;
             await utils.sleep(1);
         }
