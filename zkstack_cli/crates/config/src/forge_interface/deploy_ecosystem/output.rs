@@ -36,7 +36,6 @@ impl FileConfigTrait for DeployL1CoreContractsOutput {}
 pub struct DeployCTMOutput {
     pub contracts_config: DeployCTMContractsConfigOutput,
     pub deployed_addresses: DeployCTMDeployedAddressesOutput,
-    pub expected_rollup_l2_da_validator_addr: Address,
     pub multicall3_addr: Address,
 }
 
@@ -71,6 +70,8 @@ pub struct L1BridgehubOutput {
     pub ctm_deployment_tracker_implementation_addr: Address,
     pub message_root_proxy_addr: Address,
     pub message_root_implementation_addr: Address,
+    pub chain_asset_handler_proxy_addr: Address,
+    pub chain_asset_handler_implementation_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
