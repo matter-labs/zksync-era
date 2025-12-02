@@ -93,8 +93,6 @@ const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d41
 const ethFundAmount = ethers.parseEther('1');
 
 describe('Interop behavior checks', () => {
-    jest.setTimeout(1200000);
-
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let aliceSecondChain: RetryableWallet;
