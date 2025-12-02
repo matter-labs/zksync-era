@@ -41,6 +41,7 @@ describe('Migration From/To gateway test', function () {
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
     let gwMainContract: ethers.Contract;
+    let chainGatewayContract: ethers.Contract;
 
     let gatewayChain: string;
     let logs: fs.FileHandle;
@@ -70,6 +71,11 @@ describe('Migration From/To gateway test', function () {
             chain: fileConfig.chain,
             config: 'contracts.yaml'
         });
+        const chainGatewayConfig = loadConfig({
+            pathToHome,
+            chain: fileConfig.chain,
+            config: 'gateway_chain.yaml'
+        });
         const secretsConfig = loadConfig({
             pathToHome,
             chain: fileConfig.chain,
@@ -87,7 +93,8 @@ describe('Migration From/To gateway test', function () {
 
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        tester = await Tester.init(ethProviderAddress!, web3JsonRpc!);
+        const gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+        tester = await Tester.init(ethProviderAddress!, web3JsonRpc!, gatewayRpcUrl!);
         alice = tester.emptyWallet();
 
         l1MainContract = new ethers.Contract(
@@ -99,6 +106,12 @@ describe('Migration From/To gateway test', function () {
         let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
         let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
         gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
+
+        chainGatewayContract = new ethers.Contract(
+            chainGatewayConfig.diamond_proxy_addr,
+            ZK_CHAIN_INTERFACE,
+            tester.gwProvider
+        );
     });
 
     step('Run server and execute some transactions', async () => {
@@ -168,20 +181,13 @@ describe('Migration From/To gateway test', function () {
     step('Pause deposits before initiating migration', async () => {
         await utils.spawn(`zkstack chain pause-deposits --chain ${fileConfig.chain}`);
 
-        // We need to wait for a new block for the deposits paused time check to pass
-        const startBlock = await tester.ethProvider.getBlock('latest');
+        // Wait until the priority queue is empty
         let tryCount = 0;
-        while ((await tester.ethProvider.getBlock('latest'))?.timestamp! <= startBlock?.timestamp! && tryCount < 30) {
+        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
             tryCount += 1;
             await utils.sleep(1);
         }
-
-        // Additionally wait until the priority queue is empty
-        tryCount = 0;
-        while ((await l1MainContract.getPriorityQueueSize()) > 0 && tryCount < 100) {
-            tryCount += 1;
-            await utils.sleep(1);
-        }
+        console.error('tryCount', tryCount);
     });
 
     step('Migrate to/from gateway', async () => {
@@ -322,7 +328,7 @@ describe('Migration From/To gateway test', function () {
         if (direction == 'TO') {
             return await l1MainContract.getPriorityQueueSize();
         } else {
-            return await gwMainContract.getPriorityQueueSize();
+            return await chainGatewayContract.getPriorityQueueSize();
         }
     }
 });
