@@ -135,6 +135,8 @@ describe('Interop behavior checks', () => {
     // let gatewayProvider: zksync.Provider;
     // let gatewayWallet: zksync.Wallet;
 
+    let isSameBaseToken: boolean;
+
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
@@ -220,6 +222,9 @@ describe('Interop behavior checks', () => {
             ArtifactNativeTokenVault.abi,
             interop2Provider
         );
+
+        isSameBaseToken =
+            testMaster.environment().baseToken.l1Address == testMaster.environment().baseTokenSecondChain.l1Address;
     });
 
     let withdrawalHash: string;
@@ -368,7 +373,7 @@ describe('Interop behavior checks', () => {
         interop1TokenA = new zksync.Contract(tokenA.l2Address, ArtifactMintableERC20.abi, interop1Wallet);
 
         await utils.spawn(
-            `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
+            `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`
         );
     });
 
@@ -499,7 +504,8 @@ describe('Interop behavior checks', () => {
                         await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [transferAmount])
                     ]
                 }
-            ]
+            ],
+            { value: isSameBaseToken ? transferAmount : 0n }
         );
         // console.log('receipt', receipt);
 
@@ -533,7 +539,8 @@ describe('Interop behavior checks', () => {
      */
     async function fromInterop1RequestInterop(
         feeCallStarters: InteropCallStarter[],
-        execCallStarters: InteropCallStarter[]
+        execCallStarters: InteropCallStarter[],
+        overrides: ethers.Overrides = {}
     ) {
         // note skipping feeCallStarters for now:
 
@@ -541,7 +548,8 @@ describe('Interop behavior checks', () => {
             await interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await interop2Provider.getNetwork()).chainId),
                 execCallStarters,
-                []
+                [],
+                overrides
             )
         ).wait();
         return txFinalizeReceipt;

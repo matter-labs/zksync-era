@@ -153,10 +153,16 @@ async function loadTestEnvironmentFromFile(
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
+    const l2ProviderSecondChain = new zksync.Provider(l2NodeUrlSecondChain);
+    const baseTokenAddressSecondChain = await l2ProviderSecondChain.getBaseTokenContractAddress();
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
     const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
     const { token, baseToken } = getToken(pathToHome, baseTokenAddress);
+    const { token: tokenSecondChain, baseToken: baseTokenSecondChain } = getToken(
+        pathToHome,
+        baseTokenAddressSecondChain
+    );
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
@@ -212,6 +218,13 @@ async function loadTestEnvironmentFromFile(
             symbol: baseToken?.symbol || token.symbol,
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
+            l2Address: baseTokenAddressL2
+        },
+        baseTokenSecondChain: {
+            name: baseTokenSecondChain?.name || tokenSecondChain.name,
+            symbol: baseTokenSecondChain?.symbol || tokenSecondChain.symbol,
+            decimals: baseTokenSecondChain?.decimals || tokenSecondChain.decimals,
+            l1Address: baseTokenSecondChain?.address || tokenSecondChain.address,
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
