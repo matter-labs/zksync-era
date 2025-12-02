@@ -177,15 +177,8 @@ describe('Migration From/To gateway test', function () {
         }
 
         // Additionally wait until the priority queue is empty
-        let getPriorityQueueSize = async () => {
-            if (direction == 'TO') {
-                return await l1MainContract.getPriorityQueueSize();
-            } else {
-                return await gwMainContract.getPriorityQueueSize();
-            }
-        };
         tryCount = 0;
-        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
+        while ((await l1MainContract.getPriorityQueueSize()) > 0 && tryCount < 100) {
             tryCount += 1;
             await utils.sleep(1);
         }
@@ -324,6 +317,14 @@ describe('Migration From/To gateway test', function () {
             mainNodeSpawner.mainNode?.terminate();
         } catch (_) {}
     });
+
+    async function getPriorityQueueSize() {
+        if (direction == 'TO') {
+            return await l1MainContract.getPriorityQueueSize();
+        } else {
+            return await gwMainContract.getPriorityQueueSize();
+        }
+    }
 });
 
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
