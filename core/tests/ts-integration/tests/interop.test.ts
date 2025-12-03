@@ -224,7 +224,7 @@ describe('Interop behavior checks', () => {
         );
 
         isSameBaseToken =
-            testMaster.environment().baseToken.l1Address == testMaster.environment().baseTokenSecondChain.l1Address;
+            testMaster.environment().baseToken.l1Address == testMaster.environment().baseTokenSecondChain!.l1Address;
     });
 
     let withdrawalHash: string;

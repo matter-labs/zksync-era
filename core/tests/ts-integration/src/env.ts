@@ -153,16 +153,10 @@ async function loadTestEnvironmentFromFile(
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
-    const l2ProviderSecondChain = new zksync.Provider(l2NodeUrlSecondChain);
-    const baseTokenAddressSecondChain = await l2ProviderSecondChain.getBaseTokenContractAddress();
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
     const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
     const { token, baseToken } = getToken(pathToHome, baseTokenAddress);
-    const { token: tokenSecondChain, baseToken: baseTokenSecondChain } = getToken(
-        pathToHome,
-        baseTokenAddressSecondChain
-    );
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
@@ -176,6 +170,23 @@ async function loadTestEnvironmentFromFile(
     const l2ChainIdSecondChain = genesisConfigSecondChain ? BigInt(genesisConfigSecondChain.l2_chain_id) : undefined;
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
+
+    let baseTokenSecondChain;
+    if (secondChainFileConfig) {
+        const l2ProviderSecondChain = new zksync.Provider(l2NodeUrlSecondChain);
+        const baseTokenAddressSecondChain = await l2ProviderSecondChain.getBaseTokenContractAddress();
+        const { token: _tokenSecondChain, baseToken: _baseTokenSecondChain } = getToken(
+            pathToHome,
+            baseTokenAddressSecondChain
+        );
+        baseTokenSecondChain = {
+            name: _baseTokenSecondChain?.name || _tokenSecondChain.name,
+            symbol: _baseTokenSecondChain?.symbol || _tokenSecondChain.symbol,
+            decimals: _baseTokenSecondChain?.decimals || _tokenSecondChain.decimals,
+            l1Address: _baseTokenSecondChain?.address || _tokenSecondChain.address,
+            l2Address: baseTokenAddressL2
+        };
+    }
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
@@ -220,13 +231,7 @@ async function loadTestEnvironmentFromFile(
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
         },
-        baseTokenSecondChain: {
-            name: baseTokenSecondChain?.name || tokenSecondChain.name,
-            symbol: baseTokenSecondChain?.symbol || tokenSecondChain.symbol,
-            decimals: baseTokenSecondChain?.decimals || tokenSecondChain.decimals,
-            l1Address: baseTokenSecondChain?.address || tokenSecondChain.address,
-            l2Address: baseTokenAddressL2
-        },
+        baseTokenSecondChain,
         timestampAsserterAddress,
         timestampAsserterMinTimeTillEndSec,
         l2WETHAddress
