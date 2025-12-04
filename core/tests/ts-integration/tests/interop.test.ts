@@ -333,7 +333,7 @@ describe('Interop behavior checks', () => {
 
         if (testMaster.environment().baseToken.l1Address != ETH_ADDRESS_IN_CONTRACTS) {
             // Deposit funds on Interop1
-            const depositTx =await interop1RichWallet.deposit({
+            const depositTx = await interop1RichWallet.deposit({
                 token: testMaster.environment().baseToken.l1Address,
                 amount: ethFundAmount,
                 to: interop1Wallet.address,
@@ -341,9 +341,8 @@ describe('Interop behavior checks', () => {
                 approveBaseERC20: true,
                 approveOverrides: { gasPrice },
                 overrides: { gasPrice }
-            })
-            await (depositTx
-            ).wait();
+            });
+            await depositTx.wait();
         }
     });
 
@@ -357,7 +356,11 @@ describe('Interop behavior checks', () => {
             tokenA.symbol,
             tokenA.decimals
         ]);
-        const dummyInteropRecipientContract = await deployContract(interop2RichWallet, ArtifactDummyInteropRecipient, []);
+        const dummyInteropRecipientContract = await deployContract(
+            interop2RichWallet,
+            ArtifactDummyInteropRecipient,
+            []
+        );
 
         dummyInteropRecipient = await dummyInteropRecipientContract.getAddress();
         console.log('dummyInteropRecipient', dummyInteropRecipient);
@@ -493,11 +496,13 @@ describe('Interop behavior checks', () => {
                     to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
                     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
-                }
-                ,{
+                },
+                {
                     to: formatEvmV1Address(dummyInteropRecipient),
-                    data: "0x",
-                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [transferAmount])]
+                    data: '0x',
+                    callAttributes: [
+                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [transferAmount])
+                    ]
                 }
             ]
         );
@@ -614,7 +619,8 @@ describe('Interop behavior checks', () => {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
-                token: testMaster.environment().baseToken.l1Address == ETH_ADDRESS ? ETH_ADDRESS : tokenDetails.l2Address
+                token:
+                    testMaster.environment().baseToken.l1Address == ETH_ADDRESS ? ETH_ADDRESS : tokenDetails.l2Address
             });
             await tx.wait();
 
