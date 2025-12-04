@@ -41,6 +41,7 @@ describe('Migration From/To gateway test', function () {
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
     let gwMainContract: ethers.Contract;
+    let chainGatewayContract: ethers.Contract;
 
     let gatewayChain: string;
     let logs: fs.FileHandle;
@@ -70,6 +71,11 @@ describe('Migration From/To gateway test', function () {
             chain: fileConfig.chain,
             config: 'contracts.yaml'
         });
+        const chainGatewayConfig = loadConfig({
+            pathToHome,
+            chain: fileConfig.chain,
+            config: 'gateway_chain.yaml'
+        });
         const secretsConfig = loadConfig({
             pathToHome,
             chain: fileConfig.chain,
@@ -85,7 +91,10 @@ describe('Migration From/To gateway test', function () {
             baseTokenAddress: contractsConfig.l1.base_token_addr
         });
 
-        tester = await Tester.init(ethProviderAddress!, web3JsonRpc!);
+        await mainNodeSpawner.killAndSpawnMainNode();
+
+        const gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+        tester = await Tester.init(ethProviderAddress!, web3JsonRpc!, gatewayRpcUrl!);
         alice = tester.emptyWallet();
 
         l1MainContract = new ethers.Contract(
@@ -93,11 +102,19 @@ describe('Migration From/To gateway test', function () {
             ZK_CHAIN_INTERFACE,
             tester.syncWallet.providerL1
         );
+
+        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
+        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
+
+        chainGatewayContract = new ethers.Contract(
+            chainGatewayConfig.diamond_proxy_addr,
+            ZK_CHAIN_INTERFACE,
+            tester.gwProvider
+        );
     });
 
     step('Run server and execute some transactions', async () => {
-        await mainNodeSpawner.killAndSpawnMainNode();
-
         let blocksCommitted = await l1MainContract.getTotalBatchesCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
@@ -159,17 +176,18 @@ describe('Migration From/To gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+    });
 
-        // Additionally wait until the priority queue is empty if we are migrating to gateway
-        if (direction == 'TO') {
-            let priorityQueueSize = await l1MainContract.getPriorityQueueSize();
-            let tryCount = 0;
-            while (priorityQueueSize > 0 && tryCount < 30) {
-                priorityQueueSize = await l1MainContract.getPriorityQueueSize();
-                tryCount += 1;
-                await utils.sleep(1);
-            }
+    step('Pause deposits before initiating migration', async () => {
+        await utils.spawn(`zkstack chain pause-deposits --chain ${fileConfig.chain}`);
+
+        // Wait until the priority queue is empty
+        let tryCount = 0;
+        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
+            tryCount += 1;
+            await utils.sleep(1);
         }
+        console.error('tryCount', tryCount);
     });
 
     step('Migrate to/from gateway', async () => {
@@ -185,6 +203,7 @@ describe('Migration From/To gateway test', function () {
         // where there is an inflight transaction before the migration is complete.
         // If you encounter an error, such as a failed transaction, after the migration,
         // this area might be worth revisiting to wait for unconfirmed transactions on the server.
+        await utils.sleep(30);
 
         if (direction == 'TO') {
             await utils.spawn(
@@ -208,9 +227,6 @@ describe('Migration From/To gateway test', function () {
             gatewayInfo?.gatewayProvider
         );
 
-        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
-        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
-
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
@@ -227,6 +243,10 @@ describe('Migration From/To gateway test', function () {
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
+    });
+
+    step('Unpause deposits', async () => {
+        await utils.spawn(`zkstack chain unpause-deposits --chain ${fileConfig.chain}`);
     });
 
     step('Migrate token balances', async () => {
@@ -304,6 +324,14 @@ describe('Migration From/To gateway test', function () {
             mainNodeSpawner.mainNode?.terminate();
         } catch (_) {}
     });
+
+    async function getPriorityQueueSize() {
+        if (direction == 'TO') {
+            return await l1MainContract.getPriorityQueueSize();
+        } else {
+            return await chainGatewayContract.getPriorityQueueSize();
+        }
+    }
 });
 
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
