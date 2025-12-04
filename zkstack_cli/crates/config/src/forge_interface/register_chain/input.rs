@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use zkstack_cli_types::{L1BatchCommitmentMode, VMOption};
 use zksync_basic_types::{L2ChainId, H256};
 
-use crate::{traits::FileConfigTrait, ChainConfig, CoreContractsConfig};
+use crate::{
+    forge_interface::deploy_ecosystem::output::Create2Addresses, traits::FileConfigTrait,
+    ChainConfig, CoreContractsConfig,
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainL1Config {
@@ -13,8 +16,7 @@ pub struct RegisterChainL1Config {
     chain: ChainL1Config,
     owner_address: Address,
     governance: Address,
-    create2_factory_address: Address,
-    create2_salt: H256,
+    contracts: Create2Addresses,
     initialize_legacy_bridge: bool,
 }
 
@@ -142,8 +144,10 @@ impl RegisterChainL1Config {
             },
             owner_address: wallets_config.governor.address,
             governance: contracts.l1.governance_addr,
-            create2_factory_address: contracts.create2_factory_addr,
-            create2_salt: H256::random(),
+            contracts: Create2Addresses {
+                create2_factory_addr: contracts.create2_factory_addr,
+                create2_factory_salt: H256::random(),
+            },
             initialize_legacy_bridge,
         })
     }
