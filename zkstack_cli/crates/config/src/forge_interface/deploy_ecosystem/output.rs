@@ -9,9 +9,14 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DeployL1CoreContractsOutput {
+pub struct Create2Addresses {
     pub create2_factory_addr: Address,
     pub create2_factory_salt: H256,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeployL1CoreContractsOutput {
+    pub contracts: Create2Addresses,
     pub deployer_addr: Address,
     pub era_chain_id: u32,
     pub l1_chain_id: u32,
