@@ -5,8 +5,7 @@ use zkstack_cli_types::{L1BatchCommitmentMode, VMOption};
 use zksync_basic_types::{L2ChainId, H256};
 
 use crate::{
-    forge_interface::deploy_ecosystem::output::Create2Addresses, traits::FileConfigTrait,
-    ChainConfig, CoreContractsConfig,
+    forge_interface::Create2Addresses, traits::FileConfigTrait, ChainConfig, CoreContractsConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
