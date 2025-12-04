@@ -171,6 +171,23 @@ async function loadTestEnvironmentFromFile(
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
 
+    let baseTokenSecondChain;
+    if (secondChainFileConfig) {
+        const l2ProviderSecondChain = new zksync.Provider(l2NodeUrlSecondChain);
+        const baseTokenAddressSecondChain = await l2ProviderSecondChain.getBaseTokenContractAddress();
+        const { token: _tokenSecondChain, baseToken: _baseTokenSecondChain } = getToken(
+            pathToHome,
+            baseTokenAddressSecondChain
+        );
+        baseTokenSecondChain = {
+            name: _baseTokenSecondChain?.name || _tokenSecondChain.name,
+            symbol: _baseTokenSecondChain?.symbol || _tokenSecondChain.symbol,
+            decimals: _baseTokenSecondChain?.decimals || _tokenSecondChain.decimals,
+            l1Address: _baseTokenSecondChain?.address || _tokenSecondChain.address,
+            l2Address: baseTokenAddressL2
+        };
+    }
+
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
     const priorityTxMaxGasLimit = 72000000n;
@@ -214,6 +231,7 @@ async function loadTestEnvironmentFromFile(
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
         },
+        baseTokenSecondChain,
         timestampAsserterAddress,
         timestampAsserterMinTimeTillEndSec,
         l2WETHAddress
