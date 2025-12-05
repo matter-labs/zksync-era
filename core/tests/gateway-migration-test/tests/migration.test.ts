@@ -245,22 +245,6 @@ describe('Migration From/To gateway test', function () {
         await txHandle.waitFinalize();
     });
 
-    step('Unpause deposits', async () => {
-        await utils.spawn(`zkstack chain unpause-deposits --chain ${fileConfig.chain}`);
-    });
-
-    step('Migrate token balances', async () => {
-        if (direction == 'TO') {
-            await utils.spawn(
-                `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
-            );
-        } else {
-            await utils.spawn(
-                `zkstack chain gateway migrate-token-balances --to-gateway false --gateway-chain-name gateway --chain ${fileConfig.chain}`
-            );
-        }
-    });
-
     step('Check token settlement layers', async () => {
         const tokenDetails = tester.token;
         const ecosystemContracts = await getEcosystemContracts(tester.syncWallet);
