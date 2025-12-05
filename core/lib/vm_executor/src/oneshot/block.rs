@@ -10,8 +10,10 @@ use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    get_deployer_key, h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
-    StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    get_deployer_key, h256_to_u256,
+    settlement::SettlementLayer,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 
@@ -23,11 +25,15 @@ use super::{env::OneshotEnvParameters, ContractsKind};
 pub struct BlockInfo {
     resolved_block_number: L2BlockNumber,
     l1_batch_timestamp_s: Option<u64>,
+    settlement_layer: SettlementLayer,
 }
 
 impl BlockInfo {
     /// Fetches information for a pending block.
-    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    pub async fn pending(
+        connection: &mut Connection<'_, Core>,
+        settlement_layer: SettlementLayer,
+    ) -> anyhow::Result<Self> {
         let resolved_block_number = connection
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -37,6 +43,7 @@ impl BlockInfo {
         Ok(Self {
             resolved_block_number,
             l1_batch_timestamp_s: None,
+            settlement_layer,
         })
     }
 
@@ -56,9 +63,14 @@ impl BlockInfo {
             .await
             .map_err(DalError::generalize)?
             .context("missing timestamp for non-pending block")?;
+        let settlement_layer = connection
+            .blocks_web3_dal()
+            .get_expected_settlement_layer(&l1_batch)
+            .await?;
         Ok(Self {
             resolved_block_number: number,
             l1_batch_timestamp_s: Some(l1_batch_timestamp),
+            settlement_layer,
         })
     }
 
@@ -149,6 +161,7 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
+            settlement_layer: self.settlement_layer,
         })
     }
 
@@ -189,6 +202,7 @@ pub struct ResolvedBlockInfo {
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     is_pending: bool,
+    settlement_layer: SettlementLayer,
 }
 
 impl ResolvedBlockInfo {
@@ -275,6 +289,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             fee_account: *operator_account.address(),
             enforced_base_fee,
             first_l2_block: next_block,
+            settlement_layer: resolved_block_info.settlement_layer,
         };
         Ok((system_env, l1_batch_env))
     }

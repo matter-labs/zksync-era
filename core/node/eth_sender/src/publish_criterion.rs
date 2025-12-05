@@ -329,7 +329,7 @@ impl GasConsts {
 
     /// Additional gas cost of processing `Commit` operation per batch.
     /// It's applicable if SL is Gateway.
-    const GATEWAY_BATCH_COMMIT_BASE_COST: u64 = 200_000;
+    const GATEWAY_BATCH_COMMIT_BASE_COST: u64 = 2_000_000;
 
     /// All gas cost of processing `PROVE` operation per batch.
     /// It's applicable if SL is GATEWAY.
@@ -342,7 +342,9 @@ impl GasConsts {
 
     /// Base gas cost of processing `EXECUTION` operation per batch.
     /// It's applicable if SL is GATEWAY.
-    const GATEWAY_BATCH_EXECUTION_COST: u64 = 100_000;
+    /// FIXME: needs to be calculated properly since it will now include
+    /// working through all interop transactions.
+    const GATEWAY_BATCH_EXECUTION_COST: u64 = 2_000_000;
     /// Gas cost of processing `l1_operation` in batch.
     /// It's applicable if SL is GATEWAY.
     const GATEWAY_L1_OPERATION_COST: u64 = 4_000;
@@ -353,7 +355,7 @@ impl GasConsts {
 
     /// Additional gas cost of processing `Execute` operation per batch.
     /// It's applicable iff SL is Ethereum.
-    const L1_BATCH_EXECUTE_BASE_COST: u64 = 50_000;
+    const L1_BATCH_EXECUTE_BASE_COST: u64 = 100_000;
 
     /// Additional gas cost of processing `Execute` operation per L1->L2 tx.
     /// It's applicable iff SL is Ethereum.

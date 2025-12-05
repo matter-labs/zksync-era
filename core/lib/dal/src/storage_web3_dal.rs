@@ -309,7 +309,9 @@ impl StorageWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{
+        block::L1BatchHeader, settlement::SettlementLayer, ProtocolVersion, ProtocolVersionId,
+    };
 
     use super::*;
     use crate::{
@@ -334,6 +336,7 @@ mod tests {
             0,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
@@ -432,6 +435,7 @@ mod tests {
             100,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)

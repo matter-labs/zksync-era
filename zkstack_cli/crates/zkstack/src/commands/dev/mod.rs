@@ -96,7 +96,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
         DevCommands::InitTestWallet => init_test_wallet_run(shell).await?,
-        DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
+        DevCommands::RichAccount(args) => commands::rich_account::run(shell, args, None).await?,
         DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
 
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {

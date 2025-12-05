@@ -13,8 +13,7 @@ use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ForgeScriptParams, ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
-            V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{
             input::{
@@ -190,17 +189,12 @@ async fn no_governance_prepare(
         .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
 
     let mut new_genesis = default_genesis_input;
-    let mut new_version = new_genesis.protocol_version;
-    // This part is needed for v28 upgrades only.
-    if upgrade_version == &UpgradeVersion::V28_1Vk {
-        new_version.patch += 1;
-    }
+    let new_version = new_genesis.protocol_version;
     new_genesis.protocol_version = new_version;
 
     let gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
 
     let upgrade_specific_config = match upgrade_version {
-        UpgradeVersion::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
         UpgradeVersion::V29InteropAFf => {
             let gateway_chain_config = get_local_gateway_chain_config(ecosystem_config)?;
             let gateway_validator_timelock_addr = gateway_chain_config
@@ -220,7 +214,6 @@ async fn no_governance_prepare(
                 )])),
             })
         }
-        UpgradeVersion::V28_1VkEra => EcosystemUpgradeSpecificConfig::V28,
     };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
@@ -626,9 +619,7 @@ async fn no_governance_stage_2(
 
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
     match upgrade_version {
-        UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
 

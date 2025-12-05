@@ -10,7 +10,9 @@ use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
-    admin_functions::{accept_admin, make_permanent_rollup, set_da_validator_pair},
+    admin_functions::{
+        accept_admin, make_permanent_rollup, set_da_validator_pair, unpause_deposits,
+    },
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
@@ -21,6 +23,7 @@ use crate::{
         genesis::genesis,
         init::configs::init_configs,
         register_chain::register_chain,
+        register_on_all_chains::register_on_all_chains,
         set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
     },
@@ -29,7 +32,8 @@ use crate::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
         MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_UNPAUSING_DEPOSITS_SPINNER, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -119,6 +123,24 @@ pub async fn init(
     )
     .await?;
     spinner.finish();
+
+    if !init_args.pause_deposits {
+        // Deposits are paused by default to allow immediate Gateway migration. If specified, unpause them.
+        let spinner = Spinner::new(MSG_UNPAUSING_DEPOSITS_SPINNER);
+        unpause_deposits(
+            shell,
+            &init_args.forge_args,
+            &chain_config.path_to_foundry_scripts(),
+            crate::admin_functions::AdminScriptMode::Broadcast(
+                chain_config.get_wallets_config()?.governor,
+            ),
+            chain_config.chain_id.as_u64(),
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     // Set token multiplier setter address (run by L2 Governor)
     if chain_config.base_token != BaseToken::eth() {
@@ -283,6 +305,21 @@ pub async fn send_priority_txs(
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
     }
+
+    // Register chain on all other chains
+    register_on_all_chains(
+        shell,
+        &chain_config.path_to_foundry_scripts(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        chain_config.chain_id,
+        &chain_config
+            .get_wallets_config()?
+            .deployer
+            .expect("Deployer wallet not set"),
+        forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
 
     Ok(())
 }
