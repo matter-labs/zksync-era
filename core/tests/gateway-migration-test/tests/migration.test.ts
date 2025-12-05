@@ -205,6 +205,9 @@ describe('Migration From/To gateway test', function () {
         // this area might be worth revisiting to wait for unconfirmed transactions on the server.
         await utils.sleep(30);
 
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted();
+
         if (direction == 'TO') {
             await utils.spawn(
                 `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
@@ -314,6 +317,34 @@ describe('Migration From/To gateway test', function () {
             return await l1MainContract.getPriorityQueueSize();
         } else {
             return await chainGatewayContract.getPriorityQueueSize();
+        }
+    }
+
+    async function waitForAllBatchesToBeExecuted() {
+        let tryCount = 0;
+        let totalBatchesCommitted = await getTotalBatchesCommitted();
+        let totalBatchesExecuted = await getTotalBatchesExecuted();
+        while (totalBatchesCommitted !== totalBatchesExecuted && tryCount < 100) {
+            tryCount += 1;
+            await utils.sleep(1);
+            totalBatchesCommitted = await getTotalBatchesCommitted();
+            totalBatchesExecuted = await getTotalBatchesExecuted();
+        }
+    }
+
+    async function getTotalBatchesCommitted() {
+        if (direction == 'TO') {
+            return await l1MainContract.getTotalBatchesCommitted();
+        } else {
+            return await chainGatewayContract.getTotalBatchesCommitted();
+        }
+    }
+
+    async function getTotalBatchesExecuted() {
+        if (direction == 'TO') {
+            return await l1MainContract.getTotalBatchesExecuted();
+        } else {
+            return await chainGatewayContract.getTotalBatchesExecuted();
         }
     }
 });
