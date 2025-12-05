@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
-use ethers::types::{Address, H256, U256};
+use ethers::types::{Address, U256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::ERC20_CONFIGS_FILE,
+    forge_interface::Create2Addresses,
     traits::{FileConfigTrait, FileConfigWithDefaultName},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1CoreContractsOutput {
-    pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
+    pub contracts: Create2Addresses,
     pub deployer_addr: Address,
     pub era_chain_id: u32,
     pub l1_chain_id: u32,

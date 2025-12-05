@@ -194,8 +194,12 @@ impl CoreContractsConfig {
         &mut self,
         deploy_l1_core_contracts_output: &DeployL1CoreContractsOutput,
     ) {
-        self.create2_factory_addr = deploy_l1_core_contracts_output.create2_factory_addr;
-        self.create2_factory_salt = deploy_l1_core_contracts_output.create2_factory_salt;
+        self.create2_factory_addr = deploy_l1_core_contracts_output
+            .contracts
+            .create2_factory_addr;
+        self.create2_factory_salt = deploy_l1_core_contracts_output
+            .contracts
+            .create2_factory_salt;
         self.bridges.erc20.l1_address = deploy_l1_core_contracts_output
             .deployed_addresses
             .bridges
