@@ -248,10 +248,6 @@ describe('Migration From/To gateway test', function () {
         await txHandle.waitFinalize();
     });
 
-    step('Unpause deposits', async () => {
-        await utils.spawn(`zkstack chain unpause-deposits --chain ${fileConfig.chain}`);
-    });
-
     step('Check token settlement layers', async () => {
         const tokenDetails = tester.token;
         const ecosystemContracts = await getEcosystemContracts(tester.syncWallet);
