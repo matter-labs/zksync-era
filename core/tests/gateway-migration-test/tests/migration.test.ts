@@ -111,11 +111,13 @@ describe('Migration from gateway test', function () {
         const gwMainContractsAddress = gatewayContractsConfig!.l1.diamond_proxy_addr;
         gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
 
-        chainGatewayContract = new ethers.Contract(
-            chainGatewayConfig.diamond_proxy_addr,
-            ZK_CHAIN_INTERFACE,
-            tester.gwProvider
-        );
+        if (chainGatewayConfig) {
+            chainGatewayContract = new ethers.Contract(
+                chainGatewayConfig.diamond_proxy_addr,
+                ZK_CHAIN_INTERFACE,
+                tester.gwProvider
+            );
+        }
     });
 
     step('Run server and execute some transactions', async () => {
