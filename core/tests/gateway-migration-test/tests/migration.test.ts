@@ -249,6 +249,25 @@ describe('Migration from gateway test', function () {
 
     step('Wait for block finalization', async () => {
         await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
+
+        // Ensure API is reachable before attempting transaction
+        let ready = false;
+        for (let i = 0; i < 30; i++) {
+            try {
+                await tester.web3Provider.getBlockNumber();
+                ready = true;
+                break;
+            } catch (e: any) {
+                console.log(`Waiting for API to be ready: ${e.message}`);
+                await utils.sleep(1);
+            }
+        }
+        if (!ready) {
+            throw new Error(
+                'Server API not reachable after wait. The server likely crashed - check logs/migration/ or logs/server/ for panics.'
+            );
+        }
+
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
