@@ -248,13 +248,16 @@ describe('Migration from gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
+        console.log('Waiting for server health check...');
         await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
+        console.log('Server health check passed.');
 
         // Ensure API is reachable before attempting transaction
         let ready = false;
         for (let i = 0; i < 30; i++) {
             try {
-                await tester.web3Provider.getBlockNumber();
+                const bn = await tester.web3Provider.getBlockNumber();
+                console.log(`API is ready. Block number: ${bn}`);
                 ready = true;
                 break;
             } catch (e: any) {
@@ -268,7 +271,17 @@ describe('Migration from gateway test', function () {
             );
         }
 
+        console.log('Checking alice balance...');
+        try {
+            const balance = await alice.getBalance();
+            console.log(`Alice balance: ${balance}`);
+        } catch (e: any) {
+            console.error('Failed to get alice balance:', e);
+            throw e;
+        }
+
         // Execute an L2 transaction
+        console.log('Executing transaction...');
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
     });
