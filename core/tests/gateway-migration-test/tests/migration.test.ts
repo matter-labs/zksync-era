@@ -401,6 +401,29 @@ describe('Migration from gateway test', function () {
 
     async function waitForAllBatchesToBeExecuted() {
         let tryCount = 0;
+
+        // Ensure all sealed batches on L2 are committed to L1 before proceeding
+        if (direction == 'TO') {
+            while (tryCount < 100) {
+                try {
+                    const l2BatchNumber = BigInt(await tester.web3Provider.getL1BatchNumber());
+                    const l1BatchNumber = await l1MainContract.getTotalBatchesCommitted();
+
+                    if (l2BatchNumber <= l1BatchNumber) {
+                        break;
+                    }
+
+                    console.log(
+                        `Waiting for sealed batches to be committed. L2: ${l2BatchNumber}, L1: ${l1BatchNumber}`
+                    );
+                } catch (e) {
+                    console.log('Error checking batch status, retrying:', e);
+                }
+                await utils.sleep(1);
+                tryCount += 1;
+            }
+        }
+
         let totalBatchesCommitted = await getTotalBatchesCommitted();
         let totalBatchesExecuted = await getTotalBatchesExecuted();
         while (totalBatchesCommitted !== totalBatchesExecuted && tryCount < 100) {
