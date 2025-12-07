@@ -33,7 +33,7 @@ interface GatewayInfo {
     l2DiamondProxyAddress: string;
 }
 
-describe('Migration From/To gateway test', function () {
+describe('Migration from gateway test', function () {
     // Utility wallets for facilitating testing
     let tester: Tester;
     let alice: zksync.Wallet;
