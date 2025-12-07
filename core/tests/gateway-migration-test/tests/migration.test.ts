@@ -248,6 +248,27 @@ describe('Migration from gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
+        if (direction == 'TO') {
+            const secretsPath = path.join(pathToHome, `chains/${fileConfig.chain}/configs/secrets.yaml`);
+            let secretsContent = await fs.readFile(secretsPath, 'utf-8');
+            if (!secretsContent.includes('gateway_rpc_url')) {
+                const gatewayGeneralConfig = loadConfig({
+                    pathToHome,
+                    chain: gatewayChain,
+                    config: 'general.yaml'
+                });
+                const gatewayPort = gatewayGeneralConfig?.api?.web3_json_rpc?.http_port;
+                if (gatewayPort) {
+                    console.log(`Patching secrets.yaml with gateway_rpc_url: http://127.0.0.1:${gatewayPort}`);
+                    secretsContent = secretsContent.replace(
+                        /l1_rpc_url: .*/,
+                        (match) => `${match}\n  gateway_rpc_url: http://127.0.0.1:${gatewayPort}`
+                    );
+                    await fs.writeFile(secretsPath, secretsContent);
+                }
+            }
+        }
+
         console.log('Waiting for server health check...');
         await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
         console.log('Server health check passed.');
