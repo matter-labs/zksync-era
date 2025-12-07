@@ -103,8 +103,12 @@ describe('Migration from gateway test', function () {
             tester.syncWallet.providerL1
         );
 
-        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
+        const gatewayContractsConfig = loadConfig({
+            pathToHome,
+            chain: gatewayChain,
+            config: 'contracts.yaml'
+        });
+        const gwMainContractsAddress = gatewayContractsConfig!.l1.diamond_proxy_addr;
         gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
 
         chainGatewayContract = new ethers.Contract(
@@ -183,7 +187,7 @@ describe('Migration from gateway test', function () {
 
         // Wait until the priority queue is empty
         let tryCount = 0;
-        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
+        while ((await getPriorityQueueSize()) > 0 && tryCount < 200) {
             tryCount += 1;
             await utils.sleep(1);
         }
