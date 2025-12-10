@@ -1,6 +1,6 @@
 use anyhow::Context;
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::{encode, Token},
     contract::BaseContract,
     providers::Middleware,
     utils::hex,
@@ -33,6 +33,7 @@ use zksync_basic_types::Address;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
+    abi::IFINALIZEUPGRADEABI_ABI,
     admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
@@ -523,13 +524,7 @@ async fn governance_stage_2(
 }
 
 lazy_static! {
-    static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function initChains(address bridgehub, uint256[] chains) public",
-            "function initTokens(address l1NativeTokenVault, address[] tokens, uint256[] chains) public",
-        ])
-        .unwrap(),
-    );
+    static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(IFINALIZEUPGRADEABI_ABI.clone());
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)

@@ -103,3 +103,51 @@ abigen!(
     "../../../contracts/l1-contracts/zkstack-out/IDeployCTM.sol/IDeployCTM.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
+
+abigen!(
+    IRegisterCTMAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IRegisterCTM.sol/IRegisterCTM.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IRegisterOnAllChainsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IRegisterOnAllChains.sol/IRegisterOnAllChains.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IGatewayMigrateTokenBalancesAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IGatewayMigrateTokenBalances.sol/IGatewayMigrateTokenBalances.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IFinalizeUpgradeAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IFinalizeUpgrade.sol/IFinalizeUpgrade.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL2NativeTokenVaultAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL2NativeTokenVault.sol/IL2NativeTokenVault.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL2AssetRouterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL2AssetRouter.sol/IL2AssetRouter.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL2AssetTrackerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL2AssetTracker.sol/IL2AssetTracker.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IChainAdminAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);

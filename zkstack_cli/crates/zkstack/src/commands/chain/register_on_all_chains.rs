@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
+use ethers::{contract::BaseContract, types::Address};
+use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
@@ -14,9 +15,15 @@ use zkstack_cli_config::{
 use zksync_basic_types::L2ChainId;
 
 use crate::{
+    abi::IREGISTERONALLCHAINSABI_ABI,
     messages::MSG_REGISTERING_ON_ALL_CHAINS_SPINNER,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
+
+lazy_static! {
+    static ref REGISTER_ON_ALL_CHAINS_FUNCTIONS: BaseContract =
+        BaseContract::from(IREGISTERONALLCHAINSABI_ABI.clone());
+}
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
@@ -51,13 +58,7 @@ pub async fn register_on_all_chains(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let register_on_all_chains_contract = BaseContract::from(
-        parse_abi(&[
-            "function registerOnOtherChains(address _bridgehub, uint256 _chainId)  public",
-        ])
-        .unwrap(),
-    );
-    let calldata = register_on_all_chains_contract
+    let calldata = REGISTER_ON_ALL_CHAINS_FUNCTIONS
         .encode(
             "registerOnOtherChains",
             (bridgehub_address, chain_id.as_u64()),

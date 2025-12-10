@@ -1,5 +1,12 @@
-use ethers::{abi::parse_abi, contract::BaseContract};
+use ethers::contract::BaseContract;
+use lazy_static::lazy_static;
 use zkstack_cli_common::logger;
+
+use crate::abi::ICHAINADMINABI_ABI;
+
+lazy_static! {
+    static ref CHAIN_ADMIN_ABI: BaseContract = BaseContract::from(ICHAINADMINABI_ABI.clone());
+}
 
 pub(crate) fn print_error(err: anyhow::Error) {
     logger::error(format!(
@@ -10,22 +17,11 @@ pub(crate) fn print_error(err: anyhow::Error) {
     logger::info("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
 }
 
-fn chain_admin_abi() -> BaseContract {
-    BaseContract::from(
-        parse_abi(&[
-            "function setUpgradeTimestamp(uint256 _protocolVersion, uint256 _upgradeTimestamp) external",
-        ])
-        .unwrap(),
-    )
-}
-
 pub(crate) fn set_upgrade_timestamp_calldata(
     packed_protocol_version: u64,
     timestamp: u64,
 ) -> Vec<u8> {
-    let chain_admin = chain_admin_abi();
-
-    chain_admin
+    CHAIN_ADMIN_ABI
         .encode("setUpgradeTimestamp", (packed_protocol_version, timestamp))
         .unwrap()
         .to_vec()
