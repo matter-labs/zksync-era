@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
+use ethers::contract::BaseContract;
 use xshell::Shell;
 use zkstack_cli_common::{
     contracts::build_l2_contracts,
@@ -23,6 +24,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
+    abi::IDEPLOYL2CONTRACTSABI_ABI,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -339,6 +341,14 @@ async fn call_forge(
 
     if let Some(signature) = signature {
         forge = forge.with_signature(signature);
+    } else {
+        // When no signature is provided, we need to encode calldata for the run function
+        // kl todo this might be wrong
+        let deploy_l2_contract = BaseContract::from(IDEPLOYL2CONTRACTSABI_ABI.clone());
+        let calldata = deploy_l2_contract
+            .encode("run", (input.bridgehub, input.chain_id.as_u64()))
+            .unwrap();
+        forge = forge.with_calldata(&calldata);
     }
 
     forge = fill_forge_private_key(
