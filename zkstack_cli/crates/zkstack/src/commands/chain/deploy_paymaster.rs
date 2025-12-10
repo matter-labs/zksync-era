@@ -1,3 +1,4 @@
+use ethers::contract::BaseContract;
 use xshell::Shell;
 use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
 use zkstack_cli_config::{
@@ -9,7 +10,10 @@ use zkstack_cli_config::{
     ChainConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
-use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
+use crate::{
+    abi::DEPLOYPAYMASTERABI_ABI,
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
@@ -44,10 +48,17 @@ pub async fn deploy_paymaster(
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&foundry_contracts_path),
     )?;
 
+    // Encode calldata for the run function
+    let deploy_paymaster_contract = BaseContract::from(DEPLOYPAYMASTERABI_ABI.clone());
+    let calldata = deploy_paymaster_contract
+        .encode("run", (input.bridgehub, input.chain_id.as_u64()))
+        .unwrap();
+
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(l1_rpc_url);
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

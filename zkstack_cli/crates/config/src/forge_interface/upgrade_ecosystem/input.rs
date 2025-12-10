@@ -16,9 +16,15 @@ pub struct V29UpgradeParams {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V31UpgradeParams {
+    pub some_value_for_serialization: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum EcosystemUpgradeSpecificConfig {
     V28,
     V29(V29UpgradeParams),
+    V31(V31UpgradeParams),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

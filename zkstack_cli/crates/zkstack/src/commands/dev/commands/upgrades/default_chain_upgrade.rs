@@ -72,6 +72,10 @@ async fn verify_next_batch_new_version(
             protocol_version >= ProtocolVersionId::Version29,
             "THe block does not yet contain the v29  upgrade"
         ),
+        UpgradeVersion::V31InteropB => ensure!(
+            protocol_version >= ProtocolVersionId::Version31,
+            "The block does not yet contain the v31 upgrade"
+        ),
     }
 
     Ok(())
