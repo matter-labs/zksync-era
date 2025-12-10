@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{parse_abi, Address},
+    abi::Address,
     contract::BaseContract,
     providers::{Http, Provider},
     utils::hex,
@@ -33,7 +33,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi},
+    abi::{BridgehubAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
     admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
@@ -60,12 +60,8 @@ pub struct MigrateFromGatewayArgs {
 }
 
 lazy_static! {
-    static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrateChainFromGateway(address bridgehubAddr, uint256 migratingChainId, uint256 gatewayChainId, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes memory message, bytes32[] memory merkleProof) public",
-        ])
-        .unwrap(),
-    );
+    static ref GATEWAY_UTILS_INTERFACE: BaseContract =
+        BaseContract::from(GATEWAYUTILSABI_ABI.clone());
 }
 
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {

@@ -1,10 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-    utils::hex,
-};
+use ethers::{abi::Address, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
@@ -18,18 +14,14 @@ use super::{
     messages::{message_for_gateway_migration_progress_state, USE_SET_DA_VALIDATOR_COMMAND_INFO},
 };
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi},
+    abi::{BridgehubAbi, GatewayUtilsAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
     admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
     commands::chain::utils::display_admin_script_output,
 };
 
 lazy_static! {
-    static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrateChainFromGateway(address bridgehubAddr, uint256 migratingChainId, uint256 gatewayChainId, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes memory message, bytes32[] memory merkleProof) public",
-        ])
-        .unwrap(),
-    );
+    static ref GATEWAY_UTILS_INTERFACE: BaseContract =
+        BaseContract::from(GATEWAYUTILSABI_ABI.clone());
 }
 
 #[derive(Parser, Debug)]

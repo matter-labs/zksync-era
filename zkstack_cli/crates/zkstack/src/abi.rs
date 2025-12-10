@@ -73,3 +73,33 @@ abigen!(
     "../../../contracts/l1-contracts/zkstack-out/GatewayVotePreparation.s.sol/GatewayVotePreparation.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
+
+abigen!(
+    AdminFunctionsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/AdminFunctions.s.sol/AdminFunctions.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    EnableEvmEmulatorAbi,
+    "../../../contracts/l1-contracts/zkstack-out/EnableEvmEmulator.s.sol/EnableEvmEmulator.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    DeployGatewayTransactionFiltererAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployGatewayTransactionFilterer.sol/IDeployGatewayTransactionFilterer.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    GatewayUtilsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IGatewayUtils.sol/IGatewayUtils.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IDeployCTMAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployCTM.sol/IDeployCTM.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);

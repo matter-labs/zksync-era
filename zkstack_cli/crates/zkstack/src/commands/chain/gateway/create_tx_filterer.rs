@@ -1,5 +1,5 @@
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract};
+use ethers::contract::BaseContract;
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -19,6 +19,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
+    abi::DEPLOYGATEWAYTRANSACTIONFILTERERABI_ABI,
     admin_functions::{set_transaction_filterer, AdminScriptMode},
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
@@ -26,7 +27,7 @@ use crate::{
 
 lazy_static! {
     static ref DEPLOY_GATEWAY_TX_FILTERER_ABI: BaseContract =
-        BaseContract::from(parse_abi(&["function runWithInputFromFile() public"]).unwrap(),);
+        BaseContract::from(DEPLOYGATEWAYTRANSACTIONFILTERERABI_ABI.clone());
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
