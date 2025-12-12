@@ -50,6 +50,12 @@ pub enum Web3Error {
     InternalError(#[from] anyhow::Error),
     #[error("Server is shutting down")]
     ServerShuttingDown,
+    #[error("Transaction {0:?} timeout waiting for receipt")]
+    TransactionTimeout(zksync_types::H256),
+    #[error("Transaction processing error: {0}")]
+    TransactionUnready(String),
+    #[error("Invalid timeout. Max timeout is {0}ms")]
+    InvalidTimeout(u64),
 }
 
 /// Client RPC error with additional details: the method name and arguments of the called method.

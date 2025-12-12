@@ -3,7 +3,7 @@ import * as fs from 'fs';
 export const REQUIRED_L2_GAS_PRICE_PER_PUBDATA = 800;
 
 export const SYSTEM_UPGRADE_L2_TX_TYPE = 254;
-export const GATEWAY_CHAIN_ID = 505;
+export const GATEWAY_CHAIN_ID = 506;
 export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
 export const ETH_ADDRESS_IN_CONTRACTS = ADDRESS_ONE;
 export const L1_TO_L2_ALIAS_OFFSET = '0x1111000000000000000000000000000000001111';
@@ -31,6 +31,7 @@ export const L2_LOG_STRING =
     'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
 export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
 export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout';
+export const L1_ZK_ARTIFACTS_PATH = '../../../contracts/l1-contracts/zkout';
 
 export const INTEROP_CALL_ABI =
     'tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)';
@@ -52,7 +53,8 @@ export const ArtifactL2InteropRootStorage = readContract(`${SYSTEM_ARTIFACTS_PAT
 export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
 export const ArtifactIERC7786Attributes = readContract(`${ARTIFACTS_PATH}`, 'IERC7786Attributes');
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
-export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contracts/zkout', 'TestnetERC20Token');
+export const ArtifactMintableERC20 = readContract(`${L1_ZK_ARTIFACTS_PATH}`, 'TestnetERC20Token');
 export const ArtifactL1AssetRouter = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter');
 export const ArtifactL1AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L1AssetTracker');
 export const ArtifactL2AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L2AssetTracker');
+export const ArtifactDummyInteropRecipient = readContract(`${L1_ZK_ARTIFACTS_PATH}`, 'DummyInteropRecipient');

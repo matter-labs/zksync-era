@@ -172,7 +172,7 @@ jobs:
         shell: bash
         run: |
           # for now these contracts will be pinned to specific commit
-          git checkout cc7a521
+          git checkout 5ec1e69
           git submodule update --init --recursive
       
       - name: Install foundry-zksync

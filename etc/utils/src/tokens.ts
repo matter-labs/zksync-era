@@ -94,6 +94,14 @@ export function getToken(
             baseToken = token;
         }
     }
+    if (baseToken === undefined) {
+        baseToken = {
+            address: baseTokenAddress,
+            name: 'Base Token',
+            symbol: 'BT',
+            decimals: BigInt(18)
+        };
+    }
     return { token, baseToken };
 }
 

@@ -225,7 +225,9 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
                     chainConfig.chainName,
                     '--validium-type',
                     'no-da',
-                    ...(process.env.USE_GATEWAY_CHAIN === 'WITH_GATEWAY' ? ['--skip-priority-txs'] : []),
+                    ...(process.env.USE_GATEWAY_CHAIN === 'WITH_GATEWAY'
+                        ? ['--skip-priority-txs', '--pause-deposits']
+                        : []),
                     '--verbose'
                 ],
                 chainConfig.chainName,

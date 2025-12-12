@@ -77,6 +77,7 @@ import {
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
+    ArtifactDummyInteropRecipient,
     ArtifactIERC7786Attributes,
     ArtifactL2InteropRootStorage,
     ArtifactL2MessageVerification,
@@ -128,10 +129,13 @@ describe('Interop behavior checks', () => {
     let interop2RichWallet: zksync.Wallet;
     let interop2Provider: zksync.Provider;
     let interop2NativeTokenVault: zksync.Contract;
+    let dummyInteropRecipient: string;
 
     // Gateway Variables
     // let gatewayProvider: zksync.Provider;
     // let gatewayWallet: zksync.Wallet;
+
+    let isSameBaseToken: boolean;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -218,6 +222,9 @@ describe('Interop behavior checks', () => {
             ArtifactNativeTokenVault.abi,
             interop2Provider
         );
+
+        isSameBaseToken =
+            testMaster.environment().baseToken.l1Address == testMaster.environment().baseTokenSecondChain!.l1Address;
     });
 
     let withdrawalHash: string;
@@ -248,7 +255,7 @@ describe('Interop behavior checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, 'proof_based_gw');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(alice.provider, alice, GW_CHAIN_ID, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             Number((await alice.provider.getNetwork()).chainId),
@@ -272,12 +279,7 @@ describe('Interop behavior checks', () => {
         );
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(
-            aliceSecondChain.provider,
-            aliceSecondChain,
-            GW_CHAIN_ID,
-            getGWBlockNumber(params)
-        );
+        await waitForInteropRootNonZero(aliceSecondChain.provider, aliceSecondChain, getGWBlockNumber(params));
 
         // We use the same proof that was verified in L2-A
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
@@ -328,6 +330,20 @@ describe('Interop behavior checks', () => {
                 overrides: { gasPrice }
             })
         ).wait();
+
+        if (testMaster.environment().baseToken.l1Address != ETH_ADDRESS_IN_CONTRACTS) {
+            // Deposit funds on Interop1
+            const depositTx = await interop1RichWallet.deposit({
+                token: testMaster.environment().baseToken.l1Address,
+                amount: ethFundAmount,
+                to: interop1Wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            });
+            await depositTx.wait();
+        }
     });
 
     test('Can deploy token contracts', async () => {
@@ -340,6 +356,14 @@ describe('Interop behavior checks', () => {
             tokenA.symbol,
             tokenA.decimals
         ]);
+        const dummyInteropRecipientContract = await deployContract(
+            interop2RichWallet,
+            ArtifactDummyInteropRecipient,
+            []
+        );
+
+        dummyInteropRecipient = await dummyInteropRecipientContract.getAddress();
+        console.log('dummyInteropRecipient', dummyInteropRecipient);
         tokenA.l2Address = await tokenADeploy.getAddress();
         console.log('tokenA.l2Address', tokenA.l2Address);
         // Register Token A
@@ -349,7 +373,7 @@ describe('Interop behavior checks', () => {
         interop1TokenA = new zksync.Contract(tokenA.l2Address, ArtifactMintableERC20.abi, interop1Wallet);
 
         await utils.spawn(
-            `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
+            `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`
         );
     });
 
@@ -400,7 +424,88 @@ describe('Interop behavior checks', () => {
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
                     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
                 }
+                // ,{
+                //     to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                //     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
+                //     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
+                // }
             ]
+        );
+        // console.log('receipt', receipt);
+
+        // Broadcast interop transaction from Interop1 to Interop2
+        // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
+        await readAndBroadcastInteropBundle(receipt.hash, interop1Provider, interop2Provider);
+
+        await sleep(10000);
+        tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
+        console.log('Token A info:', tokenA);
+
+        // Assert that the token balance on chain2
+        // const interop1WalletSecondChainBalance = await getTokenBalance({
+        //     provider: interop2Provider,
+        //     tokenAddress: tokenA.l2AddressSecondChain!,
+        //     address: interop2RichWallet.address
+        // });
+        // expect(interop1WalletSecondChainBalance).toBe(transferAmount);
+    });
+
+    test('Can perform cross chain bundle', async () => {
+        if (skipInteropTests) {
+            return;
+        }
+        const transferAmount = 100n;
+        // let interop1TokenAVeryRichWallet = new zksync.Contract(
+        //     tokenA.l2Address,
+        //     ArtifactMintableERC20.abi,
+        //     interop1VeryRichWallet
+        // );
+        // await ((await interop1TokenAVeryRichWallet.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait()).wait();
+        // await ((await interop1TokenA.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', transferAmount)).wait()).wait();
+
+        await Promise.all([
+            // Approve token transfer on Interop1
+            (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
+
+            // Mint tokens for the test wallet on Interop1 for the transfer
+            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
+        ]);
+
+        // Compose and send the interop request transaction
+        const erc7786AttributeDummy = new zksync.Contract(
+            '0x0000000000000000000000000000000000000000',
+            ArtifactIERC7786Attributes.abi,
+            interop1Wallet
+        );
+
+        const feeValue = ethers.parseEther('0.2');
+        const receipt = await fromInterop1RequestInterop(
+            // Fee payment call starters
+            [
+                {
+                    to: formatEvmV1Address(ethers.ZeroAddress),
+                    data: '0x',
+                    callAttributes: [
+                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
+                    ]
+                }
+            ],
+            // Execution call starters for token transfer
+            [
+                {
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                    data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
+                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
+                },
+                {
+                    to: formatEvmV1Address(dummyInteropRecipient),
+                    data: '0x',
+                    callAttributes: [
+                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [transferAmount])
+                    ]
+                }
+            ],
+            { value: isSameBaseToken ? transferAmount : 0n }
         );
         // console.log('receipt', receipt);
 
@@ -434,7 +539,8 @@ describe('Interop behavior checks', () => {
      */
     async function fromInterop1RequestInterop(
         feeCallStarters: InteropCallStarter[],
-        execCallStarters: InteropCallStarter[]
+        execCallStarters: InteropCallStarter[],
+        overrides: ethers.Overrides = {}
     ) {
         // note skipping feeCallStarters for now:
 
@@ -442,7 +548,8 @@ describe('Interop behavior checks', () => {
             await interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await interop2Provider.getNetwork()).chainId),
                 execCallStarters,
-                []
+                [],
+                overrides
             )
         ).wait();
         return txFinalizeReceipt;
@@ -497,12 +604,7 @@ describe('Interop behavior checks', () => {
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
     }
 
-    async function waitForInteropRootNonZero(
-        provider: zksync.Provider,
-        alice: zksync.Wallet,
-        chainId: bigint,
-        l1BatchNumber: number
-    ) {
+    async function waitForInteropRootNonZero(provider: zksync.Provider, alice: zksync.Wallet, l1BatchNumber: number) {
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
             ArtifactL2InteropRootStorage.abi,
@@ -515,11 +617,12 @@ describe('Interop behavior checks', () => {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
-                token: ETH_ADDRESS
+                token:
+                    testMaster.environment().baseToken.l1Address == ETH_ADDRESS ? ETH_ADDRESS : tokenDetails.l2Address
             });
             await tx.wait();
 
-            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
+            currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
             await zksync.utils.sleep(alice.provider.pollingInterval);
 
             // console.log('currentRoot', currentRoot, count);
@@ -527,8 +630,6 @@ describe('Interop behavior checks', () => {
         }
         console.log('Interop root is non-zero', currentRoot, l1BatchNumber);
     }
-
-    const GW_CHAIN_ID = 506n;
 
     /**
      * Reads an interop transaction from the sender chain, constructs a new transaction,
@@ -551,7 +652,7 @@ describe('Interop behavior checks', () => {
         // console.log((await senderProvider.getNetwork()).name)
         // console.log(await senderUtilityWallet.getL2BridgeContracts())
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
-        await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, getGWBlockNumber(params));
 
         // Get interop trigger and bundle data from the sender chain.
         const executionBundle = await getInteropBundleData(senderProvider, txHash, 0);
@@ -583,7 +684,7 @@ describe('Interop behavior checks', () => {
     //     /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
     //     await sleep(25000);
     //     const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
-    //     await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
+    //     await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, getGWBlockNumber(params));
 
     // Get interop trigger and bundle data from the sender chain.
     // const triggerDataBundle = await getInteropTriggerData(senderProvider, txHash, 2);

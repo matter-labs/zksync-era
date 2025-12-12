@@ -9,7 +9,7 @@ use zksync_types::{
     api::Log,
     ethabi::{self},
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    SLChainId, H256, U256,
+    Address, SLChainId, H256, U256,
 };
 
 use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
@@ -64,6 +64,12 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
     ) -> Result<H256, ClientError>;
 
     fn chain_id(&self) -> SLChainId;
+
+    fn submitter_address(&self) -> Address;
+
+    fn contract_address(&self) -> Address;
+
+    async fn submitter_balance(&self) -> Result<f64, ClientError>;
 }
 
 impl ProofManagerClient {
@@ -421,5 +427,21 @@ impl EthProofManagerClient for ProofManagerClient {
 
     fn chain_id(&self) -> SLChainId {
         self.client.chain_id()
+    }
+
+    fn submitter_address(&self) -> Address {
+        self.client.sender_account()
+    }
+
+    fn contract_address(&self) -> Address {
+        self.client.contract_addr()
+    }
+
+    async fn submitter_balance(&self) -> Result<f64, ClientError> {
+        self.client
+            .sender_eth_balance()
+            .await
+            .map(|balance| balance.as_u64() as f64)
+            .map_err(Into::into)
     }
 }

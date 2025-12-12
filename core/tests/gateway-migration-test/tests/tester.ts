@@ -11,13 +11,14 @@ export class Tester {
         public ethWallet: ethers.Wallet,
         public syncWallet: zksync.Wallet,
         public web3Provider: zksync.Provider,
+        public gwProvider: zksync.Provider,
         public token: L1Token
     ) {
         this.runningFee = new Map();
     }
 
     // prettier-ignore
-    static async init(ethProviderAddress: string, web3JsonRpc: string) {
+    static async init(ethProviderAddress: string, web3JsonRpc: string, gatewayRpcUrl: string) {
         const pathToHome = path.join(__dirname, '../../../..');
 
         const ethProvider = new ethers.JsonRpcProvider(ethProviderAddress);
@@ -28,6 +29,8 @@ export class Tester {
         ethWallet = ethWallet.connect(ethProvider);
         const web3Provider = new zksync.Provider(web3JsonRpc);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
+        const gwProvider = new zksync.Provider(gatewayRpcUrl);
+        gwProvider.pollingInterval = 100;
         const syncWallet = new zksync.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
 
 
@@ -54,7 +57,7 @@ export class Tester {
 
         const { token, } = getToken(pathToHome, baseTokenAddress);
 
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, token);
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, gwProvider, token);
     }
 
     emptyWallet() {

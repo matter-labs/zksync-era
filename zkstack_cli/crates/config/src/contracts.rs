@@ -69,6 +69,9 @@ impl CoreContractsConfig {
                     .core_ecosystem_contracts
                     .stm_deployment_tracker_proxy_addr,
                 native_token_vault_addr: self.core_ecosystem_contracts.native_token_vault_addr,
+                chain_asset_handler_proxy_addr: self
+                    .core_ecosystem_contracts
+                    .chain_asset_handler_proxy_addr,
                 ctm: ctm.clone(),
             },
             bridges: self.bridges.clone(),
@@ -160,6 +163,9 @@ impl CoreContractsConfig {
                 native_token_vault_addr: chain_contracts
                     .ecosystem_contracts
                     .native_token_vault_addr,
+                chain_asset_handler_proxy_addr: chain_contracts
+                    .ecosystem_contracts
+                    .chain_asset_handler_proxy_addr,
             },
             bridges: chain_contracts.bridges,
             l1: L1CoreContracts {
@@ -188,8 +194,12 @@ impl CoreContractsConfig {
         &mut self,
         deploy_l1_core_contracts_output: &DeployL1CoreContractsOutput,
     ) {
-        self.create2_factory_addr = deploy_l1_core_contracts_output.create2_factory_addr;
-        self.create2_factory_salt = deploy_l1_core_contracts_output.create2_factory_salt;
+        self.create2_factory_addr = deploy_l1_core_contracts_output
+            .contracts
+            .create2_factory_addr;
+        self.create2_factory_salt = deploy_l1_core_contracts_output
+            .contracts
+            .create2_factory_salt;
         self.bridges.erc20.l1_address = deploy_l1_core_contracts_output
             .deployed_addresses
             .bridges
@@ -233,6 +243,12 @@ impl CoreContractsConfig {
             deploy_l1_core_contracts_output
                 .deployed_addresses
                 .native_token_vault_addr,
+        );
+        self.core_ecosystem_contracts.chain_asset_handler_proxy_addr = Some(
+            deploy_l1_core_contracts_output
+                .deployed_addresses
+                .bridgehub
+                .chain_asset_handler_proxy_addr,
         );
         self.l1.chain_admin_addr = deploy_l1_core_contracts_output
             .deployed_addresses
@@ -413,6 +429,9 @@ pub struct CoreEcosystemContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_token_vault_addr: Option<Address>,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_asset_handler_proxy_addr: Option<Address>,
 }
 
 /// All contracts related to Chain Transition Manager (CTM)
@@ -450,6 +469,9 @@ pub struct EcosystemContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_token_vault_addr: Option<Address>,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_asset_handler_proxy_addr: Option<Address>,
     #[serde(flatten)]
     pub ctm: ChainTransitionManagerContracts,
 }

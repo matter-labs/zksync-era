@@ -27,6 +27,7 @@ if (shouldSkip) {
 
         await gatewayMigrationFromGatewayTest(testChain.chainName);
 
-        await gatewayMigrationToGatewayTest(testChain.chainName);
+        // This flow is no longer supported as part of v31, it will be supported on later versions
+        // await gatewayMigrationToGatewayTest(testChain.chainName);
     });
 });
