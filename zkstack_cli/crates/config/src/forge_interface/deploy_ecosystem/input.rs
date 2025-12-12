@@ -7,7 +7,10 @@ use ethers::{
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_types::{L1Network, VMOption};
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, u256_to_h256, L2ChainId};
+use zksync_basic_types::{
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    u256_to_h256, L2ChainId,
+};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
@@ -52,7 +55,11 @@ impl GenesisInput {
                     default_aa_hash: one,
                     evm_emulator_hash: one,
                     rollup_last_leaf_index: 0,
-                    protocol_version: Default::default(),
+                    // TODO get it from genesis file
+                    protocol_version: ProtocolSemanticVersion::new(
+                        ProtocolVersionId::Version30,
+                        1.into(),
+                    ),
                 })
             }
         }
