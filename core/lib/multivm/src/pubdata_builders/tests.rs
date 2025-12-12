@@ -103,7 +103,7 @@ fn test_full_pubdata_building() {
     ));
 
     let actual =
-        full_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version30);
+        full_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version31);
     let expected = "00000001000000000000000000000000000000000000000000008001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000100000004deadbeef0000000100000060bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0100002a040001000000000000000000000000000000000000000000000000000000000000007e090e0000000c0901";
     assert_eq!(
         &hex::encode(actual),
@@ -141,7 +141,7 @@ fn test_hashed_pubdata_building() {
         L2DACommitmentScheme::BlobsAndPubdataKeccak256,
     ));
     let actual =
-        hashed_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version30);
+        hashed_pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::Version31);
     let expected = "fa96e2436e6fb4d668f5a06681a7c53fcb199b2747ee624ee52a13e85aac5f1e";
     assert_eq!(
         &hex::encode(actual),
