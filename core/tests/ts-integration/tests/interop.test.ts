@@ -407,16 +407,6 @@ describe('Interop behavior checks', () => {
 
         const feeValue = ethers.parseEther('0.2');
         const receipt = await fromInterop1RequestInterop(
-            // Fee payment call starters
-            [
-                {
-                    to: formatEvmV1Address(ethers.ZeroAddress),
-                    data: '0x',
-                    callAttributes: [
-                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
-                    ]
-                }
-            ],
             // Execution call starters for token transfer
             [
                 {
@@ -480,16 +470,6 @@ describe('Interop behavior checks', () => {
 
         const feeValue = ethers.parseEther('0.2');
         const receipt = await fromInterop1RequestInterop(
-            // Fee payment call starters
-            [
-                {
-                    to: formatEvmV1Address(ethers.ZeroAddress),
-                    data: '0x',
-                    callAttributes: [
-                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [feeValue])
-                    ]
-                }
-            ],
             // Execution call starters for token transfer
             [
                 {
@@ -538,12 +518,10 @@ describe('Interop behavior checks', () => {
      * The function prepares the interop call input and populates the transaction before sending.
      */
     async function fromInterop1RequestInterop(
-        feeCallStarters: InteropCallStarter[],
+        //feeCallStarters: InteropCallStarter[], // TODO: v32, skipping feeCallStarters for now
         execCallStarters: InteropCallStarter[],
         overrides: ethers.Overrides = {}
     ) {
-        // note skipping feeCallStarters for now:
-
         const txFinalizeReceipt = (
             await interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await interop2Provider.getNetwork()).chainId),
