@@ -28,7 +28,7 @@ export class TestExternalNode {
     markAsExpectingErrorCode(errorCode: number): void {
         this.expectedErrorCode = errorCode;
         console.log(`📝 Marked external node ${this.chainName} as expecting error code: ${errorCode}`);
-        removeErrorListeners(this.process);
+        removeErrorListeners(this.process!);
         if (!this.process) {
             throw new Error('External node process is not available!');
         }
