@@ -2,7 +2,6 @@ import { describe, it } from 'vitest';
 import {
     createChainAndStartServer,
     TESTED_CHAIN_TYPE,
-    gatewayMigrationToGatewayTest,
     gatewayMigrationFromGatewayTest
 } from '../src';
 
