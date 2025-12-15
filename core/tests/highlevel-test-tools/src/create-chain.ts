@@ -182,7 +182,7 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
                     '--chain-name',
                     chainConfig.chainName,
                     '--chain-id',
-                    'sequential',
+                    chainConfig.chainId.toString(),
                     '--prover-mode',
                     'no-proofs',
                     '--wallet-creation',
@@ -200,6 +200,7 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
                     '--ignore-prerequisites',
                     '--evm-emulator',
                     chainConfig.evmEmulator.toString(),
+                    '--tight-ports',
                     '--verbose'
                 ],
                 chainConfig.chainName,
