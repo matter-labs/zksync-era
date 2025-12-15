@@ -15,10 +15,7 @@ import { logsTestPath } from 'utils/build/logs';
 import { waitForNewL1Batch } from 'utils';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 
-
-
-import {ChainHandler} from "./tester";
-
+import { ChainHandler } from './tester';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
@@ -74,17 +71,23 @@ async function prepareRichWallet(): Promise<zksync.Wallet> {
     const ethProviderAddress = secretsConfig.l1.l1_rpc_url;
     const web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
-    const richWallet = new zksync.Wallet(getMainWalletPk('gateway'), new zksync.Provider(web3JsonRpc), new ethers.JsonRpcProvider(ethProviderAddress));
+    const richWallet = new zksync.Wallet(
+        getMainWalletPk('gateway'),
+        new zksync.Provider(web3JsonRpc),
+        new ethers.JsonRpcProvider(ethProviderAddress)
+    );
 
     // We assume that Gateway has "ETH" as the base token.
     // We deposit funds to ensure that the wallet is rich
-    await (await richWallet.deposit({
-        token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
-        amount: ethers.parseEther('10.0')
-    })).wait();
+    await (
+        await richWallet.deposit({
+            token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
+            amount: ethers.parseEther('10.0')
+        })
+    ).wait();
 
     return richWallet;
-}   
+}
 
 /// There are the following kinds of tokens' states that we test:
 /// At the moment of migration the token can be:
@@ -130,33 +133,33 @@ describe('Asset tracker migration test', function () {
         erc20ChainHandler = await ChainHandler.createNewChain('era');
     });
 
-    step('TMP spawn tokens', async function() {
+    step('TMP spawn tokens', async function () {
         ethChainTokenPreBridged = await ethChainHandler.deployNativeToken();
         ethChainTokenNotPreBridged = await ethChainHandler.deployNativeToken();
-        
+
         l1NativeToken = await L1ERC20Handler.deployToken(l1RichWallet);
         l1NativeTokenPreBridged = await L1ERC20Handler.deployToken(l1RichWallet);
         l1NativeToken2 = await L1ERC20Handler.deployToken(l1RichWallet);
 
         erc20ChainTokenPreBridged = await erc20ChainHandler.deployNativeToken();
         erc20ChainTokenNotPreBridged = await erc20ChainHandler.deployNativeToken();
-    })
+    });
 
     step('Bridge tokens', async function () {
         const withdrawalHandler1 = await ethChainTokenPreBridged.withdraw();
 
         // For now it will be unfinalized, we'll use it later.
         ethChainTokenUnfinalizedWithdrawalHandler = await ethChainTokenNotPreBridged.withdraw();
-        
+
         await l1NativeTokenPreBridged.deposit(ethChainHandler, DEFAULT_LARGE_AMOUNT);
         await l1NativeTokenPreBridged.deposit(erc20ChainHandler, DEFAULT_LARGE_AMOUNT);
 
         await withdrawalHandler1.finalizeWithdrawal(l1RichWallet);
-    })
+    });
 
     step('Migration of balances to GW', async function () {
         await Promise.all([
-            ethChainHandler.migrateToGateway(),
+            ethChainHandler.migrateToGateway()
             // erc20ChainHandler.migrateToGateway()
         ]);
 
@@ -168,14 +171,13 @@ describe('Asset tracker migration test', function () {
         ethChainTokenPreBridged.withdraw();
         ethChainTokenNotPreBridged.withdraw();
 
-
         // // should fail
         // l2VersionTokenPreBridged.withdraw();
         // // should also fail
         // ethChainTokenUnfinalizedWithdrawalHandler.finalizeWithdrawal(l1RichWallet);
-        
-        // // We migrate the tokens two times. This is to 
-        // // demonstrate that it is possible to call the migration again 
+
+        // // We migrate the tokens two times. This is to
+        // // demonstrate that it is possible to call the migration again
         // // and the handlers will still work.
         // const migrationHandlers1 = [
         //     await ethChainTokenPreBridged.migrateBalanceL2ToGW(),
@@ -189,7 +191,7 @@ describe('Asset tracker migration test', function () {
         // ];
 
         // // Sometimes we use migrationHandlers1, sometimes migrationHandlers 2,
-        // // these should be equivalent. 
+        // // these should be equivalent.
         // // TODO: maybe check for actual equivalence of messages.
         // await migrationHandlers1[0].finalizeMigration(l1RichWallet);
         // await migrationHandlers2[1].finalizeMigration(l1RichWallet);
@@ -223,7 +225,7 @@ describe('Asset tracker migration test', function () {
 
     // step('Migrate back to L1', async function () {
     //     await ethChainHandler.migrateFromGateway();
-        
+
     //     const l2Token = await l1NativeToken2.atL2SameWallet(ethChainHandler);
     //     const withdrawHandler = await l2Token.withdraw();
 
@@ -232,7 +234,7 @@ describe('Asset tracker migration test', function () {
 
     //     await l2Token.migrateBalanceGWtoL1(gwRichWallet);
 
-    //     // Should succeed 
+    //     // Should succeed
     //     await withdrawHandler.finalizeWithdrawal(l1RichWallet);
 
     //     // todo: test the ability to migrate all of the tokens' balances to the chain on L1.
