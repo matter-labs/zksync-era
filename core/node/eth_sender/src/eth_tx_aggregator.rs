@@ -233,7 +233,7 @@ impl EthTxAggregator {
     // The role of the method below is to tokenize input for multicall, which is actually a vector of tokens.
     // Each token describes a specific contract call.
     pub(super) fn generate_calldata_for_multicall(&self) -> (Vec<Token>, bool) {
-        const ALLOW_FAILURE: bool = true;
+        const ALLOW_FAILURE: bool = false;
 
         // First zksync contract call
         let get_l2_bootloader_hash_input = self
