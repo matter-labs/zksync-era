@@ -1,7 +1,7 @@
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import {createChainAndStartServer, TestChain, ChainType} from 'highlevel-test-tools/src/create-chain';
+import { createChainAndStartServer, TestChain, ChainType } from 'highlevel-test-tools/src/create-chain';
 import path from 'path';
 import { loadConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
@@ -13,24 +13,42 @@ const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
 const TEST_SUIT_NAME = 'AT_CHAIN_MIGRATION_TEST';
 const pathToHome = path.join(__dirname, '../../../..');
 
-const ERC20_EVM_ARTIFACT = JSON.parse(fs.readFileSync(path.join(pathToHome, './contracts/l1-contracts/out/TestnetERC20Token.sol/TestnetERC20Token.json')).toString()); 
+const ERC20_EVM_ARTIFACT = JSON.parse(
+    fs
+        .readFileSync(
+            path.join(pathToHome, './contracts/l1-contracts/out/TestnetERC20Token.sol/TestnetERC20Token.json')
+        )
+        .toString()
+);
 const ERC20_EVM_BYTECODE = ERC20_EVM_ARTIFACT.bytecode.object;
 const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
 
-const ERC20_ZKEVM_BYTECODE = JSON.parse(fs.readFileSync(path.join(pathToHome, './contracts/l1-contracts/zkout/TestnetERC20Token.sol/TestnetERC20Token.json')).toString()).bytecode.object;
+const ERC20_ZKEVM_BYTECODE = JSON.parse(
+    fs
+        .readFileSync(
+            path.join(pathToHome, './contracts/l1-contracts/zkout/TestnetERC20Token.sol/TestnetERC20Token.json')
+        )
+        .toString()
+).bytecode.object;
 
 function readAbi(contractName: string) {
-    return JSON.parse(fs.readFileSync(path.join(pathToHome, `./contracts/l1-contracts/out/${contractName}.sol/${contractName}.json`)).toString()).abi;
+    return JSON.parse(
+        fs
+            .readFileSync(
+                path.join(pathToHome, `./contracts/l1-contracts/out/${contractName}.sol/${contractName}.json`)
+            )
+            .toString()
+    ).abi;
 }
 
-const L2_NTV_ABI = readAbi("L2NativeTokenVault");
+const L2_NTV_ABI = readAbi('L2NativeTokenVault');
 
 function randomTokenProps() {
     const name = 'NAME-' + ethers.hexlify(ethers.randomBytes(4));
     const symbol = 'SYM-' + ethers.hexlify(ethers.randomBytes(4));
     const decimals = Math.min(Math.floor(Math.random() * 18) + 1, 18);
 
-    return {name, symbol, decimals};
+    return { name, symbol, decimals };
 }
 
 export const DEFAULT_SMALL_AMOUNT = 1n;
@@ -56,26 +74,27 @@ async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet
     const ethProviderAddress = secretsConfig.l1.l1_rpc_url;
     const web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
-    const richWallet = new zksync.Wallet(getMainWalletPk('gateway'), new zksync.Provider(web3JsonRpc), new ethers.JsonRpcProvider(ethProviderAddress));
+    const richWallet = new zksync.Wallet(
+        getMainWalletPk('gateway'),
+        new zksync.Provider(web3JsonRpc),
+        new ethers.JsonRpcProvider(ethProviderAddress)
+    );
 
     // We assume that Gateway has "ETH" as the base token.
     // We deposit funds to ensure that the wallet is rich
-    await (await richWallet.deposit({
-        token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
-        amount: RICH_WALLET_L2_BALANCE
-    })).wait();
+    await (
+        await richWallet.deposit({
+            token: zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
+            amount: RICH_WALLET_L2_BALANCE
+        })
+    ).wait();
 
     return richWallet;
 }
 
 function getL2Ntv(l2Wallet: zksync.Wallet) {
-    return new zksync.Contract(
-        L2_NATIVE_TOKEN_VAULT_ADDRESS,
-        L2_NTV_ABI,
-        l2Wallet
-    );
+    return new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NTV_ABI, l2Wallet);
 }
-
 
 export class ChainHandler {
     // public name: string;
@@ -89,36 +108,23 @@ export class ChainHandler {
     }
 
     ethersWalletToZK(ethersWallet: ethers.Wallet) {
-        return new zksync.Wallet(
-            ethersWallet.privateKey,
-            this.l2RichWallet.provider,
-            ethersWallet.provider!
-        );
+        return new zksync.Wallet(ethersWallet.privateKey, this.l2RichWallet.provider, ethersWallet.provider!);
     }
 
     async stopServer() {
         await this.inner.mainNode.kill();
     }
 
-    async migrateToGateway() {
+    async migrateToGateway() {}
 
-    }
+    async migrateFromGateway() {}
 
-    async migrateFromGateway() {
-
-    }
-
-    static async createNewChain(
-        chainType: ChainType,
-    ): Promise<ChainHandler> {
-        const testChain = await createChainAndStartServer(
-            chainType,
-            TEST_SUIT_NAME
-        );
+    static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
+        const testChain = await createChainAndStartServer(chainType, TEST_SUIT_NAME);
 
         // Need to wait for a bit before the server works fully
         await sleep(2000);
-        
+
         const handler = new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
 
         return handler;
@@ -138,19 +144,15 @@ export class L2ERC20Handler {
     constructor(address: string, l2Wallet: zksync.Wallet) {
         this.address = address;
         this.l2Wallet = l2Wallet;
-        this.contract = new zksync.Contract(
-            address,
-            ERC20_ABI,
-            l2Wallet
-        );
+        this.contract = new zksync.Contract(address, ERC20_ABI, l2Wallet);
     }
-    
+
     async assetId(assertNonNull: boolean = true): Promise<string> {
         if (this._cachedAssetId) {
             return this._cachedAssetId;
         }
         const l2Ntv = getL2Ntv(this.l2Wallet);
-        
+
         const l2AssetId = await l2Ntv.assetId(this.address);
         if (l2AssetId == ethers.ZeroHash) {
             if (assertNonNull) {
@@ -160,7 +162,7 @@ export class L2ERC20Handler {
                 return l2AssetId;
             }
         }
-    
+
         this._cachedAssetId = l2AssetId;
         return l2AssetId;
     }
@@ -170,7 +172,7 @@ export class L2ERC20Handler {
         const currentAssetId = await this.assetId(false);
         if (currentAssetId == ethers.ZeroHash) {
             // Registering the token
-            await(await l2Ntv.registerToken(this.address)).wait();
+            await (await l2Ntv.registerToken(this.address)).wait();
         }
 
         return await this.assetId();
@@ -179,7 +181,7 @@ export class L2ERC20Handler {
     async withdraw(amount: bigint = DEFAULT_SMALL_AMOUNT): Promise<WithdrawalHandler> {
         await this.registerIfNeeded();
 
-        if((await this.contract.allowance(this.l2Wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < amount) {
+        if ((await this.contract.allowance(this.l2Wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < amount) {
             await (await this.contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
             await (await this.contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, amount)).wait();
         }
@@ -201,18 +203,13 @@ export class L2ERC20Handler {
     }
 
     static async deployToken(l2Wallet: zksync.Wallet) {
-        const factory = new zksync.ContractFactory(
-            ERC20_ABI,
-            ERC20_ZKEVM_BYTECODE,
-            l2Wallet,
-            'create'
-        );
+        const factory = new zksync.ContractFactory(ERC20_ABI, ERC20_ZKEVM_BYTECODE, l2Wallet, 'create');
 
         const props = randomTokenProps();
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
 
-        const handler = new L2ERC20Handler(await newToken.getAddress(), l2Wallet); 
+        const handler = new L2ERC20Handler(await newToken.getAddress(), l2Wallet);
         await (await handler.contract.mint(l2Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
 
         return handler;
@@ -227,13 +224,9 @@ export class L1ERC20Handler {
     constructor(address: string, l1Wallet: ethers.Wallet) {
         this.address = address;
         this.l1Wallet = l1Wallet;
-        this.contract = new ethers.Contract(
-            address,
-            ERC20_ABI,
-            l1Wallet
-        );
+        this.contract = new ethers.Contract(address, ERC20_ABI, l1Wallet);
     }
-    
+
     // We always wait for the deposit to be finalized.
     async deposit(chain: ChainHandler, amount: ethers.BigNumberish = DEFAULT_SMALL_AMOUNT) {
         const zksyncWallet = chain.ethersWalletToZK(this.l1Wallet);
@@ -254,11 +247,7 @@ export class L1ERC20Handler {
     }
 
     static async deployToken(l1Wallet: ethers.Wallet) {
-        const factory = new ethers.ContractFactory(
-            ERC20_ABI,
-            ERC20_EVM_BYTECODE,
-            l1Wallet
-        );
+        const factory = new ethers.ContractFactory(ERC20_ABI, ERC20_EVM_BYTECODE, l1Wallet);
 
         const props = randomTokenProps();
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
@@ -268,7 +257,7 @@ export class L1ERC20Handler {
         await (await handler.contract.mint(l1Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
 
         return handler;
-    } 
+    }
 }
 
 export class WithdrawalHandler {
@@ -283,20 +272,16 @@ export class WithdrawalHandler {
     async finalizeWithdrawal(l1RichWallet: ethers.Wallet) {
         // Firstly, we've need to wait for the batch to be finalized.
 
-        const l2Wallet = new zksync.Wallet(
-            l1RichWallet.privateKey,
-            this.l2Provider,
-            l1RichWallet.provider!
-        );
-          
+        const l2Wallet = new zksync.Wallet(l1RichWallet.privateKey, this.l2Provider, l1RichWallet.provider!);
+
         const receipt = await l2Wallet.provider.getTransactionReceipt(this.txHash);
-        if(!receipt) {
+        if (!receipt) {
             throw new Error('Receipt');
         }
-        
+
         await waitForL2ToL1LogProof(l2Wallet.provider, receipt.blockNumber, this.txHash);
 
-        await(await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
+        await (await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
     }
 }
 
@@ -307,15 +292,10 @@ export class MigrationHandler {
         this.txHash = txHash;
     }
 
-    async finalizeMigration(l1RichWallet: ethers.Wallet) {
-
-    }
+    async finalizeMigration(l1RichWallet: ethers.Wallet) {}
 }
 
-async function newSpawnNewChainZKStack() {
-
-}
-
+async function newSpawnNewChainZKStack() {}
 
 export class Tester {
     public runningFee: Map<zksync.types.Address, bigint>;
