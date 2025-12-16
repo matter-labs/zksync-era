@@ -1,9 +1,5 @@
 import { describe, it } from 'vitest';
-import {
-    createChainAndStartServer,
-    TESTED_CHAIN_TYPE,
-    gatewayMigrationFromGatewayTest
-} from '../src';
+import { createChainAndStartServer, TESTED_CHAIN_TYPE, gatewayMigrationFromGatewayTest } from '../src';
 
 const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
 const shouldSkip = useGatewayChain !== 'WITH_GATEWAY';
