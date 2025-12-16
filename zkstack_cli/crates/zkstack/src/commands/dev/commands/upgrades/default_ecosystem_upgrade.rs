@@ -255,18 +255,8 @@ async fn no_governance_prepare(
         ecosystem_upgrade_config_path
     ));
 
-    let save_result = ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone());
-    let save_result_ctm = ecosystem_upgrade.save(shell, ctm_upgrade_config_path.clone());
-
-    if let Err(e) = save_result {
-        eprintln!("❌ Failed to save ecosystem_upgrade: {e:?}");
-        return Err(e.into());
-    }
-
-    if let Err(e) = save_result {
-        eprintln!("❌ Failed to save ecosystem_upgrade: {e:?}");
-        return Err(e.into());
-    }
+    ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone());
+    ecosystem_upgrade.save(shell, ctm_upgrade_config_path.clone());
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
