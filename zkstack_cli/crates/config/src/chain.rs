@@ -214,7 +214,7 @@ impl ChainConfig {
     }
 
     pub fn path_to_default_genesis_config(&self) -> PathBuf {
-        let genesis_path = self.path_to_contracts_config().join("configs/genesis");
+        let genesis_path = self.contracts_path().join("configs/genesis");
         match self.vm_option {
             VMOption::EraVM => genesis_path.join("era/latest.toml"),
             VMOption::ZKSyncOsVM => genesis_path.join("zksync_os/latest.toml"),

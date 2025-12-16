@@ -1,7 +1,10 @@
 use std::path::Path;
 
 use xshell::Shell;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId, H256};
+use zksync_basic_types::{
+    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
+    L2ChainId, H256,
+};
 
 use crate::{
     raw::{PatchedConfig, RawConfig},
@@ -53,9 +56,12 @@ impl GenesisConfigPatch {
         &mut self,
         config: &ContractsGenesisConfig,
     ) -> anyhow::Result<()> {
+        let protocol_semantic_version = config.0.get::<u64>("protocol_semantic_version")?;
         self.0.insert(
             "genesis_protocol_semantic_version",
-            config.0.get::<u64>("protocol_semantic_version")?,
+            ProtocolSemanticVersion::try_from_packed(protocol_semantic_version.into())
+                .unwrap()
+                .to_string(),
         )?;
 
         self.0
@@ -65,7 +71,7 @@ impl GenesisConfigPatch {
             config.0.get::<u64>("genesis_rollup_leaf_index")?,
         )?;
         self.0.insert(
-            "genesis_commitment",
+            "genesis_batch_commitment",
             config.0.get::<String>("genesis_batch_commitment")?,
         )?;
         self.0.insert(
@@ -76,8 +82,9 @@ impl GenesisConfigPatch {
             "default_aa_hash",
             config.0.get::<String>("default_aa_hash")?,
         )?;
-        // self.0
-        //     .insert("evm_emulator_hash", config.0.get_opt("evm_emulator_hash")?)?;
+        if let Some(data) = config.0.get_opt::<String>("evm_emulator_hash")? {
+            self.0.insert("evm_emulator_hash", data)?;
+        }
 
         Ok(())
     }

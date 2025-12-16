@@ -45,7 +45,7 @@ pub mod chain;
 mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
-mod contract_genesis;
+pub mod contract_genesis;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod da_client;

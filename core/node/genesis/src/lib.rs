@@ -99,6 +99,7 @@ impl GenesisParamsInitials {
     pub fn load_params() -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
+
         let config = ContractsGenesis::read(&PathBuf::from(DEFAULT_GENESIS_FILE_PATH)).unwrap();
         Self {
             base_system_contracts,
@@ -153,6 +154,26 @@ impl GenesisParams {
         base_system_contracts: BaseSystemContracts,
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
+        let base_system_contracts_hashes = BaseSystemContractsHashes {
+            bootloader: config
+                .bootloader_hash
+                .ok_or(GenesisError::MalformedConfig("bootloader_hash"))?,
+            default_aa: config
+                .default_aa_hash
+                .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
+            evm_emulator: config.evm_emulator_hash,
+        };
+        if base_system_contracts_hashes != base_system_contracts.hashes() {
+            return Err(GenesisError::BaseSystemContractsHashes(Box::new(
+                BaseContractsHashError {
+                    from_config: base_system_contracts_hashes,
+                    calculated: base_system_contracts.hashes(),
+                },
+            )));
+        }
+        if config.protocol_version.is_none() {
+            return Err(GenesisError::MalformedConfig("protocol_version"));
+        }
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
