@@ -1,8 +1,6 @@
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
-use zkstack_cli_config::{
-    ContractsGenesisConfig, GenesisConfig, ZkStackConfig, ZkStackConfigTrait,
-};
+use zkstack_cli_config::{ContractsGenesisConfig, ZkStackConfig, ZkStackConfigTrait};
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,

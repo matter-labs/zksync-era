@@ -1,6 +1,5 @@
 use std::{collections::HashMap, str::FromStr};
 
-use anyhow::Context;
 use ethers::{
     prelude::U256,
     types::{Address, H256},
@@ -13,8 +12,7 @@ use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, u256_to_h256
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
     traits::{FileConfigTrait, FileConfigWithDefaultName},
-    ContractsConfigForDeployERC20, ContractsGenesisConfig, GenesisConfig, WalletsConfig,
-    ERC20_DEPLOYMENT_FILE,
+    ContractsConfigForDeployERC20, ContractsGenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 /// Part of the genesis config influencing `DeployGatewayCTMInput`.

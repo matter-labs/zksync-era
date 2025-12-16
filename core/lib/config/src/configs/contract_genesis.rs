@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, io::Write, path::Path};
 
 use anyhow::Context;
 use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, H256};
@@ -30,9 +30,11 @@ impl ContractsGenesis {
     /// **Important:** This method uses blocking I/O.
     pub fn write(self, path: &Path) -> anyhow::Result<()> {
         let path = path.to_owned();
-        let file = fs::File::create(&path)
+        let mut file = fs::File::create(&path)
             .with_context(|| format!("failed creating genesis config file at {:?}", path))?;
-        let string = toml::to_string(&self).context("failed serializing config to YAML string")?;
-        Ok(fs::write(&path, string)?)
+        let string =
+            toml::to_string_pretty(&self).context("failed serializing config to YAML string")?;
+        file.write(string.as_bytes())?;
+        Ok(())
     }
 }

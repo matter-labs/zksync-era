@@ -4,8 +4,7 @@ use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
-    traits::FileConfigTrait,
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::FileConfigTrait,
     ContractsConfig, ContractsGenesisConfig,
 };
 

@@ -24,8 +24,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig,
-    ZkStackConfig,
+    ChainConfig, ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;

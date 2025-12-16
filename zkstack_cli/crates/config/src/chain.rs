@@ -26,7 +26,9 @@ use crate::{
     },
     ContractsConfig, ContractsGenesisConfig, EcosystemConfig, GatewayChainConfig, GeneralConfig,
     GenesisConfig, SecretsConfig, WalletsConfig, ZkStackConfigTrait, CONFIGS_PATH,
-    GATEWAY_CHAIN_FILE,
+    GATEWAY_CHAIN_FILE, GENESIS_ZKSYNC_ERA_FILE, GENESIS_ZKYNS_OC_FILE,
+    PATH_TO_DEFAULT_GENESIS_CONFIG, PATH_TO_ERA_VM_DEFAULT_GENESIS,
+    PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -206,18 +208,17 @@ impl ChainConfig {
     }
 
     pub fn path_to_genesis_config(&self) -> PathBuf {
-        // FIXME need to return proper configs
         match self.vm_option {
-            VMOption::EraVM => self.configs.join("genesis.yaml"),
-            VMOption::ZKSyncOsVM => self.configs.join("genesis.toml"),
+            VMOption::EraVM => self.configs.join(GENESIS_ZKSYNC_ERA_FILE),
+            VMOption::ZKSyncOsVM => self.configs.join(GENESIS_ZKYNS_OC_FILE),
         }
     }
 
     pub fn path_to_default_genesis_config(&self) -> PathBuf {
-        let genesis_path = self.contracts_path().join("configs/genesis");
+        let genesis_path = self.contracts_path().join(PATH_TO_DEFAULT_GENESIS_CONFIG);
         match self.vm_option {
-            VMOption::EraVM => genesis_path.join("era/latest.toml"),
-            VMOption::ZKSyncOsVM => genesis_path.join("zksync_os/latest.toml"),
+            VMOption::EraVM => genesis_path.join(PATH_TO_ERA_VM_DEFAULT_GENESIS),
+            VMOption::ZKSyncOsVM => genesis_path.join(PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS),
         }
     }
 

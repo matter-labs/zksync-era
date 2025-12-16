@@ -3,7 +3,7 @@ use std::path::Path;
 use xshell::Shell;
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
-    L2ChainId, H256,
+    L2ChainId,
 };
 
 use crate::{

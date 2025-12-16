@@ -3,19 +3,12 @@
 //! Please note, this tool update only yaml file, if you still use env based configuration,
 //! update env values correspondingly
 
-use std::{
-    fs,
-    io::{BufReader, BufWriter},
-    path::Path,
-};
-
 use anyhow::Context as _;
 use clap::Parser;
 use zksync_config::{
     configs::{ContractsGenesis, PostgresSecrets, DEFAULT_GENESIS_FILE_PATH},
     full_config_schema,
     sources::ConfigFilePaths,
-    GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};

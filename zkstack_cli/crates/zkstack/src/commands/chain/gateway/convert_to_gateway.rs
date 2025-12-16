@@ -16,7 +16,6 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::GenesisInput,
         gateway_vote_preparation::{
             input::GatewayVotePreparationConfig, output::DeployGatewayCTMOutput,
         },

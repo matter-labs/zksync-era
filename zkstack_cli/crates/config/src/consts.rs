@@ -7,6 +7,16 @@ pub const SECRETS_FILE: &str = "secrets.yaml";
 /// Name of the general config file
 pub const GENERAL_FILE: &str = "general.yaml";
 
+pub const GENESIS_ZKYNS_OC_FILE: &str = "genesis.json";
+
+pub const GENESIS_ZKSYNC_ERA_FILE: &str = "genesis.yaml";
+
+pub const PATH_TO_DEFAULT_GENESIS_CONFIG: &str = "configs/genesis";
+
+pub const PATH_TO_ERA_VM_DEFAULT_GENESIS: &str = "era/latest.toml";
+
+pub const PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS: &str = "zksync_os/latest.toml";
+
 // Name of external node specific config
 pub const EN_CONFIG_FILE: &str = "external_node.yaml";
 // Name of consensus config

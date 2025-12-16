@@ -23,8 +23,8 @@ use crate::{
     },
     source_files::SourceFiles,
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, ChainConfigInternal, ContractsGenesisConfig, CoreContractsConfig, GenesisConfig,
-    WalletsConfig, PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
+    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig,
+    PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -372,15 +372,6 @@ impl EcosystemConfig {
             VMOption::ZKSyncOsVM => genesis_path.join("zksync_os/latest.toml"),
         }
     }
-
-    // pub async fn get_default_genesis(
-    //     &self,
-    //     vm_option: VMOption,
-    // ) -> anyhow::Result<ContractsGenesisConfig> {
-    //     let genesis_path = self.default_genesis_path(vm_option);
-    //     let contracts_path = self.contracts_path_for_ctm(vm_option);
-    //     let contracts = ContractsGenesisConfig::read(self.get_shell(), &genesis_path).await?;
-    // }
 
     pub fn default_configs_path_for_ctm(&self, vm_option: VMOption) -> PathBuf {
         self.get_source_files(vm_option)
