@@ -69,6 +69,12 @@ abigen!(
 );
 
 abigen!(
+    IDeployPaymasterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployPaymaster.sol/IDeployPaymaster.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     GatewayVotePreparationAbi,
     "../../../contracts/l1-contracts/zkstack-out/GatewayVotePreparation.s.sol/GatewayVotePreparation.json",
     event_derives(serde::Deserialize, serde::Serialize)
@@ -149,5 +155,11 @@ abigen!(
 abigen!(
     IChainAdminAbi,
     "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    ISetupLegacyBridgeAbi,
+    "../../../contracts/l1-contracts/zkstack-out/ISetupLegacyBridge.sol/ISetupLegacyBridge.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );

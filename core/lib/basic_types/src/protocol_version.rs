@@ -75,11 +75,12 @@ pub enum ProtocolVersionId {
     Version29,
     Version30,
     Version31,
+    Version32,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version30
+        Self::Version31
     }
 
     pub const fn next() -> Self {
@@ -131,9 +132,11 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
-            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
+            // Note V30 is only present on zksync os
             ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
         }
     }
 
@@ -172,7 +175,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_medium_interop(&self) -> bool {
-        self < &Self::Version30
+        self < &Self::Version31
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -322,9 +325,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
-            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
             ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
         }
     }
 }

@@ -9,12 +9,10 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_gateway_tx_filterer::{
-            input::GatewayTxFiltererInput, output::GatewayTxFiltererOutput,
-        },
+        deploy_gateway_tx_filterer::output::GatewayTxFiltererOutput,
         script_params::DEPLOY_GATEWAY_TX_FILTERER,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{ReadConfig, SaveConfigWithBasePath},
     ChainConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
@@ -49,10 +47,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args.clone(),
         &chain_config,
         &chain_deployer_wallet,
-        GatewayTxFiltererInput::new(
-            &ecosystem_config.get_initial_deployment_config().unwrap(),
-            &chain_contracts_config,
-        )?,
+        &ecosystem_config,
+        &chain_contracts_config,
         l1_url.clone(),
     )
     .await?;
@@ -83,23 +79,31 @@ pub async fn deploy_gateway_tx_filterer(
     forge_args: ForgeScriptArgs,
     chain_config: &ChainConfig,
     deployer: &Wallet,
-    input: GatewayTxFiltererInput,
+    _ecosystem_config: &zkstack_cli_config::EcosystemConfig,
+    contracts_config: &zkstack_cli_config::ContractsConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayTxFiltererOutput> {
-    input.save(
-        shell,
-        DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_foundry_scripts()),
-    )?;
+    // Extract parameters from configs
+    let bridgehub_proxy_addr = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+    let chain_admin = contracts_config.l1.chain_admin_addr;
+    let chain_proxy_admin = contracts_config
+        .l1
+        .chain_proxy_admin_addr
+        .context("Missing chain_proxy_admin_addr")?;
+
+    // Encode calldata for the run function
+    let calldata = DEPLOY_GATEWAY_TX_FILTERER_ABI
+        .encode(
+            "run",
+            (bridgehub_proxy_addr, chain_admin, chain_proxy_admin),
+        )
+        .unwrap();
 
     let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&DEPLOY_GATEWAY_TX_FILTERER.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
-        .with_calldata(
-            &DEPLOY_GATEWAY_TX_FILTERER_ABI
-                .encode("runWithInputFromFile", ())
-                .unwrap(),
-        )
+        .with_calldata(&calldata)
         .with_broadcast();
 
     // This script can be run by any wallet without privileges

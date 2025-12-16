@@ -10,18 +10,17 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_l2_contracts::{
-            input::DeployL2ContractsInput,
-            output::{
-                ConsensusRegistryOutput, DefaultL2UpgradeOutput, Multicall3Output,
-                TimestampAsserterOutput,
-            },
+        deploy_l2_contracts::output::{
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, Multicall3Output,
+            TimestampAsserterOutput,
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
+    traits::{ReadConfig, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, DAValidatorType, EcosystemConfig, ZkStackConfig,
+    ZkStackConfigTrait,
 };
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     abi::IDEPLOYL2CONTRACTSABI_ABI,
@@ -315,18 +314,34 @@ async fn call_forge(
     with_broadcast: bool,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let input = DeployL2ContractsInput::new(
-        chain_config,
-        ecosystem_config.get_contracts_config()?.l1.governance_addr,
-        ecosystem_config.era_chain_id,
-    )
-    .await?;
-
     let foundry_contracts_path = chain_config.path_to_foundry_scripts();
-    input.save(
-        shell,
-        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.input(&chain_config.path_to_foundry_scripts()),
-    )?;
+
+    // Extract parameters directly from configs
+    let contracts_config = chain_config.get_contracts_config()?;
+    let ecosystem_contracts = ecosystem_config.get_contracts_config()?;
+    let wallets = chain_config.get_wallets_config()?;
+
+    let bridgehub = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+    let chain_id = chain_config.chain_id.as_u64();
+    let governance = ecosystem_contracts.l1.governance_addr;
+    let consensus_registry_owner = wallets.governor.address;
+    let da_validator_type = get_da_validator_type(chain_config).await? as u64;
+
+    // Encode calldata with all parameters
+    let deploy_l2_contract = BaseContract::from(IDEPLOYL2CONTRACTSABI_ABI.clone());
+
+    let calldata = deploy_l2_contract
+        .encode(
+            "run",
+            (
+                bridgehub,
+                chain_id,
+                governance,
+                consensus_registry_owner,
+                da_validator_type,
+            ),
+        )
+        .unwrap();
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(
@@ -334,7 +349,9 @@ async fn call_forge(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(l1_rpc_url);
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
+
     if with_broadcast {
         forge = forge.with_broadcast();
     }
@@ -346,7 +363,16 @@ async fn call_forge(
         // kl todo this might be wrong
         let deploy_l2_contract = BaseContract::from(IDEPLOYL2CONTRACTSABI_ABI.clone());
         let calldata = deploy_l2_contract
-            .encode("run", (input.bridgehub, input.chain_id.as_u64()))
+            .encode(
+                "run",
+                (
+                    bridgehub,
+                    chain_id,
+                    governance,
+                    consensus_registry_owner,
+                    da_validator_type,
+                ),
+            )
             .unwrap();
         forge = forge.with_calldata(&calldata);
     }
@@ -360,4 +386,23 @@ async fn call_forge(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())
+}
+
+async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidatorType> {
+    let da_client_type = config
+        .get_general_config()
+        .await
+        .map(|c| c.da_client_type())
+        .unwrap_or_default();
+
+    match (
+        config.l1_batch_commit_data_generator_mode,
+        da_client_type.as_deref(),
+    ) {
+        (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
+        (L1BatchCommitmentMode::Validium, None | Some("NoDA")) => Ok(DAValidatorType::NoDA),
+        (L1BatchCommitmentMode::Validium, Some("Avail")) => Ok(DAValidatorType::Avail),
+        (L1BatchCommitmentMode::Validium, Some("Eigen")) => Ok(DAValidatorType::NoDA), // TODO: change to EigenDA for M1
+        _ => anyhow::bail!("DAValidatorType is not supported"),
+    }
 }

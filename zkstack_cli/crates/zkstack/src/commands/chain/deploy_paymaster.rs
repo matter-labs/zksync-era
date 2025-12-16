@@ -3,15 +3,14 @@ use xshell::Shell;
 use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
 use zkstack_cli_config::{
     forge_interface::{
-        paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
-        script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
+        paymaster::DeployPaymasterOutput, script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{ReadConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
 use crate::{
-    abi::DEPLOYPAYMASTERABI_ABI,
+    abi::IDEPLOYPAYMASTERABI_ABI,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -41,17 +40,17 @@ pub async fn deploy_paymaster(
     broadcast: bool,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let input = DeployPaymasterInput::new(chain_config)?;
     let foundry_contracts_path = chain_config.path_to_foundry_scripts();
-    input.save(
-        shell,
-        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&foundry_contracts_path),
-    )?;
+
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
+    let contracts = ecosystem_config.get_contracts_config()?;
+    let bridgehub = contracts.core_ecosystem_contracts.bridgehub_proxy_addr;
+    let chain_id = chain_config.chain_id.as_u64();
 
     // Encode calldata for the run function
-    let deploy_paymaster_contract = BaseContract::from(DEPLOYPAYMASTERABI_ABI.clone());
+    let deploy_paymaster_contract = BaseContract::from(IDEPLOYPAYMASTERABI_ABI.clone());
     let calldata = deploy_paymaster_contract
-        .encode("run", (input.bridgehub, input.chain_id.as_u64()))
+        .encode("run", (bridgehub, chain_id))
         .unwrap();
 
     let mut forge = Forge::new(&foundry_contracts_path)

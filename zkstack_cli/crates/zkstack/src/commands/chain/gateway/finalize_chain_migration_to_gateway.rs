@@ -254,7 +254,7 @@ pub async fn run_inner(
     Ok(())
 }
 
-const LOOK_WAITING_TIME_MS: u64 = 1600;
+const LOOK_WAITING_TIME_MS: u64 = 5000;
 
 async fn await_for_migration_to_finalize(
     gateway_provider: &Client<L2>,
@@ -271,7 +271,7 @@ async fn await_for_migration_to_finalize(
     )
     .await?
     {
-        println!("Waiting for migration to finalize...");
+        println!("Waiting for migration to finalize... {}", hash);
         tokio::time::sleep(tokio::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
     }
 
