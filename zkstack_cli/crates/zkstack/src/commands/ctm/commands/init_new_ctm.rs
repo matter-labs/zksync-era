@@ -16,7 +16,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 

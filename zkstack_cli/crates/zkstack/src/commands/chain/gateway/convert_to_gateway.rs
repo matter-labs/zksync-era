@@ -23,7 +23,7 @@ use zkstack_cli_config::{
     },
     override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsGenesisConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
+    ChainConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 use zkstack_cli_types::ProverMode;
 
