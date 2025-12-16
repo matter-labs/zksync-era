@@ -56,7 +56,7 @@ impl GenesisConfigPatch {
         &mut self,
         config: &ContractsGenesisConfig,
     ) -> anyhow::Result<()> {
-        let protocol_semantic_version = config.0.get::<u64>("protocol_semantic_version")?;
+        let protocol_semantic_version = config.packed_protocol_semantic_version()?;
         self.0.insert(
             "genesis_protocol_semantic_version",
             ProtocolSemanticVersion::try_from_packed(protocol_semantic_version.into())
@@ -64,25 +64,18 @@ impl GenesisConfigPatch {
                 .to_string(),
         )?;
 
-        self.0
-            .insert("genesis_root", config.0.get::<String>("genesis_root")?)?;
+        self.0.insert("genesis_root", config.genesis_root_hash()?)?;
         self.0.insert(
             "genesis_rollup_leaf_index",
-            config.0.get::<u64>("genesis_rollup_leaf_index")?,
+            config.rollup_last_leaf_index()?,
         )?;
-        self.0.insert(
-            "genesis_batch_commitment",
-            config.0.get::<String>("genesis_batch_commitment")?,
-        )?;
-        self.0.insert(
-            "bootloader_hash",
-            config.0.get::<String>("bootloader_hash")?,
-        )?;
-        self.0.insert(
-            "default_aa_hash",
-            config.0.get::<String>("default_aa_hash")?,
-        )?;
-        if let Some(data) = config.0.get_opt::<String>("evm_emulator_hash")? {
+        self.0
+            .insert("genesis_batch_commitment", config.genesis_commitment()?)?;
+        self.0
+            .insert("bootloader_hash", config.bootloader_hash()?)?;
+        self.0
+            .insert("default_aa_hash", config.default_aa_hash()?)?;
+        if let Some(data) = config.evm_emulator_hash()? {
             self.0.insert("evm_emulator_hash", data)?;
         }
 
@@ -101,7 +94,27 @@ impl ContractsGenesisConfig {
         RawConfig::read(shell, path).await.map(Self)
     }
 
-    pub fn evm_emulator_hash(&self) -> anyhow::Result<Option<H256>> {
+    pub fn evm_emulator_hash(&self) -> anyhow::Result<Option<String>> {
         self.0.get_opt("evm_emulator_hash")
+    }
+
+    pub fn bootloader_hash(&self) -> anyhow::Result<String> {
+        self.0.get("bootloader_hash")
+    }
+    pub fn default_aa_hash(&self) -> anyhow::Result<String> {
+        self.0.get("default_aa_hash")
+    }
+    pub fn genesis_root_hash(&self) -> anyhow::Result<String> {
+        self.0.get("genesis_root")
+    }
+    pub fn rollup_last_leaf_index(&self) -> anyhow::Result<u64> {
+        self.0.get("genesis_rollup_leaf_index")
+    }
+    pub fn genesis_commitment(&self) -> anyhow::Result<String> {
+        self.0.get("genesis_batch_commitment")
+    }
+
+    pub fn packed_protocol_semantic_version(&self) -> anyhow::Result<u64> {
+        self.0.get::<u64>("protocol_semantic_version")
     }
 }

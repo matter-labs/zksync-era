@@ -17,7 +17,7 @@ pub struct ContractsGenesis {
 }
 
 impl ContractsGenesis {
-    pub fn semantic_version(&self) -> ProtocolSemanticVersion {
+    pub fn protocol_semantic_version(&self) -> ProtocolSemanticVersion {
         ProtocolSemanticVersion::try_from_packed(self.protocol_semantic_version.into()).unwrap()
     }
     /// **Important:** This method uses blocking I/O.

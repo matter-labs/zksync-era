@@ -327,8 +327,8 @@ pub async fn insert_genesis_batch_with_custom_state(
     // sorting by <address, key>, which is required for calculating genesis parameters.
     let deduped_log_queries = create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
-        genesis_params.config.semantic_version(),
-        &genesis_params.base_system_contracts.clone(),
+        genesis_params.config.protocol_semantic_version(),
+        &genesis_params.base_system_contracts,
         &storage_logs,
         factory_deps,
         verifier_config,
@@ -341,7 +341,7 @@ pub async fn insert_genesis_batch_with_custom_state(
     let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
         deduped_log_queries,
         base_system_contract_hashes,
-        genesis_params.config.semantic_version().minor,
+        genesis_params.config.protocol_semantic_version().minor,
     )?;
 
     save_genesis_l1_batch_metadata(
