@@ -1,17 +1,16 @@
 use args::{
-    fees::FeesArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
-    rust::RustArgs, upgrade::UpgradeArgs,
+    fees::FeesArgs, gateway_migration::GatewayMigrationArgs, integration::IntegrationArgs,
+    recovery::RecoveryArgs, revert::RevertArgs, rust::RustArgs,
+    token_balance_migration::TokenBalanceMigrationArgs, upgrade::UpgradeArgs,
 };
 use clap::Subcommand;
 use xshell::Shell;
 
-use crate::commands::dev::{
-    commands::test::args::gateway_migration::GatewayMigrationArgs,
-    messages::{
-        MSG_BUILD_ABOUT, MSG_GATEWAY_TEST_ABOUT, MSG_INTEGRATION_TESTS_ABOUT,
-        MSG_L1_CONTRACTS_ABOUT, MSG_LOADTEST_ABOUT, MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT,
-        MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT, MSG_TEST_WALLETS_INFO, MSG_UPGRADE_TEST_ABOUT,
-    },
+use crate::commands::dev::messages::{
+    MSG_BUILD_ABOUT, MSG_GATEWAY_TEST_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT,
+    MSG_LOADTEST_ABOUT, MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT,
+    MSG_RUST_TEST_ABOUT, MSG_TEST_WALLETS_INFO, MSG_TOKEN_BALANCE_MIGRATION_TEST_ABOUT,
+    MSG_UPGRADE_TEST_ABOUT,
 };
 
 mod args;
@@ -26,6 +25,7 @@ mod prover;
 mod recovery;
 mod revert;
 mod rust;
+mod token_balance_migration;
 mod upgrade;
 pub mod utils;
 mod wallet;
@@ -56,6 +56,8 @@ pub enum TestCommands {
     Loadtest,
     #[clap(about = MSG_GATEWAY_TEST_ABOUT, alias = "gm")]
     GatewayMigration(GatewayMigrationArgs),
+    #[clap(about = MSG_TOKEN_BALANCE_MIGRATION_TEST_ABOUT, alias = "tbm")]
+    TokenBalanceMigration(TokenBalanceMigrationArgs),
 }
 
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
@@ -72,5 +74,6 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Wallet => wallet::run(shell),
         TestCommands::Loadtest => loadtest::run(shell).await,
         TestCommands::GatewayMigration(args) => gateway_migration::run(shell, args),
+        TestCommands::TokenBalanceMigration(args) => token_balance_migration::run(shell, args),
     }
 }
