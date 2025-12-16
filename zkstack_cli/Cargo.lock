@@ -8072,6 +8072,7 @@ dependencies = [
  "strum 0.26.3",
  "thiserror 2.0.12",
  "tokio",
+ "toml",
  "url",
  "xshell",
  "zkstack_cli_common",
