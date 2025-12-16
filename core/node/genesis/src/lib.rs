@@ -2,11 +2,14 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::{collections::HashMap, fmt::Formatter};
+use std::{collections::HashMap, fmt::Formatter, path::PathBuf};
 
 use anyhow::Context as _;
 use kzg::ZK_SYNC_BYTES_PER_BLOB;
-use zksync_config::GenesisConfig;
+use zksync_config::{
+    configs::{ContractsGenesis, DEFAULT_GENESIS_FILE_PATH},
+    GenesisConfig,
+};
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
     GENESIS_UPGRADE_EVENT,
@@ -86,6 +89,54 @@ pub struct GenesisParams {
     config: GenesisConfig,
 }
 
+pub struct GenesisParamsInitials {
+    pub base_system_contracts: BaseSystemContracts,
+    pub system_contracts: Vec<DeployedContract>,
+    pub config: ContractsGenesis,
+}
+
+impl GenesisParamsInitials {
+    pub fn load_params() -> Self {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let system_contracts = get_system_smart_contracts();
+        let config = ContractsGenesis::read(&PathBuf::from(DEFAULT_GENESIS_FILE_PATH)).unwrap();
+        Self {
+            base_system_contracts,
+            system_contracts,
+            config,
+        }
+    }
+}
+
+impl From<GenesisParams> for GenesisParamsInitials {
+    fn from(genesis_state: GenesisParams) -> Self {
+        Self {
+            base_system_contracts: genesis_state.base_system_contracts,
+            system_contracts: genesis_state.system_contracts,
+            config: ContractsGenesis {
+                protocol_semantic_version: genesis_state
+                    .config
+                    .protocol_version
+                    .unwrap()
+                    .pack()
+                    .as_u64(),
+                genesis_root: genesis_state.config.genesis_root_hash.unwrap_or_default(),
+                genesis_rollup_leaf_index: genesis_state
+                    .config
+                    .rollup_last_leaf_index
+                    .unwrap_or_default(),
+                genesis_batch_commitment: genesis_state
+                    .config
+                    .genesis_commitment
+                    .unwrap_or_default(),
+                bootloader_hash: genesis_state.config.bootloader_hash.unwrap_or_default(),
+                default_aa_hash: genesis_state.config.default_aa_hash.unwrap_or_default(),
+                evm_emulator_hash: genesis_state.config.evm_emulator_hash,
+            },
+        }
+    }
+}
+
 impl GenesisParams {
     pub fn system_contracts(&self) -> &[DeployedContract] {
         &self.system_contracts
@@ -102,26 +153,6 @@ impl GenesisParams {
         base_system_contracts: BaseSystemContracts,
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
-        let base_system_contracts_hashes = BaseSystemContractsHashes {
-            bootloader: config
-                .bootloader_hash
-                .ok_or(GenesisError::MalformedConfig("bootloader_hash"))?,
-            default_aa: config
-                .default_aa_hash
-                .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-            evm_emulator: config.evm_emulator_hash,
-        };
-        if base_system_contracts_hashes != base_system_contracts.hashes() {
-            return Err(GenesisError::BaseSystemContractsHashes(Box::new(
-                BaseContractsHashError {
-                    from_config: base_system_contracts_hashes,
-                    calculated: base_system_contracts.hashes(),
-                },
-            )));
-        }
-        if config.protocol_version.is_none() {
-            return Err(GenesisError::MalformedConfig("protocol_version"));
-        }
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -234,13 +265,13 @@ pub fn make_genesis_batch_params(
 
 pub async fn insert_genesis_batch_with_custom_state(
     storage: &mut Connection<'_, Core>,
-    genesis_params: &GenesisParams,
+    genesis_params: &GenesisParamsInitials,
     custom_genesis_state: Option<GenesisState>,
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
-        snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
-        fflonk_snark_wrapper_vk_hash: genesis_params.config.fflonk_snark_wrapper_vk_hash,
+        snark_wrapper_vk_hash: H256::zero(),
+        fflonk_snark_wrapper_vk_hash: None,
     };
 
     // if a custom genesis state was provided, read storage logs and factory dependencies from there
@@ -275,8 +306,8 @@ pub async fn insert_genesis_batch_with_custom_state(
     // sorting by <address, key>, which is required for calculating genesis parameters.
     let deduped_log_queries = create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
-        genesis_params.protocol_version(),
-        genesis_params.base_system_contracts(),
+        genesis_params.config.semantic_version(),
+        &genesis_params.base_system_contracts.clone(),
         &storage_logs,
         factory_deps,
         verifier_config,
@@ -284,22 +315,12 @@ pub async fn insert_genesis_batch_with_custom_state(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let base_system_contract_hashes = BaseSystemContractsHashes {
-        bootloader: genesis_params
-            .config
-            .bootloader_hash
-            .ok_or(GenesisError::MalformedConfig("bootloader"))?,
-        default_aa: genesis_params
-            .config
-            .default_aa_hash
-            .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-        evm_emulator: genesis_params.config.evm_emulator_hash,
-    };
+    let base_system_contract_hashes = genesis_params.base_system_contracts.hashes();
 
     let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
         deduped_log_queries,
         base_system_contract_hashes,
-        genesis_params.minor_protocol_version(),
+        genesis_params.config.semantic_version().minor,
     )?;
 
     save_genesis_l1_batch_metadata(
@@ -317,7 +338,7 @@ pub async fn insert_genesis_batch_with_custom_state(
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
     storage: &mut Connection<'_, Core>,
-    genesis_params: &GenesisParams,
+    genesis_params: &GenesisParamsInitials,
 ) -> Result<GenesisBatchParams, GenesisError> {
     insert_genesis_batch_with_custom_state(storage, genesis_params, None).await
 }
@@ -426,7 +447,7 @@ pub async fn ensure_genesis_state(
         rollup_last_leaf_index,
     } = insert_genesis_batch_with_custom_state(
         &mut transaction,
-        genesis_params,
+        &(genesis_params.clone().into()),
         custom_genesis_state,
     )
     .await?;

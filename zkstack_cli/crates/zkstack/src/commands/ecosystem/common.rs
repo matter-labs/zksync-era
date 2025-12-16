@@ -20,7 +20,8 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
+    ContractsConfigForDeployERC20, ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig,
+    GenesisConfig,
 };
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
@@ -46,7 +47,7 @@ pub async fn deploy_l1_core_contracts(
     let deploy_config_path = DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS
         .input(&config.path_to_foundry_scripts_for_ctm(vm_option));
     let genesis_config_path = config.default_genesis_path(vm_option);
-    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
+    let default_genesis_config = ContractsGenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params

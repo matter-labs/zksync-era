@@ -29,10 +29,6 @@ impl GenesisConfig {
         self.0.get("l1_batch_commit_data_generator_mode")
     }
 
-    pub fn evm_emulator_hash(&self) -> anyhow::Result<Option<H256>> {
-        self.0.get_opt("evm_emulator_hash")
-    }
-
     pub fn patched(self) -> GenesisConfigPatch {
         GenesisConfigPatch(self.0.patched())
     }
@@ -53,7 +49,52 @@ impl GenesisConfigPatch {
         Ok(())
     }
 
+    pub fn update_from_contracts_genesis(
+        &mut self,
+        config: &ContractsGenesisConfig,
+    ) -> anyhow::Result<()> {
+        self.0.insert(
+            "genesis_protocol_semantic_version",
+            config.0.get::<u64>("protocol_semantic_version")?,
+        )?;
+
+        self.0
+            .insert("genesis_root", config.0.get::<String>("genesis_root")?)?;
+        self.0.insert(
+            "genesis_rollup_leaf_index",
+            config.0.get::<u64>("genesis_rollup_leaf_index")?,
+        )?;
+        self.0.insert(
+            "genesis_commitment",
+            config.0.get::<String>("genesis_batch_commitment")?,
+        )?;
+        self.0.insert(
+            "bootloader_hash",
+            config.0.get::<String>("bootloader_hash")?,
+        )?;
+        self.0.insert(
+            "default_aa_hash",
+            config.0.get::<String>("default_aa_hash")?,
+        )?;
+        // self.0
+        //     .insert("evm_emulator_hash", config.0.get_opt("evm_emulator_hash")?)?;
+
+        Ok(())
+    }
+
     pub async fn save(self) -> anyhow::Result<()> {
         self.0.save().await
+    }
+}
+
+#[derive(Debug)]
+pub struct ContractsGenesisConfig(pub(crate) RawConfig);
+impl ContractsGenesisConfig {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
+        RawConfig::read(shell, path).await.map(Self)
+    }
+
+    pub fn evm_emulator_hash(&self) -> anyhow::Result<Option<H256>> {
+        self.0.get_opt("evm_emulator_hash")
     }
 }

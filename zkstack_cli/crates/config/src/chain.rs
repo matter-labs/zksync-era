@@ -14,8 +14,8 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, CONTRACTS_PATH, EN_CONFIG_FILE, ERA_VM_GENESIS_FILE,
-        GENERAL_FILE, L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS, SECRETS_FILE, WALLETS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, CONTRACTS_PATH, EN_CONFIG_FILE, GENERAL_FILE,
+        L1_CONTRACTS_FOUNDRY_INSIDE_CONTRACTS, SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
     gateway::GatewayConfig,
@@ -24,9 +24,9 @@ use crate::{
         FileConfigTrait, FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
     },
-    ContractsConfig, EcosystemConfig, GatewayChainConfig, GeneralConfig, GenesisConfig,
-    SecretsConfig, WalletsConfig, ZkStackConfigTrait, CONFIGS_PATH, GATEWAY_CHAIN_FILE,
-    ZKSYNC_OS_GENESIS_FILE,
+    ContractsConfig, ContractsGenesisConfig, EcosystemConfig, GatewayChainConfig, GeneralConfig,
+    GenesisConfig, SecretsConfig, WalletsConfig, ZkStackConfigTrait, CONFIGS_PATH,
+    GATEWAY_CHAIN_FILE,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -188,6 +188,11 @@ impl ChainConfig {
         GatewayConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
+    pub async fn get_contracts_genesis_config(&self) -> anyhow::Result<ContractsGenesisConfig> {
+        let path = self.path_to_default_genesis_config();
+        ContractsGenesisConfig::read(self.get_shell(), &path).await
+    }
+
     pub async fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
         GatewayChainConfig::read(self.get_shell(), &self.path_to_gateway_chain_config()).await
     }
@@ -201,9 +206,18 @@ impl ChainConfig {
     }
 
     pub fn path_to_genesis_config(&self) -> PathBuf {
+        // FIXME need to return proper configs
         match self.vm_option {
-            VMOption::EraVM => self.configs.join(ERA_VM_GENESIS_FILE),
-            VMOption::ZKSyncOsVM => self.configs.join(ZKSYNC_OS_GENESIS_FILE),
+            VMOption::EraVM => self.configs.join("genesis.yaml"),
+            VMOption::ZKSyncOsVM => self.configs.join("genesis.toml"),
+        }
+    }
+
+    pub fn path_to_default_genesis_config(&self) -> PathBuf {
+        let genesis_path = self.path_to_contracts_config().join("configs/genesis");
+        match self.vm_option {
+            VMOption::EraVM => genesis_path.join("era/latest.toml"),
+            VMOption::ZKSyncOsVM => genesis_path.join("zksync_os/latest.toml"),
         }
     }
 
