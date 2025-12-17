@@ -17,7 +17,7 @@ pub struct ContractsGenesis {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,
-    pub l1verifier_config: L1VerifierConfig,
+    pub prover: L1VerifierConfig,
 }
 
 impl ContractsGenesis {

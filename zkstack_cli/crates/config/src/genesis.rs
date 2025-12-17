@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
     L2ChainId,
@@ -60,6 +61,10 @@ impl GenesisConfigPatch {
         self.0.insert_yaml(
             "l1_batch_commit_data_generator_mode",
             config.l1_batch_commit_data_generator_mode,
+        )?;
+        self.0.insert_yaml(
+            "prover.dummy_verifier",
+            config.prover_version == ProverMode::NoProofs,
         )?;
         Ok(())
     }
