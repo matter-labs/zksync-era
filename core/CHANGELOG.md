@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.7.0](https://github.com/matter-labs/zksync-era/compare/core-v29.6.0...core-v29.7.0) (2025-11-28)
+
+
+### Features
+
+* add metrics for sendRawTransactionSync ([#4576](https://github.com/matter-labs/zksync-era/issues/4576)) ([b8b6683](https://github.com/matter-labs/zksync-era/commit/b8b668386209f79146d80568567e5bf8526a954a))
+
 ## [29.6.0](https://github.com/matter-labs/zksync-era/compare/core-v29.5.0...core-v29.6.0) (2025-11-17)
 
 
