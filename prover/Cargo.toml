@@ -73,16 +73,16 @@ fflonk = "=0.32.6"
 franklin-crypto = "=0.32.6"
 
 # zksync-protocol dependencies
-circuit_definitions = "=0.153.4"
-circuit_sequencer_api = "=0.153.4"
-zkevm_test_harness = "=0.153.4"
+circuit_definitions = "=0.153.5"
+circuit_sequencer_api = "=0.153.5"
+zkevm_test_harness = "=0.153.5"
 
 # zksync-crypto-gpu dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.155.4" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.4" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.4" }
-shivini = "=0.155.4"
-boojum-cuda = "=0.155.4"
+proof-compression-gpu = { package = "proof-compression", version = "=0.155.5" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.155.5" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.155.5" }
+shivini = "=0.155.5"
+boojum-cuda = "=0.155.5"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
