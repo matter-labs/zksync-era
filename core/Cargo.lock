@@ -5055,9 +5055,7 @@ version = "29.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.40",
- "serde",
  "tokio",
- "toml 0.9.8",
  "tracing",
  "zksync_config",
  "zksync_contracts",

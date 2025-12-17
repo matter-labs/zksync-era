@@ -1,11 +1,14 @@
 use std::{fs, io::Write, path::Path};
 
 use anyhow::Context;
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, H256};
+use zksync_basic_types::{
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    H256,
+};
 
 pub const DEFAULT_GENESIS_FILE_PATH: &str = "../contracts/configs/genesis/era/latest.toml";
 
-#[derive(Debug, Clone, PartialOrd, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ContractsGenesis {
     pub protocol_semantic_version: u64,
     pub genesis_root: H256,
@@ -14,6 +17,7 @@ pub struct ContractsGenesis {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,
+    pub l1verifier_config: L1VerifierConfig,
 }
 
 impl ContractsGenesis {
@@ -22,7 +26,7 @@ impl ContractsGenesis {
     }
     /// **Important:** This method uses blocking I/O.
     pub fn read(path: &Path) -> anyhow::Result<Self> {
-        Ok(toml::from_str(&fs::read_to_string(&path).with_context(
+        Ok(toml::from_str(&fs::read_to_string(path).with_context(
             || format!("failed reading genesis config file at {:?}", path),
         )?)?)
     }
@@ -34,7 +38,7 @@ impl ContractsGenesis {
             .with_context(|| format!("failed creating genesis config file at {:?}", path))?;
         let string =
             toml::to_string_pretty(&self).context("failed serializing config to YAML string")?;
-        file.write(string.as_bytes())?;
+        file.write_all(string.as_bytes())?;
         Ok(())
     }
 }
