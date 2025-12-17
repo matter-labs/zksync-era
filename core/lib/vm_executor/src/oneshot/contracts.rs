@@ -116,8 +116,9 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version28 => &self.vm_precompiles,
             ProtocolVersionId::Version29 => &self.interop,
             ProtocolVersionId::Version30 => &self.medium_interop,
-            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version31 => &self.medium_interop,
+            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version32 => &self.medium_interop,
         };
         base.clone()
     }
