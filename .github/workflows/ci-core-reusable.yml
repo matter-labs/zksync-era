@@ -63,7 +63,6 @@ jobs:
       - name: Install yarn
         run: |
           npm install -g yarn
-
       - name: Check contracts hashes
         working-directory: contracts
         run: |
@@ -151,7 +150,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
-        tested_chain_type: [ "era", "validium", "custom_token"]
+        tested_chain_type: [ "era", "validium", "custom_token" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:

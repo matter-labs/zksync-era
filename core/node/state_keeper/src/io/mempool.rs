@@ -18,7 +18,7 @@ use zksync_multivm::{
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType},
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx,
     server_notification::GatewayMigrationState,
@@ -68,6 +68,7 @@ pub struct MempoolIO {
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
+    l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
     pubdata_type: PubdataType,
     pubdata_limit: u64,
     last_batch_protocol_version: Option<ProtocolVersionId>,
@@ -505,6 +506,7 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
         l2_da_validator_address: Option<Address>,
+        l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
         pubdata_type: PubdataType,
         settlement_layer: Option<SettlementLayer>,
     ) -> anyhow::Result<Self> {
@@ -524,6 +526,7 @@ impl MempoolIO {
             batch_fee_input_provider,
             chain_id,
             l2_da_validator_address,
+            l2_da_commitment_scheme,
             pubdata_type,
             pubdata_limit: config.seal_criteria.max_pubdata_per_batch.0,
             last_batch_protocol_version: None,
@@ -532,16 +535,27 @@ impl MempoolIO {
     }
 
     fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
+        // Starting from v30 we have to use commitment schema instead of address
         let pubdata_params = match (
-            protocol_version.is_pre_gateway(),
+            protocol_version.is_pre_medium_interop(),
             self.l2_da_validator_address,
+            self.l2_da_commitment_scheme,
         ) {
-            (true, _) => PubdataParams::default(),
-            (false, Some(l2_da_validator_address)) => PubdataParams {
-                l2_da_validator_address,
-                pubdata_type: self.pubdata_type,
-            },
-            (false, None) => anyhow::bail!("L2 DA validator address not found"),
+            (true, Some(l2_da_validator_address), _) => PubdataParams::new(
+                L2PubdataValidator::Address(l2_da_validator_address),
+                self.pubdata_type,
+            )?,
+            (false, _, Some(l2_da_commitment_scheme)) => PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(l2_da_commitment_scheme),
+                self.pubdata_type,
+            )?,
+            (_, _, _) => anyhow::bail!(
+                "Inconsistent   pubdata parameters: \
+                l2_da_validator_address: {:?}, l2_da_commitment_scheme: {:?}, protocol_version: {:?}",
+                self.l2_da_validator_address,
+                self.l2_da_commitment_scheme,
+                protocol_version
+            ),
         };
 
         Ok(pubdata_params)

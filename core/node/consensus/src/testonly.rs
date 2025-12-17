@@ -42,6 +42,7 @@ use zksync_state_keeper::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
+    commitment::PubdataParams,
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     settlement::SettlementLayer,
@@ -264,7 +265,7 @@ impl StateKeeper {
                         l1_gas_price: 100,
                     }),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
-                    pubdata_params: Default::default(),
+                    pubdata_params: PubdataParams::genesis(),
                     pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
                         .then_some(100_000),
                 },
