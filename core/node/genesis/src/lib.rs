@@ -133,6 +133,10 @@ impl From<GenesisParams> for GenesisParamsInitials {
                 bootloader_hash: genesis_state.config.bootloader_hash.unwrap_or_default(),
                 default_aa_hash: genesis_state.config.default_aa_hash.unwrap_or_default(),
                 evm_emulator_hash: genesis_state.config.evm_emulator_hash,
+                prover: L1VerifierConfig {
+                    snark_wrapper_vk_hash: genesis_state.config.snark_wrapper_vk_hash,
+                    fflonk_snark_wrapper_vk_hash: genesis_state.config.fflonk_snark_wrapper_vk_hash,
+                },
             },
         }
     }
@@ -290,10 +294,6 @@ pub async fn insert_genesis_batch_with_custom_state(
     custom_genesis_state: Option<GenesisState>,
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
-    let verifier_config = L1VerifierConfig {
-        snark_wrapper_vk_hash: H256::zero(),
-        fflonk_snark_wrapper_vk_hash: None,
-    };
 
     // if a custom genesis state was provided, read storage logs and factory dependencies from there
     let (storage_logs, factory_deps): (Vec<StorageLog>, HashMap<H256, Vec<u8>>) =
@@ -331,7 +331,7 @@ pub async fn insert_genesis_batch_with_custom_state(
         &genesis_params.base_system_contracts,
         &storage_logs,
         factory_deps,
-        verifier_config,
+        genesis_params.config.prover,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");

@@ -73,8 +73,10 @@ pub enum ProtocolVersionId {
     Version27,
     Version28,
     Version29,
+    // Version `30` was skipped as an Era upgrade due to version clash with ZKsync OS.
     Version30,
     Version31,
+    // Speculative next protocol version for the upgrade integration tests etc.
     Version32,
 }
 
@@ -84,7 +86,7 @@ impl ProtocolVersionId {
     }
 
     pub const fn next() -> Self {
-        Self::Version31
+        Self::Version32
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -132,8 +134,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmInterop,
             // Note V30 is only present on zksync os
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
             ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,

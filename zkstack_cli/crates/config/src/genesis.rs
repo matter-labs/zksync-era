@@ -1,6 +1,8 @@
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
     L2ChainId,
@@ -10,6 +12,17 @@ use crate::{
     raw::{PatchedConfig, RawConfig},
     ChainConfig,
 };
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct L1VerifierConfig {
+    // Rename is required to not introduce breaking changes in the API for existing clients.
+    #[serde(
+        alias = "recursion_scheduler_level_vk_hash",
+        rename(serialize = "recursion_scheduler_level_vk_hash")
+    )]
+    pub snark_wrapper_vk_hash: String,
+    pub fflonk_snark_wrapper_vk_hash: Option<String>,
+}
 
 #[derive(Debug)]
 pub struct GenesisConfig(pub(crate) RawConfig);
@@ -49,6 +62,10 @@ impl GenesisConfigPatch {
             "l1_batch_commit_data_generator_mode",
             config.l1_batch_commit_data_generator_mode,
         )?;
+        self.0.insert_yaml(
+            "prover.dummy_verifier",
+            config.prover_version == ProverMode::NoProofs,
+        )?;
         Ok(())
     }
 
@@ -56,6 +73,8 @@ impl GenesisConfigPatch {
         &mut self,
         config: &ContractsGenesisConfig,
     ) -> anyhow::Result<()> {
+        let l1_verifier: L1VerifierConfig = config.0.get("prover")?;
+
         let protocol_semantic_version = config.packed_protocol_semantic_version()?;
         self.0.insert(
             "genesis_protocol_semantic_version",
@@ -77,6 +96,14 @@ impl GenesisConfigPatch {
             .insert("default_aa_hash", config.default_aa_hash()?)?;
         if let Some(data) = config.evm_emulator_hash()? {
             self.0.insert("evm_emulator_hash", data)?;
+        }
+        self.0.insert(
+            "prover.recursion_scheduler_level_vk_hash",
+            l1_verifier.snark_wrapper_vk_hash,
+        )?;
+        if let Some(fflonk_vk_hash) = l1_verifier.fflonk_snark_wrapper_vk_hash {
+            self.0
+                .insert("prover.fflonk_snark_wrapper_vk_hash", fflonk_vk_hash)?;
         }
 
         Ok(())
