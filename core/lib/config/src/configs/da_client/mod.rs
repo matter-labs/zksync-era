@@ -192,6 +192,8 @@ mod tests {
             gas_relay:
               gas_relay_api_url: https://lens-turbo-api.availproject.org
               max_retries: 4
+              referer_header: zksync
+              dispatch_timeout: 2s
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
