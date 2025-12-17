@@ -8,6 +8,7 @@ use super::{
     create_configs::create_initial_deployments_config,
 };
 use crate::{
+    abi::IDEPLOYCTMABI_ABI,
     commands::ctm::commands::init_new_ctm::deploy_new_ctm,
     messages::{
         MSG_BUILDING_ECOSYSTEM, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_TXN_OUTRO,
@@ -15,9 +16,24 @@ use crate::{
     },
 };
 
-const DEPLOY_TRANSACTIONS_FILE_SRC: &str =
-    "l1-contracts/broadcast/DeployCTM.s.sol/9/dry-run/run-latest.json";
 const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
+
+fn get_deploy_transactions_file_src() -> String {
+    use ethers::abi::Abi;
+
+    let abi: &Abi = &IDEPLOYCTMABI_ABI;
+
+    let run_selector = abi
+        .functions()
+        .find(|f| f.name == "run")
+        .map(|f| ethers::utils::hex::encode(f.short_signature()))
+        .expect("run selector not found");
+
+    format!(
+        "l1-contracts/broadcast/DeployCTM.s.sol/9/dry-run/{}-latest.json",
+        run_selector
+    )
+}
 
 const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/config-deploy-l1.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
@@ -61,7 +77,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
     shell.copy_file(
         ecosystem_config
             .contracts_path_for_ctm(vm_option)
-            .join(DEPLOY_TRANSACTIONS_FILE_SRC),
+            .join(get_deploy_transactions_file_src()),
         args.out.join(DEPLOY_TRANSACTIONS_FILE_DST),
     )?;
 

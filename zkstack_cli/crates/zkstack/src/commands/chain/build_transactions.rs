@@ -5,6 +5,7 @@ use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{copy_configs, traits::SaveConfigWithBasePath, ZkStackConfig};
 
 use crate::{
+    abi::IREGISTERZKCHAINABI_ABI,
     commands::chain::{
         args::build_transactions::BuildTransactionsArgs, register_chain::register_chain,
     },
@@ -16,8 +17,23 @@ use crate::{
     },
 };
 
-pub const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
-    "l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json";
+fn get_deploy_transactions_file_src() -> String {
+    use ethers::abi::Abi;
+
+    let abi: &Abi = &IREGISTERZKCHAINABI_ABI;
+
+    let run_selector = abi
+        .functions()
+        .find(|f| f.name == "run")
+        .map(|f| ethers::utils::hex::encode(f.short_signature()))
+        .expect("run selector not found");
+
+    format!(
+        "l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/{}-latest.json",
+        run_selector
+    )
+}
+
 pub const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-zk-chain-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/register-zk-chain.toml";
@@ -78,7 +94,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     shell.copy_file(
         config
             .contracts_path_for_ctm(vm_option)
-            .join(REGISTER_CHAIN_TXNS_FILE_SRC),
+            .join(get_deploy_transactions_file_src()),
         args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
