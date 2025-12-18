@@ -475,7 +475,7 @@ describe('Interop behavior checks', () => {
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
         // await waitUntilBlockExecutedOnGateway(senderUtilityWallet, gatewayWallet, txReceipt!.blockNumber);
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
-        await utils.sleep(25000);
+        await utils.sleep(25);
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
         await waitForInteropRootNonZero(
             interop2Provider,
