@@ -601,12 +601,6 @@ pub(super) fn msg_wait_not_healthy(url: &str) -> String {
     format!("Node at `{url}` is not healthy")
 }
 
-pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
-    format!(
-        "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
-    )
-}
-
 pub(super) fn msg_diff_contracts_config(chain: &str) -> String {
     format!(
         "Found differences between chain {chain} and era contracts configs. Consider updating the chain {chain} contracts config and re-running genesis. Diff:"

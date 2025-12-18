@@ -22,6 +22,7 @@ strum.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
+toml.workspace = true
 xshell.workspace = true
 
 zksync_basic_types.workspace = true
