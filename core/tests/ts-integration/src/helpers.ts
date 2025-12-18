@@ -5,10 +5,14 @@ import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 import * as path from 'path';
 import { loadConfig } from 'utils/src/file-configs';
+import {
+    GATEWAY_CHAIN_ID,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    L2_BRIDGEHUB_ADDRESS,
+    ArtifactL2InteropRootStorage
+} from './constants';
 
 import { log } from 'console';
-
-// import { L2_BRIDGEHUB_ADDRESS } from '../src/constants';
 
 /**
  * Loads the test contract
@@ -78,7 +82,6 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
  * @param blockNumber Number of block.
  */
 export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number) {
-    console.log('Waiting for block to be finalized...', blockNumber);
     let printedBlockNumber = 0;
     while (true) {
         const block = await wallet.provider.getBlock('finalized');
@@ -86,8 +89,6 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
             break;
         } else {
             if (printedBlockNumber < block.number) {
-                console.log('Waiting for block to be finalized...', blockNumber, block.number);
-                console.log('time', new Date().toISOString());
                 printedBlockNumber = block.number;
             }
             await zksync.utils.sleep(wallet.provider.pollingInterval);
@@ -95,42 +96,40 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     }
 }
 
-// /**
-//  * Waits until the requested block is finalized.
-//  *
-//  * @param wallet Wallet to use to poll the server.
-//  * @param blockNumber Number of block.
-//  */
-// export async function waitUntilBlockExecutedOnGateway(
-//     wallet: zksync.Wallet,
-//     gwWallet: zksync.Wallet,
-//     blockNumber: number
-// ) {
-//     // console.log('Waiting for block to be finalized...', blockNumber);
-//     let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
-//     let currentExecutedBatchNumber = 0;
-//     while (currentExecutedBatchNumber < batchNumber) {
-//         const bridgehub = new ethers.Contract(
-//             L2_BRIDGEHUB_ADDRESS,
-//             ['function getZKChain(uint256) view returns (address)'],
-//             gwWallet
-//         );
-//         const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net) => net.chainId));
-//         const gettersFacet = new ethers.Contract(
-//             zkChainAddr,
-//             ['function getTotalBatchesExecuted() view returns (uint256)'],
-//             gwWallet
-//         );
-//         currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
-//         // console.log('currentExecutedBatchNumber', currentExecutedBatchNumber);
-//         // console.log('batchNumber awaited', batchNumber);
-//         if (currentExecutedBatchNumber >= batchNumber) {
-//             break;
-//         } else {
-//             await zksync.utils.sleep(wallet.provider.pollingInterval);
-//         }
-//     }
-// }
+/**
+ * Waits until the requested block is finalized.
+ *
+ * @param wallet Wallet to use to poll the server.
+ * @param blockNumber Number of block.
+ */
+export async function waitUntilBlockExecutedOnGateway(
+    wallet: zksync.Wallet,
+    gwWallet: zksync.Wallet,
+    blockNumber: number
+) {
+    const bridgehub = new ethers.Contract(
+        L2_BRIDGEHUB_ADDRESS,
+        ['function getZKChain(uint256) view returns (address)'],
+        gwWallet
+    );
+    const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net) => net.chainId));
+    const gettersFacet = new ethers.Contract(
+        zkChainAddr,
+        ['function getTotalBatchesExecuted() view returns (uint256)'],
+        gwWallet
+    );
+
+    let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
+    let currentExecutedBatchNumber = 0;
+    while (currentExecutedBatchNumber < batchNumber) {
+        currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
+        if (currentExecutedBatchNumber >= batchNumber) {
+            break;
+        } else {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
 
 export async function waitUntilBlockCommitted(wallet: zksync.Wallet, blockNumber: number) {
     console.log('Waiting for block to be committed...', blockNumber);
@@ -189,6 +188,39 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
         await zksync.utils.sleep(wallet.provider.pollingInterval);
         i++;
     }
+}
+
+export async function waitForInteropRootNonZero(
+    provider: zksync.Provider,
+    wallet: zksync.Wallet,
+    l1BatchNumber: number,
+    tokenToTransfer: string
+) {
+    const interopRootStorageAbi = ArtifactL2InteropRootStorage.abi;
+    const l2InteropRootStorage = new zksync.Contract(L2_INTEROP_ROOT_STORAGE_ADDRESS, interopRootStorageAbi, provider);
+
+    let currentRoot = ethers.ZeroHash;
+    let count = 0;
+    while (currentRoot === ethers.ZeroHash && count < 60) {
+        // We make repeated transactions to force the L2 to update the interop root.
+        const tx = await wallet.transfer({
+            to: wallet.address,
+            amount: 1,
+            token: tokenToTransfer
+        });
+        await tx.wait();
+
+        currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+
+        count++;
+    }
+}
+
+export function getGWBlockNumber(params: zksync.types.FinalizeWithdrawalParams): number {
+    /// see hashProof in MessageHashing.sol for this logic.
+    let gwProofIndex = 1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+    return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
 }
 
 export async function getDeploymentNonce(provider: zksync.Provider, address: string): Promise<bigint> {
@@ -278,4 +310,51 @@ export function getL2bUrl(chainName: string) {
     });
     const url = config.api.web3_json_rpc.http_url;
     return url;
+}
+
+/**
+ * Formats an Ethereum address as ERC-7930 InteroperableAddress bytes
+ * Format: version (2 bytes) + chain type (2 bytes) + chain ref len (1 byte) + chain ref + addr len (1 byte) + address
+ */
+export function formatEvmV1Address(address: string, chainId?: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    if (chainId !== undefined) {
+        // Convert chainId to minimal bytes representation
+        const chainIdHex = chainId.toString(16);
+        const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+        const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+        result += chainRefLen + chainIdBytes;
+    } else {
+        result += '00'; // Empty chain reference
+    }
+
+    result += '14'; // Address length (20 bytes)
+    result += address.slice(2); // Remove '0x' prefix
+
+    return '0x' + result;
+}
+
+/**
+ * Formats a chain ID as ERC-7930 InteroperableAddress bytes (without specific address)
+ * This is used for destination chain specification in sendBundle
+ */
+export function formatEvmV1Chain(chainId: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    // Convert chainId to minimal bytes representation
+    const chainIdHex = chainId.toString(16);
+    const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+    const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+    result += chainRefLen + chainIdBytes;
+
+    result += '00'; // Empty address (0 length)
+
+    return '0x' + result;
 }
