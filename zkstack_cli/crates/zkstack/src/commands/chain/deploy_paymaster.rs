@@ -1,15 +1,18 @@
+use ethers::contract::BaseContract;
 use xshell::Shell;
 use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
 use zkstack_cli_config::{
     forge_interface::{
-        paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
-        script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
+        paymaster::DeployPaymasterOutput, script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{ReadConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait,
 };
 
-use crate::utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner};
+use crate::{
+    abi::IDEPLOYPAYMASTERABI_ABI,
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+};
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
@@ -37,17 +40,24 @@ pub async fn deploy_paymaster(
     broadcast: bool,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let input = DeployPaymasterInput::new(chain_config)?;
     let foundry_contracts_path = chain_config.path_to_foundry_scripts();
-    input.save(
-        shell,
-        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&foundry_contracts_path),
-    )?;
+
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
+    let contracts = ecosystem_config.get_contracts_config()?;
+    let bridgehub = contracts.core_ecosystem_contracts.bridgehub_proxy_addr;
+    let chain_id = chain_config.chain_id.as_u64();
+
+    // Encode calldata for the run function
+    let deploy_paymaster_contract = BaseContract::from(IDEPLOYPAYMASTERABI_ABI.clone());
+    let calldata = deploy_paymaster_contract
+        .encode("run", (bridgehub, chain_id))
+        .unwrap();
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(l1_rpc_url);
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

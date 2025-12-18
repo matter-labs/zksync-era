@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use ethers::{
-    abi::{parse_abi, Token},
+    abi::Token,
     contract::BaseContract,
     types::{Address, Bytes},
     utils::hex,
@@ -24,40 +24,14 @@ use zkstack_cli_types::VMOption;
 use zksync_basic_types::{commitment::L2DACommitmentScheme, U256};
 
 use crate::{
+    abi::ADMINFUNCTIONSABI_ABI,
     commands::chain::admin_call_builder::{decode_admin_calls, AdminCall},
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
-    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function governanceAcceptOwner(address governor, address target) public",
-            "function chainAdminAcceptAdmin(address admin, address target) public",
-            "function pauseDepositsBeforeInitiatingMigration(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function unpauseDeposits(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, uint8 _l2DaCommitmentScheme, bool _shouldSend) public",
-            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, uint8 _l2DaCommitmentScheme, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
-            "function makePermanentRollup(address chainAdmin, address target) public",
-            "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
-            "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
-            "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
-            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
-            "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
-            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address[] calldata _grantee, bool _shouldSend)",
-            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, address refundRecipient, bool _shouldSend) public view",
-            "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public",
-            "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, address refundRecipient,bool shouldSend) public",
-            "function adminL1L2Tx(address bridgehub,uint256 l1GasPrice,uint256 chainId,address to,uint256 value,bytes calldata data,address refundRecipient,bool _shouldSend) public",
-            "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)",
-            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)",
-            "function enableValidator(address bridgehub,uint256 l2ChainId,address validatorAddress,address validatorTimelock,bool _shouldSend) public",
-            "function ecosystemAdminExecuteCalls(bytes memory callsToExecute, address ecosystemAdminAddr)"
-        ])
-        .unwrap(),
-    );
+    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(ADMINFUNCTIONSABI_ABI.clone());
 }
 
 pub async fn accept_admin(

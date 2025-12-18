@@ -1,4 +1,4 @@
-use ethers::{abi::parse_abi, contract::BaseContract, types::H160};
+use ethers::{contract::BaseContract, types::H160};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -21,6 +21,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
 use crate::{
+    abi::IDEPLOYCTMABI_ABI,
     admin_functions::{accept_admin, accept_owner},
     commands::{
         ctm::{args::InitNewCTMArgs, commands::set_new_ctm_contracts::set_new_ctm_contracts},
@@ -31,10 +32,7 @@ use crate::{
 };
 
 lazy_static! {
-    static ref DEPLOY_CTM_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&["function runWithBridgehub(address bridgehub, bool reuseGovAndAdmin) public",])
-            .unwrap(),
-    );
+    static ref DEPLOY_CTM_FUNCTIONS: BaseContract = BaseContract::from(IDEPLOYCTMABI_ABI.clone());
 }
 pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
     let vm_option = args.common.vm_option();

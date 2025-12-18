@@ -1,4 +1,5 @@
 use anyhow::Context;
+use ethers::contract::BaseContract;
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
@@ -16,6 +17,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
+    abi::IREGISTERZKCHAINABI_ABI,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -63,10 +65,26 @@ pub async fn register_chain(
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
+    // Prepare calldata for the register chain script
+    let register_chain_contract = BaseContract::from(IREGISTERZKCHAINABI_ABI.clone());
+
+    let ctm = contracts.ctm(chain_config.vm_option);
+    let calldata = register_chain_contract
+        .encode(
+            "run",
+            (
+                contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
+                ctm.state_transition_proxy_addr,
+                chain_config.chain_id.as_u64(),
+            ),
+        )
+        .unwrap();
+
     let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(l1_rpc_url);
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
 
     if broadcast {
         forge = forge.with_broadcast();

@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{parse_abi, Address},
+    abi::Address,
     contract::{BaseContract, Contract},
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
@@ -34,19 +34,19 @@ use zksync_system_constants::{
 use zksync_types::L2ChainId;
 
 use crate::{
+    abi::{IGATEWAYMIGRATETOKENBALANCESABI_ABI, IL2ASSETROUTERABI_ABI, IL2NATIVETOKENVAULTABI_ABI},
     commands::dev::commands::{rich_account, rich_account::args::RichAccountArgs},
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
-    static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrationOnL1(bool, address, uint256, uint256, string, string, bool, bytes32[]) public",
-            "function checkAllMigrated(uint256, string) public",
-        ])
-            .unwrap(),
-    );
+    static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract =
+        BaseContract::from(IGATEWAYMIGRATETOKENBALANCESABI_ABI.clone());
+    static ref L2_NTV_FUNCTIONS: BaseContract =
+        BaseContract::from(IL2NATIVETOKENVAULTABI_ABI.clone());
+    static ref L2_ASSET_ROUTER_FUNCTIONS: BaseContract =
+        BaseContract::from(IL2ASSETROUTERABI_ABI.clone());
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -200,10 +200,7 @@ pub async fn migrate_token_balances_from_gateway(
         // Get bridged token count and asset IDs
         let ntv = Contract::new(
             L2_NATIVE_TOKEN_VAULT_ADDRESS,
-            parse_abi(&[
-                "function bridgedTokensCount() view returns (uint256)",
-                "function bridgedTokens(uint256) view returns (bytes32)",
-            ])?,
+            L2_NTV_FUNCTIONS.abi().clone(),
             client.clone(),
         );
         let count: U256 = ntv
@@ -223,7 +220,7 @@ pub async fn migrate_token_balances_from_gateway(
         // Add base token asset ID
         let router = Contract::new(
             L2_ASSET_ROUTER_ADDRESS,
-            parse_abi(&["function BASE_TOKEN_ASSET_ID() view returns (bytes32)"])?,
+            L2_ASSET_ROUTER_FUNCTIONS.abi().clone(),
             Arc::new(provider),
         );
         asset_ids.push(
@@ -234,19 +231,17 @@ pub async fn migrate_token_balances_from_gateway(
         );
 
         // Migrate each token
-        let (tracker_addr, method_sig) = if to_gateway {
-            (
-                L2_ASSET_TRACKER_ADDRESS,
-                "function initiateL1ToGatewayMigrationOnL2(bytes32)",
-            )
+        let tracker_addr = if to_gateway {
+            L2_ASSET_TRACKER_ADDRESS
         } else {
-            (
-                GW_ASSET_TRACKER_ADDRESS,
-                "function initiateGatewayToL1MigrationOnGateway(uint256,bytes32)",
-            )
+            GW_ASSET_TRACKER_ADDRESS
         };
 
-        let tracker = Contract::new(tracker_addr, parse_abi(&[method_sig])?, client);
+        let tracker = Contract::new(
+            tracker_addr,
+            crate::abi::IL2ASSETTRACKERABI_ABI.clone(),
+            client,
+        );
 
         for asset_id in asset_ids {
             println!(
