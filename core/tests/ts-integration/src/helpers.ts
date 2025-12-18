@@ -193,11 +193,11 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
 export async function waitForInteropRootNonZero(
     provider: zksync.Provider,
     wallet: zksync.Wallet,
-    l1BatchNumber: number,
-    tokenToTransfer: string
+    l1BatchNumber: number
 ) {
     const interopRootStorageAbi = ArtifactL2InteropRootStorage.abi;
     const l2InteropRootStorage = new zksync.Contract(L2_INTEROP_ROOT_STORAGE_ADDRESS, interopRootStorageAbi, provider);
+    const baseTokenAddress = await provider.getBaseTokenContractAddress();
 
     let currentRoot = ethers.ZeroHash;
     let count = 0;
@@ -206,7 +206,7 @@ export async function waitForInteropRootNonZero(
         const tx = await wallet.transfer({
             to: wallet.address,
             amount: 1,
-            token: tokenToTransfer
+            token: baseTokenAddress
         });
         await tx.wait();
 

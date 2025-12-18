@@ -83,7 +83,6 @@ describe('Interop behavior checks', () => {
     let gatewayWallet: zksync.Wallet;
 
     let isSameBaseToken: boolean;
-    let tokenToTransfer: string;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -106,11 +105,6 @@ describe('Interop behavior checks', () => {
             ArtifactL1BridgeHub.abi,
             mainAccount.providerL1
         );
-
-        const baseToken = await mainAccount.getBaseToken();
-        console.error('ETH_ADDRESS:', zksync.utils.ETH_ADDRESS);
-        console.error('baseToken:', baseToken);
-        console.error('tokenDetails.l2Address', tokenDetails.l2Address);
 
         if (
             (await bridgehub.settlementLayer((await mainAccount.provider.getNetwork()).chainId)) ==
@@ -208,10 +202,6 @@ describe('Interop behavior checks', () => {
 
         isSameBaseToken =
             testMaster.environment().baseToken.l1Address == testMaster.environment().baseTokenSecondChain!.l1Address;
-        tokenToTransfer =
-            testMaster.environment().baseToken.l1Address == zksync.utils.ETH_ADDRESS
-                ? zksync.utils.ETH_ADDRESS
-                : tokenDetails.l2Address;
     });
 
     let withdrawalHash: string;
@@ -242,7 +232,7 @@ describe('Interop behavior checks', () => {
         params = await mainAccount.getFinalizeWithdrawalParams(withdrawalHash, undefined, 'proof_based_gw');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(mainAccount.provider, mainAccount, getGWBlockNumber(params), tokenToTransfer);
+        await waitForInteropRootNonZero(mainAccount.provider, mainAccount, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             Number((await mainAccount.provider.getNetwork()).chainId),
@@ -269,8 +259,7 @@ describe('Interop behavior checks', () => {
         await waitForInteropRootNonZero(
             mainAccountSecondChain.provider,
             mainAccountSecondChain,
-            getGWBlockNumber(params),
-            tokenToTransfer
+            getGWBlockNumber(params)
         );
 
         // We use the same proof that was verified in L2-A
@@ -477,12 +466,7 @@ describe('Interop behavior checks', () => {
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
         await utils.sleep(25);
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
-        await waitForInteropRootNonZero(
-            interop2Provider,
-            interop2RichWallet,
-            getGWBlockNumber(params),
-            tokenToTransfer
-        );
+        await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, getGWBlockNumber(params));
 
         // Get interop trigger and bundle data from the sender chain.
         const executionBundle = await getInteropBundleData(senderProvider, txHash, 0);
