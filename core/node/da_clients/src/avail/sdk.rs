@@ -453,6 +453,7 @@ pub(crate) struct GasRelayClient {
     api_url: String,
     api_key: String,
     max_retries: usize,
+    referer_header: String,
     api_client: Arc<reqwest::Client>,
 }
 
@@ -478,12 +479,14 @@ impl GasRelayClient {
         api_url: &str,
         api_key: &str,
         max_retries: usize,
+        referer_header: &str,
         api_client: Arc<reqwest::Client>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             api_url: api_url.to_owned(),
             api_key: api_key.to_owned(),
             max_retries,
+            referer_header: referer_header.to_owned(),
             api_client,
         })
     }
@@ -496,6 +499,7 @@ impl GasRelayClient {
             .post(&submit_url)
             .body(Bytes::from(data))
             .header("Content-Type", "application/octet-stream")
+            .header("Referer", &self.referer_header)
             .header("x-api-key", &self.api_key)
             .send()
             .await
