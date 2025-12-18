@@ -1,10 +1,5 @@
 import { describe, it } from 'vitest';
-import {
-    createChainAndStartServer,
-    TESTED_CHAIN_TYPE,
-    gatewayMigrationToGatewayTest,
-    gatewayMigrationFromGatewayTest
-} from '../src';
+import { createChainAndStartServer, TESTED_CHAIN_TYPE, gatewayMigrationFromGatewayTest } from '../src';
 
 const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
 const shouldSkip = useGatewayChain !== 'WITH_GATEWAY';
@@ -27,6 +22,7 @@ if (shouldSkip) {
 
         await gatewayMigrationFromGatewayTest(testChain.chainName);
 
-        await gatewayMigrationToGatewayTest(testChain.chainName);
+        // This flow is no longer supported as part of v31, it will be supported on later versions
+        // await gatewayMigrationToGatewayTest(testChain.chainName);
     });
 });
