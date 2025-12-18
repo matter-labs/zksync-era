@@ -192,7 +192,7 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
 
 export async function waitForInteropRootNonZero(
     provider: zksync.Provider,
-    alice: zksync.Wallet,
+    wallet: zksync.Wallet,
     l1BatchNumber: number
 ) {
     const interopRootStorageAbi = ArtifactL2InteropRootStorage.abi;
@@ -203,15 +203,15 @@ export async function waitForInteropRootNonZero(
     let count = 0;
     while (currentRoot === ethers.ZeroHash && count < 60) {
         // We make repeated transactions to force the L2 to update the interop root.
-        const tx = await alice.transfer({
-            to: alice.address,
+        const tx = await wallet.transfer({
+            to: wallet.address,
             amount: 1,
             token: baseTokenAddress
         });
         await tx.wait();
 
         currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
-        await zksync.utils.sleep(alice.provider.pollingInterval);
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
 
         count++;
     }

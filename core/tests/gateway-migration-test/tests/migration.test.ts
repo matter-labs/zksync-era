@@ -248,61 +248,8 @@ describe('Migration from gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
-        if (direction == 'TO') {
-            const secretsPath = path.join(pathToHome, `chains/${fileConfig.chain}/configs/secrets.yaml`);
-            let secretsContent = await fs.readFile(secretsPath, 'utf-8');
-            if (!secretsContent.includes('gateway_rpc_url')) {
-                const gatewayGeneralConfig = loadConfig({
-                    pathToHome,
-                    chain: gatewayChain,
-                    config: 'general.yaml'
-                });
-                const gatewayPort = gatewayGeneralConfig?.api?.web3_json_rpc?.http_port;
-                if (gatewayPort) {
-                    console.log(`Patching secrets.yaml with gateway_rpc_url: http://127.0.0.1:${gatewayPort}`);
-                    secretsContent = secretsContent.replace(
-                        /l1_rpc_url: .*/,
-                        (match) => `${match}\n  gateway_rpc_url: http://127.0.0.1:${gatewayPort}`
-                    );
-                    await fs.writeFile(secretsPath, secretsContent);
-                }
-            }
-        }
-
-        console.log('Waiting for server health check...');
         await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
-        console.log('Server health check passed.');
-
-        // Ensure API is reachable before attempting transaction
-        let ready = false;
-        for (let i = 0; i < 30; i++) {
-            try {
-                const bn = await tester.web3Provider.getBlockNumber();
-                console.log(`API is ready. Block number: ${bn}`);
-                ready = true;
-                break;
-            } catch (e: any) {
-                console.log(`Waiting for API to be ready: ${e.message}`);
-                await utils.sleep(1);
-            }
-        }
-        if (!ready) {
-            throw new Error(
-                'Server API not reachable after wait. The server likely crashed - check logs/migration/ or logs/server/ for panics.'
-            );
-        }
-
-        console.log('Checking alice balance...');
-        try {
-            const balance = await alice.getBalance();
-            console.log(`Alice balance: ${balance}`);
-        } catch (e: any) {
-            console.error('Failed to get alice balance:', e);
-            throw e;
-        }
-
         // Execute an L2 transaction
-        console.log('Executing transaction...');
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
     });
@@ -401,29 +348,6 @@ describe('Migration from gateway test', function () {
 
     async function waitForAllBatchesToBeExecuted() {
         let tryCount = 0;
-
-        // Ensure all sealed batches on L2 are committed to L1 before proceeding
-        if (direction == 'TO') {
-            while (tryCount < 100) {
-                try {
-                    const l2BatchNumber = BigInt(await tester.web3Provider.getL1BatchNumber());
-                    const l1BatchNumber = await l1MainContract.getTotalBatchesCommitted();
-
-                    if (l2BatchNumber <= l1BatchNumber) {
-                        break;
-                    }
-
-                    console.log(
-                        `Waiting for sealed batches to be committed. L2: ${l2BatchNumber}, L1: ${l1BatchNumber}`
-                    );
-                } catch (e) {
-                    console.log('Error checking batch status, retrying:', e);
-                }
-                await utils.sleep(1);
-                tryCount += 1;
-            }
-        }
-
         let totalBatchesCommitted = await getTotalBatchesCommitted();
         let totalBatchesExecuted = await getTotalBatchesExecuted();
         while (totalBatchesCommitted !== totalBatchesExecuted && tryCount < 100) {

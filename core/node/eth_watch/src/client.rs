@@ -16,7 +16,6 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     ethabi::{decode, Contract, ParamType},
     protocol_version::ProtocolSemanticVersion,
-    u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
@@ -113,6 +112,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
+    chain_type_manager_abi: Contract,
     message_root_abi: Contract,
     l1_asset_router_abi: Contract,
     wrapped_base_token_store_abi: Contract,
@@ -162,6 +162,7 @@ where
                 .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
+            chain_type_manager_abi: state_transition_manager_contract(),
             message_root_abi: l2_message_root(),
             l1_asset_router_abi: l1_asset_router_contract(),
             wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
@@ -295,27 +296,23 @@ where
 
     async fn block_for_diamond_cut_for_version(
         &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<U64>> {
+        packed_version: U256,
+    ) -> Result<Option<U64>, ContractCallError> {
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
             return Ok(None);
         };
 
-        let to_block = self.client.block_number().await?;
-        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
-
-        let logs = self
-            .get_events_inner(
-                from_block.into(),
-                to_block.into(),
-                Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![packed_version]),
-                Some(vec![state_transition_manager_address]),
-                RETRY_LIMIT,
+        let result: U256 = CallFunctionArgs::new("upgradeCutDataBlock", packed_version)
+            .for_contract(
+                state_transition_manager_address,
+                &self.chain_type_manager_abi,
             )
+            .call(&self.client)
             .await?;
-
-        Ok(logs.into_iter().next().and_then(|log| log.block_number))
+        if result.is_zero() {
+            return Ok(None);
+        }
+        Ok(Some(U64::from(result.as_u64())))
     }
 }
 
@@ -458,11 +455,17 @@ where
             return Ok(vec![]);
         };
 
-        let to_block = self.client.block_number().await?;
-
         let from_block = self
-            .block_for_diamond_cut_for_version(u256_to_h256(from_version.pack()))
-            .await?
+            .block_for_diamond_cut_for_version(from_version.pack())
+            .await
+            .map_err(|e| {
+                EnrichedClientError::custom(
+                    format!(
+                        "Failed to get block for diamond cut for version {from_version}: err {e}"
+                    ),
+                    "diamond_cuts_since_version",
+                )
+            })?
             .ok_or(EnrichedClientError::custom(
                 format!("No diamond cut found for version {from_version}"),
                 "diamond_cuts_since_version",
@@ -470,14 +473,12 @@ where
             .map_err(|e| {
                 tracing::error!("{e}");
                 e
-            })
-            .unwrap_or(to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into()))
-            + 1;
+            })?;
 
         let logs = self
             .get_events_inner(
                 from_block.into(),
-                to_block.into(),
+                from_block.into(),
                 Some(vec![self.new_upgrade_cut_data_signature]),
                 None,
                 Some(vec![state_transition_manager_address]),

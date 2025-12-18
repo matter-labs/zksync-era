@@ -76,6 +76,7 @@ pub enum ProtocolVersionId {
     // Version `30` was skipped as an Era upgrade due to version clash with ZKsync OS.
     Version30,
     Version31,
+    // Speculative next protocol version for the upgrade integration tests etc.
     Version32,
 }
 
