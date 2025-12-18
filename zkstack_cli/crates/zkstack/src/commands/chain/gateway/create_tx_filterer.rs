@@ -1,6 +1,8 @@
 use anyhow::Context;
+use clap::Parser;
 use ethers::{abi::parse_abi, contract::BaseContract};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
@@ -19,9 +21,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
-    admin_functions::{set_transaction_filterer, AdminScriptMode},
-    messages::MSG_CHAIN_NOT_INITIALIZED,
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    admin_functions::{AdminScriptMode, set_transaction_filterer}, commands::ecosystem::args::common::CommonEcosystemArgs, messages::MSG_CHAIN_NOT_INITIALIZED, utils::forge::{WalletOwner, check_the_balance, fill_forge_private_key}
 };
 
 lazy_static! {
@@ -29,13 +29,26 @@ lazy_static! {
         BaseContract::from(parse_abi(&["function runWithInputFromFile() public"]).unwrap(),);
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub(crate) struct CreateTxFiltererArgs {
+    #[command(flatten)]
+    pub common: CommonEcosystemArgs,
+
+    #[clap(flatten)]
+    forge_args: ForgeScriptArgs,
+}
+
+pub async fn run(args: CreateTxFiltererArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = if let Some(x) = args.common.l1_rpc_url { 
+        x 
+    } else {
+        chain_config.get_secrets_config().await?.l1_rpc_url()?
+    };
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
 
     let chain_deployer_wallet = chain_config
@@ -45,7 +58,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let output: GatewayTxFiltererOutput = deploy_gateway_tx_filterer(
         shell,
-        args.clone(),
+        args.forge_args.clone(),
         &chain_config,
         &chain_deployer_wallet,
         GatewayTxFiltererInput::new(
@@ -58,7 +71,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     set_transaction_filterer(
         shell,
-        &args,
+        &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
         chain_config.chain_id.as_u64(),

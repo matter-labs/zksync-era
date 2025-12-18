@@ -28,7 +28,7 @@ pub enum GatewayComamnds {
         finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayArgs,
     ),
     /// Deploy tx filterer and set it for gateway
-    CreateTxFilterer(ForgeScriptArgs),
+    CreateTxFilterer(create_tx_filterer::CreateTxFiltererArgs),
     /// Prepare chain to be an eligible gateway
     ConvertToGateway(convert_to_gateway::ConvertToGatewayArgs),
     /// Migrate chain to gateway

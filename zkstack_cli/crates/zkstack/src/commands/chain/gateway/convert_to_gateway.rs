@@ -31,13 +31,12 @@ use zkstack_cli_types::ProverMode;
 use crate::{
     abi::BridgehubAbi,
     admin_functions::{
-        governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
-        AdminScriptMode,
+        AdminScriptMode, governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist
     },
-    commands::chain::utils::display_admin_script_output,
+    commands::{chain::utils::display_admin_script_output, ecosystem::args::common::CommonEcosystemArgs},
     consts::PATH_TO_GATEWAY_OVERRIDE_CONFIG,
     messages::MSG_CHAIN_NOT_INITIALIZED,
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    utils::forge::{WalletOwner, check_the_balance, fill_forge_private_key},
 };
 
 lazy_static! {
@@ -48,6 +47,9 @@ lazy_static! {
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ConvertToGatewayArgs {
+    #[command(flatten)]
+    pub common: CommonEcosystemArgs,
+
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
@@ -78,7 +80,11 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = if let Some(x) = convert_to_gw_args.common.l1_rpc_url { 
+        x 
+    } else {
+        chain_config.get_secrets_config().await?.l1_rpc_url()?
+    };
     let chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config, chain_config.vm_option)?;
