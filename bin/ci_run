@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Trigger CI run
 
 # Runs the command from within CI docker-compose environment.
 cd $ZKSYNC_HOME
