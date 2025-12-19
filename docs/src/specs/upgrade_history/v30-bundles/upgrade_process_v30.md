@@ -1,32 +1,27 @@
-# Upgrade process for v30
+# Upgrade process for v31
 
 ## Intro and prerequisites
 
-This document explores what the upgrade to v30 will look like for chains. This document assumes your overall
-understanding of our system prior to v29 and what the system looks like after v30.
+This document explores what the upgrade to v31 will look like for chains. This document assumes your overall
+understanding of our system prior to v29 and what the system looks like after v31 (note V30 is skipped on Era, as it is used on ZKSync OS).
 
 Especially the following documents must be read first:
 
 - [Asset Tracker](../../contracts/bridging/asset_tracker/asset_tracker.md). This document is especially important as it
-  explores what are the expected state of the system prior to v30 upgrade.
+  explores what are the expected state of the system prior to v31 upgrade.
 - [Message Root](../../contracts/interop/message_root.md).
 
-Quick recap on what the system is expected to look like when v30 reaches mainnet:
+Quick recap on what the system is expected to look like when v31 reaches mainnet:
 
-- The ecosystem has only one ZK Gateway and it is Era based. Only Era-based chains can migrate there. So whenever
-  something happens on Gateway one can assume that nothing malicious can happen there.
-- Some chains may be settling on top of Era based ZK Gateway (we plan to
+- The ecosystem has only one deprecated ZK Gateway and it is Era based. Only Era-based chains had migrated there. So one can assume that nothing malicious has happened on Gateway.
+- All the chains that once settled on Gateway have migrated back to L1. No chains may be settling on top of Era based ZK Gateway (we plan to
   [migrate them back to L1](#stopping-deposits-for-zk-gateway) before the upgrade starts).
-- On L1 a separate CTM, temporarily controlled by a multisig is deployed. This is where ZKsync OS chains reside and
-  these chains must be treated as potentially totally malicious with regard to Era based chains.
+- On L1 a separate ZKSync OS CTM is deployed. This CTM is initially controlled by a multisig, but ownership will be transferred to a decentralized governance prior to the V31 upgrade. Before ownership is transferred, the ZKSync OS chains must be treated as potentially totally malicious with regard to Era based chains.
 
-What future state of the system should v30 support:
+What future state of the system should v31 support:
 
-- Two ZK Gateways, one of which is ZKsync OS based. This will only happen after ZKsync OS CTM gets under control of the
-  decentralized governance and so its L1 implementation can be trusted.
-- Note, that right after v30 upgrade ZKsync OS chains may be still be controlled by a temporary multisig, the transition
-  to the decentralized governance is a prerequisite for a ZKsync OS powered Gateway CTM though.
-- Chains can still only migrate within their respective CTMs (will be changed in the future releases).
+- A new ZKSync OS based Gateways.
+- Note, that by the time of the v31 upgrade ZKsync OS chains will be controlled by the decentralized governance.
 
 ## Ecosystem Upgrade process
 
@@ -40,19 +35,12 @@ The biggest complexities of the upgrade process are:
 The overall upgrade will consist of the usual three steps:
 
 - **Stage0.** We pause all migrations to the ZK Gateway. This is just a standard step done during every upgrde. Almost
-  nothing changes at this point, except for the fact that chains wont be able to change their settlement layer. Note, that we will also [ensure](#stopping-deposits-for-zk-gateway) that no chains are settling on top of ZK Gateway at the time of this upgrade.
-- **Stage1.** We upgrade all contracts on L1 as well as the CTM inside ZK Gateway (via L1->GW transaction as usual).
+  nothing changes at this point, except for the fact that chains wont be able to change their settlement layer. Note, that we will also [ensure](#stopping-deposits-for-zk-gateway) that no chains are settling on top of ZK Gateway at the time of this upgrade, and Gateway will be deprecated.
+- **Stage1.** We upgrade all contracts on L1 for the Core contracts, and both CTMs. Usually this is when the CTM inside ZK Gateway is also upgraded (via L1->GW transaction as usual). However at this point the EraVM Gateway will be deprecated.
   Will be done ~2 days after the previous stage.
 - **Stage2.** We unblock migrations, will be done very soon after the previous stage.
 
-### Further chain upgrades
-
-All ZK chains can only upgrade to v30 only if the Era-based ZK Gateway does so. In case the ZK Gateway wont be
-responsive, the worst case scenario is that chains will not be able to upgrade to the new version, which is while
-unfortunate, is unlikely and in such case the decentralized governance can have a new vote to amend the upgrade process.
-The chains will continue settling on L1 without any issue using the previous version.
-
-The `SettlementLayerV30Upgrade` will be the upgrade implementation for each chain.
+The `SettlementLayerV31Upgrade` will be the upgrade implementation for each chain.
 
 #### Stopping deposits for ZK Gateway
 
@@ -63,19 +51,18 @@ In reality, it is very hard to distinguish between relayed deposits and the norm
 processed all priority transactions.
 
 The easiest way to ensure that the condition above holds is to put a requirement that at the time of `stage0` all chains
-have migrated to L1. The additional requirement for this approach is a new `TransactionFilterer` that would ensure that
-no chain is allowed to migrate on top of ZK Gateway right before the upgrade as well as to ensure that no priority
-transactions will be incoming.
+have migrated to L1, and to deprecate the EraVM Gateway. Deprecation will happen with a new `TransactionFilterer` that would ensure that
+no chain is allowed to migrate on top of ZK Gateway.
 
 ## Chain balance migration
 
 ### When settling on L1
 
-Right after stage1 of the v30 upgrade, the bridging contracts will start using `L1AssetTracker` to track users balances.
+Right after stage1 of the v31 upgrade, the bridging contracts will start using `L1AssetTracker` to track users balances.
 So balances of chains will have to be migrated to allow finalizing withdrawals.
 
-To migrate a balance for a token, a chain can call `migrateTokenBalanceFromNTVV30`. During such migration, the chain
-balance mapping zeroed out on L1NativeTokenVault and given to the corresponding chain inside L1AssetTracker. During the
+To migrate a balance for a token, a chain can call `migrateTokenBalanceFromNTVV31`. During such migration, the chain
+balance mapping is zeroed out on L1NativeTokenVault and given to the corresponding chain inside L1AssetTracker. During the
 entire process we ensure that the
 [sum invariant](../../contracts/bridging/asset_tracker/asset_tracker.md#total-sum-invariant) is withheld. If the total
 sum of chain balance inside L1NTV for some token is larger than 2^256-1, chains wont be able to migrate its balance to
@@ -83,7 +70,7 @@ their `L1AssetTracker` balance.
 
 #### Security note on malicious token
 
-Note, that since the sum invariant started to be held only starting from v30, it is possible that the sum of token
+Note, that since the sum invariant started to be held only starting from v31, it is possible that the sum of token
 balances for a token is larger than 2^256-1.
 
 One note is that all tokens that originated from L2 are limited by the `totalSupply` variable on L1 inside the bridged
@@ -91,7 +78,7 @@ token, tokens native to L2 can not have total sum of balances on L1 larger than 
 
 Tokens that originated from L1 however, could in theory deposit `2^256-1` tokens to multiple chains. When a chain
 migrates on top of a ZK Gateway, these tokens wont be usable to interop or withdrawals, since unless the chain managed
-to migrate the needed balance via `migrateTokenBalanceFromNTVV30`, the chains balance would be 0 and it Gateway wont
+to migrate the needed balance via `migrateTokenBalanceFromNTVV31`, the chains balance would be 0 and it Gateway wont
 allow to use this token.
 
 In any case, all the invariants that are expected from a token will be preserved and only the users of such tokens will
@@ -102,7 +89,7 @@ be affected and not the chain itself.
 Inside `L2AssetTracker` we only track balances for chain itself to prevent it withdrawing more than `2^256-1` in total
 for each token. All tokens should start with empty balance inside `L2AssetTracker`.
 
-If a token is registered for the first time (after v30), we can just set `2^256-1` balance for it automatically.
+If a token is registered for the first time (after v31), we can just set `2^256-1` balance for it automatically.
 However, if a token has existed before, the situation is trickier, since we never tracked the total withdrawn funds
 before. We will use the heuristic of assigning `token.balanceOf(L2_NATIVE_TOKEN_VAULT)` as the initial total withdrawn
 funds so far.
@@ -130,26 +117,26 @@ acceptable.
 
 ## Populating batch info inside `MessageRoot`
 
-Starting from v30 the MessageRoot contract should be the source of truth for latest chain batch number and chain batch
+Starting from v31 the MessageRoot contract should be the source of truth for latest chain batch number and chain batch
 root. These values need to be populated.
 
 ### During message root upgrade
 
 When `MessageRoot` is upgraded, all the chains that have been existing so far will get their
-`v30UpgradeChainBatchNumber` populated with either `V30_UPGRADE_CHAIN_BATCH_NUMBER_PLACEHOLDER_VALUE_FOR_GATEWAY` or
-`V30_UPGRADE_CHAIN_BATCH_NUMBER_PLACEHOLDER_VALUE_FOR_L1` depending on wheere the chain settled at the time of the
+`v31UpgradeChainBatchNumber` populated with either `V31_UPGRADE_CHAIN_BATCH_NUMBER_PLACEHOLDER_VALUE_FOR_GATEWAY` or
+`V31_UPGRADE_CHAIN_BATCH_NUMBER_PLACEHOLDER_VALUE_FOR_L1` depending on wheere the chain settled at the time of the
 upgrade. Then the chains will populate these values as they upgrade, which is explained in the following sections.
 
 ### Expected chain upgrade behavior
 
-A chain is expected to call `saveV30UpgradeChainBatchNumber` at the time when it upgrades to v30 on its settlement
+A chain is expected to call `saveV31UpgradeChainBatchNumber` at the time when it upgrades to v31 on its settlement
 layer. It must have all of its committed batches executed on the settlement layer.
 
 The `MessageRoot` would query the chain for the total batches executed at that time and will write it down inside the
-`MessageRoot`. It will populate both `v30UpgradeChainBatchNumber` and `currentChainBatchNumber`.
+`MessageRoot`. It will populate both `v31UpgradeChainBatchNumber` and `currentChainBatchNumber`.
 
 Whenever a chain will change its settlement layer, the data will be moved to the message root on the new settlement
-layer. From this point the behavior should be the same as for chains that were spawned with v30 initially.
+layer. From this point the behavior should be the same as for chains that were spawned with v31 initially.
 
 ### Notes on malicious behavior
 
@@ -157,10 +144,10 @@ Before upgrade ZKsync OS powered chains are already expected to exist. They may 
 and so we need to take into account that they may provide malicious values there for the current executed batch.
 
 However, in such case they will only make life harder for themselves: when they will move to a Gateway, only batches
-that have numbers started from `v30UpgradeChainBatchNumber` will be accepted (since then ZK Gateway starts being
+that have numbers started from `v31UpgradeChainBatchNumber` will be accepted (since then ZK Gateway starts being
 responsible for all withdrawals that come from a batch).
 
-Also, when verifying that message from a chain with batch number higher than `v30UpgradeChainBatchNumber` that used a
+Also, when verifying that message from a chain with batch number higher than `v31UpgradeChainBatchNumber` that used a
 settlement layer we will always double check that the settlement layer agreed to the batch.
 
 Additionally, before ZKsync OS chains will even be able to move to a ZKsync OS powered settlement layer, the ZKsync OS
