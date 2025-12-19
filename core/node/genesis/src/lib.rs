@@ -115,12 +115,7 @@ impl From<GenesisParams> for GenesisParamsInitials {
             base_system_contracts: genesis_state.base_system_contracts,
             system_contracts: genesis_state.system_contracts,
             config: ContractsGenesis {
-                protocol_semantic_version: genesis_state
-                    .config
-                    .protocol_version
-                    .unwrap()
-                    .pack()
-                    .as_u64(),
+                protocol_semantic_version: genesis_state.config.protocol_version.unwrap().into(),
                 genesis_root: genesis_state.config.genesis_root_hash.unwrap_or_default(),
                 genesis_rollup_leaf_index: genesis_state
                     .config
