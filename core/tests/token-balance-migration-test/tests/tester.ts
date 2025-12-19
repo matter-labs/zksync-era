@@ -13,35 +13,21 @@ const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
 const TEST_SUIT_NAME = 'AT_CHAIN_MIGRATION_TEST';
 const pathToHome = path.join(__dirname, '../../../..');
 
-const ERC20_EVM_ARTIFACT = JSON.parse(
-    fs
-        .readFileSync(
-            path.join(pathToHome, './contracts/l1-contracts/out/TestnetERC20Token.sol/TestnetERC20Token.json')
-        )
-        .toString()
-);
-const ERC20_EVM_BYTECODE = ERC20_EVM_ARTIFACT.bytecode.object;
-const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
-
-const ERC20_ZKEVM_BYTECODE = JSON.parse(
-    fs
-        .readFileSync(
-            path.join(pathToHome, './contracts/l1-contracts/zkout/TestnetERC20Token.sol/TestnetERC20Token.json')
-        )
-        .toString()
-).bytecode.object;
-
-function readAbi(contractName: string) {
+function readArtifact(contractName: string, outFolder: string = 'out') {
     return JSON.parse(
         fs
             .readFileSync(
                 path.join(pathToHome, `./contracts/l1-contracts/out/${contractName}.sol/${contractName}.json`)
             )
             .toString()
-    ).abi;
+    );
 }
 
-const L2_NTV_ABI = readAbi('L2NativeTokenVault');
+const ERC20_EVM_ARTIFACT = readArtifact('TestnetERC20Token');
+const ERC20_EVM_BYTECODE = ERC20_EVM_ARTIFACT.bytecode.object;
+const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
+
+const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode.object;
 
 function randomTokenProps() {
     const name = 'NAME-' + ethers.hexlify(ethers.randomBytes(4));
@@ -93,7 +79,8 @@ async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet
 }
 
 function getL2Ntv(l2Wallet: zksync.Wallet) {
-    return new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NTV_ABI, l2Wallet);
+    const abi = readArtifact('L2NativeTokenVault').abi;
+    return new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, abi, l2Wallet);
 }
 
 export class ChainHandler {

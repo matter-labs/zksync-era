@@ -126,11 +126,10 @@ describe('Asset tracker migration test', function () {
         gwRichWallet = await prepareRichWallet();
         l1RichWallet = gwRichWallet.ethWallet();
 
-        console.log('Creating a new chain 1...');
+        console.log('Creating a new chain with ETH as the base token...');
         ethChainHandler = await ChainHandler.createNewChain('era');
-        // FIXME: not erc20
-        console.log('Creating a new chain 2...');
-        erc20ChainHandler = await ChainHandler.createNewChain('era');
+        console.log('Creating a new chain with a custom token as the base token...');
+        erc20ChainHandler = await ChainHandler.createNewChain('custom_token');
     });
 
     step('TMP spawn tokens', async function () {
