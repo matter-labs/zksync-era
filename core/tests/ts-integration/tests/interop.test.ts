@@ -72,6 +72,7 @@ describe('Interop behavior checks', () => {
     let interop1TokenA: zksync.Contract;
 
     // Interop2 (Second Chain) Variables
+    let interop2Recipient: zksync.Wallet;
     let interop2RichWallet: zksync.Wallet;
     let interop2Provider: zksync.Provider;
     let interop2InteropHandler: zksync.Contract;
@@ -82,6 +83,7 @@ describe('Interop behavior checks', () => {
     let gatewayProvider: zksync.Provider;
     let gatewayWallet: zksync.Wallet;
 
+    let erc7786AttributeDummy: zksync.Contract;
     let isSameBaseToken: boolean;
 
     beforeAll(async () => {
@@ -128,6 +130,7 @@ describe('Interop behavior checks', () => {
         }
         interop2Provider = mainAccountSecondChain.provider;
         interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
+        interop2Recipient = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, interop2Provider);
 
         // Setup gateway provider and wallet
         gatewayProvider = new RetryProvider(
@@ -199,6 +202,12 @@ describe('Interop behavior checks', () => {
                 overrides: { gasPrice }
             })
         ).wait();
+
+        erc7786AttributeDummy = new zksync.Contract(
+            '0x0000000000000000000000000000000000000000',
+            ArtifactIERC7786Attributes.abi,
+            interop1Wallet
+        );
 
         isSameBaseToken =
             testMaster.environment().baseToken.l1Address == testMaster.environment().baseTokenSecondChain!.l1Address;
@@ -308,29 +317,23 @@ describe('Interop behavior checks', () => {
         if (skipInteropTests) {
             return;
         }
-        const transferAmount = 100n;
+        const tokenTransferAmount = await getAndApproveTransferAmount();
 
-        await Promise.all([
-            // Approve token transfer on Interop1
-            (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
-
-            // Mint tokens for the test wallet on Interop1 for the transfer
-            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
-        ]);
+        // Balances before transfer
+        const senderTokenBalanceBefore = await getTokenBalance(interop1Wallet, tokenA.l2Address!);
+        const recipientTokenBalanceBefore = 0n;
 
         // Compose and send the interop request transaction
-        const erc7786AttributeDummy = new zksync.Contract(
-            '0x0000000000000000000000000000000000000000',
-            ArtifactIERC7786Attributes.abi,
-            interop1Wallet
-        );
-
         const receipt = await fromInterop1RequestInterop(
             // Execution call starters for token transfer
             [
                 {
                     to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                    data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
+                    data: getTokenTransferSecondBridgeData(
+                        tokenA.assetId!,
+                        tokenTransferAmount,
+                        interop2Recipient.address
+                    ),
                     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
                 }
             ]
@@ -341,53 +344,57 @@ describe('Interop behavior checks', () => {
 
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
 
-        // Check the token balance on the second chain
-        const interop1WalletSecondChainBalance = await getTokenBalance({
-            provider: interop2Provider,
-            tokenAddress: tokenA.l2AddressSecondChain!,
-            address: interop2RichWallet.address
-        });
-        expect(interop1WalletSecondChainBalance.toString()).toBe(transferAmount.toString());
+        // Check the token balance on the first chain decreased by the token transfer amount
+        const senderTokenBalance = await getTokenBalance(interop1Wallet, tokenA.l2Address!);
+        expect((senderTokenBalance - senderTokenBalanceBefore).toString()).toBe((-tokenTransferAmount).toString());
+        // Check the token balance on the second chain was increased by the token transfer amount
+        const recipientTokenBalance = await getTokenBalance(interop2Recipient, tokenA.l2AddressSecondChain!);
+        expect((recipientTokenBalance - recipientTokenBalanceBefore).toString()).toBe(tokenTransferAmount.toString());
     });
 
     test('Can perform cross chain bundle', async () => {
         if (skipInteropTests) {
             return;
         }
-        const transferAmount = 100n;
+        const interopCallValue = BigInt(Math.floor(Math.random() * 900) + 100);
+        const tokenTransferAmount = await getAndApproveTransferAmount();
 
-        await Promise.all([
-            // Approve token transfer on Interop1
-            (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
+        const baseTokenAssetId = await interop1NativeTokenVault.assetId(testMaster.environment().baseToken.l2Address);
+        const baseTokenAddressSecondChain = await interop2NativeTokenVault.tokenAddress(baseTokenAssetId);
+        const getRecipientBalance = async (address: string) =>
+            isSameBaseToken
+                ? BigInt(await interop2Provider.getBalance(address))
+                : BigInt(await getTokenBalance(address, baseTokenAddressSecondChain, interop2Provider));
 
-            // Mint tokens for the test wallet on Interop1 for the transfer
-            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
-        ]);
+        // Balances before interop
+        const senderBalanceBefore = await interop1Wallet.getBalance();
+        const senderTokenBalanceBefore = await getTokenBalance(interop1Wallet, tokenA.l2Address!);
+        const interopRecipientBalanceBefore = await getRecipientBalance(dummyInteropRecipient);
+        const recipientTokenBalanceBefore = await getTokenBalance(interop2Recipient, tokenA.l2AddressSecondChain!);
 
         // Compose and send the interop request transaction
-        const erc7786AttributeDummy = new zksync.Contract(
-            '0x0000000000000000000000000000000000000000',
-            ArtifactIERC7786Attributes.abi,
-            interop1Wallet
-        );
-
         const receipt = await fromInterop1RequestInterop(
-            // Execution call starters for token transfer
             [
+                // Execution call starters for token transfer
                 {
                     to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                    data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
-                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
+                    data: getTokenTransferSecondBridgeData(
+                        tokenA.assetId!,
+                        tokenTransferAmount,
+                        interop2Recipient.address
+                    ),
+                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])] // add some indirectCallMessageValue here to test it out
                 },
+                // Execution call starters for interop call
                 {
                     to: formatEvmV1Address(dummyInteropRecipient),
                     data: '0x',
                     callAttributes: [
-                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [transferAmount])
+                        await erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [interopCallValue])
                     ]
                 }
             ],
-            { value: isSameBaseToken ? transferAmount : 0n }
+            { value: isSameBaseToken ? interopCallValue : 0n }
         );
 
         // Broadcast interop transaction from Interop1 to Interop2
@@ -395,13 +402,20 @@ describe('Interop behavior checks', () => {
 
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
 
-        // Check the token balance on the second chain
-        const interop1WalletSecondChainBalance = await getTokenBalance({
-            provider: interop2Provider,
-            tokenAddress: tokenA.l2AddressSecondChain!,
-            address: interop2RichWallet.address
-        });
-        expect(interop1WalletSecondChainBalance.toString()).toBe((2n * transferAmount).toString());
+        // Check the sender balance decreased by the interop call value
+        const senderBalance = await interop1Wallet.getBalance();
+        const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
+        expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - interopCallValue).toString());
+        // Check the token balance on the first chain decreased by the token transfer amount
+        const senderTokenBalance = await getTokenBalance(interop1Wallet, tokenA.l2Address!);
+        expect((senderTokenBalance - senderTokenBalanceBefore).toString()).toBe((-tokenTransferAmount).toString());
+
+        // Check the interop recipient balance increased by the interop call value
+        const interopRecipientBalance = await getRecipientBalance(dummyInteropRecipient);
+        expect((interopRecipientBalance - interopRecipientBalanceBefore).toString()).toBe(interopCallValue.toString());
+        // Check the token balance on the second chain increased by the token transfer amount
+        const recipientTokenBalance = await getTokenBalance(interop2Recipient, tokenA.l2AddressSecondChain!);
+        expect((recipientTokenBalance - recipientTokenBalanceBefore).toString()).toBe(tokenTransferAmount.toString());
     });
 
     // Types for interop call starters and gas fields.
@@ -480,26 +494,37 @@ describe('Interop behavior checks', () => {
     }
 
     /**
-     * Retrieves the token balance for a given address.
+     * Retrieves the token balance for a given wallet or address.
      */
-    async function getTokenBalance({
-        provider,
-        tokenAddress,
-        address
-    }: {
-        provider: zksync.Provider;
-        tokenAddress: string;
-        address: string;
-    }): Promise<bigint> {
-        if (!tokenAddress) {
-            throw new Error('Token address is not provided');
-        }
-        if (tokenAddress === ethers.ZeroAddress) {
-            // Happens when token wasn't deployed yet. Therefore there is no balance.
-            return 0n;
-        }
+    async function getTokenBalance(
+        walletOrAddress: zksync.Wallet | string,
+        tokenAddress: string,
+        explicitProvider?: zksync.Provider
+    ): Promise<bigint> {
+        if (!tokenAddress) throw new Error('Token address is not provided');
+        // Happens when token wasn't deployed yet. Therefore there is no balance.
+        if (tokenAddress === ethers.ZeroAddress) return 0n;
+
+        const address = typeof walletOrAddress === 'string' ? walletOrAddress : walletOrAddress.address;
+        const provider = typeof walletOrAddress === 'string' ? explicitProvider! : walletOrAddress.provider!;
+
         const tokenContract = new zksync.Contract(tokenAddress, ArtifactMintableERC20.abi, provider);
-        return await tokenContract.balanceOf(address);
+        const balance = await tokenContract.balanceOf(address);
+        return balance;
+    }
+
+    async function getAndApproveTransferAmount(): Promise<bigint> {
+        const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
+
+        await Promise.all([
+            // Approve token transfer on Interop1
+            (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
+
+            // Mint tokens for the test wallet on Interop1 for the transfer
+            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
+        ]);
+
+        return transferAmount;
     }
 
     afterAll(async () => {
