@@ -65,6 +65,7 @@ describe('Interop behavior checks', () => {
 
     // Interop1 (Main Chain) Variables
     let interop1Provider: zksync.Provider;
+    let interop1ChainId: bigint;
     let interop1Wallet: zksync.Wallet;
     let interop1RichWallet: zksync.Wallet;
     let interop1InteropCenter: zksync.Contract;
@@ -73,6 +74,7 @@ describe('Interop behavior checks', () => {
 
     // Interop2 (Second Chain) Variables
     let interop2Recipient: zksync.Wallet;
+    let interop2ChainId: bigint;
     let interop2RichWallet: zksync.Wallet;
     let interop2Provider: zksync.Provider;
     let interop2InteropHandler: zksync.Contract;
@@ -96,6 +98,7 @@ describe('Interop behavior checks', () => {
         // Initialize providers
         l1Provider = mainAccount.providerL1!;
         interop1Provider = mainAccount.provider;
+        interop1ChainId = (await interop1Provider.getNetwork()).chainId;
 
         // Initialize Test Master and create wallets for Interop1
         interop1Wallet = new zksync.Wallet(testWalletPK, interop1Provider, l1Provider);
@@ -129,6 +132,7 @@ describe('Interop behavior checks', () => {
             return;
         }
         interop2Provider = mainAccountSecondChain.provider;
+        interop2ChainId = (await interop2Provider.getNetwork()).chainId;
         interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
         interop2Recipient = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, interop2Provider);
 
@@ -336,7 +340,8 @@ describe('Interop behavior checks', () => {
                     ),
                     callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
                 }
-            ]
+            ],
+            { executionAddress: interop2RichWallet.address }
         );
 
         // Broadcast interop transaction from Interop1 to Interop2
@@ -387,6 +392,7 @@ describe('Interop behavior checks', () => {
                     ]
                 }
             ],
+            { executionAddress: interop2RichWallet.address },
             { value: isSameBaseToken ? interopCallValue : 0n }
         );
 
@@ -425,13 +431,30 @@ describe('Interop behavior checks', () => {
     async function fromInterop1RequestInterop(
         //feeCallStarters: InteropCallStarter[], // TODO: v32, skipping feeCallStarters for now
         execCallStarters: InteropCallStarter[],
+        bundleOptions: { executionAddress?: string; unbundlerAddress?: string },
         overrides: ethers.Overrides = {}
     ) {
+        const bundleAttributes = [];
+        if (bundleOptions.executionAddress) {
+            bundleAttributes.push(
+                await erc7786AttributeDummy.interface.encodeFunctionData('executionAddress', [
+                    formatEvmV1Address(bundleOptions.executionAddress, interop2ChainId)
+                ])
+            );
+        }
+        if (bundleOptions.unbundlerAddress) {
+            bundleAttributes.push(
+                await erc7786AttributeDummy.interface.encodeFunctionData('unbundlerAddress', [
+                    formatEvmV1Address(bundleOptions.unbundlerAddress, interop2ChainId)
+                ])
+            );
+        }
+
         const txFinalizeReceipt = (
             await interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await interop2Provider.getNetwork()).chainId),
                 execCallStarters,
-                [],
+                bundleAttributes,
                 overrides
             )
         ).wait();
