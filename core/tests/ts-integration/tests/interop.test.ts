@@ -359,17 +359,10 @@ describe('Interop behavior checks', () => {
         const interopCallValue = BigInt(Math.floor(Math.random() * 900) + 100);
         const tokenTransferAmount = await getAndApproveTransferAmount();
 
-        const baseTokenAssetId = await interop1NativeTokenVault.assetId(testMaster.environment().baseToken.l2Address);
-        const baseTokenAddressSecondChain = await interop2NativeTokenVault.tokenAddress(baseTokenAssetId);
-        const getRecipientBalance = async (address: string) =>
-            isSameBaseToken
-                ? BigInt(await interop2Provider.getBalance(address))
-                : BigInt(await getTokenBalance(address, baseTokenAddressSecondChain, interop2Provider));
-
         // Balances before interop
         const senderBalanceBefore = await interop1Wallet.getBalance();
         const senderTokenBalanceBefore = await getTokenBalance(interop1Wallet, tokenA.l2Address!);
-        const interopRecipientBalanceBefore = await getRecipientBalance(dummyInteropRecipient);
+        const interopRecipientBalanceBefore = await getInterop2BalanceOfInterop1BaseToken(dummyInteropRecipient);
         const recipientTokenBalanceBefore = await getTokenBalance(interop2Recipient, tokenA.l2AddressSecondChain!);
 
         // Compose and send the interop request transaction
@@ -410,8 +403,8 @@ describe('Interop behavior checks', () => {
         const senderTokenBalance = await getTokenBalance(interop1Wallet, tokenA.l2Address!);
         expect((senderTokenBalance - senderTokenBalanceBefore).toString()).toBe((-tokenTransferAmount).toString());
 
-        // Check the interop recipient balance increased by the interop call value
-        const interopRecipientBalance = await getRecipientBalance(dummyInteropRecipient);
+        // Check the dummy interop recipient balance increased by the interop call value
+        const interopRecipientBalance = await getInterop2BalanceOfInterop1BaseToken(dummyInteropRecipient);
         expect((interopRecipientBalance - interopRecipientBalanceBefore).toString()).toBe(interopCallValue.toString());
         // Check the token balance on the second chain increased by the token transfer amount
         const recipientTokenBalance = await getTokenBalance(interop2Recipient, tokenA.l2AddressSecondChain!);
@@ -513,6 +506,21 @@ describe('Interop behavior checks', () => {
         return balance;
     }
 
+    /**
+     * Retrieves the address' balance on Chain B of the base token on Chain A.
+     */
+    async function getInterop2BalanceOfInterop1BaseToken(address: string): Promise<bigint> {
+        const baseTokenAssetId = await interop1NativeTokenVault.assetId(testMaster.environment().baseToken.l2Address);
+        const baseTokenAddressSecondChain = await interop2NativeTokenVault.tokenAddress(baseTokenAssetId);
+
+        return isSameBaseToken
+            ? BigInt(await interop2Provider.getBalance(address))
+            : BigInt(await getTokenBalance(address, baseTokenAddressSecondChain, interop2Provider));
+    }
+
+    /**
+     * Approves and mints a random amount of test tokens and returns the amount.
+     */
     async function getAndApproveTransferAmount(): Promise<bigint> {
         const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
 
