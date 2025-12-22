@@ -12,7 +12,7 @@ use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, u256_to_h256
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
     traits::{FileConfigTrait, FileConfigWithDefaultName},
-    ContractsConfigForDeployERC20, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
+    ContractsConfigForDeployERC20, ContractsGenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 /// Part of the genesis config influencing `DeployGatewayCTMInput`.
@@ -28,9 +28,11 @@ pub struct GenesisInput {
 }
 
 impl GenesisInput {
-    // FIXME: is this enough? (cf. aliases in the "real" config definition)
-    // For supporting zksync os genesis file, we need to have only genesis_root.
-    pub fn new(raw: &GenesisConfig, vmoption: VMOption) -> anyhow::Result<Self> {
+    pub fn new(raw: &ContractsGenesisConfig, vmoption: VMOption) -> anyhow::Result<Self> {
+        let protocol_version: u64 = raw.0.get("protocol_semantic_version")?;
+        // TODO handle error properly
+        let protocol_version =
+            ProtocolSemanticVersion::try_from_packed(U256::from(protocol_version)).unwrap();
         match vmoption {
             VMOption::EraVM => Ok(Self {
                 bootloader_hash: raw.0.get("bootloader_hash")?,
@@ -39,7 +41,7 @@ impl GenesisInput {
                 genesis_root_hash: raw.0.get("genesis_root")?,
                 rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
                 genesis_commitment: raw.0.get("genesis_batch_commitment")?,
-                protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
+                protocol_version,
             }),
             VMOption::ZKSyncOsVM => {
                 let one = u256_to_h256(U256::one());
@@ -52,7 +54,7 @@ impl GenesisInput {
                     default_aa_hash: one,
                     evm_emulator_hash: one,
                     rollup_last_leaf_index: 0,
-                    protocol_version: Default::default(),
+                    protocol_version,
                 })
             }
         }

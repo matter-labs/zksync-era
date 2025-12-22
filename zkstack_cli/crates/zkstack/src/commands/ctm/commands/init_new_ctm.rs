@@ -16,7 +16,7 @@ use zkstack_cli_config::{
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
@@ -173,7 +173,7 @@ pub async fn deploy_new_ctm(
     let deploy_config_path =
         DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(vm_option));
     let genesis_config_path = config.default_genesis_path(vm_option);
-    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
+    let default_genesis_config = ContractsGenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
 
     let wallets_config = config.get_wallets()?;

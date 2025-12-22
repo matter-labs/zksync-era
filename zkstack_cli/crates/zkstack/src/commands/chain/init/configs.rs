@@ -55,7 +55,9 @@ pub async fn init_configs(
 
     // Initialize genesis config
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
+    let contracts_genesis_config = chain_config.get_contracts_genesis_config().await?;
     genesis_config.update_from_chain_config(chain_config)?;
+    genesis_config.update_from_contracts_genesis(&contracts_genesis_config)?;
     genesis_config.save().await?;
 
     let Ok(general_config) = chain_config.get_general_config().await else {

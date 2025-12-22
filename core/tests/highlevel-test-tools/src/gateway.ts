@@ -1,5 +1,6 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
+import { startServer } from './start-server';
 
 /**
  * Global mutex for gateway migration to prevent concurrent migrations

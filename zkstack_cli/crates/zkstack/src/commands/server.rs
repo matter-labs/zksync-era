@@ -8,7 +8,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, WalletsConfig, ZkStackConfig,
-    ZkStackConfigTrait, ERA_VM_GENESIS_FILE, GENERAL_FILE, SECRETS_FILE,
+    ZkStackConfigTrait,
 };
 
 use crate::{
@@ -62,10 +62,11 @@ async fn run_server(
         .run(
             shell,
             mode,
-            chain_config.configs.join(ERA_VM_GENESIS_FILE),
+            // FIX me replace with const
+            chain_config.path_to_genesis_config(),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
-            chain_config.configs.join(GENERAL_FILE),
-            chain_config.configs.join(SECRETS_FILE),
+            chain_config.path_to_general_config(),
+            chain_config.path_to_secrets_config(),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             args.additional_args,
         )

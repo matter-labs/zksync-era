@@ -72,7 +72,7 @@ pub struct MempoolIO {
     pubdata_type: PubdataType,
     pubdata_limit: u64,
     last_batch_protocol_version: Option<ProtocolVersionId>,
-    settlement_layer: Option<SettlementLayer>,
+    settlement_layer: SettlementLayer,
 }
 
 #[async_trait]
@@ -231,7 +231,7 @@ impl StateKeeperIO for MempoolIO {
 
         let gateway_migration_state = self.gateway_status(&mut storage).await;
         // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
-        let interop_roots = if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
+        let interop_roots = if matches!(self.settlement_layer, SettlementLayer::Gateway(_))
             && gateway_migration_state == GatewayMigrationState::NotInProgress
         {
             storage
@@ -508,7 +508,7 @@ impl MempoolIO {
         l2_da_validator_address: Option<Address>,
         l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
         pubdata_type: PubdataType,
-        settlement_layer: Option<SettlementLayer>,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
@@ -591,6 +591,7 @@ impl MempoolIO {
                 ),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit: unsealed_storage_batch.pubdata_limit,
+                settlement_layer: self.settlement_layer,
             }));
         }
 
@@ -685,6 +686,7 @@ impl MempoolIO {
                     fee_address: self.fee_account,
                     fee_input: self.filter.fee_input,
                     pubdata_limit,
+                    settlement_layer: self.settlement_layer,
                 })
                 .await?;
 
@@ -697,17 +699,16 @@ impl MempoolIO {
                 let gateway_migration_state = self.gateway_status(&mut storage).await;
                 let limit = get_bootloader_max_interop_roots_in_batch(protocol_version.into());
                 // We only import interop roots when settling on gateway, but stop doing so when migration is in progress.
-                let interop_roots =
-                    if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
-                        && gateway_migration_state == GatewayMigrationState::NotInProgress
-                    {
-                        storage
-                            .interop_root_dal()
-                            .get_new_interop_roots(limit)
-                            .await?
-                    } else {
-                        vec![]
-                    };
+                let interop_roots = if matches!(self.settlement_layer, SettlementLayer::Gateway(_))
+                    && gateway_migration_state == GatewayMigrationState::NotInProgress
+                {
+                    storage
+                        .interop_root_dal()
+                        .get_new_interop_roots(limit)
+                        .await?
+                } else {
+                    vec![]
+                };
 
                 L2BlockParams::new_raw(timestamp_ms, 1, interop_roots)
             };
@@ -720,6 +721,7 @@ impl MempoolIO {
                 first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,
+                settlement_layer: self.settlement_layer,
             }));
         }
         Ok(None)
@@ -732,7 +734,7 @@ impl MempoolIO {
             .await
             .unwrap();
 
-        GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
+        GatewayMigrationState::from_sl_and_notification(Some(self.settlement_layer), notification)
     }
 
     #[cfg(test)]

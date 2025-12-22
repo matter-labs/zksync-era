@@ -20,7 +20,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
+    ContractsConfigForDeployERC20, ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig,
 };
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
@@ -46,7 +46,7 @@ pub async fn deploy_l1_core_contracts(
     let deploy_config_path = DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS
         .input(&config.path_to_foundry_scripts_for_ctm(vm_option));
     let genesis_config_path = config.default_genesis_path(vm_option);
-    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
+    let default_genesis_config = ContractsGenesisConfig::read(shell, &genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
@@ -204,6 +204,7 @@ pub async fn init_chains(
             make_permanent_rollup: args.make_permanent_rollup,
             no_genesis: genesis_args.is_none(),
             skip_priority_txs: args.skip_priority_txs,
+            pause_deposits: args.pause_deposits,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

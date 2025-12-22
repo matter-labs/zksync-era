@@ -17,7 +17,7 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 
 zkstack chain create \
     --chain-name gateway \
-    --chain-id 505 \
+    --chain-id 506 \
     --prover-mode no-proofs \
     --wallet-creation localhost \
     --l1-batch-commit-data-generator-mode rollup \

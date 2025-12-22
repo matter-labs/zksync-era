@@ -1,8 +1,9 @@
-use ethers::types::{Address, H256};
+use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::FileConfigTrait,
+    forge_interface::{deploy_ecosystem::input::InitialDeploymentConfig, Create2Addresses},
+    traits::FileConfigTrait,
     ContractsConfig,
 };
 
@@ -12,8 +13,7 @@ pub struct GatewayTxFiltererInput {
     pub bridgehub_proxy_addr: Address,
     pub chain_admin: Address,
     pub chain_proxy_admin: Address,
-    pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
+    pub contracts: Create2Addresses,
 }
 
 impl FileConfigTrait for GatewayTxFiltererInput {}
@@ -42,8 +42,10 @@ impl GatewayTxFiltererInput {
             bridgehub_proxy_addr,
             chain_admin,
             chain_proxy_admin,
-            create2_factory_addr,
-            create2_factory_salt,
+            contracts: Create2Addresses {
+                create2_factory_addr,
+                create2_factory_salt,
+            },
         })
     }
 }

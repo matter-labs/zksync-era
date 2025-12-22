@@ -211,6 +211,7 @@ url = "2"
 web3 = "0.19.0"
 yab = "0.1.0"
 c-kzg = { version = "2.1.1", default-features = false }
+toml = "0.9.8"
 
 # Proc-macro
 syn = "2.0"
