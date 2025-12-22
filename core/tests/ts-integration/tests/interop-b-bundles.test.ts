@@ -75,6 +75,7 @@ describe('Interop-B bundles behavior checks', () => {
         );
 
         // Compose and send the interop request transaction
+        const msgValue = ctx.isSameBaseToken ? interopCallValue : 0n;
         const receipt = await ctx.fromInterop1RequestInterop(
             [
                 // Execution call starters for token transfer
@@ -99,7 +100,7 @@ describe('Interop-B bundles behavior checks', () => {
                 }
             ],
             { executionAddress: ctx.interop2RichWallet.address },
-            { value: ctx.isSameBaseToken ? interopCallValue : 0n }
+            { value: msgValue }
         );
 
         // Broadcast interop transaction from Interop1 to Interop2
@@ -110,7 +111,7 @@ describe('Interop-B bundles behavior checks', () => {
         // Check the sender balance decreased by the interop call value
         const senderBalance = await ctx.interop1Wallet.getBalance();
         const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
-        expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - interopCallValue).toString());
+        expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - msgValue).toString());
         // Check the token balance on the first chain decreased by the token transfer amount
         const senderTokenBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
         expect((senderTokenBalance - senderTokenBalanceBefore).toString()).toBe((-tokenTransferAmount).toString());
