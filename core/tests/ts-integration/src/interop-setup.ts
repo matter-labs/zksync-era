@@ -501,9 +501,16 @@ export class InteropTestContext {
     }
 
     /**
+     * Returns a random amount of ETH to transfer.
+     */
+    getTransferAmount(): bigint {
+        return ethers.parseUnits((Math.floor(Math.random() * 900) + 100).toString(), 'gwei');
+    }
+
+    /**
      * Approves and mints a random amount of test tokens and returns the amount.
      */
-    async getAndApproveTransferAmount(): Promise<bigint> {
+    async getAndApproveTokenTransferAmount(): Promise<bigint> {
         const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
 
         await Promise.all([

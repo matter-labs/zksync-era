@@ -19,7 +19,7 @@ describe('Interop-B bundles behavior checks', () => {
 
     test('Can perform cross chain transfer', async () => {
         if (ctx.skipInteropTests) return;
-        const tokenTransferAmount = await ctx.getAndApproveTransferAmount();
+        const tokenTransferAmount = await ctx.getAndApproveTokenTransferAmount();
 
         // Balances before transfer
         const senderTokenBalanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
@@ -60,8 +60,8 @@ describe('Interop-B bundles behavior checks', () => {
 
     test('Can perform cross chain bundle', async () => {
         if (ctx.skipInteropTests) return;
-        const interopCallValue = BigInt(Math.floor(Math.random() * 900) + 100);
-        const tokenTransferAmount = await ctx.getAndApproveTransferAmount();
+        const interopCallValue = ctx.getTransferAmount();
+        const tokenTransferAmount = await ctx.getAndApproveTokenTransferAmount();
 
         // Balances before interop
         const senderBalanceBefore = await ctx.interop1Wallet.getBalance();
