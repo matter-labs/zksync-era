@@ -383,7 +383,7 @@ describe('Interop behavior checks', () => {
                         tokenTransferAmount,
                         interop2Recipient.address
                     ),
-                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])] // add some indirectCallMessageValue here to test it out
+                    callAttributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0])]
                 },
                 // Execution call starters for interop call
                 {
