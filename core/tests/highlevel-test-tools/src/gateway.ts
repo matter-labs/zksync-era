@@ -32,7 +32,16 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
         try {
             await executeCommand(
                 'zkstack',
-                ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
+                [
+                    'chain',
+                    'gateway',
+                    'migrate-to-gateway',
+                    '--chain',
+                    chainName,
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--verbose'
+                ],
                 chainName,
                 'gateway_migration'
             );
@@ -47,7 +56,8 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
                     chainName,
                     '--gateway-chain-name',
                     'gateway',
-                    '--deploy-paymaster'
+                    '--deploy-paymaster',
+                    '--verbose'
                 ],
                 chainName,
                 'gateway_migration'
