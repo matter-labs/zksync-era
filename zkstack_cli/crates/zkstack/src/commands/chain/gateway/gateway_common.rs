@@ -122,6 +122,12 @@ pub(crate) async fn get_migration_transaction(
     let chain_asset_handler =
         IChainAssetHandlerAbi::new(chain_asset_handler_addr, provider.clone());
 
+    logger::info(format!(
+        "Chain Asset Handler Address: {:#?}",
+        chain_asset_handler_addr
+    ));
+    logger::info(format!("L2 Chain ID: {}", l2_chain_id));
+
     let max_interval_to_search = Utc::now() - MAX_SEARCHING_MIGRATION_TXS_INTERVAL;
     let latest_tx_hash: Option<H256> = loop {
         let lower_bound = search_upper_bound.saturating_sub(DEFAULT_EVENTS_BLOCK_RANGE);
@@ -140,6 +146,30 @@ pub(crate) async fn get_migration_transaction(
         let results = ev.query_with_meta().await?;
         if let Some((_, meta)) = results.last() {
             break Some(meta.transaction_hash);
+        }
+
+        logger::info("No event found with the filter. Checking all events in the range...");
+        let all_ev = chain_asset_handler
+            .migration_started_filter()
+            .from_block(lower_bound)
+            .to_block(search_upper_bound);
+
+        match all_ev.query_with_meta().await {
+            Ok(all_results) => {
+                logger::info(format!(
+                    "Found {} events in total (without topic1 filter)",
+                    all_results.len()
+                ));
+                for (event, meta) in all_results {
+                    logger::info(format!(
+                        "Event found: chain_id: {:?}, tx: {:#?}",
+                        event.chain_id, meta.transaction_hash
+                    ));
+                }
+            }
+            Err(e) => {
+                logger::info(format!("Failed to query all events: {:?}", e));
+            }
         }
 
         if lower_bound == 0 {
