@@ -6,7 +6,7 @@ use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
     ZkStackConfigTrait,
 };
-use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, VMOption};
 use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
@@ -245,7 +245,10 @@ pub async fn send_priority_txs(
         .context("l1_da_validator_addr")?;
     let commitment_scheme =
         if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
-            L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            match chain_config.vm_option {
+                VMOption::EraVM => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                VMOption::ZKSyncOsVM => L2DACommitmentScheme::BlobsZksyncOS,
+            }
         } else {
             let da_client_type = chain_config.get_general_config().await?.da_client_type();
 

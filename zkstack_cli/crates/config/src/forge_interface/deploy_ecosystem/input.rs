@@ -28,24 +28,29 @@ pub struct GenesisInput {
 }
 
 impl GenesisInput {
-    pub fn new(raw: &ContractsGenesisConfig, vmoption: VMOption) -> anyhow::Result<Self> {
-        let protocol_version: u64 = raw.0.get("protocol_semantic_version")?;
-        // TODO handle error properly
-        let protocol_version =
-            ProtocolSemanticVersion::try_from_packed(U256::from(protocol_version)).unwrap();
+    pub fn new(
+        contract_genesis_config: &ContractsGenesisConfig,
+        vmoption: VMOption,
+    ) -> anyhow::Result<Self> {
+        let protocol_version = contract_genesis_config.protocol_semantic_version()?;
         match vmoption {
             VMOption::EraVM => Ok(Self {
-                bootloader_hash: raw.0.get("bootloader_hash")?,
-                default_aa_hash: raw.0.get("default_aa_hash")?,
-                evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?.unwrap_or_default(),
-                genesis_root_hash: raw.0.get("genesis_root")?,
-                rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
-                genesis_commitment: raw.0.get("genesis_batch_commitment")?,
+                bootloader_hash: contract_genesis_config.0.get("bootloader_hash")?,
+                default_aa_hash: contract_genesis_config.0.get("default_aa_hash")?,
+                evm_emulator_hash: contract_genesis_config
+                    .0
+                    .get_opt("evm_emulator_hash")?
+                    .unwrap_or_default(),
+                genesis_root_hash: contract_genesis_config.0.get("genesis_root")?,
+                rollup_last_leaf_index: contract_genesis_config
+                    .0
+                    .get("genesis_rollup_leaf_index")?,
+                genesis_commitment: contract_genesis_config.0.get("genesis_batch_commitment")?,
                 protocol_version,
             }),
             VMOption::ZKSyncOsVM => {
                 let one = u256_to_h256(U256::one());
-                let genesis_root = raw.0.get("genesis_root")?;
+                let genesis_root = contract_genesis_config.0.get("genesis_root")?;
                 Ok(Self {
                     genesis_root_hash: genesis_root,
                     // Placeholders, not used in zkSync OS mode. But necessary to be provided.

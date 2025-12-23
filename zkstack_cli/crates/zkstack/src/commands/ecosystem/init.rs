@@ -131,10 +131,7 @@ async fn init_ecosystem(
         .await?;
 
         // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
-        if !init_args.vm_option.is_zksync_os()
-            && ecosystem_config.zksync_os_exist()
-            && init_args.dev
-        {
+        if !init_args.vm_option.is_zksync_os() && init_args.dev {
             rebuild_all_contracts(
                 shell,
                 &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),

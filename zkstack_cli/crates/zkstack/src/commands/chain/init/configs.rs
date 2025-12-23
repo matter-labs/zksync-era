@@ -5,6 +5,7 @@ use zkstack_cli_config::{
     copy_configs, ChainConfig, ConsensusGenesisSpecs, RawConsensusKeys, Weighted, ZkStackConfig,
     ZkStackConfigTrait,
 };
+use zkstack_cli_types::VMOption;
 
 use crate::{
     commands::{
@@ -31,6 +32,14 @@ pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn copy_zksync_os_genesis(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<()> {
+    shell.copy_file(
+        chain_config.path_to_default_genesis_config(),
+        chain_config.path_to_genesis_config(),
+    )?;
+    Ok(())
+}
+
 pub async fn init_configs(
     init_args: &InitConfigsArgsFinal,
     shell: &Shell,
@@ -43,6 +52,10 @@ pub async fn init_configs(
         &chain_config.default_configs_path(),
         &chain_config.configs,
     )?;
+
+    if chain_config.vm_option == VMOption::ZKSyncOsVM {
+        copy_zksync_os_genesis(shell, chain_config)?
+    }
 
     if !init_args.no_port_reallocation {
         ecosystem_ports.allocate_ports_in_yaml(
@@ -57,7 +70,8 @@ pub async fn init_configs(
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     let contracts_genesis_config = chain_config.get_contracts_genesis_config().await?;
     genesis_config.update_from_chain_config(chain_config)?;
-    genesis_config.update_from_contracts_genesis(&contracts_genesis_config)?;
+    genesis_config
+        .update_from_contracts_genesis(&contracts_genesis_config, chain_config.vm_option)?;
     genesis_config.save().await?;
 
     let Ok(general_config) = chain_config.get_general_config().await else {
