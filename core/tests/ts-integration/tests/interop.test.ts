@@ -420,11 +420,19 @@ describe('Interop behavior checks', () => {
         execCallStarters: InteropCallStarter[],
         overrides: ethers.Overrides = {}
     ) {
+        // Create bundle attributes with required useFixedFee attribute
+        // Using false to use operator-set base token fees (should default to 0 for tests)
+        const ierc7786Interface = new ethers.Interface(ArtifactIERC7786Attributes.abi);
+
+        // Note: The InteropCenter will automatically set the unbundler address to msg.sender if not provided
+        // We only need to provide the required useFixedFee attribute
+        const bundleAttributes = [ierc7786Interface.encodeFunctionData('useFixedFee', [false])];
+
         const txFinalizeReceipt = (
             await interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await interop2Provider.getNetwork()).chainId),
                 execCallStarters,
-                [],
+                bundleAttributes,
                 overrides
             )
         ).wait();
