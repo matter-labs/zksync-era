@@ -323,9 +323,18 @@ export class InteropTestContext {
         );
 
         const fileConfig = shouldLoadConfigFromFile();
-        await utils.spawn(
-            `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`
-        );
+        const migrationCmd = `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
+
+        // Migration might sometimes fail, so we retry a few times.
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await utils.spawn(migrationCmd);
+                break;
+            } catch (e) {
+                if (attempt === 3) throw e;
+                await utils.sleep(2 * attempt);
+            }
+        }
 
         // Save State
         const newState = {
