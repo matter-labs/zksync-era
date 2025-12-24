@@ -1,12 +1,9 @@
-use clap::Parser;
-use clap::ValueEnum;
-use serde::Deserialize;
-use serde::Serialize;
+use clap::{Parser, ValueEnum};
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use xshell::Shell;
 
 use super::chain::ChainUpgradeParams;
-
 
 #[derive(
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,

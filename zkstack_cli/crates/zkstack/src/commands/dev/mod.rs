@@ -81,7 +81,6 @@ pub enum DevCommands {
     RunV30ZKsyncOSChainUpgrade(commands::upgrades::args::v30_chain::V30ChainUpgradeArgs),
     #[command(about = V29_CHAIN_UPGRADE)]
     GenerateV30ZKsyncOSChainUpgrade(commands::upgrades::args::v30_chain::V30ChainUpgradeArgs),
-
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {

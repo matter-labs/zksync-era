@@ -4,9 +4,12 @@ use zksync_types::commitment::L2DACommitmentScheme;
 
 use crate::commands::dev::commands::upgrades::{
     args::v30_chain::V30ChainUpgradeArgs,
-    default_chain_upgrade::{AdditionalUpgradeParams, NewDAValidators, UpgradeInfo, get_full_chain_upgrade_params, run_chain_upgrade},
+    default_chain_upgrade::{
+        get_full_chain_upgrade_params, run_chain_upgrade, AdditionalUpgradeParams, NewDAValidators,
+        UpgradeInfo,
+    },
+    types::UpgradeVersion,
 };
-use crate::commands::dev::commands::upgrades::types::UpgradeVersion;
 
 const V30_UPGRADE_VERSION: UpgradeVersion = UpgradeVersion::V30ZkSyncOsBlobs;
 
@@ -17,11 +20,10 @@ pub(crate) async fn run(
 ) -> anyhow::Result<()> {
     let upgrade_info = UpgradeInfo::read(
         shell,
-        get_full_chain_upgrade_params(
-            shell,
-            args_input.base.clone(),
-            V30_UPGRADE_VERSION
-        ).await?.upgrade_description_path.unwrap()
+        get_full_chain_upgrade_params(shell, args_input.base.clone(), V30_UPGRADE_VERSION)
+            .await?
+            .upgrade_description_path
+            .unwrap(),
     )?;
 
     run_chain_upgrade(

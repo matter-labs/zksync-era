@@ -10,10 +10,12 @@ use serde::Deserialize;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
-    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig, forge_interface::{
+    forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS, ForgeScriptParams, V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V30_BLOBS_UPGRADE_ECOSYSTEM_PARAMS
+            ForgeScriptParams, ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
+            V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            ZK_OS_V30_BLOBS_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{
             input::{
@@ -22,7 +24,9 @@ use zkstack_cli_config::{
             },
             output::EcosystemUpgradeOutput,
         },
-    }, traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath}
+    },
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;
@@ -634,7 +638,7 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
         UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersion::V30ZkSyncOsBlobs => ZK_OS_V30_BLOBS_UPGRADE_ECOSYSTEM_PARAMS
+        UpgradeVersion::V30ZkSyncOsBlobs => ZK_OS_V30_BLOBS_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
 
