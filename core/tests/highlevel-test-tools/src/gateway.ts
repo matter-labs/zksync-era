@@ -1,6 +1,6 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
-import * as utils from 'utils';
+import { startServer } from './start-server';
 
 /**
  * Global mutex for gateway migration to prevent concurrent migrations
@@ -29,8 +29,6 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
         await gatewayMutex.acquire();
         console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
 
-        // Wait for chain initialization to complete
-        await utils.sleep(5);
         try {
             await executeCommand(
                 'zkstack',
