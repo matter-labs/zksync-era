@@ -68,19 +68,42 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let (calldata, value) = AdminCallBuilder::new(calls).compile_full_calldata();
 
-    let receipt = send_tx(
-        chain_admin,
-        calldata,
-        value,
-        context.l1_rpc_url.clone(),
-        chain_config
-            .get_wallets_config()?
-            .governor
-            .private_key_h256()
-            .unwrap(),
-        "migrating to gateway",
-    )
-    .await?;
+    let receipt = {
+        let mut receipt = None;
+        let max_attempts = 5;
+        for attempt in 1..=max_attempts {
+            match send_tx(
+                chain_admin,
+                calldata.clone(),
+                value,
+                context.l1_rpc_url.clone(),
+                chain_config
+                    .get_wallets_config()?
+                    .governor
+                    .private_key_h256()
+                    .unwrap(),
+                "migrating to gateway",
+            )
+            .await
+            {
+                Ok(r) if r.status == Some(1.into()) => {
+                    receipt = Some(r);
+                    break;
+                }
+                Ok(_) if attempt < max_attempts => {
+                    logger::warn(format!(
+                        "Transaction reverted, retrying ({}/{})...",
+                        attempt + 1,
+                        max_attempts
+                    ));
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                }
+                Ok(_) => anyhow::bail!("Migration failed after {} attempts", max_attempts),
+                Err(e) => return Err(e),
+            }
+        }
+        receipt.unwrap()
+    };
 
     let gateway_provider = get_ethers_provider(&context.gateway_rpc_url)?;
     extract_and_wait_for_priority_ops(
