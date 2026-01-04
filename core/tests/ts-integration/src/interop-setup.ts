@@ -66,6 +66,7 @@ export class InteropTestContext {
     };
 
     // Interop1 (Main Chain) Variables
+    public baseToken1!: Token;
     public interop1Provider!: zksync.Provider;
     public interop1ChainId!: bigint;
     public interop1Wallet!: zksync.Wallet;
@@ -75,13 +76,16 @@ export class InteropTestContext {
     public interop1TokenA!: zksync.Contract;
 
     // Interop2 (Second Chain) Variables
+    public baseToken2!: Token;
     public interop2Recipient!: zksync.Wallet;
+    public otherInterop2Recipient!: zksync.Wallet;
     public interop2ChainId!: bigint;
     public interop2RichWallet!: zksync.Wallet;
     public interop2Provider!: zksync.Provider;
     public interop2InteropHandler!: zksync.Contract;
     public interop2NativeTokenVault!: zksync.Contract;
     public dummyInteropRecipient!: string;
+    public otherDummyInteropRecipient!: string;
 
     // Gateway Variables
     public gatewayProvider!: zksync.Provider;
@@ -147,6 +151,7 @@ export class InteropTestContext {
             this.l1Provider
         );
         this.interop2Recipient = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, this.interop2Provider);
+        this.otherInterop2Recipient = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, this.interop2Provider);
 
         // Setup gateway provider and wallet
         this.gatewayProvider = new RetryProvider(
@@ -182,6 +187,9 @@ export class InteropTestContext {
 
         // Deposit funds on Interop1
         const gasPrice = await scaledGasPrice(this.interop1RichWallet);
+        this.baseToken1 = this.testMaster.environment().baseToken;
+        this.baseToken2 = this.testMaster.environment().baseTokenSecondChain!;
+
         await (
             await this.interop1RichWallet.deposit({
                 token: ETH_ADDRESS_IN_CONTRACTS,
@@ -193,9 +201,22 @@ export class InteropTestContext {
                 overrides: { gasPrice }
             })
         ).wait();
-        if (this.testMaster.environment().baseToken.l1Address != ETH_ADDRESS_IN_CONTRACTS) {
+        if (this.baseToken1.l1Address != ETH_ADDRESS_IN_CONTRACTS) {
             const depositTx = await this.interop1RichWallet.deposit({
-                token: this.testMaster.environment().baseToken.l1Address,
+                token: this.baseToken1.l1Address,
+                amount: ethers.parseEther('0.1'),
+                to: this.interop1Wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            });
+            await depositTx.wait();
+        }
+
+        if (this.baseToken2.l1Address != this.baseToken1.l1Address) {
+            const depositTx = await this.interop1RichWallet.deposit({
+                token: this.baseToken2.l1Address,
                 amount: ethers.parseEther('0.1'),
                 to: this.interop1Wallet.address,
                 approveERC20: true,
@@ -218,6 +239,32 @@ export class InteropTestContext {
                 overrides: { gasPrice }
             })
         ).wait();
+
+        if (this.baseToken2.l1Address != ETH_ADDRESS_IN_CONTRACTS) {
+            const depositTx = await this.interop2RichWallet.deposit({
+                token: this.baseToken2.l1Address,
+                amount: ethers.parseEther('0.1'),
+                to: this.interop2RichWallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            });
+            await depositTx.wait();
+        }
+
+        if (this.baseToken1.l1Address != this.baseToken2.l1Address) {
+            const depositTx = await this.interop2RichWallet.deposit({
+                token: this.baseToken1.l1Address,
+                amount: ethers.parseEther('0.1'),
+                to: this.interop2RichWallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            });
+            await depositTx.wait();
+        }
 
         this.erc7786AttributeDummy = new zksync.Contract(
             '0x0000000000000000000000000000000000000000',
@@ -312,6 +359,12 @@ export class InteropTestContext {
             []
         );
         this.dummyInteropRecipient = await dummyInteropRecipientContract.getAddress();
+        const otherDummyInteropRecipientContract = await deployContract(
+            this.interop2RichWallet,
+            ArtifactDummyInteropRecipient,
+            []
+        );
+        this.otherDummyInteropRecipient = await otherDummyInteropRecipientContract.getAddress();
 
         // Register token on Interop1
         await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
@@ -340,6 +393,7 @@ export class InteropTestContext {
         const newState = {
             tokenAL2Address: this.tokenA.l2Address,
             dummyRecipientAddress: this.dummyInteropRecipient,
+            otherDummyRecipientAddress: this.otherDummyInteropRecipient,
             tokenAssetId: this.tokenA.assetId,
             deployerPrivateKey: this.interop1Wallet.privateKey
         };
@@ -351,6 +405,7 @@ export class InteropTestContext {
     private loadState(state: any) {
         this.tokenA.l2Address = state.tokenAL2Address;
         this.dummyInteropRecipient = state.dummyRecipientAddress;
+        this.otherDummyInteropRecipient = state.otherDummyRecipientAddress;
         this.tokenA.assetId = state.tokenAssetId;
 
         this.interop1TokenA = new zksync.Contract(
@@ -364,32 +419,6 @@ export class InteropTestContext {
         if (this.testMaster) {
             await this.testMaster.deinitialize();
         }
-    }
-
-    async registerTokenA() {
-        const tokenADeploy = await deployContract(this.interop1Wallet, ArtifactMintableERC20, [
-            this.tokenA.name,
-            this.tokenA.symbol,
-            this.tokenA.decimals
-        ]);
-        this.tokenA.l2Address = await tokenADeploy.getAddress();
-
-        await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
-        this.tokenA.assetId = await this.interop1NativeTokenVault.assetId(this.tokenA.l2Address);
-        this.interop1TokenA = new zksync.Contract(
-            this.tokenA.l2Address,
-            ArtifactMintableERC20.abi,
-            this.interop1Wallet
-        );
-    }
-
-    async deployDummyRecipient() {
-        const dummyInteropRecipientContract = await deployContract(
-            this.interop2RichWallet,
-            ArtifactDummyInteropRecipient,
-            []
-        );
-        this.dummyInteropRecipient = await dummyInteropRecipientContract.getAddress();
     }
 
     /// HELPER FUNCTIONS
@@ -496,17 +525,10 @@ export class InteropTestContext {
     }
 
     /**
-     * Retrieves the address' balance on Chain B of the base token on Chain A.
+     * Retrieves the address' balance on Chain B.
      */
-    async getInterop2BalanceOfInterop1BaseToken(address: string): Promise<bigint> {
-        const baseTokenAssetId = await this.interop1NativeTokenVault.assetId(
-            this.testMaster.environment().baseToken.l2Address
-        );
-        const baseTokenAddressSecondChain = await this.interop2NativeTokenVault.tokenAddress(baseTokenAssetId);
-
-        return this.isSameBaseToken
-            ? BigInt(await this.interop2Provider.getBalance(address))
-            : BigInt(await this.getTokenBalance(address, baseTokenAddressSecondChain, this.interop2Provider));
+    async getInterop2Balance(address: string): Promise<bigint> {
+        return BigInt(await this.interop2Provider.getBalance(address));
     }
 
     /**
