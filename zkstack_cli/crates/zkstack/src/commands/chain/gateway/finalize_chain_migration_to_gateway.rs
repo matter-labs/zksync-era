@@ -150,21 +150,12 @@ pub async fn run_inner(
         .l1
         .diamond_proxy_addr;
 
-    let mut chain_migration_tx_hash = None;
-    // We retry fetching the migration transaction because there might be some lag in the indexer
-    for _ in 0..10 {
-        chain_migration_tx_hash = get_migration_transaction(
-            &l1_rpc_url,
-            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            chain_config.chain_id.as_u64(),
-        )
-        .await?;
-
-        if chain_migration_tx_hash.is_some() {
-            break;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-    }
+    let chain_migration_tx_hash = get_migration_transaction(
+        &l1_rpc_url,
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        chain_config.chain_id.as_u64(),
+    )
+    .await?;
 
     let chain_migration_tx_hash = chain_migration_tx_hash
         .context("Failed to find the transaction where the migration from L1 to GW happened")?;
