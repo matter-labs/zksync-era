@@ -3,7 +3,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
-    types::{TransactionReceipt, TransactionRequest},
+    types::{BlockId, TransactionReceipt, TransactionRequest},
     utils::hex,
 };
 use zkstack_cli_common::{logger, spinner::Spinner};
@@ -51,7 +51,7 @@ pub(crate) async fn send_tx(
 
     // 4. Sign the transaction
     let client = SignerMiddleware::new(provider.clone(), wallet.clone());
-    let pending_tx = client.send_transaction(tx, None).await?;
+    let pending_tx = client.send_transaction(tx.clone(), None).await?;
     spinner.finish();
 
     logger::info(format!(
@@ -65,6 +65,81 @@ pub(crate) async fn send_tx(
     let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
 
     spinner.finish();
+
+    // 6. CHECK STATUS AND GET REVERT REASON IF FAILED
+    let tx_hash = receipt.transaction_hash;
+    if receipt.status != Some(1.into()) {
+        logger::error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger::error("❌ TRANSACTION REVERTED");
+        logger::error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger::error(format!("Transaction: {:#?}", receipt.transaction_hash));
+        logger::error(format!("Block: {:?}", receipt.block_number));
+        logger::error(format!("Gas used: {:?}", receipt.gas_used));
+        logger::error("");
+
+        // Try to get the actual revert reason by replaying the transaction
+        logger::error("Attempting to extract revert reason...");
+
+        // Get the transaction to replay it
+        if let Ok(Some(tx)) = provider.get_transaction(tx_hash).await {
+            // Replay at the block before it was mined
+            let replay_block = BlockId::Number((receipt.block_number.unwrap().as_u64() - 1).into());
+
+            let replay_tx = TransactionRequest::new()
+                .to(to)
+                .from(tx.from)
+                .data(tx.input.clone())
+                .value(tx.value)
+                .gas(tx.gas);
+
+            match provider.call(&replay_tx.into(), Some(replay_block)).await {
+                Ok(_) => {
+                    logger::error(
+                        "⚠ Replay succeeded - this was a transient state issue (race condition)",
+                    );
+                }
+                Err(e) => {
+                    logger::error("REVERT REASON:");
+                    logger::error(format!("{:#?}", e));
+
+                    // Try to extract human-readable error
+                    let error_str = format!("{:?}", e);
+                    if error_str.contains("execution reverted: ") {
+                        if let Some(msg_start) = error_str.find("execution reverted: ") {
+                            let msg = &error_str[msg_start + 20..];
+                            if let Some(msg_end) = msg.find('"') {
+                                logger::error("");
+                                logger::error(&format!("📝 Error message: {}", &msg[..msg_end]));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also try re-simulation with current state
+        logger::error("");
+        logger::error("Re-simulating with current state...");
+        match provider.call(&tx.into(), None).await {
+            Ok(_) => {
+                logger::error("✓ Current state is valid - this was a temporary issue");
+                logger::error(
+                    "  RECOMMENDATION: Retry the transaction or add delay before sending",
+                );
+            }
+            Err(e) => {
+                logger::error("✗ Current state still invalid:");
+                logger::error(format!("  {:#?}", e));
+            }
+        }
+
+        logger::error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        anyhow::bail!(
+            "Transaction {} reverted. See error details above.",
+            receipt.transaction_hash
+        );
+    }
 
     logger::info(format!(
         "Transaction {:#?} completed!",
