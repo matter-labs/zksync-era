@@ -2,8 +2,7 @@
 
 ## Upgrade process
 
-The V27 upgrade happened after the gateway preparation upgrade, but before the gateway was deployed. As such the upgrade
-process did not involve the Gateway parts (upgrading the CTM on GW, etc), it was an L1-only upgrade.
+The V27 upgrade happened after the gateway preparation upgrade, but before the gateway was deployed. As such the upgrade process did not involve the Gateway parts (upgrading the CTM on GW, etc), it was an L1-only upgrade.
 
 Additionally this was not a bridge upgrade, as the bridge and ecosystem contracts didn't have new features, so L1<>L2 bridging was not affected. This meant that only the system components, the Verifiers, Facets and L2 contracts needed to be upgraded.
 
