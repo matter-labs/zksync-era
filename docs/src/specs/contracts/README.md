@@ -67,10 +67,10 @@ The repository contains the following sections:
 
 This section is for auditors of the codebase. It includes some of the important invariants that the system relies on and which if broken could have bad consequences.
 
-- Assuming that the accepting CTM is correct & efficient, the L1→GW part of the L1→GW→L3 transaction never fails. It is assumed that the provided max amount for gas is always enough for any transaction that can realistically come from L1.
+- Assuming that the accepting CTM is correct & efficient, the L1→GW part of the L1→GW→L2 transaction never fails. It is assumed that the provided max amount for gas is always enough for any transaction that can realistically come from L1.
 - GW → L1 migration never fails. If it is possible to get into a state where the migration is not possible to finish, then the chain is basically lost. There are some exceptions where for now it is the expected behavior. (check out the “Migration invariants & protocol upgradability” section)
 - The general consistency of chains when migration between different settlement layers is done. Including the feasibility of emergency upgrades, etc. I.e. whether the whole system is thought-through.
-- Preimage attacks in the L3→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
+- Preimage attacks in the L2→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
 - Data availability guarantees. Whether rollup users can always restore all their storage slots, etc. An example of a potential tricky issue can be found in “Security notes for Gateway-based rollups” [in this document](./gateway/gateway_da.md).
 
 The desired properties of the system are that funds can not be stolen from the L1 contracts, and that L2 constracts are executed securely.
