@@ -1,6 +1,6 @@
 # EVM predeploys
 
-Some important EVM contracts can be deployed to predefined addresses if EVM emulation is enabled on the chain. It can be done using [DeployEvmPredeploys.s.sol](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/deploy-scripts/evm-predeploys/DeployEvmPredeploys.s.sol) script.
+Some important EVM contracts can be deployed to predefined addresses if EVM emulation is enabled on the chain. It can be done using [DeployEvmPredeploys.s.sol](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/deploy-scripts/evm-predeploys/DeployEvmPredeploys.s.sol) script.
 
 List of contracts:
 
