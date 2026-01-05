@@ -331,7 +331,10 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
     let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
-        L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
+        L1BatchCommitmentMode::Rollup => match chain_config.vm_option {
+            VMOption::EraVM => contracts_config.l1.rollup_l1_da_validator_addr,
+            VMOption::ZKSyncOsVM => contracts_config.l1.blobs_zksync_os_l1_da_validator_addr,
+        },
         L1BatchCommitmentMode::Validium => {
             let general_config = chain_config.get_general_config().await?;
             match general_config.da_client_type().as_deref() {

@@ -87,6 +87,7 @@ impl CoreContractsConfig {
                 validator_timelock_addr: ctm.validator_timelock_addr,
                 base_token_addr: chain_config.base_token.address,
                 rollup_l1_da_validator_addr: Some(ctm.rollup_l1_da_validator_addr),
+                blobs_zksync_os_l1_da_validator_addr: ctm.blobs_zksync_os_l1_da_validator_addr,
                 transaction_filterer_addr: self.l1.transaction_filterer_addr,
                 verifier_addr: ctm.verifier_addr,
                 base_token_asset_id: Some(encode_ntv_asset_id(
@@ -308,6 +309,9 @@ impl CoreContractsConfig {
                 .deployed_addresses
                 .avail_l1_da_validator_addr,
             l1_rollup_da_manager: deploy_ctm_output.deployed_addresses.l1_rollup_da_manager,
+            blobs_zksync_os_l1_da_validator_addr: deploy_ctm_output
+                .deployed_addresses
+                .blobs_zksync_os_l1_da_validator_addr,
         };
         self.multicall3_addr = deploy_ctm_output.multicall3_addr;
         match vm_option {
@@ -455,6 +459,7 @@ pub struct ChainTransitionManagerContracts {
     pub no_da_validium_l1_validator_addr: Address,
     pub avail_l1_da_validator_addr: Address,
     pub l1_rollup_da_manager: Address,
+    pub blobs_zksync_os_l1_da_validator_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
@@ -526,6 +531,9 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rollup_l1_da_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from pre-gateway protocol version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blobs_zksync_os_l1_da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avail_l1_da_validator_addr: Option<Address>,
