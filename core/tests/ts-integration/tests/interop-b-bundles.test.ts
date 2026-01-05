@@ -228,6 +228,10 @@ describe('Interop-B bundles behavior checks', () => {
         }
         senderTokenBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
         expect((senderTokenBalance - senderTokenBalanceBefore).toString()).toBe((-mixedBundleTokenAmount).toString());
+
+        // We wait for the last of these bundles to be executable on the receiver chain.
+        // By then, all of the bundles should be executable.
+        await ctx.awaitInteropBundle(mixedBundleReceipt.hash);
     });
 
     test('Can receive a single direct call bundle', async () => {

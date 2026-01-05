@@ -479,20 +479,26 @@ export class InteropTestContext {
     }
 
     /**
-     * Reads an interop transaction from the sender chain, constructs a new transaction,
-     * and broadcasts it on the receiver chain.
+     * Waits for an interop bundle to be executable on the receiver chain.
      */
-    async readAndBroadcastInteropBundle(txHash: string) {
+    async awaitInteropBundle(txHash: string) {
         const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, this.interop1Provider);
         const txReceipt = await this.interop1Provider.getTransactionReceipt(txHash);
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
 
-        // await waitUntilBlockExecutedOnGateway(senderUtilityWallet, gatewayWallet, txReceipt!.blockNumber);
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
+        // The line below does that, but it doesn't quite work for some reason.
+        // await waitUntilBlockExecutedOnGateway(senderUtilityWallet, gatewayWallet, txReceipt!.blockNumber);
         await utils.sleep(25);
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
         await waitForInteropRootNonZero(this.interop2Provider, this.interop2RichWallet, getGWBlockNumber(params));
+    }
 
+    /**
+     * Reads an interop transaction from the sender chain, constructs a new transaction,
+     * and broadcasts it on the receiver chain.
+     */
+    async readAndBroadcastInteropBundle(txHash: string) {
         // Get interop trigger and bundle data from the sender chain.
         const executionBundle = await getInteropBundleData(this.interop1Provider, txHash, 0);
         if (executionBundle.output == null) return;
