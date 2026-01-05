@@ -5,7 +5,7 @@
 
 ## Intro
 
-This document assumes that you have understanding about [the structure](../settlement_contracts/zkchain_basics.md) on individual chains' L1 contracts.
+This document assumes that you have understanding about [the structure](../../l1_smart_contracts.md) on individual chains' L1 contracts.
 
 Upgrading the ecosystem of ZKChains is a complicated process. ZKSync is a complex ecosystem with many chains and contracts and each upgrade is unique, but there are some steps that repeat for most upgrades. These are mostly how we interact with the CTM, the diamond facets, the L1→L2 upgrade, how we update the verification keys.
 

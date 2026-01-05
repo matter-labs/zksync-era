@@ -78,7 +78,7 @@
     - [Interop messages](specs/contracts/interop/interop_messages.md)
     - [Examples](specs/contracts/interop/examples/README.md)
       - [Cross-chain message](specs/contracts/interop/examples/cross_chain_message.md)
-  - [Settlement Contracts](specs/contracts/settlement_contracts/zkchain_basics.md)
+  - [Settlement Contracts](specs/contracts/settlement_contracts/overview.md)
     - [L1 <> L2 communication](specs/contracts/settlement_contracts/priority_queue/README.md)
       - [Handling L1→L2 operations](specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)
       - [L2→L1 communication](specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)

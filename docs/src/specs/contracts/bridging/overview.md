@@ -11,7 +11,7 @@ Bridgehub is the most important contract in the system, that stores:
 - A mapping from chainId to its base token (i.e. the token that is used for paying fees)
 - etc
 
-> Not sure what CTM is? Check out the [overview](../settlement_contracts/zkchain_basics.md) for contracts for settlement layer.
+> Not sure what CTM is? Check out the [Chain Type Manager](../chain_management/chain_type_manager.md) page for details.
 
 Overall, it is the main registry for all the contracts. Note, that a clone of Bridgehub is also deployed on each L2 chain, but this clone is only used on settlement layers. All the in all, the architecture of the entire ecosystem can be seen below:
 
