@@ -114,7 +114,6 @@ pub async fn accept_owner(
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_broadcast()
-        .with_slow()
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
 }
