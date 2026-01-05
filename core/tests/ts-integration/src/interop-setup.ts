@@ -54,7 +54,7 @@ export class InteropTestContext {
     public skipInteropTests = false;
     public l1Provider!: ethers.Provider;
 
-    // Token A
+    // Token A (native to interop1 L2 chain)
     public tokenA: Token = {
         name: 'Token A',
         symbol: 'AA',
@@ -64,6 +64,9 @@ export class InteropTestContext {
         l2Address: '',
         l2AddressSecondChain: ''
     };
+
+    // Token B (bridged from L1)
+    public bridgedToken!: Token;
 
     // Interop1 (Main Chain) Variables
     public baseToken1!: Token;
@@ -188,6 +191,7 @@ export class InteropTestContext {
         // Deposit funds on Interop1
         const gasPrice = await scaledGasPrice(this.interop1RichWallet);
         this.baseToken1 = this.testMaster.environment().baseToken;
+        this.baseToken1.assetId = await this.interop1NativeTokenVault.assetId(this.baseToken1.l2Address);
         this.baseToken2 = this.testMaster.environment().baseTokenSecondChain!;
 
         await (
@@ -366,7 +370,9 @@ export class InteropTestContext {
         );
         this.otherDummyInteropRecipient = await otherDummyInteropRecipientContract.getAddress();
 
-        // Register token on Interop1
+        // Register tokens on Interop1
+        this.bridgedToken = this.testMaster.environment().erc20Token;
+        this.bridgedToken.assetId = await this.interop1NativeTokenVault.assetId(this.bridgedToken.l2Address);
         await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
         this.tokenA.assetId = await this.interop1NativeTokenVault.assetId(this.tokenA.l2Address);
         this.interop1TokenA = new zksync.Contract(
@@ -555,6 +561,28 @@ export class InteropTestContext {
             (await this.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
             // Mint tokens for the test wallet on Interop1 for the transfer
             (await this.interop1TokenA.mint(this.interop1Wallet.address, transferAmount)).wait()
+        ]);
+
+        return transferAmount;
+    }
+
+    async getAndApproveBridgedTokenTransferAmount(): Promise<bigint> {
+        const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
+
+        await this.interop1RichWallet.transfer({
+            to: this.interop1Wallet.address,
+            amount: transferAmount,
+            token: this.bridgedToken.l2Address
+        });
+        const bridgedTokenContract = new zksync.Contract(
+            this.bridgedToken.l2Address,
+            zksync.utils.IERC20,
+            this.interop1Wallet
+        );
+
+        await Promise.all([
+            // Approve token transfer on Interop1
+            (await bridgedTokenContract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait()
         ]);
 
         return transferAmount;
