@@ -18,8 +18,10 @@ jobs:
 
       - name: Install Rust and Lychee
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          ~/.cargo/bin/cargo install lychee
+          # Use stable Rust toolchain
+          rustup toolchain install stable
+          rustup default stable
+          cargo install lychee
 
       - name: Find and check markdown files
         run: |
