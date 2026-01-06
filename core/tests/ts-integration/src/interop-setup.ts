@@ -193,6 +193,10 @@ export class InteropTestContext {
         this.baseToken1 = this.testMaster.environment().baseToken;
         this.baseToken1.assetId = await this.interop1NativeTokenVault.assetId(this.baseToken1.l2Address);
         this.baseToken2 = this.testMaster.environment().baseTokenSecondChain!;
+        this.baseToken2.assetId = await this.interop2NativeTokenVault.assetId(this.baseToken2.l2Address);
+        this.baseToken2.l2AddressSecondChain = await this.interop1NativeTokenVault.tokenAddress(
+            this.baseToken2.assetId
+        );
 
         await (
             await this.interop1RichWallet.deposit({
@@ -287,7 +291,7 @@ export class InteropTestContext {
     async performSharedSetup() {
         if (this.skipInteropTests) return;
 
-        const maxRetries = 120; // Wait up to 120 seconds
+        const maxRetries = 300; // Wait up to 300 seconds
         let hasLock = false;
 
         // 1. Attempt to acquire lock or wait for state file
