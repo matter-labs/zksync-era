@@ -287,7 +287,7 @@ export class InteropTestContext {
     async performSharedSetup() {
         if (this.skipInteropTests) return;
 
-        const maxRetries = 600; // Wait up to 60 seconds (600 * 100ms)
+        const maxRetries = 120; // Wait up to 120 seconds
         let hasLock = false;
 
         // 1. Attempt to acquire lock or wait for state file
@@ -296,7 +296,7 @@ export class InteropTestContext {
             if (fs.existsSync(SHARED_STATE_FILE)) {
                 try {
                     // Small delay to ensure writer has finished flushing file content
-                    if (i === 0) await utils.sleep(0.1);
+                    if (i === 0) await utils.sleep(1);
 
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
@@ -314,7 +314,7 @@ export class InteropTestContext {
             } catch (err: any) {
                 if (err.code === 'EEXIST') {
                     // Lock exists, wait and retry
-                    await utils.sleep(0.1);
+                    await utils.sleep(1);
                 } else {
                     throw err;
                 }
