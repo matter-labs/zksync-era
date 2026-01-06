@@ -1,0 +1,27 @@
+name: Check Dead Links in Markdown Files
+
+# Only run on pull requests to main branch
+# Otherwise, any external change (like docs location change), can cause 100s of PRs to start failing.
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-dead-links:
+    name: Check Dead Links in Markdown Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust and Lychee
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          ~/.cargo/bin/cargo install lychee
+
+      - name: Find and check markdown files
+        run: |
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          find . -type f -name "*.md" ! -path "*/node_modules/*" ! -path "*/openzeppelin*" ! -path "*/murky/*" -exec lychee --accept 200,201,301,302,403,429 --max-retries 5 --max-concurrency 1 --cache --retry-wait-time 30 --exclude-path .lycheeignore --github-token "$GITHUB_TOKEN" {} +
