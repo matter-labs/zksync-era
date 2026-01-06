@@ -16,12 +16,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust and Lychee
+      - name: Install Lychee
         run: |
-          # Use stable Rust toolchain
+          # Install stable toolchain and use it explicitly to avoid rust-toolchain override
           rustup toolchain install stable
-          rustup default stable
-          cargo install lychee
+          rustup run stable cargo install lychee
 
       - name: Find and check markdown files
         run: |
