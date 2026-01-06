@@ -59,7 +59,7 @@ describe('Interop-B Messages behavior checks', () => {
             const feePaid = BigInt(baseTokenReceipt.gasUsed) * BigInt(baseTokenReceipt.gasPrice);
             expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - baseTokenAmount).toString());
         } else {
-            const senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2Address!);
+            const senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
             expect((senderBalance - senderBalanceBefore).toString()).toBe((-baseTokenAmount).toString());
         }
 

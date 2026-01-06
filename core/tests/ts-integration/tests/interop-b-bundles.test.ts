@@ -71,7 +71,7 @@ describe('Interop-B Bundles behavior checks', () => {
             let feePaid = BigInt(singleDirectReceipt.gasUsed) * BigInt(singleDirectReceipt.gasPrice);
             expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - msgValue).toString());
         } else {
-            let senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2Address!);
+            let senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
             expect((senderBalance - senderBalanceBefore).toString()).toBe((-singleDirectAmount).toString());
         }
 
@@ -140,7 +140,7 @@ describe('Interop-B Bundles behavior checks', () => {
             let feePaid = BigInt(twoDirectReceipt.gasUsed) * BigInt(twoDirectReceipt.gasPrice);
             expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - msgValue).toString());
         } else {
-            let senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2Address!);
+            let senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
             expect((senderBalance - senderBalanceBefore).toString()).toBe((-totalAmount).toString());
         }
 
@@ -223,7 +223,7 @@ describe('Interop-B Bundles behavior checks', () => {
             let feePaid = BigInt(mixedBundleReceipt.gasUsed) * BigInt(mixedBundleReceipt.gasPrice);
             expect((senderBalance + feePaid).toString()).toBe((senderBalanceBefore - msgValue).toString());
         } else {
-            let senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2Address!);
+            let senderBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
             expect((senderBalance - senderBalanceBefore).toString()).toBe((-mixedBundleBaseAmount).toString());
         }
         senderTokenBalance = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
