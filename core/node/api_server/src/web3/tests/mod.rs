@@ -209,7 +209,8 @@ impl StorageInitialization {
                     base_system_contracts,
                     get_system_smart_contracts(),
                 )
-                .unwrap();
+                .unwrap()
+                .into();
 
                 if storage.blocks_dal().is_genesis_needed().await? {
                     insert_genesis_batch(storage, &params).await?;

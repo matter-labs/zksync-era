@@ -102,7 +102,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = connection_pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut conn, &genesis_params)
+    insert_genesis_batch(&mut conn, &genesis_params.clone().into())
         .await
         .unwrap();
     let alice = Account::random();
@@ -193,7 +193,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = connection_pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut conn, &genesis_params)
+    insert_genesis_batch(&mut conn, &genesis_params.clone().into())
         .await
         .unwrap();
     let alice = Account::random();
@@ -252,7 +252,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = connection_pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut conn, &genesis_params)
+    insert_genesis_batch(&mut conn, &genesis_params.clone().into())
         .await
         .unwrap();
     let alice = Account::random();

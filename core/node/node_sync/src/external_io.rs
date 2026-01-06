@@ -497,7 +497,7 @@ mod tests {
     use std::time::Duration;
 
     use zksync_dal::{ConnectionPool, CoreDal};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
         api, commitment::PubdataParams, fee_model::BatchFeeInput, settlement::SettlementLayer,
@@ -512,7 +512,7 @@ mod tests {
         // version and make sure that it is present in the DB (i.e. fetch it from main node if not).
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+        insert_genesis_batch(&mut conn, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let (actions_sender, action_queue) = ActionQueue::new();

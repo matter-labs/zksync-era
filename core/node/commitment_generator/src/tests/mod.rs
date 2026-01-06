@@ -6,7 +6,7 @@ use rand::{thread_rng, Rng};
 use serde::Deserialize;
 use zksync_dal::Connection;
 use zksync_multivm::interface::VmEvent;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     block::L1BatchTreeData, zk_evm_types::LogQuery, AccountTreeId, Address, StorageLog,
@@ -116,7 +116,7 @@ fn processed_batch(health: &Health, expected_number: L1BatchNumber) -> bool {
 async fn determining_batch_range() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -167,7 +167,7 @@ async fn determining_batch_range() {
 async fn commitment_generator_normal_operation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -209,7 +209,7 @@ async fn commitment_generator_normal_operation() {
 async fn commitment_generator_bulk_processing() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -252,7 +252,7 @@ async fn commitment_generator_bulk_processing() {
 async fn commitment_generator_with_tree_emulation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     drop(storage);

@@ -15,7 +15,7 @@ use zksync_multivm::{
     },
     utils::{derive_base_fee_and_gas_per_pubdata, StorageWritesDeduplicator},
 };
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::insert_genesis_batch;
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
@@ -730,6 +730,7 @@ pub(crate) async fn persist_block_with_transactions(
 
 #[cfg(test)]
 mod tests {
+    use zksync_node_genesis::GenesisParamsInitials;
     use zksync_test_contracts::TxType;
 
     use super::*;
@@ -771,7 +772,7 @@ mod tests {
 
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let balance_key = storage_key_for_eth_balance(&alice.address());

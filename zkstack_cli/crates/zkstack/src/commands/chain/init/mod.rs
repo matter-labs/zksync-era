@@ -6,7 +6,7 @@ use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
     ZkStackConfigTrait,
 };
-use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, VMOption};
 use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
@@ -245,7 +245,10 @@ pub async fn send_priority_txs(
         .context("l1_da_validator_addr")?;
     let commitment_scheme =
         if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
-            L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            match chain_config.vm_option {
+                VMOption::EraVM => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                VMOption::ZKSyncOsVM => L2DACommitmentScheme::BlobsZksyncOS,
+            }
         } else {
             let da_client_type = chain_config.get_general_config().await?.da_client_type();
 
@@ -328,7 +331,10 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
     let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
-        L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
+        L1BatchCommitmentMode::Rollup => match chain_config.vm_option {
+            VMOption::EraVM => contracts_config.l1.rollup_l1_da_validator_addr,
+            VMOption::ZKSyncOsVM => contracts_config.l1.blobs_zksync_os_l1_da_validator_addr,
+        },
         L1BatchCommitmentMode::Validium => {
             let general_config = chain_config.get_general_config().await?;
             match general_config.da_client_type().as_deref() {
