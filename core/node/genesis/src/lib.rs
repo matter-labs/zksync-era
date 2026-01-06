@@ -104,6 +104,28 @@ impl GenesisParamsInitials {
             config,
         }
     }
+
+    pub fn mock() -> Self {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let base_system_contracts_hashes = base_system_contracts.hashes();
+        Self {
+            base_system_contracts,
+            system_contracts: get_system_smart_contracts(),
+            config: ContractsGenesis {
+                protocol_semantic_version: ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
+                genesis_root: H256::default(),
+                genesis_rollup_leaf_index: 26,
+                genesis_batch_commitment: H256::default(),
+                bootloader_hash: base_system_contracts_hashes.bootloader,
+                default_aa_hash: base_system_contracts_hashes.default_aa,
+                evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
+                prover: L1VerifierConfig::default(),
+            },
+        }
+    }
 }
 
 impl From<GenesisParams> for GenesisParamsInitials {

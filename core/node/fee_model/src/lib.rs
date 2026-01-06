@@ -192,7 +192,7 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_config::GasAdjusterConfig;
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
@@ -434,7 +434,7 @@ mod tests {
 
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+        insert_genesis_batch(&mut conn, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 

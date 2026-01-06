@@ -206,7 +206,7 @@ async fn get_nonces(
 mod tests {
     use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
     use zksync_node_fee_model::MockBatchFeeParamsProvider;
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         u256_to_h256, L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256,
@@ -230,7 +230,7 @@ mod tests {
     async fn getting_transaction_nonces() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 
@@ -267,7 +267,7 @@ mod tests {
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         drop(storage);
@@ -337,7 +337,7 @@ mod tests {
     async fn ignoring_transaction_with_insufficient_fee() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         drop(storage);
@@ -390,7 +390,7 @@ mod tests {
     async fn ignoring_transaction_with_old_nonce() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         drop(storage);

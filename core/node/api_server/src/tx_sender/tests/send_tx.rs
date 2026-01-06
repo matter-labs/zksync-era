@@ -17,7 +17,7 @@ use crate::testonly::{StateBuilder, TestAccount};
 async fn submitting_tx_requires_one_connection() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -70,7 +70,7 @@ async fn submitting_tx_requires_one_connection() {
 async fn nonce_validation_errors() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     drop(storage);
@@ -120,7 +120,7 @@ async fn nonce_validation_errors() {
 async fn fee_validation_errors() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -305,7 +305,7 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     // range_start and range_end get persisted in the database
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
