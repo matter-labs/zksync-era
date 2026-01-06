@@ -454,6 +454,12 @@ export class InteropTestContext {
             );
         }
 
+        // Note: The InteropCenter will automatically set the unbundler address to msg.sender if not provided
+        // We only need to provide the required useFixedFee attribute
+        bundleAttributes.push(
+                this.erc7786AttributeDummy.interface.encodeFunctionData('useFixedFee', [false])
+            );
+
         const txFinalizeReceipt = (
             await this.interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await this.interop2Provider.getNetwork()).chainId),
@@ -462,6 +468,7 @@ export class InteropTestContext {
                 overrides
             )
         ).wait();
+
         return txFinalizeReceipt;
     }
 

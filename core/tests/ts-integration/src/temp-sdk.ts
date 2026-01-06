@@ -57,7 +57,8 @@ export async function getInteropBundleData(
         calls: calls,
         bundleAttributes: {
             executionAddress: decodedRequest[0][5][0],
-            unbundlerAddress: decodedRequest[0][5][1]
+            unbundlerAddress: decodedRequest[0][5][1],
+            useFixedFee: decodedRequest[0][5][2]
         }
     };
     // console.log("response.proof", proof_fee)
