@@ -24,7 +24,8 @@ use crate::{
     source_files::SourceFiles,
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
     ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig,
-    PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
+    PATH_TO_DEFAULT_GENESIS_CONFIG, PATH_TO_ERA_VM_DEFAULT_GENESIS,
+    PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS, PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -366,10 +367,10 @@ impl EcosystemConfig {
     pub fn default_genesis_path(&self, vm_option: VMOption) -> PathBuf {
         let genesis_path = self
             .contracts_path_for_ctm(vm_option)
-            .join("configs/genesis");
+            .join(PATH_TO_DEFAULT_GENESIS_CONFIG);
         match vm_option {
-            VMOption::EraVM => genesis_path.join("era/latest.toml"),
-            VMOption::ZKSyncOsVM => genesis_path.join("zksync_os/latest.toml"),
+            VMOption::EraVM => genesis_path.join(PATH_TO_ERA_VM_DEFAULT_GENESIS),
+            VMOption::ZKSyncOsVM => genesis_path.join(PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS),
         }
     }
 

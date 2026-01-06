@@ -3,10 +3,12 @@
 //! Please note, this tool update only yaml file, if you still use env based configuration,
 //! update env values correspondingly
 
+use std::{path::PathBuf, str::FromStr};
+
 use anyhow::Context as _;
 use clap::Parser;
 use zksync_config::{
-    configs::{ContractsGenesis, PostgresSecrets, DEFAULT_GENESIS_FILE_PATH},
+    configs::{ContractsGenesis, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -14,6 +16,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_types::url::SensitiveUrl;
+
+pub const DEFAULT_GENESIS_FILE_PATH: &str = "../contracts/configs/genesis/era/latest.json";
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Genesis config generator", long_about = None)]
@@ -80,7 +84,7 @@ async fn generate_new_config(
 
     // This tool doesn't really insert the batch. It doesn't commit the transaction,
     // so the database is clean after using the tool
-    let params = GenesisParamsInitials::load_params();
+    let params = GenesisParamsInitials::load_params(&PathBuf::from_str(DEFAULT_GENESIS_FILE_PATH)?);
     let batch_params = insert_genesis_batch(&mut transaction, &params).await?;
 
     updated_genesis.genesis_batch_commitment = batch_params.commitment;
