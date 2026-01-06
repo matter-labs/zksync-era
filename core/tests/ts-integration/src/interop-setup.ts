@@ -278,6 +278,20 @@ export class InteropTestContext {
             await depositTx.wait();
         }
 
+        // Define dummy interop recipients
+        const dummyInteropRecipientContract = await deployContract(
+            this.interop2RichWallet,
+            ArtifactDummyInteropRecipient,
+            []
+        );
+        this.dummyInteropRecipient = await dummyInteropRecipientContract.getAddress();
+        const otherDummyInteropRecipientContract = await deployContract(
+            this.interop2RichWallet,
+            ArtifactDummyInteropRecipient,
+            []
+        );
+        this.otherDummyInteropRecipient = await otherDummyInteropRecipientContract.getAddress();
+
         this.erc7786AttributeDummy = new zksync.Contract(
             '0x0000000000000000000000000000000000000000',
             ArtifactIERC7786Attributes.abi,
@@ -365,19 +379,6 @@ export class InteropTestContext {
         ]);
         this.tokenA.l2Address = await tokenADeploy.getAddress();
 
-        const dummyInteropRecipientContract = await deployContract(
-            this.interop2RichWallet,
-            ArtifactDummyInteropRecipient,
-            []
-        );
-        this.dummyInteropRecipient = await dummyInteropRecipientContract.getAddress();
-        const otherDummyInteropRecipientContract = await deployContract(
-            this.interop2RichWallet,
-            ArtifactDummyInteropRecipient,
-            []
-        );
-        this.otherDummyInteropRecipient = await otherDummyInteropRecipientContract.getAddress();
-
         // Register tokens on Interop1
         await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
         this.tokenA.assetId = await this.interop1NativeTokenVault.assetId(this.tokenA.l2Address);
@@ -410,9 +411,7 @@ export class InteropTestContext {
                 l2Address: this.tokenA.l2Address,
                 l2AddressSecondChain: this.tokenA.l2AddressSecondChain,
                 assetId: this.tokenA.assetId
-            },
-            dummyRecipientAddress: this.dummyInteropRecipient,
-            otherDummyRecipientAddress: this.otherDummyInteropRecipient
+            }
         };
 
         this.loadState(newState);
@@ -424,8 +423,6 @@ export class InteropTestContext {
             ...state.tokenA,
             decimals: 18n // Default value, not used in this test suite anyway
         };
-        this.dummyInteropRecipient = state.dummyRecipientAddress;
-        this.otherDummyInteropRecipient = state.otherDummyRecipientAddress;
 
         this.interop1TokenA = new zksync.Contract(
             this.tokenA.l2Address,
