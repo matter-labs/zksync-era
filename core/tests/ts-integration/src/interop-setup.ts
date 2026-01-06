@@ -188,6 +188,10 @@ export class InteropTestContext {
             this.interop2Provider
         );
 
+        // Define bridged token
+        this.bridgedToken = this.testMaster.environment().erc20Token;
+        this.bridgedToken.assetId = await this.interop1NativeTokenVault.assetId(this.bridgedToken.l2Address);
+
         // Deposit funds on Interop1
         const gasPrice = await scaledGasPrice(this.interop1RichWallet);
         this.baseToken1 = this.testMaster.environment().baseToken;
@@ -375,8 +379,6 @@ export class InteropTestContext {
         this.otherDummyInteropRecipient = await otherDummyInteropRecipientContract.getAddress();
 
         // Register tokens on Interop1
-        this.bridgedToken = this.testMaster.environment().erc20Token;
-        this.bridgedToken.assetId = await this.interop1NativeTokenVault.assetId(this.bridgedToken.l2Address);
         await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
         this.tokenA.assetId = await this.interop1NativeTokenVault.assetId(this.tokenA.l2Address);
         this.interop1TokenA = new zksync.Contract(
@@ -401,11 +403,16 @@ export class InteropTestContext {
 
         // Save State
         const newState = {
-            tokenAL2Address: this.tokenA.l2Address,
+            tokenA: {
+                name: this.tokenA.name,
+                symbol: this.tokenA.symbol,
+                l1Address: this.tokenA.l1Address,
+                l2Address: this.tokenA.l2Address,
+                l2AddressSecondChain: this.tokenA.l2AddressSecondChain,
+                assetId: this.tokenA.assetId
+            },
             dummyRecipientAddress: this.dummyInteropRecipient,
-            otherDummyRecipientAddress: this.otherDummyInteropRecipient,
-            tokenAssetId: this.tokenA.assetId,
-            deployerPrivateKey: this.interop1Wallet.privateKey
+            otherDummyRecipientAddress: this.otherDummyInteropRecipient
         };
 
         this.loadState(newState);
@@ -413,10 +420,12 @@ export class InteropTestContext {
     }
 
     private loadState(state: any) {
-        this.tokenA.l2Address = state.tokenAL2Address;
+        this.tokenA = {
+            ...state.tokenA,
+            decimals: 18n // Default value, not used in this test suite anyway
+        };
         this.dummyInteropRecipient = state.dummyRecipientAddress;
         this.otherDummyInteropRecipient = state.otherDummyRecipientAddress;
-        this.tokenA.assetId = state.tokenAssetId;
 
         this.interop1TokenA = new zksync.Contract(
             this.tokenA.l2Address,
