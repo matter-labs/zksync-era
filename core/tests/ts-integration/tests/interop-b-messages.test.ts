@@ -40,7 +40,7 @@ describe('Interop-B Messages behavior checks', () => {
         baseTokenAmount = ctx.getTransferAmount();
         const senderBalanceBefore = ctx.isSameBaseToken
             ? await ctx.interop1Wallet.getBalance()
-            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.assetId!);
+            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
 
         const baseTokenAttributes = [
             await ctx.erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [baseTokenAmount]),

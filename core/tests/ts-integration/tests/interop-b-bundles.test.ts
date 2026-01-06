@@ -8,7 +8,7 @@ import { formatEvmV1Address } from '../src/helpers';
 import { L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS } from '../src/constants';
 import { TransactionReceipt } from 'ethers';
 
-describe('Interop-B bundles behavior checks', () => {
+describe('Interop-B Bundles behavior checks', () => {
     const ctx = new InteropTestContext();
 
     let singleDirectAmount: bigint;
@@ -46,7 +46,7 @@ describe('Interop-B bundles behavior checks', () => {
         singleDirectAmount = ctx.getTransferAmount();
         let senderBalanceBefore = ctx.isSameBaseToken
             ? await ctx.interop1Wallet.getBalance()
-            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.assetId!);
+            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
 
         let msgValue = ctx.isSameBaseToken ? singleDirectAmount : 0n;
         singleDirectReceipt = await ctx.fromInterop1RequestInterop(
@@ -105,7 +105,7 @@ describe('Interop-B bundles behavior checks', () => {
         twoDirectAmount2 = ctx.getTransferAmount();
         senderBalanceBefore = ctx.isSameBaseToken
             ? await ctx.interop1Wallet.getBalance()
-            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.assetId!);
+            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
 
         let totalAmount = twoDirectAmount1 + twoDirectAmount2;
         msgValue = ctx.isSameBaseToken ? totalAmount : 0n;
@@ -187,7 +187,7 @@ describe('Interop-B bundles behavior checks', () => {
 
         senderBalanceBefore = ctx.isSameBaseToken
             ? await ctx.interop1Wallet.getBalance()
-            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.assetId!);
+            : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
         senderTokenBalanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
 
         msgValue = ctx.isSameBaseToken ? mixedBundleBaseAmount : 0n;
