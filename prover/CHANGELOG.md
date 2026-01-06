@@ -1,5 +1,13 @@
 # Changelog
 
+## [23.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.1.0...prover-v23.2.0) (2025-12-17)
+
+
+### Features
+
+* **crypto:** Update crypto deps ([#4587](https://github.com/matter-labs/zksync-era/issues/4587)) ([c5e7152](https://github.com/matter-labs/zksync-era/commit/c5e7152c7908b8f253f111b359d0fa9f4548da62))
+* Improve proving networks setup ([#4563](https://github.com/matter-labs/zksync-era/issues/4563)) ([42c3f0f](https://github.com/matter-labs/zksync-era/commit/42c3f0f4efe1975f734c8e0d45a43007cc2ff9f7))
+
 ## [23.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.0.0...prover-v23.1.0) (2025-10-21)
 
 
