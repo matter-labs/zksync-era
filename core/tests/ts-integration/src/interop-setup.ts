@@ -291,7 +291,7 @@ export class InteropTestContext {
     async performSharedSetup() {
         if (this.skipInteropTests) return;
 
-        const maxRetries = 120; // Wait up to 120 seconds
+        const maxRetries = 300; // Wait up to 300 seconds
         let hasLock = false;
 
         // 1. Attempt to acquire lock or wait for state file
