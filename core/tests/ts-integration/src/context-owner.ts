@@ -490,24 +490,37 @@ export class TestContextOwner {
 
         // Deposit L2 tokens on the second chain (if needed).
         if (l2ETHAmountToDepositSecondChain != 0n) {
+            // Determine whether the second chain base token is ETH or a custom token.
+            const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
+            const baseTokenSecondChainAddress = await bridgehubContract.baseToken(this.env.l2ChainIdSecondChain!);
+            const ethIsBaseTokenSecondChain = baseTokenSecondChainAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
             const depositHandle = this.secondChainMainSyncWallet!.deposit({
                 token: zksync.utils.ETH_ADDRESS,
                 amount: l2ETHAmountToDepositSecondChain as BigNumberish,
-                overrides: {
+                approveBaseERC20: true,
+                approveERC20: true,
+                approveBaseOverrides: {
                     nonce,
+                    gasPrice
+                },
+                overrides: {
+                    nonce: nonce + (ethIsBaseTokenSecondChain ? 0 : 1), // if eth is base token the approve tx does not happen
                     gasPrice
                 }
             }).then((tx) => {
-                const amount = ethers.formatEther(l2ETHAmountToDeposit);
+                const amount = ethers.formatEther(l2ETHAmountToDepositSecondChain);
                 this.reporter.debug(
                     `Sent ETH deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
                 );
                 return tx.wait();
             });
-            nonce = nonce + 1;
-            this.reporter.debug(`Nonce changed by 1 for ETH deposit on second chain, new nonce: ${nonce}`);
+            nonce = nonce + 1 + (ethIsBaseTokenSecondChain ? 0 : 1);
+            this.reporter.debug(
+                `Nonce changed by ${1 + (ethIsBaseTokenSecondChain ? 0 : 1)} for ETH deposit on second chain, new nonce: ${nonce}`
+            );
+
             await depositHandle;
         }
 
