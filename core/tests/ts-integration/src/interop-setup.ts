@@ -309,6 +309,13 @@ export class InteropTestContext {
     async performSharedSetup() {
         if (this.skipInteropTests) return;
 
+        // Skip locking for local single-suite runs
+        if (process.env.INTEROP_SKIP_LOCK === 'true') {
+            console.log(`[${process.pid}] Skipping lock (INTEROP_SKIP_LOCK=true), performing setup directly`);
+            await this.performSetup();
+            return;
+        }
+
         const maxRetries = 300; // Wait up to 300 seconds
         let hasLock = false;
 
