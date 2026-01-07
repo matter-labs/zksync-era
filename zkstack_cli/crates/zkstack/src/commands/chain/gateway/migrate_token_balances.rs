@@ -359,33 +359,33 @@ pub async fn migrate_token_balances_from_gateway(
 
     println!("Token migration finished");
 
-    let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
-        .encode(
-            "checkAllMigrated",
-            (U256::from(l2_chain_id), l2_rpc_url.clone()),
-        )
-        .unwrap();
+    // let calldata = GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS
+    //     .encode(
+    //         "checkAllMigrated",
+    //         (U256::from(l2_chain_id), l2_rpc_url.clone()),
+    //     )
+    //     .unwrap();
 
-    let mut forge = Forge::new(foundry_scripts_path)
-        .script(
-            &PathBuf::from(GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH),
-            forge_args.clone(),
-        )
-        .with_ffi()
-        .with_rpc_url(l2_rpc_url.clone())
-        .with_broadcast()
-        .with_zksync()
-        .with_slow()
-        .with_gas_per_pubdata(8000)
-        .with_calldata(&calldata);
+    // let mut forge = Forge::new(foundry_scripts_path)
+    //     .script(
+    //         &PathBuf::from(GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH),
+    //         forge_args.clone(),
+    //     )
+    //     .with_ffi()
+    //     .with_rpc_url(l2_rpc_url.clone())
+    //     .with_broadcast()
+    //     .with_zksync()
+    //     .with_slow()
+    //     .with_gas_per_pubdata(8000)
+    //     .with_calldata(&calldata);
 
-    // Governor private key is required for this script
-    if run_initial {
-        forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
-        forge.run(shell)?;
-    }
+    // // Governor private key is required for this script
+    // if run_initial {
+    //     forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
+    //     forge.run(shell)?;
+    // }
 
-    println!("Token migration checked");
+    // println!("Token migration checked");
 
     Ok(())
 }
