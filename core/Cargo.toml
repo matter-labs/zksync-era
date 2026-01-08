@@ -153,7 +153,7 @@ insta = "1.29.0"
 itertools = "0.13.0"
 jsonrpsee = { version = "0.24", default-features = false }
 leb128 = "0.2.5"
-lru = { version = "0.12.1", default-features = false }
+lru = { version = "0.16.3", default-features = false }
 mini-moka = "0.10.0"
 num_cpus = "1.13"
 num_enum = "0.7.2"
