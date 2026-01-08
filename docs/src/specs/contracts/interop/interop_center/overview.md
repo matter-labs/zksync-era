@@ -2,7 +2,9 @@
 
 ## What is Interop
 
-Interop is ZKsync's cross-chain communication system that enables seamless interaction between different L2 chains in the ecosystem. It provides three main capabilities:
+Interop is ZKsync's cross-chain communication system that enables seamless interaction between different L2 chains in the ecosystem. It implements the **ERC-7786** standard for cross-chain messaging and **ERC-7930** for interoperable addresses, ensuring alignment with the broader Ethereum ecosystem.
+
+The system provides three main capabilities:
 
 1. **Broadcast Messages**: Send messages from any L2 that can be verified on any other chain (low-level primitive)
 2. **Cross-Chain Calls**: Execute a single function on another L2 with value transfer and permission controls  
@@ -33,16 +35,16 @@ L2MessageVerification.proveL2MessageInclusionShared(
 
 This is useful for cross-chain proofs, attestations, or any scenario where you need to prove something happened on another chain.
 
-### Cross-Chain Calls (High-Level)
+### Cross-Chain Calls and ERC-7786
 
-For executing specific functions on other L2s, use the `InteropCenter`. You have two options:
+For executing specific functions on other L2s, we implement the **ERC-7786** standard. The naming convention follows this standard - hence `sendMessage` for sending calls and `receiveMessage` for receiving them.
 
 #### Single Cross-Chain Call
 
 Perfect for simple operations like calling a function on another chain:
 
 ```solidity
-// Send a single cross-chain call to another L2
+// Send a single cross-chain call to another L2 (ERC-7786 sendMessage)
 bytes32 sendId = InteropCenter.sendMessage{value: 0.1 ether}(
     recipient,      // ERC-7930 address (chain ID + address)
     payload,        // Your encoded function call
@@ -51,6 +53,39 @@ bytes32 sendId = InteropCenter.sendMessage{value: 0.1 ether}(
 ```
 
 Under the hood, this creates a bundle with just one call - but you don't need to worry about that complexity.
+On the destination chain, your target contract must implement the **ERC-7786** `receiveMessage` function:
+
+```solidity
+contract MyContract is IERC7786Recipient {
+    function receiveMessage(
+        bytes32 receiveId,
+        bytes calldata sender,    // ERC-7930 address of sender
+        bytes calldata payload
+    ) external payable returns (bytes4) {
+        // Your logic here
+        return IERC7786Recipient.receiveMessage.selector;
+    }
+}
+```
+
+### Bundles and Call Starters
+
+#### Understanding Call Starters
+
+A **call starter** is the building block for cross-chain calls. It contains:
+- `to`: The recipient (in ERC-7930 format - like an email address with chain ID)
+- `data`: The function call to execute
+- `callAttributes`: Optional settings like value or permissions
+
+```solidity
+// Example: Creating call starters for a bundle
+InteropCallStarter[] memory calls = new InteropCallStarter[](2);
+calls[0] = InteropCallStarter({
+    to: formatAddress(chainId: 324, address: recipient1),
+    data: abi.encodeCall(IContract.updateValue, (42)),
+    callAttributes: new bytes[](0)  // No special attributes
+});
+```
 
 #### Bundled Cross-Chain Calls
 
@@ -70,21 +105,73 @@ bytes32 bundleHash = InteropCenter.sendBundle{value: totalValue}(
 
 The key difference: bundles can ensure all calls execute together (all-or-nothing), while single calls are simpler for basic needs.
 
-### Understanding Call Starters
+#### Unbundling Functionality
 
-A **call starter** is the building block for cross-chain calls. It contains:
-- `to`: The recipient (in ERC-7930 format - like an email address with chain ID)
-- `data`: The function call to execute
-- `callAttributes`: Optional settings like value or permissions
+The unbundling functionality gives you fine-grained control over bundle execution. If you're the unbundler, you can control bundle execution. 
+
+**Important**: When no unbundler is specified, the **default unbundler** is the sender's full ERC-7930 address (chain ID + address). This means only the original sender calling from the same chain can unbundle - not just any address matching the sender's address on other chains.
+
+As the unbundler, you can:
+
+- **Execute a subset of calls**: Choose which calls to execute and leave others unprocessed
+- **Cancel a subset of calls**: Mark specific calls as cancelled so they can never be executed
+- **Mix both**: Execute some calls and cancel others in the same unbundling operation
 
 ```solidity
-// Example: Creating multiple call starters for a bundle
-InteropCallStarter[] memory calls = new InteropCallStarter[](2);
-calls[0] = InteropCallStarter({
-    to: formatAddress(chainId: 324, address: recipient1),
-    data: abi.encodeCall(IContract.updateValue, (42)),
-    callAttributes: new bytes[](0)  // No special attributes
-});
+// Example: In a 4-call bundle, execute calls 0 and 2, cancel call 1, skip call 3
+CallStatus[] memory desiredStatus = new CallStatus[](4);
+desiredStatus[0] = CallStatus.Executed;    // Execute first call
+desiredStatus[1] = CallStatus.Cancelled;   // Cancel second call  
+desiredStatus[2] = CallStatus.Executed;    // Execute third call
+desiredStatus[3] = CallStatus.Unprocessed; // Skip fourth call (leave for later)
+
+InteropHandler.unbundleBundle(sourceChainId, bundleData, desiredStatus);
+```
+
+**Key points about unbundling**:
+- You can call `unbundleBundle` multiple times until all calls are processed
+- Once a call is executed or cancelled, its status is permanent
+- Only the designated unbundler (or sender if none specified) can unbundle
+- Single calls sent via `sendMessage` can also be unbundled since they're 1-call bundles
+
+### Message Value Considerations
+
+When sending cross-chain calls with value, the `msg.value` you send gets handled differently based on the destination chain's base token. If both chains share the same base token, the value is burned on the source and minted on the destination. If they have different base tokens, the system routes through the appropriate token bridging mechanism.
+
+### Custom Attributes
+
+ERC-7786 allows custom attributes to control call behavior. ZKsync supports these attributes:
+
+#### Call-Level Attributes
+These can be used in both `sendMessage` and individual call starters in `sendBundle`:
+
+1. **interopCallValue**: Base token amount to send with the call on the destination chain
+```solidity
+attributes[0] = abi.encodeCall(IERC7786Attributes.interopCallValue, (1000));
+```
+
+2. **indirectCall**: Value for intermediate contract execution (used for token transfers and complex routing). We support custom base tokens across chains, so this attribute handles the bridging complexity.
+```solidity
+attributes[1] = abi.encodeCall(IERC7786Attributes.indirectCall, (0.1 ether));
+```
+
+#### Bundle-Level Attributes
+These can only be used in `sendMessage` attributes or `sendBundle` bundle attributes (NOT in individual call starters):
+
+3. **executionAddress**: Who can execute the bundle (permissioned execution)
+```solidity
+attributes[2] = abi.encodeCall(
+    IERC7786Attributes.executionAddress,
+    formatAddress(324, 0x1234...5678)
+);
+```
+
+4. **unbundlerAddress**: Who can unbundle/cancel calls (permissioned unbundling)  
+```solidity
+attributes[3] = abi.encodeCall(
+    IERC7786Attributes.unbundlerAddress,
+    formatAddress(324, 0x8765...4321)
+);
 ```
 
 ### Direct vs Indirect Calls
@@ -125,7 +212,7 @@ This pattern enables complex operations like:
 - **Cross-chain governance**: Intermediate contracts validate proposals and format calls
 - **Bridged operations**: Intermediate contracts manage state synchronization
 
-## Common Questions and Considerations
+## FAQ
 
 ### Who pays for gas on the destination chain?
 
@@ -144,55 +231,6 @@ For broadcast messages, verification is paid by whoever needs to prove the messa
   2. Destination chain includes it
   3. Execution can happen now
 
-### Can I cancel or selectively execute calls?
-
-Yes! The unbundling functionality gives you fine-grained control over bundle execution. If you're the unbundler (or no unbundler was specified, making you the default), you can:
-
-**Execute a subset of calls**: Choose which calls to execute and leave others unprocessed
-**Cancel a subset of calls**: Mark specific calls as cancelled so they can never be executed
-**Mix both**: Execute some calls and cancel others in the same unbundling operation
-
-```solidity
-// Example: In a 4-call bundle, execute calls 0 and 2, cancel call 1, skip call 3
-CallStatus[] memory desiredStatus = new CallStatus[](4);
-desiredStatus[0] = CallStatus.Executed;    // Execute first call
-desiredStatus[1] = CallStatus.Cancelled;   // Cancel second call  
-desiredStatus[2] = CallStatus.Executed;    // Execute third call
-desiredStatus[3] = CallStatus.Unprocessed; // Skip fourth call (leave for later)
-
-InteropHandler.unbundleBundle(sourceChainId, bundleData, desiredStatus);
-```
-
-**Key points about unbundling**:
-- You can call `unbundleBundle` multiple times until all calls are processed
-- Once a call is executed or cancelled, its status is permanent
-- Only the designated unbundler (or sender if none specified) can unbundle
-- This gives you flexibility when some calls might fail or become unnecessary
-
-**Single calls vs bundles**: Single calls sent via `sendMessage` can also be unbundled since they're actually 1-call bundles under the hood.
-
-Broadcast messages cannot be cancelled - they're permanent once sent.
-
-### Setting Permissions with Attributes
-
-Control who can execute or cancel your cross-chain calls:
-
-```solidity
-bytes[] memory attributes = new bytes[](2);
-
-// Only allow specific address to execute
-attributes[0] = abi.encodeCall(
-    IERC7786Attributes.executionAddress,
-    formatAddress(324, 0x1234...5678)
-);
-
-// Only allow specific address to unbundle
-attributes[1] = abi.encodeCall(
-    IERC7786Attributes.unbundlerAddress,
-    formatAddress(324, 0x8765...4321)
-);
-```
-
 ### When to Use Single Calls vs Bundles
 
 **Use `sendMessage` (single call) when:**
@@ -205,42 +243,6 @@ attributes[1] = abi.encodeCall(
 - Complex workflows that must succeed or fail together
 - You want to save on cross-chain overhead by batching
 
-Example of a bundle with multiple operations:
-
-```solidity
-InteropCallStarter[] memory calls = new InteropCallStarter[](3);
-
-// Step 1: Approve token spending
-calls[0] = InteropCallStarter({
-    to: formatAddress(destChainId, tokenAddress),
-    data: abi.encodeCall(IERC20.approve, (dexAddress, amount)),
-    callAttributes: new bytes[](0)
-});
-
-// Step 2: Swap tokens on DEX
-calls[1] = InteropCallStarter({
-    to: formatAddress(destChainId, dexAddress),
-    data: abi.encodeCall(IDex.swap, (tokenIn, tokenOut, amount)),
-    callAttributes: new bytes[](0)
-});
-
-// Step 3: Stake the output tokens
-calls[2] = InteropCallStarter({
-    to: formatAddress(destChainId, stakingAddress),
-    data: abi.encodeCall(IStaking.stake, (outputAmount)),
-    callAttributes: new bytes[](0)
-});
-
-// Send all three as atomic bundle
-bytes32 bundleHash = InteropCenter.sendBundle{value: 0}(
-    formatChainId(destChainId),
-    calls,
-    bundleAttributes
-);
-```
-
-If any step fails, the entire bundle reverts - protecting you from partial execution. But remember, that you are always able to unbundle the bundle as described below.
-
 ## Complex Scenario
 
 Imagine building a cross-chain yield aggregator:
@@ -248,6 +250,8 @@ Imagine building a cross-chain yield aggregator:
 2. Transfer user funds to the best-yielding chain (indirect call via AssetRouter)
 3. Deposit into the yield protocol (direct call)
 4. Send receipt NFT back to original chain (another indirect call)
+
+*Note: Complex cross-chain flows like this may require Account Abstraction (AA) for seamless user experience and proper transaction coordination.*
 
 This combines both broadcast messages (for yield data) and cross-chain calls (for actual operations).
 
@@ -285,12 +289,5 @@ Cross-chain call bundles progress through:
 - Pausable for emergencies
 - Permission system for execution control
 - ERC-7786 and ERC-7930 standard compliances
-
-### Supported Attributes
-
-1. **interopCallValue**: Base token amount for the call
-2. **indirectCall**: Value for indirect routing
-3. **executionAddress**: Who can execute
-4. **unbundlerAddress**: Who can unbundle
 
 The interop system provides flexible, secure cross-chain communication. Whether you're broadcasting data for verification, transferring assets, or orchestrating complex multi-chain operations, interop gives you the tools to build truly cross-chain applications.
