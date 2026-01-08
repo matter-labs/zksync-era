@@ -156,6 +156,8 @@ mod tests {
           avail_client_type: GasRelay
           gas_relay_api_url: https://lens-turbo-api.availproject.org
           max_retries: 4
+          referer_header: zksync
+          dispatch_timeout: 2s
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -177,6 +179,8 @@ mod tests {
             "https://lens-turbo-api.availproject.org"
         );
         assert_eq!(client.max_retries, 4);
+        assert_eq!(client.referer_header, "zksync");
+        assert_eq!(client.dispatch_timeout, Duration::from_secs(2));
     }
 
     #[test]
@@ -188,6 +192,8 @@ mod tests {
             gas_relay:
               gas_relay_api_url: https://lens-turbo-api.availproject.org
               max_retries: 4
+              referer_header: zksync
+              dispatch_timeout: 2s
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
