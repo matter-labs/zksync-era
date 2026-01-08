@@ -222,7 +222,7 @@ describe('Interop-B Bundles behavior checks', () => {
             };
         }
 
-        // We wait for the last of these bundles to be executable on the receiver chain.
+        // We wait for the last of these bundles to be executable on the destination chain.
         // By then, all of the bundles should be executable.
         await ctx.awaitInteropBundle(bundles.mixed.receipt.hash);
     });

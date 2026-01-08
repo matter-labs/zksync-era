@@ -112,7 +112,7 @@ describe('Interop-B Messages behavior checks', () => {
             messages.bridgedERC20 = { amount: amount.toString(), receipt };
         }
 
-        // Wait for the last message to be executable on the receiver chain.
+        // Wait for the last message to be executable on the destination chain.
         // By then, all messages should be executable.
         await ctx.awaitInteropBundle(messages.bridgedERC20.receipt.hash);
     });
