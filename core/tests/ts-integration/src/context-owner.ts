@@ -506,6 +506,7 @@ export class TestContextOwner {
             const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
             const baseTokenSecondChainAddress = await bridgehubContract.baseToken(this.env.l2ChainIdSecondChain!);
             const ethIsBaseTokenSecondChain = baseTokenSecondChainAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+            const tokenToDeposit = ethIsBaseTokenSecondChain ? zksync.utils.ETH_ADDRESS : baseTokenSecondChainAddress;
 
             if (!ethIsBaseTokenSecondChain) {
                 const mintAmount = l2ETHAmountToDepositSecondChain * 1000n;
@@ -528,11 +529,41 @@ export class TestContextOwner {
                     });
                 this.reporter.debug(`Nonce changed by 1 for ERC20 mint, new nonce: ${nonce}`);
                 await baseMintPromise;
+
+                // Also deposit to first chain
+                const depositHandle = this.mainSyncWallet
+                    .deposit({
+                        token: tokenToDeposit,
+                        amount: l2ETHAmountToDepositSecondChain as BigNumberish,
+                        approveBaseERC20: true,
+                        approveERC20: true,
+                        approveBaseOverrides: {
+                            nonce,
+                            gasPrice
+                        },
+                        overrides: {
+                            nonce: nonce + 1,
+                            gasPrice
+                        }
+                    })
+                    .then((tx) => {
+                        const amount = ethers.formatEther(l2ETHAmountToDepositSecondChain);
+                        this.reporter.debug(
+                            `Sent second chain base token deposit to first chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
+                        );
+                        return tx.wait();
+                    });
+                nonce = nonce + 2;
+                this.reporter.debug(
+                    `Nonce changed by 2 for second chain base token deposit to first chain, new nonce: ${nonce}`
+                );
+
+                await depositHandle;
             }
 
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
-            const tokenToDeposit = ethIsBaseTokenSecondChain ? zksync.utils.ETH_ADDRESS : baseTokenSecondChainAddress;
+            const tokenName = ethIsBaseTokenSecondChain ? 'ETH' : 'base token';
             const depositHandle = this.secondChainMainSyncWallet!.deposit({
                 token: tokenToDeposit,
                 amount: l2ETHAmountToDepositSecondChain as BigNumberish,
@@ -549,13 +580,13 @@ export class TestContextOwner {
             }).then((tx) => {
                 const amount = ethers.formatEther(l2ETHAmountToDepositSecondChain);
                 this.reporter.debug(
-                    `Sent ETH deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
+                    `Sent ${tokenName} deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
                 );
                 return tx.wait();
             });
             nonce = nonce + 1 + (ethIsBaseTokenSecondChain ? 0 : 1);
             this.reporter.debug(
-                `Nonce changed by ${1 + (ethIsBaseTokenSecondChain ? 0 : 1)} for ETH deposit on second chain, new nonce: ${nonce}`
+                `Nonce changed by ${1 + (ethIsBaseTokenSecondChain ? 0 : 1)} for ${tokenName} deposit on second chain, new nonce: ${nonce}`
             );
 
             await depositHandle;
