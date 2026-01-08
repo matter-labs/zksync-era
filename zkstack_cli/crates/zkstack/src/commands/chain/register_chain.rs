@@ -67,7 +67,7 @@ pub async fn register_chain(
     let deploy_config_path =
         REGISTER_CHAIN_SCRIPT_PARAMS.input(&chain_config.path_to_foundry_scripts());
 
-    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts.create2_factory_addr)?;
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
