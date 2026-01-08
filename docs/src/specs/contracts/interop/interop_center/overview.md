@@ -2,165 +2,301 @@
 
 ## What is Interop
 
-Interop is a way to communicate and transact between two ZK Stack chains. It allows you to:
+Interop is ZKsync's cross-chain communication system that enables seamless interaction between different L2 chains in the ecosystem. It provides three main capabilities:
 
-**1. Observe messages:** Track when an interop message (think of it as a special event) is created on the source chain.
+1. **Broadcast Messages**: Send messages from any L2 that can be verified on any other chain (low-level primitive)
+2. **Cross-Chain Calls**: Execute a single function on another L2 with value transfer and permission controls
+3. **Cross-Chain Bundles**: Execute multiple calls atomically on another L2 - all succeed or all fail together
 
-**2. Send assets:** Transfer ERC20 tokens and other assets between chains.
+With Interop, you can:
 
-**3. Execute calls:** Call a contract on a remote chain with specific calldata and value.
-
-With interop, you automatically get an account (a.k.a. aliasedAccount) on each chain, which you can control from the
-source chain.
-
-**4. Execute bundles of calls:** Group multiple remote calls into a single bundle, ensuring all of them execute at once.
-
-**5. Execute transactions:** Create transactions on the source chain, which will automatically get executed on the
-destination chain, with options to choose from various cross-chain Paymaster solutions to handle gas fees.
+1. **Execute cross-chain calls**: Invoke functions on contracts deployed on other L2s
+2. **Transfer assets**: Send assets cross-chain
+3. **Bundle operations**: Combine multiple calls into a single atomic bundle
+4. **Control permissions**: Specify who can execute or unbundle your cross-chain operations
+5. **Broadcast data**: Send messages that any chain can verify (useful for cross-chain proofs)
 
 ## How to Use Interop
 
-Here’s a simple example of calling a contract on a destination chain:
+### Broadcasting Messages (Low-Level)
+
+For simple data broadcasting that any chain can verify:
 
 ```solidity
-cast send source-chain-rpc.com INTEROP_CENTER_ADDRESS sendInteropWithSingleCall(
- 0x1fa72e78 // destination_chain_id,
- 0xb4AB2FF34fa... // destination_contract,
- 0x29723511000000... // destination_calldata,
- 0, // value
- 100_000, // gasLimit
- 250_000_000, // gasPrice
- )
+// Send a broadcast message via L1Messenger
+bytes memory message = abi.encode("Hello from Chain A!", block.timestamp);
+bytes32 messageHash = L1Messenger.sendToL1(message);
+
+// On another chain, anyone can verify this message was sent and received
+L2MessageVerification.proveL2MessageInclusionShared(
+    sourceChainId,
+    batchNumber,
+    messageIndex,
+    message,
+    proof
+);
 ```
 
-While this looks very similar to a 'regular' call, there are some nuances, especially around handling failures and
-errors.
+This is useful for cross-chain proofs, attestations, or any scenario where you need to prove something happened on another chain.
 
-Let’s explore these key details together.
+### Cross-Chain Calls (High-Level)
+
+For executing specific functions on other L2s, use the `InteropCenter`. You have two options:
+
+#### Single Cross-Chain Call
+
+Perfect for simple operations like calling a function on another chain:
+
+```solidity
+// Send a single cross-chain call to another L2
+bytes32 sendId = InteropCenter.sendMessage{value: 0.1 ether}(
+    recipient,      // ERC-7930 address (chain ID + address)
+    payload,        // Your encoded function call
+    attributes      // Optional attributes (permissions, value, etc.). We expand on attributes usage below.
+);
+```
+
+Under the hood, this creates a bundle with just one call - but you don't need to worry about that complexity.
+
+#### Bundled Cross-Chain Calls
+
+For complex operations requiring multiple calls to execute atomically:
+
+```solidity
+// Send multiple calls as an atomic bundle
+InteropCallStarter[] memory calls = new InteropCallStarter[](3); // We expand on Call Starters below.
+// ... populate calls ...
+
+bytes32 bundleHash = InteropCenter.sendBundle{value: totalValue}(
+    destinationChain,
+    calls,
+    bundleAttributes
+);
+```
+
+The key difference: bundles can ensure all calls execute together (all-or-nothing), while single calls are simpler for basic needs.
+
+### Understanding Call Starters
+
+A **call starter** is the building block for cross-chain calls. It contains:
+- `to`: The recipient (in ERC-7930 format - like an email address with chain ID)
+- `data`: The function call to execute
+- `callAttributes`: Optional settings like value or permissions
+
+```solidity
+// Example: Creating multiple call starters for a bundle
+InteropCallStarter[] memory calls = new InteropCallStarter[](2);
+calls[0] = InteropCallStarter({
+    to: formatAddress(chainId: 324, address: recipient1),
+    data: abi.encodeCall(IContract.updateValue, (42)),
+    callAttributes: new bytes[](0)  // No special attributes
+});
+```
+
+### Direct vs Indirect Calls
+
+**Direct Calls**: Your call goes straight to the target contract on the destination chain.
+
+```solidity
+// Direct call - calling a DeFi function on another chain
+bytes memory payload = abi.encodeCall(IDeFiProtocol.deposit, (amount));
+InteropCenter.sendMessage(recipientAddress, payload, new bytes[](0));
+```
+
+**Indirect Calls**: Your call first goes through an intermediate contract which then generates the actual cross-chain call. This is essential for operations that need special handling, like token transfers.
+
+Here's how the indirect call flow works:
+
+```solidity
+// Step 1: You call InteropCenter with the intermediate contract as recipient
+bytes[] memory attributes = new bytes[](2);
+attributes[0] = abi.encodeCall(IERC7786Attributes.indirectCall, (0.1 ether)); // msg.value for intermediate call
+attributes[1] = abi.encodeCall(IERC7786Attributes.interopCallValue, (1000));   // value for final call
+
+InteropCenter.sendMessage{value: 0.1 ether}(
+    assetRouterAddress,      // This is the intermediate contract
+    tokenTransferPayload,    // Instructions for the intermediate contract
+    attributes
+);
+```
+
+What happens under the hood (high level):
+1. **On source chain**: InteropCenter calls `initiateIndirectCall` on the intermediate contract (e.g., AssetRouter)
+2. **Intermediate contract**: Processes your request (locks tokens, prepares transfer data) and returns a new call starter
+3. **InteropCenter**: Uses the returned call starter to create the actual cross-chain call
+4. **On destination chain**: The final recipient gets called with the processed data
+
+This pattern enables complex operations like:
+- **Token transfers**: AssetRouter locks tokens on source, mints on destination
+- **Cross-chain governance**: Intermediate contracts validate proposals and format calls
+- **Bridged operations**: Intermediate contracts manage state synchronization
 
 ## Common Questions and Considerations
 
-#### 1. Who pays for gas
+### Who pays for gas on the destination chain?
 
-When using this method, your account must hold `gasLimit * gasPrice` worth of destination chain tokens on the source
-chain.
+For cross-chain calls, the destination chain execution is paid by whoever calls `InteropHandler.executeBundle()`:
+- **You** (if you set yourself as the execution address)
+- **Anyone** (if no execution address specified - permissionless)
+- **A relayer** (if you specified a relayer service)
 
-For example, if you’re sending the request from Era and the destination chain is Sophon (with SOPH tokens), you’ll need
-SOPH tokens available on Era.
+For broadcast messages, verification is paid by whoever needs to prove the message.
 
-Additional payment options are available, which will be covered in later sections.
+### How fast is it?
 
-#### 2. How does the destination contract know it’s from me
+- **Broadcast messages**: Available for verification after batch settlement.
+- **Cross-chain calls**: Available for execution as soon as message containing information about that bundle is included in destination chain.
+  1. Call is sent to L1 as a L2 -> L1 message
+  2. Destination chain includes it
+  3. Execution can happen now
 
-The destination contract will see `msg.sender` as `keccak(source_account, source_chain)[:20]`.
+### Can I cancel or selectively execute calls?
 
-Ideally, we would use something like `source_account@source_chain` (similar to an email format), but since Ethereum
-addresses are limited to 20 bytes, we use a Keccak hash to fit this constraint.
+Yes! The unbundling functionality gives you fine-grained control over bundle execution. If you're the unbundler (or no unbundler was specified, making you the default), you can:
 
-#### 3. Who executes it on the destination chain
-
-The call is auto-executed on the destination chain. As a user, you don’t need to take any additional actions.
-
-#### 4. What if it runs out of gas or the gasPrice is set too low
-
-In either scenario, you can retry the transaction using the `retryInteropTransaction` method:
-
-```solidity
-   cast send source-chain.com INTEROP_CENTER_ADDRESS retryInteropTransaction(
-     0x2654.. // previous interop transaction hash from above
-     200_000, // new gasLimit
-     300_000_000 // new gasPrice
-    )
-```
-
-**Important** : Depending on your use case, it’s crucial to retry the transaction rather than creating a new one with
-`sendInteropWithSingleCall`.
-
-For example, if your call involves transferring a large amount of assets, initiating a new `sendInteropWithSingleCall`
-could result in freezing or burning those assets again.
-
-#### 5. What if my assets were burned during the transaction, but it failed on the destination chain? How do I get them back
-
-If your transaction fails on the destination chain, you can either:
-
-1. Retry the transaction with more gas or a higher gas limit (refer to the retry method above).
-
-2. Cancel the transaction using the following method:
+**Execute a subset of calls**: Choose which calls to execute and leave others unprocessed
+**Cancel a subset of calls**: Mark specific calls as cancelled so they can never be executed
+**Mix both**: Execute some calls and cancel others in the same unbundling operation
 
 ```solidity
-cast send source-chain INTEROP_CENTER_ADDRESS cancelInteropTransaction(
-    0x2654.., // previous interop transaction
-    100_000, // gasLimit (cancellation also requires gas, but only to mark it as cancelled)
-    300_000_000 // gasPrice
-)
+// Example: In a 4-call bundle, execute calls 0 and 2, cancel call 1, skip call 3
+CallStatus[] memory desiredStatus = new CallStatus[](4);
+desiredStatus[0] = CallStatus.Executed;    // Execute first call
+desiredStatus[1] = CallStatus.Cancelled;   // Cancel second call  
+desiredStatus[2] = CallStatus.Executed;    // Execute third call
+desiredStatus[3] = CallStatus.Unprocessed; // Skip fourth call (leave for later)
+
+InteropHandler.unbundleBundle(sourceChainId, bundleData, desiredStatus);
 ```
 
-After cancellation, call the claimFailedDeposit method on the source chain contracts to recover the burned assets. Note
-that the details for this step may vary depending on the contract specifics.
+**Key points about unbundling**:
+- You can call `unbundleBundle` multiple times until all calls are processed
+- Once a call is executed or cancelled, its status is permanent
+- Only the designated unbundler (or sender if none specified) can unbundle
+- This gives you flexibility when some calls might fail or become unnecessary
+
+**Single calls vs bundles**: Single calls sent via `sendMessage` can also be unbundled since they're actually 1-call bundles under the hood.
+
+Broadcast messages cannot be cancelled - they're permanent once sent.
+
+### Setting Permissions with Attributes
+
+Control who can execute or cancel your cross-chain calls:
+
+```solidity
+bytes[] memory attributes = new bytes[](2);
+
+// Only allow specific address to execute
+attributes[0] = abi.encodeCall(
+    IERC7786Attributes.executionAddress,
+    formatAddress(324, 0x1234...5678)
+);
+
+// Only allow specific address to unbundle
+attributes[1] = abi.encodeCall(
+    IERC7786Attributes.unbundlerAddress,
+    formatAddress(324, 0x8765...4321)
+);
+```
+
+### When to Use Single Calls vs Bundles
+
+**Use `sendMessage` (single call) when:**
+- You need to execute one function on another chain
+- Simple token transfer or contract interaction
+- You want the simplest API
+
+**Use `sendBundle` (multiple calls) when:**
+- You need atomic execution of multiple operations
+- Complex workflows that must succeed or fail together
+- You want to save on cross-chain overhead by batching
+
+Example of a bundle with multiple operations:
+
+```solidity
+InteropCallStarter[] memory calls = new InteropCallStarter[](3);
+
+// Step 1: Approve token spending
+calls[0] = InteropCallStarter({
+    to: formatAddress(destChainId, tokenAddress),
+    data: abi.encodeCall(IERC20.approve, (dexAddress, amount)),
+    callAttributes: new bytes[](0)
+});
+
+// Step 2: Swap tokens on DEX
+calls[1] = InteropCallStarter({
+    to: formatAddress(destChainId, dexAddress),
+    data: abi.encodeCall(IDex.swap, (tokenIn, tokenOut, amount)),
+    callAttributes: new bytes[](0)
+});
+
+// Step 3: Stake the output tokens
+calls[2] = InteropCallStarter({
+    to: formatAddress(destChainId, stakingAddress),
+    data: abi.encodeCall(IStaking.stake, (outputAmount)),
+    callAttributes: new bytes[](0)
+});
+
+// Send all three as atomic bundle
+bytes32 bundleHash = InteropCenter.sendBundle{value: 0}(
+    formatChainId(destChainId),
+    calls,
+    bundleAttributes
+);
+```
+
+If any step fails, the entire bundle reverts - protecting you from partial execution. But remember, that you are always able to unbundle the bundle as described below.
 
 ## Complex Scenario
 
-#### 6. What if I want to transfer USDC to the Sophon chain, swap it for PEPE coin, and transfer the results back
+Imagine building a cross-chain yield aggregator:
+1. Broadcast current yields from multiple chains (using messages)
+2. Transfer user funds to the best-yielding chain (indirect call via AssetRouter)
+3. Deposit into the yield protocol (direct call)
+4. Send receipt NFT back to original chain (another indirect call)
 
-To accomplish this, you’ll need to:
-
-- Create multiple **InteropCalls** (e.g., transferring USDC, executing the swap).
-- Combine these calls into a single **InteropBundle**.
-- Execute the **InteropTransaction** on the destination chain.
-
-The step-by-step process and exact details will be covered in the next section.
+This combines both broadcast messages (for yield data) and cross-chain calls (for actual operations).
 
 ## Technical Details
 
-### How does native bridging differ from a third party bridging
+### Architecture Overview
 
-Bridges generally fall into two categories: Native and Third-Party.
+To summarize,
 
-#### 1. Native Bridges
+The interop system has multiple layers:
 
-Native bridges enable asset transfers “up and down” (from L2 to L1 and vice versa), but interop (which is also a form of
-native bridging) allows you to move them between different L2s.
+1. **Interop Messages**: Base broadcast layer (`sendToL1`)
+2. **Interop Bundles**: Cross-chain call coordination (`InteropCenter`)
+3. **Higher Layers**: Application-specific protocols (tokens, NFTs, etc.)
 
-Instead of doing a "round trip" (L2 → L1 → another L2), interop lets you move assets directly between two L2s, saving
-both time and cost.
+### Message Flow for Cross-Chain Calls
 
-#### 2. Third-Party Bridging
+1. **Sending**: Calls wrapped in `InteropBundle` and sent via `InteropCenter`
+2. **Propagation**: Bundle sent to L1, then to destination chain
+3. **Verification**: Merkle proofs ensure authenticity
+4. **Execution**: Bundles are processed via `InteropHandler`
 
-Third-party bridges enable transfers between two L2s, but they rely on their own liquidity. While you, as the user,
-receive assets on the destination chain instantly, these assets come from the bridge’s liquidity pool.
+### Bundle States
 
-Bridge operators then rebalance using native bridging, which requires maintaining token reserves on both sides. Without
-interop this adds costs for the bridge operators, often resulting in higher fees for users.
+Cross-chain call bundles progress through:
+- **Unreceived**: Not yet seen by destination
+- **Verified**: Proven authentic, ready to execute
+- **FullyExecuted**: All calls completed
+- **Unbundled**: Partially executed or cancelled
 
-The good news is that third-party bridges can use interop to improve their token transfers by utilizing the
-**InteropMessage** layer.
+### Security Features
 
-More details on this will follow below.
+- Cryptographic proofs for all cross-chain data
+- Reentrancy protection
+- Pausable for emergencies
+- Permission system for execution control
+- ERC-7786 and ERC-7930 standard compliances
 
-### How Fast is It
+### Supported Attributes
 
-Interop speed is determined by its lowest level: **InteropMessage** propagation speed. This essentially depends on how
-quickly the destination chain can confirm that the message created by the source chain is valid.
+1. **interopCallValue**: Base token amount for the call
+2. **indirectCall**: Value for indirect routing
+3. **executionAddress**: Who can execute
+4. **unbundlerAddress**: Who can unbundle
 
-- **Default Mode:** To prioritize security, the default interop mode waits for a ZK proof to validate the message, which
-  typically takes around 10 minutes.
-
-- **Fast Mode (Planned):** We are developing an alternative **INTEROP_CENTER** contract (using a different address but
-  the same interface) that will operate within 1 second. However, this faster mode comes with additional risks, similar
-  to the approach used by optimistic chains.
-
-### 4 Levels of Interop
-
-When analyzing interop, it can be broken into four levels, allowing you to choose the appropriate level for integration:
-
-- **InteropMessages:** The lowest level, directly used by third-party bridges and other protocols.
-
-- **InteropCall:** A medium level, designed for use by "library" contracts.
-
-- **InteropCallBundle:** A higher level, intended for use by "user-visible" contracts.
-
-- **InteropTransaction:** The highest level, designed for use in UX and frontends.
-
-![levelsofinterop.png](../img/levels.png)
-
-We will be covering the details of each layer in the next section.
+The interop system provides flexible, secure cross-chain communication. Whether you're broadcasting data for verification, transferring assets, or orchestrating complex multi-chain operations, interop gives you the tools to build truly cross-chain applications.
