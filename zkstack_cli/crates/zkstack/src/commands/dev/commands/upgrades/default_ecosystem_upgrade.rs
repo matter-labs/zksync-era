@@ -11,7 +11,7 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::GenesisInput,
+        deploy_ctm::input::GenesisInput,
         script_params::{
             ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
         },

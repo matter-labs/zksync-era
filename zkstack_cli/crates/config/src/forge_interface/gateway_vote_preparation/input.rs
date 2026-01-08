@@ -20,16 +20,6 @@ pub struct GatewayContractsConfig {
     pub genesis_rollup_leaf_index: U256,
     pub genesis_batch_commitment: H256,
     pub latest_protocol_version: U256,
-    pub recursion_node_level_vk_hash: H256,
-    pub recursion_leaf_level_vk_hash: H256,
-    pub recursion_circuits_set_vks_hash: H256,
-    pub priority_tx_max_gas_limit: U256,
-    pub diamond_init_pubdata_pricing_mode: U256,
-    pub diamond_init_batch_overhead_l1_gas: U256,
-    pub diamond_init_max_pubdata_per_batch: U256,
-    pub diamond_init_max_l2_gas_per_batch: U256,
-    pub diamond_init_priority_tx_max_pubdata: U256,
-    pub diamond_init_minimal_l2_gas_price: U256,
     pub default_aa_hash: H256,
     pub bootloader_hash: H256,
     pub evm_emulator_hash: Option<H256>,
@@ -77,37 +67,12 @@ impl GatewayVotePreparationConfig {
             max_number_of_chains: U256::from(initial_deployment_config.max_number_of_chains),
             create2_factory_salt: initial_deployment_config.create2_factory_salt,
             create2_factory_addr: initial_deployment_config.create2_factory_addr,
-            validator_timelock_execution_delay: U256::from(
-                initial_deployment_config.validator_timelock_execution_delay,
-            ),
+            // FIX ME set correct value
+            validator_timelock_execution_delay: U256::from(100),
             genesis_root: H256::from_str(&genesis_input.genesis_root_hash()?)?,
             genesis_rollup_leaf_index: U256::from(genesis_input.rollup_last_leaf_index()?),
             genesis_batch_commitment: H256::from_str(&genesis_input.genesis_commitment()?)?,
             latest_protocol_version: genesis_input.protocol_semantic_version()?.pack(),
-            recursion_node_level_vk_hash: H256::zero(), // These are always zero
-            recursion_leaf_level_vk_hash: H256::zero(), // These are always zero
-            recursion_circuits_set_vks_hash: H256::zero(), // These are always zero
-            priority_tx_max_gas_limit: U256::from(
-                initial_deployment_config.priority_tx_max_gas_limit,
-            ),
-            diamond_init_pubdata_pricing_mode: U256::from(
-                initial_deployment_config.diamond_init_pubdata_pricing_mode,
-            ),
-            diamond_init_batch_overhead_l1_gas: U256::from(
-                initial_deployment_config.diamond_init_batch_overhead_l1_gas,
-            ),
-            diamond_init_max_pubdata_per_batch: U256::from(
-                initial_deployment_config.diamond_init_max_pubdata_per_batch,
-            ),
-            diamond_init_max_l2_gas_per_batch: U256::from(
-                initial_deployment_config.diamond_init_max_l2_gas_per_batch,
-            ),
-            diamond_init_priority_tx_max_pubdata: U256::from(
-                initial_deployment_config.diamond_init_priority_tx_max_pubdata,
-            ),
-            diamond_init_minimal_l2_gas_price: U256::from(
-                initial_deployment_config.diamond_init_minimal_l2_gas_price,
-            ),
             default_aa_hash: H256::from_str(&genesis_input.default_aa_hash()?)?,
             bootloader_hash: H256::from_str(&genesis_input.bootloader_hash()?)?,
             evm_emulator_hash: genesis_input

@@ -9,10 +9,11 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::{
-            input::{DeployL1Config, GenesisInput, InitialDeploymentConfig},
+        deploy_ctm::{
+            input::{DeployCTMConfig, GenesisInput},
             output::DeployCTMOutput,
         },
+        deploy_ecosystem::input::InitialDeploymentConfig,
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
@@ -178,11 +179,10 @@ pub async fn deploy_new_ctm(
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
-    let deploy_config = DeployL1Config::new(
+    let deploy_config = DeployCTMConfig::new(
         &default_genesis_input,
         &wallets_config,
         initial_deployment_config,
-        config.era_chain_id,
         config.prover_version == ProverMode::NoProofs,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
