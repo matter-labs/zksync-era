@@ -130,7 +130,7 @@ async fn init_ecosystem(
         )
         .await?;
 
-        // // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
+        // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
         if !init_args.vm_option.is_zksync_os() && init_args.dev {
             rebuild_all_contracts(
                 shell,

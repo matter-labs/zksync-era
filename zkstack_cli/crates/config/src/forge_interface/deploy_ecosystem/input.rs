@@ -6,7 +6,6 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkstack_cli_types::VMOption;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -15,7 +14,6 @@ use crate::{
     ContractsConfigForDeployERC20, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
-/// Part of the genesis config influencing `DeployGatewayCTMInput`.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct InitialDeploymentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,22 +99,18 @@ pub struct DeployL1Config {
     pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
-    pub is_zk_sync_os: bool,
 }
 
 impl FileConfigTrait for DeployL1Config {}
 
 impl DeployL1Config {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         wallets_config: &WalletsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
         support_l2_legacy_shared_bridge_test: bool,
-        vm_option: VMOption,
     ) -> Self {
         Self {
-            is_zk_sync_os: vm_option.is_zksync_os(),
             era_chain_id,
             owner_address: wallets_config.governor.address,
             support_l2_legacy_shared_bridge_test,

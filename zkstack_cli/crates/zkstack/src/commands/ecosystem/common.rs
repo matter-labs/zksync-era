@@ -51,7 +51,6 @@ pub async fn deploy_l1_core_contracts(
         initial_deployment_config,
         config.era_chain_id,
         support_l2_legacy_shared_bridge_test,
-        vm_option,
     );
 
     deploy_config.save(shell, deploy_config_path)?;

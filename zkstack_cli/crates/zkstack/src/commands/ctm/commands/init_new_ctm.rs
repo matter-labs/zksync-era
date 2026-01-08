@@ -9,15 +9,12 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ctm::{
-            input::{DeployCTMConfig, GenesisInput},
-            output::DeployCTMOutput,
-        },
+        deploy_ctm::{input::DeployCTMConfig, output::DeployCTMOutput},
         deploy_ecosystem::input::InitialDeploymentConfig,
         script_params::DEPLOY_CTM_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
+    CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
@@ -173,14 +170,10 @@ pub async fn deploy_new_ctm(
     let mut contracts_config = config.get_contracts_config()?;
     let deploy_config_path =
         DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(vm_option));
-    let genesis_config_path = config.default_genesis_path(vm_option);
-    let default_genesis_config = ContractsGenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployCTMConfig::new(
-        &default_genesis_input,
         &wallets_config,
         initial_deployment_config,
         config.prover_version == ProverMode::NoProofs,

@@ -1,13 +1,10 @@
-use ethers::types::{Address, H256, U256};
+use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zkstack_cli_types::VMOption;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    forge_interface::{
-        deploy_ctm::input::GenesisInput, deploy_ecosystem::input::InitialDeploymentConfig,
-    },
-    traits::FileConfigTrait,
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::FileConfigTrait,
     CoreContractsConfig,
 };
 
@@ -45,7 +42,6 @@ impl FileConfigTrait for EcosystemUpgradeInput {}
 impl EcosystemUpgradeInput {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        new_genesis_input: &GenesisInput,
         current_contracts_config: &CoreContractsConfig,
         gateway_upgrade_config: &GatewayUpgradeContractsConfig,
         // It is expected to not change between the versions
@@ -67,12 +63,6 @@ impl EcosystemUpgradeInput {
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
                 max_number_of_chains: initial_deployment_config.max_number_of_chains,
-                // These values are not optional in genesis config with file based configuration
-                genesis_batch_commitment: new_genesis_input.genesis_commitment,
-                bootloader_hash: new_genesis_input.bootloader_hash,
-                default_aa_hash: new_genesis_input.default_aa_hash,
-                genesis_rollup_leaf_index: new_genesis_input.rollup_last_leaf_index,
-                genesis_root: new_genesis_input.genesis_root_hash,
                 bridgehub_proxy_address: current_contracts_config
                     .core_ecosystem_contracts
                     .bridgehub_proxy_addr,
@@ -89,14 +79,13 @@ impl EcosystemUpgradeInput {
                     .ctm(vm_option)
                     .validator_timelock_addr,
                 governance_security_council_address: Address::zero(),
-                latest_protocol_version: new_genesis_input.protocol_version.pack(),
-                evm_emulator_hash: new_genesis_input.evm_emulator_hash,
                 l1_bytecodes_supplier_addr: current_contracts_config
                     .ctm(vm_option)
                     .l1_bytecodes_supplier_addr,
                 protocol_upgrade_handler_proxy_address: Address::zero(),
                 rollup_da_manager: Address::zero(),
-                validator_timelock_execution_delay: 0,
+                validator_timelock_execution_delay: initial_deployment_config
+                    .validator_timelock_execution_delay,
             },
             gateway: gateway_upgrade_config.clone(),
             tokens: GatewayUpgradeTokensConfig {
@@ -119,11 +108,6 @@ pub struct EcosystemUpgradeContractsConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub create2_factory_addr: Option<Address>,
     pub validator_timelock_execution_delay: u64,
-    pub genesis_root: H256,
-    pub genesis_rollup_leaf_index: Option<u64>,
-    pub genesis_batch_commitment: H256,
-    pub bootloader_hash: Option<H256>,
-    pub default_aa_hash: Option<H256>,
 
     pub bridgehub_proxy_address: Address,
     pub shared_bridge_proxy_address: Address,
@@ -134,8 +118,6 @@ pub struct EcosystemUpgradeContractsConfig {
     pub old_validator_timelock: Address,
 
     pub governance_security_council_address: Address,
-    pub latest_protocol_version: U256,
-    pub evm_emulator_hash: Option<H256>,
     pub l1_bytecodes_supplier_addr: Address,
     pub protocol_upgrade_handler_proxy_address: Address,
     pub rollup_da_manager: Address,
