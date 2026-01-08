@@ -495,18 +495,18 @@ export class InteropTestContext {
      */
     async fromInterop1RequestInterop(
         execCallStarters: InteropCallStarter[],
-        bundleOptions: { executionAddress?: string; unbundlerAddress?: string },
+        bundleOptions?: { executionAddress?: string; unbundlerAddress?: string },
         overrides: ethers.Overrides = {}
     ) {
         const bundleAttributes = [];
-        if (bundleOptions.executionAddress) {
+        if (bundleOptions?.executionAddress) {
             bundleAttributes.push(
                 await this.erc7786AttributeDummy.interface.encodeFunctionData('executionAddress', [
                     formatEvmV1Address(bundleOptions.executionAddress, this.interop2ChainId)
                 ])
             );
         }
-        if (bundleOptions.unbundlerAddress) {
+        if (bundleOptions?.unbundlerAddress) {
             bundleAttributes.push(
                 await this.erc7786AttributeDummy.interface.encodeFunctionData('unbundlerAddress', [
                     formatEvmV1Address(bundleOptions.unbundlerAddress, this.interop2ChainId)

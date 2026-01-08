@@ -77,8 +77,7 @@ describe('Interop-B Bundles behavior checks', () => {
                         ),
                         callAttributes: [ctx.indirectCallAttr()]
                     }
-                ],
-                { executionAddress: ctx.interop2RichWallet.address }
+                ]
             );
 
             const balanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
@@ -160,8 +159,7 @@ describe('Interop-B Bundles behavior checks', () => {
                         ),
                         callAttributes: [ctx.indirectCallAttr()]
                     }
-                ],
-                { executionAddress: ctx.interop2RichWallet.address }
+                ]
             );
 
             const balanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
