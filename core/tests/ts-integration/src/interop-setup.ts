@@ -449,6 +449,49 @@ export class InteropTestContext {
     /// HELPER FUNCTIONS
 
     /**
+     *  Helper to create the standard execution address attribute
+     */
+    async executionAddressAttr(executionAddress: string = this.interop2RichWallet.address) {
+        return this.erc7786AttributeDummy.interface.encodeFunctionData('executionAddress', [
+            formatEvmV1Address(executionAddress, this.interop2ChainId)
+        ]);
+    }
+
+    /**
+     * Helper to create attributes with interopCallValue
+     */
+    async directCallAttrs(amount: bigint, executionAddress?: string) {
+        return [
+            await this.erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [amount]),
+            await this.executionAddressAttr(executionAddress)
+        ];
+    }
+
+    /**
+     * Helper to create attributes with indirectCall
+     */
+    async indirectCallAttrs(callValue: bigint = 0n, executionAddress?: string) {
+        return [
+            await this.erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [callValue]),
+            await this.executionAddressAttr(executionAddress)
+        ];
+    }
+
+    /**
+     * Helper to encode interopCallValue attribute (for bundle call attributes)
+     */
+    interopCallValueAttr(amount: bigint): string {
+        return this.erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [amount]);
+    }
+
+    /**
+     * Helper to encode indirectCall attribute (for bundle call attributes)
+     */
+    indirectCallAttr(callValue: bigint = 0n): string {
+        return this.erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [callValue]);
+    }
+
+    /**
      * Sends a direct L2 transaction request on Interop1.
      * The function prepares the interop call input and populates the transaction before sending.
      */
