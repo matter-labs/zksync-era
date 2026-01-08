@@ -130,24 +130,24 @@ async fn init_ecosystem(
         )
         .await?;
 
-        // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
-        if !init_args.vm_option.is_zksync_os() && init_args.dev {
-            rebuild_all_contracts(
-                shell,
-                &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),
-            )?;
-            contracts = deploy_and_register_ctm(
-                shell,
-                init_args.l1_rpc_url.clone(),
-                ecosystem_config,
-                initial_deployment_config,
-                core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
-                init_args.support_l2_legacy_shared_bridge_test,
-                &init_args.forge_args,
-                VMOption::ZKSyncOsVM,
-            )
-            .await?;
-        }
+        // // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
+        // if !init_args.vm_option.is_zksync_os() && init_args.dev {
+        //     rebuild_all_contracts(
+        //         shell,
+        //         &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),
+        //     )?;
+        //     contracts = deploy_and_register_ctm(
+        //         shell,
+        //         init_args.l1_rpc_url.clone(),
+        //         ecosystem_config,
+        //         initial_deployment_config,
+        //         core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
+        //         init_args.support_l2_legacy_shared_bridge_test,
+        //         &init_args.forge_args,
+        //         VMOption::ZKSyncOsVM,
+        //     )
+        //     .await?;
+        // }
 
         contracts
     };
