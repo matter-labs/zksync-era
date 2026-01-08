@@ -5,16 +5,10 @@
 Interop is ZKsync's cross-chain communication system that enables seamless interaction between different L2 chains in the ecosystem. It provides three main capabilities:
 
 1. **Broadcast Messages**: Send messages from any L2 that can be verified on any other chain (low-level primitive)
-2. **Cross-Chain Calls**: Execute a single function on another L2 with value transfer and permission controls
+2. **Cross-Chain Calls**: Execute a single function on another L2 with value transfer and permission controls  
 3. **Cross-Chain Bundles**: Execute multiple calls atomically on another L2 - all succeed or all fail together
 
-With Interop, you can:
-
-1. **Execute cross-chain calls**: Invoke functions on contracts deployed on other L2s
-2. **Transfer assets**: Send assets cross-chain
-3. **Bundle operations**: Combine multiple calls into a single atomic bundle
-4. **Control permissions**: Specify who can execute or unbundle your cross-chain operations
-5. **Broadcast data**: Send messages that any chain can verify (useful for cross-chain proofs)
+Key benefits include secure asset transfers, flexible permission controls, atomic multi-step operations, and cryptographic proof systems for cross-chain verification.
 
 ## How to Use Interop
 
