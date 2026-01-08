@@ -66,19 +66,17 @@ describe('Interop-B Bundles behavior checks', () => {
             const amount = await ctx.getAndApproveTokenTransferAmount();
             const balanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
 
-            const receipt = await ctx.fromInterop1RequestInterop(
-                [
-                    {
-                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                        data: ctx.getTokenTransferSecondBridgeData(
-                            ctx.tokenA.assetId!,
-                            amount,
-                            ctx.interop2Recipient.address
-                        ),
-                        callAttributes: [ctx.indirectCallAttr()]
-                    }
-                ]
-            );
+            const receipt = await ctx.fromInterop1RequestInterop([
+                {
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                    data: ctx.getTokenTransferSecondBridgeData(
+                        ctx.tokenA.assetId!,
+                        amount,
+                        ctx.interop2Recipient.address
+                    ),
+                    callAttributes: [ctx.indirectCallAttr()]
+                }
+            ]);
 
             const balanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
             expect((balanceAfter - balanceBefore).toString()).toBe((-amount).toString());
@@ -139,28 +137,26 @@ describe('Interop-B Bundles behavior checks', () => {
             await (await ctx.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, totalAmount)).wait();
             const balanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
 
-            const receipt = await ctx.fromInterop1RequestInterop(
-                [
-                    {
-                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                        data: ctx.getTokenTransferSecondBridgeData(
-                            ctx.tokenA.assetId!,
-                            tokenAmountA,
-                            ctx.interop2Recipient.address
-                        ),
-                        callAttributes: [ctx.indirectCallAttr()]
-                    },
-                    {
-                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                        data: ctx.getTokenTransferSecondBridgeData(
-                            ctx.tokenA.assetId!,
-                            tokenAmountB,
-                            ctx.otherInterop2Recipient.address
-                        ),
-                        callAttributes: [ctx.indirectCallAttr()]
-                    }
-                ]
-            );
+            const receipt = await ctx.fromInterop1RequestInterop([
+                {
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                    data: ctx.getTokenTransferSecondBridgeData(
+                        ctx.tokenA.assetId!,
+                        tokenAmountA,
+                        ctx.interop2Recipient.address
+                    ),
+                    callAttributes: [ctx.indirectCallAttr()]
+                },
+                {
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                    data: ctx.getTokenTransferSecondBridgeData(
+                        ctx.tokenA.assetId!,
+                        tokenAmountB,
+                        ctx.otherInterop2Recipient.address
+                    ),
+                    callAttributes: [ctx.indirectCallAttr()]
+                }
+            ]);
 
             const balanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
             expect((balanceAfter - balanceBefore).toString()).toBe((-totalAmount).toString());
