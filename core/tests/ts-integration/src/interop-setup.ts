@@ -197,10 +197,6 @@ export class InteropTestContext {
         this.baseToken1 = this.testMaster.environment().baseToken;
         this.baseToken1.assetId = await this.interop1NativeTokenVault.assetId(this.baseToken1.l2Address);
         this.baseToken2 = this.testMaster.environment().baseTokenSecondChain!;
-        this.baseToken2.assetId = await this.interop2NativeTokenVault.assetId(this.baseToken2.l2Address);
-        this.baseToken2.l2AddressSecondChain = await this.interop1NativeTokenVault.tokenAddress(
-            this.baseToken2.assetId
-        );
 
         await (
             await this.interop1RichWallet.deposit({
@@ -238,6 +234,12 @@ export class InteropTestContext {
             });
             await depositTx.wait();
         }
+
+        // Define the base token of the second chain on the first chain
+        this.baseToken2.assetId = await this.interop2NativeTokenVault.assetId(this.baseToken2.l2Address);
+        this.baseToken2.l2AddressSecondChain = await this.interop1NativeTokenVault.tokenAddress(
+            this.baseToken2.assetId
+        );
 
         // Deposit funds on Interop2
         await (
