@@ -3,7 +3,8 @@
 ## Intro and prerequisites
 
 This document explores what the upgrade to v31 will look like for chains. This document assumes your overall
-understanding of our system prior to v29 and what the system looks like after v31 (note V30 is skipped on Era, as it is used on ZKSync OS).
+understanding of our system prior to v29 and what the system looks like after v31 (note V30 is skipped on Era, as it is
+used on ZKSync OS).
 
 Especially the following documents must be read first:
 
@@ -13,10 +14,13 @@ Especially the following documents must be read first:
 
 Quick recap on what the system is expected to look like when v31 reaches mainnet:
 
-- The ecosystem has only one deprecated ZK Gateway and it is Era based. Only Era-based chains had migrated there. So one can assume that nothing malicious has happened on Gateway.
-- All the chains that once settled on Gateway have migrated back to L1. No chains may be settling on top of Era based ZK Gateway (we plan to
-  [migrate them back to L1](#stopping-deposits-for-zk-gateway) before the upgrade starts).
-- On L1 a separate ZKSync OS CTM is deployed. This CTM is initially controlled by a multisig, but ownership will be transferred to a decentralized governance prior to the V31 upgrade. Before ownership is transferred, the ZKSync OS chains must be treated as potentially totally malicious with regard to Era based chains.
+- The ecosystem has only one deprecated ZK Gateway and it is Era based. Only Era-based chains had migrated there. So one
+  can assume that nothing malicious has happened on Gateway.
+- All the chains that once settled on Gateway have migrated back to L1. No chains may be settling on top of Era based ZK
+  Gateway (we plan to [migrate them back to L1](#stopping-deposits-for-zk-gateway) before the upgrade starts).
+- On L1 a separate ZKSync OS CTM is deployed. This CTM is initially controlled by a multisig, but ownership will be
+  transferred to a decentralized governance prior to the V31 upgrade. Before ownership is transferred, the ZKSync OS
+  chains must be treated as potentially totally malicious with regard to Era based chains.
 
 What future state of the system should v31 support:
 
@@ -35,9 +39,12 @@ The biggest complexities of the upgrade process are:
 The overall upgrade will consist of the usual three steps:
 
 - **Stage0.** We pause all migrations to the ZK Gateway. This is just a standard step done during every upgrde. Almost
-  nothing changes at this point, except for the fact that chains wont be able to change their settlement layer. Note, that we will also [ensure](#stopping-deposits-for-zk-gateway) that no chains are settling on top of ZK Gateway at the time of this upgrade, and Gateway will be deprecated.
-- **Stage1.** We upgrade all contracts on L1 for the Core contracts, and both CTMs. Usually this is when the CTM inside ZK Gateway is also upgraded (via L1->GW transaction as usual). However at this point the EraVM Gateway will be deprecated.
-  Will be done ~2 days after the previous stage.
+  nothing changes at this point, except for the fact that chains wont be able to change their settlement layer. Note,
+  that we will also [ensure](#stopping-deposits-for-zk-gateway) that no chains are settling on top of ZK Gateway at the
+  time of this upgrade, and Gateway will be deprecated.
+- **Stage1.** We upgrade all contracts on L1 for the Core contracts, and both CTMs. Usually this is when the CTM inside
+  ZK Gateway is also upgraded (via L1->GW transaction as usual). However at this point the EraVM Gateway will be
+  deprecated. Will be done ~2 days after the previous stage.
 - **Stage2.** We unblock migrations, will be done very soon after the previous stage.
 
 The `SettlementLayerV31Upgrade` will be the upgrade implementation for each chain.
@@ -51,8 +58,8 @@ In reality, it is very hard to distinguish between relayed deposits and the norm
 processed all priority transactions.
 
 The easiest way to ensure that the condition above holds is to put a requirement that at the time of `stage0` all chains
-have migrated to L1, and to deprecate the EraVM Gateway. Deprecation will happen with a new `TransactionFilterer` that would ensure that
-no chain is allowed to migrate on top of ZK Gateway.
+have migrated to L1, and to deprecate the EraVM Gateway. Deprecation will happen with a new `TransactionFilterer` that
+would ensure that no chain is allowed to migrate on top of ZK Gateway.
 
 ## Chain balance migration
 
@@ -62,8 +69,8 @@ Right after stage1 of the v31 upgrade, the bridging contracts will start using `
 So balances of chains will have to be migrated to allow finalizing withdrawals.
 
 To migrate a balance for a token, a chain can call `migrateTokenBalanceFromNTVV31`. During such migration, the chain
-balance mapping is zeroed out on L1NativeTokenVault and given to the corresponding chain inside L1AssetTracker. During the
-entire process we ensure that the
+balance mapping is zeroed out on L1NativeTokenVault and given to the corresponding chain inside L1AssetTracker. During
+the entire process we ensure that the
 [sum invariant](../../contracts/bridging/asset_tracker/asset_tracker.md#total-sum-invariant) is withheld. If the total
 sum of chain balance inside L1NTV for some token is larger than 2^256-1, chains wont be able to migrate its balance to
 their `L1AssetTracker` balance.
