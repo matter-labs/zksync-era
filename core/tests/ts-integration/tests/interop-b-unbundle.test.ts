@@ -17,8 +17,8 @@ describe('Interop-B Unbundle behavior checks', () => {
     const bundles: Record<
         string,
         {
-            amounts: { baseAmount: string; tokenAmount: string };
             receipt: TransactionReceipt;
+            amounts?: { baseAmount: string; tokenAmount: string };
             data?: Output;
         }
     > = {};
@@ -26,6 +26,9 @@ describe('Interop-B Unbundle behavior checks', () => {
     // Failing call is some random call to a contract that doesn't exist
     const failingCallContract = '0x000000000000000000000000000000000000feed';
     const failingCallCalldata = '0x00056d83'; // selector: "someVeryUnfortunateCall()"
+
+    // Final call status after unbundling
+    const finalCallStatuses = [CallStatus.Executed, CallStatus.Cancelled, CallStatus.Executed];
 
     beforeAll(async () => {
         await ctx.initialize(__filename);
@@ -91,8 +94,8 @@ describe('Interop-B Unbundle behavior checks', () => {
             expect((tokenBalanceAfter - tokenBalanceBefore).toString()).toBe((-tokenAmount).toString());
 
             bundles.fromDestinationChain = {
-                amounts: { baseAmount: baseAmount.toString(), tokenAmount: tokenAmount.toString() },
-                receipt
+                receipt,
+                amounts: { baseAmount: baseAmount.toString(), tokenAmount: tokenAmount.toString() }
             };
         }
 
@@ -148,8 +151,8 @@ describe('Interop-B Unbundle behavior checks', () => {
             expect((tokenBalanceAfter - tokenBalanceBefore).toString()).toBe((-tokenAmount).toString());
 
             bundles.fromSourceChain = {
-                amounts: { baseAmount: baseAmount.toString(), tokenAmount: tokenAmount.toString() },
-                receipt
+                receipt,
+                amounts: { baseAmount: baseAmount.toString(), tokenAmount: tokenAmount.toString() }
             };
         }
 
@@ -168,6 +171,38 @@ describe('Interop-B Unbundle behavior checks', () => {
             bundles.fromSourceChain.receipt.hash,
             0
         );
+
+        // UNBUNDLING BUNDLE FROM THE SOURCE CHAIN
+        // We send another bundle from the source chain, verifying the failing bundle and then unbundling it
+        // We send this bundle directly to make testing faster.
+        {
+            const verifyBundleData = ctx.interop2InteropHandler.interface.encodeFunctionData('verifyBundle', [
+                bundles.fromSourceChain.data!.rawData,
+                bundles.fromSourceChain.data!.proofDecoded
+            ]);
+            const unbundleBundleData = ctx.interop2InteropHandler.interface.encodeFunctionData('unbundleBundle', [
+                ctx.interop1ChainId,
+                bundles.fromSourceChain.data!.rawData,
+                finalCallStatuses
+            ]);
+            const receipt = await ctx.fromInterop1RequestInterop(
+                [
+                    {
+                        to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
+                        data: verifyBundleData,
+                        callAttributes: []
+                    },
+                    {
+                        to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
+                        data: unbundleBundleData,
+                        callAttributes: []
+                    }
+                ],
+                { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address }
+            );
+
+            bundles.unbundlingBundleReceipt = { receipt };
+        }
     });
 
     test('Cannot unbundle a non-verified bundle', async () => {
@@ -245,7 +280,7 @@ describe('Interop-B Unbundle behavior checks', () => {
         // Balance checks
         ctx.tokenA.l2AddressSecondChain = await ctx.interop2NativeTokenVault.tokenAddress(ctx.tokenA.assetId);
         const tokenBalance = await ctx.getTokenBalance(ctx.interop2Recipient, ctx.tokenA.l2AddressSecondChain!);
-        expect(tokenBalance.toString()).toBe(bundles.fromDestinationChain.amounts.tokenAmount);
+        expect(tokenBalance.toString()).toBe(bundles.fromDestinationChain.amounts!.tokenAmount);
         // Bundle is now Unbundled
         expect((await ctx.interop2InteropHandler.bundleStatus(bundleHash)).toString()).toBe(
             BundleStatus.Unbundled.toString()
@@ -268,13 +303,12 @@ describe('Interop-B Unbundle behavior checks', () => {
         await secondUnbundleReceipt.wait();
         // Balance checks
         const balance = await ctx.getInterop2Balance(ctx.dummyInteropRecipient);
-        expect((balance - balanceBefore).toString()).toBe(bundles.fromDestinationChain.amounts.baseAmount);
+        expect((balance - balanceBefore).toString()).toBe(bundles.fromDestinationChain.amounts!.baseAmount);
         // Bundle remains Unbundled
         expect((await ctx.interop2InteropHandler.bundleStatus(bundleHash)).toString()).toBe(
             BundleStatus.Unbundled.toString()
         );
         // Calls were processed as specified
-        const finalCallStatuses = [CallStatus.Executed, CallStatus.Cancelled, CallStatus.Executed];
         for (const [index, callStatus] of finalCallStatuses.entries()) {
             expect((await ctx.interop2InteropHandler.callStatus(bundleHash, index)).toString()).toBe(
                 callStatus.toString()
@@ -318,52 +352,25 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Can send an unbundling bundle from the source chain', async () => {
         if (ctx.skipInteropTests) return;
         const bundleHash = bundles.fromSourceChain.data!.bundleHash;
-
-        // We send another bundle from the source chain, verifying the failing bundle and then unbundling it
-        const verifyBundleData = ctx.interop2InteropHandler.interface.encodeFunctionData('verifyBundle', [
-            bundles.fromSourceChain.data!.rawData,
-            bundles.fromSourceChain.data!.proofDecoded
-        ]);
-        const callStatuses = [CallStatus.Executed, CallStatus.Cancelled, CallStatus.Executed];
-        const unbundleBundleData = ctx.interop2InteropHandler.interface.encodeFunctionData('unbundleBundle', [
-            ctx.interop1ChainId,
-            bundles.fromSourceChain.data!.rawData,
-            callStatuses
-        ]);
-        const unbundleBundleReceipt = await ctx.fromInterop1RequestInterop(
-            [
-                {
-                    to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
-                    data: verifyBundleData,
-                    callAttributes: []
-                },
-                {
-                    to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
-                    data: unbundleBundleData,
-                    callAttributes: []
-                }
-            ],
-            { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address }
-        );
-        await ctx.awaitInteropBundle(unbundleBundleReceipt.hash);
+        await ctx.awaitInteropBundle(bundles.unbundlingBundleReceipt.receipt.hash);
 
         const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop2Recipient, ctx.tokenA.l2AddressSecondChain!);
         const balanceBefore = await ctx.getInterop2Balance(ctx.dummyInteropRecipient);
 
         // Broadcast unbundling bundle from Interop1 to Interop2
-        await ctx.readAndBroadcastInteropBundle(unbundleBundleReceipt.hash);
+        await ctx.readAndBroadcastInteropBundle(bundles.unbundlingBundleReceipt.receipt.hash);
 
         // Balance checks
         const tokenBalance = await ctx.getTokenBalance(ctx.interop2Recipient, ctx.tokenA.l2AddressSecondChain!);
-        expect((tokenBalance - tokenBalanceBefore).toString()).toBe(bundles.fromSourceChain.amounts.tokenAmount);
+        expect((tokenBalance - tokenBalanceBefore).toString()).toBe(bundles.fromSourceChain.amounts!.tokenAmount);
         const balance = await ctx.getInterop2Balance(ctx.dummyInteropRecipient);
-        expect((balance - balanceBefore).toString()).toBe(bundles.fromSourceChain.amounts.baseAmount);
+        expect((balance - balanceBefore).toString()).toBe(bundles.fromSourceChain.amounts!.baseAmount);
         // Bundle is now Unbundled
         expect((await ctx.interop2InteropHandler.bundleStatus(bundleHash)).toString()).toBe(
             BundleStatus.Unbundled.toString()
         );
         // Calls were processed as specified
-        for (const [index, callStatus] of callStatuses.entries()) {
+        for (const [index, callStatus] of finalCallStatuses.entries()) {
             expect((await ctx.interop2InteropHandler.callStatus(bundleHash, index)).toString()).toBe(
                 callStatus.toString()
             );
