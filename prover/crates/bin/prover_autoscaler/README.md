@@ -60,6 +60,23 @@ watching for `FailedScaleUp` events and also by checking if a Pod stuck in Pendi
 GPU algorithm works similar to Simple one, but it also recognise different GPU types and distribute load across L4 GPUs
 first, then T4, V100, P100 and A100, if available.
 
+#### Aggressive Mode
+
+When resources are scarce across multiple clusters, the scaler can enter **aggressive mode** to speed up resource
+acquisition. This mode is triggered when a configurable percentage of GPU pools report "out of resources" errors.
+
+In aggressive mode:
+1. **Parallel Allocation**: Instead of trying pools sequentially, the scaler requests pods from ALL available pools
+   simultaneously (including fallback GPU types like H100 and T4).
+2. **Race for Resources**: Multiple clusters compete to provide GPUs, whichever succeeds first wins.
+3. **Automatic Cleanup**: Once sufficient Running pods are obtained, all Pending pods in unsuccessful pools are removed.
+4. **Cooldown Period**: After successfully obtaining resources, aggressive mode stays active for a configurable period
+   to prevent oscillation between modes.
+5. **Priority Fallback**: Respects configured priority order (e.g., L4 → H100 → T4) when allocating across GPU types.
+
+This prevents the scaler from getting stuck in a cycle of trying the same exhausted L4 pools repeatedly, and enables
+fast fallback to alternative GPU types when primary choices are unavailable.
+
 Different namespaces are running different protocol versions and completely independent. Normally only one namespace is
 active, and only during protocol upgrade both are active. Each namespace has to have correct version of binaries
 installed, see `protocol_versions` config option.
@@ -159,6 +176,12 @@ agent_config:
   cluster. Default: 10m.
 - `scale_errors_duration` defines the time window for including scale errors in Autoscaler calculations. Clusters will
   be sorted by number of the errors. It should be between 20m and 2h. Default: 1h.
+- `aggressive_mode_threshold` is a percentage (0-100) of pools with "GCE out of resources" errors needed to trigger
+  aggressive mode. Set to 0 to disable (default). For example, 50 means aggressive mode activates when 50% of all
+  pools have resource shortage errors. In aggressive mode, the scaler requests pods from ALL pools simultaneously
+  to speed up resource acquisition. Default: 0 (disabled).
+- `aggressive_mode_cooldown` is the duration to stay in aggressive mode after successfully obtaining resources. This
+  cooldown prevents rapid oscillation between normal and aggressive modes. Default: 10m.
 - `need_to_move_duration` defines the time window for which Autoscaler forces pending pod migration due to scale errors.
   This prevents pending pods from indefinitely waiting for nodes in a busy cluster. Should be at least x2 of
   `scaler_run_interval`. Default: 4m.
@@ -196,6 +219,8 @@ scaler_config:
   apply_min_to_namespace: prover-new
   long_pending_duration: 10m
   scale_errors_duration: 1h
+  aggressive_mode_threshold: 50
+  aggressive_mode_cooldown: 10m
   need_to_move_duration: 4m
   scaler_targets:
     - queue_report_field: prover_jobs
