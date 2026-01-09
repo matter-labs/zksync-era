@@ -67,8 +67,9 @@ impl GatewayVotePreparationConfig {
             max_number_of_chains: U256::from(initial_deployment_config.max_number_of_chains),
             create2_factory_salt: initial_deployment_config.create2_factory_salt,
             create2_factory_addr: initial_deployment_config.create2_factory_addr,
-            // FIX ME set correct value
-            validator_timelock_execution_delay: U256::from(100),
+            validator_timelock_execution_delay: U256::from(
+                initial_deployment_config.validator_timelock_execution_delay,
+            ),
             genesis_root: H256::from_str(&genesis_input.genesis_root_hash()?)?,
             genesis_rollup_leaf_index: U256::from(genesis_input.rollup_last_leaf_index()?),
             genesis_batch_commitment: H256::from_str(&genesis_input.genesis_commitment()?)?,
