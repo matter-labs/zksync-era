@@ -364,6 +364,60 @@ impl<K: Key> Scaler<K> {
         }
     }
 
+    /// Remove excess pods with hysteresis to avoid oscillation
+    fn remove_excess_pods(
+        &self,
+        pods: &mut HashMap<PoolKey<K>, usize>,
+        sorted_clusters: &[Pool<K>],
+        mut total: i64,
+        queue: usize,
+    ) -> i64 {
+        let mut total_hysteresis = total - total * self.hysteresis as i64 / 100;
+
+        if total_hysteresis > queue as i64 {
+            for cluster in sorted_clusters.iter().rev() {
+                // Special case: if queue is 0 we want to remove all pods.
+                let mut excess_queue = if queue > 0 { total_hysteresis } else { total }
+                    - self.normalize_queue(cluster.key, queue) as i64;
+                if excess_queue <= 0 {
+                    continue;
+                }
+                let mut excess_replicas = excess_queue as usize / self.speed(cluster.key);
+                let replicas = pods.entry(cluster.to_key()).or_default();
+                if *replicas == 0 {
+                    continue;
+                }
+                if *replicas < excess_replicas {
+                    excess_replicas = *replicas;
+                    excess_queue = (*replicas * self.speed(cluster.key)) as i64;
+                }
+
+                tracing::debug!(
+                    "Removing excess pods in pool {}:{:?}: {} → {} (-{})",
+                    cluster.name,
+                    cluster.key,
+                    *replicas,
+                    *replicas - excess_replicas,
+                    excess_replicas
+                );
+
+                *replicas -= excess_replicas;
+                total -= excess_queue;
+                total_hysteresis -= excess_queue;
+
+                if *replicas == 0 {
+                    pods.remove(&cluster.to_key());
+                }
+
+                if total_hysteresis <= 0 {
+                    break;
+                }
+            }
+        }
+
+        total
+    }
+
     /// Aggressive mode calculation: add pods to ALL pools simultaneously
     fn calculate_aggressive(
         &self,
@@ -400,7 +454,7 @@ impl<K: Key> Scaler<K> {
 
         // Step 2: Check if we got enough Running pods
         if total_running >= queue as i64 {
-            tracing::warn!("SUCCESS! Got enough Running pods. Removing all Pending pods.");
+            tracing::warn!("SUCCESS! Got enough Running pods.");
 
             // Remove ALL pending pods, keep only Running
             pods.clear();
@@ -410,6 +464,8 @@ impl<K: Key> Scaler<K> {
                     pods.insert(cluster.to_key(), running);
                 }
             }
+
+            self.remove_excess_pods(&mut pods, &sorted_clusters, total_running, queue);
 
             return pods;
         }
@@ -520,38 +576,8 @@ impl<K: Key> Scaler<K> {
             return self.calculate_aggressive(namespace, queue, sorted_clusters);
         }
 
-        // Remove unneeded pods.
-        let mut total_hysteresis = total - total * self.hysteresis as i64 / 100;
-        tracing::debug!(
-            "Queue already covered with pods: {} (with hysteresis: {})",
-            total,
-            total_hysteresis
-        );
-        if total_hysteresis > queue as i64 {
-            for cluster in sorted_clusters.iter().rev() {
-                // Special case: if queue is 0 we want to remove all pods.
-                let mut excess_queue = if queue > 0 { total_hysteresis } else { total }
-                    - self.normalize_queue(cluster.key, queue) as i64;
-                if excess_queue <= 0 {
-                    continue;
-                }
-                let mut excess_replicas = excess_queue as usize / self.speed(cluster.key);
-                let replicas = pods.entry(cluster.to_key()).or_default();
-                if *replicas == 0 {
-                    continue;
-                }
-                if *replicas < excess_replicas {
-                    excess_replicas = *replicas;
-                    excess_queue = (*replicas * self.speed(cluster.key)) as i64;
-                }
-                *replicas -= excess_replicas;
-                total -= excess_queue;
-                total_hysteresis -= excess_queue;
-                if total_hysteresis <= 0 {
-                    break;
-                };
-            }
-        }
+        tracing::debug!("Queue already covered with pods: {}", total);
+        total = self.remove_excess_pods(&mut pods, &sorted_clusters, total, queue);
 
         // Reduce load in over capacity pools.
         for cluster in &sorted_clusters {
