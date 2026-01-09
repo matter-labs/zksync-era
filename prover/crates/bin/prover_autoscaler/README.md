@@ -66,6 +66,7 @@ When resources are scarce across multiple clusters, the scaler can enter **aggre
 acquisition. This mode is triggered when a configurable percentage of GPU pools report "out of resources" errors.
 
 In aggressive mode:
+
 1. **Parallel Allocation**: Instead of trying pools sequentially, the scaler requests pods from ALL available pools
    simultaneously (including fallback GPU types like H100 and T4).
 2. **Race for Resources**: Multiple clusters compete to provide GPUs, whichever succeeds first wins.
@@ -177,9 +178,9 @@ agent_config:
 - `scale_errors_duration` defines the time window for including scale errors in Autoscaler calculations. Clusters will
   be sorted by number of the errors. It should be between 20m and 2h. Default: 1h.
 - `aggressive_mode_threshold` is a percentage (0-100) of pools with "GCE out of resources" errors needed to trigger
-  aggressive mode. Set to 0 to disable (default). For example, 50 means aggressive mode activates when 50% of all
-  pools have resource shortage errors. In aggressive mode, the scaler requests pods from ALL pools simultaneously
-  to speed up resource acquisition. Default: 0 (disabled).
+  aggressive mode. Set to 0 to disable (default). For example, 50 means aggressive mode activates when 50% of all pools
+  have resource shortage errors. In aggressive mode, the scaler requests pods from ALL pools simultaneously to speed up
+  resource acquisition. Default: 0 (disabled).
 - `aggressive_mode_cooldown` is the duration to stay in aggressive mode after successfully obtaining resources. This
   cooldown prevents rapid oscillation between normal and aggressive modes. Default: 10m.
 - `need_to_move_duration` defines the time window for which Autoscaler forces pending pod migration due to scale errors.
