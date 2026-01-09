@@ -33,7 +33,7 @@ use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB}
 use zksync_types::{
     block::{CommonBlockStatistics, L1BatchTreeData},
     writes::TreeWrite,
-    AccountTreeId, L1BatchNumber, StorageKey, H256,
+    AccountTreeId, L1BatchNumber, StorageKey, H256, U256,
 };
 
 use super::{
@@ -801,14 +801,13 @@ impl L1BatchWithLogs {
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let mut touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
+            .get_touched_slots_for_l1_batch(l1_batch_number)
             .await
             .context("cannot fetch touched slots")?;
         touched_slots_latency.observe_with_count(touched_slots.len());
 
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
-        let hashed_keys_for_writes: Vec<_> =
-            touched_slots.keys().map(StorageKey::hashed_key).collect();
+        let hashed_keys_for_writes: Vec<_> = touched_slots.keys().cloned().collect();
         let l1_batches_for_initial_writes = connection
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
@@ -816,37 +815,44 @@ impl L1BatchWithLogs {
             .context("cannot fetch initial writes batch numbers and indices")?;
         leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
-        let mut storage_logs = BTreeMap::new();
+        let mut storage_logs = Vec::new();
         for storage_key in protective_reads {
-            touched_slots.remove(&storage_key);
+            let hashed_key = storage_key.hashed_key();
+            touched_slots.remove(&hashed_key);
             // ^ As per deduplication rules, all keys in `protective_reads` haven't *really* changed
             // in the considered L1 batch. Thus, we can remove them from `touched_slots` in order to simplify
             // their further processing. This is not a required step; the logic below works fine without it.
             // Indeed, extra no-op updates that could be added to `storage_logs` as a consequence of no filtering,
             // are removed on the Merkle tree level (see the tree domain wrapper).
             let log = TreeInstruction::Read(storage_key.hashed_key_u256());
-            storage_logs.insert(storage_key, log);
+            storage_logs.push(log);
         }
+
         tracing::debug!(
             "Made touched slots disjoint with protective reads; remaining touched slots: {}",
             touched_slots.len()
         );
 
-        for (storage_key, value) in touched_slots {
+        // We use a BTreeMap keyed by leaf_index to ensure writes are sorted by index.
+        let mut writes_by_index = BTreeMap::new();
+        for (hashed_key, value) in touched_slots {
             if let Some(&(initial_write_batch_for_key, leaf_index)) =
-                l1_batches_for_initial_writes.get(&storage_key.hashed_key())
+                l1_batches_for_initial_writes.get(&hashed_key)
             {
                 // Filter out logs that correspond to deduplicated writes.
                 if initial_write_batch_for_key <= l1_batch_number {
-                    storage_logs.insert(
-                        storage_key,
-                        TreeInstruction::write(storage_key.hashed_key_u256(), leaf_index, value),
+                    let hashed_key_u256 = U256::from_little_endian(hashed_key.as_bytes());
+                    writes_by_index.insert(
+                        leaf_index,
+                        TreeInstruction::write(hashed_key_u256, leaf_index, value),
                     );
                 }
             }
         }
 
-        Ok(storage_logs.into_values().collect())
+        // It is critical that `writes_by_index` yields values sorted by `leaf_index`.
+        storage_logs.extend(writes_by_index.into_values());
+        Ok(storage_logs)
     }
 }
 
