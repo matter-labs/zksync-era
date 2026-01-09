@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use ethers::utils::hex::ToHexExt;
 use xshell::Shell;
@@ -17,7 +19,7 @@ use crate::{
 };
 
 pub const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
-    "l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/run-latest.json";
+    "l1-contracts/broadcast/RegisterZKChain.s.sol/9/dry-run/";
 pub const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-zk-chain-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str = "l1-contracts/script-config/register-zk-chain.toml";
@@ -76,9 +78,13 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         .context(MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config
-            .contracts_path_for_ctm(vm_option)
-            .join(REGISTER_CHAIN_TXNS_FILE_SRC),
+        find_file(
+            config
+                .contracts_path_for_ctm(vm_option)
+                .join(REGISTER_CHAIN_TXNS_FILE_SRC),
+            "latest",
+        )
+        .expect("Failed to find register chain transactions file"),
         args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
@@ -92,4 +98,20 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     logger::success(MSG_CHAIN_TRANSACTIONS_BUILT);
     Ok(())
+}
+
+fn find_file(path: PathBuf, partial_name: &str) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(path).ok()?;
+
+    for entry in entries {
+        let entry = entry.ok()?;
+        let file_name = entry.file_name();
+        let file_name_str = file_name.to_string_lossy();
+
+        if file_name_str.contains(partial_name) {
+            return Some(entry.path());
+        }
+    }
+
+    None
 }
