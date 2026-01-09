@@ -5,7 +5,7 @@
 
 import * as zksync from 'zksync-ethers';
 import { InteropTestContext } from '../src/interop-setup';
-import { formatEvmV1Address } from '../src/helpers';
+import { formatEvmV1Address, waitUntilBlockFinalized } from '../src/helpers';
 import { ArtifactInteropHandler, L2_ASSET_ROUTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS } from '../src/constants';
 import { TransactionReceipt } from 'ethers';
 import { BundleStatus, CallStatus, getInteropBundleData, Output } from '../src/temp-sdk';
@@ -156,9 +156,8 @@ describe('Interop-B Unbundle behavior checks', () => {
             };
         }
 
-        // We wait for the last of these bundles to be executable on the destination chain.
-        // By then, all of the bundles should be executable.
-        await ctx.awaitInteropBundle(bundles.fromSourceChain.receipt.hash);
+        // We need to wait for the block to be finalized for the bundle data to be available
+        await waitUntilBlockFinalized(ctx.interop1Wallet, bundles.fromSourceChain.receipt.blockNumber);
 
         // Store the bundle data
         bundles.fromDestinationChain.data = await getInteropBundleData(
@@ -203,6 +202,10 @@ describe('Interop-B Unbundle behavior checks', () => {
 
             bundles.unbundlingBundleReceipt = { receipt };
         }
+
+        // We wait for the last of these bundles to be executable on the destination chain.
+        // By then, all of the bundles should be executable.
+        await ctx.awaitInteropBundle(bundles.unbundlingBundleReceipt.receipt.hash);
     });
 
     test('Cannot unbundle a non-verified bundle', async () => {
@@ -352,7 +355,6 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Can send an unbundling bundle from the source chain', async () => {
         if (ctx.skipInteropTests) return;
         const bundleHash = bundles.fromSourceChain.data!.bundleHash;
-        await ctx.awaitInteropBundle(bundles.unbundlingBundleReceipt.receipt.hash);
 
         const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop2Recipient, ctx.tokenA.l2AddressSecondChain!);
         const balanceBefore = await ctx.getInterop2Balance(ctx.dummyInteropRecipient);
