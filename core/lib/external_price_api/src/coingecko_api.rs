@@ -17,7 +17,7 @@ pub struct CoinGeckoPriceAPIClient {
 
 const DEFAULT_COINGECKO_API_URL: &str = "https://pro-api.coingecko.com";
 const COINGECKO_AUTH_HEADER: &str = "x-cg-pro-api-key";
-const USER_AGENT_HEADER: &str = "User-Agent";
+const USER_AGENT_HEADER: &str = "user-agent";
 const USER_AGENT_VALUE: &str = "zksync-era-node/0.1 (https://github.com/matter-labs/zksync-era)";
 const ETH_ID: &str = "eth";
 const ZKSYNC_ID: &str = "zksync";
@@ -176,6 +176,7 @@ mod test {
 
             when = when.query_param("contract_addresses", address.clone());
             when = when.query_param("vs_currencies", ETH_ID);
+            when = when.header(USER_AGENT_HEADER, USER_AGENT_VALUE);
             api_key.map(|key| when.header(COINGECKO_AUTH_HEADER, key));
 
             if let Some(p) = price {
