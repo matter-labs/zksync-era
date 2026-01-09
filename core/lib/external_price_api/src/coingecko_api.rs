@@ -17,27 +17,30 @@ pub struct CoinGeckoPriceAPIClient {
 
 const DEFAULT_COINGECKO_API_URL: &str = "https://pro-api.coingecko.com";
 const COINGECKO_AUTH_HEADER: &str = "x-cg-pro-api-key";
+const USER_AGENT_HEADER: &str = "User-Agent";
+const USER_AGENT_VALUE: &str = "zksync-era-node/0.1 (https://github.com/matter-labs/zksync-era)";
 const ETH_ID: &str = "eth";
 const ZKSYNC_ID: &str = "zksync";
 
 impl CoinGeckoPriceAPIClient {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
-        let client = if let Some(api_key) = &config.api_key {
-            let mut headers = reqwest::header::HeaderMap::new();
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::HeaderName::from_static(USER_AGENT_HEADER),
+            reqwest::header::HeaderValue::from_static(USER_AGENT_VALUE),
+        );
+        if let Some(api_key) = &config.api_key {
             headers.insert(
                 reqwest::header::HeaderName::from_static(COINGECKO_AUTH_HEADER),
                 reqwest::header::HeaderValue::from_str(api_key)
                     .expect("Failed to create header value"),
             );
-
-            reqwest::Client::builder()
-                .default_headers(headers)
-                .timeout(config.client_timeout)
-                .build()
-                .expect("Failed to build reqwest client")
-        } else {
-            reqwest::Client::new()
-        };
+        }
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .timeout(config.client_timeout)
+            .build()
+            .expect("Failed to build reqwest client");
 
         let base_url = config
             .base_url
