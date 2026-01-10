@@ -244,18 +244,6 @@ export class TestContextOwner {
             this.reporter.debug(`Sent base token cancel approve transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
         }
 
-        if (this.env.l2ChainIdSecondChain) {
-            const baseTokenSecondChain = await bridgehub.baseToken(this.env.l2ChainIdSecondChain);
-            if (baseTokenSecondChain != zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
-                const baseToken2Contract = new ethers.Contract(baseTokenSecondChain, l1Erc20ABI, this.mainEthersWallet);
-                const tx = await baseToken2Contract.approve(erc20Bridge, 0);
-                await tx.wait();
-                this.reporter.debug(
-                    `Sent second chain base token cancel approve transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`
-                );
-            }
-        }
-
         this.reporter.finishAction();
     }
 
@@ -532,9 +520,8 @@ export class TestContextOwner {
 
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
-            const tokenToDeposit = ethIsBaseTokenSecondChain ? zksync.utils.ETH_ADDRESS : baseTokenSecondChainAddress;
             const depositHandle = this.secondChainMainSyncWallet!.deposit({
-                token: tokenToDeposit,
+                token: zksync.utils.ETH_ADDRESS,
                 amount: l2ETHAmountToDepositSecondChain as BigNumberish,
                 approveBaseERC20: true,
                 approveERC20: true,
