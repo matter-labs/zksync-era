@@ -494,30 +494,6 @@ export class TestContextOwner {
             const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
             const baseTokenSecondChainAddress = await bridgehubContract.baseToken(this.env.l2ChainIdSecondChain!);
             const ethIsBaseTokenSecondChain = baseTokenSecondChainAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
-
-            if (!ethIsBaseTokenSecondChain) {
-                const mintAmount = l2ETHAmountToDepositSecondChain * 1000n;
-
-                const gasPrice = await scaledGasPrice(this.mainEthersWallet);
-                const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
-                const l1Erc20Contract = new ethers.Contract(
-                    baseTokenSecondChainAddress,
-                    l1Erc20ABI,
-                    this.mainEthersWallet
-                );
-                const baseMintPromise = l1Erc20Contract
-                    .mint(this.mainSyncWallet.address, mintAmount, {
-                        nonce: nonce++,
-                        gasPrice
-                    })
-                    .then((tx: any) => {
-                        this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, tx nonce ${tx.nonce}`);
-                        return tx.wait();
-                    });
-                this.reporter.debug(`Nonce changed by 1 for ERC20 mint, new nonce: ${nonce}`);
-                await baseMintPromise;
-            }
-
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
             const depositHandle = this.secondChainMainSyncWallet!.deposit({
