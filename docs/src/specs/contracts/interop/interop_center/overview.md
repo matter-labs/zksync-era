@@ -12,7 +12,70 @@ The system provides three main capabilities:
 
 Key benefits include secure asset transfers, flexible permission controls, atomic multi-step operations, and cryptographic proof systems for cross-chain verification.
 
+> **Note**: For simplified workflows, we provide the **[InteropLibrary](./interop_library.md)** helper that wraps common interop operations like token transfers, native sends, and direct calls with convenient functions. Throughout this guide, we'll show both the raw interop approach and the library shortcuts.
+
 ## How to Use Interop
+
+### Common Use Cases
+
+#### Cross-Chain ERC20 Transfer
+
+One of the most common interop use cases is transferring tokens between chains. You can use the InteropLibrary helper for simplicity:
+
+```solidity
+// Simple token transfer using InteropLibrary
+import {InteropLibrary} from "deploy-scripts/InteropLibrary.sol";
+
+bytes32 bundleHash = InteropLibrary.sendToken(
+    destinationChainId,  // Chain ID where tokens should go
+    l2TokenAddress,      // Token contract on current L2
+    amount,              // Amount to transfer (with decimals)
+    recipient,           // Who receives on destination chain
+    unbundlerAddress     // Who can execute on destination (or address(0) for sender)
+);
+```
+
+Or if you need more control, here's the manual approach:
+
+```solidity
+// Manual token transfer for advanced use cases
+address l2TokenAddress = 0x...; // Your token on current L2
+uint256 amount = 100 * 10**18;  // Amount to transfer
+
+// Get the asset ID for the token
+bytes32 assetId = L2NativeTokenVault.assetId(l2TokenAddress);
+
+// Prepare the transfer data using DataEncoding helper
+bytes memory transferData = DataEncoding.encodeAssetRouterBridgehubDepositData(
+    assetId,
+    DataEncoding.encodeBridgeBurnData(amount, recipient, address(0))
+);
+
+// Create the call starter with indirect call attribute
+InteropCallStarter[] memory calls = new InteropCallStarter[](1);
+calls[0] = InteropCallStarter({
+    to: InteroperableAddress.formatEvmV1(L2_ASSET_ROUTER_ADDR), // No chain ID here!
+    data: transferData,
+    callAttributes: new bytes[](1)
+});
+calls[0].callAttributes[0] = abi.encodeCall(IERC7786Attributes.indirectCall, (0));
+
+// Set bundle attributes (e.g., unbundler)
+bytes[] memory bundleAttributes = new bytes[](1);
+bundleAttributes[0] = abi.encodeCall(
+    IERC7786Attributes.unbundlerAddress,
+    InteroperableAddress.formatEvmV1(unbundlerAddress)
+);
+
+// Send the bundle
+bytes32 bundleHash = InteropCenter.sendBundle(
+    InteroperableAddress.formatEvmV1(destinationChainId), // Destination chain here
+    calls,
+    bundleAttributes
+);
+```
+
+The AssetRouter handles locking tokens on the source chain and minting/releasing them on the destination.
 
 ### Broadcasting Messages (Low-Level)
 
@@ -35,6 +98,11 @@ L2MessageVerification.proveL2MessageInclusionShared(
 
 This is useful for cross-chain proofs, attestations, or any scenario where you need to prove something happened on another chain.
 
+> **InteropLibrary Alternative**: For L1 message sending:
+> ```solidity
+> bytes32 messageHash = InteropLibrary.sendMessage(messageData);
+> ```
+
 ### Cross-Chain Calls and ERC-7786
 
 For executing specific functions on other L2s, we implement the **ERC-7786** standard. The naming convention follows this standard - hence `sendMessage` for sending calls and `receiveMessage` for receiving them.
@@ -51,6 +119,13 @@ bytes32 sendId = InteropCenter.sendMessage{value: 0.1 ether}(
     attributes      // Optional attributes (permissions, value, etc.). We expand on attributes usage below.
 );
 ```
+
+> **InteropLibrary Alternative**: For direct calls with execution/unbundler control, use:
+> ```solidity
+> bytes32 sendId = InteropLibrary.sendDirectCall(
+>     destinationChainId, target, data, executionAddress, unbundlerAddress
+> );
+> ```
 
 Under the hood, this creates a bundle with just one call - but you don't need to worry about that complexity.
 On the destination chain, your target contract must implement the **ERC-7786** `receiveMessage` function:
@@ -103,6 +178,13 @@ bytes32 bundleHash = InteropCenter.sendBundle{value: totalValue}(
 );
 ```
 
+> **InteropLibrary Alternative**: For bundles of direct calls:
+> ```solidity
+> bytes32 bundleHash = InteropLibrary.sendDirectCallBundle(
+>     destinationChainId, targets, dataArray, executionAddress, unbundlerAddress
+> );
+> ```
+
 The key difference: bundles can ensure all calls execute together (all-or-nothing), while single calls are simpler for basic needs.
 
 #### Unbundling Functionality
@@ -138,9 +220,18 @@ InteropHandler.unbundleBundle(sourceChainId, bundleData, desiredStatus);
 
 When sending cross-chain calls with value, the `msg.value` you send gets handled differently based on the destination chain's base token. If both chains share the same base token, the value is burned on the source and minted on the destination. If they have different base tokens, the system routes through the appropriate token bridging mechanism.
 
+> **InteropLibrary Alternative**: For native token transfers, simply use:
+> ```solidity
+> bytes32 bundleHash = InteropLibrary.sendNative(
+>     destinationChainId, recipient, unbundlerAddress, amount
+> );
+> ```
+
 ### Custom Attributes
 
 ERC-7786 allows custom attributes to control call behavior. ZKsync supports these attributes:
+
+> **InteropLibrary Helpers**: The library provides `buildCallAttributes()`, `buildBundleAttributes()`, and `buildCall()` functions to simplify attribute construction.
 
 #### Call-Level Attributes
 These can be used in both `sendMessage` and individual call starters in `sendBundle`:
