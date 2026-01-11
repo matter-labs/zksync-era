@@ -2,7 +2,7 @@
 
 ## What is Interop
 
-Interop is ZKsync's cross-chain communication system that enables seamless interaction between different L2 chains in the ecosystem. It implements the **ERC-7786** standard for cross-chain messaging and **ERC-7930** for interoperable addresses, ensuring alignment with the broader Ethereum ecosystem.
+Interop is ZKsync's cross-chain communication system that enables seamless interaction between different L2 chains in the ecosystem. It implements the **[ERC-7786](https://eips.ethereum.org/EIPS/eip-7786)** standard for cross-chain messaging and **[ERC-7930](https://eips.ethereum.org/EIPS/eip-7930)** for interoperable addresses, ensuring alignment with the broader Ethereum ecosystem.
 
 The system provides three main capabilities:
 
@@ -152,13 +152,32 @@ A **call starter** is the building block for cross-chain calls. It contains:
 - `data`: The function call to execute
 - `callAttributes`: Optional settings like value or permissions
 
+##### ERC-7930 Address Format
+
+> **Note**: You can use the [OpenZeppelin InteroperableAddress library](https://docs.openzeppelin.com/contracts/5.x/api/utils#interoperableaddress) which provides functionality for working with ERC-7930 addresses.
+
+The ERC-7930 address format encodes both the chain ID and address in a single bytes value. Here's how it works:
+
 ```solidity
-// Example: Creating call starters for a bundle
-InteropCallStarter[] memory calls = new InteropCallStarter[](2);
+// ERC-7930 address structure:
+// [1 byte: version] [32 bytes: chain ID] [1 byte: address length] [20 bytes: address]
+
+// Example: Encoding zkSync Era mainnet (chain 324) + address 0x1234...5678
+bytes memory interopAddress = InteroperableAddress.formatEvmV1(
+    324,                                    // Chain ID
+    0x1234567890123456789012345678901234567890  // Address
+);
+// Result: 0x01000000000000000000000000000000000000000000000000000000000000014414[20 bytes of address]
+//         ^^ version 1    ^^ chain ID 324 (hex: 0x144)                      ^^ length 20 bytes
+```
+
+Example usage in a call starter:
+```solidity
+InteropCallStarter[] memory calls = new InteropCallStarter[](1);
 calls[0] = InteropCallStarter({
-    to: formatAddress(chainId: 324, address: recipient1),
+    to: InteroperableAddress.formatEvmV1(324, recipient), // Creates ERC-7930 address
     data: abi.encodeCall(IContract.updateValue, (42)),
-    callAttributes: new bytes[](0)  // No special attributes
+    callAttributes: new bytes[](0)
 });
 ```
 
