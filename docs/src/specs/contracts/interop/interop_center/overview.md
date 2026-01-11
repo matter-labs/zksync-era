@@ -147,7 +147,9 @@ contract MyContract is IERC7786Recipient {
 
 #### Understanding Call Starters
 
-A **call starter** is the building block for cross-chain calls. It contains:
+A **call starter** is the building block for bundling multiple cross-chain calls together. You only need call starters when using `sendBundle` to combine multiple calls - for single calls, we can just use `sendMessage` directly.
+
+Each call starter contains:
 - `to`: The recipient (in ERC-7930 format - like an email address with chain ID)
 - `data`: The function call to execute
 - `callAttributes`: Optional settings like value or permissions
