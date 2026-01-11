@@ -5,6 +5,9 @@ multilingual = false
 src = "src"
 title = "ZKsync Era Documentation"
 
+[build]
+create-missing = false
+
 [output.html]
 smart-punctuation = true
 mathjax-support = true

@@ -16,11 +16,23 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Asset Router](../contracts/bridging/asset_router_and_ntv/asset_router.md)
   - [Native token vault](../contracts/bridging/asset_router_and_ntv/native_token_vault.md)
 - [Interop](../contracts/interop/overview.md)
-  - [Message root](../contracts/interop/message_root.md)
-  - [Forms of finality](../contracts/interop/forms_of_finality.md)
-  - [Interop messages](../contracts/interop/interop_messages.md)
+  - [Overview of the functionality](../contracts/interop/interop_center/overview.md)
+    - [Interop Center](../contracts/interop/interop_center/interop_center.md)
+    - [Interop Messages](../contracts/interop/interop_center/interop_messages.md)
+    - [Bundles and Calls](../contracts/interop/interop_center/bundles_calls.md)
+    - [Interop Trigger](../contracts/interop/interop_center/interop_trigger.md)
   - [Examples](../contracts/interop/examples/README.md)
     - [Cross-chain message](../contracts/interop/examples/cross_chain_message.md)
+    - [Cross-chain paymaster](../contracts/interop/examples/cross_chain_paymaster.md)
+    - [Cross-chain swap](../contracts/interop/examples/cross_chain_swap.md)
+    - [Interop request direct](../contracts/interop/examples/interop_request_direct.md)
+    - [Interop request two bridges](../contracts/interop/examples/interop_request_two_bridges.md)
+    - [Interop CTM deployment](../contracts/interop/examples/interop_ctm_deployment.md)
+  - [Interop handler](../contracts/interop/interop_handler.md)
+  - [Interop messages](../contracts/interop/interop_messages.md)
+  - [Message root](../contracts/interop/message_root.md)
+  - [Forms of finality](../contracts/interop/forms_of_finality.md)
+- [Asset Tracker](../contracts/bridging/asset_tracker/asset_tracker.md)
 - [Settlement Contracts](../contracts/settlement_contracts/zkchain_basics.md)
   - [L1 <> L2 communication](../contracts/settlement_contracts/priority_queue/README.md)
     - [Handling L1→L2 operations](../contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)
@@ -68,10 +80,10 @@ The repository contains the following sections:
 
 This section is for auditors of the codebase. It includes some of the important invariants that the system relies on and which if broken could have bad consequences.
 
-- Assuming that the accepting CTM is correct & efficient, the L1→GW part of the L1→GW→L3 transaction never fails. It is assumed that the provided max amount for gas is always enough for any transaction that can realistically come from L1.
+- Assuming that the accepting CTM is correct & efficient, the L1→GW part of the L1→GW→L2 transaction never fails. It is assumed that the provided max amount for gas is always enough for any transaction that can realistically come from L1.
 - GW → L1 migration never fails. If it is possible to get into a state where the migration is not possible to finish, then the chain is basically lost. There are some exceptions where for now it is the expected behavior. (check out the “Migration invariants & protocol upgradability” section)
 - The general consistency of chains when migration between different settlement layers is done. Including the feasibility of emergency upgrades, etc. I.e. whether the whole system is thought-through.
-- Preimage attacks in the L3→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
+- Preimage attacks in the L2→GW→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
 - Data availability guarantees. Whether rollup users can always restore all their storage slots, etc. An example of a potential tricky issue can be found in “Security notes for Gateway-based rollups” [in this document](./gateway/gateway_da.md).
 
 The desired properties of the system are that funds can not be stolen from the L1 contracts, and that L2 constracts are executed securely.
