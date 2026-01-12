@@ -16,7 +16,7 @@ pub struct CommonEcosystemArgs {
     pub(crate) zksync_os: bool,
     #[clap(long, default_value_t = true, default_missing_value = "true", num_args = 0..=1)]
     pub(crate) update_submodules: bool,
-    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    #[clap(long, default_value_t = false, default_missing_value = "true", num_args = 0..=1)]
     pub(crate) skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub(crate) l1_rpc_url: Option<String>,

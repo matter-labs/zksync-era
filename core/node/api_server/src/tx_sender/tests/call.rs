@@ -11,6 +11,7 @@ use zksync_types::{
     api::state_override::OverrideAccount,
     bytecode::{BytecodeHash, BytecodeMarker},
     get_code_key,
+    settlement::SettlementLayer,
     transaction_request::CallRequest,
 };
 
@@ -22,10 +23,12 @@ async fn eth_call_requires_single_connection() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into())
         .await
         .unwrap();
-    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    let block_args = BlockArgs::pending(&mut storage, SettlementLayer::for_tests())
+        .await
+        .unwrap();
     drop(storage);
 
     let tx = create_l2_transaction(10, 100);
@@ -69,7 +72,9 @@ async fn test_call(
         .connection()
         .await
         .unwrap();
-    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    let block_args = BlockArgs::pending(&mut storage, SettlementLayer::for_tests())
+        .await
+        .unwrap();
     drop(storage);
     let call_overrides = CallOverrides {
         enforced_base_fee: None,

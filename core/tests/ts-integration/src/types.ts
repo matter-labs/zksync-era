@@ -110,6 +110,7 @@ export interface TestEnvironment {
      * Description of the "base" ERC20 token used in the tests.
      */
     baseToken: Token;
+    baseTokenSecondChain: Token | undefined;
     healthcheckPort: string;
     timestampAsserterAddress: string;
     timestampAsserterMinTimeTillEndSec: number;

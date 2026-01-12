@@ -128,7 +128,7 @@ mod tests {
 
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_types::L1BatchNumber;
 
     use super::*;
@@ -163,7 +163,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let config = mock_config(temp_dir.path());
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         reset_db_state(&pool, 5).await;

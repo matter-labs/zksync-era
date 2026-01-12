@@ -15,7 +15,8 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     u256_to_h256, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2ChainId, L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    L2ChainId, L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, SLChainId, Transaction,
+    H256,
 };
 
 use super::*;
@@ -242,6 +243,8 @@ impl ProtoFmt for Payload {
                 .unwrap_or_else(PubdataParams::pre_gateway),
             pubdata_limit: r.pubdata_limit,
             interop_roots,
+            settlement_layer: read_optional_repr(&r.settlement_layer)
+                .context("settlement_layer")?,
         };
         if this.protocol_version.is_pre_gateway() {
             anyhow::ensure!(
@@ -308,6 +311,7 @@ impl ProtoFmt for Payload {
             },
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots.iter().map(ProtoRepr::build).collect(),
+            settlement_layer: self.settlement_layer.as_ref().map(ProtoRepr::build),
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
@@ -643,6 +647,35 @@ impl proto::PubdataType {
             Self::Celestia => PubdataType::Celestia,
             Self::Eigen => PubdataType::Eigen,
             Self::ObjectStore => PubdataType::ObjectStore,
+        }
+    }
+}
+
+impl ProtoRepr for proto::SettlementLayer {
+    type Type = SettlementLayer;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        match *required(&self.settlement_layer_type).context("settlement_layer_type")? {
+            0 => Ok(SettlementLayer::L1(SLChainId(
+                *required(&self.chain_id).context("chain_id")?,
+            ))),
+            1 => Ok(SettlementLayer::Gateway(SLChainId(
+                *required(&self.chain_id).context("chain_id")?,
+            ))),
+            _ => unreachable!(),
+        }
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        match this {
+            SettlementLayer::L1(chain_id) => Self {
+                settlement_layer_type: Some(0),
+                chain_id: Some(chain_id.0),
+            },
+            SettlementLayer::Gateway(chain_id) => Self {
+                settlement_layer_type: Some(1),
+                chain_id: Some(chain_id.0),
+            },
         }
     }
 }

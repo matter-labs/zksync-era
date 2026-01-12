@@ -8,8 +8,9 @@ use zksync_multivm::{
 };
 use zksync_types::{
     block::L2BlockHasher, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx,
-    transaction_request::PaymasterParams, vm::FastVmMode, Address, K256PrivateKey, L1BatchNumber,
-    L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    settlement::SettlementLayer, transaction_request::PaymasterParams, vm::FastVmMode, Address,
+    K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, H256,
+    ZKPORTER_IS_AVAILABLE,
 };
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -45,6 +46,7 @@ pub(crate) fn default_l1_batch_env(number: u32) -> L1BatchEnv {
             interop_roots: vec![],
         },
         fee_input: BatchFeeInput::sensible_l1_pegged_default(),
+        settlement_layer: SettlementLayer::for_tests(),
     }
 }
 

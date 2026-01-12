@@ -73,17 +73,20 @@ pub enum ProtocolVersionId {
     Version27,
     Version28,
     Version29,
+    // Version `30` was skipped as an Era upgrade due to version clash with ZKsync OS.
     Version30,
     Version31,
+    // Speculative next protocol version for the upgrade integration tests etc.
+    Version32,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version30
+        Self::Version31
     }
 
     pub const fn next() -> Self {
-        Self::Version31
+        Self::Version32
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -131,9 +134,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version31 => VmVersion::VmInterop,
+            ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
         }
     }
 
@@ -171,6 +175,10 @@ impl ProtocolVersionId {
         self < &Self::Version29
     }
 
+    pub fn is_pre_medium_interop(&self) -> bool {
+        self < &Self::Version31
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }
@@ -205,10 +213,6 @@ impl ProtocolVersionId {
 
     pub fn is_post_1_5_0(&self) -> bool {
         self >= &ProtocolVersionId::Version23
-    }
-
-    pub fn is_pre_medium_interop(&self) -> bool {
-        self < &ProtocolVersionId::Version30
     }
 
     pub const fn gateway_upgrade() -> Self {
@@ -322,9 +326,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version31 => VmVersion::VmInterop,
+            ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
         }
     }
 }

@@ -1,7 +1,10 @@
 //! API types related to the External Node specific methods.
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{commitment::PubdataParams, Address, L1BatchNumber, L2BlockNumber, H256};
+use zksync_basic_types::{
+    commitment::PubdataParams, settlement::SettlementLayer, Address, L1BatchNumber, L2BlockNumber,
+    H256,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::{InteropRoot, ProtocolVersionId};
@@ -49,6 +52,7 @@ pub struct SyncBlock {
     pub pubdata_limit: Option<u64>,
     /// Interop roots for this block
     pub interop_roots: Option<Vec<InteropRoot>>,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 /// Global configuration of the consensus served by the main node to the external nodes.

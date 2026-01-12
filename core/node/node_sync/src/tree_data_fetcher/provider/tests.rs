@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use test_casing::test_casing;
 use zksync_contracts::bridgehub_contract;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::create_l2_block;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
@@ -306,7 +306,7 @@ async fn create_l1_data_provider(l1_client: Box<DynClient<L1>>) -> SLDataProvide
 async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -390,7 +390,7 @@ async fn detecting_reorg_in_l1_data_provider() {
 async fn combined_data_provider_errors() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 

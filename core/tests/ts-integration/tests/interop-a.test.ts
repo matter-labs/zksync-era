@@ -1,5 +1,6 @@
 /**
- * This suite contains tests checking interop functionality.
+ * This suite contains tests checking Interop-A cross-chain message features,
+ * those that were included as part of v29 protocol upgrade.
  */
 
 import { TestMaster } from '../src';
@@ -10,17 +11,11 @@ import * as ethers from 'ethers';
 import { waitForL2ToL1LogProof } from '../src/helpers';
 import { RetryableWallet } from '../src/retry-provider';
 
-import {
-    L2_MESSAGE_VERIFICATION_ADDRESS,
-    L2_INTEROP_ROOT_STORAGE_ADDRESS,
-    ArtifactL2MessageVerification,
-    ArtifactL2InteropRootStorage,
-    ArtifactL1BridgeHub,
-    GATEWAY_CHAIN_ID
-} from '../src/constants';
+import { L2_MESSAGE_VERIFICATION_ADDRESS, ArtifactL2MessageVerification, ArtifactL1BridgeHub } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
+import { waitForInteropRootNonZero, getGWBlockNumber } from '../src/helpers';
 
-describe('Interop behavior checks', () => {
+describe('Interop-A behavior checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let aliceSecondChain: RetryableWallet;
@@ -122,34 +117,6 @@ describe('Interop behavior checks', () => {
         );
         expect(included).toBe(true);
     });
-
-    function getGWBlockNumber(params: FinalizeWithdrawalParams): number {
-        /// see hashProof in MessageHashing.sol for this logic.
-        let gwProofIndex =
-            1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
-        return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
-    }
-
-    async function waitForInteropRootNonZero(provider: zksync.Provider, alice: zksync.Wallet, l1BatchNumber: number) {
-        const l2InteropRootStorage = new zksync.Contract(
-            L2_INTEROP_ROOT_STORAGE_ADDRESS,
-            ArtifactL2InteropRootStorage.abi,
-            provider
-        );
-        let currentRoot = ethers.ZeroHash;
-
-        while (currentRoot === ethers.ZeroHash) {
-            // We make repeated transactions to force the L2 to update the interop root.
-            const tx = await alice.transfer({
-                to: alice.address,
-                amount: 1
-            });
-            await tx.wait();
-
-            currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
-            await zksync.utils.sleep(alice.provider.pollingInterval);
-        }
-    }
 
     afterAll(async () => {
         await testMaster.deinitialize();

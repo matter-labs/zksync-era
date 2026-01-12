@@ -48,6 +48,7 @@ pub(crate) enum MultiVmSubversion {
     EvmEmulator,
     EcPrecompiles,
     Interop,
+    MediumInterop,
 }
 
 #[cfg(test)]
@@ -71,6 +72,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
             VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
             VmVersion::VmInterop => Ok(Self::Interop),
+            VmVersion::VmMediumInterop => Ok(Self::MediumInterop),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

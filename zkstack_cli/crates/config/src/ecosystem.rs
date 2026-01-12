@@ -23,8 +23,9 @@ use crate::{
     },
     source_files::SourceFiles,
     traits::{FileConfigTrait, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig, ERA_VM_GENESIS_FILE,
-    PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH, ZKSYNC_OS_GENESIS_FILE,
+    ChainConfig, ChainConfigInternal, CoreContractsConfig, WalletsConfig,
+    PATH_TO_DEFAULT_GENESIS_CONFIG, PATH_TO_ERA_VM_DEFAULT_GENESIS,
+    PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS, PROVING_NETWORKS_DEPLOY_SCRIPT_PATH, PROVING_NETWORKS_PATH,
 };
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -363,6 +364,16 @@ impl EcosystemConfig {
         }
     }
 
+    pub fn default_genesis_path(&self, vm_option: VMOption) -> PathBuf {
+        let genesis_path = self
+            .contracts_path_for_ctm(vm_option)
+            .join(PATH_TO_DEFAULT_GENESIS_CONFIG);
+        match vm_option {
+            VMOption::EraVM => genesis_path.join(PATH_TO_ERA_VM_DEFAULT_GENESIS),
+            VMOption::ZKSyncOsVM => genesis_path.join(PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS),
+        }
+    }
+
     pub fn default_configs_path_for_ctm(&self, vm_option: VMOption) -> PathBuf {
         self.get_source_files(vm_option)
             .map(|files| files.default_configs_path.clone())
@@ -371,14 +382,6 @@ impl EcosystemConfig {
                     logger::warn("Warning: zksync_os_contracts_path is not set, falling back to default contracts path.");
                 }
                 self.link_to_code.join(CONFIGS_PATH)
-            })
-    }
-
-    pub fn default_genesis_path(&self, vm_option: VMOption) -> PathBuf {
-        self.default_configs_path_for_ctm(vm_option)
-            .join(match vm_option {
-                VMOption::EraVM => ERA_VM_GENESIS_FILE,
-                VMOption::ZKSyncOsVM => ZKSYNC_OS_GENESIS_FILE,
             })
     }
 

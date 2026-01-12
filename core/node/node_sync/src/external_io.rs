@@ -322,6 +322,7 @@ impl StateKeeperIO for ExternalIO {
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
                         pubdata_limit: params.pubdata_limit,
+                        settlement_layer: params.settlement_layer,
                     })
                     .await?;
                 Ok(Some(params))
@@ -496,11 +497,11 @@ mod tests {
     use std::time::Duration;
 
     use zksync_dal::{ConnectionPool, CoreDal};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
-        api, commitment::PubdataParams, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
-        L2ChainId, ProtocolVersionId, H256,
+        api, commitment::PubdataParams, fee_model::BatchFeeInput, settlement::SettlementLayer,
+        L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
     };
 
     use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
@@ -511,7 +512,7 @@ mod tests {
         // version and make sure that it is present in the DB (i.e. fetch it from main node if not).
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+        insert_genesis_batch(&mut conn, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let (actions_sender, action_queue) = ActionQueue::new();
@@ -542,6 +543,7 @@ mod tests {
             first_l2_block: L2BlockParams::new(1000),
             pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

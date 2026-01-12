@@ -10,8 +10,7 @@ use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{
-                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, GenesisInput,
-                InitialDeploymentConfig,
+                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
             },
             output::{DeployL1CoreContractsOutput, ERC20Tokens},
         },
@@ -20,9 +19,9 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig, GenesisConfig,
+    ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig,
 };
-use zkstack_cli_types::{L1Network, ProverMode, VMOption};
+use zkstack_cli_types::{L1Network, VMOption};
 
 use super::args::init::EcosystemInitArgsFinal;
 use crate::{
@@ -45,20 +44,13 @@ pub async fn deploy_l1_core_contracts(
 ) -> anyhow::Result<CoreContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS
         .input(&config.path_to_foundry_scripts_for_ctm(vm_option));
-    let genesis_config_path = config.default_genesis_path(vm_option);
-    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployL1Config::new(
-        &default_genesis_input,
         &wallets_config,
         initial_deployment_config,
         config.era_chain_id,
-        config.prover_version == ProverMode::NoProofs,
-        config.l1_network,
         support_l2_legacy_shared_bridge_test,
-        vm_option,
     );
 
     deploy_config.save(shell, deploy_config_path)?;
@@ -204,6 +196,7 @@ pub async fn init_chains(
             make_permanent_rollup: args.make_permanent_rollup,
             no_genesis: genesis_args.is_none(),
             skip_priority_txs: args.skip_priority_txs,
+            pause_deposits: args.pause_deposits,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

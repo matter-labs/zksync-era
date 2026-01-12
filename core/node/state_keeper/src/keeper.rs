@@ -15,8 +15,9 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
+    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
+    settlement::SettlementLayer, try_stoppable, utils::display_timestamp, L1BatchNumber,
+    L2BlockNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -40,6 +41,7 @@ struct InitializedBatchState {
     batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
     protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
     next_block_should_be_fictive: bool,
+    _settlement_layer: SettlementLayer,
 }
 
 #[derive(Debug)]
@@ -127,6 +129,7 @@ pub struct StateKeeperBuilder {
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    settlement_layer: SettlementLayer,
 }
 
 /// Helper struct that encapsulates some private state keeper methods.
@@ -140,6 +143,7 @@ pub(super) struct StateKeeperInner {
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    settlement_layer: SettlementLayer,
 }
 
 impl From<StateKeeperBuilder> for StateKeeperInner {
@@ -153,6 +157,7 @@ impl From<StateKeeperBuilder> for StateKeeperInner {
             health_updater: b.health_updater,
             deployment_tx_filter: b.deployment_tx_filter,
             leader_rotation: b.leader_rotation,
+            settlement_layer: b.settlement_layer,
         }
     }
 }
@@ -165,6 +170,7 @@ impl StateKeeperBuilder {
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
         deployment_tx_filter: Option<DeploymentTxFilter>,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         Self {
             io: sequencer,
@@ -175,6 +181,7 @@ impl StateKeeperBuilder {
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
             deployment_tx_filter,
             leader_rotation: false,
+            settlement_layer,
         }
     }
 
@@ -267,6 +274,7 @@ impl StateKeeperBuilder {
         )
         .await?;
 
+        let settlement_layer = inner.settlement_layer;
         Ok(StateKeeper {
             inner,
             batch_state: BatchState::Init(Box::new(InitializedBatchState {
@@ -274,6 +282,7 @@ impl StateKeeperBuilder {
                 batch_executor,
                 protocol_upgrade_tx,
                 next_block_should_be_fictive: false,
+                _settlement_layer: settlement_layer,
             })),
         })
     }
@@ -330,6 +339,7 @@ impl StateKeeperInner {
             batch_executor,
             protocol_upgrade_tx,
             next_block_should_be_fictive: false,
+            _settlement_layer: self.settlement_layer,
         })
     }
 

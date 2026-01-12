@@ -7,7 +7,7 @@ use tokio::{
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::interface::StorageViewCache;
-use zksync_types::L1BatchNumber;
+use zksync_types::{settlement::SettlementLayer, L1BatchNumber};
 use zksync_vm_interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
 use crate::{
@@ -54,6 +54,7 @@ impl OutputHandlerTester {
                 max_virtual_blocks_to_create: 0,
                 interop_roots: vec![],
             },
+            settlement_layer: SettlementLayer::for_tests(),
         };
         let system_env = SystemEnv {
             zk_porter_available: false,

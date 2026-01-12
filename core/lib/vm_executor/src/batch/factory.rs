@@ -1,4 +1,4 @@
-use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{fmt, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -249,7 +249,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         with_compression: bool,
     ) -> BatchTransactionExecutionResult {
         let legacy_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if Tr::TRACE_CALLS {
+        let legacy_tracer = if true {
             vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
@@ -295,6 +295,55 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 fast_traces
             }
         };
+
+        // Save the formatted call_traces to a file
+        if let Ok(mut file) = std::fs::File::create("call_traces.json") {
+            // Helper to format bytes as hex in JSON
+            fn hex_encode_bytes(mut value: serde_json::Value) -> serde_json::Value {
+                if let Some(obj) = value.as_object_mut() {
+                    if let Some(input) = obj.get("input").and_then(|v| v.as_array()) {
+                        let hex = format!(
+                            "0x{}",
+                            input
+                                .iter()
+                                .filter_map(|v| v.as_u64())
+                                .map(|b| format!("{:02x}", b as u8))
+                                .collect::<String>()
+                        );
+                        obj.insert("input".to_string(), serde_json::Value::String(hex));
+                    }
+                    if let Some(output) = obj.get("output").and_then(|v| v.as_array()) {
+                        let hex = format!(
+                            "0x{}",
+                            output
+                                .iter()
+                                .filter_map(|v| v.as_u64())
+                                .map(|b| format!("{:02x}", b as u8))
+                                .collect::<String>()
+                        );
+                        obj.insert("output".to_string(), serde_json::Value::String(hex));
+                    }
+                    if let Some(calls) = obj.get_mut("calls").and_then(|v| v.as_array_mut()) {
+                        *calls = calls.iter().map(|c| hex_encode_bytes(c.clone())).collect();
+                    }
+                }
+                value
+            }
+
+            if let Ok(mut json_value) = serde_json::to_value(&call_traces) {
+                let formatted = json_value
+                    .as_array_mut()
+                    .map(|arr| {
+                        arr.iter()
+                            .map(|v| hex_encode_bytes(v.clone()))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                if let Ok(json) = serde_json::to_string_pretty(&formatted) {
+                    let _ = writeln!(file, "{}", json);
+                }
+            }
+        }
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
