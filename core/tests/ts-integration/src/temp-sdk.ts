@@ -7,11 +7,25 @@ import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDR
 export interface Output {
     output: any;
     rawData: any;
+    bundleHash: string;
     l1BatchNumber: number;
     l2TxNumberInBlock: number;
     l2MessageIndex: number;
     fullProof: string;
     proofDecoded: any;
+}
+
+export enum CallStatus {
+    Unprocessed = 0,
+    Executed = 1,
+    Cancelled = 2
+}
+
+export enum BundleStatus {
+    Unreceived = 0,
+    Verified = 1,
+    FullyExecuted = 2,
+    Unbundled = 3
 }
 
 export async function getInteropBundleData(
@@ -28,7 +42,8 @@ export async function getInteropBundleData(
             l2TxNumberInBlock: 0,
             l2MessageIndex: 0,
             fullProof: '',
-            proofDecoded: null
+            proofDecoded: null,
+            bundleHash: ''
         };
     const { message } = response!;
 
@@ -61,12 +76,13 @@ export async function getInteropBundleData(
         }
     };
     // console.log("response.proof", proof_fee)
+    const chainId = (await provider.getNetwork()).chainId;
     const rawData = ethers.AbiCoder.defaultAbiCoder().encode([INTEROP_BUNDLE_ABI], [xl2Input]);
     let proofEncoded = ethers.AbiCoder.defaultAbiCoder().encode(
         [MESSAGE_INCLUSION_PROOF_ABI],
         [
             {
-                chainId: (await provider.getNetwork()).chainId,
+                chainId,
                 l1BatchNumber: response.l1BatchNumber,
                 l2MessageIndex: response.l2MessageIndex,
                 message: [response.l2TxNumberInBlock, L2_INTEROP_CENTER_ADDRESS, rawData],
@@ -74,8 +90,13 @@ export async function getInteropBundleData(
             }
         ]
     );
+    const bundleHash = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(['uint256', 'bytes'], [chainId, rawData])
+    );
+
     let output: Output = {
         rawData: rawData,
+        bundleHash,
         output: xl2Input,
         l1BatchNumber: response.l1BatchNumber,
         l2TxNumberInBlock: response.l2TxNumberInBlock,
