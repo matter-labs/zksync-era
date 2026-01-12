@@ -2,10 +2,11 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_types::ProverMode;
+use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
-    L2ChainId,
+    commitment::L1BatchCommitmentMode,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    L1ChainId, L2ChainId,
 };
 
 use crate::{
@@ -72,40 +73,40 @@ impl GenesisConfigPatch {
     pub fn update_from_contracts_genesis(
         &mut self,
         config: &ContractsGenesisConfig,
+        vmoption: VMOption,
     ) -> anyhow::Result<()> {
         let l1_verifier: L1VerifierConfig = config.0.get("prover")?;
 
-        let protocol_semantic_version = config.packed_protocol_semantic_version()?;
         self.0.insert(
             "genesis_protocol_semantic_version",
-            ProtocolSemanticVersion::try_from_packed(protocol_semantic_version.into())
-                .unwrap()
-                .to_string(),
+            config.protocol_semantic_version()?.to_string(),
         )?;
 
         self.0.insert("genesis_root", config.genesis_root_hash()?)?;
-        self.0.insert(
-            "genesis_rollup_leaf_index",
-            config.rollup_last_leaf_index()?,
-        )?;
-        self.0
-            .insert("genesis_batch_commitment", config.genesis_commitment()?)?;
-        self.0
-            .insert("bootloader_hash", config.bootloader_hash()?)?;
-        self.0
-            .insert("default_aa_hash", config.default_aa_hash()?)?;
-        if let Some(data) = config.evm_emulator_hash()? {
-            self.0.insert("evm_emulator_hash", data)?;
-        }
-        self.0.insert(
-            "prover.recursion_scheduler_level_vk_hash",
-            l1_verifier.snark_wrapper_vk_hash,
-        )?;
-        if let Some(fflonk_vk_hash) = l1_verifier.fflonk_snark_wrapper_vk_hash {
+        // Only EraVM requires additional genesis parameters
+        if vmoption == VMOption::EraVM {
+            self.0.insert(
+                "genesis_rollup_leaf_index",
+                config.rollup_last_leaf_index()?,
+            )?;
             self.0
-                .insert("prover.fflonk_snark_wrapper_vk_hash", fflonk_vk_hash)?;
+                .insert("genesis_batch_commitment", config.genesis_commitment()?)?;
+            self.0
+                .insert("bootloader_hash", config.bootloader_hash()?)?;
+            self.0
+                .insert("default_aa_hash", config.default_aa_hash()?)?;
+            if let Some(data) = config.evm_emulator_hash()? {
+                self.0.insert("evm_emulator_hash", data)?;
+            }
+            self.0.insert(
+                "prover.recursion_scheduler_level_vk_hash",
+                l1_verifier.snark_wrapper_vk_hash,
+            )?;
+            if let Some(fflonk_vk_hash) = l1_verifier.fflonk_snark_wrapper_vk_hash {
+                self.0
+                    .insert("prover.fflonk_snark_wrapper_vk_hash", fflonk_vk_hash)?;
+            }
         }
-
         Ok(())
     }
 
@@ -141,7 +142,14 @@ impl ContractsGenesisConfig {
         self.0.get("genesis_batch_commitment")
     }
 
-    pub fn packed_protocol_semantic_version(&self) -> anyhow::Result<u64> {
-        self.0.get::<u64>("protocol_semantic_version")
+    pub fn protocol_semantic_version(&self) -> anyhow::Result<ProtocolSemanticVersion> {
+        self.0
+            .get::<u16>("protocol_semantic_version.minor")
+            .and_then(|minor| {
+                Ok(ProtocolSemanticVersion::new(
+                    ProtocolVersionId::try_from(minor).map_err(|e| anyhow::anyhow!(e))?,
+                    self.0.get::<u32>("protocol_semantic_version.patch")?.into(),
+                ))
+            })
     }
 }

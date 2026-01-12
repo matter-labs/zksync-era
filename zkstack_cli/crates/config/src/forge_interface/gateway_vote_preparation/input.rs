@@ -83,7 +83,7 @@ impl GatewayVotePreparationConfig {
             genesis_root: H256::from_str(&genesis_input.genesis_root_hash()?)?,
             genesis_rollup_leaf_index: U256::from(genesis_input.rollup_last_leaf_index()?),
             genesis_batch_commitment: H256::from_str(&genesis_input.genesis_commitment()?)?,
-            latest_protocol_version: genesis_input.packed_protocol_semantic_version()?.into(),
+            latest_protocol_version: genesis_input.protocol_semantic_version()?.pack(),
             recursion_node_level_vk_hash: H256::zero(), // These are always zero
             recursion_leaf_level_vk_hash: H256::zero(), // These are always zero
             recursion_circuits_set_vks_hash: H256::zero(), // These are always zero

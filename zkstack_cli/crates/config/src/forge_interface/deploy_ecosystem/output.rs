@@ -50,6 +50,7 @@ pub struct DeployCTMDeployedAddressesOutput {
     pub no_da_validium_l1_validator_addr: Address,
     pub avail_l1_da_validator_addr: Address,
     pub l1_rollup_da_manager: Address,
+    pub blobs_zksync_os_l1_da_validator_addr: Option<Address>,
     pub server_notifier_proxy_addr: Address,
 }
 

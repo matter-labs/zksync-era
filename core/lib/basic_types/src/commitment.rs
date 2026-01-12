@@ -105,6 +105,7 @@ pub enum L2DACommitmentScheme {
     EmptyNoDA = 1,
     PubdataKeccak256 = 2,
     BlobsAndPubdataKeccak256 = 3,
+    BlobsZksyncOS = 4,
 }
 
 impl L2DACommitmentScheme {

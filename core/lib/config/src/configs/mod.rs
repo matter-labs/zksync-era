@@ -4,7 +4,7 @@ pub use self::{
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
     consistency_checker::ConsistencyCheckerConfig,
-    contract_genesis::{ContractsGenesis, DEFAULT_GENESIS_FILE_PATH},
+    contract_genesis::ContractsGenesis,
     contract_verifier::ContractVerifierConfig,
     contracts::chain::ContractsConfig,
     da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
