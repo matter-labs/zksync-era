@@ -1,5 +1,3 @@
-<!--- WIP --->
-
 # ZK Stack contracts specs
 
 The order of the files here only roughly represents the order of reading. A lot of topics are intertwined, so it is recommended to read everything first to have a complete picture and then refer to specific documents for more details.
@@ -13,6 +11,7 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Chain genesis](../contracts/chain_management/chain_genesis.md)
   - [Standard Upgrade process](../contracts/chain_management/upgrade_process.md)
 - [Bridging](../contracts/bridging/overview.md)
+  - [Asset Router and NTV](../contracts/bridging/asset_router_and_ntv/overview.md)
   - [Asset Router](../contracts/bridging/asset_router_and_ntv/asset_router.md)
   - [Native token vault](../contracts/bridging/asset_router_and_ntv/native_token_vault.md)
 - [Interop](../contracts/interop/overview.md)
@@ -21,7 +20,7 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Interop messages](../contracts/interop/interop_messages.md)
   - [Examples](../contracts/interop/examples/README.md)
     - [Cross-chain message](../contracts/interop/examples/cross_chain_message.md)
-- [Settlement Contracts](../contracts/settlement_contracts/zkchain_basics.md)
+- [Settlement Contracts](../contracts/settlement_contracts/overview.md)
   - [L1 <> L2 communication](../contracts/settlement_contracts/priority_queue/README.md)
     - [Handling L1→L2 operations](../contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)
     - [L2→L1 communication](../contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)
@@ -35,22 +34,22 @@ The order of the files here only roughly represents the order of reading. A lot 
     - [Custom DA support](../contracts/settlement_contracts/data_availability/custom_da.md)
     - [Rollup DA support](../contracts/settlement_contracts/data_availability/rollup_da.md)
     - [Standard pubdata format](../contracts/settlement_contracts/data_availability/standard_pubdata_format.md)
-    - [State diff compression v1 spec](../contracts/settlement_contracts/data_availability/state_diff_compression_v1_spec.md)
 - [Gateway](../contracts/gateway/overview.md)
   - [Chain migration](../contracts/gateway/chain_migration.md)
   - [L1->L2 messaging via gateway](../contracts/gateway/messaging_via_gateway.md)
   - [L2->L1 messaging via gateway](../contracts/gateway/l2_gw_l1_messaging.md)
   - [Gateway protocol versioning](../contracts/gateway/gateway_protocol_upgrades.md)
   - [DA handling on Gateway](../contracts/gateway/gateway_da.md)
-- [Consensus](../contracts/consensus/README.md)
-  - [Consensus Registry](../contracts/consensus/consensus-registry.md)
 - [zkEVM](../contracts/zkevm/overview.md)
   - [Batches and blocks on ZKsync](../contracts/zkevm/batches_and_blocks_on_zksync.md)
   - [Bootloader](../contracts/zkevm/bootloader.md)
   - [System contracts](../contracts/zkevm/system_contracts.md)
-  - [Precompiles](../contracts/zkevm/precompiles.md)
   - [Account abstraction](../contracts/zkevm/account_abstraction.md)
   - [Fee model](../contracts/zkevm/zksync_fee_model.md)
+- [EVM Emulation](../contracts/evm_emulation/technical_overview.md)
+  - [Differences from Cancun EVM](../contracts/evm_emulation/differences_from_cancun_evm.md)
+  - [EVM Gas Emulation](../contracts/evm_emulation/evm_gas_emulation.md)
+  - [EVM Predeploys List](../contracts/evm_emulation/evm_predeploys_list.md)
 
 ![Reading order](./img/reading_order.png)
 
@@ -68,10 +67,10 @@ The repository contains the following sections:
 
 This section is for auditors of the codebase. It includes some of the important invariants that the system relies on and which if broken could have bad consequences.
 
-- Assuming that the accepting CTM is correct & efficient, the L1→GW part of the L1→GW→L3 transaction never fails. It is assumed that the provided max amount for gas is always enough for any transaction that can realistically come from L1.
+- Assuming that the accepting CTM is correct & efficient, the L1→GW part of the L1→GW→L2 transaction never fails. It is assumed that the provided max amount for gas is always enough for any transaction that can realistically come from L1.
 - GW → L1 migration never fails. If it is possible to get into a state where the migration is not possible to finish, then the chain is basically lost. There are some exceptions where for now it is the expected behavior. (check out the “Migration invariants & protocol upgradability” section)
 - The general consistency of chains when migration between different settlement layers is done. Including the feasibility of emergency upgrades, etc. I.e. whether the whole system is thought-through.
-- Preimage attacks in the L3→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
+- Preimage attacks in the L2→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
 - Data availability guarantees. Whether rollup users can always restore all their storage slots, etc. An example of a potential tricky issue can be found in “Security notes for Gateway-based rollups” [in this document](./gateway/gateway_da.md).
 
 The desired properties of the system are that funds can not be stolen from the L1 contracts, and that L2 constracts are executed securely.

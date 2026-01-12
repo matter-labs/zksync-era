@@ -389,7 +389,7 @@ state diffs.
 
 The following algorithm is used for the state diff compression:
 
-[State diff compression v1 spec](./state_diff_compression_v1_spec.md)
+[State diff compression](./compression.md)
 
 ## General pubdata format
 
