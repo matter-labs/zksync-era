@@ -815,7 +815,9 @@ impl L1BatchWithLogs {
             .context("cannot fetch initial writes batch numbers and indices")?;
         leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
-        let mut storage_logs = Vec::new();
+        // Collect tree instructions keyed by leaf index to preserve deterministic ordering.
+        let mut storage_logs = BTreeMap::new();
+
         for storage_key in protective_reads {
             let hashed_key = storage_key.hashed_key();
             touched_slots.remove(&hashed_key);
@@ -824,8 +826,14 @@ impl L1BatchWithLogs {
             // their further processing. This is not a required step; the logic below works fine without it.
             // Indeed, extra no-op updates that could be added to `storage_logs` as a consequence of no filtering,
             // are removed on the Merkle tree level (see the tree domain wrapper).
-            let log = TreeInstruction::Read(storage_key.hashed_key_u256());
-            storage_logs.push(log);
+            if let Some(&(initial_write_batch_for_key, leaf_index)) =
+                l1_batches_for_initial_writes.get(&hashed_key)
+            {
+                if initial_write_batch_for_key <= l1_batch_number {
+                    let hashed_key_u256 = U256::from_little_endian(hashed_key.as_bytes());
+                    storage_logs.insert(leaf_index, TreeInstruction::Read(hashed_key_u256));
+                }
+            }
         }
 
         tracing::debug!(
@@ -833,8 +841,6 @@ impl L1BatchWithLogs {
             touched_slots.len()
         );
 
-        // We use a BTreeMap keyed by leaf_index to ensure writes are sorted by index.
-        let mut writes_by_index = BTreeMap::new();
         for (hashed_key, value) in touched_slots {
             if let Some(&(initial_write_batch_for_key, leaf_index)) =
                 l1_batches_for_initial_writes.get(&hashed_key)
@@ -842,7 +848,7 @@ impl L1BatchWithLogs {
                 // Filter out logs that correspond to deduplicated writes.
                 if initial_write_batch_for_key <= l1_batch_number {
                     let hashed_key_u256 = U256::from_little_endian(hashed_key.as_bytes());
-                    writes_by_index.insert(
+                    storage_logs.insert(
                         leaf_index,
                         TreeInstruction::write(hashed_key_u256, leaf_index, value),
                     );
@@ -850,9 +856,7 @@ impl L1BatchWithLogs {
             }
         }
 
-        // It is critical that `writes_by_index` yields values sorted by `leaf_index`.
-        storage_logs.extend(writes_by_index.into_values());
-        Ok(storage_logs)
+        Ok(storage_logs.into_values().collect())
     }
 }
 
