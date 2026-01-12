@@ -38,6 +38,10 @@ pub struct AvailGasRelayConfig {
     pub gas_relay_api_url: String,
     #[config(default_t = 5)]
     pub max_retries: usize,
+    #[config(default_t = "zksync".to_string())]
+    pub referer_header: String,
+    #[config(default_t = 3 * TimeUnit::Minutes)]
+    pub dispatch_timeout: Duration,
 }
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
