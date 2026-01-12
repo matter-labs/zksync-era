@@ -1,4 +1,6 @@
 use anyhow::Context;
+use ethers::{abi::parse_abi, contract::BaseContract};
+use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
@@ -19,6 +21,11 @@ use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
+
+lazy_static! {
+    static ref REGISTER_CTM_FUNCTIONS: BaseContract =
+        BaseContract::from(parse_abi(&["function run(address ctm)public",]).unwrap(),);
+}
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
@@ -60,12 +67,20 @@ pub async fn register_chain(
     let deploy_config_path =
         REGISTER_CHAIN_SCRIPT_PARAMS.input(&chain_config.path_to_foundry_scripts());
 
-    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts.create2_factory_addr)?;
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
+        .with_calldata(
+            &REGISTER_CTM_FUNCTIONS.encode(
+                "run",
+                contracts
+                    .ctm(chain_config.vm_option)
+                    .state_transition_proxy_addr,
+            )?,
+        )
         .with_rpc_url(l1_rpc_url);
 
     if broadcast {
