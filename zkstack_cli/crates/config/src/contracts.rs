@@ -11,7 +11,8 @@ use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADD
 use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
-        deploy_ecosystem::output::{DeployCTMOutput, DeployL1CoreContractsOutput},
+        deploy_ctm::output::DeployCTMOutput,
+        deploy_ecosystem::output::DeployL1CoreContractsOutput,
         deploy_l2_contracts::output::{
             ConsensusRegistryOutput, DefaultL2UpgradeOutput, Multicall3Output,
             TimestampAsserterOutput,

@@ -125,3 +125,4 @@ out
 .format_sql_snapshot
 .prettier_cache.json
 .prettier_cache_contracts.json
+call_traces.json
