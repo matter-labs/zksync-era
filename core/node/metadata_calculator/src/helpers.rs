@@ -826,14 +826,16 @@ impl L1BatchWithLogs {
             // their further processing. This is not a required step; the logic below works fine without it.
             // Indeed, extra no-op updates that could be added to `storage_logs` as a consequence of no filtering,
             // are removed on the Merkle tree level (see the tree domain wrapper).
-            if let Some(&(initial_write_batch_for_key, leaf_index)) =
-                l1_batches_for_initial_writes.get(&hashed_key)
-            {
-                if initial_write_batch_for_key <= l1_batch_number {
-                    let hashed_key_u256 = U256::from_little_endian(hashed_key.as_bytes());
-                    storage_logs.insert(leaf_index, TreeInstruction::Read(hashed_key_u256));
-                }
-            }
+            let &(initial_write_batch_for_key, leaf_index) = l1_batches_for_initial_writes
+                .get(&hashed_key)
+                .expect("Protective read key must be present in initial writes");
+            assert!(
+                initial_write_batch_for_key <= l1_batch_number,
+                "Protective read key initialized in a future batch (Batch: {}, Batch of initial write: {})",
+                l1_batch_number.0, initial_write_batch_for_key.0
+            );
+            let hashed_key_u256 = U256::from_little_endian(hashed_key.as_bytes());
+            storage_logs.insert(leaf_index, TreeInstruction::Read(hashed_key_u256));
         }
 
         tracing::debug!(
