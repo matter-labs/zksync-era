@@ -18,7 +18,8 @@ import {
     getGWBlockNumber,
     formatEvmV1Address,
     formatEvmV1Chain,
-    getL2bUrl
+    getL2bUrl,
+    waitUntilBlockExecutedOnGateway
 } from './helpers';
 
 import {
@@ -552,10 +553,7 @@ export class InteropTestContext {
         const txReceipt = await this.interop1Provider.getTransactionReceipt(txHash);
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
 
-        /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
-        // The line below does that, but it doesn't quite work for some reason.
-        // await waitUntilBlockExecutedOnGateway(senderUtilityWallet, gatewayWallet, txReceipt!.blockNumber);
-        await utils.sleep(25);
+        await waitUntilBlockExecutedOnGateway(senderUtilityWallet, this.gatewayWallet, txReceipt!.blockNumber);
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
         await waitForInteropRootNonZero(this.interop2Provider, this.interop2RichWallet, getGWBlockNumber(params));
     }
