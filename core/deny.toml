@@ -8,6 +8,10 @@ feature-depth = 1
 
 [advisories]
 ignore = [
+    # Unsoundness in lru <0.16.3. Waiting for:
+    #  * aws-sdk-s3 to upgrade (https://github.com/smithy-lang/smithy-rs/pull/4470)
+    #  * alloy-provider to upgrade (https://github.com/alloy-rs/alloy/pull/3460)
+    "RUSTSEC-2026-0002",
     "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
     "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in api server, we should consider moving to mach2 fork
     "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`

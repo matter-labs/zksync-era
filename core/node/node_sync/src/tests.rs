@@ -7,7 +7,7 @@ use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
@@ -178,7 +178,7 @@ impl StateKeeperHandles {
 
 async fn ensure_genesis(storage: &mut Connection<'_, Core>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        insert_genesis_batch(storage, &GenesisParams::mock())
+        insert_genesis_batch(storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
     }

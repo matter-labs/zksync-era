@@ -93,10 +93,7 @@ pub async fn run(
         .await?
         .into();
 
-    let asset_router = AssetRouterAbi::new(
-        bridgehub.assetRouter().call().await?.into(),
-        provider.clone(),
-    );
+    let asset_router = AssetRouterAbi::new(bridgehub.assetRouter().call().await?, provider.clone());
 
     let eth_token_asset_id: U256 = asset_router.ETH_TOKEN_ASSET_ID().call().await?.into();
 

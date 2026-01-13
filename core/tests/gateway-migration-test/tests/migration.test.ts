@@ -33,7 +33,7 @@ interface GatewayInfo {
     l2DiamondProxyAddress: string;
 }
 
-describe('Migration From/To gateway test', function () {
+describe('Migration from gateway test', function () {
     // Utility wallets for facilitating testing
     let tester: Tester;
     let alice: zksync.Wallet;
@@ -205,6 +205,9 @@ describe('Migration From/To gateway test', function () {
         // this area might be worth revisiting to wait for unconfirmed transactions on the server.
         await utils.sleep(30);
 
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted();
+
         if (direction == 'TO') {
             await utils.spawn(
                 `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
@@ -243,22 +246,6 @@ describe('Migration From/To gateway test', function () {
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
-    });
-
-    step('Unpause deposits', async () => {
-        await utils.spawn(`zkstack chain unpause-deposits --chain ${fileConfig.chain}`);
-    });
-
-    step('Migrate token balances', async () => {
-        if (direction == 'TO') {
-            await utils.spawn(
-                `zkstack chain gateway migrate-token-balances --to-gateway true  --gateway-chain-name gateway --chain ${fileConfig.chain}`
-            );
-        } else {
-            await utils.spawn(
-                `zkstack chain gateway migrate-token-balances --to-gateway false --gateway-chain-name gateway --chain ${fileConfig.chain}`
-            );
-        }
     });
 
     step('Check token settlement layers', async () => {
@@ -319,6 +306,26 @@ describe('Migration From/To gateway test', function () {
         expect(events.length > 0, 'No precommitment events found on the gateway').to.be.true;
     });
 
+    // Migrating back to the gateway is temporarily unsupported in v31.
+    // This test verifies that the operation fails as expected.
+    // TODO: When support is restored in future versions, remove this negative test.
+    step('Migrating back to gateway fails', async () => {
+        // Pause deposits before trying migration back to gateway
+        await utils.spawn(`zkstack chain pause-deposits --chain ${fileConfig.chain}`);
+
+        try {
+            // We use utils.exec instead of utils.spawn to capture stdout/stderr for assertion
+            await utils.exec(
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+            );
+            expect.fail('Migrating back to gateway should have failed');
+        } catch (e: any) {
+            const output = (e.stdout || '') + (e.stderr || '');
+            // 0x47d42b1b corresponds to IteratedMigrationsNotSupported() error
+            expect(output).to.include('execution reverted, data: Some(String("0x47d42b1b"))');
+        }
+    });
+
     after('Try killing server', async () => {
         try {
             mainNodeSpawner.mainNode?.terminate();
@@ -330,6 +337,34 @@ describe('Migration From/To gateway test', function () {
             return await l1MainContract.getPriorityQueueSize();
         } else {
             return await chainGatewayContract.getPriorityQueueSize();
+        }
+    }
+
+    async function waitForAllBatchesToBeExecuted() {
+        let tryCount = 0;
+        let totalBatchesCommitted = await getTotalBatchesCommitted();
+        let totalBatchesExecuted = await getTotalBatchesExecuted();
+        while (totalBatchesCommitted !== totalBatchesExecuted && tryCount < 100) {
+            tryCount += 1;
+            await utils.sleep(1);
+            totalBatchesCommitted = await getTotalBatchesCommitted();
+            totalBatchesExecuted = await getTotalBatchesExecuted();
+        }
+    }
+
+    async function getTotalBatchesCommitted() {
+        if (direction == 'TO') {
+            return await l1MainContract.getTotalBatchesCommitted();
+        } else {
+            return await chainGatewayContract.getTotalBatchesCommitted();
+        }
+    }
+
+    async function getTotalBatchesExecuted() {
+        if (direction == 'TO') {
+            return await l1MainContract.getTotalBatchesExecuted();
+        } else {
+            return await chainGatewayContract.getTotalBatchesExecuted();
         }
     }
 });

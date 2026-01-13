@@ -22,6 +22,11 @@ use crate::{
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
+lazy_static! {
+    static ref REGISTER_CTM_FUNCTIONS: BaseContract =
+        BaseContract::from(parse_abi(&["function run(address ctm)public",]).unwrap(),);
+}
+
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
@@ -62,7 +67,7 @@ pub async fn register_chain(
     let deploy_config_path =
         REGISTER_CHAIN_SCRIPT_PARAMS.input(&chain_config.path_to_foundry_scripts());
 
-    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts.create2_factory_addr)?;
     deploy_config.save(shell, deploy_config_path)?;
 
     // Prepare calldata for the register chain script

@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { TestContextOwner } from '../index';
 
 declare global {
@@ -12,6 +14,12 @@ declare global {
 async function performTeardown(_globalConfig: any, _projectConfig: any) {
     const testContextOwner = globalThis.__ZKSYNC_TEST_CONTEXT_OWNER__;
     await testContextOwner.teardownContext();
+
+    // Cleanup interop shared state
+    const sharedStateFile = path.join(__dirname, '../../interop-shared-state.json');
+    if (fs.existsSync(sharedStateFile)) {
+        fs.unlinkSync(sharedStateFile);
+    }
 }
 
 export default performTeardown;

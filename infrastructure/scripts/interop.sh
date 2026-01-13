@@ -139,6 +139,7 @@ zkstack dev init-test-wallet --chain era
 zkstack dev init-test-wallet --chain $SECOND_CHAIN_NAME
 # Runs interop integration test between era-validium in parallel
 mkdir -p zlogs
+# export INTEROP_SKIP_LOCK=true # Useful when running a single interop test suite
 # zkstack dev test integration -t "Interop"  --verbose --chain era --no-deps --second-chain $SECOND_CHAIN_NAME &> zlogs/era.logs
 # ./bin/run_on_all_chains.sh "zkstack dev test integration -t 'Interop' --verbose" \
 #             "era,validium" zlogs/ \

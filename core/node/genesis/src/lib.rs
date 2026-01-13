@@ -2,14 +2,11 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::{collections::HashMap, fmt::Formatter, path::PathBuf};
+use std::{collections::HashMap, fmt::Formatter, path::Path};
 
 use anyhow::Context as _;
 use kzg::ZK_SYNC_BYTES_PER_BLOB;
-use zksync_config::{
-    configs::{ContractsGenesis, DEFAULT_GENESIS_FILE_PATH},
-    GenesisConfig,
-};
+use zksync_config::{configs::ContractsGenesis, GenesisConfig};
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
     GENESIS_UPGRADE_EVENT,
@@ -96,15 +93,37 @@ pub struct GenesisParamsInitials {
 }
 
 impl GenesisParamsInitials {
-    pub fn load_params() -> Self {
+    pub fn load_params(contracts_genesis_path: &Path) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
 
-        let config = ContractsGenesis::read(&PathBuf::from(DEFAULT_GENESIS_FILE_PATH)).unwrap();
+        let config = ContractsGenesis::read(contracts_genesis_path).unwrap();
         Self {
             base_system_contracts,
             system_contracts,
             config,
+        }
+    }
+
+    pub fn mock() -> Self {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let base_system_contracts_hashes = base_system_contracts.hashes();
+        Self {
+            base_system_contracts,
+            system_contracts: get_system_smart_contracts(),
+            config: ContractsGenesis {
+                protocol_semantic_version: ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
+                genesis_root: H256::default(),
+                genesis_rollup_leaf_index: 26,
+                genesis_batch_commitment: H256::default(),
+                bootloader_hash: base_system_contracts_hashes.bootloader,
+                default_aa_hash: base_system_contracts_hashes.default_aa,
+                evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
+                prover: L1VerifierConfig::default(),
+            },
         }
     }
 }
@@ -115,12 +134,7 @@ impl From<GenesisParams> for GenesisParamsInitials {
             base_system_contracts: genesis_state.base_system_contracts,
             system_contracts: genesis_state.system_contracts,
             config: ContractsGenesis {
-                protocol_semantic_version: genesis_state
-                    .config
-                    .protocol_version
-                    .unwrap()
-                    .pack()
-                    .as_u64(),
+                protocol_semantic_version: genesis_state.config.protocol_version.unwrap(),
                 genesis_root: genesis_state.config.genesis_root_hash.unwrap_or_default(),
                 genesis_rollup_leaf_index: genesis_state
                     .config
@@ -327,7 +341,7 @@ pub async fn insert_genesis_batch_with_custom_state(
     // sorting by <address, key>, which is required for calculating genesis parameters.
     let deduped_log_queries = create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
-        genesis_params.config.protocol_semantic_version(),
+        genesis_params.config.protocol_semantic_version,
         &genesis_params.base_system_contracts,
         &storage_logs,
         factory_deps,
@@ -341,7 +355,7 @@ pub async fn insert_genesis_batch_with_custom_state(
     let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
         deduped_log_queries,
         base_system_contract_hashes,
-        genesis_params.config.protocol_semantic_version().minor,
+        genesis_params.config.protocol_semantic_version.minor,
     )?;
 
     save_genesis_l1_batch_metadata(

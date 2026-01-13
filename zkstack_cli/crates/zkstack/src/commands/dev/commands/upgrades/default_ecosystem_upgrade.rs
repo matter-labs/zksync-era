@@ -11,7 +11,6 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::GenesisInput,
         script_params::{
             ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
             V31_UPGRADE_CORE_CONTRACTS_PARAMS, V31_UPGRADE_CTM_CONTRACTS_PARAMS,
@@ -143,9 +142,6 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    let genesis_config_path = ecosystem_config.default_genesis_path(vm_option);
-    let default_genesis_config = ContractsGenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
         .core_ecosystem_contracts
@@ -237,7 +233,6 @@ async fn no_governance_prepare(
     };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
-        &new_genesis,
         &current_contracts_config,
         &gateway_upgrade_config,
         &initial_deployment_config,

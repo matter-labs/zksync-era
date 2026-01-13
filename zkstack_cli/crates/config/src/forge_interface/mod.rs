@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, H256};
 
 pub mod accept_ownership;
+pub mod deploy_ctm;
 pub mod deploy_ecosystem;
 pub mod deploy_gateway_tx_filterer;
 pub mod deploy_l2_contracts;
