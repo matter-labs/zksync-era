@@ -18,6 +18,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_types::url::SensitiveUrl;
 
 pub const DEFAULT_GENESIS_FILE_PATH: &str = "../contracts/configs/genesis/era/latest.json";
+
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Genesis config generator", long_about = None)]
 struct Cli {
@@ -88,5 +89,7 @@ async fn generate_new_config(
 
     updated_genesis.genesis_batch_commitment = batch_params.commitment;
     updated_genesis.genesis_root = batch_params.root_hash;
+    updated_genesis.genesis_rollup_leaf_index = batch_params.rollup_last_leaf_index;
+
     Ok(updated_genesis)
 }
