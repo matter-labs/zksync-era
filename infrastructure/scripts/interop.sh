@@ -40,6 +40,8 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --observability=false \
     --chain era \
     --update-submodules false
+    # --pause-deposits \
+
 
 zkstack chain create \
         --chain-name $SECOND_CHAIN_NAME \
