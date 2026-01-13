@@ -164,18 +164,21 @@ impl EthProofManagerDal<'_, '_> {
         &mut self,
         batch_number: L1BatchNumber,
         proof_validation_result: bool,
+        requested_reward: u64,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager SET
                 proof_validation_result = $2,
                 updated_at = NOW(),
-                status = $3
+                status = $3,
+                requested_reward = $4
             WHERE l1_batch_number = $1
             "#,
             i64::from(batch_number.0),
             proof_validation_result,
-            EthProofManagerStatus::Proven.as_str()
+            EthProofManagerStatus::Proven.as_str(),
+            requested_reward as i64,
         )
         .instrument("mark_batch_as_proven")
         .with_arg("batch_number", &batch_number)
