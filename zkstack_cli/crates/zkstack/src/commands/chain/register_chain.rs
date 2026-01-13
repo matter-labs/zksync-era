@@ -79,7 +79,6 @@ pub async fn register_chain(
         .encode(
             "run",
             (
-                contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
                 ctm.state_transition_proxy_addr,
                 chain_config.chain_id.as_u64(),
             ),
