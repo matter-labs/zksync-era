@@ -1,5 +1,6 @@
 use anyhow::Context;
 use ethers::contract::BaseContract;
+use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
@@ -17,14 +18,14 @@ use zkstack_cli_config::{
 };
 
 use crate::{
-    abi::IREGISTERZKCHAINABI_ABI,
+    abi::{IREGISTERONALLCHAINSABI_ABI, IREGISTERZKCHAINABI_ABI},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
-    static ref REGISTER_CTM_FUNCTIONS: BaseContract =
-        BaseContract::from(parse_abi(&["function run(address ctm)public",]).unwrap(),);
+    static ref REGISTER_ON_ALL_CHAINS_FUNCTIONS: BaseContract =
+        BaseContract::from(IREGISTERONALLCHAINSABI_ABI.clone());
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

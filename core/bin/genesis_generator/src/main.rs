@@ -20,6 +20,7 @@ use zksync_types::url::SensitiveUrl;
 pub const DEFAULT_GENESIS_FILE_PATH: &str = "../contracts/configs/genesis/era/latest.json";
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Genesis config generator", long_about = None)]
+struct Cli {
     #[arg(long)]
     config_path: Option<std::path::PathBuf>,
     #[arg(long, default_value = "false")]
@@ -87,4 +88,5 @@ async fn generate_new_config(
 
     updated_genesis.genesis_batch_commitment = batch_params.commitment;
     updated_genesis.genesis_root = batch_params.root_hash;
+    Ok(updated_genesis)
 }

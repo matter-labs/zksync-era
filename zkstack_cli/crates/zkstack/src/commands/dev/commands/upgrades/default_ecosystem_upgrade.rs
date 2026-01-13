@@ -190,10 +190,6 @@ async fn no_governance_prepare(
     let ctm_upgrade_config_path = get_ctm_upgrade_params(upgrade_version)
         .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
 
-    let mut new_genesis = default_genesis_input;
-    let new_version = new_genesis.protocol_version;
-    new_genesis.protocol_version = new_version;
-
     let gateway_upgrade_config = GatewayUpgradeContractsConfig {
         gateway_state_transition: GatewayStateTransitionConfig {
             chain_type_manager_proxy_addr: Address::zero(),
