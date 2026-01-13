@@ -42,63 +42,6 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Can send bundles that need unbundling', async () => {
         if (ctx.skipInteropTests) return;
 
-        // FAILING BUNDLE THAT WILL BE UNBUNDLED FROM THE SOURCE CHAIN
-        // One transfer, one failing call, and one token transfer
-        {
-            const baseAmount = ctx.getTransferAmount();
-            const tokenAmount = await ctx.getAndApproveTokenTransferAmount();
-
-            const balanceBefore = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-            const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-
-            const msgValue = ctx.isSameBaseToken ? baseAmount : 0n;
-            const receipt = await ctx.fromInterop1RequestInterop(
-                [
-                    {
-                        to: formatEvmV1Address(ctx.dummyInteropRecipient),
-                        data: '0x',
-                        callAttributes: [ctx.interopCallValueAttr(baseAmount)]
-                    },
-                    {
-                        to: formatEvmV1Address(failingCallContract),
-                        data: failingCallCalldata,
-                        callAttributes: []
-                    },
-                    {
-                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                        data: ctx.getTokenTransferSecondBridgeData(
-                            ctx.tokenA.assetId!,
-                            tokenAmount,
-                            ctx.interop2Recipient.address
-                        ),
-                        callAttributes: [ctx.indirectCallAttr()]
-                    }
-                ],
-                // The unbundler address defaults to the sending address on the destination chain
-                { executionAddress: ctx.interop2RichWallet.address },
-                { value: msgValue }
-            );
-
-            const balanceAfter = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-            if (ctx.isSameBaseToken) {
-                const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
-                expect((balanceAfter + feePaid).toString()).toBe((balanceBefore - msgValue).toString());
-            } else {
-                expect((balanceAfter - balanceBefore).toString()).toBe((-baseAmount).toString());
-            }
-            const tokenBalanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-            expect((tokenBalanceAfter - tokenBalanceBefore).toString()).toBe((-tokenAmount).toString());
-
-            bundles.fromSourceChain = {
-                receipt,
-                amounts: { baseAmount: baseAmount.toString(), tokenAmount: tokenAmount.toString() }
-            };
-        }
-
         // FAILING BUNDLE THAT WILL BE UNBUNDLED FROM THE DESTINATION CHAIN
         // One transfer, one failing call, and one token transfer
         // Additionally sets a specific unbundler address
@@ -156,10 +99,72 @@ describe('Interop-B Unbundle behavior checks', () => {
             };
         }
 
+        // FAILING BUNDLE THAT WILL BE UNBUNDLED FROM THE SOURCE CHAIN
+        // One transfer, one failing call, and one token transfer
+        {
+            const baseAmount = ctx.getTransferAmount();
+            const tokenAmount = await ctx.getAndApproveTokenTransferAmount();
+
+            const balanceBefore = ctx.isSameBaseToken
+                ? await ctx.interop1Wallet.getBalance()
+                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
+            const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
+
+            const msgValue = ctx.isSameBaseToken ? baseAmount : 0n;
+            const receipt = await ctx.fromInterop1RequestInterop(
+                [
+                    {
+                        to: formatEvmV1Address(ctx.dummyInteropRecipient),
+                        data: '0x',
+                        callAttributes: [ctx.interopCallValueAttr(baseAmount)]
+                    },
+                    {
+                        to: formatEvmV1Address(failingCallContract),
+                        data: failingCallCalldata,
+                        callAttributes: []
+                    },
+                    {
+                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                        data: ctx.getTokenTransferSecondBridgeData(
+                            ctx.tokenA.assetId!,
+                            tokenAmount,
+                            ctx.interop2Recipient.address
+                        ),
+                        callAttributes: [ctx.indirectCallAttr()]
+                    }
+                ],
+                // The unbundler address defaults to the sending address on the destination chain
+                { executionAddress: ctx.interop2RichWallet.address },
+                { value: msgValue }
+            );
+
+            const balanceAfter = ctx.isSameBaseToken
+                ? await ctx.interop1Wallet.getBalance()
+                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
+            if (ctx.isSameBaseToken) {
+                const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
+                expect((balanceAfter + feePaid).toString()).toBe((balanceBefore - msgValue).toString());
+            } else {
+                expect((balanceAfter - balanceBefore).toString()).toBe((-baseAmount).toString());
+            }
+            const tokenBalanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
+            expect((tokenBalanceAfter - tokenBalanceBefore).toString()).toBe((-tokenAmount).toString());
+
+            bundles.fromSourceChain = {
+                receipt,
+                amounts: { baseAmount: baseAmount.toString(), tokenAmount: tokenAmount.toString() }
+            };
+        }
+
         // We need to wait for the block to be finalized for the bundle data to be available
         await waitUntilBlockFinalized(ctx.interop1Wallet, bundles.fromSourceChain.receipt.blockNumber);
 
         // Store the bundle data
+        bundles.fromDestinationChain.data = await getInteropBundleData(
+            ctx.interop1Provider,
+            bundles.fromDestinationChain.receipt.hash,
+            0
+        );
         bundles.fromSourceChain.data = await getInteropBundleData(
             ctx.interop1Provider,
             bundles.fromSourceChain.receipt.hash,
@@ -200,14 +205,7 @@ describe('Interop-B Unbundle behavior checks', () => {
 
         // We wait for the last of these bundles to be executable on the destination chain.
         // By then, all of the bundles should be executable.
-        await ctx.awaitInteropBundle(bundles.fromDestinationChain.receipt.hash);
-
-        // Store the bundle data
-        bundles.fromDestinationChain.data = await getInteropBundleData(
-            ctx.interop1Provider,
-            bundles.fromDestinationChain.receipt.hash,
-            0
-        );
+        await ctx.awaitInteropBundle(bundles.unbundlingBundleReceipt.receipt.hash);
     });
 
     test('Cannot unbundle a non-verified bundle', async () => {
@@ -356,7 +354,6 @@ describe('Interop-B Unbundle behavior checks', () => {
 
     test('Can send an unbundling bundle from the source chain', async () => {
         if (ctx.skipInteropTests) return;
-        await ctx.awaitInteropBundle(bundles.unbundlingBundleReceipt.receipt.hash);
         const bundleHash = bundles.fromSourceChain.data!.bundleHash;
 
         const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop2Recipient, ctx.tokenA.l2AddressSecondChain!);
