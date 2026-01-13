@@ -30,12 +30,32 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
         console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
 
         try {
-            await executeCommand(
-                'zkstack',
-                ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
-                chainName,
-                'gateway_migration'
-            );
+            const maxRetries = 3;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    await executeCommand(
+                        'zkstack',
+                        [
+                            'chain',
+                            'gateway',
+                            'migrate-to-gateway',
+                            '--chain',
+                            chainName,
+                            '--gateway-chain-name',
+                            'gateway'
+                        ],
+                        chainName,
+                        'gateway_migration'
+                    );
+                    break;
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        console.error(`❌ Gateway migration failed after ${maxRetries} attempts.`);
+                        throw error;
+                    }
+                    console.log(`⚠️ Gateway migration failed (attempt ${i + 1}/${maxRetries}). Retrying...`);
+                }
+            }
 
             await executeCommand(
                 'zkstack',
