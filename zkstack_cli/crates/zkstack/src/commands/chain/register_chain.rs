@@ -75,6 +75,11 @@ pub async fn register_chain(
     let register_chain_contract = BaseContract::from(IREGISTERZKCHAINABI_ABI.clone());
 
     let ctm = contracts.ctm(chain_config.vm_option);
+    println!("ctm: {:?}", ctm.state_transition_proxy_addr);
+    println!(
+        "chain_config.chain_id: {:?}",
+        chain_config.chain_id.as_u64()
+    );
     let calldata = register_chain_contract
         .encode(
             "run",
@@ -83,7 +88,13 @@ pub async fn register_chain(
                 chain_config.chain_id.as_u64(),
             ),
         )
-        .unwrap();
+        .with_context(|| {
+            format!(
+                "Failed to encode calldata for register_chain. CTM address: {:?}, Chain ID: {}",
+                ctm.state_transition_proxy_addr,
+                chain_config.chain_id.as_u64()
+            )
+        })?;
 
     let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
