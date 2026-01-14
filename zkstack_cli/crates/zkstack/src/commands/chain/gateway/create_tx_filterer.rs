@@ -47,7 +47,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args.clone(),
         &chain_config,
         &chain_deployer_wallet,
-        &ecosystem_config,
         &chain_contracts_config,
         l1_url.clone(),
     )
@@ -79,7 +78,6 @@ pub async fn deploy_gateway_tx_filterer(
     forge_args: ForgeScriptArgs,
     chain_config: &ChainConfig,
     deployer: &Wallet,
-    _ecosystem_config: &zkstack_cli_config::EcosystemConfig,
     contracts_config: &zkstack_cli_config::ContractsConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayTxFiltererOutput> {

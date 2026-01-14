@@ -28,13 +28,12 @@ pub async fn setup_legacy_bridge(
     // Extract parameters
     let bridgehub = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
     let chain_id = chain_config.chain_id.as_u64();
-    let diamond_proxy = contracts_config.l1.diamond_proxy_addr;
 
     // Encode calldata
-    // Note: create2_factory_addr and create2_factory_salt are both read from permanent-values.toml in the Solidity script
+    // Note: create2_factory_addr, create2_factory_salt, and diamond_proxy are all queried in the Solidity script
     let setup_legacy_bridge_contract = BaseContract::from(ISETUPLEGACYBRIDGEABI_ABI.clone());
     let calldata = setup_legacy_bridge_contract
-        .encode("run", (bridgehub, chain_id, diamond_proxy))
+        .encode("run", (bridgehub, chain_id))
         .unwrap();
 
     let mut forge = Forge::new(&foundry_contracts_path)
