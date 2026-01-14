@@ -25,7 +25,7 @@ use zkstack_cli_config::{
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsGenesisConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
+    ChainConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;
@@ -200,7 +200,7 @@ async fn no_governance_prepare(
         chain_id: 0,
     };
     if *upgrade_version != UpgradeVersion::V31InteropB {
-        let gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
+        let _gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
     }
 
     let upgrade_specific_config = match upgrade_version {
@@ -246,8 +246,8 @@ async fn no_governance_prepare(
         ecosystem_upgrade_config_path
     ));
 
-    ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone());
-    ecosystem_upgrade.save(shell, ctm_upgrade_config_path.clone());
+    ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
+    ecosystem_upgrade.save(shell, ctm_upgrade_config_path.clone())?;
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),

@@ -106,14 +106,11 @@ pub async fn run(
     if !eth_is_base_token {
         println!("base token asset id: {:?}", base_token_asset_id);
         let ntv = NativeTokenVaultAbi::new(
-            asset_router.nativeTokenVault().call().await?.into(),
+            asset_router.nativeTokenVault().call().await?,
             provider.clone(),
         );
         let base_token = TestnetBaseTokenAbi::new(
-            ntv.tokenAddress(base_token_asset_id.into())
-                .call()
-                .await?
-                .into(),
+            ntv.tokenAddress(base_token_asset_id.into()).call().await?,
             provider.clone(),
         );
         println!("base token address: {:?}", base_token.address().0);

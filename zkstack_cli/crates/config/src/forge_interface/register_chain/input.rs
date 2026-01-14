@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{L2ChainId, H256};
 
-use crate::{
-    forge_interface::Create2Addresses, traits::FileConfigTrait, ChainConfig, CoreContractsConfig,
-};
+use crate::{forge_interface::Create2Addresses, traits::FileConfigTrait, ChainConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RegisterChainL1Config {

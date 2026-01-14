@@ -14,7 +14,7 @@ use super::{
     messages::{message_for_gateway_migration_progress_state, USE_SET_DA_VALIDATOR_COMMAND_INFO},
 };
 use crate::{
-    abi::{BridgehubAbi, GatewayUtilsAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
+    abi::{BridgehubAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
     admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
     commands::chain::utils::display_admin_script_output,
 };
