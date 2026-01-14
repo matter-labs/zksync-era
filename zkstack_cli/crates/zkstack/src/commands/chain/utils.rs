@@ -66,6 +66,15 @@ pub(crate) async fn send_tx(
 
     spinner.finish();
 
+    if let Some(status) = receipt.status {
+        if status.as_u64() == 0 {
+            anyhow::bail!(
+                "Transaction {:#?} failed (reverted)!",
+                receipt.transaction_hash
+            );
+        }
+    }
+
     logger::info(format!(
         "Transaction {:#?} completed!",
         receipt.transaction_hash

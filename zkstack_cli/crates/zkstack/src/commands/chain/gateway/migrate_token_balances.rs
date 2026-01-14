@@ -310,7 +310,6 @@ pub async fn migrate_token_balances_from_gateway(
         .with_ffi()
         .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast()
-        .with_slow()
         .with_gas_per_pubdata(8000)
         .with_calldata(&calldata);
 
@@ -342,7 +341,6 @@ pub async fn migrate_token_balances_from_gateway(
         .with_ffi()
         .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast()
-        .with_slow()
         .with_gas_per_pubdata(8000)
         .with_calldata(&calldata);
 
