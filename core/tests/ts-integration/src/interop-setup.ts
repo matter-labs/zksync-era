@@ -559,6 +559,7 @@ export class InteropTestContext {
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
 
         await waitUntilBlockExecutedOnGateway(senderUtilityWallet, this.gatewayWallet, txReceipt!.blockNumber);
+        await utils.sleep(1); // Additional delay to avoid flakiness
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
         await waitForInteropRootNonZero(this.interop2Provider, this.interop2RichWallet, getGWBlockNumber(params));
     }
