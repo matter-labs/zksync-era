@@ -274,7 +274,7 @@ pub async fn migrate_token_balances_from_gateway(
 
     // Send all initiate migration transactions
     let mut pending_txs = FuturesUnordered::new();
-    for asset_id in asset_ids {
+    for asset_id in asset_ids.iter().copied() {
         println!(
             "Migrating token balance for assetId: 0x{}",
             hex::encode(asset_id)
@@ -379,18 +379,23 @@ pub async fn migrate_token_balances_from_gateway(
     forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
     forge.run(shell)?;
 
-    // Wait for migration to be finalized
+    // Wait for all tokens to be migrated
     let tracker = Contract::new(
         L2_ASSET_TRACKER_ADDRESS,
         parse_abi(&["function tokenMigratedThisChain(bytes32) view returns (bool)"])?,
         Arc::new(Provider::<Http>::try_from(l2_rpc_url.as_str())?),
     );
-    while !tracker
-        .method::<_, bool>("tokenMigratedThisChain", base_token_asset_id)?
-        .call()
-        .await?
-    {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+    for asset_id in asset_ids.iter().copied() {
+        loop {
+            let asset_is_migrated = tracker
+                .method::<_, bool>("tokenMigratedThisChain", asset_id)?
+                .call()
+                .await?;
+            if asset_is_migrated {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
+        }
     }
 
     println!("Token migration finished");
