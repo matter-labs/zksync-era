@@ -104,34 +104,36 @@ export class ChainHandler {
     async migrateToGateway() {
         // Pause deposits before initiating migration
         await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
-        //await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${this.inner.chainName}`);
         // Wait for all batches to be executed and stop the server
         // Priority queue should be empty as all deposits have already been processed
         await this.inner.waitForAllBatchesToBeExecuted();
         await this.stopServer();
         // We can now reliably migrate to gateway
         await migrateToGatewayIfNeeded(this.inner.chainName);
-
         await startServer(this.inner.chainName);
+
         // We can now define the gateway getters contract
         const gatewayConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'gateway_chain.yaml' });
+        const secretsConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'secrets.yaml' });
         this.gwGettersContract = new zksync.Contract(
             gatewayConfig.diamond_proxy_addr,
             readArtifact('Getters', 'out', 'GettersFacet').abi,
-            this.l2RichWallet
+            new zksync.Provider(secretsConfig.l1.gateway_rpc_url)
         );
     }
 
     async migrateFromGateway() {
         // Pause deposits before initiating migration
         await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
-        // Notify server
-        // Wait for all batches to be executed
+        // Wait for priority queue to be empty and all batches to be executed
+        await this.waitForPriorityQueueToBeEmpty(this.gwGettersContract);
         await this.inner.waitForAllBatchesToBeExecuted();
+        await this.stopServer();
         // Migrate from gateway
         await utils.spawn(
             `zkstack chain gateway migrate-from-gateway --gateway-chain-name gateway --chain ${this.inner.chainName}`
         );
+        await startServer(this.inner.chainName);
     }
 
     async migrateTokenBalancesToGateway() {
@@ -154,18 +156,22 @@ export class ChainHandler {
     }
 
     async migrateTokenBalancesToL1() {
-        const migrationCmd = `zkstack chain gateway migrate-token-balances --to-gateway false --gateway-chain-name gateway --chain ${this.inner.chainName}`;
-
-        // Migration might sometimes fail, so we retry a few times.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                await utils.spawn(migrationCmd);
-                break;
-            } catch (e) {
-                if (attempt === 3) throw e;
-                await utils.sleep(2 * attempt);
-            }
-        }
+        await executeCommand(
+            'zkstack',
+            [
+                'chain',
+                'gateway',
+                'migrate-token-balances',
+                '--to-gateway',
+                'false',
+                '--gateway-chain-name',
+                'gateway',
+                '--chain',
+                this.inner.chainName
+            ],
+            this.inner.chainName,
+            'token_balance_migration_to_l1'
+        );
     }
     //18:13:19
 
@@ -181,6 +187,14 @@ export class ChainHandler {
 
     async deployNativeToken() {
         return await ERC20Handler.deployTokenOnL2(this.l2RichWallet);
+    }
+
+    private async waitForPriorityQueueToBeEmpty(gettersContract: ethers.Contract | zksync.Contract) {
+        let tryCount = 0;
+        while ((await gettersContract.getPriorityQueueSize()) > 0 && tryCount < 100) {
+            tryCount += 1;
+            await zksync.utils.sleep(this.l2RichWallet.provider.pollingInterval);
+        }
     }
 }
 

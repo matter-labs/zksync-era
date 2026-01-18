@@ -158,9 +158,8 @@ if (shouldSkip) {
     });
 
     it('Can migrate token balances from GW', async () => {
-        // TODO: WHY DOES THIS FAIL?
-        // await chainHandler.migrateFromGateway();
-        // await chainHandler.migrateTokenBalancesToL1();
+        await chainHandler.migrateFromGateway();
+        await chainHandler.migrateTokenBalancesToL1();
     });
 
     it('Bridge tokens', async () => {
