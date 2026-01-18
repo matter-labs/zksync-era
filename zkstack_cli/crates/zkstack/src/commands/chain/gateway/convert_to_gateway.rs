@@ -62,6 +62,15 @@ pub struct ConvertToGatewayArgs {
 
     #[clap(long, default_value_t = false)]
     pub only_save_calldata: bool,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Skip applying gateway config overrides (overrides/gateway.yaml).
+    /// By default, the gateway.yaml file is required.
+    #[clap(long, default_value_t = false)]
+    pub no_gateway_overrides: bool,
 }
 
 fn parse_decimal_u256(s: &str) -> Result<U256, String> {
@@ -72,21 +81,27 @@ fn parse_decimal_u256(s: &str) -> Result<U256, String> {
 }
 
 pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = convert_to_gw_args.forge_args;
+    let args = convert_to_gw_args.forge_args.clone();
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match convert_to_gw_args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let chain_contracts_config = chain_config.get_contracts_config()?;
     let contracts_config = chain_config.get_contracts_genesis_config().await?;
-    override_config(
-        shell,
-        &ecosystem_config
-            .default_configs_path_for_ctm(chain_config.vm_option)
-            .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
-        &chain_config,
-    )?;
+
+    if !convert_to_gw_args.no_gateway_overrides {
+        override_config(
+            shell,
+            &ecosystem_config
+                .default_configs_path_for_ctm(chain_config.vm_option)
+                .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
+            &chain_config,
+        )?;
+    }
 
     let chain_deployer_wallet = chain_config
         .get_wallets_config()?
