@@ -8,7 +8,7 @@ import { loadConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
 import { L2_NATIVE_TOKEN_VAULT_ADDRESS } from 'utils/src/constants';
 import * as fs from 'fs';
-import { migrateToGatewayIfNeeded, startServer } from '../src';
+import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
 import { initTestWallet } from '../src/run-integration-tests';
 
 const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
@@ -16,11 +16,11 @@ const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
 const TEST_SUITE_NAME = 'Token Balance Migration Test';
 const pathToHome = path.join(__dirname, '../../../..');
 
-function readArtifact(contractName: string, outFolder: string = 'out') {
+function readArtifact(contractName: string, outFolder: string = 'out', fileName: string = contractName) {
     return JSON.parse(
         fs
             .readFileSync(
-                path.join(pathToHome, `./contracts/l1-contracts/${outFolder}/${contractName}.sol/${contractName}.json`)
+                path.join(pathToHome, `./contracts/l1-contracts/${outFolder}/${contractName}.sol/${fileName}.json`)
             )
             .toString()
     );
@@ -50,7 +50,7 @@ export async function generateChainRichWallet(chainName: string): Promise<zksync
 
     if (contractsConfig.l1.base_token_addr !== zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
         const l1Token = new ethers.Contract(contractsConfig.l1.base_token_addr, ERC20_ABI, richWallet.ethWallet());
-        const mintTx = await l1Token.mint(richWallet.address, RICH_WALLET_L2_BALANCE);
+        const mintTx = await l1Token.mint(richWallet.address, 2n * RICH_WALLET_L2_BALANCE);
         await mintTx.wait();
     }
 
@@ -76,6 +76,8 @@ export class ChainHandler {
     public inner: TestChain;
     public l2RichWallet: zksync.Wallet;
     public l1Ntv: ethers.Contract;
+    public l1GettersContract: ethers.Contract;
+    public gwGettersContract: zksync.Contract;
 
     constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
         this.inner = inner;
@@ -87,6 +89,12 @@ export class ChainHandler {
             readArtifact('L1NativeTokenVault').abi,
             l2RichWallet.ethWallet()
         );
+
+        this.l1GettersContract = new ethers.Contract(
+            contractsConfig.l1.diamond_proxy_addr,
+            readArtifact('Getters', 'out', 'GettersFacet').abi,
+            l2RichWallet.ethWallet()
+        );
     }
 
     async stopServer() {
@@ -94,18 +102,32 @@ export class ChainHandler {
     }
 
     async migrateToGateway() {
-        const pauseDepositsCmd = `zkstack chain pause-deposits --chain ${this.inner.chainName}`;
-        await utils.spawn(pauseDepositsCmd);
+        // Pause deposits before initiating migration
+        await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
+        //await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${this.inner.chainName}`);
+        // Wait for all batches to be executed and stop the server
+        // Priority queue should be empty as all deposits have already been processed
+        await this.inner.waitForAllBatchesToBeExecuted();
         await this.stopServer();
-        // By now, the priority queue should be empty, so we can migrate straight away
+        // We can now reliably migrate to gateway
         await migrateToGatewayIfNeeded(this.inner.chainName);
-        // Restart the server
+
         await startServer(this.inner.chainName);
+        // We can now define the gateway getters contract
+        const gatewayConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'gateway_chain.yaml' });
+        this.gwGettersContract = new zksync.Contract(
+            gatewayConfig.diamond_proxy_addr,
+            readArtifact('Getters', 'out', 'GettersFacet').abi,
+            this.l2RichWallet
+        );
     }
 
     async migrateFromGateway() {
-        const pauseDepositsCmd = `zkstack chain pause-deposits --chain ${this.inner.chainName}`;
-        await utils.spawn(pauseDepositsCmd);
+        // Pause deposits before initiating migration
+        await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
+        // Notify server
+        // Wait for all batches to be executed
+        await this.inner.waitForAllBatchesToBeExecuted();
         // Migrate from gateway
         await utils.spawn(
             `zkstack chain gateway migrate-from-gateway --gateway-chain-name gateway --chain ${this.inner.chainName}`
@@ -113,18 +135,22 @@ export class ChainHandler {
     }
 
     async migrateTokenBalancesToGateway() {
-        const migrationCmd = `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${this.inner.chainName}`;
-
-        // Migration might sometimes fail, so we retry a few times.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                await utils.spawn(migrationCmd);
-                break;
-            } catch (e) {
-                if (attempt === 3) throw e;
-                await utils.sleep(2 * attempt);
-            }
-        }
+        await executeCommand(
+            'zkstack',
+            [
+                'chain',
+                'gateway',
+                'migrate-token-balances',
+                '--to-gateway',
+                'true',
+                '--gateway-chain-name',
+                'gateway',
+                '--chain',
+                this.inner.chainName
+            ],
+            this.inner.chainName,
+            'token_balance_migration_to_gateway'
+        );
     }
 
     async migrateTokenBalancesToL1() {
@@ -145,10 +171,10 @@ export class ChainHandler {
 
     static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
         const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, false);
-        await initTestWallet(testChain.chainName);
 
         // Need to wait for a bit before the server works fully
         await sleep(2000);
+        await initTestWallet(testChain.chainName);
 
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
     }
@@ -189,7 +215,11 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(chainHandler: ChainHandler, amount: bigint = DEFAULT_SMALL_AMOUNT): Promise<bigint> {
+    async deposit(
+        chainHandler: ChainHandler,
+        awaitDeposit = false,
+        amount: bigint = DEFAULT_SMALL_AMOUNT
+    ): Promise<bigint> {
         const depositAmount = amount ?? ethers.parseUnits((Math.floor(Math.random() * 900) + 100).toString(), 'gwei');
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
@@ -200,6 +230,7 @@ export class ERC20Handler {
         await depositTx.wait();
 
         await this.setL2Contract(chainHandler);
+        if (awaitDeposit) await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
         return depositAmount;
     }
@@ -307,7 +338,7 @@ export class WithdrawalHandler {
             throw new Error('Receipt');
         }
 
-        await waitForL2ToL1LogProof(l2Wallet.provider, receipt.blockNumber, this.txHash);
+        await waitForL2ToL1LogProof(l2Wallet, receipt.blockNumber, this.txHash);
 
         await (await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
     }
@@ -323,87 +354,43 @@ export class MigrationHandler {
     async finalizeMigration(l1RichWallet: ethers.Wallet) {}
 }
 
-export class Tester {
-    public runningFee: Map<zksync.types.Address, bigint>;
-    constructor(
-        public ethProvider: ethers.Provider,
-        public ethWallet: ethers.Wallet,
-        public syncWallet: zksync.Wallet,
-        public web3Provider: zksync.Provider
-    ) {
-        this.runningFee = new Map();
-    }
-
-    // prettier-ignore
-    static async init(ethProviderAddress: string, web3JsonRpc: string) {
-        const ethProvider = new ethers.JsonRpcProvider(ethProviderAddress);
-
-        const chainName = process.env.CHAIN_NAME!!;
-        let ethWallet = new ethers.Wallet(getMainWalletPk(chainName));
-
-        ethWallet = ethWallet.connect(ethProvider);
-        const web3Provider = new zksync.Provider(web3JsonRpc);
-        web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
-        const syncWallet = new zksync.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
-
-
-        // Since some tx may be pending on stage, we don't want to get stuck because of it.
-        // In order to not get stuck transactions, we manually cancel all the pending txs.
-        const latestNonce = await ethWallet.getNonce('latest');
-        const pendingNonce = await ethWallet.getNonce('pending');
-        const cancellationTxs = [];
-        for (let nonce = latestNonce; nonce != pendingNonce; nonce++) {
-            // For each transaction to override it, we need to provide greater fee. 
-            // We would manually provide a value high enough (for a testnet) to be both valid
-            // and higher than the previous one. It's OK as we'll only be charged for the bass fee
-            // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
-            const maxFeePerGas = ethers.parseEther("0.00000025"); // 250 gwei
-            const maxPriorityFeePerGas = ethers.parseEther("0.000000005"); // 5 gwei
-            cancellationTxs.push(ethWallet.sendTransaction({ to: ethWallet.address, nonce, maxFeePerGas, maxPriorityFeePerGas }).then((tx) => tx.wait()));
-        }
-        if (cancellationTxs.length > 0) {
-            await Promise.all(cancellationTxs);
-            console.log(`Canceled ${cancellationTxs.length} pending transactions`);
-        }
-
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
-    }
-
-    emptyWallet() {
-        const walletHD = zksync.Wallet.createRandom();
-        return new zksync.Wallet(walletHD.privateKey, this.web3Provider, this.ethProvider);
+async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract, wallet: zksync.Wallet) {
+    let balance;
+    while (true) {
+        balance = await contract.balanceOf(wallet.address);
+        console.log('Waiting for balance to be non-zero', balance);
+        if (balance !== 0n) break;
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
 }
 
-export async function waitUntilBlockFinalized(provider: zksync.Provider, blockNumber: number) {
-    console.log('Waiting for block to be finalized...', blockNumber);
+async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number) {
     let printedBlockNumber = 0;
     while (true) {
-        const block = await provider.getBlock('finalized');
+        const block = await wallet.provider.getBlock('finalized');
+        console.log('block number', block.number, blockNumber);
         if (blockNumber <= block.number) {
             break;
         } else {
             if (printedBlockNumber < block.number) {
-                console.log('Waiting for block to be finalized...', blockNumber, block.number);
-                console.log('time', new Date().toISOString());
                 printedBlockNumber = block.number;
             }
-            await zksync.utils.sleep(provider.pollingInterval);
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
 }
 
-export async function waitForL2ToL1LogProof(provider: zksync.Provider, blockNumber: number, txHash: string) {
+async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
     console.log('waiting for block to be finalized');
     // First, we wait for block to be finalized.
-    await waitUntilBlockFinalized(provider, blockNumber);
+    await waitUntilBlockFinalized(wallet, blockNumber);
 
     console.log('waiting for log proof');
     // Second, we wait for the log proof.
     let i = 0;
-    while ((await provider.getLogProof(txHash)) == null) {
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
         console.log(`Waiting for log proof... ${i}`);
-        await zksync.utils.sleep(provider.pollingInterval);
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
         i++;
     }
 }
