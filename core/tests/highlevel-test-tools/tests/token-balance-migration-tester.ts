@@ -104,8 +104,8 @@ export class ChainHandler {
     async migrateToGateway() {
         // Pause deposits before initiating migration
         await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
-        // Wait for all batches to be executed and stop the server
-        // Priority queue should be empty as all deposits have already been processed
+        // Wait for priority queue to be empty and all batches to be executed
+        await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
         await this.inner.waitForAllBatchesToBeExecuted();
         await this.stopServer();
         // We can now reliably migrate to gateway
@@ -251,7 +251,7 @@ export class ERC20Handler {
 
     async withdraw(amount: bigint = DEFAULT_SMALL_AMOUNT): Promise<WithdrawalHandler> {
         const withdrawAmount = amount ?? ethers.parseUnits((Math.floor(Math.random() * 900) + 100).toString(), 'gwei');
-        await this._registerIfNeeded();
+        await this.registerIfNeeded();
 
         if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < amount) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
@@ -293,7 +293,7 @@ export class ERC20Handler {
         const l1Wallet = wallet.ethWallet();
         const factory = new ethers.ContractFactory(ERC20_ABI, ERC20_EVM_BYTECODE, l1Wallet);
 
-        const props = this._generateRandomTokenProps();
+        const props = this.generateRandomTokenProps();
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
         const l1Contract = new ethers.Contract(await newToken.getAddress(), ERC20_ABI, l1Wallet);
@@ -305,7 +305,7 @@ export class ERC20Handler {
     static async deployTokenOnL2(l2Wallet: zksync.Wallet) {
         const factory = new zksync.ContractFactory(ERC20_ABI, ERC20_ZKEVM_BYTECODE, l2Wallet, 'create');
 
-        const props = this._generateRandomTokenProps();
+        const props = this.generateRandomTokenProps();
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
         const l2Contract = new zksync.Contract(await newToken.getAddress(), ERC20_ABI, l2Wallet);
@@ -314,7 +314,7 @@ export class ERC20Handler {
         return new ERC20Handler(l2Wallet, undefined, l2Contract);
     }
 
-    private async _registerIfNeeded() {
+    private async registerIfNeeded() {
         const l2Ntv = getL2Ntv(this.wallet);
         const l2AssetId = await l2Ntv.assetId(await this.l2Contract!.getAddress());
         if (l2AssetId === ethers.ZeroHash) {
@@ -323,7 +323,7 @@ export class ERC20Handler {
         }
     }
 
-    private static _generateRandomTokenProps() {
+    private static generateRandomTokenProps() {
         const name = 'NAME-' + ethers.hexlify(ethers.randomBytes(4));
         const symbol = 'SYM-' + ethers.hexlify(ethers.randomBytes(4));
         const decimals = Math.min(Math.floor(Math.random() * 18) + 1, 18);
