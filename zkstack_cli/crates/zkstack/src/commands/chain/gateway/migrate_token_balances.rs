@@ -243,10 +243,16 @@ pub async fn migrate_token_balances_from_gateway(
     asset_ids.push(base_token_asset_id);
 
     // Migrate each token
-    let tracker_addr = if to_gateway {
-        L2_ASSET_TRACKER_ADDRESS
+    let (tracker_addr, tracker_abi) = if to_gateway {
+        (
+            L2_ASSET_TRACKER_ADDRESS,
+            crate::abi::IL2ASSETTRACKERABI_ABI.clone(),
+        )
     } else {
-        GW_ASSET_TRACKER_ADDRESS
+        (
+            GW_ASSET_TRACKER_ADDRESS,
+            crate::abi::IGWASSETTRACKERABI_ABI.clone(),
+        )
     };
 
     let rpc_url = if to_gateway { &l2_rpc_url } else { &gw_rpc_url };
@@ -258,11 +264,7 @@ pub async fn migrate_token_balances_from_gateway(
     let mut next_nonce = client
         .get_transaction_count(wallet.address, Some(BlockId::Number(BlockNumber::Pending)))
         .await?;
-    let tracker = Contract::new(
-        tracker_addr,
-        crate::abi::IL2ASSETTRACKERABI_ABI.clone(),
-        client,
-    );
+    let tracker = Contract::new(tracker_addr, tracker_abi, client);
 
     // Send all initiate migration transactions
     let mut pending_txs = FuturesUnordered::new();
