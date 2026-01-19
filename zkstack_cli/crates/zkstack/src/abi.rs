@@ -2,161 +2,176 @@ use ethers::contract::abigen;
 
 abigen!(
     BridgehubAbi,
-    r"[
-    function assetRouter()(address)
-    function settlementLayer(uint256)(uint256)
-    function getZKChain(uint256)(address)
-    function ctmAssetIdToAddress(bytes32)(address)
-    function ctmAssetIdFromChainId(uint256)(bytes32)
-    function baseTokenAssetId(uint256)(bytes32)
-    function chainTypeManager(uint256)(address)
-    function chainAssetHandler() external view returns (address)
-    function owner()(address)
-    function messageRoot()(address)
-]"
+    "../../../contracts/l1-contracts/zkstack-out/L1Bridgehub.sol/L1Bridgehub.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     MessageRootAbi,
-    r"[
-    function getProofData(uint256,uint256,uint256,bytes32,bytes32[]) view returns (tuple(uint256 settlementLayerChainId,uint256 settlementLayerBatchNumber,uint256 settlementLayerBatchRootMask,uint256 batchLeafProofLen,bytes32 batchSettlementRoot,bytes32 chainIdLeaf,uint256 ptr,bool finalProofNode))
-]"
+    "../../../contracts/l1-contracts/zkstack-out/MessageRootBase.sol/MessageRootBase.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     ZkChainAbi,
-    r"[
-    function getDAValidatorPair()(address,uint8)
-    function getAdmin()(address)
-    function getProtocolVersion()(uint256)
-    function getTotalBatchesCommitted()(uint256)
-    function getTotalBatchesVerified()(uint256)
-    function getTotalBatchesExecuted()(uint256)
-    function getPriorityQueueSize()(uint256)
-]"
+    "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     ChainTypeManagerAbi,
-    r"[
-    function validatorTimelock()(address)
-    function validatorTimelockPostV29()(address)
-    function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
-    function serverNotifierAddress()(address)
-    function protocolVersion()(uint256)
-]"
+    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManagerForZKStack.sol/IChainTypeManagerForZKStack.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
-// "validators" is from pre-v29, used for backward compatibility. Will be removed once v29 is released.
 abigen!(
     ValidatorTimelockAbi,
-    r"[
-    function hasRole(uint256 _chainId, bytes32 _role, address _account)(bool)
-    function hasRoleForChainId(uint256 _chainId, bytes32 _role, address _account)(bool)
-    function PRECOMMITTER_ROLE()(bytes32)
-    function COMMITTER_ROLE()(bytes32)
-    function PROVER_ROLE()(bytes32)
-    function EXECUTOR_ROLE()(bytes32)
-    function validators(uint256 _chainId, address _validator)(bool)
-    ]"
+    "../../../contracts/l1-contracts/zkstack-out/IValidatorTimelockForZKStack.sol/IValidatorTimelockForZKStack.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     IChainAssetHandlerAbi,
-    r"[
-    event MigrationStarted(uint256 indexed chainId, bytes32 indexed assetId, uint256 indexed settlementLayerChainId)
-    ]"
+    "../../../contracts/l1-contracts/zkstack-out/IChainAssetHandler.sol/IChainAssetHandler.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
-// These ABIs are defined in JSON format rather than human-readable form because
-// ethers v2 cannot parse complex nested tuple parameters (e.g., tuple[] inside tuple)
-// from the human-readable syntax
-
+// Using IChainTypeManager for the upgradeChainFromVersion function
 abigen!(
     ChainTypeManagerUpgradeFnAbi,
-    r#"[
-      {
-        "type": "function",
-        "name": "upgradeChainFromVersion",
-        "stateMutability": "nonpayable",
-        "inputs": [
-          { "name": "version", "type": "uint256" },
-          {
-            "name": "cfg",
-            "type": "tuple",
-            "components": [
-              {
-                "name": "validators",
-                "type": "tuple[]",
-                "components": [
-                  { "name": "addr", "type": "address" },
-                  { "name": "weight", "type": "uint8" },
-                  { "name": "active", "type": "bool" },
-                  { "name": "selectors", "type": "bytes4[]" }
-                ]
-              },
-              { "name": "admin", "type": "address" },
-              { "name": "data", "type": "bytes" }
-            ]
-          }
-        ],
-        "outputs": []
-      }
-    ]"#
+    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
+// Using IAdmin for the diamondCut function
 abigen!(
     DiamondCutAbi,
-    r#"[
-      {
-        "type": "function",
-        "name": "diamondCut",
-        "stateMutability": "nonpayable",
-        "inputs": [
-          {
-            "name": "_diamondCut",
-            "type": "tuple",
-            "components": [
-              {
-                "name": "facetCuts",
-                "type": "tuple[]",
-                "components": [
-                  { "name": "facet", "type": "address" },
-                  { "name": "action", "type": "uint8" },
-                  { "name": "isFreezable", "type": "bool" },
-                  { "name": "selectors", "type": "bytes4[]" }
-                ]
-              },
-              { "name": "initAddress", "type": "address" },
-              { "name": "initCalldata", "type": "bytes" }
-            ]
-          }
-        ],
-        "outputs": []
-      }
-    ]"#
+    "../../../contracts/l1-contracts/zkstack-out/IAdmin.sol/IAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     ChainAdminOwnableAbi,
-    r#"[
-      {
-        "type": "function",
-        "name": "multicall",
-        "stateMutability": "payable",
-        "inputs": [
-          {
-            "name": "_calls",
-            "type": "tuple[]",
-            "components": [
-              { "name": "target", "type": "address" },
-              { "name": "value",  "type": "uint256" },
-              { "name": "data",   "type": "bytes" }
-            ]
-          },
-          { "name": "_requireSuccess", "type": "bool" }
-        ],
-        "outputs": []
-      }
-    ]"#
+    "../../../contracts/l1-contracts/zkstack-out/IChainAdminOwnable.sol/IChainAdminOwnable.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IRegisterZKChainAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IRegisterZKChain.sol/IRegisterZKChain.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IDeployL2ContractsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployL2Contracts.sol/IDeployL2Contracts.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    DeployPaymasterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/DeployPaymaster.s.sol/DeployPaymaster.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IDeployPaymasterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployPaymaster.sol/IDeployPaymaster.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    GatewayVotePreparationAbi,
+    "../../../contracts/l1-contracts/zkstack-out/GatewayVotePreparation.s.sol/GatewayVotePreparation.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    AdminFunctionsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/AdminFunctions.s.sol/AdminFunctions.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    EnableEvmEmulatorAbi,
+    "../../../contracts/l1-contracts/zkstack-out/EnableEvmEmulator.s.sol/EnableEvmEmulator.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    DeployGatewayTransactionFiltererAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployGatewayTransactionFilterer.sol/IDeployGatewayTransactionFilterer.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    GatewayUtilsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IGatewayUtils.sol/IGatewayUtils.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IDeployCTMAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployCTM.sol/IDeployCTM.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IRegisterCTMAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IRegisterCTM.sol/IRegisterCTM.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IRegisterOnAllChainsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IRegisterOnAllChains.sol/IRegisterOnAllChains.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IGatewayMigrateTokenBalancesAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IGatewayMigrateTokenBalances.sol/IGatewayMigrateTokenBalances.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IFinalizeUpgradeAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IFinalizeUpgrade.sol/IFinalizeUpgrade.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL2NativeTokenVaultAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL2NativeTokenVault.sol/IL2NativeTokenVault.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL2AssetRouterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL2AssetRouter.sol/IL2AssetRouter.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IAssetTrackerBaseAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IAssetTrackerBase.sol/IAssetTrackerBase.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL2AssetTrackerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL2AssetTracker.sol/IL2AssetTracker.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IChainAdminAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    ISetupLegacyBridgeAbi,
+    "../../../contracts/l1-contracts/zkstack-out/ISetupLegacyBridge.sol/ISetupLegacyBridge.json",
+    event_derives(serde::Deserialize, serde::Serialize)
 );
