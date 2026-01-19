@@ -4,7 +4,7 @@
 
 upgrade_version="v28-1-vk"
 
-zkstackup  --local --cargo-features upgrades && zkstack dev clean containers && zkstack up --observability false
+zkstackup  --local && zkstack dev clean containers && zkstack up --observability false
 zkstack dev contracts
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \

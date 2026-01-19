@@ -1,5 +1,5 @@
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract};
+use ethers::contract::BaseContract;
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -18,13 +18,14 @@ use zkstack_cli_config::{
 };
 
 use crate::{
+    abi::{IREGISTERONALLCHAINSABI_ABI, IREGISTERZKCHAINABI_ABI},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
-    static ref REGISTER_CTM_FUNCTIONS: BaseContract =
-        BaseContract::from(parse_abi(&["function run(address ctm)public",]).unwrap(),);
+    static ref REGISTER_ON_ALL_CHAINS_FUNCTIONS: BaseContract =
+        BaseContract::from(IREGISTERONALLCHAINSABI_ABI.clone());
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -70,18 +71,36 @@ pub async fn register_chain(
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts.create2_factory_addr)?;
     deploy_config.save(shell, deploy_config_path)?;
 
+    // Prepare calldata for the register chain script
+    let register_chain_contract = BaseContract::from(IREGISTERZKCHAINABI_ABI.clone());
+
+    let ctm = contracts.ctm(chain_config.vm_option);
+    println!("ctm: {:?}", ctm.state_transition_proxy_addr);
+    println!(
+        "chain_config.chain_id: {:?}",
+        chain_config.chain_id.as_u64()
+    );
+    let calldata = register_chain_contract
+        .encode(
+            "run",
+            (
+                ctm.state_transition_proxy_addr,
+                chain_config.chain_id.as_u64(),
+            ),
+        )
+        .with_context(|| {
+            format!(
+                "Failed to encode calldata for register_chain. CTM address: {:?}, Chain ID: {}",
+                ctm.state_transition_proxy_addr,
+                chain_config.chain_id.as_u64()
+            )
+        })?;
+
     let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_calldata(
-            &REGISTER_CTM_FUNCTIONS.encode(
-                "run",
-                contracts
-                    .ctm(chain_config.vm_option)
-                    .state_transition_proxy_addr,
-            )?,
-        )
-        .with_rpc_url(l1_rpc_url);
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
 
     if broadcast {
         forge = forge.with_broadcast();
