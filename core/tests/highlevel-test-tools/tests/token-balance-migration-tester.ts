@@ -100,15 +100,31 @@ export class ChainHandler {
 
     async stopServer() {
         await this.inner.mainNode.kill();
-        // Need to wait for a bit before the server is killed completely
-        await sleep(2000);
+        // Wait until it's really stopped.
+        const generalConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'general.yaml' });
+        const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
+        let iter = 0;
+        while (iter < 30) {
+            try {
+                console.log(l2NodeUrl);
+                let provider = new zksync.Provider(l2NodeUrl);
+                await provider.getBlockNumber();
+                await sleep(1);
+                iter += 1;
+            } catch (_) {
+                // When exception happens, we assume that server died.
+                return;
+            }
+        }
+        // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
+        throw new Error(`${this.inner.chainName} didn't stop after a kill request`);
     }
 
     async startServer() {
         const newServerHandle = await startServer(this.inner.chainName);
         this.inner.mainNode = newServerHandle;
         // Need to wait for a bit before the server works fully
-        await sleep(2000);
+        await sleep(5000);
     }
 
     async migrateToGateway() {
@@ -129,6 +145,7 @@ export class ChainHandler {
             'gateway_migration'
         );
         // Wait for all batches to be executed
+        await utils.sleep(30);
         await waitForAllBatchesToBeExecuted(this.l1GettersContract);
         // We can now reliably migrate to gateway
         await this.stopServer();
@@ -163,6 +180,7 @@ export class ChainHandler {
             'gateway_migration'
         );
         // Wait for all batches to be executed
+        await utils.sleep(30);
         await waitForAllBatchesToBeExecuted(this.gwGettersContract);
         // We can now reliably migrate from gateway
         await this.stopServer();
@@ -227,7 +245,7 @@ export class ChainHandler {
         // We need to kill the server first to set the gateway RPC URL in secrets.yaml
         await testChain.mainNode.kill();
         // Wait a bit for clean shutdown
-        await sleep(2000);
+        await sleep(5000);
 
         // Set the gateway RPC URL before any migration operations
         const gatewayGeneralConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'general.yaml' });
@@ -240,7 +258,7 @@ export class ChainHandler {
         const newServerHandle = await startServer(testChain.chainName);
         testChain.mainNode = newServerHandle;
         // Need to wait for a bit before the server works fully
-        await sleep(2000);
+        await sleep(5000);
         await initTestWallet(testChain.chainName);
 
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
