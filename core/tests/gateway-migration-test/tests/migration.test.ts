@@ -170,9 +170,18 @@ describe('Migration From/To gateway test', function () {
                 `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         } else {
-            await utils.spawn(
-                `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
-            );
+            for (let i = 0; i < 5; i++) {
+                try {
+                    await utils.spawn(
+                        `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                    );
+                } catch (e) {
+                    console.log(`Migration attempt ${i} failed with error: ${e}`);
+                    continue;
+                }
+                console.log(`Waiting before migrating from gateway... ${i}`);
+                await utils.sleep(2);
+            }
         }
         await mainNodeSpawner.mainNode?.waitForShutdown();
         // Node is already killed, so we simply start the new server
