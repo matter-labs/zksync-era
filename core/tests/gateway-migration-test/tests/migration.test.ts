@@ -170,7 +170,7 @@ describe('Migration From/To gateway test', function () {
                 `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         } else {
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 60; i++) {
                 try {
                     await utils.spawn(
                         `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
