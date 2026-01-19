@@ -1,12 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-    types::U256,
-    utils::hex,
-};
-use lazy_static::lazy_static;
+use ethers::{abi::Address, contract::BaseContract, types::U256, utils::hex};
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -28,7 +22,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::ProverMode;
 
 use crate::{
-    abi::BridgehubAbi,
+    abi::{BridgehubAbi, GATEWAYVOTEPREPARATIONABI_ABI},
     admin_functions::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         AdminScriptMode,
@@ -38,12 +32,6 @@ use crate::{
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
-
-lazy_static! {
-    static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract = BaseContract::from(
-        parse_abi(&["function prepareForGWVoting(uint256 ctmChainId) public"]).unwrap(),
-    );
-}
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ConvertToGatewayArgs {
@@ -223,8 +211,15 @@ pub async fn gateway_vote_preparation(
         GATEWAY_VOTE_PREPARATION.input(&chain_config.path_to_foundry_scripts()),
     )?;
 
-    let calldata = GATEWAY_VOTE_PREPARATION_ABI
-        .encode("prepareForGWVoting", ctm_chain_id)
+    let bridgehub_proxy = chain_config
+        .get_contracts_config()?
+        .ecosystem_contracts
+        .bridgehub_proxy_addr;
+
+    let gateway_vote_preparation_contract =
+        BaseContract::from(GATEWAYVOTEPREPARATIONABI_ABI.clone());
+    let calldata = gateway_vote_preparation_contract
+        .encode("run", (bridgehub_proxy, ctm_chain_id))
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =
