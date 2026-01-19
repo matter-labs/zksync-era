@@ -125,13 +125,31 @@ export class ChainHandler {
     async migrateFromGateway() {
         // Pause deposits before initiating migration
         await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
+        // Notify server
+        await executeCommand(
+            'zkstack',
+            ['chain', 'gateway', 'notify-about-to-gateway-update', '--chain', this.inner.chainName],
+            this.inner.chainName,
+            'gateway_migration'
+        );
         // Wait for priority queue to be empty and all batches to be executed
         await this.waitForPriorityQueueToBeEmpty(this.gwGettersContract);
         await this.inner.waitForAllBatchesToBeExecuted();
         await this.stopServer();
         // Migrate from gateway
-        await utils.spawn(
-            `zkstack chain gateway migrate-from-gateway --gateway-chain-name gateway --chain ${this.inner.chainName}`
+        await executeCommand(
+            'zkstack',
+            [
+                'chain',
+                'gateway',
+                'migrate-from-gateway',
+                '--gateway-chain-name',
+                'gateway',
+                '--chain',
+                this.inner.chainName
+            ],
+            this.inner.chainName,
+            'gateway_migration'
         );
         await startServer(this.inner.chainName);
     }
