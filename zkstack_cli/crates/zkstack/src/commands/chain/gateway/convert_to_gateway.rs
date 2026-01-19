@@ -91,7 +91,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
     };
     let chain_contracts_config = chain_config.get_contracts_config()?;
-    let contracts_config = chain_config.get_contracts_genesis_config().await?;
 
     if !convert_to_gw_args.no_gateway_overrides {
         override_config(
@@ -168,7 +167,6 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         &chain_deployer_wallet,
         GatewayVotePreparationConfig::new(
             &ecosystem_config.get_initial_deployment_config().unwrap(),
-            &contracts_config,
             &chain_contracts_config,
             ecosystem_config.era_chain_id.as_u64().into(),
             chain_config.chain_id.as_u64().into(),
@@ -176,7 +174,7 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
             ecosystem_config.prover_version == ProverMode::NoProofs,
             chain_config.vm_option.is_zksync_os(),
             chain_deployer_wallet.address,
-        )?,
+        ),
         l1_url.clone(),
         convert_to_gw_args
             .ctm_chain_id
