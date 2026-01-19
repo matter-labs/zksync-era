@@ -535,7 +535,7 @@ impl MempoolIO {
     }
 
     fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
-        // Starting from v30 we have to use commitment schema instead of address
+        // Starting from v31 we have to use commitment schema instead of address
         let pubdata_params = match (
             protocol_version.is_pre_medium_interop(),
             self.l2_da_validator_address,

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
+use ethers::{contract::BaseContract, types::Address};
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
@@ -10,6 +10,7 @@ use zkstack_cli_common::{
 use zkstack_cli_config::forge_interface::script_params::ENABLE_EVM_EMULATOR_PARAMS;
 
 use crate::{
+    abi::ENABLEEVMEMULATORABI_ABI,
     messages::MSG_ENABLING_EVM_EMULATOR,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -23,10 +24,7 @@ pub async fn enable_evm_emulator(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let enable_evm_emulator_contract = BaseContract::from(
-        parse_abi(&["function chainAllowEvmEmulation(address chainAdmin, address target) public"])
-            .unwrap(),
-    );
+    let enable_evm_emulator_contract = BaseContract::from(ENABLEEVMEMULATORABI_ABI.clone());
     let calldata = enable_evm_emulator_contract
         .encode("chainAllowEvmEmulation", (admin, target_address))
         .unwrap();

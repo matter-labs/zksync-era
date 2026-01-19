@@ -53,7 +53,7 @@ cd .. && era-cacher/use-new-era.sh && cd zksync-working
 # `cd ..` and then `cd zksync-working`.
 # Sometimes, the console may not reflect the changes made to the codebase.
 
-zkstackup --local --cargo-features upgrades
+zkstackup --local
 zkstack dev contracts
 
 cd contracts

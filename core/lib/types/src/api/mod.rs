@@ -205,7 +205,7 @@ pub enum InteropMode {
     // Proof-based interop on Gateway, meaning the Merkle proof hashes to Gateway's MessageRoot
     ProofBasedGateway,
     // Proof-based interop on L1, meaning the Merkle proof hashes to L1's MessageRoot
-    // ProofBasedL1, // todo: v30
+    // ProofBasedL1, // todo: v31
 }
 
 impl Serialize for InteropMode {
