@@ -8,6 +8,7 @@ import { loadConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
 import { L2_NATIVE_TOKEN_VAULT_ADDRESS } from 'utils/src/constants';
 import * as fs from 'fs';
+import * as yaml from 'js-yaml';
 import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
 import { initTestWallet } from '../src/run-integration-tests';
 
@@ -99,20 +100,42 @@ export class ChainHandler {
 
     async stopServer() {
         await this.inner.mainNode.kill();
+        // Need to wait for a bit before the server is killed completely
+        await sleep(2000);
+    }
+
+    async startServer() {
+        const newServerHandle = await startServer(this.inner.chainName);
+        this.inner.mainNode = newServerHandle;
+        // Need to wait for a bit before the server works fully
+        await sleep(2000);
     }
 
     async migrateToGateway() {
         // Pause deposits before initiating migration
-        await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
-        // Wait for priority queue to be empty and all batches to be executed
+        await executeCommand(
+            'zkstack',
+            ['chain', 'pause-deposits', '--chain', this.inner.chainName],
+            this.inner.chainName,
+            'gateway_migration'
+        );
+        // Wait for priority queue to be empty
         await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-        await this.inner.waitForAllBatchesToBeExecuted();
-        await this.stopServer();
+        // Notify server
+        await executeCommand(
+            'zkstack',
+            ['chain', 'gateway', 'notify-about-to-gateway-update', '--chain', this.inner.chainName],
+            this.inner.chainName,
+            'gateway_migration'
+        );
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted(this.l1GettersContract);
         // We can now reliably migrate to gateway
+        await this.stopServer();
         await migrateToGatewayIfNeeded(this.inner.chainName);
-        await startServer(this.inner.chainName);
+        await this.startServer();
 
-        // We can now define the gateway getters contract
+        // After migration, we can define the gateway getters contract
         const gatewayConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'gateway_chain.yaml' });
         const secretsConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'secrets.yaml' });
         this.gwGettersContract = new zksync.Contract(
@@ -124,19 +147,25 @@ export class ChainHandler {
 
     async migrateFromGateway() {
         // Pause deposits before initiating migration
-        await utils.spawn(`zkstack chain pause-deposits --chain ${this.inner.chainName}`);
-        // Notify server
         await executeCommand(
             'zkstack',
-            ['chain', 'gateway', 'notify-about-to-gateway-update', '--chain', this.inner.chainName],
+            ['chain', 'pause-deposits', '--chain', this.inner.chainName],
             this.inner.chainName,
             'gateway_migration'
         );
-        // Wait for priority queue to be empty and all batches to be executed
-        await this.waitForPriorityQueueToBeEmpty(this.gwGettersContract);
-        await this.inner.waitForAllBatchesToBeExecuted();
+        // Wait for priority queue to be empty
+        await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
+        // Notify server
+        await executeCommand(
+            'zkstack',
+            ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
+            this.inner.chainName,
+            'gateway_migration'
+        );
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted(this.gwGettersContract);
+        // We can now reliably migrate from gateway
         await this.stopServer();
-        // Migrate from gateway
         await executeCommand(
             'zkstack',
             [
@@ -151,7 +180,7 @@ export class ChainHandler {
             this.inner.chainName,
             'gateway_migration'
         );
-        await startServer(this.inner.chainName);
+        await this.startServer();
     }
 
     async migrateTokenBalancesToGateway() {
@@ -169,7 +198,7 @@ export class ChainHandler {
                 this.inner.chainName
             ],
             this.inner.chainName,
-            'token_balance_migration_to_gateway'
+            'token_balance_migration'
         );
     }
 
@@ -188,14 +217,28 @@ export class ChainHandler {
                 this.inner.chainName
             ],
             this.inner.chainName,
-            'token_balance_migration_to_l1'
+            'token_balance_migration'
         );
     }
-    //18:13:19
 
     static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
         const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, false);
 
+        // We need to kill the server first to set the gateway RPC URL in secrets.yaml
+        await testChain.mainNode.kill();
+        // Wait a bit for clean shutdown
+        await sleep(2000);
+
+        // Set the gateway RPC URL before any migration operations
+        const gatewayGeneralConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'general.yaml' });
+        const secretsPath = path.join(pathToHome, 'chains', testChain.chainName, 'configs', 'secrets.yaml');
+        const secretsConfig = loadConfig({ pathToHome, chain: testChain.chainName, config: 'secrets.yaml' });
+        secretsConfig.l1.gateway_rpc_url = gatewayGeneralConfig.api.web3_json_rpc.http_url;
+        fs.writeFileSync(secretsPath, yaml.dump(secretsConfig));
+
+        // Restart the server
+        const newServerHandle = await startServer(testChain.chainName);
+        testChain.mainNode = newServerHandle;
         // Need to wait for a bit before the server works fully
         await sleep(2000);
         await initTestWallet(testChain.chainName);
@@ -220,7 +263,7 @@ export class ERC20Handler {
     public wallet: zksync.Wallet;
     public l1Contract: ethers.Contract | undefined;
     public l2Contract: zksync.Contract | undefined;
-    _cachedAssetId: string | null = null;
+    cachedAssetId: string | null = null;
 
     constructor(
         wallet: zksync.Wallet,
@@ -233,7 +276,7 @@ export class ERC20Handler {
     }
 
     async assetId(chainHandler?: ChainHandler): Promise<string> {
-        if (this._cachedAssetId) return this._cachedAssetId;
+        if (this.cachedAssetId) return this.cachedAssetId;
 
         let assetId: string;
         if (this.l1Contract) {
@@ -243,7 +286,7 @@ export class ERC20Handler {
             const l2Ntv = getL2Ntv(this.wallet);
             assetId = await l2Ntv.assetId(await this.l2Contract!.getAddress());
         }
-        this._cachedAssetId = assetId;
+        this.cachedAssetId = assetId;
         return assetId;
     }
 
@@ -424,5 +467,17 @@ async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number,
         console.log(`Waiting for log proof... ${i}`);
         await zksync.utils.sleep(wallet.provider.pollingInterval);
         i++;
+    }
+}
+
+async function waitForAllBatchesToBeExecuted(gettersContract: ethers.Contract | zksync.Contract) {
+    let tryCount = 0;
+    let totalBatchesCommitted = await gettersContract.getTotalBatchesCommitted();
+    let totalBatchesExecuted = await gettersContract.getTotalBatchesExecuted();
+    while (totalBatchesCommitted !== totalBatchesExecuted && tryCount < 100) {
+        tryCount += 1;
+        await utils.sleep(1);
+        totalBatchesCommitted = await gettersContract.getTotalBatchesCommitted();
+        totalBatchesExecuted = await gettersContract.getTotalBatchesExecuted();
     }
 }
