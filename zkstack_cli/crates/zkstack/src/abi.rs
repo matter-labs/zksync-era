@@ -12,6 +12,14 @@ abigen!(
     function chainTypeManager(uint256)(address)
     function chainAssetHandler() external view returns (address)
     function owner()(address)
+    function messageRoot()(address)
+]"
+);
+
+abigen!(
+    MessageRootAbi,
+    r"[
+    function getProofData(uint256,uint256,uint256,bytes32,bytes32[]) view returns (tuple(uint256 settlementLayerChainId,uint256 settlementLayerBatchNumber,uint256 settlementLayerBatchRootMask,uint256 batchLeafProofLen,bytes32 batchSettlementRoot,bytes32 chainIdLeaf,uint256 ptr,bool finalProofNode))
 ]"
 );
 
