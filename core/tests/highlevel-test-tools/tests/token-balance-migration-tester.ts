@@ -142,22 +142,8 @@ export class ChainHandler {
         );
         // Wait for priority queue to be empty
         await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-        // Notify server
-        await executeCommand(
-            'zkstack',
-            ['chain', 'gateway', 'notify-about-to-gateway-update', '--chain', this.inner.chainName],
-            this.inner.chainName,
-            'gateway_migration'
-        );
         // Wait for all batches to be executed
-        const tx = await this.l2RichWallet.sendTransaction({
-            to: this.l2RichWallet.address,
-            value: 1n,
-            type: 0
-        });
-        await tx.wait();
-        await utils.sleep(30);
-        await waitForAllBatchesToBeExecuted(this.l1GettersContract);
+        await this.inner.waitForAllBatchesToBeExecuted();
         // We can now reliably migrate to gateway
         removeErrorListeners(this.inner.mainNode.process!);
         await migrateToGatewayIfNeeded(this.inner.chainName);
@@ -184,6 +170,8 @@ export class ChainHandler {
         );
         // Wait for priority queue to be empty
         await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
+        // Wait for all batches to be executed
+        await this.inner.waitForAllBatchesToBeExecuted();
         // Notify server
         await executeCommand(
             'zkstack',
@@ -191,17 +179,8 @@ export class ChainHandler {
             this.inner.chainName,
             'gateway_migration'
         );
-        // Wait for all batches to be executed
-        const tx = await this.l2RichWallet.sendTransaction({
-            to: this.l2RichWallet.address,
-            value: 1n,
-            type: 0
-        });
-        await tx.wait();
-        await utils.sleep(30);
-        await waitForAllBatchesToBeExecuted(this.gwGettersContract);
         // We can now reliably migrate from gateway
-        removeErrorListeners(this.inner.mainNode.process!);
+        await this.stopServer();
         await executeCommand(
             'zkstack',
             [
