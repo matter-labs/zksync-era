@@ -150,6 +150,12 @@ export class ChainHandler {
             'gateway_migration'
         );
         // Wait for all batches to be executed
+        const tx = await this.l2RichWallet.sendTransaction({
+            to: this.l2RichWallet.address,
+            value: 1n,
+            type: 0
+        });
+        await tx.wait();
         await utils.sleep(30);
         await waitForAllBatchesToBeExecuted(this.l1GettersContract);
         // We can now reliably migrate to gateway
@@ -186,6 +192,12 @@ export class ChainHandler {
             'gateway_migration'
         );
         // Wait for all batches to be executed
+        const tx = await this.l2RichWallet.sendTransaction({
+            to: this.l2RichWallet.address,
+            value: 1n,
+            type: 0
+        });
+        await tx.wait();
         await utils.sleep(30);
         await waitForAllBatchesToBeExecuted(this.gwGettersContract);
         // We can now reliably migrate from gateway
