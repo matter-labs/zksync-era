@@ -13,14 +13,14 @@ abigen!(
 );
 
 abigen!(
-    ChainTypeManagerAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManagerForZKStack.sol/IChainTypeManagerForZKStack.json",
+    IChainTypeManagerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     ValidatorTimelockAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IValidatorTimelockForZKStack.sol/IValidatorTimelockForZKStack.json",
+    "../../../contracts/l1-contracts/zkstack-out/IValidatorTimelock.sol/IValidatorTimelock.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -63,20 +63,14 @@ abigen!(
 );
 
 abigen!(
-    DeployPaymasterAbi,
-    "../../../contracts/l1-contracts/zkstack-out/DeployPaymaster.s.sol/DeployPaymaster.json",
-    event_derives(serde::Deserialize, serde::Serialize)
-);
-
-abigen!(
     IDeployPaymasterAbi,
     "../../../contracts/l1-contracts/zkstack-out/IDeployPaymaster.sol/IDeployPaymaster.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
-    GatewayVotePreparationAbi,
-    "../../../contracts/l1-contracts/zkstack-out/GatewayVotePreparation.s.sol/GatewayVotePreparation.json",
+    IGatewayVotePreparationAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IGatewayVotePreparation.sol/IGatewayVotePreparation.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -87,8 +81,8 @@ abigen!(
 );
 
 abigen!(
-    EnableEvmEmulatorAbi,
-    "../../../contracts/l1-contracts/zkstack-out/EnableEvmEmulator.s.sol/EnableEvmEmulator.json",
+    IEnableEvmEmulatorAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IEnableEvmEmulator.sol/IEnableEvmEmulator.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
