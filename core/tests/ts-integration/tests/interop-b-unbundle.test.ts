@@ -5,7 +5,7 @@
 
 import * as zksync from 'zksync-ethers';
 import { InteropTestContext } from '../src/interop-setup';
-import { formatEvmV1Address, waitUntilBlockFinalized } from '../src/helpers';
+import { formatEvmV1Address, waitForL2ToL1LogProof } from '../src/helpers';
 import { ArtifactInteropHandler, L2_ASSET_ROUTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS } from '../src/constants';
 import { TransactionReceipt } from 'ethers';
 import { BundleStatus, CallStatus, getInteropBundleData, Output } from '../src/temp-sdk';
@@ -156,8 +156,12 @@ describe('Interop-B Unbundle behavior checks', () => {
             };
         }
 
-        // We need to wait for the block to be finalized for the bundle data to be available
-        await waitUntilBlockFinalized(ctx.interop1Wallet, bundles.fromSourceChain.receipt.blockNumber);
+        // We need to wait for bundle data to be available
+        await waitForL2ToL1LogProof(
+            ctx.interop1Wallet,
+            bundles.fromSourceChain.receipt.blockNumber,
+            bundles.fromSourceChain.receipt.hash
+        );
 
         // Store the bundle data
         bundles.fromDestinationChain.data = await getInteropBundleData(
