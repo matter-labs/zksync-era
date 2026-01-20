@@ -10,6 +10,7 @@ import { L2_NATIVE_TOKEN_VAULT_ADDRESS } from 'utils/src/constants';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
+import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
 const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
@@ -100,6 +101,17 @@ export class ChainHandler {
 
     async stopServer() {
         await this.inner.mainNode.kill();
+        await this.waitForShutdown();
+    }
+
+    async startServer() {
+        const newServerHandle = await startServer(this.inner.chainName);
+        this.inner.mainNode = newServerHandle;
+        // Need to wait for a bit before the server works fully
+        await sleep(5000);
+    }
+
+    async waitForShutdown() {
         // Wait until it's really stopped.
         const generalConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'general.yaml' });
         const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
@@ -118,13 +130,6 @@ export class ChainHandler {
         }
         // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
         throw new Error(`${this.inner.chainName} didn't stop after a kill request`);
-    }
-
-    async startServer() {
-        const newServerHandle = await startServer(this.inner.chainName);
-        this.inner.mainNode = newServerHandle;
-        // Need to wait for a bit before the server works fully
-        await sleep(5000);
     }
 
     async migrateToGateway() {
@@ -148,8 +153,9 @@ export class ChainHandler {
         await utils.sleep(30);
         await waitForAllBatchesToBeExecuted(this.l1GettersContract);
         // We can now reliably migrate to gateway
-        await this.stopServer();
+        removeErrorListeners(this.inner.mainNode.process!);
         await migrateToGatewayIfNeeded(this.inner.chainName);
+        await this.waitForShutdown();
         await this.startServer();
 
         // After migration, we can define the gateway getters contract
@@ -183,7 +189,7 @@ export class ChainHandler {
         await utils.sleep(30);
         await waitForAllBatchesToBeExecuted(this.gwGettersContract);
         // We can now reliably migrate from gateway
-        await this.stopServer();
+        removeErrorListeners(this.inner.mainNode.process!);
         await executeCommand(
             'zkstack',
             [
@@ -198,6 +204,7 @@ export class ChainHandler {
             this.inner.chainName,
             'gateway_migration'
         );
+        await this.waitForShutdown();
         await this.startServer();
     }
 
