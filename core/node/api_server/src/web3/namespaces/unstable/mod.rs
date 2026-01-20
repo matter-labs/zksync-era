@@ -250,26 +250,26 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        let all_batches_committed = if let Some(latest_processed_l1_batch_number) = connection
+        let all_batches_with_interop_roots_committed = match connection
             .interop_root_dal()
             .get_latest_processed_interop_root_l1_batch_number()
             .await
             .map_err(DalError::generalize)?
         {
-            if let Some(tx) = connection
-                .eth_sender_dal()
-                .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                    L1BatchNumber::from(latest_processed_l1_batch_number),
-                    L1BatchAggregatedActionType::Commit,
-                )
-                .await
-            {
-                tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized
-            } else {
-                false
+            None => true,
+            Some(latest_processed_l1_batch_number) => {
+                match connection
+                    .eth_sender_dal()
+                    .get_last_sent_successfully_eth_tx_by_batch_and_op(
+                        L1BatchNumber::from(latest_processed_l1_batch_number),
+                        L1BatchAggregatedActionType::Commit,
+                    )
+                    .await
+                {
+                    Some(tx) => tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized,
+                    None => false,
+                }
             }
-        } else {
-            true
         };
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state.api_config.settlement_layer,
@@ -280,7 +280,7 @@ impl UnstableNamespace {
             latest_notification,
             state,
             settlement_layer: self.state.api_config.settlement_layer,
-            wait_for_batches_to_be_committed: !all_batches_committed,
+            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
         })
     }
 
