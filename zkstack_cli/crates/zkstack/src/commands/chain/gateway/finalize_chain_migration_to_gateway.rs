@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{parse_abi, Address},
+    abi::Address,
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
     types::Bytes,
@@ -31,6 +31,7 @@ use zksync_web3_decl::client::{Client, L2};
 
 use super::migrate_to_gateway::get_migrate_to_gateway_context;
 use crate::{
+    abi::GATEWAYUTILSABI_ABI,
     admin_functions::AdminScriptMode,
     commands::chain::{
         gateway::{
@@ -65,12 +66,8 @@ pub struct FinalizeChainMigrationToGatewayArgs {
 }
 
 lazy_static! {
-    static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrateChainToGateway(address bridgehubAddr, bytes memory gatewayDiamondCutData, uint256 migratingChainId, uint256 gatewayChainId, bytes32 l2TxHash, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes32[] memory merkleProof, uint8 txStatus) public",
-        ])
-        .unwrap(),
-    );
+    static ref GATEWAY_UTILS_INTERFACE: BaseContract =
+        BaseContract::from(GATEWAYUTILSABI_ABI.clone());
 }
 
 impl FinalizeChainMigrationToGatewayArgs {
@@ -246,7 +243,7 @@ pub async fn run_inner(
     Ok(())
 }
 
-const LOOK_WAITING_TIME_MS: u64 = 1600;
+const LOOK_WAITING_TIME_MS: u64 = 5000;
 
 async fn await_for_migration_to_finalize(
     gateway_provider: &Client<L2>,
@@ -263,7 +260,7 @@ async fn await_for_migration_to_finalize(
     )
     .await?
     {
-        println!("Waiting for migration to finalize...");
+        println!("Waiting for migration to finalize... {}", hash);
         tokio::time::sleep(tokio::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
     }
 

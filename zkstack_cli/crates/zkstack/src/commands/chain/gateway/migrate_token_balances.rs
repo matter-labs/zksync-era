@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{parse_abi, Address},
+    abi::Address,
     contract::{BaseContract, Contract},
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
@@ -38,34 +38,22 @@ use zksync_system_constants::{
 use zksync_types::{L2ChainId, H256};
 
 use crate::{
+    abi::{
+        BridgehubAbi, MessageRootAbi, ZkChainAbi, IGATEWAYMIGRATETOKENBALANCESABI_ABI,
+        IL2ASSETROUTERABI_ABI, IL2NATIVETOKENVAULTABI_ABI,
+    },
     commands::dev::commands::{rich_account, rich_account::args::RichAccountArgs},
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
-    static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrationOnL1(bool, address, uint256, uint256, string, string, bool, bytes32[]) public",
-            "function checkAllMigrated(uint256, string) public",
-        ])
-            .unwrap(),
-    );
-    static ref MESSAGE_ROOT_ABI: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function getProofData(uint256,uint256,uint256,bytes32,bytes32[]) view returns (tuple(uint256 settlementLayerChainId,uint256 settlementLayerBatchNumber,uint256 settlementLayerBatchRootMask,uint256 batchLeafProofLen,bytes32 batchSettlementRoot,bytes32 chainIdLeaf,uint256 ptr,bool finalProofNode))"
-        ]).unwrap()
-    );
-    static ref BRIDGEHUB_ABI: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function getZKChain(uint256) view returns (address)"
-        ]).unwrap()
-    );
-    static ref GETTERS_ABI: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function getTotalBatchesExecuted() view returns (uint256)"
-        ]).unwrap()
-    );
+    static ref GATEWAY_MIGRATE_TOKEN_BALANCES_FUNCTIONS: BaseContract =
+        BaseContract::from(IGATEWAYMIGRATETOKENBALANCESABI_ABI.clone());
+    static ref L2_NTV_FUNCTIONS: BaseContract =
+        BaseContract::from(IL2NATIVETOKENVAULTABI_ABI.clone());
+    static ref L2_ASSET_ROUTER_FUNCTIONS: BaseContract =
+        BaseContract::from(IL2ASSETROUTERABI_ABI.clone());
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -213,24 +201,21 @@ pub async fn migrate_token_balances_from_gateway(
 
     let mut tx_hashes = Vec::new();
     let mut asset_ids = Vec::new();
-    let rpc_url = if to_gateway { &l2_rpc_url } else { &gw_rpc_url };
-    let provider = Provider::<Http>::try_from(rpc_url.as_str())?;
-    let chain_id = provider.get_chainid().await?.as_u64();
+    let l2_provider = Provider::<Http>::try_from(l2_rpc_url.as_str())?;
+    let l2_chain_id = l2_provider.get_chainid().await?.as_u64();
 
-    let signer = wallet.private_key.clone().unwrap().with_chain_id(chain_id);
-    let client = Arc::new(SignerMiddleware::new(provider.clone(), signer));
-    let mut next_nonce = client
-        .get_transaction_count(wallet.address, Some(BlockId::Number(BlockNumber::Pending)))
-        .await?;
+    let l2_signer = wallet
+        .private_key
+        .clone()
+        .unwrap()
+        .with_chain_id(l2_chain_id);
+    let l2_client = Arc::new(SignerMiddleware::new(l2_provider.clone(), l2_signer));
 
     // Get bridged token count and asset IDs
     let ntv = Contract::new(
         L2_NATIVE_TOKEN_VAULT_ADDRESS,
-        parse_abi(&[
-            "function bridgedTokensCount() view returns (uint256)",
-            "function bridgedTokens(uint256) view returns (bytes32)",
-        ])?,
-        client.clone(),
+        L2_NTV_FUNCTIONS.abi().clone(),
+        l2_client.clone(),
     );
     let count: U256 = ntv
         .method::<_, U256>("bridgedTokensCount", ())?
@@ -248,8 +233,8 @@ pub async fn migrate_token_balances_from_gateway(
     // Add base token asset ID
     let router = Contract::new(
         L2_ASSET_ROUTER_ADDRESS,
-        parse_abi(&["function BASE_TOKEN_ASSET_ID() view returns (bytes32)"])?,
-        Arc::new(provider),
+        L2_ASSET_ROUTER_FUNCTIONS.abi().clone(),
+        Arc::new(l2_provider),
     );
     let base_token_asset_id = router
         .method::<_, [u8; 32]>("BASE_TOKEN_ASSET_ID", ())?
@@ -258,19 +243,28 @@ pub async fn migrate_token_balances_from_gateway(
     asset_ids.push(base_token_asset_id);
 
     // Migrate each token
-    let (tracker_addr, method_sig) = if to_gateway {
+    let (tracker_addr, tracker_abi) = if to_gateway {
         (
             L2_ASSET_TRACKER_ADDRESS,
-            "function initiateL1ToGatewayMigrationOnL2(bytes32)",
+            crate::abi::IL2ASSETTRACKERABI_ABI.clone(),
         )
     } else {
         (
             GW_ASSET_TRACKER_ADDRESS,
-            "function initiateGatewayToL1MigrationOnGateway(uint256,bytes32)",
+            crate::abi::IGWASSETTRACKERABI_ABI.clone(),
         )
     };
 
-    let tracker = Contract::new(tracker_addr, parse_abi(&[method_sig])?, client);
+    let rpc_url = if to_gateway { &l2_rpc_url } else { &gw_rpc_url };
+    let provider = Provider::<Http>::try_from(rpc_url.as_str())?;
+    let chain_id = provider.get_chainid().await?.as_u64();
+
+    let signer = wallet.private_key.clone().unwrap().with_chain_id(chain_id);
+    let client = Arc::new(SignerMiddleware::new(provider.clone(), signer));
+    let mut next_nonce = client
+        .get_transaction_count(wallet.address, Some(BlockId::Number(BlockNumber::Pending)))
+        .await?;
+    let tracker = Contract::new(tracker_addr, tracker_abi, client);
 
     // Send all initiate migration transactions
     let mut pending_txs = FuturesUnordered::new();
@@ -382,8 +376,8 @@ pub async fn migrate_token_balances_from_gateway(
     // Wait for all tokens to be migrated
     let tracker = Contract::new(
         L2_ASSET_TRACKER_ADDRESS,
-        parse_abi(&["function tokenMigratedThisChain(bytes32) view returns (bool)"])?,
-        Arc::new(Provider::<Http>::try_from(l2_rpc_url.as_str())?),
+        crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
+        l2_client.clone(),
     );
     for asset_id in asset_ids.iter().copied() {
         loop {
@@ -447,27 +441,9 @@ async fn wait_for_migration_ready(
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
     let zk_client = get_zk_client(l2_or_gw_rpc, source_chain_id)?;
 
-    let bridgehub = Contract::new(
-        l1_bridgehub_addr,
-        BRIDGEHUB_ABI.clone(),
-        l1_provider.clone(),
-    );
-    let message_root_addr: Address = {
-        let bridgehub_base = Contract::new(
-            l1_bridgehub_addr,
-            parse_abi(&["function messageRoot() view returns (address)"])?,
-            l1_provider.clone(),
-        );
-        bridgehub_base
-            .method::<_, Address>("messageRoot", ())?
-            .call()
-            .await?
-    };
-    let message_root = Contract::new(
-        message_root_addr,
-        MESSAGE_ROOT_ABI.clone(),
-        l1_provider.clone(),
-    );
+    let bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
+    let message_root_addr = bridgehub.message_root().call().await?;
+    let message_root = MessageRootAbi::new(message_root_addr, l1_provider.clone());
 
     let mut finalize_params = Vec::new();
     for tx_hash in tx_hashes {
@@ -498,21 +474,19 @@ async fn wait_for_migration_ready(
             continue;
         }
 
-        type ProofData = (U256, U256, U256, U256, H256, H256, U256, bool);
-        let (settlement_chain_id, settlement_batch_number, ..) = message_root
-            .method::<_, ProofData>(
-                "getProofData",
-                (
-                    U256::from(source_chain_id),
-                    U256::from(params.l2_batch_number.as_u64()),
-                    U256::from(params.l2_message_index.as_u64()),
-                    H256::zero(),
-                    params.proof.proof.clone(),
-                ),
-            )?
+        let proof_data = message_root
+            .get_proof_data(
+                source_chain_id.into(),
+                params.l2_batch_number.as_u64().into(),
+                params.l2_message_index.as_u64().into(),
+                H256::zero().into(),
+                params.proof.proof.iter().map(|h| (*h).into()).collect(),
+            )
             .call()
             .await?;
 
+        let settlement_chain_id = proof_data.settlement_layer_chain_id;
+        let settlement_batch_number = proof_data.settlement_layer_batch_number;
         let (chain_id, batch_number) = if settlement_chain_id != U256::from(source_chain_id)
             && !settlement_chain_id.is_zero()
         {
@@ -529,13 +503,10 @@ async fn wait_for_migration_ready(
             .method("getZKChain", U256::from(chain_id))?
             .call()
             .await?;
-        let getters = Contract::new(zk_chain_addr, GETTERS_ABI.clone(), l1_provider.clone());
+        let getters = ZkChainAbi::new(zk_chain_addr, l1_provider.clone());
 
         loop {
-            let total_batches_executed: U256 = getters
-                .method("getTotalBatchesExecuted", ())?
-                .call()
-                .await?;
+            let total_batches_executed: U256 = getters.get_total_batches_executed().call().await?;
             if total_batches_executed >= U256::from(batch_number) {
                 break;
             }

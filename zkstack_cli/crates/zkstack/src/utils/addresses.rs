@@ -6,7 +6,7 @@ use zksync_basic_types::{
 };
 use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
 
-use crate::{abi::ChainTypeManagerAbi, utils::protocol_version::get_minor_protocol_version};
+use crate::{abi::IChainTypeManagerAbi, utils::protocol_version::get_minor_protocol_version};
 
 pub(crate) fn apply_l1_to_l2_alias(addr: Address) -> Address {
     let offset: Address = "1111000000000000000000000000000000001111".parse().unwrap();
@@ -22,7 +22,7 @@ pub(crate) async fn precompute_chain_address_on_gateway(
     new_l2_admin: Address,
     protocol_version: U256,
     gateway_diamond_cut: Vec<u8>,
-    gw_ctm: ChainTypeManagerAbi<Provider<ethers::providers::Http>>,
+    gw_ctm: IChainTypeManagerAbi<Provider<ethers::providers::Http>>,
 ) -> anyhow::Result<Address> {
     let ctm_data = encode(&[
         Token::FixedBytes(base_token_asset_id.0.into()),

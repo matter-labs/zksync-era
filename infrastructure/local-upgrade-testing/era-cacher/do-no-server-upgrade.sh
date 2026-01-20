@@ -2,13 +2,13 @@
 
 # era-cacher/use-new-era.sh && cd zksync-working
 
-upgrade_version="v29-interop-a-ff"
+upgrade_version="v31-interop-b"
 # "v28-1-vk"
-upgrade_file_extension="v29"
+upgrade_file_extension="v31"
 # v28-1-zk-os
 
 
-zkstackup  --local --cargo-features upgrades && zkstack dev clean containers && zkstack up --observability false
+zkstackup  --local && zkstack dev clean containers && zkstack up --observability false
 zkstack dev contracts
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
