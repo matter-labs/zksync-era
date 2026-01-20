@@ -250,12 +250,11 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        let wait_for_batches_to_be_committed = if let Some(latest_processed_l1_batch_number) =
-            connection
-                .interop_root_dal()
-                .get_latest_processed_interop_root_l1_batch_number()
-                .await
-                .map_err(DalError::generalize)?
+        let all_batches_committed = if let Some(latest_processed_l1_batch_number) = connection
+            .interop_root_dal()
+            .get_latest_processed_interop_root_l1_batch_number()
+            .await
+            .map_err(DalError::generalize)?
         {
             if let Some(tx) = connection
                 .eth_sender_dal()
@@ -270,7 +269,7 @@ impl UnstableNamespace {
                 false
             }
         } else {
-            false
+            true
         };
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state.api_config.settlement_layer,
@@ -281,7 +280,7 @@ impl UnstableNamespace {
             latest_notification,
             state,
             settlement_layer: self.state.api_config.settlement_layer,
-            wait_for_batches_to_be_committed,
+            wait_for_batches_to_be_committed: !all_batches_committed,
         })
     }
 
