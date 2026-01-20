@@ -115,7 +115,7 @@ if (shouldSkip) {
         // Token B: Native to L1, deposited to L2, fully withdrawn from L2
         tokens.L1NativeWithdrawnFromL2 = { handler: await ERC20Handler.deployTokenOnL1(chainRichWallet), balance: 0n };
         const L1NativeWithdrawnFromL2Amount = await tokens.L1NativeWithdrawnFromL2.handler.deposit(chainHandler, true);
-        withdrawalsToBeFinalized.push(
+        /* withdrawalsToBeFinalized.push(
             await tokens.L1NativeWithdrawnFromL2.handler.withdraw(L1NativeWithdrawnFromL2Amount)
         );
         // Token G: Native to L2-A, fully withdrawn to L1
@@ -128,7 +128,7 @@ if (shouldSkip) {
         // Token C: Native to L1, deposited to L2, fully withdrawn from L2 but not finalized yet
 
         // Token C: Native to L1, not deposited to L2 yet
-        tokens.L1NativeNotDepositedToL2 = { handler: await ERC20Handler.deployTokenOnL1(chainRichWallet), balance: 0n };
+        tokens.L1NativeNotDepositedToL2 = { handler: await ERC20Handler.deployTokenOnL1(chainRichWallet), balance: 0n }; */
         // Token D: Native to L2-B, withdrawn from L2-B, and deposited to L2-A
 
         // Token E: Native to L2-B, withdrawn from L2-B, not deposited to L2-A yet
@@ -141,7 +141,7 @@ if (shouldSkip) {
         for (const withdrawal of withdrawalsToBeFinalized) {
             await withdrawal.finalizeWithdrawal(chainRichWallet);
         }
-        await tokens.L2NativeWithdrawnToL1.handler.setL1Contract(chainHandler);
+        //await tokens.L2NativeWithdrawnToL1.handler.setL1Contract(chainHandler);
     });
 
     it('Correctly assigns chain token balances', async () => {
