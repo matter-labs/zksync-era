@@ -1,8 +1,7 @@
 use clap::Subcommand;
-use gateway_common::MigrationDirection;
+use gateway_common::{MigrationDirection, NotifyServerArgs};
 use grant_gateway_whitelist::GrantGatewayWhitelistCalldataArgs;
 use xshell::Shell;
-use zkstack_cli_common::forge::ForgeScriptArgs;
 
 mod constants;
 pub(crate) mod convert_to_gateway;
@@ -41,8 +40,8 @@ pub enum GatewayComamnds {
     ),
     /// Migrate chain from gateway
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
-    NotifyAboutToGatewayUpdate(ForgeScriptArgs),
-    NotifyAboutFromGatewayUpdate(ForgeScriptArgs),
+    NotifyAboutToGatewayUpdate(NotifyServerArgs),
+    NotifyAboutFromGatewayUpdate(NotifyServerArgs),
     MigrateTokenBalances(migrate_token_balances::MigrateTokenBalancesArgs),
 }
 

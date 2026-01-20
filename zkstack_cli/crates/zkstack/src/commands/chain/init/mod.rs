@@ -16,6 +16,7 @@ use crate::{
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
+            da_configs::{ValidiumType, ValidiumTypeInternal},
             InitArgs, InitArgsFinal,
         },
         common::{distribute_eth, mint_base_token},
@@ -170,6 +171,13 @@ pub async fn init(
     }
 
     if !init_args.skip_priority_txs {
+        // Convert ValidiumType to ValidiumTypeInternal to avoid reading from general config
+        let validium_type = init_args.validium_config.as_ref().map(|v| match v {
+            ValidiumType::NoDA => ValidiumTypeInternal::NoDA,
+            ValidiumType::Avail(_) => ValidiumTypeInternal::Avail,
+            ValidiumType::EigenDA => ValidiumTypeInternal::EigenDA,
+        });
+
         send_priority_txs(
             shell,
             chain_config,
@@ -178,6 +186,7 @@ pub async fn init(
             &init_args.forge_args,
             init_args.l1_rpc_url.clone(),
             init_args.deploy_paymaster,
+            validium_type,
         )
         .await?;
     }
@@ -226,6 +235,7 @@ pub async fn send_priority_txs(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
     deploy_paymaster: bool,
+    validium_type: Option<ValidiumTypeInternal>,
 ) -> anyhow::Result<()> {
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
     deploy_l2_contracts::deploy_l2_contracts(
@@ -240,7 +250,7 @@ pub async fn send_priority_txs(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    let l1_da_validator_addr = get_l1_da_validator(chain_config)
+    let l1_da_validator_addr = get_l1_da_validator(chain_config, validium_type.clone())
         .await
         .context("l1_da_validator_addr")?;
     let commitment_scheme =
@@ -250,7 +260,13 @@ pub async fn send_priority_txs(
                 VMOption::ZKSyncOsVM => L2DACommitmentScheme::BlobsZksyncOS,
             }
         } else {
-            let da_client_type = chain_config.get_general_config().await?.da_client_type();
+            // For Validium, use CLI param if provided, otherwise read from general config
+            let da_client_type = match validium_type {
+                Some(ValidiumTypeInternal::NoDA) => None,
+                Some(ValidiumTypeInternal::Avail) => Some("Avail".to_string()),
+                Some(ValidiumTypeInternal::EigenDA) => Some("Eigen".to_string()),
+                None => chain_config.get_general_config().await?.da_client_type(),
+            };
 
             match da_client_type.as_deref() {
                 Some("Avail") | Some("Eigen") => L2DACommitmentScheme::PubdataKeccak256,
@@ -327,7 +343,10 @@ pub async fn send_priority_txs(
     Ok(())
 }
 
-pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
+pub(crate) async fn get_l1_da_validator(
+    chain_config: &ChainConfig,
+    validium_type: Option<ValidiumTypeInternal>,
+) -> anyhow::Result<Address> {
     let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
@@ -336,8 +355,15 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
             VMOption::ZKSyncOsVM => contracts_config.l1.blobs_zksync_os_l1_da_validator_addr,
         },
         L1BatchCommitmentMode::Validium => {
-            let general_config = chain_config.get_general_config().await?;
-            match general_config.da_client_type().as_deref() {
+            // Use CLI param if provided, otherwise read from general config
+            let da_client_type = match validium_type {
+                Some(ValidiumTypeInternal::NoDA) => None,
+                Some(ValidiumTypeInternal::Avail) => Some("Avail".to_string()),
+                Some(ValidiumTypeInternal::EigenDA) => Some("Eigen".to_string()),
+                None => chain_config.get_general_config().await?.da_client_type(),
+            };
+
+            match da_client_type.as_deref() {
                 Some("Avail") => contracts_config.l1.avail_l1_da_validator_addr,
                 Some("NoDA") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
                 Some("Eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1

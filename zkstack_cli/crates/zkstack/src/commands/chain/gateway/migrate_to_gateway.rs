@@ -33,6 +33,14 @@ pub struct MigrateToGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
 }
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -51,8 +59,14 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("Gateway config not present")?;
 
     logger::info("Migrating the chain to the Gateway...");
-    let context =
-        get_migrate_to_gateway_context(&chain_config, &gateway_chain_config, false).await?;
+    let context = get_migrate_to_gateway_context(
+        &chain_config,
+        &gateway_chain_config,
+        false,
+        args.l1_rpc_url,
+        args.gateway_rpc_url,
+    )
+    .await?;
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
@@ -117,19 +131,29 @@ pub(crate) async fn get_migrate_to_gateway_context(
     chain_config: &ChainConfig,
     gateway_chain_config: &ChainConfig,
     skip_pre_migration_checks: bool,
+    l1_rpc_url: Option<String>,
+    gateway_rpc_url: Option<String>,
 ) -> anyhow::Result<MigrateToGatewayContext> {
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
+
+    let gw_rpc_url = match gateway_rpc_url {
+        Some(url) => url,
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
 
     let genesis_config = chain_config.get_genesis_config().await?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-
-    let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.l2_http_url()?;
 
     let is_rollup = matches!(
         genesis_config.l1_batch_commitment_mode()?,
