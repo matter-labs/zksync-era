@@ -30,7 +30,7 @@ use super::{
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, IChainAssetHandlerAbi, ZkChainAbi},
+    abi::{BridgehubAbi, IChainAssetHandlerAbi, IChainTypeManagerAbi, ZkChainAbi},
     commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
 };
@@ -189,7 +189,7 @@ pub(crate) async fn get_gateway_migration_state(
     let l1_bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
 
     let l1_ctm_address = l1_bridgehub.chain_type_manager(l2_chain_id.into()).await?;
-    let l1_ctm = ChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
+    let l1_ctm = IChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
 
     let current_sl_from_l1 = l1_bridgehub
         .settlement_layer(l2_chain_id.into())
@@ -377,7 +377,7 @@ pub(crate) async fn get_gateway_migration_state(
 
 async fn get_latest_notification_event_from_l1(
     l2_chain_id: u64,
-    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
+    l1_ctm: IChainTypeManagerAbi<Provider<Http>>,
     l1_provider: Arc<Provider<Http>>,
 ) -> anyhow::Result<Option<GatewayMigrationNotification>> {
     logger::info("Searching for the latest migration notifications...");

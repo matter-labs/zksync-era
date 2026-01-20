@@ -22,7 +22,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::ProverMode;
 
 use crate::{
-    abi::{BridgehubAbi, GATEWAYVOTEPREPARATIONABI_ABI},
+    abi::{BridgehubAbi, IGATEWAYVOTEPREPARATIONABI_ABI},
     admin_functions::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         AdminScriptMode,
@@ -217,7 +217,7 @@ pub async fn gateway_vote_preparation(
         .bridgehub_proxy_addr;
 
     let gateway_vote_preparation_contract =
-        BaseContract::from(GATEWAYVOTEPREPARATIONABI_ABI.clone());
+        BaseContract::from(IGATEWAYVOTEPREPARATIONABI_ABI.clone());
     let calldata = gateway_vote_preparation_contract
         .encode("run", (bridgehub_proxy, ctm_chain_id))
         .unwrap();
