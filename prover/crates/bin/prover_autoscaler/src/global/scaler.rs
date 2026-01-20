@@ -286,26 +286,30 @@ impl<K: Key> Scaler<K> {
             return false;
         }
 
-        if let Ok(mut guard) = self.aggressive_mode_active.lock() {
-            if let Some(activated_at) = *guard {
-                // Check if we got enough Running resources and should start cooldown
-                if total_running >= queue {
-                    // Check if cooldown period has passed
-                    if Utc::now() >= activated_at + self.config.aggressive_mode_cooldown {
-                        *guard = None;
-                        tracing::info!(
-                            "Aggressive mode cooldown complete after having sufficient resources, returning to normal priority"
-                        );
-                        return false;
-                    }
-                    // Still in cooldown period with enough resources - stay in aggressive mode
-                    return true;
+        let mut guard = self
+            .aggressive_mode_active
+            .lock()
+            .expect("aggressive_mode_active mutex is poisoned");
+        // Check if already in aggressive mode
+        if let Some(activated_at) = *guard {
+            // Check if we got enough Running resources and should start cooldown
+            if total_running >= queue {
+                // Check if cooldown period has passed
+                if Utc::now() >= activated_at + self.config.aggressive_mode_cooldown {
+                    *guard = None;
+                    tracing::info!(
+                        "Aggressive mode cooldown complete after having sufficient resources, returning to normal priority"
+                    );
+                    return false;
                 }
-
-                // Don't have enough resources yet - stay in aggressive mode regardless of time
+                // Still in cooldown period with enough resources - stay in aggressive mode
                 return true;
             }
+
+            // Don't have enough resources yet - stay in aggressive mode regardless of time
+            return true;
         }
+        drop(guard);
 
         if pools.is_empty() {
             return false;
@@ -338,25 +342,31 @@ impl<K: Key> Scaler<K> {
     /// Activate aggressive mode and record timestamp when resources are first obtained
     fn start_aggressive_cooldown(&self, total_running: usize, queue: usize) {
         if total_running >= queue {
-            if let Ok(mut guard) = self.aggressive_mode_active.lock() {
-                if guard.is_none() {
-                    // First time getting enough resources - start cooldown timer
-                    *guard = Some(Utc::now());
-                    tracing::info!(
-                        "Resources obtained (Running: {}, Queue: {}), starting cooldown period",
-                        total_running,
-                        queue
-                    );
-                } else {
-                    // Already in cooldown, just log that we still have resources
-                    tracing::debug!(
-                        "Still have sufficient resources (Running: {}, Queue: {}), cooldown continues",
-                        total_running,
-                        queue
-                    );
-                }
+            let mut guard = self
+                .aggressive_mode_active
+                .lock()
+                .expect("aggressive_mode_active mutex is poisoned");
+            if guard.is_none() {
+                // First time getting enough resources - start cooldown timer
+                *guard = Some(Utc::now());
+                tracing::info!(
+                    "Resources obtained (Running: {}, Queue: {}), starting cooldown period",
+                    total_running,
+                    queue
+                );
+            } else {
+                // Already in cooldown, just log that we still have resources
+                tracing::debug!(
+                    "Still have sufficient resources (Running: {}, Queue: {}), cooldown continues",
+                    total_running,
+                    queue
+                );
             }
-        } else if let Ok(guard) = self.aggressive_mode_active.lock() {
+        } else {
+            let guard = self
+                .aggressive_mode_active
+                .lock()
+                .expect("aggressive_mode_active mutex is poisoned");
             if guard.is_none() {
                 // Entering aggressive mode for the first time - no cooldown yet
                 tracing::warn!("AGGRESSIVE MODE ACTIVATED - need more resources");
@@ -426,8 +436,8 @@ impl<K: Key> Scaler<K> {
         sorted_clusters: Vec<Pool<K>>,
     ) -> HashMap<PoolKey<K>, usize> {
         let mut pods: HashMap<PoolKey<K>, usize> = HashMap::new();
-        let mut total_running: i64 = 0;
-        let mut total_capacity: i64 = 0; // Running + Pending
+        let mut total_running: usize = 0;
+        let mut total_capacity: usize = 0; // Running + Pending
 
         // Step 1: Count existing pods
         for cluster in &sorted_clusters {
@@ -437,13 +447,13 @@ impl<K: Key> Scaler<K> {
 
             if total_in_pool > 0 {
                 pods.insert(cluster.to_key(), total_in_pool);
-                total_running += self.pods_to_speed(cluster.key, running) as i64;
-                total_capacity += self.pods_to_speed(cluster.key, total_in_pool) as i64;
+                total_running += self.pods_to_speed(cluster.key, running);
+                total_capacity += self.pods_to_speed(cluster.key, total_in_pool);
             }
         }
 
         // Log current state and handle cooldown timer
-        self.start_aggressive_cooldown(total_running as usize, queue);
+        self.start_aggressive_cooldown(total_running, queue);
 
         tracing::info!(
             "Aggressive mode: Running capacity = {}, Total capacity (Running+Pending) = {}, Queue = {}",
@@ -453,8 +463,8 @@ impl<K: Key> Scaler<K> {
         );
 
         // Step 2: Check if we got enough Running pods
-        if total_running >= queue as i64 {
-            tracing::warn!("SUCCESS! Got enough Running pods.");
+        if total_running >= queue {
+            tracing::warn!("SUCCESS! Got enough Running pods. Removing all Pending pods and scaling down excess Running pods.");
 
             // Remove ALL pending pods, keep only Running
             pods.clear();
@@ -465,14 +475,14 @@ impl<K: Key> Scaler<K> {
                 }
             }
 
-            self.remove_excess_pods(&mut pods, &sorted_clusters, total_running, queue);
+            self.remove_excess_pods(&mut pods, &sorted_clusters, total_running as i64, queue);
 
             return pods;
         }
 
         // Step 3: Still need more capacity - add missing pods to ALL pools
-        if total_capacity < queue as i64 {
-            let missing_capacity = queue - total_capacity as usize;
+        if total_capacity < queue {
+            let missing_capacity = queue - total_capacity;
 
             tracing::warn!(
                 "Need {} more capacity. Adding pods to ALL available pools simultaneously!",
