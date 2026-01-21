@@ -462,7 +462,8 @@ export class InteropTestContext {
     async directCallAttrs(amount: bigint, executionAddress?: string) {
         return [
             await this.erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [amount]),
-            await this.executionAddressAttr(executionAddress)
+            await this.executionAddressAttr(executionAddress),
+            this.erc7786AttributeDummy.interface.encodeFunctionData('useFixedFee', [false])
         ];
     }
 
@@ -472,7 +473,8 @@ export class InteropTestContext {
     async indirectCallAttrs(callValue: bigint = 0n, executionAddress?: string) {
         return [
             await this.erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [callValue]),
-            await this.executionAddressAttr(executionAddress)
+            await this.executionAddressAttr(executionAddress),
+            this.erc7786AttributeDummy.interface.encodeFunctionData('useFixedFee', [false])
         ];
     }
 
@@ -515,6 +517,10 @@ export class InteropTestContext {
             );
         }
 
+        // Note: The InteropCenter will automatically set the unbundler address to msg.sender if not provided
+        // We only need to provide the required useFixedFee attribute
+        bundleAttributes.push(this.erc7786AttributeDummy.interface.encodeFunctionData('useFixedFee', [false]));
+
         const txFinalizeReceipt = (
             await this.interop1InteropCenter.sendBundle(
                 formatEvmV1Chain((await this.interop2Provider.getNetwork()).chainId),
@@ -523,6 +529,7 @@ export class InteropTestContext {
                 overrides
             )
         ).wait();
+
         return txFinalizeReceipt;
     }
 

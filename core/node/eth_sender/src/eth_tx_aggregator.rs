@@ -1129,6 +1129,10 @@ impl EthTxAggregator {
                         } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
                         } else {
+                            // Add settlement fee payer for post-v29 interop execute
+                            let settlement_fee_payer =
+                                self.config.settlement_fee_payer.unwrap_or(Address::zero());
+                            args.push(Token::Address(settlement_fee_payer));
                             &self.functions.post_v29_interop_execute
                         };
 
